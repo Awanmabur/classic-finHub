@@ -1,0 +1,11 @@
+<section class="view show">
+  <div class="grid3">
+    <div class="stat"><div class="k">Tenants</div><div class="v"><%= data.tenants.length %></div><div class="s"><span class="dot"></span> Database-per-tenant workspaces</div></div>
+    <div class="stat"><div class="k">Appointments</div><div class="v"><%= data.appointments.length %></div><div class="s"><span class="dot warn"></span> Appointment-first onboarding</div></div>
+    <div class="stat"><div class="k">Pending requests</div><div class="v"><%= data.moduleRequests.filter(r => r.status === 'pending').length %></div><div class="s"><span class="dot bad"></span> Module approvals</div></div>
+  </div>
+  <div class="grid" style="margin-top:14px">
+    <section class="card"><div class="cardHead"><b>Recent tenants</b><span>Trial, active, suspended</span></div><div class="cardBody tableWrap"><table><thead><tr><th>Tenant</th><th>Plan</th><th>Status</th><th>Modules</th><th></th></tr></thead><tbody><% data.tenants.forEach(t => { %><tr data-search-row><td><b><%= t.name %></b><br><span class="tiny"><%= t.dbName %></span></td><td><%= t.plan %></td><td><span class="tag"><%= t.status %></span></td><td><%= t.enabledModules.length %></td><td><a class="btn" href="/platform/tenants/<%= t.id %>">Open</a></td></tr><% }) %></tbody></table></div></section>
+    <section class="card"><div class="cardHead"><b>Module marketplace signals</b><span>Requests and addon demand</span></div><div class="cardBody txList"><% data.moduleRequests.forEach(r => { %><div class="tx" data-search-row><div class="txLeft"><span class="txDot warn"></span><div class="txMeta"><b><%= r.moduleName %></b><span><%= r.tenantName %> — <%= r.reason %></span></div></div><div class="txAmt"><%= r.status %></div></div><% }) %></div></section>
+  </div>
+</section>

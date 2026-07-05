@@ -1,0 +1,14 @@
+<section class="services">
+  <div class="section-head reveal"><p>Module marketplace</p><h2>Sell core modules and addons by plan, trial, or manual approval.</h2></div>
+  <div class="pricing-grid">
+    <% modules.forEach(module => { %>
+      <article class="price-card reveal">
+        <span class="plan-badge"><%= module.isCore ? 'Core module' : 'Addon' %></span>
+        <h3><i class="fa-solid <%= module.icon %>"></i> <%= module.name %></h3>
+        <p><%= module.description %></p>
+        <h4>$<%= module.priceMonthly %><small>/month</small></h4>
+        <a href="/book-appointment" class="btn btn-dark">Discuss module</a>
+      </article>
+    <% }) %>
+  </div>
+</section>

@@ -1,0 +1,16 @@
+<section class="contact-section" id="book">
+  <div class="section-head reveal"><p>Appointment first</p><h2>Book the virtual presentation before a tenant is created.</h2></div>
+  <div class="contact-grid reveal">
+    <form class="contact-card" method="post" action="/book-appointment">
+      <label>Business name<input name="businessName" required placeholder="Your finance business" /></label>
+      <label>Contact name<input name="contactName" required placeholder="Owner or manager name" /></label>
+      <label>Email<input type="email" name="email" required placeholder="owner@example.com" /></label>
+      <label>Phone<input name="phone" required placeholder="+256…" /></label>
+      <label>Preferred date<input type="date" name="preferredDate" /></label>
+      <label>Modules<textarea name="modules" placeholder="Money transfer, mobile money, banking, forex…"></textarea></label>
+      <label>Notes<textarea name="notes" placeholder="Tell us about branches, currencies, volumes, or trial needs."></textarea></label>
+      <button class="btn btn-dark" type="submit">Submit appointment request</button>
+    </form>
+    <div class="contact-card"><h3>Onboarding flow</h3><p>Platform subadmin confirms the appointment, sends a virtual meeting link, presents the platform, helps choose plan/modules/trial, creates tenant, and invites the tenant owner.</p><a href="/platform/appointments" class="btn btn-light">Open appointment dashboard</a></div>
+  </div>
+</section>

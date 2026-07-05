@@ -1,0 +1,11 @@
+<section class="view show">
+  <div class="grid3">
+    <div class="stat"><div class="k">Today volume</div><div class="v"><%= money('UGX', data.transactions.reduce((s,t)=>s+(t.currency==='UGX'?Number(t.amount):0),0)) %></div><div class="s"><span class="dot"></span>Across enabled modules</div></div>
+    <div class="stat"><div class="k">Receipts</div><div class="v"><%= data.receipts.length %></div><div class="s"><span class="dot warn"></span>Printable and auditable</div></div>
+    <div class="stat"><div class="k">Open branches</div><div class="v"><%= data.branches.filter(b=>b.status==='open').length %></div><div class="s"><span class="dot"></span>Day session controls</div></div>
+  </div>
+  <div class="grid" style="margin-top:14px">
+    <section class="card"><div class="cardHead"><b>Recent activity</b><span>Money transfer, mobile money, banking, forex</span></div><div class="cardBody txList"><% data.transactions.forEach(t => { %><div class="tx" data-search-row><div class="txLeft"><span class="txDot good"></span><div class="txMeta"><b><%= t.module %> • <%= t.reference %></b><span><%= t.customer %> — <%= t.status %></span></div></div><div class="txAmt"><%= money(t.currency, t.amount) %><small>fee <%= money(t.currency, t.fee) %></small></div></div><% }) %></div></section>
+    <section class="card"><div class="cardHead"><b>Branch cash controls</b><span>Open/close daily</span></div><div class="cardBody"><div class="summary"><% data.branches.forEach(b => { %><div class="sumRow" data-search-row><span><%= b.name %> (<%= b.status %>)</span><b><%= money(b.currency, b.expectedCash) %></b></div><% }) %></div></div></section>
+  </div>
+</section>

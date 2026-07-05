@@ -1,0 +1,3 @@
+<% if (flash) { %>
+  <div class="reportBlock" style="margin-bottom:14px;border-color:<%= flash.type === 'bad' ? 'rgba(239,68,68,.22)' : 'rgba(22,163,74,.22)' %>"><strong><%= flash.message %></strong></div>
+<% } %>

@@ -1,0 +1,9 @@
+<section class="services" id="services">
+  <div class="section-head reveal"><p>Platform modules</p><h2>Core finance operations and addons from one registry.</h2></div>
+  <div class="service-board">
+    <article class="service-tile large reveal"><img src="/images/fx.jpg" alt="Finance operations" /><div><span>Operations hub</span><h3>One dashboard for four finance service lines</h3><p>Run money transfer, mobile money, banking, and forex with dynamic module access, receipts, cash impact, reports, analytics, and audit logs.</p></div></article>
+    <% modules.forEach((module, index) => { %>
+      <article class="service-tile reveal delay-<%= Math.min(index,3) %>"><i class="fa-solid <%= module.icon %>"></i><span><%= module.category %></span><h3><%= module.name %></h3><p><%= module.description %></p></article>
+    <% }) %>
+  </div>
+</section>

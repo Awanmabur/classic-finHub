@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ClassicFin Hub | Multi-Tenant Finance SaaS for Money Transfer, Mobile Money, Banking & Forex</title>
+  <meta name="description" content="ClassicFin Hub is a multi-tenant finance SaaS platform for money transfer, mobile money, banking, forex, reporting, analytics, billing, tenant onboarding, roles, and secure operations." />
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div class="cursor-glow" aria-hidden="true"></div>
+
+  <aside class="side-rail" aria-label="Desktop navigation">
+    <a class="rail-logo logo-mark" href="#home" aria-label="ClassicFin Hub home">
+      <img src="/images/classicfinhub-logo.png" alt="ClassicFin Hub logo" />
+    </a>
+    <nav>
+      <a href="#home" class="active"><i class="fa-solid fa-house"></i><span>Home</span></a>
+      <a href="#services"><i class="fa-solid fa-table-cells-large"></i><span>Modules</span></a>
+      <a href="#book"><i class="fa-solid fa-calendar-check"></i><span>Book</span></a>
+      <a href="#company"><i class="fa-solid fa-building-columns"></i><span>Company</span></a>
+      <a href="#pricing"><i class="fa-solid fa-tags"></i><span>Pricing</span></a>
+      <a href="/price-compare"><i class="fa-solid fa-scale-balanced"></i><span>Compare</span></a>
+      <a href="#contact"><i class="fa-solid fa-message"></i><span>Contact</span></a>
+      <div class="rail-auth">
+        <a href="/signin" aria-label="Sign in"><i class="fa-solid fa-right-to-bracket"></i><span>Sign in</span></a>
+        <a href="/signup" aria-label="Request setup"><i class="fa-solid fa-user-plus"></i><span>Request setup</span></a>
+      </div>
+    </nav>
+    <button class="rail-theme" id="themeToggle" aria-label="Toggle theme"><i class="fa-solid fa-moon"></i></button>
+  </aside>
+
+  <header class="mobile-header">
+    <a class="mobile-brand" href="#home"><span class="mobile-logo"><img src="/images/classicfinhub-logo.png" alt="ClassicFin Hub logo" /></span><strong>ClassicFin Hub</strong></a>
+    <div class="mobile-auth-actions"><a href="/signin">Sign in</a><a href="/signup">Request setup</a></div><button class="mobile-menu-btn" id="menuBtn" aria-label="Open menu"><i class="fa-solid fa-bars-staggered"></i></button>
+  </header>
+
+  <nav class="mobile-panel" id="mobilePanel" aria-label="Mobile navigation">
+    <a href="#home">Home</a>
+    <a href="#services">Modules</a>
+    <a href="#book">Book demo</a>
+    <a href="#company">Company</a>
+    <a href="#pricing">Pricing</a>
+    <a href="/price-compare">Price compare</a>
+    <a href="#contact">Contact</a>
+    <a href="/tenant/dashboard">Dashboard demo</a>
+    <a href="/signin">Sign in</a>
+    <a href="/signup">Request setup</a>
+    <button id="themeToggleMobile"><i class="fa-solid fa-moon"></i> Change theme</button>
+  </nav>
+
+  <main class="page smooth-page">
+    <section class="hero" id="home">
+      <div class="hero-copy reveal">
+        <p class="kicker">Classic Technologies • Finance SaaS platform</p>
+        <h1>Launch a secure finance SaaS workspace for transfer, mobile money, banking, and forex operations.</h1>
+        <p class="lead">ClassicFin Hub helps finance businesses sell, serve, control, and report better with tenant-isolated workspaces, module-based plans, branch cash controls, customer records, receipts, analytics, billing, and audit-ready operations.</p>
+        <div class="hero-actions">
+          <a href="#book" class="btn btn-dark">Book platform demo</a>
+          <a href="#pricing" class="btn btn-light">See pricing</a>
+          <a href="/signup" class="btn btn-soft">Request tenant setup</a>
+        </div>
+      </div>
+
+      <div class="hero-dashboard reveal delay-1" aria-label="Platform module summary dashboard">
+        <div class="dash-top">
+          <span>Tenant operations desk</span>
+          <strong>Module-ready</strong>
+        </div>
+        <div class="money-card">
+          <div>
+            <span>Core modules</span>
+            <h2>4-in-1</h2>
+          </div>
+          <i class="fa-solid fa-layer-group"></i>
+        </div>
+        <div class="dash-list">
+          <div><i class="fa-solid fa-check"></i><span>Money transfer + PIN payout</span><b>Core</b></div>
+          <div><i class="fa-solid fa-check"></i><span>Mobile money + banking</span><b>Active</b></div>
+          <div><i class="fa-solid fa-check"></i><span>Forex rates, stock, reports</span><b>Ready</b></div>
+        </div>
+        <div class="dash-bottom">
+          <img src="/images/bg.jpg" alt="ClassicFin Hub dashboard preview" />
+          <p>Appointment-led onboarding, trial support, plans, permissions, notifications, receipts, and audit-ready daily reports.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="quick-strip reveal" aria-label="ClassicFin Hub highlights">
+      <div><span>01</span><strong>Database-per-tenant</strong><p>Each tenant operates in its own database, storage path, users, roles, permissions, branches, and audit logs.</p></div>
+      <div><span>02</span><strong>Module-based SaaS</strong><p>Enable money transfer, mobile money, banking, forex, notifications, reports, analytics, and addons by plan.</p></div>
+      <div><span>03</span><strong>Appointment first</strong><p>Business owners book a demo, choose modules and trial terms, then receive an invited tenant owner setup flow.</p></div>
+    </section>
+
+
+
+    <section class="marketing-info" id="why">
+      <div class="section-head reveal">
+        <p>Why ClassicFin Hub</p>
+        <h2>A stronger sales story for serious finance operators.</h2>
+      </div>
+      <div class="marketing-grid">
+        <article class="marketing-card reveal">
+          <i class="fa-solid fa-shield-halved"></i>
+          <h3>Separate tenant data by design</h3>
+          <p>Every tenant gets its own database, login portal, storage path, users, roles, permissions, branches, customers, reports, billing records, and audit logs.</p>
+        </article>
+        <article class="marketing-card reveal delay-1">
+          <i class="fa-solid fa-chart-pie"></i>
+          <h3>Owners see the whole business</h3>
+          <p>Track today, weekly, and monthly profit/loss by module, branch, operator, currency, mobile-money network, and forex pair.</p>
+        </article>
+        <article class="marketing-card reveal delay-2">
+          <i class="fa-solid fa-lock"></i>
+          <h3>Financial controls built in</h3>
+          <p>Use approvals for high-risk actions, lock closed business days, protect PIN payouts, audit sensitive changes, and reverse transactions instead of deleting records.</p>
+        </article>
+        <article class="marketing-card reveal delay-3">
+          <i class="fa-solid fa-bolt"></i>
+          <h3>Launch by module, scale by addon</h3>
+          <p>Start with the modules you need, then request analytics, scheduled reports, approval workflows, customer portal, custom domain, API access, or external forex feeds.</p>
+        </article>
+      </div>
+      <div class="conversion-strip reveal">
+        <div><strong>4</strong><span>Core finance modules</span></div>
+        <div><strong>1–2</strong><span>Month trial options</span></div>
+        <div><strong>Daily</strong><span>Open/close controls</span></div>
+        <div><strong>PDF / CSV / Excel</strong><span>Report exports</span></div>
+      </div>
+    </section>
+
+    <section class="services" id="services">
+      <div class="section-head reveal">
+        <p>Core platform modules</p>
+        <h2>Everything needed for finance operations, tenant control, and daily reporting.</h2>
+      </div>
+
+      <div class="service-board">
+        <article class="service-tile large reveal">
+          <img src="/images/fx.jpg" alt="ClassicFin Hub forex and finance operations" />
+          <div>
+            <span>Operations hub</span>
+            <h3>One dashboard for four finance service lines</h3>
+            <p>Run money transfer, mobile money, banking, and forex from a single clean dashboard with branch cash drawers, receipts, reports, analytics, and permission-controlled actions.</p>
+          </div>
+        </article>
+        <article class="service-tile reveal delay-1">
+          <i class="fa-solid fa-money-bill-transfer"></i>
+          <span>Money transfer</span>
+          <h3>Send, PIN, payout, receipt</h3>
+          <p>Create transfers, generate secure claim codes, payout by PIN, reverse safely, notify receivers, and report by branch or operator.</p>
+        </article>
+        <article class="service-tile reveal delay-2">
+          <i class="fa-solid fa-mobile-screen-button"></i>
+          <span>Mobile money</span>
+          <h3>Cash-in and cash-out</h3>
+          <p>Manage agent float, network activity, commissions, receipts, cash impact, and network-level analytics.</p>
+        </article>
+        <article class="service-tile reveal">
+          <i class="fa-solid fa-building-columns"></i>
+          <span>Banking</span>
+          <h3>Accounts and ledger entries</h3>
+          <p>Register customers, open accounts, post deposits, withdrawals, account transfers, statements, and ledger movements.</p>
+        </article>
+        <article class="service-tile reveal delay-1">
+          <i class="fa-solid fa-chart-line"></i>
+          <span>Forex</span>
+          <h3>Rates, stock, buy and sell</h3>
+          <p>Control buy/sell rates, approvals, cash drawer impact, forex stock, profit/loss, receipts, and currency-pair reports.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="booking-layout" id="book">
+      <div class="booking-copy reveal">
+        <p class="kicker">Book demo</p>
+        <h2>Start with an appointment, then launch a tenant workspace.</h2>
+        <p>Classic Technologies presents the platform, helps the business choose a plan, modules, addons, trial period, and then creates the tenant and invites the owner.</p>
+        <ul>
+          <li><i class="fa-solid fa-circle-check"></i> Appointment and virtual presentation flow</li>
+          <li><i class="fa-solid fa-circle-check"></i> Tenant owner invite and setup link</li>
+          <li><i class="fa-solid fa-circle-check"></i> Roles, branches, customers, and modules configured</li>
+        </ul>
+      </div>
+
+      <form class="booking-card reveal delay-1" autocomplete="off" method="post" action="/book-appointment">
+        <label>
+          <span>Business owner name</span>
+          <input required type="text" name="Owner" placeholder="Enter owner name" />
+        </label>
+        <label>
+          <span>Business phone</span>
+          <input required type="tel" name="Phone" placeholder="Example: +211..." />
+        </label>
+        <label>
+          <span>Preferred demo date</span>
+          <input required type="date" name="Demo date" />
+        </label>
+        <label>
+          <span>Modules needed</span>
+          <select name="Modules">
+            <option>Money Transfer + Mobile Money</option>
+            <option>Banking + Forex</option>
+            <option>All core modules</option>
+            <option>Enterprise with addons</option>
+            <option>Not sure yet</option>
+          </select>
+        </label>
+        <label class="full">
+          <span>Business details</span>
+          <textarea name="Message" rows="4" placeholder="Tell us about branches, users, currencies, and expected transactions"></textarea>
+        </label>
+        <button type="submit" class="btn btn-dark full">Request demo</button>
+      </form>
+    </section>
+
+    <section class="company" id="company">
+      <div class="company-card reveal">
+        <div>
+          <p class="kicker">About ClassicFin Hub</p>
+          <h2>Built for secure, scalable, tenant-isolated finance operations.</h2>
+          <p>ClassicFin Hub is designed as a full multi-tenant finance SaaS product: each tenant gets its own database, portal, profile, landing page, staff, customers, accounts, transactions, reports, analytics, receipts, notification templates, billing, and audit trail.</p>
+          <p>The platform supports platform admins, onboarding officers, billing officers, auditors, tenant owners, branch managers, tellers, accountants, support teams, and read-only users through clear roles and permissions.</p>
+          <div class="company-actions">
+            <a href="/tenant/dashboard" class="btn btn-dark">Open dashboard demo</a>
+            <a href="mailto:info@classicfinhub.com" class="btn btn-light">Email us</a>
+          </div>
+        </div>
+        <div class="company-image">
+          <img src="/images/prt.jpg" alt="ClassicFin Hub platform operations team" />
+        </div>
+      </div>
+    </section>
+
+    <section class="timeline">
+      <div class="section-head reveal">
+        <p>Implementation flow</p>
+        <h2>From demo request to operational tenant workspace.</h2>
+      </div>
+      <div class="timeline-grid">
+        <div class="step reveal"><span>1</span><h3>Book demo</h3><p>Business owner requests an appointment and the platform team confirms the presentation link.</p></div>
+        <div class="step reveal delay-1"><span>2</span><h3>Choose setup</h3><p>Plan, trial, core modules, addons, currencies, branches, and limits are selected.</p></div>
+        <div class="step reveal delay-2"><span>3</span><h3>Create tenant</h3><p>The platform provisions the tenant database, seeds settings, roles, modules, and default branch.</p></div>
+        <div class="step reveal delay-3"><span>4</span><h3>Start operations</h3><p>Owner invites staff, registers customers, opens the day, creates transactions, and generates reports.</p></div>
+      </div>
+    </section>
+
+
+
+    <section class="growth-section">
+      <div class="section-head reveal">
+        <p>Marketing value</p>
+        <h2>More than a dashboard: a finance operating system for growing branches.</h2>
+      </div>
+      <div class="growth-grid">
+        <article class="growth-card reveal">
+          <i class="fa-solid fa-rocket"></i>
+          <h3>Launch faster</h3>
+          <p>Start with ready-made modules, user roles, tenant setup, billing flow, and branded public pages instead of building everything from zero.</p>
+        </article>
+        <article class="growth-card reveal delay-1">
+          <i class="fa-solid fa-shield-halved"></i>
+          <h3>Control risk</h3>
+          <p>Use branch permissions, approval steps, audit logs, cash tracking, customer records, and reports to reduce operational mistakes.</p>
+        </article>
+        <article class="growth-card reveal delay-2">
+          <i class="fa-solid fa-chart-line"></i>
+          <h3>See performance</h3>
+          <p>Track transactions, float, forex cash impact, expenses, branch activity, revenue, and daily closing reports from one clean place.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="industries-section">
+      <div class="industry-panel reveal">
+        <div>
+          <p class="kicker">Who it is for</p>
+          <h2>Built for finance operators that need clean records and clear money movement.</h2>
+          <p>ClassicFin Hub fits money transfer businesses, mobile money agents, forex bureaus, microfinance offices, savings groups, and multi-branch finance teams that need reliable daily operations.</p>
+        </div>
+        <div class="industry-list">
+          <span><i class="fa-solid fa-money-bill-transfer"></i> Money transfer shops</span>
+          <span><i class="fa-solid fa-mobile-screen"></i> Mobile money agents</span>
+          <span><i class="fa-solid fa-building-columns"></i> Microfinance offices</span>
+          <span><i class="fa-solid fa-money-bill-trend-up"></i> Forex bureaus</span>
+          <span><i class="fa-solid fa-users-gear"></i> Multi-branch finance teams</span>
+          <span><i class="fa-solid fa-receipt"></i> Cash-heavy service desks</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="pricing-preview" id="pricing">
+      <div class="section-head reveal">
+        <p>Pricing</p>
+        <h2>Clear monthly pricing with money shown upfront.</h2>
+        <a href="/price-compare" class="btn btn-light">Open price compare</a>
+      </div>
+      <div class="plan-grid">
+        <article class="plan-card reveal">
+          <div class="plan-top"><span>Starter Trial</span><strong>USD $0</strong></div>
+          <div class="price-amount"><sup>$</sup>0<span>/30 days</span></div>
+          <h3>Test before launch</h3>
+          <p>Best for a small business that wants to test the dashboard, customer records, users, roles, receipts, and basic reports before going live.</p>
+          <ul>
+            <li>1 branch workspace</li>
+            <li>Up to 3 users</li>
+            <li>100 demo transactions</li>
+            <li>Dashboard, customers, receipts</li>
+            <li>Basic reports and setup guidance</li>
+          </ul>
+          <a class="btn btn-light" href="/signup">Request free trial</a>
+        </article>
+        <article class="plan-card featured reveal delay-1">
+          <div class="plan-top"><span>Agent Plan</span><strong>USD $29/mo</strong></div>
+          <div class="price-amount"><sup>$</sup>29<span>/month</span></div>
+          <h3>Money transfer + mobile money</h3>
+          <p>Designed for agent-led finance branches handling transfer records, customer payouts, mobile money float, receipts, and daily summaries.</p>
+          <ul>
+            <li>Money Transfer module</li>
+            <li>Mobile Money module</li>
+            <li>1 branch and 5 users included</li>
+            <li>Receipts, notifications, expenses</li>
+            <li>Daily reports and export tools</li>
+          </ul>
+          <a class="btn btn-dark" href="/pricing">View plan details</a>
+        </article>
+        <article class="plan-card reveal delay-2">
+          <div class="plan-top"><span>Finance Plan</span><strong>USD $59/mo</strong></div>
+          <div class="price-amount"><sup>$</sup>59<span>/month</span></div>
+          <h3>Banking + forex operations</h3>
+          <p>Built for businesses that need customer accounts, deposits, withdrawals, cash drawers, forex rate boards, and cash impact reports.</p>
+          <ul>
+            <li>Banking Operation module</li>
+            <li>Forex Operation module</li>
+            <li>2 branches and 10 users included</li>
+            <li>Accounts, statements, rate boards</li>
+            <li>Analytics and manager approvals</li>
+          </ul>
+          <a class="btn btn-light" href="/price-compare">Compare pricing</a>
+        </article>
+        <article class="plan-card reveal delay-3">
+          <div class="plan-top"><span>Enterprise Plan</span><strong>From USD $149/mo</strong></div>
+          <div class="price-amount"><sup>$</sup>149<span>/month</span></div>
+          <h3>All modules and advanced controls</h3>
+          <p>For larger operations that need every module, approval workflows, audit trails, custom branding, API access, and priority support.</p>
+          <ul>
+            <li>All four core modules</li>
+            <li>5 branches and 25 users included</li>
+            <li>Advanced analytics and reports</li>
+            <li>Custom domain and API access</li>
+            <li>Priority onboarding and support</li>
+          </ul>
+          <a class="btn btn-light" href="/#book">Book enterprise demo</a>
+        </article>
+      </div>
+      <div class="pricing-note reveal">
+        <i class="fa-solid fa-circle-info"></i>
+        <p>Prices are shown in USD so every customer can understand the subscription quickly. Local currency collection, yearly discounts, extra users, branches, SMS/WhatsApp credits, API access, and support addons can be configured by Classic Technologies from the platform settings.</p>
+      </div>
+    </section>
+
+    <section class="reviews">
+      <div class="review-main reveal">
+        <p class="kicker">Why teams use it</p>
+        <h2>Operational clarity for every branch, module, and transaction.</h2>
+      </div>
+      <div class="review-stack">
+        <blockquote class="reveal"><p>The dashboard keeps transfers, customer records, receipts, and daily reports in one clean flow for our branch team.</p><footer><img src="/images/r2.jpg" alt="Tenant admin" />Tenant admin</footer></blockquote>
+        <blockquote class="reveal delay-1"><p>Module-based access helps our team separate teller actions, manager approvals, audit review, and owner settings.</p><footer><img src="/images/r3.jpg" alt="Operations manager" />Operations manager</footer></blockquote>
+        <blockquote class="reveal delay-2"><p>Forex rate boards, cash impact, branch drawers, and report exports make the daily close process much easier.</p><footer><img src="/images/r1.jpg" alt="Finance officer" />Finance officer</footer></blockquote>
+      </div>
+    </section>
+
+    <section class="faq">
+      <div class="section-head reveal">
+        <p>Questions</p>
+        <h2>Helpful answers before requesting tenant setup.</h2>
+      </div>
+      <div class="accordion reveal">
+        <button class="faq-item open"><span>What is ClassicFin Hub?</span><i class="fa-solid fa-plus"></i><p>ClassicFin Hub is a multi-tenant finance SaaS platform for money transfer, mobile money, banking, forex, reports, analytics, notifications, billing, and audit-ready operations.</p></button>
+        <button class="faq-item"><span>How does tenant onboarding work?</span><i class="fa-solid fa-plus"></i><p>A business owner books an appointment, attends a virtual presentation, selects modules and trial terms, then receives a tenant owner invitation after the platform team creates the tenant.</p></button>
+        <button class="faq-item"><span>Does every tenant have separate data?</span><i class="fa-solid fa-plus"></i><p>Yes. The blueprint uses database-per-tenant isolation, tenant-specific storage paths, tenant-prefixed cache keys, and role permissions scoped to enabled modules.</p></button>
+        <button class="faq-item"><span>Can modules be enabled later?</span><i class="fa-solid fa-plus"></i><p>Yes. Tenants can request modules or addons. Platform staff can review, invoice, approve, activate, and refresh the tenant sidebar and permissions.</p></button>
+        <button class="faq-item"><span>How is ClassicFin Hub pricing decided?</span><i class="fa-solid fa-plus"></i><p>Pricing starts from USD $29/month for Agent Plan, USD $59/month for Finance Plan, and from USD $149/month for Enterprise. Final billing can change when extra users, branches, transaction limits, messages, storage, API access, or premium support are added.</p></button>
+      </div>
+    </section>
+
+    <section class="contact" id="contact">
+      <div class="contact-panel reveal">
+        <div>
+          <p class="kicker">Contact</p>
+          <h2>Ready to configure ClassicFin Hub for your finance business?</h2>
+          <p>Contact Classic Technologies for demo scheduling, tenant setup, module planning, trials, billing, security, integrations, or deployment questions.</p>
+        </div>
+        <div class="contact-grid">
+          <a href="tel:211921789914"><i class="fa-solid fa-phone"></i><span>+211 921 789 914</span></a>
+          <a href="https://api.whatsapp.com/send?phone=211921789914"><i class="fa-brands fa-whatsapp"></i><span>WhatsApp support</span></a>
+          <a href="mailto:info@classicfinhub.com"><i class="fa-solid fa-envelope"></i><span>info@classicfinhub.com</span></a>
+          <a href="/tenant/dashboard"><i class="fa-solid fa-gauge-high"></i><span>Open dashboard demo</span></a>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer reveal">
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <strong>ClassicFin Hub</strong>
+          <span>Classic Technologies</span>
+          <p>Multi-tenant finance SaaS for money transfer, mobile money, banking, forex, tenant onboarding, pricing, reports, billing, and secure operations.</p>
+          <div class="footer-socials">
+            <a href="mailto:info@classicfinhub.com" aria-label="Email ClassicFin Hub"><i class="fa-solid fa-envelope"></i></a>
+            <a href="https://api.whatsapp.com/send?phone=211921789914" aria-label="WhatsApp ClassicFin Hub"><i class="fa-brands fa-whatsapp"></i></a>
+            <a href="tel:211921789914" aria-label="Call ClassicFin Hub"><i class="fa-solid fa-phone"></i></a>
+          </div>
+        </div>
+        <div class="footer-column">
+          <h3>Product</h3>
+          <a href="/services">Modules</a>
+          <a href="/pricing">Pricing</a>
+          <a href="/price-compare">Price compare</a>
+          <a href="/tenant/dashboard">Dashboard demo</a>
+        </div>
+        <div class="footer-column">
+          <h3>Solutions</h3>
+          <a href="/services#money-transfer">Money transfer</a>
+          <a href="/services#mobile-money">Mobile money</a>
+          <a href="/services#banking">Banking operation</a>
+          <a href="/services#forex">Forex operation</a>
+        </div>
+        <div class="footer-column">
+          <h3>Company</h3>
+          <a href="/about">About</a>
+          <a href="/support">Support</a>
+          <a href="/faq">FAQs</a>
+          <a href="/#book">Book demo</a>
+        </div>
+        <div class="footer-column">
+          <h3>Legal & access</h3>
+          <a href="/terms">Terms</a>
+          <a href="/privacy">Privacy</a>
+          <a href="/cookies">Cookies</a>
+          <a href="/refund-policy">Refund policy</a>
+          <a href="/signin">Sign in</a>
+          <a href="/signup">Request setup</a>
+        </div>
+      </div>
+      <div class="footer-note"><p>© <span id="year"></span> ClassicFin Hub by Classic Technologies. All rights reserved.</p><a href="#home">Back to top</a></div>
+    </footer>
+  </main>
+
+  <script src="/js/script.js"></script>
+</body>
+</html>

@@ -12,7 +12,9 @@ const mainStart = source.indexOf('<div class="grain"',headEnd);
 const mainEnd = source.indexOf('</main>',mainStart);
 if(headStart<0||headEnd<0||mainStart<0||mainEnd<0||!source.includes('id="view-reports"'))
   throw new Error('Approved index.html dashboard anchors have changed: review before deployment');
-const originalCss = (source.slice(headStart,headEnd).match(/<style\b[^>]*>[\s\S]*?<\/style>/gi)||[]).join('\n')
+// The approved design has further CSS blocks after </main> (the final
+// sidebar, forex, modal and theme refinements). Preserve all of them in order.
+const originalCss = (source.match(/<style\b[^>]*>[\s\S]*?<\/style>/gi)||[]).join('\n')
   // The relative URL resolves to /tenant/images in the authenticated route.
   .replace(/url\((["']?)images\/classicfinhub-logo\.png\1\)/g,'url("/images/classicfinhub-logo.png")');
 const originalMain = source.slice(mainStart,mainEnd+'</main>'.length);

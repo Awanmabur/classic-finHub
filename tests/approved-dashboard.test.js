@@ -85,3 +85,14 @@ test('original wording is retained while administrative links obey server author
   assert.doesNotMatch(limited,/Staff &amp; Roles/);
   assert.doesNotMatch(limited,/Workspace Administration/);
 });
+
+test('all approved CSS overrides from body and head are included, without executing prototype scripts',()=>{
+ const source=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
+ const count=(source.match(/<style\b[^>]*>[\s\S]*?<\/style>/gi)||[]).length;
+ const rendered=(approved.originalCss.match(/<style\b[^>]*>[\s\S]*?<\/style>/gi)||[]).length;
+ assert(count>3,'the reference has final design overrides outside head');
+ assert.equal(rendered,count);
+ assert(approved.originalCss.includes('classicfinhub-logo-final-fix'));
+ assert(approved.originalCss.includes('finalDashboardPagesFix'));
+ assert(!approved.originalCss.includes('localStorage.setItem'));
+});

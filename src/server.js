@@ -10,7 +10,7 @@ async function boot() {
   const hello = await mongoose.connection.db.admin().command({ hello: 1 });
   verifyReplicaPrimary(hello);
   // Unique global email identity index is a prerequisite for safe auto-routing.
-  for (const Model of [require('./platform/models/AccountIdentity'),require('./platform/models/LoginThrottle'),require('./platform/models/SecurityEvent'),require('./platform/models/PasswordReset'),require('./platform/models/PlanVersion'),require('./platform/models/UsageCounter'),require('./platform/models/OutboxEvent'),require('./platform/models/WorkerHeartbeat')]) await Model.createIndexes();
+  for (const Model of [require('./platform/models/AccountIdentity'),require('./platform/models/LoginThrottle'),require('./platform/models/SecurityEvent'),require('./platform/models/PasswordReset'),require('./platform/models/PlanVersion'),require('./platform/models/PlanDraft'),require('./platform/models/PlanPublicationLock'),require('./platform/models/SmsDevice'),require('./platform/models/SmsUsage'),require('./platform/models/UsageCounter'),require('./platform/models/OutboxEvent'),require('./platform/models/WorkerHeartbeat')]) await Model.createIndexes();
   const store = MongoStore.create({ client: mongoose.connection.getClient(), dbName: mongoose.connection.name, collectionName: 'sessions', ttl: 8 * 3600 });
   const app = createApp({ sessionStore: store });
   const server = app.listen(env.port, () => console.log(`ClassicFin Hub listening on ${env.port} (MongoDB replica set: ${hello.setName})`));

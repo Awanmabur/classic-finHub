@@ -7,12 +7,12 @@
     </form><p class="tiny">Results are restricted to your role, assigned branch and any operator-only scope. Maximum custom range: 90 days. Use Next to explore older results without loading entire tenant histories.</p></div>
   </section>
   <section class="card" style="margin-top:14px"><div class="cardHead"><b>Recorded activity</b><span><%= data.records.items.length %> records on this page</span></div>
-    <div class="cardBody tableWrap"><table><thead><tr><th>Date UTC</th><th>Reference</th><th>Network</th><th>Operation</th><th>Amount</th><th>Internal status</th><th>Correction</th></tr></thead><tbody>
-      <% if(!data.records.items.length){ %><tr><td colspan="7">No records in this date range.</td></tr><% } %>
+    <div class="cardBody tableWrap"><table><thead><tr><th>Date UTC</th><th>Reference</th><th>Network</th><th>Operation</th><th>Entry source</th><th>Amount</th><th>Internal status</th><th>Correction</th></tr></thead><tbody>
+      <% if(!data.records.items.length){ %><tr><td colspan="8">No records in this date range.</td></tr><% } %>
       <% data.records.items.forEach(t=>{ %><tr data-search-row>
         <td><%= new Date(t.createdAt).toISOString().slice(0,16).replace('T',' ') %></td>
         <td><a href="/tenant/mobile-money/<%= t._id %>"><%= t.networkReference %></a></td>
-        <td><%= t.network %></td><td><%= t.operation.replace('_',' ') %></td>
+        <td><%= t.network %></td><td><%= t.operation.replace('_',' ') %></td><td><span class="tag"><%= t.entrySource==='sms'?'SMS capture':'Manual' %></span></td>
         <td><%= money(t.currency,amountFromMinor(t.amountMinor,t.currency)) %></td>
         <td><%= t.status.replaceAll('_',' ') %> / <%= (t.reviewState||'awaiting_review').replaceAll('_',' ') %></td>
         <td><%= (t.correctionState||'none').replaceAll('_',' ') %></td>

@@ -1,7 +1,7 @@
 const { modules } = require('../data/store');
 
 const coreModuleKeys = ['money_transfer', 'mobile_money', 'banking', 'forex'];
-const supportingModuleKeys = ['notifications', 'analytics', 'approval_workflows', 'customer_portal'];
+const supportingModuleKeys = ['notifications', 'analytics', 'approval_workflows', 'sms_capture', 'customer_portal'];
 
 function getModuleRegistry() {
   return modules;

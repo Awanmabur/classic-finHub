@@ -38,19 +38,23 @@ function validate(input, operation) {
   if (feeMinor > amountMinor) throw bad('Fee cannot exceed amount');
   return { operation, customer, network, networkReference, currency, amountMinor, feeMinor, idempotencyKey };
 }
-async function recordMobileMoney(conn, operator, input, operation, tenant) {
+async function recordMobileMoney(conn, operator, input, operation, tenant, sourceContext = null) {
   if(!operator?.id || !['Tenant Owner','Mobile Money Operator'].includes(operator.role))throw bad('This role cannot record Mobile Money operations',403);
   const values = validate(input, operation);
+  if(sourceContext !== null && (!sourceContext || typeof sourceContext !== 'object' || Array.isArray(sourceContext) ||
+    Object.keys(sourceContext).length !== 1 || !/^[a-f0-9]{24}$/i.test(String(sourceContext.smsInboxId || ''))))
+    throw bad('Invalid trusted SMS source context',400);
+  const source = sourceContext ? {entrySource:'sms',smsInboxId:String(sourceContext.smsInboxId)} : {entrySource:'manual'};
   if(!require('./moduleAccess.service').hasModule(tenant,'mobile_money'))throw bad('An active Mobile Money module subscription is required',403);
-  const requestedBranchId=operator.role==='Tenant Owner' ? String(input.branchId||'') : String(operator.branchId||'');
-  if(!/^[a-f0-9]{24}$/i.test(requestedBranchId))throw bad('Choose an active branch before recording an operation',400);
+  const operatingBranch=await require('./transactionBranch.service').resolveTransactionBranch(conn,operator,input);
+  const requestedBranchId=String(operatingBranch._id);
   await ensureTenantIndexes(conn);
   const Model = mobileTransactionModel(conn);
   // A retry for a committed operation is idempotent even when the monthly
   // allowance was subsequently exhausted. It must never consume another unit.
   const prior=await Model.findOne({idempotencyKey:values.idempotencyKey}).lean();
   if(prior){
-    if(String(prior.operatorId)!==String(operator.id)||prior.operation!==operation||
+    if((sourceContext && String(prior.smsInboxId)!==source.smsInboxId) || String(prior.operatorId)!==String(operator.id)||prior.operation!==operation||
       String(prior.branchId)!==requestedBranchId||
       ['amountMinor','feeMinor','currency','customer','network','networkReference']
         .some(k=>String(prior[k])!==String(values[k])))throw bad('This operation reference was already used for different details.',409);
@@ -61,12 +65,13 @@ async function recordMobileMoney(conn, operator, input, operation, tenant) {
   let created;
   try {
     await session.withTransaction(async () => {
+      const smsAuthorization=sourceContext?await require('./smsAuthorization.service').authorizeRecording(conn,session,operator,tenant,sourceContext,requestedBranchId,values):null;
       const branch=await branchModel(conn).findOneAndUpdate({_id:requestedBranchId,status:'active'},{$inc:{revision:1}},{session,new:true});
       if(!branch)throw bad('Assigned branch is inactive or unavailable',409);
       if(branch.currency!==values.currency)throw bad('Operation currency does not match the branch currency',409);
-      await require('../../platform/services/commercial.service').reserveUsage(tenant,'mobile_money_records',session);
-      const cashSessionId=await require('./cashDrawer.service').attachRecord(conn,session,operator,branch._id,values.currency,operation,BigInt(values.amountMinor));
-      [created] = await Model.create([{ ...values, cashSessionId, branchId:branch._id, amountMinor: String(values.amountMinor), feeMinor: String(values.feeMinor), operatorId: operator.id, status: 'pending_verification' }], { session });
+      await require('../../platform/services/commercial.service').reserveUsage(smsAuthorization?.tenant||tenant,'mobile_money_records',session);
+      const cashSessionId=await require('./cashDrawer.service').attachRecord(conn,session,smsAuthorization?.actor||operator,branch._id,values.currency,operation,BigInt(values.amountMinor),smsAuthorization?{receivedAt:smsAuthorization.receivedAt}:null);
+      [created] = await Model.create([{ ...values, ...source, cashSessionId, branchId:branch._id, amountMinor: String(values.amountMinor), feeMinor: String(values.feeMinor), operatorId: operator.id, status: 'pending_verification' }], { session });
       await Audit.create([{
         action: `mobile_money.${operation}.recorded`, actorId: operator.id, targetId: created._id,
         metadata: { currency: values.currency, amountMinor: values.amountMinor, network: values.network, branchId: String(created.branchId) }
@@ -77,7 +82,7 @@ async function recordMobileMoney(conn, operator, input, operation, tenant) {
     if (e.code === 11000) {
       const existing = await Model.findOne({ idempotencyKey: values.idempotencyKey }).lean();
       if (existing) {
-        if (String(existing.operatorId) !== operator.id || existing.operation !== operation ||
+        if ((sourceContext && String(existing.smsInboxId)!==source.smsInboxId) || String(existing.operatorId) !== operator.id || existing.operation !== operation ||
           String(existing.branchId)!==requestedBranchId ||
           ['amountMinor','feeMinor','currency','customer','network','networkReference'].some(k => String(existing[k]) !== String(values[k]))) {
           throw bad('This operation reference was already used for different details.', 409);

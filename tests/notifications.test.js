@@ -144,7 +144,7 @@ test('Sending creates exactly one tenant message with a same-transaction audit a
  let row=null;const audits=[];const noop={createIndexes:async()=>{}};
  const names=['SecureTenantUser','SecureMobileTransaction','SecureAuditEvent','SecureStaffInvite','SecureBranch','SecureCashSession',
  'TransferContactV1','TransferOrderV1','BankReferenceV1','BankingRequestV1','ForexRateV1','ForexQuoteV1',
- 'ApprovalPolicyV1','ApprovalRequestV1','NotificationTemplateV1','NotificationMessageV1','NotificationPreferenceV1',
+ 'ApprovalPolicyV1','ApprovalRequestV1','NotificationTemplateV1','NotificationMessageV1','NotificationPreferenceV1','SmsInboxV1',
  'LedgerAccountV2','LedgerJournalV2','LedgerPostingV2','FinancialOperationV1','VerifiedFinancialEvidenceV1','FinancialExceptionV1'];
  const models=Object.fromEntries(names.map(n=>[n,noop]));
  models.SecureTenantUser={...noop,findOne:()=>({session:()=>({lean:async()=>recipient})})};

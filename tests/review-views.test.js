@@ -15,7 +15,7 @@ const summary={total:1,pending:1,awaitingReview:1,recent:[record],summaries:[{
   _id:{currency:'UGX',operation:'cash_in',network:'MTN',status:'pending_verification',reviewState:'awaiting_review'},
   count:1,volumeFormatted:'UGX 1,500',feesFormatted:'UGX 25'}]};
 async function page(role, view, data) {
-  const user={id:'507f1f77bcf86cd799439013',role,name:'Staff',email:'staff@tenant.test',permissions:permissionsFor(role)};
+  const user={id:'507f1f77bcf86cd799439013',role,name:'Staff',email:'staff@tenant.test',permissions:permissionsFor(role),branchId:'aaaaaaaaaaaaaaaaaaaaaaaa'};
   return ejs.renderFile(base,{
     context:'tenant',pageTitle:'Test',pageSub:'Test details',currentPath:`/tenant/${view}`,
     tenant,user,menu:tenantMenu(tenant,user),view:`../tenant/${view}/index`,data,flash:null,

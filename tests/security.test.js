@@ -39,12 +39,12 @@ test('dashboard navigation differs by role and tenant plans', () => {
   assert(!paths(owner).includes('/tenant/forex'));
   assert(!tenantMenu({...tenant, plan:'finance'},owner).flatMap(g=>g.items.map(i=>i.href)).includes('/tenant/mobile-money'));
 });
-test('tenant provisioning validates plan + slug and refuses unsupported module injection',()=>{
+test('tenant provisioning accepts custom plan codes but never trusts submitted entitlements',()=>{
   const p=checkPayload({name:'Company One',slug:'company-one',owner:'Owner',email:'owner@example.com',plan:'agent',enabledModules:['banking','forex','mobile_money']});
-  assert(!p.enabledModules.includes('banking'));
-  assert(p.enabledModules.includes('mobile_money'));
+  assert.deepEqual(p.enabledModules,[], 'only the persisted published snapshot may grant modules');
+  assert.equal(checkPayload({name:'Company One',slug:'company-one',owner:'Owner',email:'owner@example.com',plan:'custom_mobile_plus'}).plan,'custom_mobile_plus');
   assert.throws(()=>checkPayload({name:'Bad',slug:'../other',owner:'Owner',email:'owner@example.com',plan:'enterprise'}));
-  assert.throws(()=>checkPayload({name:'Company One',slug:'company-one',owner:'Owner',email:'owner@example.com',plan:'nonexistent'}));
+  assert.throws(()=>checkPayload({name:'Company One',slug:'company-one',owner:'Owner',email:'owner@example.com',plan:'bad/code'}));
 });
 test('strong passwords are enforced during account activation',()=>{
   assert.equal(validatePassword('Short123!'),false);

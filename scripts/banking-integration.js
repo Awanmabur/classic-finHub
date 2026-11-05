@@ -51,7 +51,7 @@ async function main(){
   const replay=await banking.createRequest(a.conn,a.tenant,operator,input);
   assert.equal(replay.duplicate,true);assert.equal(String(created.order._id),String(replay.order._id));
   await assert.rejects(banking.createRequest(a.conn,a.tenant,operator,{...input,amount:'30000'}),e=>e.status===409);
-  await assert.rejects(banking.createRequest(b.conn,b.tenant,operator,build()),e=>e.status===409);
+  await assert.rejects(banking.createRequest(b.conn,b.tenant,operator,build()),e=>e.status===403);
   await assert.rejects(banking.detail(b.conn,b.tenant,{...operator,branchId:String(b.branch._id)},String(created.order._id)),e=>e.status===404);
   await assert.rejects(banking.decide(a.conn,a.tenant,{...operator,role:'Tenant Owner',permissions:['*']},String(created.order._id),
    {decision:'approve',note:'Own request must not be approved by the originator'}),e=>e.status===409);

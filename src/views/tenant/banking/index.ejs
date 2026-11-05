@@ -1,23 +1,27 @@
+<% const currentBranch = typeof operationBranch !== 'undefined' ? operationBranch : (data.branches || []).find(b => String(b._id) === String(user.transactionBranchId || user.branchId || data.selectedBranchId || '') && b.status !== 'archived');
+   const currentBranchId = currentBranch ? String(currentBranch._id) : null;
+   const branchProblem = typeof operationBranchError === 'string' && operationBranchError ? operationBranchError : 'An active operating branch must be assigned to your account before creating records.'; %>
 <section class="view show">
+ <%- include('../../partials/operation-branch', {currentBranch, branchProblem, user}) %>
  <section class="card"><div class="cardHead"><b>Banking requests</b><span>Internal request workflow — no real bank execution</span></div>
   <div class="cardBody"><p class="tiny"><strong>NO FUNDS MOVED.</strong> Submitted and approved requests are not deposits, withdrawals, cleared transfers, bank statements, or proof of customer balances. Institution/provider verification is not enabled.</p>
    <div class="rowBtns"><a class="btn" href="/tenant/banking/accounts">Masked account references</a><a class="btn" href="/tenant/banking/history">Full request history</a></div>
-   <% if(data.branches.length>0 && user.role==='Tenant Owner'){ %><form method="get" action="/tenant/banking" class="rowBtns" style="margin-top:12px"><label class="field">Select branch <select class="control" name="branchId" required><option value="">Select an active branch</option><% data.branches.forEach(b=>{ %><option value="<%= b._id %>" <%= data.selectedBranchId===String(b._id)?'selected':'' %>><%= b.name %> · <%= b.currency %></option><% }) %></select></label><button class="btn" type="submit">Open branch</button></form><% } %>
+
   </div></section>
  <div class="grid" style="margin-top:14px">
-  <% if(data.canCreate && data.selectedBranchId){ %><form method="post" action="/tenant/banking/requests" class="card" autocomplete="off">
-   <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>"><input type="hidden" name="branchId" value="<%= data.selectedBranchId %>">
+  <% if(data.canCreate && currentBranchId){ %><form method="post" action="/tenant/banking/requests" class="card" autocomplete="off">
+   <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
    <div class="cardHead"><b>Record banking request</b><span>Second-person approval</span></div><div class="cardBody" style="display:grid;gap:12px">
     <% if(!data.references.length){ %><p class="tiny">Create a masked bank account reference for this branch before starting a request.</p><% } %>
     <label class="field">Request type<select name="kind" class="control" required><option value="deposit_request">Deposit request</option><option value="withdrawal_request">Withdrawal request</option><option value="transfer_request">Bank transfer request</option></select></label>
     <label class="field">Source account reference<select name="sourceId" class="control" required><option value="">Select reference</option><% data.references.forEach(a=>{ %><option value="<%= a._id %>"><%= a.customerName %> · <%= a.institutionName %> · ****<%= a.last4 %></option><% }) %></select></label>
     <label class="field">Destination (required only for transfer requests)<select name="destinationId" class="control"><option value="">Not applicable to deposit/withdrawal</option><% data.references.forEach(a=>{ %><option value="<%= a._id %>"><%= a.customerName %> · <%= a.institutionName %> · ****<%= a.last4 %></option><% }) %></select></label>
-    <div class="row2"><label class="field">Amount <input name="amount" type="number" class="control" min="1" step="0.01" required></label><label class="field">Branch currency<select name="currency" class="control" required><% data.branches.filter(b=>String(b._id)===data.selectedBranchId).forEach(b=>{ %><option value="<%= b.currency %>"><%= b.currency %></option><% }) %></select></label></div>
+    <div class="row2"><label class="field">Amount <input name="amount" type="number" class="control" min="1" step="0.01" required></label><div class="field"><span>Currency</span><input type="hidden" name="currency" value="<%= currentBranch.currency %>"><span class="control"><%= currentBranch.currency %></span></div></div>
     <label class="field">Request validity<select name="validDays" class="control" required><% for(let days=1;days<=30;days++){ %><option value="<%= days %>" <%= days===7?'selected':'' %>><%= days %> day<%= days===1?'':'s' %></option><% } %></select></label>
     <label class="field">Request purpose (12–400 characters)<textarea name="note" class="control" minlength="12" maxlength="400" rows="3" required placeholder="Explain the reason without account numbers or secrets"></textarea></label>
     <div class="rowBtns"><button type="submit" class="btn btnPrimary" <%= !data.references.length?'disabled':'' %>>Save request for independent review</button></div>
    </div>
-  </form><% } else if(data.canCreate){ %><section class="card"><div class="cardHead"><b>New request</b></div><div class="cardBody"><p class="tiny">Select an active branch before recording a request.</p></div></section><% } %>
+  </form><% } else if(data.canCreate){ %><section class="card"><div class="cardHead"><b>New request</b></div><div class="cardBody"><p class="tiny">Your account needs an active operating branch before creating a request.</p></div></section><% } %>
   <section class="card"><div class="cardHead"><b>Recent requests</b><span><%= data.records.items.length %> visible</span></div><div class="cardBody txList">
     <% if(!data.records.items.length){ %><p class="tiny">No banking requests in your permitted scope.</p><% } %>
     <% data.records.items.forEach(t=>{ %><div class="tx" data-search-row><div class="txMeta"><b><a href="/tenant/banking/<%= t._id %>"><%= t.reference %></a></b><span><%= t.kind.replaceAll('_',' ') %> · <%= t.status.replaceAll('_',' ') %> · <%= t.source.customerName %></span></div><b><%= data.formatMoneyMinor(t.amountMinor,t.currency) %></b></div><% }) %>

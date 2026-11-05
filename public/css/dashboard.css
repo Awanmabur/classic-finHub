@@ -845,3 +845,46 @@ input[type="checkbox"],input[type="radio"]{accent-color:var(--primary);flex:0 0 
   .side:not(.show){visibility:hidden;pointer-events:none}
   .side.show{visibility:visible;pointer-events:auto}
 }
+
+/* Live operation sheets follow the approved template, using the server's forms. */
+body.transactionOpen{overflow:hidden}
+.operatingBranch{font-size:12px;font-weight:600;max-width:240px;overflow-wrap:anywhere}
+.operatingBranch>.tiny{white-space:nowrap}
+.transactionDialog{padding:0;border:0;border-radius:28px;width:min(860px,calc(100vw - 28px));max-width:none;max-height:92dvh;background:transparent;color:var(--text);overflow:hidden;box-shadow:0 22px 70px rgba(15,23,42,.22)}
+.transactionDialog::backdrop{background:rgba(15,23,42,.50);backdrop-filter:blur(3px)}
+.transactionDialog [hidden]{display:none!important}
+.transactionDialog .tenantCleanSheet{width:100%;max-height:92dvh;background:rgba(255,255,255,.97);border:1px solid rgba(255,255,255,.28);border-radius:28px;overflow:hidden;display:flex;flex-direction:column;animation:popCenter .16s var(--ease)}
+.tenantCleanHead,.tenantCleanFoot{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex:0 0 auto}
+.tenantCleanHead b{font-size:15px;line-height:1.4}
+.tenantCleanHead span{display:block;margin-top:4px;color:var(--muted);font-size:12px;line-height:1.5}
+.tenantCleanBody{padding:18px;display:grid;gap:16px;overflow:auto;min-height:0}
+.tenantCleanFoot{border-top:1px solid var(--border);border-bottom:0;justify-content:flex-end;flex-wrap:wrap;align-items:center}
+.tenantCleanHint{margin:0;border:1px dashed rgba(8,44,82,.22);background:rgba(8,44,82,.04);border-radius:18px;padding:12px;color:var(--muted);font-size:12px;line-height:1.5}
+.transactionChoices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.transactionChoice{display:flex;gap:12px;align-items:center;width:100%;min-width:0;border:1px solid var(--border);border-radius:20px;background:rgba(255,255,255,.72);padding:16px;color:var(--text);text-align:left;transition:background .15s var(--ease),border-color .15s var(--ease)}
+.transactionChoice:hover{background:rgba(8,44,82,.05);border-color:rgba(8,44,82,.3)}
+.transactionChoice>i:first-child{width:36px;height:36px;display:grid;place-items:center;background:rgba(8,44,82,.08);color:var(--primary);border-radius:12px;flex:0 0 36px}
+.transactionChoice>i:last-child{font-size:10px;color:var(--muted)}
+.transactionChoice>span{flex:1;min-width:0}
+.transactionChoice b{display:block;font-size:13px;line-height:1.45}
+.transactionChoice small{display:block;margin-top:4px;color:var(--muted);font-size:12px;line-height:1.45}
+.transactionStatus{margin:0;padding:12px 14px;border:1px solid var(--border);border-radius:16px;color:var(--muted);font-size:13px;line-height:1.5}
+.transactionStatus.failed{border-color:rgba(190,18,60,.25);background:rgba(190,18,60,.05);color:#9f1239}
+.transactionForm{display:grid;gap:14px;margin:0}
+.transactionForm.row3{grid-template-columns:1fr}
+.transactionForm .cardBody{padding:0}
+.transactionForm .field{font-size:12px;line-height:1.5;color:var(--muted)}
+.transactionForm .rowBtns{margin-top:4px}
+.transactionForm p.tiny:first-child{margin-top:0}
+.transactionSubmitActions{display:flex;gap:10px;flex-wrap:wrap}
+.cashShiftCount{display:block;margin-top:3px;color:var(--muted);font-size:11px}
+.workspaceActivityGrid .txMeta span{max-width:40ch}
+@media(max-width:700px){
+  .transactionDialog{width:calc(100vw - 20px);max-height:94dvh}
+  .transactionDialog .tenantCleanSheet{max-height:94dvh}
+  .transactionChoices{grid-template-columns:1fr}
+  .tenantCleanHead,.tenantCleanFoot{padding:14px}
+  .tenantCleanBody{padding:14px}
+  .operatingBranch{max-width:100%}
+}
+@media print{.transactionDialog{display:none!important}}

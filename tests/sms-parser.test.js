@@ -1,0 +1,79 @@
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const {parseSms, NETWORKS} = require('../src/tenant/services/smsParser.service');
+
+const sample = 'MTN Cash In: UGX 1,000; Fee: UGX 10; Customer: Jane Doe; Ref: ABC12345';
+function needsReview(body, options={network:'MTN'}) {
+  const result = parseSms(body, options);
+  assert.equal(result.state, 'needs_review');
+  assert.equal(result.fields, null);
+  return result.reasonCode;
+}
+
+test('explicit confirmation parses without inferring fee or direction', () => {
+  assert.deepEqual(parseSms(sample, {network:'MTN'}), {
+    state:'parsed', reasonCode:'explicit_confirmation', fields:{
+      operation:'cash_in', customer:'Jane Doe', network:'MTN', networkReference:'ABC12345',
+      currency:'UGX', amount:'1000', fee:'10'
+    }
+  });
+  const out = parseSms('m-pesa cash out: KES 2,450.50; fee: KES 0; customer: Jane Doe; ref: QE312345', {network:'M-Pesa'});
+  assert.equal(out.state, 'parsed');
+  assert.equal(out.fields.operation, 'cash_out');
+  assert.equal(out.fields.amount, '2450.50');
+  assert.equal(out.fields.fee, '0');
+  assert.equal(out.fields.network, 'M-Pesa');
+  assert.equal(parseSms(sample.replace('MTN', 'Airtel'), {network:'Airtel'}).state, 'parsed');
+  assert(Object.isFrozen(NETWORKS));
+});
+
+test('device network must match the confirmation network', () => {
+  assert.equal(needsReview(sample, {network:'Airtel'}), 'network_mismatch');
+  assert.equal(needsReview(sample, {network:'Other'}), 'unsupported_network');
+  assert.equal(needsReview(sample, {}), 'unsupported_network');
+});
+
+test('ambiguous wallet messages and incomplete confirmations stay for review', () => {
+  for (const body of [
+    'You have received UGX 1,000 from Jane Doe. ID ABC12345.',
+    sample.replace('; Fee: UGX 10', ''),
+    sample.replace('Cash In', 'Transfer'),
+    sample + '; Ref: OTHER123',
+    sample + ' account balance UGX 5000',
+    sample.replace('UGX 1,000', 'USD 1,000'),
+    sample.replace('Ref: ABC12345', 'Ref: 1234'),
+    sample.replace('Jane Doe', 'A')
+  ]) needsReview(body);
+});
+
+test('amount grouping and precision are strict and never guessed', () => {
+  for (const value of ['1,00', '1,000,00', '1.000,00', '1e3', '-1000', '+1000', '0', '10000000001', '01,000', '1,000.00']) {
+    needsReview(sample.replace('UGX 1,000', `UGX ${value}`));
+  }
+  needsReview(sample.replace('Fee: UGX 10', 'Fee: UGX 1001'));
+  assert.equal(needsReview(sample.replace('Fee: UGX 10', 'Fee: KES 10')), 'currency_mismatch');
+  assert.equal(parseSms(sample.replace('1,000', '1000'), {network:'MTN'}).state, 'parsed');
+  needsReview(sample.replaceAll('UGX', 'KES').replace('1,000', '1,000.001'));
+});
+
+test('forwarding, reversal, OTP, multiline and control characters cannot auto-parse', () => {
+  for (const body of [
+    'Forwarded: ' + sample,
+    sample + '\n',
+    sample.replace('Jane Doe', 'Jane\nDoe'),
+    sample.replace('Jane Doe', 'Jane\u0000Doe'),
+    sample.replace('Jane Doe', 'Jane\u2028Doe'),
+    sample.replace('Jane Doe', 'OTP 123456'),
+    sample.replace('Jane Doe', 'reversed transaction'),
+    sample.replace('Jane Doe', 'failed transaction'),
+    sample.replace('Jane Doe', 'pending transaction')
+  ]) assert.equal(needsReview(body), 'unsafe_message');
+});
+
+test('missing and oversized bodies cannot produce instructions', () => {
+  assert.equal(needsReview(undefined), 'empty_message');
+  assert.equal(needsReview(''), 'empty_message');
+  assert.equal(needsReview({body:sample}), 'empty_message');
+  assert.equal(needsReview('A'.repeat(2001)), 'message_too_long');
+});

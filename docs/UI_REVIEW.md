@@ -33,9 +33,9 @@ controls, grouped sidebar, typography and responsive grid rules are retained.
 
 | Approved prototype element | Running application behavior | Work needed before exact functional equivalence |
 | --- | --- | --- |
-| Global branch and currency selectors | Branch/currency controls exist inside supported module forms; the sidebar identifies the workspace | Define one server-validated, cross-module branch/currency filtering contract, persist selection, and apply it to every list/summary with authorization tests; adding decorative selectors would suggest filtering that does not happen |
+| Global branch selector | Removed by the user’s updated requirement; account/device assignments determine transaction location | The resolved branch and currency are displayed, not selected. Administrative staff/owner branch assignment remains configurable. |
 | Transfer/mobile/banking/forex monetary volume cards | The snapshot displays daily Mobile Money record counts and explicitly labelled recent request/quote counts | Add authorized, bounded database aggregates with explicit time windows and separate currencies; recent paginated list counts must not be labelled complete daily totals |
-| Generic "New transaction" sheet | Authorized links open the implemented module's record/request/quote workflow | A unified operation launcher can be built over the existing forms; provider execution still requires actual backend integrations |
+| Generic "New transaction" sheet | Implemented: the permission-scoped launcher loads real protected forms into the approved centered modal | Provider execution remains a separate backend integration; modal saves create the supported records, requests or quotes. |
 | PIN payout, executed banking/FX operations and cash balances | Internal instructions, quotations, review and physical cash evidence are labelled according to what they actually record | Implement and independently validate provider execution, reconciliation and accounting before presenting settled funds or executable payout controls |
 | "Last receipt" | Overview and module pages link to authorized history; supported record pages have non-settlement acknowledgements | Define a tenant/branch-scoped latest acknowledgement lookup; a mock receipt would be misleading |
 | Load demo / Reset | No controls that fabricate financial activity or erase records | Keep any future demo mode isolated from real tenant records and clearly identified |
@@ -111,3 +111,20 @@ establish exact prototype equivalence or a full screen-reader/production audit.
 Updated captures: [tenant dashboard](review/tenant-desktop.png),
 [mobile dashboard](review/tenant-mobile.png), [platform](review/platform-desktop.png),
 [mobile tenant creation](review/create-tenant-mobile.png).
+
+
+## Configurable plans and SMS-assisted workspace update
+
+The later feature pass adds the real transaction chooser/sheets, Open cash shift,
+a context-aware Close cash shift link, scoped recent activity, provisional physical
+cash and the latest real acknowledgement. No transaction branch selector remains;
+operator/device context is checked server-side. The new Plan editor and SMS inbox,
+enrollment and review screens were checked in Chromium at 1440, 390 and 320 pixels.
+Real browser saves exercised plan drafts, device enrollment, manual transaction
+entry and cash-shift opening. The source template is unchanged.
+
+See [the feature guide](SMS_AND_PLAN_CONFIGURATION.md) for pricing, Android setup,
+provider-format coverage and remaining prototype-only workflows. Screenshots:
+[transaction modal](review/transaction-sms-enabled-1440.png),
+[mobile transaction modal](review/manual-cash-in-320.png),
+[plan editor](review/plan-new-320.png), [SMS inbox](review/sms-owner-320.png).

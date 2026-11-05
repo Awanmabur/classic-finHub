@@ -13,8 +13,8 @@
         <button class="btn btnPrimary" type="submit">Set up plans and continue</button>
       </form>
     <% } else { %>
-      <p role="status">No published trial plans are available. The latest published plans do not offer a trial for new tenants.</p>
-      <p class="tiny">Review the plan terms and publish a new version with a trial before creating a tenant.</p>
+      <p role="status">No published plans are available for new tenants.</p>
+      <p class="tiny">Create a plan or edit its availability in Plans &amp; pricing.</p>
     <% } %>
     <a class="btn" href="/platform/plans">View plans and pricing</a>
   </div>
@@ -37,7 +37,7 @@
       <label class="field">Phone<input class="control" name="phone" maxlength="40" type="tel" value="<%= values.phone || '' %>" /></label>
       <label class="field">Plan<select class="control" name="plan" required><option value="" <%= values.plan ? '' : 'selected' %> disabled>Choose a plan</option><% data.plans.forEach(p => { %><option value="<%= p.code %>" <%= values.plan === p.code ? 'selected' : '' %>><%= p.name %></option><% }) %></select></label>
     </div>
-    <p class="tiny">The selected plan controls module access. You can copy the owner’s activation link after creating the tenant.</p>
+    <p class="tiny">The selected plan controls module access. Plans without a trial stay inactive until you grant a subscription from the tenant profile. You can copy the owner’s activation link after creating the tenant.</p>
     <p class="tiny" role="status" aria-live="polite" data-tenant-form-status hidden></p>
     <button class="btn btnPrimary" type="submit">Create tenant and private invitation</button>
   </div>

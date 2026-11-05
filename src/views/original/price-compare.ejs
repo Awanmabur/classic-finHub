@@ -1,8 +1,3 @@
-<% const planByCode = Object.fromEntries(plans.map(plan => [plan.code, plan]));
-const starterPlan = planByCode.starter_trial;
-const agentPlan = planByCode.agent;
-const financePlan = planByCode.finance;
-const enterprisePlan = planByCode.enterprise; %>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -85,81 +80,38 @@ const enterprisePlan = planByCode.enterprise; %>
       </div>
     </header>
 
+    <% if(!plans.length){ %><section class="compare-cards reveal"><article><h2>No plans currently published</h2><p>Contact the team for current subscription options.</p><a class="btn btn-light" href="/signup">Request plan details</a></article></section><% } else { %>
     <section class="compare-shell reveal">
       <div class="compare-table-wrap" role="region" aria-label="Plan prices and included capacity" tabindex="0">
         <table class="compare-table">
-          <thead>
-            <tr>
-              <th scope="col">Feature</th>
-              <th scope="col">Starter Trial<br><span>USD $<%= starterPlan.priceMonthly %> / trial</span></th>
-              <th scope="col">Agent Plan<br><span>USD $<%= agentPlan.priceMonthly %> / month</span></th>
-              <th scope="col">Finance Plan<br><span>USD $<%= financePlan.priceMonthly %> / month</span></th>
-              <th scope="col">Enterprise<br><span>USD $<%= enterprisePlan.priceMonthly %> / month</span></th>
-            </tr>
-          </thead>
+          <thead><tr><th scope="col">Feature</th><% plans.forEach(plan=>{ %><th scope="col" data-plan-code="<%= plan.code %>"><%= plan.name %><br><span><%= plan.currency %> $<%= Number(plan.priceMonthly).toFixed(2) %> / month</span></th><% }) %></tr></thead>
           <tbody>
-            <tr><td>Best for</td><td>Testing the platform</td><td>Transfer and mobile money agents</td><td>Banking and forex teams</td><td>Multi-branch finance companies</td></tr>
-            <tr><td>Included modules</td><td>Dashboard preview</td><td>Money Transfer, Mobile Money</td><td>Banking Operation, Forex Operation</td><td>All modules</td></tr>
-            <tr><th scope="row">Branches included</th><% for (const plan of [starterPlan, agentPlan, financePlan, enterprisePlan]) { %><td><%= plan.limits.branches.toLocaleString('en-US') %></td><% } %></tr>
-            <tr><th scope="row">Users included</th><% for (const plan of [starterPlan, agentPlan, financePlan, enterprisePlan]) { %><td><%= plan.limits.users.toLocaleString('en-US') %></td><% } %></tr>
-            <tr><th scope="row">Monthly record limit</th><% for (const plan of [starterPlan, agentPlan, financePlan, enterprisePlan]) { %><td><%= plan.limits.transactionsPerMonth.toLocaleString('en-US') %></td><% } %></tr>
-            <tr><td>Customer records</td><td><i class="fa-solid fa-check"></i></td><td><i class="fa-solid fa-check"></i></td><td><i class="fa-solid fa-check"></i></td><td><i class="fa-solid fa-check"></i></td></tr>
-            <tr><td>Receipts and exports</td><td>Basic</td><td>Included</td><td>Included</td><td>Advanced</td></tr>
-            <tr><td>Approvals and audit logs</td><td>Limited</td><td>Basic</td><td>Manager approval</td><td>Advanced workflow</td></tr>
-            <tr><td>Analytics and reports</td><td>Basic</td><td>Daily reports</td><td>Cash impact + finance reports</td><td>Advanced analytics</td></tr>
-            <tr><td>Custom branding</td><td>—</td><td>—</td><td>Addon</td><td>Included</td></tr>
-            <tr><td>API access</td><td>—</td><td>Addon</td><td>Addon</td><td>Included</td></tr>
-            <tr><td>Support</td><td>Setup guidance</td><td>Standard support</td><td>Priority response</td><td>Priority support</td></tr>
+            <tr><th scope="row">Entry mode</th><% plans.forEach(plan=>{ %><td><%= plan.entryMode==='sms_assisted'?'SMS-assisted + manual':'Manual entry' %></td><% }) %></tr>
+            <tr><th scope="row">Yearly price</th><% plans.forEach(plan=>{ %><td><%= plan.currency %> $<%= Number(plan.priceYearly).toFixed(2) %></td><% }) %></tr>
+            <tr><th scope="row">Included modules</th><% plans.forEach(plan=>{ %><td><%= (plan.moduleLabels||plan.modules.map(key=>key.replaceAll('_',' '))).join(', ')||'Workspace only' %></td><% }) %></tr>
+            <tr><th scope="row">Branches included</th><% plans.forEach(plan=>{ %><td><%= plan.limits.branches.toLocaleString('en-US') %></td><% }) %></tr>
+            <tr><th scope="row">Users included</th><% plans.forEach(plan=>{ %><td><%= plan.limits.users.toLocaleString('en-US') %></td><% }) %></tr>
+            <tr><th scope="row">Monthly record limit</th><% plans.forEach(plan=>{ %><td><%= plan.limits.transactionsPerMonth.toLocaleString('en-US') %></td><% }) %></tr>
+            <tr><th scope="row">Monthly SMS imports</th><% plans.forEach(plan=>{ %><td><%= plan.entryMode==='sms_assisted'?plan.limits.smsPerMonth.toLocaleString('en-US'):'Not included' %></td><% }) %></tr>
+            <tr><th scope="row">Manual entry</th><% plans.forEach(plan=>{ %><td>Included</td><% }) %></tr>
+            <tr><th scope="row">Trial</th><% plans.forEach(plan=>{ %><td><%= plan.trialMonths?plan.trialMonths+' month'+(plan.trialMonths===1?'':'s'):'No trial' %></td><% }) %></tr>
+            <tr><th scope="row">Storage allowance</th><% plans.forEach(plan=>{ %><td><%= plan.limits.storageMb.toLocaleString('en-US') %> MB</td><% }) %></tr>
           </tbody>
         </table>
       </div>
     </section>
-
+    <% } %>
     <section class="compare-cards reveal">
-      <article>
-        <span>Most affordable</span>
-        <h2>Agent Plan</h2>
-        <p>Choose this when the business mainly serves walk-in customers, transfer requests, payouts, mobile money float, and daily receipt records.</p>
-        <a class="btn btn-light" href="/signup">Start from $<%= agentPlan.priceMonthly %>/mo</a>
-      </article>
-      <article>
-        <span>Best operational control</span>
-        <h2>Finance Plan</h2>
-        <p>Choose this when the business needs account records, deposits, withdrawals, forex rates, cash impact, approvals, and richer reports.</p>
-        <a class="btn btn-dark" href="/signup">Start from $<%= financePlan.priceMonthly %>/mo</a>
-      </article>
-      <article>
-        <span>Best for scale</span>
-        <h2>Enterprise</h2>
-        <p>Choose this when the business has many branches, higher volume, branding needs, API access, custom workflows, and dedicated onboarding.</p>
-        <a class="btn btn-light" href="/#book">Book enterprise demo</a>
-      </article>
-    </section>
-
-    <section class="addon-grid reveal">
-      <article>
-        <h2>Optional addons</h2>
-        <ul class="clean-list">
-          <li><strong>Extra user:</strong> USD $3/user/month</li>
-          <li><strong>Extra branch:</strong> USD $10/branch/month</li>
-          <li><strong>SMS or WhatsApp credits:</strong> from USD $15/month</li>
-          <li><strong>Advanced reports:</strong> USD $19/month</li>
-          <li><strong>API access or custom domain:</strong> from USD $25/month</li>
-          <li><strong>Priority support:</strong> USD $49/month</li>
-        </ul>
-      </article>
-      <article>
-        <h2>Marketing promise</h2>
-        <p>ClassicFin Hub helps finance teams look professional, onboard faster, reduce manual mistakes, centralize customer records, track money movement, and make daily reporting easier for owners and managers.</p>
-        <a class="btn btn-light" href="/services">See modules</a>
-      </article>
+      <article><span>Manual entry</span><h2>Staff-controlled recording</h2><p>Enter records using the services included in your plan. Staff and branch permissions continue to control access.</p><a class="btn btn-light" href="/pricing">Review plans</a></article>
+      <article><span>Premium automation</span><h2>SMS-assisted + manual</h2><p>Receive messages through a registered SMS relay, then capture supported confirmations with traceable source evidence. Manual recording stays available.</p><a class="btn btn-dark" href="/signup">Discuss SMS setup</a></article>
+      <article><span>Published terms</span><h2>Clear capacity and pricing</h2><p>Compare current module access, seats, branch capacity and import allowances. SMS-assisted prices are higher than the matching manual plan.</p><a class="btn btn-light" href="/#book">Book a demo</a></article>
     </section>
 
     <section class="final-cta reveal">
       <div>
         <p class="kicker">Final step</p>
         <h2>Pick a plan, then configure the tenant.</h2>
-        <p>Classic Technologies can adjust currency collection, tax wording, plan duration, branch limits, and billing rules during setup.</p>
+        <p>Choose published module access, staff and branch capacity, and manual or SMS-assisted entry before requesting setup.</p>
       </div>
       <a class="btn btn-dark" href="/#book">Book setup demo</a>
     </section>

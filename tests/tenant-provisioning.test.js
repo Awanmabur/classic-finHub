@@ -27,7 +27,7 @@ test('generated and explicit slugs fit the MongoDB database-name limit',()=>{
   for(const slug of ['../admin','a','bad.slug','/tenant'])assert.throws(()=>checkPayload(payload({slug})),{status:400});
 });
 test('provisioning rejects owner details that cannot activate or be updated',()=>{
-  for(const changes of [{owner:'a'.repeat(121)},{email:'a'.repeat(250)+'@test.invalid'},{phone:'a'},{phone:'1'.repeat(41)},{plan:'missing'}]){
+  for(const changes of [{owner:'a'.repeat(121)},{email:'a'.repeat(250)+'@test.invalid'},{phone:'a'},{phone:'1'.repeat(41)},{plan:'bad/code'}]){
     assert.throws(()=>checkPayload(payload(changes)),{status:400});
   }
   assert.equal(checkPayload(payload({owner:'a'.repeat(120),phone:''})).owner.length,120);
@@ -55,11 +55,11 @@ test('empty catalogue offers an administrator setup action instead of an unusabl
   assert.doesNotMatch(html,/<select[^>]+name="plan"/);
   assert.doesNotMatch(html,/<button[^>]+disabled/,'setup action is usable');
 });
-test('published plans without an eligible trial explain the block without suggesting reinitialization',async()=>{
+test('unavailable published plans explain the block without suggesting reinitialization',async()=>{
   const html=await ejs.renderFile(path.resolve(__dirname,'../src/views/platform/tenants/create.ejs'),{
     csrfToken:'csrf',data:{plans:[],catalogueEmpty:false,error:null,values:{}}
   });
-  assert.match(html,/trial/i);
+  assert.match(html,/available for new tenants/i);
   assert.match(html,/href="\/platform\/plans"/);
   assert.doesNotMatch(html,/action="\/platform\/plans\/publish-initial"/);
   assert.doesNotMatch(html,/<form[^>]+action="\/platform\/tenants"/);

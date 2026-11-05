@@ -11,12 +11,16 @@ const { appUrl } = require('./config/env');
 const seo = require('./config/seo');
 const router = express.Router();
 const original = ['home','services','pricing','price-compare','about','faq','support','terms','privacy','cookies','refund-policy','signin','signup','forgot-password','reset-password'];
-for (const name of original) router.get(name === 'home' ? '/' : '/' + name, (req, res) => {
+for (const name of original) router.get(name === 'home' ? '/' : '/' + name, async (req, res, next) => {
+  try {
   const canonicalPath = name === 'home' ? '/' : '/' + name;
   if (req.path.length > 1 && req.path.endsWith('/')) return res.redirect(308, canonicalPath + (req.originalUrl.includes('?') ? '?' + req.originalUrl.split('?').slice(1).join('?') : ''));
   res.setHeader('Cache-Control','private, no-store');
   if (name === 'forgot-password' || name === 'reset-password') res.setHeader('Referrer-Policy', 'no-referrer');
-  res.render('original/' + name, { flash: consumeFlash(req), plans: store.plans, selectableModules:require('./utils/selectionOptions').publicModuleOptions() });
+  const catalogue=['pricing','price-compare'].includes(name)
+    ? await require('./platform/services/publicPlans.service').publicPlans() : {plans:store.plans,persisted:false};
+  res.render('original/' + name, { flash: consumeFlash(req), plans:catalogue.plans, cataloguePersisted:catalogue.persisted,selectableModules:require('./utils/selectionOptions').publicModuleOptions() });
+  }catch(error){next(error);}
 });
 function renderPublic(req, res, view, title, data = {}) {
   res.setHeader('Cache-Control','private, no-store');

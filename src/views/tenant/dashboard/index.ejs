@@ -22,16 +22,28 @@
     <% if(visiblePaths.has('/tenant/modules')){ %><a class="btn" href="/tenant/modules">Explore modules</a><% } %>
     <% } %>
     <% if(hasOverviewActions){ %><div class="rowBtns" style="margin-top:12px">
-      <% quickActions.forEach((action,index)=>{ %><a class="btn <%= index === 0 ? 'btnPrimary' : '' %>" href="<%= action.href %>"><%= action.label %></a><% }) %>
+      <% quickActions.forEach((action,index)=>{ %><a class="btn <%= index === 0 ? 'btnPrimary' : '' %>" href="<%= action.href %>" data-transaction-kind="<%= action.kind %>"><%= action.label %></a><% }) %>
+      <% if(visiblePaths.has('/tenant/mobile-money/shifts') && data.workspaceSnapshot?.currentCashShift){ %><a class="btn" href="<%= data.workspaceSnapshot.currentCashShift.href %>">Close cash shift</a><% } %>
       <% if(visiblePaths.has('/tenant/reports')){ %><a class="btn" href="/tenant/reports">View reports</a><% } %>
       <% if(visiblePaths.has('/tenant/mobile-money/shifts')){ %><a class="btn" href="/tenant/mobile-money/shifts">Cash shifts</a><% } %>
     </div><% } %></div>
   </section>
+  <% if(data.workspaceSnapshot){ %><div class="grid workspaceActivityGrid" style="margin-top:14px">
+    <section class="card"><div class="cardHead"><div><b>Recent activity</b><br><span>Open a record to view its details</span></div><% if(data.hasMobileMoney){ %><a class="btn" href="/tenant/mobile-money/history">View history</a><% } %></div><div class="cardBody txList">
+      <% if(!data.workspaceSnapshot.recentActivity.length){ %><p class="tiny">No activity to show yet. Recorded operations will appear here.</p><% } %>
+      <% data.workspaceSnapshot.recentActivity.forEach(row=>{ %><a class="tx" data-search-row href="<%= row.href %>"><div class="txLeft"><span class="txDot warn" aria-hidden="true"></span><div class="txMeta"><b><%= row.label %></b><span><%= row.subtitle %></span></div></div><div class="txAmt"><%= row.amountLabel %></div></a><% }) %>
+    </div></section>
+    <section class="card"><div class="cardHead"><div><b>Cash drawer by currency</b><br><span>Provisional physical cash</span></div><% if(data.workspaceSnapshot.cashBranchName){ %><span><%= data.workspaceSnapshot.cashBranchName %></span><% } %></div><div class="cardBody">
+      <% if(data.workspaceSnapshot.cash.length){ %><div class="summary"><% data.workspaceSnapshot.cash.forEach(row=>{ %><div class="sumRow"><span><%= row.currency %><small class="cashShiftCount"><%= row.shiftCount %> open shift<%= row.shiftCount===1?'':'s' %></small></span><b><%= row.expectedFormatted %></b></div><% }) %></div><% } else { %><p class="tiny">No independently verified open cash shifts in your operating branch.</p><% } %>
+      <p class="tiny">Counted opening cash plus recorded cash movements. This is not provider e-float or a settled bank balance.</p>
+      <% if(visiblePaths.has('/tenant/mobile-money/shifts')){ %><a class="btn" href="/tenant/mobile-money/shifts">Cash shifts</a><% } %>
+    </div></section>
+  </div><% } %>
   <section class="card" style="margin-top:14px"><div class="cardHead"><b>Workspace subscription</b><span>Current plan</span></div><div class="cardBody" style="display:grid;gap:12px"><div class="sumRow"><span>Plan</span><b><%= data.plan?.name || ((data.moduleGrants||[]).length ? 'Modular workspace' : 'Unassigned') %></b></div><div class="sumRow"><span>Status</span><b><%= tenant.subscription?.status || 'modular' %></b></div><div class="sumRow"><span>Active modules</span><b><%= new Set([...(data.plan?.modules || []), ...(data.moduleGrants || []).map(grant => grant.moduleKey)]).size %></b></div></div></section>
-  <% if(hasOperationalModules && !hasRecentActivity){ %>
+  <% if(!data.workspaceSnapshot && hasOperationalModules && !hasRecentActivity){ %>
   <section class="card" style="margin-top:14px"><div class="cardHead"><b>Recent activity</b><% if(data.hasMobileMoney){ %><a class="btn" href="/tenant/mobile-money/history">View history</a><% } %></div><div class="cardBody"><p class="tiny">No activity to show yet. Your records and requests will appear here.</p></div></section>
   <% } %>
-  <% if(hasRecentMobileMoney){ %><div class="grid" style="margin-top:14px">
+  <% if(!data.workspaceSnapshot && hasRecentMobileMoney){ %><div class="grid" style="margin-top:14px">
     <section class="card"><div class="cardHead"><b>Recent mobile money records</b><span>Recorded, not settled</span><a class="btn" href="/tenant/mobile-money/history">View history</a></div>
       <div class="cardBody txList">
       <% if (!data.summary.recent.length) { %><p class="tiny">No mobile money records yet.</p><% } %>
@@ -48,18 +60,18 @@
 <section class="card" style="margin-top:14px"><div class="cardHead"><b>Recent approval requests</b><span>Internal decisions only</span><a class="btn" href="/tenant/approvals">Open Approval Workflows</a></div>
 <div class="cardBody txList">
 <% (data.approvalRecords?.items||[]).slice(0,8).forEach(t=>{ %><div class="tx"><div class="txMeta"><b><a href="/tenant/approvals/<%= t._id %>"><%= t.subject %></a></b><span><%= t.reference %> · <%= t.status %></span></div></div><% }) %></div></section><% } %>
-<% if(data.hasTransfer && data.transferRecords?.items?.length){ %>
+<% if(!data.workspaceSnapshot && data.hasTransfer && data.transferRecords?.items?.length){ %>
 <section class="card" style="margin-top:14px"><div class="cardHead"><b>Recent Money Transfer requests</b><span>Internal requests · no funds moved</span><a class="btn" href="/tenant/money-transfer">Open Money Transfer</a></div>
 <div class="cardBody txList">
 <% (data.transferRecords?.items||[]).slice(0,8).forEach(t=>{ %><div class="tx" data-search-row><div class="txMeta"><b><a href="/tenant/money-transfer/<%= t._id %>"><%= t.reference %></a></b><span><%= t.beneficiary.name %> · <%= t.status.replaceAll('_',' ') %></span></div><b><%= amountFromMinor(t.amountMinor,t.currency) %> <%= t.currency %></b></div><% }) %>
 </div></section>
 <% } %>
-<% if(data.hasBanking && data.bankingRecords?.items?.length){ %>
+<% if(!data.workspaceSnapshot && data.hasBanking && data.bankingRecords?.items?.length){ %>
 <section class="card" style="margin-top:14px"><div class="cardHead"><b>Recent banking requests</b><span>Internal requests · no funds moved</span><a class="btn" href="/tenant/banking">Open Banking</a></div>
 <div class="cardBody txList">
 <% (data.bankingRecords?.items||[]).slice(0,8).forEach(t=>{ %><div class="tx" data-search-row><div class="txMeta"><b><a href="/tenant/banking/<%= t._id %>"><%= t.reference %></a></b><span><%= t.kind.replaceAll('_',' ') %> · <%= t.status.replaceAll('_',' ') %></span></div><b><%= amountFromMinor(t.amountMinor,t.currency) %> <%= t.currency %></b></div><% }) %>
 </div></section><% } %>
-<% if(data.hasForex && data.forexRecords?.items?.length){ %>
+<% if(!data.workspaceSnapshot && data.hasForex && data.forexRecords?.items?.length){ %>
 <section class="card" style="margin-top:14px"><div class="cardHead"><b>Recent Forex quotations</b><span>Indicative quotes · no funds exchanged</span><a class="btn" href="/tenant/forex">Open Forex</a></div>
 <div class="cardBody txList">
 <% (data.forexRecords?.items||[]).slice(0,8).forEach(t=>{ %><div class="tx"><div class="txMeta"><b><a href="/tenant/forex/<%= t._id %>"><%= t.reference %></a></b><span><%= t.fromCurrency %> → <%= t.toCurrency %> · <%= t.status.replaceAll('_',' ') %></span></div></div><% }) %></div></section>

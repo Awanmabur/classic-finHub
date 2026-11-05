@@ -58,6 +58,7 @@ function createApp({ sessionStore } = {}) {
       res.json({ status:'ready' });
     } catch { res.status(503).json({ status:'unavailable' }); }
   });
+  app.use('/integrations/sms',require('./integrations/sms.routes'));
   app.use(express.urlencoded({ extended: false, limit: '32kb' }));
   app.use(express.json({ limit: '32kb' }));
   app.use(session({
@@ -71,6 +72,7 @@ function createApp({ sessionStore } = {}) {
   app.use('/', publicRoutes);
   app.use('/mfa', mfaRoutes);
   app.use('/platform', requirePlatformAuth, platformRoutes);
+  app.use('/tenant/sms-capture',tenantResolver,requireAuth,require('./tenant/routes/sms.routes'));
   app.use('/tenant', tenantResolver, requireAuth, tenantRoutes);
   app.use((req, res) => { res.setHeader('X-Robots-Tag','noindex'); res.setHeader('Cache-Control','no-store'); res.status(404).send('Page not found'); });
   app.use(errorHandler);

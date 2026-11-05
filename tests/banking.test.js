@@ -52,7 +52,8 @@ test('Banking request validates operation, branch-independent exact amounts, dis
 test('Banking role scope and branch assignment must not be supplied by client',()=>{
  assert(BRANCH_INVITABLE.includes('Banking Operator'));assert(!requiresTenantMfa('Banking Operator'));
  const operator=actor('Banking Operator');
- assert.equal(bank.branchFor(operator,{branchId:oid()}),branch);
+ assert.throws(()=>bank.branchFor(operator,{branchId:oid()}),e=>e.status===403);
+ assert.equal(bank.branchFor(operator,{}),branch);
  assert.deepEqual(bank.requestScope(operator),{branchId:branch,createdBy:operatorId});
  assert.deepEqual(bank.branchScope({...actor('Tenant Owner'),branchId:null}),{});
  assert.deepEqual(bank.branchScope({...actor('Auditor'),branchId:null}),{});

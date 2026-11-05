@@ -15,12 +15,23 @@
   <% const visiblePaths = new Set(menu.flatMap(group => group.items.map(item => item.href)));
      const can = permission => user.permissions.includes('*') || user.permissions.includes(permission);
      const quickActions = context === 'tenant' ? [
-       {href:'/tenant/money-transfer',label:'New transfer request',permission:'money_transfer.create'},
-       {href:'/tenant/mobile-money',label:'New mobile money record',permission:['mobile_money.cash_in','mobile_money.cash_out']},
-       {href:'/tenant/forex',label:'New forex quote',permission:'forex.quotes.create'},
-       {href:'/tenant/banking',label:'New banking request',permission:'banking.requests.create'},
-       {href:'/tenant/approvals',label:'New approval request',permission:'approvals.submit'}
-     ].filter(action => visiblePaths.has(action.href) && (Array.isArray(action.permission) ? action.permission.some(can) : can(action.permission))) : [];
+       {href:'/tenant/money-transfer',kind:'transfer',label:'New transfer request',permission:'money_transfer.create'},
+       {href:'/tenant/mobile-money',kind:'mobile_money',label:'New mobile money record',permission:['mobile_money.cash_in','mobile_money.cash_out']},
+       {href:'/tenant/forex',kind:'forex',label:'New forex quote',permission:'forex.quotes.create'},
+       {href:'/tenant/banking',kind:'banking',label:'New banking request',permission:'banking.requests.create'},
+       {href:'/tenant/approvals',kind:'approval',label:'New approval request',permission:'approvals.submit'},
+       {href:'/tenant/mobile-money/shifts',kind:'cash_shift_open',label:'Open cash shift',permission:'mobile_money.view',roles:['Tenant Owner','Mobile Money Operator']}
+     ].filter(action => visiblePaths.has(action.href) && (Array.isArray(action.permission) ? action.permission.some(can) : can(action.permission)) && (!action.roles || action.roles.includes(user.role)) && !(action.kind==='cash_shift_open' && data.workspaceSnapshot?.currentCashShift)) : [];
+     const transactionOptions = context === 'tenant' ? [
+       {kind:'cash_in',href:'/tenant/mobile-money',label:'Mobile money · cash in',description:'Record a customer cash deposit',icon:'fa-arrow-down',permission:'mobile_money.cash_in'},
+       {kind:'cash_out',href:'/tenant/mobile-money',label:'Mobile money · cash out',description:'Record a customer cash withdrawal',icon:'fa-arrow-up',permission:'mobile_money.cash_out'},
+       {kind:'transfer',href:'/tenant/money-transfer',label:'Money transfer request',description:'Sender, beneficiary and request details',icon:'fa-money-bill-transfer',permission:'money_transfer.create'},
+       {kind:'banking',href:'/tenant/banking',label:'Banking request',description:'Create an internal banking instruction',icon:'fa-building-columns',permission:'banking.requests.create'},
+       {kind:'forex',href:'/tenant/forex',label:'Forex quotation',description:'Use an approved rate for a customer quote',icon:'fa-chart-line',permission:'forex.quotes.create'},
+       {kind:'approval',href:'/tenant/approvals',label:'Approval request',description:'Submit a request for independent review',icon:'fa-user-shield',permission:'approvals.submit'},
+       {kind:'cash_shift_open',href:'/tenant/mobile-money/shifts',label:'Open cash shift',description:'Submit counted opening cash for independent verification',icon:'fa-cash-register',permission:'mobile_money.view',roles:['Tenant Owner','Mobile Money Operator']}
+     ].filter(option=>visiblePaths.has(option.href) && can(option.permission) && (!option.roles || option.roles.includes(user.role))) : [];
+     const assignedOperationBranch = typeof operationBranch === 'undefined' ? null : operationBranch;
      const pageContent = include(view, { data, money, tenant, user, context, quickActions, visiblePaths });
      const hasPageSearch = pageContent.includes('data-search-row'); %>
   <a class="skip-link" href="#workspaceContent">Skip to workspace</a>
@@ -32,7 +43,10 @@
         <div class="title"><h2 id="pageTitle"><%= pageTitle %></h2><p id="pageSub"><%= pageSub %></p></div>
         <div class="topActions">
           <button class="btn btnIcon mobileOnly" id="menuBtn" type="button" aria-label="Open menu" aria-controls="sidePanel" aria-expanded="false"><i class="fa-solid fa-bars-staggered" aria-hidden="true"></i></button>
+          <% if(context === 'tenant' && assignedOperationBranch){ %><span class="ctrl operatingBranch" data-operating-branch data-branch-name="<%= assignedOperationBranch.name %>" data-branch-currency="<%= assignedOperationBranch.currency %>" title="Transactions use your assigned operating branch"><i class="fa-solid fa-location-dot" aria-hidden="true"></i><%= assignedOperationBranch.name %><span class="tiny"><%= assignedOperationBranch.currency %></span></span><% } %>
           <% if (hasPageSearch) { %><div class="ctrl pageSearch"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input id="search" type="search" aria-label="Search records on this page" placeholder="Search this page…"></div><% } %>
+          <% if(context === 'tenant' && data.workspaceSnapshot?.latestAcknowledgement){ %><a class="btn" href="<%= data.workspaceSnapshot.latestAcknowledgement.href %>"><i class="fa-solid fa-receipt" aria-hidden="true"></i> Last acknowledgement</a><% } %>
+          <% if(transactionOptions.length){ %><button class="btn btnPrimary" id="newTransactionBtn" type="button" data-open-transaction><i class="fa-solid fa-plus" aria-hidden="true"></i> New transaction</button><% } %>
           <% if (context === 'platform' && ['/platform/dashboard','/platform/tenants'].includes(currentPath)) { %><a class="btn btnPrimary" href="/platform/tenants/create"><i class="fa-solid fa-plus" aria-hidden="true"></i> Create tenant</a><% } %>
         </div>
       </div>
@@ -41,6 +55,7 @@
     </main>
   </div></div>
   <div class="menuOverlay" id="menuOverlay"></div>
+  <% if(transactionOptions.length){ %><%- include('../partials/transaction-modal', {transactionOptions,visiblePaths}) %><% } %>
   <script src="/js/dashboard.js?v=<%= assetVersion %>"></script>
 </body>
 </html>

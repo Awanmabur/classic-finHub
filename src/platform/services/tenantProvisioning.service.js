@@ -4,7 +4,6 @@ const Tenant = require('../models/Tenant');
 const OwnerInvite = require('../models/OwnerInvite');
 const AccountIdentity = require('../models/AccountIdentity');
 const PlatformAuditLog=require('../models/PlatformAuditLog');
-const { plans } = require('../../data/store');
 const {latestPublished,planSnapshot}=require('./commercial.service');
 const { tenantDbNameFromSlug, getTenantConnection, NAME } = require('../../config/mongo');
 const { appUrl } = require('../../config/env');
@@ -21,16 +20,16 @@ function checkPayload(payload = {}) {
   const owner = text(payload.owner);
   const email = normalizeEmail(payload.email);
   const phone = text(payload.phone);
-  const plan = plans.find(p => p.code === payload.plan);
+  const plan = text(payload.plan);
   if (!name || name.length > 150) throw invalid('Enter a tenant name of 1–150 characters.');
   if (!NAME.test(slug)) throw invalid('Enter a slug of 3–42 letters, numbers or hyphens, beginning and ending with a letter or number.');
   if (!owner || owner.length > 120) throw invalid('Enter an owner name of 1–120 characters.');
   if (!email) throw invalid('Enter a valid owner email of at most 254 characters.');
   if (phone.length > 40 || !/^[+0-9 ()-]*$/.test(phone)) throw invalid('Enter a valid phone number of at most 40 characters.');
-  if (!plan) throw invalid('Choose an available published plan.');
-  // Cannot grant modules outside the agreed plan merely by manipulating POST payload.
-  const enabledModules = plan.modules.filter(m => require('../../data/store').modules.some(mod => mod.key === m));
-  return { name, slug, owner, email, phone, plan: plan.code, enabledModules };
+  if (!/^[a-z][a-z0-9_]{1,40}$/.test(plan)) throw invalid('Choose an available published plan.');
+  // Entitlements come only from the persisted published version below, never
+  // from POST fields or the static starter catalogue.
+  return { name, slug, owner, email, phone, plan, enabledModules: [] };
 }
 async function provisionTenant(payload, adminId) {
   const valid = checkPayload(payload);
@@ -43,11 +42,12 @@ async function provisionTenant(payload, adminId) {
   const dbName = tenantDbNameFromSlug(valid.slug);
   const published=await latestPublished(valid.plan);
   if(!published){const e=new Error('This plan has not been published to the database. Run the catalog publication step first.');e.status=409;throw e;}
+  if(published.availableForNewTenants===false)throw Object.assign(new Error('This plan is no longer available for new tenants. Choose another published plan.'),{status:409});
   const snapshot=planSnapshot(published);
   const startedAt=new Date();
   const trialEndsAt=new Date(startedAt);
   trialEndsAt.setUTCMonth(trialEndsAt.getUTCMonth()+published.trialMonths);
-  if(trialEndsAt<=startedAt)throw Object.assign(new Error('This plan has no self-service trial. Use a supervised manual subscription grant.'),{status:409});
+  const hasTrial=trialEndsAt>startedAt;
   // Provision the tenant database and its unique financial indexes BEFORE publishing
   // a tenant/invitation. A failed index build must not leave an accessible but unsafe
   // workspace. A failed platform transaction can leave an empty indexed database,
@@ -61,8 +61,8 @@ async function provisionTenant(payload, adminId) {
         const err = new Error('Owner email already has an account. Use a different address.'); err.status = 409; throw err;
       }
       [tenant] = await Tenant.create([{
-        ...valid, enabledModules:snapshot.modules, dbName, status: 'trial', setupStatus: 'invited', trialEndsAt,
-        subscription:{...snapshot,status:'trial',source:'new_tenant_trial',periodStart:startedAt,periodEnd:trialEndsAt,generation:1}
+        ...valid, enabledModules:hasTrial?snapshot.modules:[], dbName, status:hasTrial?'trial':'past_due', setupStatus:'invited',trialEndsAt:hasTrial?trialEndsAt:null,
+        ...(hasTrial?{subscription:{...snapshot,status:'trial',source:'new_tenant_trial',periodStart:startedAt,periodEnd:trialEndsAt,generation:1}}:{})
       }], { session });
       await OwnerInvite.create([{ tenantId: tenant._id, email: valid.email, name: valid.owner,
         tokenHash, expiresAt, createdBy: adminId }], { session });

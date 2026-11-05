@@ -23,6 +23,8 @@ const correctionEventSchema = new mongoose.Schema({
   at:{type:Date,default:Date.now}
 },{_id:false,strict:'throw'});
 const moneySchema = new mongoose.Schema({
+  entrySource:{type:String,enum:['manual','sms'],default:'manual',immutable:true},
+  smsInboxId:{type:mongoose.Schema.Types.ObjectId,default:null,immutable:true},
   idempotencyKey: { type: String, required: true, immutable: true, match: /^[0-9a-f-]{36}$/ },
   operation: { type: String, enum: ['cash_in','cash_out'], required: true, immutable: true },
   customer: { type: String, required: true, maxlength: 120, immutable: true },
@@ -85,6 +87,7 @@ const forexQuoteSchema=require('../schemas/ForexQuote.schema');
 const notificationTemplateSchema=require('../schemas/NotificationTemplate.schema');
 const notificationMessageSchema=require('../schemas/NotificationMessage.schema');
 const notificationPreferenceSchema=require('../schemas/NotificationPreference.schema');
+const smsInboxSchema=require('../schemas/SmsInbox.schema');
 const auditSchema = new mongoose.Schema({
   action: { type: String, required: true, immutable: true },
   actorId: { type: mongoose.Schema.Types.ObjectId, required: true, immutable: true },
@@ -116,6 +119,7 @@ function ensureTenantIndexes(conn) {
       model(conn,'NotificationTemplateV1',notificationTemplateSchema).createIndexes(),
       model(conn,'NotificationMessageV1',notificationMessageSchema).createIndexes(),
       model(conn,'NotificationPreferenceV1',notificationPreferenceSchema).createIndexes(),
+      model(conn,'SmsInboxV1',smsInboxSchema).createIndexes(),
       model(conn, 'LedgerAccountV2', ledgerSchemas.account).createIndexes(),
       model(conn, 'LedgerJournalV2', ledgerSchemas.journal).createIndexes(),
       model(conn, 'LedgerPostingV2', ledgerSchemas.posting).createIndexes(),
@@ -145,6 +149,7 @@ module.exports = {
   notificationTemplateModel: conn=>model(conn,'NotificationTemplateV1',notificationTemplateSchema),
   notificationMessageModel: conn=>model(conn,'NotificationMessageV1',notificationMessageSchema),
   notificationPreferenceModel: conn=>model(conn,'NotificationPreferenceV1',notificationPreferenceSchema),
+  smsInboxModel:conn=>model(conn,'SmsInboxV1',smsInboxSchema),
   ledgerAccountModel: conn => model(conn, 'LedgerAccountV2', ledgerSchemas.account),
   ledgerJournalModel: conn => model(conn, 'LedgerJournalV2', ledgerSchemas.journal),
   ledgerPostingModel: conn => model(conn, 'LedgerPostingV2', ledgerSchemas.posting),

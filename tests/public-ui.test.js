@@ -1,47 +1,42 @@
 'use strict';
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const path = require('node:path');
-const ejs = require('ejs');
-const { plans } = require('../src/data/store');
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const path=require('node:path');
+const ejs=require('ejs');
+const {plans}=require('../src/data/store');
+const {publicShape}=require('../src/platform/services/publicPlans.service');
+const render=(file,catalogue)=>ejs.renderFile(path.join(__dirname,'../src/views/original',file),{appUrl:'https://classicfin.example',assetVersion:'test',cspNonce:'nonce',plans:catalogue});
+const text=html=>html.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim();
+function cardsByCode(html){return Object.fromEntries([...html.matchAll(/<article class="plan-card(?: featured)?" data-plan-code="([^"]+)">([\s\S]*?)<\/article>/g)].map(match=>[match[1],text(match[2])]));}
+const custom=changes=>({code:'local_team_manual',name:'Local Team Manual',description:'A configurable local recording service.',currency:'USD',priceMonthly:80,priceYearly:800,trialMonths:1,entryMode:'manual',modules:['mobile_money'],moduleLabels:['Mobile Money'],limits:{users:8,branches:3,transactionsPerMonth:2400,smsPerMonth:0,storageMb:1500},...changes});
 
-const render = (file, catalogue) => ejs.renderFile(path.join(__dirname, '../src/views/original', file), {
-  appUrl: 'https://classicfin.example', assetVersion: 'test', cspNonce: 'nonce', plans: catalogue
+test('public pricing keeps named prices and capacity when catalogue order changes',async()=>{
+ const html=await render('pricing.ejs',[...plans].reverse().map(plan=>publicShape(plan)));
+ const cards=cardsByCode(html);
+ assert.equal(Object.keys(cards).length,plans.length);
+ assert.match(cards.agent,/Agent Plan USD \$149\.00\/mo/);assert.match(cards.agent,/3 branches and 12 users included/);
+ assert.match(cards.finance,/Finance Plan USD \$249\.00\/mo/);assert.match(cards.enterprise,/40 branches and 100 users included/);
+ assert.match(cards.modular,/Modular Workspace USD \$0\.00\/mo/);
 });
-const text = html => html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-
-test('public pricing keeps prices and capacity with their plan when the catalogue order changes', async () => {
-  const html = await render('pricing.ejs', [...plans].reverse());
-  const cards = [...html.matchAll(/<article class="plan-card(?: featured)?">([\s\S]*?)<\/article>/g)]
-    .map(match => text(match[1]));
-  assert.equal(cards.length, 4);
-  assert.match(cards[0], /Starter Trial USD \$0/);
-  assert.match(cards[0], /150 record limit/);
-  assert.match(cards[1], /Agent Plan USD \$149\/mo/);
-  assert.match(cards[1], /3 branches and 12 users included/);
-  assert.match(cards[2], /Finance Plan USD \$249\/mo/);
-  assert.match(cards[2], /6 branches and 25 users included/);
-  assert.match(cards[3], /Enterprise Plan USD \$499\/mo/);
-  assert.match(cards[3], /40 branches and 100 users included/);
+test('arbitrary administrator-created manual and SMS plans render without fixed catalogue codes',async()=>{
+ const auto=custom({code:'local_team_auto',name:'Local Team Auto',entryMode:'sms_assisted',priceMonthly:100,priceYearly:1000,modules:['mobile_money','sms_capture'],moduleLabels:['Mobile Money','SMS Capture'],limits:{...custom().limits,smsPerMonth:2400}});
+ const cards=cardsByCode(await render('pricing.ejs',[auto,custom()]));
+ assert.deepEqual(Object.keys(cards),['local_team_auto','local_team_manual']);
+ assert.match(cards.local_team_auto,/SMS-assisted \+ manual entry/);assert.match(cards.local_team_auto,/2,400 SMS imports \/ month; manual entry included/);assert.match(cards.local_team_auto,/USD \$1000\.00 \/ year/);
+ assert.match(cards.local_team_manual,/Manual entry/);assert.doesNotMatch(cards.local_team_manual,/SMS imports/);
+ const comparison=await render('price-compare.ejs',[custom(),auto]);
+ const headings=[...comparison.matchAll(/<th scope="col"(?: data-plan-code="[^"]+")?>([\s\S]*?)<\/th>/g)].map(match=>text(match[1]));
+ assert.deepEqual(headings,['Feature','Local Team Manual USD $80.00 / month','Local Team Auto USD $100.00 / month']);
+ const row=name=>[...comparison.matchAll(/<tr>([\s\S]*?)<\/tr>/g)].map(match=>match[1]).find(value=>text(value).startsWith(name));
+ assert.match(text(row('Branches included')),/3 3$/);assert.match(text(row('Monthly SMS imports')),/Not included 2,400$/);
+ assert.doesNotMatch(comparison,/Agent Plan|Enterprise Plan/);
 });
-
-test('public comparison uses the same named plan prices and limits as pricing', async () => {
-  const catalogue = plans.map((plan, index) => ({
-    ...plan,
-    priceMonthly: 100 + index,
-    limits: { ...plan.limits, branches: 10 + index, users: 20 + index, transactionsPerMonth: 1000 + index }
-  })).reverse();
-  const html = await render('price-compare.ejs', catalogue);
-  const headings = [...html.matchAll(/<th scope="col">([\s\S]*?)<\/th>/g)].map(match => text(match[1]));
-  assert.deepEqual(headings, ['Feature', 'Starter Trial USD $101 / trial', 'Agent Plan USD $102 / month',
-    'Finance Plan USD $103 / month', 'Enterprise USD $104 / month']);
-  const rowCells = name => {
-    const row = [...html.matchAll(/<tr>([\s\S]*?)<\/tr>/g)]
-      .map(match => match[1]).find(row => text(row).startsWith(name));
-    assert(row, `Missing comparison row: ${name}`);
-    return [...row.matchAll(/<td>([\s\S]*?)<\/td>/g)].map(match => text(match[1]));
-  };
-  assert.deepEqual(rowCells('Branches included'), ['11', '12', '13', '14']);
-  assert.deepEqual(rowCells('Users included'), ['21', '22', '23', '24']);
-  assert.deepEqual(rowCells('Monthly record limit'), ['1,001', '1,002', '1,003', '1,004']);
+test('no published prices produces a clear empty state instead of stale default prices',async()=>{
+ for(const file of ['pricing.ejs','price-compare.ejs']){
+  const html=await render(file,[]);assert.match(html,/plans.*(?:prepared|published)/i);assert.doesNotMatch(html,/USD \$149|USD \$249|data-plan-code=/);
+ }
+});
+test('public plan conversion uses persisted exact prices and excludes disabled modules',()=>{
+ const result=publicShape({code:'custom',name:'Custom',description:'Custom plan description.',currency:'USD',priceMonthlyMinor:4995,priceYearlyMinor:49950,trialMonths:0,modules:['mobile_money','customer_portal'],limits:custom().limits,entryMode:'manual',version:3},true);
+ assert.equal(result.priceMonthly,49.95);assert.equal(result.priceYearly,499.5);assert.equal(result.version,3);assert.deepEqual(result.moduleLabels,['Mobile Money']);
 });

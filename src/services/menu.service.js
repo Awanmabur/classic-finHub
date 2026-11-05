@@ -17,6 +17,7 @@ function tenantMenu(tenant,user) {
   if (hasPermission(user,'modules.view')) workspace.push({ label:'Modules',href:'/tenant/modules',icon:'fa-layer-group' });
   const ops = [];
   if (require('../tenant/services/moduleAccess.service').hasModuleForUser(tenant,user,'mobile_money') && hasPermission(user,'mobile_money.view')) {ops.push({ label:'Mobile Money',href:'/tenant/mobile-money',icon:'fa-mobile-screen-button' });ops.push({label:'Cash Shifts',href:'/tenant/mobile-money/shifts',icon:'fa-cash-register'});}
+  if (require('../tenant/services/moduleAccess.service').hasModuleForUser(tenant,user,'sms_capture') && hasPermission(user,'mobile_money.view')) ops.push({label:'SMS capture',href:'/tenant/sms-capture',icon:'fa-message'});
   if (require('../tenant/services/moduleAccess.service').hasModuleForUser(tenant,user,'money_transfer') && hasPermission(user,'money_transfer.view')) ops.push({label:'Money Transfer',href:'/tenant/money-transfer',icon:'fa-money-bill-transfer'});
   if (require('../tenant/services/moduleAccess.service').hasModuleForUser(tenant,user,'banking') && hasPermission(user,'banking.view')) ops.push({label:'Banking',href:'/tenant/banking',icon:'fa-building-columns'});
   if (require('../tenant/services/moduleAccess.service').hasModuleForUser(tenant,user,'forex') && hasPermission(user,'forex.view')) ops.push({label:'Forex',href:'/tenant/forex',icon:'fa-chart-line'});

@@ -17,11 +17,7 @@ function fail(message,status=400){const e=new Error(message);e.status=status;ret
 function text(value,label,min,max){if(typeof value!=='string'||value.trim().length<min||value.trim().length>max)throw fail(`${label} must contain ${min}–${max} characters`);return value.trim();}
 function objectId(value){if(!OBJECT_ID.test(String(value||'')))throw fail('Invalid approval identifier',404);return String(value);}
 function access(tenant,user,permission){if(!hasModuleForUser(tenant,user,'approval_workflows')||!hasPermission(user,permission))throw fail('Approval module entitlement and user permission required',403);}
-function validBranch(user,requested){
- if(user?.role==='Tenant Owner'){return objectId(requested);}
- if(!OBJECT_ID.test(String(user?.branchId||'')))throw fail('Assigned active branch required',403);
- return String(user.branchId); // client cannot select another branch
-}
+function validBranch(user,requested){return require('./transactionBranch.service').assignedBranchId(user,{branchId:requested});}
 function scope(user){
  if(['Tenant Owner','Auditor'].includes(user?.role))return {};
  if(!OBJECT_ID.test(String(user?.branchId||'')))throw fail('An assigned branch is required',403);
@@ -70,7 +66,7 @@ async function retire(conn,tenant,actor,code){
 }
 async function policies(conn,tenant,actor){access(tenant,actor,'approvals.view');return approvalPolicyModel(conn).find({status:'active'}).sort({name:1}).limit(100).lean();}
 async function create(conn,tenant,actor,input){
- access(tenant,actor,'approvals.submit');const v=requestInput(input),branchId=validBranch(actor,input?.branchId);await ensureTenantIndexes(conn);
+ access(tenant,actor,'approvals.submit');const v=requestInput(input),branchId=String((await require('./transactionBranch.service').resolveTransactionBranch(conn,actor,input))._id);await ensureTenantIndexes(conn);
  const Case=approvalRequestModel(conn),old=await Case.findOne({idempotencyKey:v.idempotencyKey}).lean();
  if(old){if(!same(old,actor,branchId,v))throw fail('Request key already used with different details',409);return {request:old,duplicate:true};}
  const session=await conn.startSession();let request;

@@ -1,0 +1,8 @@
+<section class="view show"><section class="card"><div class="cardHead"><b><%= data.device.name %> is enrolled</b><span>Copy these credentials now</span></div><div class="cardBody" style="display:grid;gap:12px">
+<p>The signing secret is shown once. Store it only in the Android relay’s private configuration. Revoke this device and enroll again if the secret is lost.</p>
+<label class="field">Endpoint<input class="control" readonly data-select-on-focus value="<%= appUrl %>/integrations/sms/<%= data.device.deviceId %>"></label>
+<label class="field">Signing secret (hex)<input class="control" readonly data-select-on-focus autocomplete="off" value="<%= data.secret %>"></label>
+<p class="tiny">POST JSON with <code>messageId</code>, <code>sender</code>, <code>receivedAt</code> (UTC ISO date) and <code>body</code>. The relay sends <code>X-SMS-Timestamp</code> (Unix seconds) and <code>X-SMS-Signature</code>: HMAC-SHA256 using the decoded hex secret over <code>timestamp + "." + raw JSON bytes</code>. Timestamp tolerance is five minutes. Sender allowlist: <%= data.device.allowedSenders.join(', ') %>.</p>
+<p class="tiny">See <code>tools/android-sms-relay/README.md</code> for Android setup. Unknown message formats require operator review; automatic records still require independent verification.</p>
+<a class="btn btnPrimary" href="/tenant/sms-capture">Return to SMS inbox</a>
+</div></section></section>

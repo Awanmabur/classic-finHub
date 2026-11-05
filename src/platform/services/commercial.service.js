@@ -3,6 +3,7 @@ const crypto=require('crypto');
 const mongoose=require('mongoose');
 const {plans,modules}=require('../../data/store');
 const PlanVersion=require('../models/PlanVersion');
+const PlanPublicationLock=require('../models/PlanPublicationLock');
 const Tenant=require('../models/Tenant');
 const UsageCounter=require('../models/UsageCounter');
 const PlatformAuditLog=require('../models/PlatformAuditLog');
@@ -17,6 +18,13 @@ function asPlanVersion(plan,version=1){
     trialMonths:plan.trialMonths,modules:[...plan.modules],limits:{...plan.limits}};
 }
 function checksum(data){return crypto.createHash('sha256').update(JSON.stringify(data)).digest('hex');}
+async function fencePublication(session){
+  if(!session?.inTransaction())throw err('Plan publication requires an active transaction',409);
+  // Write before catalogue reads so concurrent publications share a conflict
+  // point. MongoDB retries the losing transaction with a fresh snapshot.
+  await PlanPublicationLock.findOneAndUpdate({_id:'catalogue'},{$inc:{revision:1}},
+    {session,upsert:true,new:true,setDefaultsOnInsert:false});
+}
 async function publishCatalog({apply=false,Model=PlanVersion,actor}={}){
   if(actor !== undefined)actorCheck(actor);
   const results=[],missing=[];
@@ -38,6 +46,7 @@ async function publishCatalog({apply=false,Model=PlanVersion,actor}={}){
   if(apply && missing.length){
     const session=await mongoose.startSession();
     try{await session.withTransaction(async()=>{
+      await fencePublication(session);
       // MongoDB sessions cannot run parallel writes inside one transaction.
       await Model.create(missing,{session,ordered:true});
       // Local deployment operators may publish but cannot hide a catalogue
@@ -53,8 +62,9 @@ async function publishCatalog({apply=false,Model=PlanVersion,actor}={}){
 function validateNewVersion(raw){
   if(!raw||typeof raw!=='object'||Array.isArray(raw))throw err('Plan document must be an object');
   const expected=['code','name','description','currency','priceMonthlyMinor','priceYearlyMinor','trialMonths','modules','limits'];
-  if(Object.keys(raw).some(k=>!expected.includes(k))||expected.some(k=>!Object.hasOwn(raw,k)))throw err('Plan file has unexpected or missing fields');
-  if(!plans.some(p=>p.code===raw.code)||raw.currency!=='USD'||
+  const optional=['entryMode','manualPlanCode','availableForNewTenants'];
+  if(Object.keys(raw).some(k=>![...expected,...optional].includes(k))||expected.some(k=>!Object.hasOwn(raw,k)))throw err('Plan file has unexpected or missing fields');
+  if(typeof raw.code!=='string'||!/^[a-z][a-z0-9_]{1,40}$/.test(raw.code)||raw.currency!=='USD'||
     typeof raw.name!=='string'||raw.name.trim().length<3||raw.name.length>100||
     typeof raw.description!=='string'||raw.description.trim().length<10||raw.description.length>1000||
     ![raw.priceMonthlyMinor,raw.priceYearlyMinor].every(n=>Number.isSafeInteger(n)&&n>=0&&n<=100000000)||
@@ -64,26 +74,77 @@ function validateNewVersion(raw){
   const keys=['users','branches','transactionsPerMonth','smsPerMonth','storageMb'];
   if(!raw.limits||typeof raw.limits!=='object'||Array.isArray(raw.limits)||
     Object.keys(raw.limits).length!==keys.length||keys.some(k=>!Number.isSafeInteger(raw.limits[k])||raw.limits[k]<(k==='users'||k==='branches'?1:0)||raw.limits[k]>100000000))throw err('Invalid plan limits');
+  if(raw.entryMode!==undefined&&!['manual','sms_assisted'].includes(raw.entryMode))throw err('Choose manual or SMS-assisted entry');
+  if(raw.availableForNewTenants!==undefined&&typeof raw.availableForNewTenants!=='boolean')throw err('Plan availability must be true or false');
+  const auto=raw.entryMode==='sms_assisted';
+  if(auto){
+    if(!raw.modules.includes('sms_capture')||!raw.modules.includes('mobile_money')||typeof raw.manualPlanCode!=='string'||
+      !/^[a-z][a-z0-9_]{1,40}$/.test(raw.manualPlanCode)||raw.manualPlanCode===raw.code||raw.limits.smsPerMonth<1)
+      throw err('SMS-assisted plans require Mobile Money, SMS Capture, a different manual comparison plan, and a positive SMS allocation');
+  }else if(raw.modules.includes('sms_capture')||raw.manualPlanCode!==undefined){
+    throw err('SMS Capture is available only on an SMS-assisted plan with a manual comparison plan');
+  }
   return {...raw,modules:[...raw.modules],limits:{...raw.limits}};
+}
+function matchingWorkspace(sms,manual){
+  return JSON.stringify(sms.modules.filter(key=>key!=='sms_capture').sort())===JSON.stringify([...manual.modules].sort())&&
+    ['users','branches','transactionsPerMonth','storageMb'].every(key=>sms.limits[key]===manual.limits[key]);
+}
+async function validateSmsPricing(values,{session}={}){
+  if(values.entryMode!=='sms_assisted'){
+    if(values.availableForNewTenants===false)return {};
+    // Group before filtering: a retired or converted latest revision must not
+    // resurrect an older SMS price for new subscribers.
+    const query=PlanVersion.aggregate([
+      {$match:{status:'published'}},{$sort:{code:1,version:-1}},
+      {$group:{_id:'$code',latest:{$first:'$$ROOT'}}},{$replaceRoot:{newRoot:'$latest'}},
+      {$match:{entryMode:'sms_assisted',manualPlanCode:values.code,availableForNewTenants:{$ne:false}}}
+    ]);
+    if(session)query.session(session);
+    const automaticPlans=await query;
+    const conflict=automaticPlans.find(auto=>matchingWorkspace(auto,values)&&
+      (values.priceMonthlyMinor>=auto.priceMonthlyMinor||values.priceYearlyMinor>=auto.priceYearlyMinor));
+    if(conflict)throw err(`Publish higher monthly and yearly SMS-assisted prices for ${conflict.code} before increasing its matching manual plan`,409);
+    return {};
+  }
+  const query=PlanVersion.findOne({code:values.manualPlanCode,status:'published'}).sort({version:-1});
+  if(session)query.session(session);
+  const manual=await query.lean();
+  if(!manual||manual.entryMode==='sms_assisted'||manual.modules.includes('sms_capture'))throw err('Choose a published manual-entry plan for comparison',409);
+  if(!matchingWorkspace(values,manual))
+    throw err('The SMS-assisted plan must match its manual plan’s modules and workspace limits; SMS allocation can differ',409);
+  if(values.priceMonthlyMinor<=manual.priceMonthlyMinor||values.priceYearlyMinor<=manual.priceYearlyMinor)
+    throw err('SMS-assisted monthly and yearly prices must both be higher than the matching manual plan',409);
+  return {manualPlanVersion:manual.version};
 }
 async function publishNextVersion(raw,reason,{apply=false}={}){
   const values=validateNewVersion(raw);
   if(typeof reason!=='string'||reason.trim().length<20||reason.trim().length>600)throw err('Publication requires a change justification of 20–600 characters');
-  const current=await latestPublished(values.code);
-  if(!current)throw err('Initial plan catalogue must be published first',409);
-  const version=current.version+1;
-  const doc={...values,version};
-  const sourceHash=checksum(doc);
-  if(apply){
-    const session=await mongoose.startSession();
-    try{await session.withTransaction(async()=>{
+  let result;
+  async function publish(session){
+    if(session)await fencePublication(session);
+    const query=PlanVersion.findOne({code:values.code,status:'published'}).sort({version:-1});
+    if(session)query.session(session);
+    const current=await query.lean();
+    if(!current)throw err('Initial plan catalogue must be published first',409);
+    const version=current.version+1;
+    const smsTerms=await validateSmsPricing(values,{session});
+    const doc={...values,...smsTerms,version};
+    const sourceHash=checksum(doc);
+    if(session){
       await PlanVersion.create([{...doc,sourceHash,status:'published',publishedAt:new Date()}],{session});
       await PlatformAuditLog.create([{actorId:'system:catalog-operator',action:'catalog.plan_version_published',moduleKey:'billing',
         recordId:values.code,after:{version,sourceHash,reason:reason.trim()}}],{session});
-    });}catch(e){if(e.code===11000)throw err('Plan was published concurrently. Inspect versions before retrying.',409);throw e;}
-    finally{await session.endSession();}
+    }
+    result={code:values.code,version,sourceHash,action:apply?'published':'would-publish',previousVersion:current.version};
   }
-  return {code:values.code,version,sourceHash,action:apply?'published':'would-publish',previousVersion:current.version};
+  if(apply){
+    const session=await mongoose.startSession();
+    try{await session.withTransaction(()=>publish(session));}
+    catch(e){if(e.code===11000)throw err('Plan was published concurrently. Inspect versions before retrying.',409);throw e;}
+    finally{await session.endSession();}
+  }else await publish();
+  return result;
 }
 
 function planSnapshot(doc){
@@ -240,4 +301,4 @@ async function reserveUsage(tenant,metric,session,now=new Date(),Model=UsageCoun
   }catch(e){if(e.code===11000)throw err('Monthly transaction allocation exhausted',429);throw e;}
 }
 module.exports={err,asPlanVersion,checksum,publishCatalog,planSnapshot,effectiveSubscription,limitsFor,planForTenant,
-  publishedPlans,latestPublished,validateNewVersion,publishNextVersion,grantInput,computeGrantPeriod,validateCapacity,grantTenantSubscription,revokeTenantSubscription,periodKey,reserveUsage};
+  publishedPlans,latestPublished,validateNewVersion,validateSmsPricing,fencePublication,publishNextVersion,grantInput,computeGrantPeriod,validateCapacity,grantTenantSubscription,revokeTenantSubscription,periodKey,reserveUsage};

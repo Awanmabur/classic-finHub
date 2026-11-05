@@ -29,12 +29,7 @@ function recordScope(actor){
  if(actor?.role==='Money Transfer Operator')scope.createdBy=id(actor.id);
  return scope;
 }
-function selectedBranch(actor,input){
- const value=actor?.role==='Tenant Owner'?input?.branchId:actor?.branchId;
- if(!OID.test(String(value||'')))throw fail('Choose an active assigned branch');
- if(actor?.role!=='Tenant Owner'&&String(value)!==String(actor.branchId))throw fail('Cross-branch access denied',403);
- return id(value);
-}
+function selectedBranch(actor,input){return require('./transactionBranch.service').assignedBranchId(actor,input);}
 function validateContact(input){
  const fullName=text(input?.fullName,'contact name',2,120);
  const phone=text(input?.phone,'international phone number',9,16);
@@ -68,7 +63,7 @@ function equivalent(existing,actor,branchId,v){
 async function addContact(conn,tenant,actor,input){
  requireModuleAccess(tenant,actor,'money_transfer.contacts');
  if(!writeActor(actor))throw fail('This role cannot manage contacts',403);
- const values=validateContact(input),branchId=selectedBranch(actor,input);
+ const values=validateContact(input),branchId=String((await require('./transactionBranch.service').resolveTransactionBranch(conn,actor,input))._id);
  await ensureTenantIndexes(conn);
  const tx=await conn.startSession();let created;
  try{await tx.withTransaction(async()=>{
@@ -117,7 +112,7 @@ async function listContacts(conn,tenant,actor,{kind=null,branchId=null}={}){
 }
 async function createRequest(conn,tenant,actor,input){
  requireModuleAccess(tenant,actor,'money_transfer.create');if(!writeActor(actor))throw fail('Only transfer operators can request transfers',403);
- const v=validateOrder(input),branchId=selectedBranch(actor,input);
+ const v=validateOrder(input),branchId=String((await require('./transactionBranch.service').resolveTransactionBranch(conn,actor,input))._id);
  await ensureTenantIndexes(conn);
  const Model=transferOrderModel(conn);
  const existing=await Model.findOne({idempotencyKey:v.idempotencyKey}).lean();

@@ -59,7 +59,8 @@ test('Tenant and branch access fail closed for unrelated roles and assignments',
  await assert.rejects(fx.proposeRate(null,base,viewer,{}),{status:403});
  await assert.rejects(fx.decideRate(null,base,op,branch,{}),{status:403});
  await assert.rejects(fx.createQuote(null,base,actor('Forex Operator',[]),{}),{status:403});
- assert.equal(fx.branchFor(op,{branchId:'507f1f77bcf86cd799439015'}),branch,'client branch selector is ignored for assigned staff');
+ fail(()=>fx.branchFor(op,{branchId:'507f1f77bcf86cd799439015'}),403);
+ assert.equal(fx.branchFor(op,{}),branch,'branch is resolved from the account');
  fail(()=>fx.branchScope({role:'Forex Operator',branchId:null}),403);
  assert.deepEqual(fx.branchScope(actor('Tenant Owner')),{});
  assert.deepEqual(fx.quoteScope(op),{branchId:branch,createdBy:actorId});

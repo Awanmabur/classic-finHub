@@ -85,7 +85,8 @@ test('new plan version publication rejects arbitrary fields, unknown modules and
  assert.throws(()=>commerce.validateNewVersion({...next,priceMonthlyMinor:-1}));
  assert.throws(()=>commerce.validateNewVersion({...next,priceMonthlyMinor:'1000'}));
  assert.throws(()=>commerce.validateNewVersion({...next,limits:{...next.limits,users:0}}));
- assert.throws(()=>commerce.validateNewVersion({...next,code:'surprise_plan'}));
+ assert.equal(commerce.validateNewVersion({...next,code:'custom_manual_plan'}).code,'custom_manual_plan');
+ assert.throws(()=>commerce.validateNewVersion({...next,code:'../invalid-plan'}));
 });
 test('subscription schema supports embedded versioned snapshots and safe revocation',()=>{
  const Tenant=require('../src/platform/models/Tenant');

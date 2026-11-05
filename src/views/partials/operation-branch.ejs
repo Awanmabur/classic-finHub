@@ -1,0 +1,5 @@
+<% if(currentBranch){ %>
+  <p class="tiny operationBranchContext"><i class="fa-solid fa-location-dot" aria-hidden="true"></i> Operating at <strong><%= currentBranch.name %></strong> · <%= currentBranch.currency %></p>
+<% } else { %>
+  <p class="tiny operationBranchContext" role="status" data-operation-branch-error><%= branchProblem %><% if(user.role==='Tenant Owner'){ %> <a href="/tenant/branches">Manage operating branch</a><% } else { %> Contact your tenant owner.<% } %></p>
+<% } %>

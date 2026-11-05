@@ -12,6 +12,7 @@ const { hasPermission,hasModuleForUser } = require('../services/moduleAccess.ser
 const branchService=require('../services/branch.service');
 const staffService=require('../services/staff.service');
 const staffPolicy=require('../services/staffPolicy');
+router.use(require('../services/transactionBranch.service').requestContext);
 // Only owners and auditors have tenant-wide visibility. Other users are branch scoped;
 // legacy unassigned users have no implicit access to other branches.
 function recordScope(req){
@@ -47,8 +48,10 @@ router.get('/dashboard', requirePermission('dashboard.view'), async (req,res,nex
       hasApprovals?require('../services/approvals.service').list(req.tenantDb,req.tenant,req.user):null,
       reportsActive?require('../services/operationsReports.service').generate(req.tenantDb,req.tenant,req.user,{source:'workspace'}):null
     ]);
-    renderTenant(req,res,'dashboard/index',req.user.role==='Tenant Owner'?'Tenant Overview':req.user.role==='Branch Manager'?'Branch Overview':req.user.role==='Reports Analyst'?'Reports Overview':'Operations Overview', 'Your workspace activity and services.',{summary,plan:planForTenant(req.tenant),reportingSummary,hasMobileMoney,
-      hasTransfer,transferRecords,hasBanking,bankingRecords,hasForex,forexRecords,hasApprovals,approvalRecords,moduleGrants:require('../../platform/services/moduleSubscriptions.service').activeGrants(req.tenant)});
+    const overview={summary,plan:planForTenant(req.tenant),reportingSummary,hasMobileMoney,
+      hasTransfer,transferRecords,hasBanking,bankingRecords,hasForex,forexRecords,hasApprovals,approvalRecords,moduleGrants:require('../../platform/services/moduleSubscriptions.service').activeGrants(req.tenant)};
+    overview.workspaceSnapshot=await require('../services/workspaceSnapshot.service').snapshot(req.tenantDb,req.tenant,req.user,overview,req.operationBranch);
+    renderTenant(req,res,'dashboard/index',req.user.role==='Tenant Owner'?'Tenant Overview':req.user.role==='Branch Manager'?'Branch Overview':req.user.role==='Reports Analyst'?'Reports Overview':'Operations Overview', 'Your workspace activity and services.',overview);
   } catch(e) { next(e); }
 });
 router.get('/mobile-money', requireModule('mobile_money'), requirePermission('mobile_money.view'), async (req,res,next)=>{
@@ -255,6 +258,9 @@ router.get('/branches',requirePermission('branches.view'),async(req,res,next)=>{
 });
 router.post('/branches',requirePermission('branches.manage'),async(req,res,next)=>{
   try{await branchService.create(req.tenant,req.user,req.body);flash(req,'good','Branch created and audited.');res.redirect(303,'/tenant/branches');}catch(e){next(e);}
+});
+router.post('/branches/operating',requirePermission('branches.manage'),async(req,res,next)=>{
+  try{await branchService.setOperatingBranch(req.tenant,req.user,req.body.branchId);flash(req,'good','Your operating branch is saved. New transactions will use it automatically.');res.redirect(303,'/tenant/branches');}catch(e){next(e);}
 });
 router.post('/branches/:id/update',requirePermission('branches.manage'),async(req,res,next)=>{
   try{await branchService.update(req.tenant,req.user,req.params.id,req.body);flash(req,'good','Branch updated and audited.');res.redirect(303,'/tenant/branches');}catch(e){next(e);}

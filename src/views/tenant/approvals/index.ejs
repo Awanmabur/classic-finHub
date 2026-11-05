@@ -1,15 +1,19 @@
+<% const currentBranch = typeof operationBranch !== 'undefined' ? operationBranch : (data.branches || []).find(b => String(b._id) === String(user.transactionBranchId || user.branchId || data.selectedBranchId || '') && b.status !== 'archived');
+   const currentBranchId = currentBranch ? String(currentBranch._id) : null;
+   const branchProblem = typeof operationBranchError === 'string' && operationBranchError ? operationBranchError : 'An active operating branch must be assigned to your account before creating records.'; %>
 <section class="view show">
+ <%- include('../../partials/operation-branch', {currentBranch, branchProblem, user}) %>
  <section class="card"><div class="cardHead"><b>Independent approval requests</b><span>Tenant and branch restricted</span></div>
  <div class="cardBody"><p class="tiny">This is a standalone internal approval service. Approving a request records an authorization decision only. It does not execute payments, reverse accounting entries, edit subscriptions or bypass any financial module's mandatory review.</p></div></section>
  <div class="grid" style="margin-top:14px">
- <% if(data.canSubmit){ %><section class="card"><div class="cardHead"><b>Submit request</b><span>Separate reviewer required</span></div><div class="cardBody">
+ <% if(data.canSubmit && currentBranch){ %><section class="card"><div class="cardHead"><b>Submit request</b><span>Separate reviewer required</span></div><div class="cardBody">
  <form method="post" action="/tenant/approvals/requests" autocomplete="off" style="display:grid;gap:12px">
  <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
  <label class="field">Approval policy<select class="control" name="policyCode" required><option value="">Select an active policy</option><% data.policies.forEach(p=>{ %><option value="<%= p.code %>"><%= p.name %> (v<%= p.version %>)</option><% }) %></select></label>
- <% if(user.role==='Tenant Owner'){ %><label class="field">Branch<select class="control" name="branchId" required><option value="">Select branch</option><% data.branches.forEach(b=>{ %><option value="<%= b._id %>"><%= b.name %></option><% }) %></select></label><% } %>
+
  <label class="field">Subject<input class="control" name="subject" required minlength="4" maxlength="120"></label>
  <label class="field">Business justification<textarea class="control" name="justification" rows="3" required minlength="15" maxlength="1000"></textarea></label>
- <button class="btn btnPrimary" type="submit" <%= data.policies.length && data.branches.length?'':'disabled' %>>Submit internal request</button>
+ <button class="btn btnPrimary" type="submit" <%= data.policies.length && currentBranch?'':'disabled' %>>Submit internal request</button>
  </form><% if(!data.policies.length){ %><p class="tiny">No active policy available. A Tenant Owner must publish one.</p><% } %>
  </div></section><% } %>
  <% if(data.canManage){ %><section class="card"><div class="cardHead"><b>Publish approval policy</b><span>Immutable version snapshots</span></div><div class="cardBody">

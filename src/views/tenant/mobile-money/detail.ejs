@@ -3,6 +3,7 @@
   <section class="card"><div class="cardHead"><b>Recorded operation</b><span>Original financial details are retained</span><a class="btn" href="/tenant/mobile-money/history">History</a></div>
   <div class="cardBody"><div class="row3">
     <p><b>Network:</b> <%= data.record.network %></p>
+    <p><b>Entry source:</b> <%= data.record.entrySource==='sms'?'SMS capture':'Manual entry' %></p>
     <p><b>Reference:</b> <%= data.record.networkReference %></p>
     <p><b>Operation:</b> <%= data.record.operation.replaceAll('_',' ') %></p>
     <p><b>Amount:</b> <%= money(data.record.currency,amountFromMinor(data.record.amountMinor,data.record.currency)) %></p>

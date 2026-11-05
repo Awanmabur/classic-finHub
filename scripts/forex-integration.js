@@ -60,7 +60,7 @@ async function main(){
   const replay=await forex.createQuote(a.conn,a.tenant,maker,input);
   assert.equal(replay.duplicate,true);assert.equal(String(replay.quote._id),String(created.quote._id));
   await assert.rejects(forex.createQuote(a.conn,a.tenant,maker,{...input,amount:'30000'}),e=>e.status===409);
-  await assert.rejects(forex.createQuote(b.conn,b.tenant,maker,quoteInput()),e=>e.status===409);
+  await assert.rejects(forex.createQuote(b.conn,b.tenant,maker,quoteInput()),e=>e.status===403);
   await assert.rejects(forex.detail(b.conn,b.tenant,{...maker,branchId:String(b.branch._id)},String(created.quote._id)),e=>e.status===404);
   await assert.rejects(forex.decideQuote(a.conn,a.tenant,{...maker,role:'Tenant Owner',permissions:['*']},String(created.quote._id),
    {decision:'approve',note:'Attempt to self-approve a customer quote'}),e=>e.status===409);

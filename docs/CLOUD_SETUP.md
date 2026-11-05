@@ -85,3 +85,15 @@ The prepared instance has no live mail/provider credentials. Internal notificati
 and financial-recording checks passed without claiming external delivery or money
 movement. See [the project review](PROJECT_REVIEW.md) for fixed defects, remaining
 features and production acceptance work.
+
+
+## SMS and configurable-plan additions
+
+The normal index/start commands now also initialize PlanDraft, PlanPublicationLock,
+SmsDevice and SmsUsage. Existing development MFA encryption keys must be retained:
+they also protect SMS credentials and message text through a separate derived key.
+The local release gate additionally runs custom-plan, automatic-branch, signed-SMS,
+authorization-race and Python relay checks. Python 3 is needed for those relay
+checks (it is available in the prepared cloud instance). Live Android installation
+happens on the phone, following the relay guide; the cloud snapshot does not grant
+SMS permissions to an Android device.

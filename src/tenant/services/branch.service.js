@@ -24,9 +24,27 @@ async function create(tenant,actor,input){
     const reserved=await Tenant.findOneAndUpdate({_id:tenant._id,$or:[{branchCount:{$lt:limits.branches}},{branchCount:{$exists:false}}]},{$inc:{branchCount:1}},{session,new:true});
     if(!reserved)throw fail('Your subscription has reached its active branch limit',409);
     [created]=await branchModel(conn).create([{...values,createdBy:actor.id,updatedBy:actor.id}],{session});
+    // The first branch becomes the owner's operating location without adding
+    // a branch picker to transaction forms or narrowing owner reporting scope.
+    if(reserved.branchCount===1)await tenantUserModel(conn).updateOne({_id:actor.id,role:'Tenant Owner',status:'active',
+      $or:[{branchId:null},{branchId:{$exists:false}},{branchId:''}]},{$set:{branchId:String(created._id)}},{session});
     await auditEventModel(conn).create([{action:'branch.created',actorId:actor.id,targetId:created._id,metadata:{code:values.code,currency:values.currency}}],{session});
   });return created;
   }catch(e){if(e.code===11000)throw fail('A branch with this code already exists',409);throw e;}finally{await session.endSession();}
+}
+async function setOperatingBranch(tenant,actor,branchId){
+  requireOwner(actor);validId(branchId);
+  const conn=getTenantConnection(tenant.slug);await ensureTenantIndexes(conn);
+  const session=await mongoose.startSession();let updated;
+  try{await session.withTransaction(async()=>{
+    const branch=await branchModel(conn).findOneAndUpdate({_id:branchId,status:'active'},{$inc:{revision:1}},{session,new:true});
+    if(!branch)throw fail('Choose an active branch in this workspace',409);
+    updated=await tenantUserModel(conn).findOneAndUpdate({_id:actor.id,role:'Tenant Owner',status:'active'},
+      {$set:{branchId:String(branch._id)}},{session,new:true});
+    if(!updated)throw fail('Active tenant owner account required',403);
+    await auditEventModel(conn).create([{action:'account.operating_branch.changed',actorId:actor.id,targetId:updated._id,
+      metadata:{branchId:String(branch._id),previousBranchId:actor.branchId||null}}],{session});
+  });return updated;}finally{await session.endSession();}
 }
 async function update(tenant,actor,branchId,input){
   requireOwner(actor);validId(branchId);const values=validate(input);
@@ -80,4 +98,4 @@ async function restore(tenant,actor,branchId){
     await auditEventModel(conn).create([{action:'branch.restored',actorId:actor.id,targetId:changed._id,metadata:{code:changed.code}}],{session});
   });}finally{await session.endSession();}
 }
-module.exports={validate,create,list,update,archive,restore,validId};
+module.exports={validate,create,list,update,archive,restore,setOperatingBranch,validId};

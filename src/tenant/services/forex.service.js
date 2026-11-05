@@ -55,11 +55,7 @@ function quoteScope(actor){const scope=branchScope(actor);
  if(actor?.role==='Forex Operator')scope.createdBy=id(actor.id);
  return scope;
 }
-function branchFor(actor,input){const branchId=actor?.role==='Tenant Owner'?input?.branchId:actor?.branchId;
- if(!OID.test(String(branchId||'')))throw fail('Choose an active branch');
- if(actor.role!=='Tenant Owner'&&String(branchId)!==String(actor.branchId))throw fail('Cross-branch operation forbidden',403);
- return id(branchId);
-}
+function branchFor(actor,input){return require('./transactionBranch.service').assignedBranchId(actor,input);}
 function rateInput(input){
  const fromCurrency=currency(input?.fromCurrency),toCurrency=currency(input?.toCurrency);
  if(fromCurrency===toCurrency)throw fail('Exchange currencies must differ');
@@ -81,7 +77,7 @@ function quoteInput(input){
 }
 async function proposeRate(conn,tenant,actor,input){
  moduleAccess(tenant,actor,'forex.rate_manage');if(!operator(actor))throw fail('Only assigned Forex staff may propose rates',403);
- const v=rateInput(input),branchId=branchFor(actor,input);await ensureTenantIndexes(conn);
+ const v=rateInput(input),branchId=String((await require('./transactionBranch.service').resolveTransactionBranch(conn,actor,input))._id);await ensureTenantIndexes(conn);
  const session=await conn.startSession();let rate;
  try{await session.withTransaction(async()=>{
   const branch=await branchModel(conn).findOneAndUpdate({_id:branchId,status:'active'},{$inc:{revision:1}},{session,new:true});
@@ -128,7 +124,7 @@ function equivalent(existing,actor,branchId,v){return String(existing.createdBy)
  existing.sourceMinor.toString()===v.sourceMinor.toString()&&existing.validMinutes===v.validMinutes;}
 async function createQuote(conn,tenant,actor,input){
  moduleAccess(tenant,actor,'forex.quotes.create');if(!operator(actor))throw fail('Quote creation role required',403);
- const v=quoteInput(input),branchId=branchFor(actor,input);await ensureTenantIndexes(conn);
+ const v=quoteInput(input),branchId=String((await require('./transactionBranch.service').resolveTransactionBranch(conn,actor,input))._id);await ensureTenantIndexes(conn);
  const Quote=forexQuoteModel(conn),existing=await Quote.findOne({idempotencyKey:v.idempotencyKey}).lean();
  if(existing){const base=minor(v.amount,existing.fromCurrency);
   if(!equivalent(existing,actor,branchId,{...v,sourceMinor:base}))throw fail('Request reference reused with different quote details',409);

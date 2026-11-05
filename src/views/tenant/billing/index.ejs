@@ -1,5 +1,9 @@
 <section class="view show"><div class="grid"><section class="card"><div class="cardHead"><b>Workspace subscription</b><span>Recorded entitlement · no payment simulation</span></div><div class="cardBody summary">
 <div class="sumRow"><span>Plan</span><b><%= data.subscription?.planName||'Administrator review required' %></b></div>
+<% if(data.subscription){ %><div class="sumRow"><span>Entry mode</span><b><%= data.subscription.modules?.includes('sms_capture')?'SMS-assisted + manual':'Manual entry' %></b></div>
+<div class="sumRow"><span>Monthly plan price</span><b><%= data.subscription.currency %> <%= (data.subscription.priceMonthlyMinor/100).toFixed(2) %></b></div>
+<div class="sumRow"><span>Yearly plan price</span><b><%= data.subscription.currency %> <%= (data.subscription.priceYearlyMinor/100).toFixed(2) %></b></div>
+<% if(data.subscription.modules?.includes('sms_capture')){ %><div class="sumRow"><span>Monthly SMS allowance</span><b><%= data.subscription.limits.smsPerMonth %></b></div><% } %><% } %>
 <div class="sumRow"><span>Version</span><b><%= data.subscription?.planVersion||'—' %></b></div>
 <div class="sumRow"><span>Access</span><b><%= data.subscription?.status||'Not assigned' %></b></div>
 <div class="sumRow"><span>Term ends</span><b><%= data.subscription?.periodEnd ? new Date(data.subscription.periodEnd).toISOString().slice(0,10) : 'No active term' %></b></div>

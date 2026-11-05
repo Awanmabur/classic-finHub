@@ -22,3 +22,9 @@ node_modules
 # Local offsite backup evidence and recovered encrypted copies
 *.cfhb.json
 classicfin-recovery/
+
+# Android relay test bytecode and local phone configuration
+__pycache__/
+*.pyc
+tools/android-sms-relay/config.json
+tools/android-sms-relay/*.sqlite*

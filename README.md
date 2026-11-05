@@ -1,3 +1,20 @@
+# Configurable plans, Android SMS capture and tenant transaction dialogs
+
+Platform administrators can now create versioned custom plans, configure prices,
+modules and quotas, and publish separate manual and higher-priced SMS-assisted
+tiers. Tenant transaction branches come from account/device assignments; the
+workspace uses real database-backed operation dialogs and cash/activity data.
+Manual entry remains available.
+
+- [Configure plans, SMS capture and the workspace](docs/SMS_AND_PLAN_CONFIGURATION.md)
+- [Connect the Android phone](tools/android-sms-relay/README.md)
+- [Automatic branch behavior](docs/AUTOMATIC_BRANCH_CONTEXT.md)
+
+Automatic capture needs the installed Android relay and a reachable HTTPS app.
+Unmatched network SMS is queued for review; provider settlement is not inferred.
+
+---
+
 # Current review and repairs — 5 November 2026
 
 This repository now uses the uploaded v1.23.2 application, with verified repairs

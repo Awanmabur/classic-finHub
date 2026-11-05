@@ -3,6 +3,7 @@ const Tenant = require('../models/Tenant');
 const Appointment = require('../models/Appointment');
 const { modules, plans } = require('../../data/store');
 const commercial=require('../services/commercial.service');
+const planBuilder=require('../services/planBuilder.service');
 const outbox=require('../services/outbox.service');
 const { platformMenu } = require('../../services/menu.service');
 const { consumeFlash, flash, money } = require('../../utils/view');
@@ -35,7 +36,7 @@ async function renderTenantCreate(req,res,values={},error=null){
   const latest=new Map();
   for(const plan of published) if(!latest.has(plan.code)) latest.set(plan.code,plan);
   renderPlatform(req,res,'tenants/create','Create Tenant','Add a workspace and invite its owner.',{
-    plans:plans.map(p=>latest.get(p.code)).filter(p=>p?.trialMonths>0),catalogueEmpty:published.length===0,modules,values,error
+    plans:[...latest.values()].filter(p=>p.availableForNewTenants!==false),catalogueEmpty:published.length===0,modules,values,error
   });
 }
 router.get('/tenants/create',async(req,res,next)=>{
@@ -72,8 +73,49 @@ router.post('/tenants/:id/profile',async(req,res,next)=>{
   try{await updateProfile(req.params.id,req.platformUser,req.body);flash(req,'good','Tenant profile updated and audited.');res.redirect(303,'/platform/tenants/'+req.params.id);}catch(e){next(e);}
 });
 router.get('/plans',async(req,res,next)=>{
-  try{renderPlatform(req,res,'plans/index','Plans & Pricing','Persisted immutable plan versions and publication state.',{plans,published:await commercial.publishedPlans()});}
+  try{renderPlatform(req,res,'plans/index','Plans & Pricing','Configure plans, prices and included services.',{plans,...await planBuilder.list()});}
   catch(e){next(e);}
+});
+async function renderPlanEditor(req,res,code,overrides={}){
+  const [editor,published]=await Promise.all([planBuilder.editor(code),commercial.publishedPlans()]);
+  const latest=new Map();for(const plan of published)if(!latest.has(plan.code))latest.set(plan.code,plan);
+  renderPlatform(req,res,'plans/editor',code?'Edit plan':'Create plan','Save a draft, then publish its prices and module access.',{
+    editor,values:editor.values,error:null,modules:modules.filter(module=>module.runtimeStatus!=='disabled'),
+    manualPlans:[...latest.values()].filter(plan=>plan.entryMode!=='sms_assisted'&&!plan.modules.includes('sms_capture')),...overrides
+  });
+}
+router.get('/plans/new',async(req,res,next)=>{
+  try{await renderPlanEditor(req,res);}catch(error){next(error);}
+});
+router.get('/plans/:code/edit',async(req,res,next)=>{
+  try{await renderPlanEditor(req,res,req.params.code);}catch(error){next(error);}
+});
+for(const [path,existing] of [['/plans/drafts',false],['/plans/:code/draft',true]]){
+  router.post(path,async(req,res,next)=>{
+    const code=existing?req.params.code:undefined;
+    try{
+      const draft=await planBuilder.saveDraft(req.platformUser,req.body,code);
+      flash(req,'good','Plan draft saved. Review the configuration before publishing.');
+      res.redirect(303,'/platform/plans/'+encodeURIComponent(draft.code)+'/edit');
+    }catch(error){
+      if([400,409].includes(error.status)){
+        try{return await renderPlanEditor(req,res.status(error.status),code,{values:req.body,error:error.message});}catch(renderError){return next(renderError);}
+      }
+      next(error);
+    }
+  });
+}
+router.post('/plans/:code/publish',async(req,res,next)=>{
+  try{
+    const plan=await planBuilder.publishDraft(req.platformUser,req.params.code,req.body);
+    flash(req,'good',`${plan.name} v${plan.version} published. Existing subscriptions keep their recorded terms.`);
+    res.redirect(303,'/platform/plans');
+  }catch(error){
+    if([400,409].includes(error.status)){
+      try{return await renderPlanEditor(req,res.status(error.status),req.params.code,{error:error.message});}catch(renderError){return next(renderError);}
+    }
+    next(error);
+  }
 });
 router.post('/plans/publish-initial',async(req,res,next)=>{
   try{

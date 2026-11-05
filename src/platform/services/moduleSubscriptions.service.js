@@ -6,7 +6,7 @@ const Tenant=require('../models/Tenant');
 const PlatformAuditLog=require('../models/PlatformAuditLog');
 const {modules}=require('../../data/store');
 function error(message,status=400){const e=new Error(message);e.status=status;return e;}
-function listable(){return modules.filter(m=>['enabled','recording_only'].includes(m.runtimeStatus)&&m.status==='active');}
+function listable(){return modules.filter(m=>m.key!=='sms_capture'&&['enabled','recording_only'].includes(m.runtimeStatus)&&m.status==='active');}
 function eligible(key){return listable().find(m=>m.key===key)||null;}
 function activeGrants(tenant,now=new Date()){
   if(!tenant||!['active','trial'].includes(tenant.status)||!Array.isArray(tenant.moduleGrants))return [];

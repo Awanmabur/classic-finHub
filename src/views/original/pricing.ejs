@@ -1,8 +1,3 @@
-<% const planByCode = Object.fromEntries(plans.map(plan => [plan.code, plan]));
-const starterPlan = planByCode.starter_trial;
-const agentPlan = planByCode.agent;
-const financePlan = planByCode.finance;
-const enterprisePlan = planByCode.enterprise; %>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -10,19 +5,19 @@ const enterprisePlan = planByCode.enterprise; %>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ClassicFin Hub pricing | Plans, trials, modules and addons</title>
-  <meta name="description" content="Compare ClassicFin Hub pricing plans: Starter Trial, Agent Plan, Finance Plan, Enterprise Plan, module subscriptions, trials, addons, invoices, billing and limits." />
+  <meta name="description" content="Compare current ClassicFin Hub plans, manual and SMS-assisted entry, prices, included modules and workspace limits." />
   <link rel="stylesheet" href="/vendor/inter/inter.css?v=<%= assetVersion %>" />
   <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css?v=<%= assetVersion %>" />
   <link rel="stylesheet" href="/css/style.css?v=<%= assetVersion %>" />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="ClassicFin Hub" />
   <meta property="og:title" content="ClassicFin Hub pricing | Plans, trials, modules and addons" />
-  <meta property="og:description" content="Compare ClassicFin Hub pricing plans: Starter Trial, Agent Plan, Finance Plan, Enterprise Plan, module subscriptions, trials, addons, invoices, billing and limits." />
+  <meta property="og:description" content="Compare current ClassicFin Hub plans, manual and SMS-assisted entry, prices, included modules and workspace limits." />
   <meta property="og:image" content="<%= appUrl %>/images/classicfinhub-logo.png" />
   <meta property="og:image:alt" content="ClassicFin Hub logo" />
   <meta name="twitter:card" content="summary" />
   <meta name="twitter:title" content="ClassicFin Hub pricing | Plans, trials, modules and addons" />
-  <meta name="twitter:description" content="Compare ClassicFin Hub pricing plans: Starter Trial, Agent Plan, Finance Plan, Enterprise Plan, module subscriptions, trials, addons, invoices, billing and limits." />
+  <meta name="twitter:description" content="Compare current ClassicFin Hub plans, manual and SMS-assisted entry, prices, included modules and workspace limits." />
   <meta name="twitter:image" content="<%= appUrl %>/images/classicfinhub-logo.png" />
   <link rel="canonical" href="<%= appUrl %>/pricing">
   <meta property="og:url" content="<%= appUrl %>/pricing">
@@ -76,8 +71,8 @@ const enterprisePlan = planByCode.enterprise; %>
   <main class="page legal-shell smooth-page">
     <header class="legal-hero pricing-hero reveal">
       <p class="kicker">ClassicFin Hub pricing</p>
-      <h1>Simple money-based pricing for finance teams.</h1>
-      <p>Choose the plan that matches your finance operation. Every price is visible, easy to explain, and can still be configured by Classic Technologies for local currency collection, yearly billing, extra users, branches, limits, and addons.</p>
+      <h1>Plans for the way your team works.</h1>
+      <p>Compare manual and SMS-assisted recording, included services and workspace capacity. Choose a current plan or contact the team for a configuration that fits your operation.</p>
       <div class="hero-actions">
         <a class="btn btn-dark" href="/#book">Book pricing demo</a>
         <a class="btn btn-light" href="/price-compare">Compare all prices</a>
@@ -85,119 +80,31 @@ const enterprisePlan = planByCode.enterprise; %>
       </div>
     </header>
 
-    <p class="tiny" style="margin:16px auto;max-width:1050px">Proposed catalogue, not a checkout quote. Payments and full financial settlement workflows are not enabled. Final commercial terms require written confirmation.</p>
+    <p class="tiny" style="margin:16px auto;max-width:1050px">Published subscription terms, not a payment checkout. Manual recording remains available with SMS-assisted plans. Financial records and SMS confirmations do not by themselves establish provider settlement.</p>
+    <% if(!plans.length){ %><section class="pricing-page-grid reveal"><article class="plan-card"><h2>Plans are being prepared</h2><p>Contact the team for current setup options. No subscription prices are currently published.</p><a class="btn btn-light" href="/signup">Request plan details</a></article></section><% } else { %>
     <section class="pricing-page-grid reveal">
-      <article class="plan-card">
-        <div class="plan-top"><span>Starter Trial</span><strong>USD $<%= starterPlan.priceMonthly %></strong></div>
-        <div class="price-amount"><sup>$</sup><%= starterPlan.priceMonthly %><span>/trial</span></div>
-        <h3>Validate the platform</h3>
-        <p>For businesses requesting a controlled trial. These prices and features are indicative, subject to confirmation.</p>
+      <% plans.forEach(plan=>{const auto=plan.entryMode==='sms_assisted';const labels=plan.moduleLabels||plan.modules.map(key=>key.replaceAll('_',' ')); %>
+      <article class="plan-card<%= auto?' featured':'' %>" data-plan-code="<%= plan.code %>">
+        <div class="plan-top"><span><%= plan.name %></span><strong><%= plan.currency %> $<%= Number(plan.priceMonthly).toFixed(2) %>/mo</strong></div>
+        <div class="price-amount"><sup>$</sup><%= Number(plan.priceMonthly).toFixed(2) %><span>/month</span></div>
+        <h3><%= auto?'SMS-assisted + manual entry':'Manual entry' %></h3>
+        <p><%= plan.description %></p>
         <ul>
-          <li><%= starterPlan.limits.branches %> branch workspace<%= starterPlan.limits.branches === 1 ? '' : 's' %></li>
-          <li>Up to <%= starterPlan.limits.users %> users</li>
-          <li><%= starterPlan.limits.transactionsPerMonth %> record limit (proposed)</li>
-          <li>Read-only plan exploration; product module access follows entitlements</li>
-          <li>Basic reports and onboarding guidance</li>
+          <li><%= plan.currency %> $<%= Number(plan.priceYearly).toFixed(2) %> / year</li>
+          <li><%= plan.limits.branches.toLocaleString('en-US') %> branches and <%= plan.limits.users.toLocaleString('en-US') %> users included</li>
+          <li><%= plan.limits.transactionsPerMonth.toLocaleString('en-US') %> transaction records / month</li>
+          <% if(auto){ %><li><%= plan.limits.smsPerMonth.toLocaleString('en-US') %> SMS imports / month; manual entry included</li><% } %>
+          <li><%= plan.trialMonths?plan.trialMonths+' month'+(plan.trialMonths===1?'':'s')+' trial':'No trial' %></li>
+          <li><%= labels.length?'Included: '+labels.join(', '):'Add services to your workspace as needed' %></li>
         </ul>
-        <a class="btn btn-light" href="/signup">Request free trial</a>
+        <a class="btn <%= auto?'btn-dark':'btn-light' %>" href="/signup">Request <%= plan.name %></a>
       </article>
-      <article class="plan-card featured">
-        <div class="plan-top"><span>Agent Plan</span><strong>USD $<%= agentPlan.priceMonthly %>/mo</strong></div>
-        <div class="price-amount"><sup>$</sup><%= agentPlan.priceMonthly %><span>/month</span></div>
-        <h3>Transfer and mobile money</h3>
-        <p>For agent-led businesses that need fast customer service and clean daily records.</p>
-        <ul>
-          <li>Money Transfer module (not yet enabled for real payouts)</li>
-          <li>Mobile Money recording (network settlement not connected)</li>
-          <li><%= agentPlan.limits.branches %> branches and <%= agentPlan.limits.users %> users included</li>
-          <li>Receipts, expenses, notifications</li>
-          <li>Daily reports and exports</li>
-        </ul>
-        <a class="btn btn-dark" href="/signup">Start agent plan</a>
-      </article>
-      <article class="plan-card">
-        <div class="plan-top"><span>Finance Plan</span><strong>USD $<%= financePlan.priceMonthly %>/mo</strong></div>
-        <div class="price-amount"><sup>$</sup><%= financePlan.priceMonthly %><span>/month</span></div>
-        <h3>Banking and forex modules — planned</h3>
-        <p>Planned for finance teams that require accounts, deposits, withdrawals, cash drawers, rate controls and forex reports. Not yet enabled for live operations.</p>
-        <ul>
-          <li>Banking Operation module (planned; not enabled)</li>
-          <li>Forex Operation module (planned; not enabled)</li>
-          <li><%= financePlan.limits.branches %> branches and <%= financePlan.limits.users %> users included</li>
-          <li>Rate boards and cash impact reports</li>
-          <li>Manager approval controls</li>
-        </ul>
-        <a class="btn btn-light" href="/price-compare">Compare plan</a>
-      </article>
-      <article class="plan-card">
-        <div class="plan-top"><span>Enterprise Plan</span><strong>USD $<%= enterprisePlan.priceMonthly %>/mo</strong></div>
-        <div class="price-amount"><sup>$</sup><%= enterprisePlan.priceMonthly %><span>/month</span></div>
-        <h3>Full finance suite</h3>
-        <p>For multi-branch companies that need all modules, advanced controls, API access, and priority support.</p>
-        <ul>
-          <li>All core modules</li>
-          <li><%= enterprisePlan.limits.branches %> branches and <%= enterprisePlan.limits.users %> users included</li>
-          <li>Advanced analytics and audit logs</li>
-          <li>Custom domain, API, branding</li>
-          <li>Priority support and onboarding</li>
-        </ul>
-        <a class="btn btn-light" href="/#book">Book enterprise demo</a>
-      </article>
+      <% }) %>
     </section>
-
-    <section class="conversion-strip reveal" aria-label="ClassicFin Hub price highlights">
-      <div><strong>$<%= agentPlan.priceMonthly %>/mo</strong><span>Entry paid plan for transfer and mobile money agents.</span></div>
-      <div><strong>$<%= financePlan.priceMonthly %>/mo</strong><span>Finance plan for banking and forex operation teams.</span></div>
-      <div><strong>$<%= enterprisePlan.priceMonthly %>/mo</strong><span>Enterprise starting price for full-suite branch networks.</span></div>
-      <div><strong>Save 2 months</strong><span>Use yearly billing to reduce admin and improve renewal flow.</span></div>
-    </section>
-
+    <% } %>
     <section class="addon-grid reveal">
-      <article>
-        <h2>Addons and extra capacity</h2>
-        <p>Keep the base plan affordable and add only what the tenant actually needs.</p>
-        <ul class="clean-list">
-          <li><strong>Extra user:</strong> USD $3/user/month</li>
-          <li><strong>Extra branch:</strong> USD $10/branch/month</li>
-          <li><strong>SMS or WhatsApp credits:</strong> from USD $15/month</li>
-          <li><strong>Advanced reports pack:</strong> USD $19/month</li>
-          <li><strong>API access or custom domain:</strong> from USD $25/month</li>
-          <li><strong>Priority support:</strong> USD $49/month</li>
-        </ul>
-      </article>
-      <article>
-        <h2>Included in every paid plan</h2>
-        <p>Every paying tenant gets the operational basics needed to run professionally.</p>
-        <ul class="clean-list">
-          <li>Tenant workspace and secure login</li>
-          <li>Customer records and searchable transactions</li>
-          <li>Receipts, exports, dashboard summaries</li>
-          <li>User roles and branch permissions</li>
-          <li>Billing status, invoices, renewal reminders</li>
-          <li>Setup support from Classic Technologies</li>
-        </ul>
-      </article>
-    </section>
-
-    <section class="legal-grid reveal">
-      <aside class="legal-aside">
-        <a href="/price-compare">Open price compare</a>
-        <a href="/#book">Book a pricing demo</a>
-        <a href="/signin">Sign in to dashboard</a>
-        <a href="/services">View modules</a>
-        <a href="tel:211921789914">Call +211 921 789 914</a>
-        <a href="mailto:info@classicfinhub.com">Email sales</a>
-      </aside>
-      <article class="legal-content">
-        <h2>How billing works</h2>
-        <p>Classic Technologies can provision workspaces, publish versioned plan terms, set user and branch limits, and grant or revoke subscriptions with an audit trail. Automated invoicing, tax handling, provider settlement, renewals and customer payment collection are not yet available.</p>
-        <h2>Why the prices are simple</h2>
-        <p>Finance operators should understand the cost quickly. The base plan shows the money clearly, while addons keep the platform flexible for different branch sizes and operational needs.</p>
-        <h2>Local collection</h2>
-        <p>The public pricing is shown in USD for clarity. During setup, Classic Technologies can collect in local currency, adjust taxes, apply yearly discounts, and set payment instructions based on the tenant market.</p>
-        <h2>Recommended starting point</h2>
-        <p>Choose Agent Plan if the business mainly handles money transfer and mobile money. Choose Finance Plan if the business needs banking and forex controls. Choose Enterprise when the business needs all modules, API access, custom branding, and priority support.</p>
-      </article>
+      <article><h2>Choose how records arrive</h2><p>Manual plans support staff entry. SMS-assisted plans add a registered, branch-bound SMS relay and capture inbox while retaining the same manual workflows. Automatic capture has a higher subscription price than its matching manual plan.</p></article>
+      <article><h2>Know what is included</h2><p>The modules, staff seats, branch capacity and import quotas shown here follow the current published plan. Future plan revisions do not silently change existing subscriber terms.</p><a class="btn btn-light" href="/price-compare">Compare current plans</a></article>
     </section>
 
     <section class="final-cta reveal">

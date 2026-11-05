@@ -1,1 +1,46 @@
-<section class="view show"><section class="card"><div class="cardHead"><b>Plan editor</b><span>Attach modules, addons, prices, limits, and trial terms.</span></div><div class="cardBody tableWrap"><table><thead><tr><th>Plan</th><th>Trial</th><th>Limits</th><th>Modules</th></tr></thead><tbody><% data.plans.forEach(p => { %><tr data-search-row><td><b><%= p.name %></b><br><span class="tiny"><%= p.description %></span></td><td><%= p.trialMonths %> months</td><td><%= p.limits.users %> users • <%= p.limits.branches %> branches • <%= p.limits.transactionsPerMonth %> tx</td><td><div class="seg"><% p.modules.forEach(m => { %><span class="chip active"><%= m %></span><% }) %></div></td></tr><% }) %></tbody></table></div></section></section>
+<% const editor=data.editor, values=data.values||editor.values;
+   const selected=Array.isArray(values.modules)?values.modules:typeof values.modules==='string'?[values.modules]:[];
+   const automatic=values.entryMode==='sms_assisted';
+   const available=values.availableForNewTenants===true||values.availableForNewTenants==='true'; %>
+<section class="view show">
+  <% if(data.error){ %><p class="reportBlock" role="alert"><%= data.error %></p><% } %>
+  <div class="rowBtns" style="margin-bottom:14px"><a class="btn" href="/platform/plans"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Back to plans</a><% if(editor.baseVersion){ %><span class="tag">Published v<%= editor.baseVersion %></span><% } %><span class="tag">Draft revision <%= editor.revision %></span></div>
+  <form class="card" method="post" action="<%= editor.existing?'/platform/plans/'+encodeURIComponent(editor.values.code)+'/draft':'/platform/plans/drafts' %>">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="revision" value="<%= editor.revision %>">
+    <input type="hidden" name="baseVersion" value="<%= editor.baseVersion %>">
+    <div class="cardHead"><b>Plan configuration</b><span>Draft changes do not change tenant access</span></div>
+    <div class="cardBody" style="display:grid;gap:18px">
+      <div class="row2">
+        <label class="field">Plan code<input class="control" name="code" required pattern="[a-z][a-z0-9_]{1,40}" maxlength="41" value="<%= values.code||'' %>" <%= editor.existing?'readonly':'' %>><span class="tiny">Use lowercase letters, numbers and underscores. The code stays fixed after creation.</span></label>
+        <label class="field">Plan name<input class="control" name="name" required minlength="3" maxlength="100" value="<%= values.name||'' %>"></label>
+      </div>
+      <label class="field">Description<textarea class="control" name="description" rows="3" required minlength="10" maxlength="1000"><%= values.description||'' %></textarea></label>
+      <div class="row3">
+        <label class="field">Monthly price (USD)<input class="control" name="priceMonthly" type="number" min="0" max="1000000" step="0.01" required value="<%= values.priceMonthly||'0.00' %>"></label>
+        <label class="field">Yearly price (USD)<input class="control" name="priceYearly" type="number" min="0" max="1000000" step="0.01" required value="<%= values.priceYearly||'0.00' %>"></label>
+        <label class="field">Trial months<select class="control" name="trialMonths"><% [0,1,2,3].forEach(month=>{ %><option value="<%= month %>" <%= String(values.trialMonths)===String(month)?'selected':'' %>><%= month===0?'No trial':month+' month'+(month===1?'':'s') %></option><% }) %></select></label>
+      </div>
+      <div class="row2">
+        <label class="field">Entry mode<select class="control" name="entryMode"><option value="manual" <%= !automatic?'selected':'' %>>Manual entry</option><option value="sms_assisted" <%= automatic?'selected':'' %>>SMS-assisted + manual entry</option></select><span class="tiny">SMS-assisted plans retain manual entry and include premium SMS Capture access.</span></label>
+        <label class="field">Matching manual plan (SMS-assisted only)<select class="control" name="manualPlanCode"><option value="">Choose the manual counterpart</option><% data.manualPlans.forEach(plan=>{ %><option value="<%= plan.code %>" <%= values.manualPlanCode===plan.code?'selected':'' %>><%= plan.name %> · USD <%= (plan.priceMonthlyMinor/100).toFixed(2) %>/month · <%= (plan.priceYearlyMinor/100).toFixed(2) %>/year</option><% }) %></select><span class="tiny">Match its non-SMS modules and workspace limits. Set both prices above its monthly/yearly prices.</span></label>
+      </div>
+      <fieldset class="moduleChoices"><legend>Included modules</legend><p class="tiny">Select the services available to subscribers. SMS-assisted plans require Mobile Money and SMS Capture.</p><div class="moduleChoiceGrid"><% data.modules.forEach(module=>{ %><label class="moduleChoice"><input type="checkbox" name="modules" value="<%= module.key %>" <%= selected.includes(module.key)?'checked':'' %>><span><%= module.name %></span></label><% }) %></div></fieldset>
+      <div class="row3">
+        <label class="field">Staff seats<input class="control" name="limit_users" type="number" min="1" max="100000000" step="1" required value="<%= values.limit_users||'1' %>"></label>
+        <label class="field">Branches<input class="control" name="limit_branches" type="number" min="1" max="100000000" step="1" required value="<%= values.limit_branches||'1' %>"></label>
+        <label class="field">Monthly transaction records<input class="control" name="limit_transactionsPerMonth" type="number" min="0" max="100000000" step="1" required value="<%= values.limit_transactionsPerMonth||'0' %>"></label>
+      </div>
+      <div class="row2">
+        <label class="field">Monthly SMS imports<input class="control" name="limit_smsPerMonth" type="number" min="0" max="100000000" step="1" required value="<%= values.limit_smsPerMonth||'0' %>"><span class="tiny">SMS-assisted plans need an allocation above zero.</span></label>
+        <label class="field">Storage allowance (MB)<input class="control" name="limit_storageMb" type="number" min="0" max="100000000" step="1" required value="<%= values.limit_storageMb||'0' %>"></label>
+      </div>
+      <label class="moduleChoice"><input type="checkbox" name="availableForNewTenants" value="true" <%= available?'checked':'' %>><span>Available for new tenant subscriptions after publication</span></label>
+      <div class="rowBtns"><button class="btn btnPrimary" type="submit">Save draft</button><a class="btn" href="/platform/plans">Cancel</a></div>
+    </div>
+  </form>
+  <% if(editor.revision>0){ %><section class="card" style="margin-top:18px"><div class="cardHead"><b>Publish saved draft</b><span><%= editor.unpublished?'Ready for review':'No unpublished changes' %></span></div><div class="cardBody">
+    <p class="tiny">Publication creates version <%= editor.baseVersion+1 %>. Existing tenants retain their current plan terms until a separate subscription change.</p>
+    <% if(editor.unpublished){ %><form method="post" action="/platform/plans/<%= encodeURIComponent(editor.values.code) %>/publish"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="revision" value="<%= editor.revision %>"><label class="field">Publication reason<textarea class="control" name="reason" rows="3" minlength="20" maxlength="600" required placeholder="Explain the prices, module access or limits being published."></textarea></label><button class="btn btnPrimary" style="margin-top:12px" type="submit">Publish plan version</button></form><% } else { %><p class="tiny">Save a changed configuration to prepare another version.</p><% } %>
+  </div></section><% } %>
+</section>

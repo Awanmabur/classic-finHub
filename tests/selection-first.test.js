@@ -74,7 +74,7 @@ test('transfer contact create and edit forms render selectable country names, no
 test('bank account directory selects known institutions and has an explicit new-institution escape hatch',async()=>{
   const id='507f1f77bcf86cd799439011';
   const data={canManage:true,selectedBranchId:id,branches:[],institutions:['Example Bank'],references:[]};
-  const html=await render('tenant/banking/accounts.ejs',{data,user:{role:'Banking Operator'},csrfToken:'csrf'});
+  const html=await render('tenant/banking/accounts.ejs',{data,user:{role:'Banking Operator'},operationBranch:{_id:id,name:'Main',currency:'UGX',status:'active'},csrfToken:'csrf'});
   assert.match(html,/<select name="institutionChoice"/);
   assert.match(html,/<option value="Example Bank">Example Bank<\/option>/);
   assert.match(html,/name="institutionName"/);
@@ -112,7 +112,7 @@ test('bounded business validity periods are selectable and continue to obey back
   assert.throws(()=>transfer.validateOrder({senderId:'507f1f77bcf86cd799439011',beneficiaryId:'507f1f77bcf86cd799439012',amount:'100',fee:'0',currency:'UGX',idempotencyKey:crypto.randomUUID(),validDays:'31'}),{status:400});
 });
 
-test('transaction selectors align with branch currency rather than offering invalid alternatives',async()=>{
+test('transaction forms use fixed account branch currency without client branch selection',async()=>{
   const id='507f1f77bcf86cd799439011';
   const user={id:'507f1f77bcf86cd799439012',role:'Money Transfer Operator',branchId:id,permissions:['money_transfer.create','mobile_money.cash_in']};
   const branch={_id:id,name:'Nairobi',currency:'KES',status:'active'};
@@ -121,19 +121,21 @@ test('transaction selectors align with branch currency rather than offering inva
       {_id:'507f1f77bcf86cd799439014',kind:'beneficiary',fullName:'Receiver',country:'KE'}],
     canCreate:true,canReview:false,idempotencyKey:crypto.randomUUID(),formatMoneyMinor:(amount,currency)=>currency+amount};
   const transferHtml=await render('tenant/money-transfer/index.ejs',{data:transferData,user,csrfToken:'csrf'});
-  assert.match(transferHtml,/<select[^>]+name="currency"[^>]*>\s*<option value="KES">KES<\/option>/);
+  assert.match(transferHtml,/<input type="hidden" name="currency" value="KES">/);
+  assert.doesNotMatch(transferHtml,/<(?:select|input)[^>]+name="branchId"/);
   assert.doesNotMatch(transferHtml,/<select[^>]+name="currency"[^>]*>\s*<option value="UGX">UGX<\/option>/);
   const bankingData={branches:[branch],selectedBranchId:id,references:[{_id:'507f1f77bcf86cd799439013',institutionName:'Bank',customerName:'A',last4:'1234'}],
     records:{items:[],nextCursor:null},queue:[],canCreate:true,canReview:false,idempotencyKey:crypto.randomUUID(),formatMoneyMinor:(amount,currency)=>currency+amount};
   const bankingHtml=await render('tenant/banking/index.ejs',{data:bankingData,user:{...user,role:'Banking Operator'},csrfToken:'csrf'});
-  assert.match(bankingHtml,/<select[^>]+name="currency"[^>]*>\s*<option value="KES">KES<\/option>/);
+  assert.match(bankingHtml,/<input type="hidden" name="currency" value="KES">/);
+  assert.doesNotMatch(bankingHtml,/<(?:select|input)[^>]+name="branchId"/);
   assert.doesNotMatch(bankingHtml,/<select[^>]+name="currency"[^>]*>\s*<option value="UGX">UGX<\/option>/);
   const mobileHtml=await render('tenant/mobile-money/index.ejs',{data:{branches:[branch],canRecord:true,canReview:false,
     idempotencyKey:crypto.randomUUID(),summary:{total:0,recent:[]}},user:{...user,role:'Tenant Owner',permissions:['*']},
     money:()=>'',amountFromMinor:()=>'',csrfToken:'csrf'});
-  assert.match(mobileHtml,/data-currency-target="mobileMoneyCurrency"/);
-  assert.match(mobileHtml,/data-currency="KES"/);
-  assert.match(mobileHtml,/id="mobileMoneyCurrency"/);
+  assert.match(mobileHtml,/<input type="hidden" name="currency" value="KES">/);
+  assert.doesNotMatch(mobileHtml,/<(?:select|input)[^>]+name="branchId"/);
+  assert.doesNotMatch(mobileHtml,/<select[^>]+name="currency"/);
 });
 
 test('selected approval deadline presets remain bounded, with explicit custom override',()=>{

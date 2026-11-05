@@ -27,12 +27,7 @@ function requestScope(actor){
  if(actor?.role==='Banking Operator')scope.createdBy=id(actor.id);
  return scope;
 }
-function branchFor(actor,input){
- const branchId=actor?.role==='Tenant Owner'?input?.branchId:actor?.branchId;
- if(!OID.test(String(branchId||'')))throw fail('Choose an active assigned branch');
- if(actor?.role!=='Tenant Owner'&&String(branchId)!==String(actor.branchId))throw fail('Cross-branch operation forbidden',403);
- return id(branchId);
-}
+function branchFor(actor,input){return require('./transactionBranch.service').assignedBranchId(actor,input);}
 function validateReference(input){
  const customerName=text(input?.customerName,'customer name',2,120);
  const institutionName=text(input?.institutionName,'bank institution',2,120);
@@ -64,7 +59,7 @@ function sameRequest(existing,actor,branchId,v){return String(existing.createdBy
  existing.currency===v.currency&&String(existing.amountMinor)===String(v.amountMinor)&&existing.note===v.note&&existing.validDays===v.validDays;}
 async function createReference(conn,tenant,actor,input){
  moduleAccess(tenant,actor,'banking.accounts.manage');if(!operator(actor))throw fail('Bank references may only be maintained by banking staff',403);
- const value=validateReference(input),branchId=branchFor(actor,input);
+ const value=validateReference(input),branchId=String((await require('./transactionBranch.service').resolveTransactionBranch(conn,actor,input))._id);
  await ensureTenantIndexes(conn);
  const session=await conn.startSession();let created;
  try{await session.withTransaction(async()=>{
@@ -109,7 +104,7 @@ async function listReferences(conn,tenant,actor,{branchId=null}={}){
 }
 async function createRequest(conn,tenant,actor,input){
  moduleAccess(tenant,actor,'banking.requests.create');if(!operator(actor))throw fail('Banking request permission denied',403);
- const value=validateRequest(input),branchId=branchFor(actor,input);
+ const value=validateRequest(input),branchId=String((await require('./transactionBranch.service').resolveTransactionBranch(conn,actor,input))._id);
  await ensureTenantIndexes(conn);const Model=bankingRequestModel(conn);
  const existing=await Model.findOne({idempotencyKey:value.idempotencyKey}).lean();
  if(existing){if(!sameRequest(existing,actor,branchId,value))throw fail('Form reference reused with different details',409);return {order:existing,duplicate:true};}

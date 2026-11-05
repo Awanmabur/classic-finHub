@@ -1,0 +1,15 @@
+<dialog id="transactionDialog" class="transactionDialog" aria-labelledby="transactionTitle" aria-describedby="transactionDescription">
+  <div class="tenantCleanSheet">
+    <header class="tenantCleanHead"><div><b id="transactionTitle">New transaction</b><span id="transactionDescription">Choose a module, then enter the operation details.</span></div><button class="btn btnIcon" type="button" data-close-transaction aria-label="Close transaction dialog"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></header>
+    <div class="tenantCleanBody">
+      <div class="transactionChoices" data-transaction-choices>
+        <% transactionOptions.forEach(option=>{ %><button type="button" class="transactionChoice" data-transaction-kind="<%= option.kind %>"><i class="fa-solid <%= option.icon %>" aria-hidden="true"></i><span><b><%= option.label %></b><small><%= option.description %></small></span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button><% }) %>
+        <% if(visiblePaths.has('/tenant/sms-capture')){ %><a class="transactionChoice" href="/tenant/sms-capture"><i class="fa-solid fa-message" aria-hidden="true"></i><span><b>Automatic SMS capture</b><small>Incoming messages and captured records</small></span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></a><% } %>
+      </div>
+      <p class="transactionStatus" data-transaction-status role="status" aria-live="polite" hidden></p>
+      <div data-transaction-form></div>
+      <p class="tenantCleanHint">Records, requests and quotations retain their required review steps. Recording an operation does not itself confirm provider settlement.</p>
+    </div>
+    <footer class="tenantCleanFoot"><button type="button" class="btn" data-transaction-back hidden><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> All operations</button><button type="button" class="btn" data-close-transaction>Cancel</button><div class="transactionSubmitActions" data-transaction-submit-actions></div></footer>
+  </div>
+</dialog>

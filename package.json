@@ -67,7 +67,12 @@
     "approval:expiry": "node scripts/approval-expiry.js",
     "approval:integration": "node scripts/approval-integration.js",
     "notification:integration": "node scripts/notification-integration.js",
-    "notification:doctor": "node scripts/notification-doctor.js"
+    "notification:doctor": "node scripts/notification-doctor.js",
+    "plan:integration": "node scripts/plan-builder-integration.js",
+    "branch:integration": "node scripts/transaction-branch-integration.js",
+    "sms:integration": "node scripts/sms-capture-integration.js",
+    "relay:test": "python3 -m unittest discover -s tools/android-sms-relay -p 'test_*.py'",
+    "sms:authorization": "node scripts/sms-authorization-integration.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

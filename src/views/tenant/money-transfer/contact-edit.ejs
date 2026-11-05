@@ -4,5 +4,5 @@
 <label class="field">Full name<input class="control" name="fullName" value="<%= data.contact.fullName %>" minlength="2" maxlength="120" required></label>
 <label class="field">Phone<input class="control" name="phone" type="tel" value="<%= data.contact.phone %>" maxlength="16" required></label>
 <label class="field">Country<select class="control" name="country" required><option value="">Select country</option><% (data.countryOptions||[]).forEach(c=>{ %><option value="<%= c.code %>" <%= c.code===data.contact.country?'selected':'' %>><%= c.name %> (<%= c.code %>)</option><% }) %></select></label>
-<div class="rowBtns"><button class="btn btnPrimary" type="submit">Save changes</button><a class="btn" href="/tenant/money-transfer/contacts?branchId=<%= data.contact.branchId %>">Back to contacts</a></div>
+<div class="rowBtns"><button class="btn btnPrimary" type="submit">Save changes</button><a class="btn" href="/tenant/money-transfer/contacts">Back to contacts</a></div>
 </form></section></section>

@@ -5,10 +5,18 @@
     <div class="stat"><div class="k">Operations</div><div class="v">Controlled</div><div class="s">Historical records are not deleted</div></div>
   </div>
   <% if(data.canManage){ %>
+  <% const activeBranches=data.branches.filter(b=>b.status==='active'); if(activeBranches.length){ %>
+  <section class="card" style="margin-top:14px"><div class="cardHead"><b>Your operating branch</b><span>Account assignment</span></div><div class="cardBody">
+    <p class="tiny">Transactions use your account’s operating branch automatically. This setting does not change your access to reports across the workspace.</p>
+    <form method="post" action="/tenant/branches/operating" class="row2"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label class="field">Assigned location<select class="control" name="branchId" required><option value="">Choose your account location</option><% activeBranches.forEach(b=>{ %><option value="<%= b._id %>" <%= String(user.transactionBranchId||user.branchId||'')===String(b._id)?'selected':'' %>><%= b.name %> · <%= b.currency %></option><% }) %></select></label>
+      <div class="rowBtns"><button class="btn" type="submit">Save account location</button></div>
+    </form>
+  </div></section><% } %>
   <section class="card" style="margin-top:14px"><div class="cardHead"><b>Create branch</b><span>Only tenant owners</span></div><div class="cardBody">
     <form action="/tenant/branches" method="post"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <div class="row3"><label class="field">Name<input class="control" name="name" required minlength="2" maxlength="100" placeholder="Kampala Main"></label>
-      <label class="field">Unique code<input class="control" name="code" required maxlength="32" pattern="[a-z0-9][a-z0-9-]{1,30}" placeholder="kampala-main"></label>
+      <label class="field">Unique code<input class="control" name="code" required maxlength="32" pattern="[a-z0-9][a-z0-9\-]{1,30}" placeholder="kampala-main"></label>
       <label class="field">Currency<select class="control" name="currency"><option value="UGX">UGX</option><option value="KES">KES</option></select></label></div>
       <label class="field">Business location / address<input class="control" name="address" maxlength="240"></label>
       <button class="btn btnPrimary" type="submit">Create branch</button>

@@ -19,7 +19,7 @@ function opener(actor){return ['Tenant Owner','Mobile Money Operator'].includes(
 function reviewer(actor){return ['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(actor?.role);}
 async function open(conn,tenant,actor,input={}){
  allowed(tenant,actor);if(!opener(actor))throw fail('Not permitted to open cash shifts',403);
- const branchId=id(actor.role==='Tenant Owner'?input.branchId:actor.branchId),operatorId=id(actor.id);
+ const branchId=String((await require('./transactionBranch.service').resolveTransactionBranch(conn,actor,input))._id),operatorId=id(actor.id);
  await ensureTenantIndexes(conn);
  const branch=await branchModel(conn).findOne({_id:branchId,status:'active'}).lean();
  if(!branch)throw fail('Active branch required',409);
@@ -51,10 +51,15 @@ async function decideOpening(conn,tenant,actor,shiftId,input={}){
  }finally{await tx.endSession();}
 }
 // Atomic with the original network record, not with external provider settlement.
-async function attachRecord(conn,tx,operator,branchId,currency,operation,amountMinor){
+async function attachRecord(conn,tx,operator,branchId,currency,operation,amountMinor,smsContext=null){
  const shift=await cashSessionModel(conn).findOneAndUpdate({activeKey:key(branchId,operator.id),status:'open',currency},
   {$inc:{revision:1,recordCount:1,provisionalMovementMinor:decimal(operation==='cash_in'?amountMinor:-amountMinor)}},{new:true,session:tx});
  if(!shift)throw fail('Open a cash shift before recording operations',409);
+ if(smsContext&&(!smsContext.receivedAt||!shift.openingVerifiedAt||
+   new Date(smsContext.receivedAt)<new Date(shift.createdAt)||new Date(smsContext.receivedAt)<new Date(shift.openingVerifiedAt))){
+   const error=fail('This SMS predates the current verified cash shift. Keep it for historical reconciliation instead of recording it in this drawer.',409);
+   error.code='SMS_SHIFT_MISMATCH';throw error;
+ }
  if(minor(shift.openingMinor)+minor(shift.provisionalMovementMinor)<0n)throw fail('Insufficient provisional cash for this cash-out',409);
  return shift._id;
 }

@@ -45,9 +45,10 @@ test('Request validation requires an opaque UUID, bounded descriptions, and a se
  rejected(()=>approval.requestInput({...request,idempotencyKey:'123'}),400);
  rejected(()=>approval.requestInput({...request,subject:'X'}),400);
  rejected(()=>approval.requestInput({...request,justification:'tiny'}),400);
- assert.equal(approval.validBranch(actor('Approval Requester'),{branchId:'507f1f77bcf86cd799439015'}),branch);
+ rejected(()=>approval.validBranch(actor('Approval Requester'),'507f1f77bcf86cd799439015'),403);
+ assert.equal(approval.validBranch(actor('Approval Requester'),undefined),branch);
  assert.equal(approval.validBranch(actor('Tenant Owner'),branch),branch);
- rejected(()=>approval.validBranch(actor('Tenant Owner'),''),404);
+ assert.equal(approval.validBranch(actor('Tenant Owner'),''),branch,'owner uses their account assignment');
  rejected(()=>approval.scope(actor('Approval Officer',['approval_workflows'],reviewer,null)),403);
 });
 test('Self-approval and repeated reviewer decisions are forbidden; exact role, branch and expiry matter',()=>{
@@ -122,7 +123,7 @@ test('A real decision service appends only one stage and a same-transaction audi
  const conn={models:{},startSession:async()=>({withTransaction:async fn=>fn(),endSession:async()=>{}})};
  for(const name of ['SecureTenantUser','SecureMobileTransaction','SecureAuditEvent','SecureStaffInvite','SecureBranch',
   'SecureCashSession','TransferContactV1','TransferOrderV1','BankReferenceV1','BankingRequestV1','ForexRateV1',
-  'ForexQuoteV1','ApprovalPolicyV1','ApprovalRequestV1','NotificationMessageV1','NotificationTemplateV1','NotificationPreferenceV1','LedgerAccountV2','LedgerJournalV2',
+  'ForexQuoteV1','ApprovalPolicyV1','ApprovalRequestV1','NotificationMessageV1','NotificationTemplateV1','NotificationPreferenceV1','SmsInboxV1','LedgerAccountV2','LedgerJournalV2',
   'LedgerPostingV2','FinancialOperationV1','VerifiedFinancialEvidenceV1','FinancialExceptionV1'])conn.models[name]=noop;
  conn.models.ApprovalRequestV1=model;conn.models.SecureAuditEvent=audit;
  const t=tenant(['approval_workflows']),officer=actor('Approval Officer',['approval_workflows'],reviewer);

@@ -51,7 +51,8 @@ test('Role, branch and module restrictions cannot be bypassed by user-submitted 
  assert(!requiresTenantMfa('Money Transfer Operator'));
  assert(requiresTenantMfa('Reconciliation Officer'));
  const operator=actor('Money Transfer Operator');
- assert.equal(service.selectedBranch(operator,{branchId:id()}),branch,'staff cannot choose another branch');
+ assert.throws(()=>service.selectedBranch(operator,{branchId:id()}),e=>e.status===403,'forged branch input is rejected');
+ assert.equal(service.selectedBranch(operator,{}),branch,'branch comes from the account');
  assert.deepEqual(service.recordScope(operator),{branchId:branch,createdBy:operatorId});
  assert.deepEqual(service.recordScope(actor('Branch Manager')),{branchId:branch});
  assert.deepEqual(service.recordScope({...actor('Tenant Owner'),branchId:null}),{});

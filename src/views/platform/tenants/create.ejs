@@ -1,13 +1,33 @@
 <% const values = data.values || {}; %>
 <section class="view show"><div class="grid">
-<form class="card" method="post" action="/platform/tenants">
+<% if(!data.plans.length){ %>
+<section class="card">
+  <div class="cardHead"><b>Create tenant</b><span>Plan setup</span></div>
+  <div class="cardBody" style="display:grid;gap:12px">
+    <% if(data.error){ %><p class="reportBlock" role="alert"><%= data.error %></p><% } %>
+    <% if(data.catalogueEmpty){ %>
+      <p role="status">Set up plans before creating your first tenant. No plans have been published yet.</p>
+      <p class="tiny">This makes the standard plans available for selection. It does not create a tenant or change existing subscriptions.</p>
+      <form method="post" action="/platform/plans/publish-initial">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button class="btn btnPrimary" type="submit">Set up plans and continue</button>
+      </form>
+    <% } else { %>
+      <p role="status">No published trial plans are available. The latest published plans do not offer a trial for new tenants.</p>
+      <p class="tiny">Review the plan terms and publish a new version with a trial before creating a tenant.</p>
+    <% } %>
+    <a class="btn" href="/platform/plans">View plans and pricing</a>
+  </div>
+</section>
+<% } else { %>
+<form class="card" method="post" action="/platform/tenants" data-tenant-create-form>
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
   <div class="cardHead"><b>Create tenant</b><span>Create a workspace and issue a private owner invitation.</span></div>
   <div class="cardBody" style="display:grid;gap:12px">
     <% if(data.error){ %><p class="reportBlock" role="alert"><%= data.error %></p><% } %>
     <div class="row2">
       <label class="field">Tenant name<input class="control" name="name" required maxlength="150" placeholder="Acme Forex" value="<%= values.name || '' %>" /></label>
-      <label class="field">Slug<input class="control" name="slug" minlength="3" maxlength="42" pattern="[A-Za-z0-9][A-Za-z0-9-]{1,40}[A-Za-z0-9]" placeholder="acme-forex" value="<%= values.slug || '' %>" /><span class="tiny">3–42 letters, numbers or hyphens. Leave blank to generate from the tenant name.</span></label>
+      <label class="field">Slug<input class="control" name="slug" minlength="3" maxlength="42" pattern="[A-Za-z0-9][A-Za-z0-9\-]{1,40}[A-Za-z0-9]" placeholder="acme-forex" value="<%= values.slug || '' %>" /><span class="tiny">3–42 letters, numbers or hyphens. Leave blank to generate from the tenant name.</span></label>
     </div>
     <div class="row2">
       <label class="field">Owner<input class="control" name="owner" required maxlength="120" value="<%= values.owner || '' %>" /></label>
@@ -15,12 +35,13 @@
     </div>
     <div class="row2">
       <label class="field">Phone<input class="control" name="phone" maxlength="40" type="tel" value="<%= values.phone || '' %>" /></label>
-      <label class="field">Plan<select class="control" name="plan" required><% data.plans.forEach(p => { %><option value="<%= p.code %>" <%= values.plan === p.code ? 'selected' : '' %>><%= p.name %></option><% }) %></select></label>
+      <label class="field">Plan<select class="control" name="plan" required><option value="" <%= values.plan ? '' : 'selected' %> disabled>Choose a plan</option><% data.plans.forEach(p => { %><option value="<%= p.code %>" <%= values.plan === p.code ? 'selected' : '' %>><%= p.name %></option><% }) %></select></label>
     </div>
-    <% if(!data.plans.length){ %><p class="tiny">No published trial plans are available. Publish a plan with a trial before creating a tenant.</p><% } %>
     <p class="tiny">The selected plan determines module access. The owner receives a private invitation to activate their account.</p>
-    <button class="btn btnPrimary" type="submit" <%= data.plans.length ? '' : 'disabled' %>>Create tenant and private invitation</button>
+    <p class="tiny" role="status" aria-live="polite" data-tenant-form-status hidden></p>
+    <button class="btn btnPrimary" type="submit">Create tenant and private invitation</button>
   </div>
 </form>
+<% } %>
 <section class="card"><div class="cardHead"><b>Provisioning checklist</b><span>Workspace activation</span></div><div class="cardBody txList"><div class="tx"><span>Create isolated tenant database</span><b>required</b></div><div class="tx"><span>Plan entitlements from catalogue</span><b>enabled</b></div><div class="tx"><span>Branch setup and templates</span><b>not yet enabled</b></div><div class="tx"><span>Create one-time tenant owner invitation</span><b>enabled</b></div></div></section>
 </div></section>

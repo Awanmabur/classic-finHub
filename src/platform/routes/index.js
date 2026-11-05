@@ -35,7 +35,7 @@ async function renderTenantCreate(req,res,values={},error=null){
   const latest=new Map();
   for(const plan of published) if(!latest.has(plan.code)) latest.set(plan.code,plan);
   renderPlatform(req,res,'tenants/create','Create Tenant','Create workspace using published plan terms and a one-time owner invitation.',{
-    plans:plans.map(p=>latest.get(p.code)).filter(p=>p?.trialMonths>0),modules,values,error
+    plans:plans.map(p=>latest.get(p.code)).filter(p=>p?.trialMonths>0),catalogueEmpty:published.length===0,modules,values,error
   });
 }
 router.get('/tenants/create',async(req,res,next)=>{
@@ -74,6 +74,18 @@ router.post('/tenants/:id/profile',async(req,res,next)=>{
 router.get('/plans',async(req,res,next)=>{
   try{renderPlatform(req,res,'plans/index','Plans & Pricing','Persisted immutable plan versions and publication state.',{plans,published:await commercial.publishedPlans()});}
   catch(e){next(e);}
+});
+router.post('/plans/publish-initial',async(req,res,next)=>{
+  try{
+    await commercial.publishCatalog({apply:true,actor:req.platformUser});
+    flash(req,'good','Plans are ready. Choose a plan below to create a tenant.');
+    res.redirect(303,'/platform/tenants/create');
+  }catch(e){
+    if([400,409].includes(e.status)){
+      try{return await renderTenantCreate(req,res.status(e.status),{},e.message);}catch(renderError){return next(renderError);}
+    }
+    next(e);
+  }
 });
 router.get('/subscriptions',async(req,res,next)=>{
   try{const tenants=await Tenant.find({}).sort({createdAt:-1}).limit(100).lean();

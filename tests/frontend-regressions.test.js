@@ -23,6 +23,32 @@ function element() {
   };
 }
 
+test('tenant form explains invalid fields and shows progress during creation', () => {
+  const form = element(), status = element(), submit = element();
+  submit.textContent = 'Create tenant and private invitation';
+  status.hidden = true;
+  form.querySelector = selector => selector === '[data-tenant-form-status]' ? status : submit;
+  const events = {};
+  const document = {
+    body: element(), getElementById: () => null, addEventListener() {}, querySelector: () => null,
+    querySelectorAll: selector => selector === '[data-tenant-create-form]' ? [form] : []
+  };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../public/js/dashboard.js'), 'utf8'), {
+    document, window: {matchMedia: () => ({matches:false,addEventListener(){}}),addEventListener(name, handler) {events[name] = handler;}}
+  });
+  form.events.invalid({target:{validationMessage:'Please select an item in the list.'}});
+  assert.equal(status.hidden, false);
+  assert.match(status.textContent, /Please select an item/);
+  form.events.submit();
+  assert.equal(submit.disabled, true, 'a second click must not issue a duplicate creation request');
+  assert.match(status.textContent, /preparing the owner invitation/);
+  assert.equal(submit.textContent, 'Creating tenant…');
+  events.pageshow();
+  assert.equal(submit.disabled, false, 'back navigation must restore a usable form');
+  assert.equal(submit.textContent, 'Create tenant and private invitation');
+  assert.equal(status.hidden, true);
+});
+
 test('mobile dashboard navigation supports Escape, focus trapping and desktop resize', () => {
   const side = element(), overlay = element(), button = element(), first = element(), last = element();
   side.children = [first, last];

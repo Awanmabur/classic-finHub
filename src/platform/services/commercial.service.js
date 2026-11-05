@@ -17,7 +17,8 @@ function asPlanVersion(plan,version=1){
     trialMonths:plan.trialMonths,modules:[...plan.modules],limits:{...plan.limits}};
 }
 function checksum(data){return crypto.createHash('sha256').update(JSON.stringify(data)).digest('hex');}
-async function publishCatalog({apply=false,Model=PlanVersion}={}){
+async function publishCatalog({apply=false,Model=PlanVersion,actor}={}){
+  if(actor !== undefined)actorCheck(actor);
   const results=[],missing=[];
   // Check all four plans before making ANY mutation. Published revisions cannot
   // be rewritten; a mismatched catalogue is a release conflict, not an upgrade.
@@ -41,7 +42,7 @@ async function publishCatalog({apply=false,Model=PlanVersion}={}){
       await Model.create(missing,{session,ordered:true});
       // Local deployment operators may publish but cannot hide a catalogue
       // mutation: keep the audit entry in the same database transaction.
-      await PlatformAuditLog.create([{actorId:'system:catalog-operator',action:'catalog.initial_published',moduleKey:'billing',
+      await PlatformAuditLog.create([{actorId:actor?.id || 'system:catalog-operator',...(actor ? {actorName:actor.name} : {}),action:'catalog.initial_published',moduleKey:'billing',
         recordId:'initial-catalogue',after:{plans:missing.map(p=>({code:p.code,version:p.version,sourceHash:p.sourceHash}))}}],{session});
     });}catch(e){if(e.code===11000)throw err('Concurrent catalogue publish. Inspect existing versions and retry.',409);throw e;}
     finally{await session.endSession();}

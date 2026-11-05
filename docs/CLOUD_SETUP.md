@@ -54,6 +54,10 @@ npm run catalog:publish -- --apply
 ```
 
 Both commands were exercised repeatedly. They do not create a default login.
+For a database without published plans, a signed-in Super Admin can also open
+Create Tenant or Plans & Pricing and click **Set up plans and continue**. This
+CSRF-protected action publishes the standard immutable catalogue and returns to
+the tenant form; it does not create a tenant or alter existing subscriptions.
 The first administrator must be explicitly bootstrapped using a user-selected
 email and a protected password file, following the README. Never put an initial
 password into Git or chat, and do not bypass MFA. Tenant creation then provides

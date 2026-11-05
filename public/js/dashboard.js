@@ -63,6 +63,29 @@
   // External event handling keeps the dashboard functional under a strict script CSP.
   document.querySelectorAll('[data-select-on-focus]').forEach(el => el.addEventListener('focus', () => el.select()));
 
+  document.querySelectorAll('[data-tenant-create-form]').forEach(form => {
+    const status = form.querySelector('[data-tenant-form-status]');
+    const submit = form.querySelector('button[type="submit"]');
+    const label = submit?.textContent;
+    form.addEventListener('invalid', event => {
+      if (status) {
+        status.hidden = false;
+        status.textContent = 'Please check the form. ' + event.target.validationMessage;
+      }
+    }, true);
+    form.addEventListener('submit', () => {
+      if (status) {
+        status.hidden = false;
+        status.textContent = 'Creating the tenant and preparing the owner invitation…';
+      }
+      if (submit) { submit.disabled = true; submit.textContent = 'Creating tenant…'; }
+    });
+    window.addEventListener('pageshow', () => {
+      if (submit) { submit.disabled = false; submit.textContent = label; }
+      if (status) status.hidden = true;
+    });
+  });
+
   const toast = document.querySelector('.toast');
   if (toast) setTimeout(() => toast.remove(), 5200);
 })();

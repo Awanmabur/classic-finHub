@@ -45,3 +45,23 @@ test('tenant create form escapes retained values and presents validation feedbac
   assert.match(html,/maxlength="42"/);
   assert.match(html,/value="\+256 700"/);
 });
+test('empty catalogue offers an administrator setup action instead of an unusable create form',async()=>{
+  const html=await ejs.renderFile(path.resolve(__dirname,'../src/views/platform/tenants/create.ejs'),{
+    csrfToken:'setup-csrf',data:{plans:[],catalogueEmpty:true,error:null,values:{}}
+  });
+  assert.match(html,/<form[^>]+method="post"[^>]+action="\/platform\/plans\/publish-initial"/);
+  assert.match(html,/name="_csrf" value="setup-csrf"/);
+  assert.doesNotMatch(html,/<form[^>]+action="\/platform\/tenants"/);
+  assert.doesNotMatch(html,/<select[^>]+name="plan"/);
+  assert.doesNotMatch(html,/<button[^>]+disabled/,'setup action is usable');
+});
+test('published plans without an eligible trial explain the block without suggesting reinitialization',async()=>{
+  const html=await ejs.renderFile(path.resolve(__dirname,'../src/views/platform/tenants/create.ejs'),{
+    csrfToken:'csrf',data:{plans:[],catalogueEmpty:false,error:null,values:{}}
+  });
+  assert.match(html,/trial/i);
+  assert.match(html,/href="\/platform\/plans"/);
+  assert.doesNotMatch(html,/action="\/platform\/plans\/publish-initial"/);
+  assert.doesNotMatch(html,/<form[^>]+action="\/platform\/tenants"/);
+  assert.doesNotMatch(html,/<select[^>]+name="plan"/);
+});

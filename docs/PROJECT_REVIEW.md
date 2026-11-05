@@ -8,6 +8,14 @@ Priority: **P0** blocks real financial deployment or requires operational action
 
 ## Confirmed defects fixed
 
+Follow-up: the first repair still left a fresh database with an empty plan
+selector and disabled Create button unless an operator ran the publication
+command. The tenant screen now offers **Set up plans and continue**, an audited,
+MFA/CSRF-protected administrator action. After publication it returns to the
+working tenant form. The form also shows validation and creation progress.
+The HTTP integration and Chromium acceptance now start with no published plans
+and recover through this in-app action before creating and activating a tenant.
+
 | ID | Priority | Confirmed issue and user impact | Correction and evidence |
 | --- | --- | --- | --- |
 | F01 | P1 | First catalogue publication passed multiple documents to Mongoose `create()` inside a session without `ordered: true`; the command failed, leaving the tenant plan selector empty and tenant creation blocked. | Ordered transactional catalogue insertion in `commercial.service.js`. Dedicated catalogue integration covers initial publication and repeatability; tenant integration starts with an empty catalogue, checks rejection, publishes, and creates a tenant. |

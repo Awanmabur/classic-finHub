@@ -150,6 +150,14 @@
     }
     const url=pageFor(config);
     openModal(config.title,config.note);
+    // Keep the original index.html service tabs visible above the secure form.
+    const group=key==='transfer'?'transfer':key.startsWith('mobile')?'mobile':key.startsWith('banking')?'banking':key.startsWith('forex')?'forex':key==='opening'?'daily':null;
+    if(group){
+      services.hidden=false;
+      if(one('#approvedTransferActions'))one('#approvedTransferActions').hidden=group!=='transfer';
+      if(one('#approvedDailyActions'))one('#approvedDailyActions').hidden=group!=='daily';
+      all('#approvedServices [data-approved-service]').forEach(b=>b.classList.toggle('active',b.dataset.approvedService===group));
+    }
     modalContent.appendChild(paragraph('Loading the secure workspace form…'));
     try{
       const response=await fetch(url.href,{credentials:'same-origin',headers:{Accept:'text/html'}});
@@ -191,42 +199,34 @@
     else if(action==='export')openCsv();
     else if(action==='print')openReport();
   });
-  services?.addEventListener('click',event=>{
-    const el=event.target.closest('[data-approved-service]');
-    if(!el)return;
-    const choice={
-      transfer:'transfer',
-      banking:'bankingDeposit',
-      mobile:access.mobileCashIn?'mobileCashIn':'mobileCashOut',
-      forex:access.forexQuote?'forexQuote':'forexRate',
-      daily:'opening'
-    }[el.dataset.approvedService];
-    const group=el.dataset.approvedService;
+  function chooseService(group){
+    const actionsFor={
+      transfer:[['Sending / Generate PIN','transfer']],
+      banking:[['Deposit','bankingDeposit'],['Withdraw','bankingWithdraw'],['Account transfer','bankingTransfer']],
+      mobile:[['Cash-in','mobileCashIn'],['Cash-out','mobileCashOut']],
+      forex:[['Forex','forexQuote'],['Active rate board','forexRate']],
+      daily:[['Open day','opening']]
+    };
+    services.hidden=false;
     if(one('#approvedTransferActions'))one('#approvedTransferActions').hidden=group!=='transfer';
     if(one('#approvedDailyActions'))one('#approvedDailyActions').hidden=group!=='daily';
-    if(choice)void openAction(choice);
+    all('#approvedServices [data-approved-service]').forEach(b=>b.classList.toggle('active',b.dataset.approvedService===group));
+    clear(modalContent);clear(choices);
+    modalTitle.textContent='New operation';
+    modalSub.textContent='Choose a section, then choose the exact operation.';
+    for(const [label,key] of actionsFor[group]||[]){
+      const b=button(label,()=>openAction(key),'btn');
+      b.disabled=!access[actions[key].permission];
+      choices.appendChild(b);
+    }
+  }
+  services?.addEventListener('click',event=>{
+    const el=event.target.closest('[data-approved-service]');
+    if(el)chooseService(el.dataset.approvedService);
   });
   function showChooser(service=null){
     openModal('New transaction');
-    services.hidden=false;
-    if(one('#approvedTransferActions'))one('#approvedTransferActions').hidden=false;
-    if(one('#approvedDailyActions'))one('#approvedDailyActions').hidden=true;
-    const available=[
-      ['transfer','Money Transfer','transfer'],
-      ['banking','Banking','bankingDeposit'],
-      ['mobile','Mobile Money',access.mobileCashIn?'mobileCashIn':'mobileCashOut'],
-      ['forex','Forex',access.forexQuote?'forexQuote':'forexRate'],
-      ['daily','Daily Operation','opening']
-    ];
-    for(const [id,title,key] of available){
-      const action=actions[key];
-      const b=button(title,()=>openAction(key),'btn');
-      b.disabled=!access[action.permission];
-      b.dataset.approvedService=id;
-      choices.appendChild(b);
-    }
-    if(service){const item=available.find(row=>row[0]===service);
-      if(item&&access[actions[item[2]].permission])void openAction(item[2]);}
+    chooseService(service||'transfer');
   }
   const openByType={
     transfer:()=>openAction('transfer'),

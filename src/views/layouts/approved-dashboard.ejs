@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>ClassicFin Hub — Multi-Tenant Finance Operations Dashboard</title>
+  <link rel="icon" href="/images/classicfinhub-logo.png" type="image/png">
+  <link rel="stylesheet" href="/vendor/inter/inter.css?v=<%= assetVersion %>">
+  <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css?v=<%= assetVersion %>">
+  <%- approvedCss %>
+  <link rel="stylesheet" href="/css/approved-dashboard.css?v=<%= assetVersion %>">
+</head>
+<body>
+  <a class="skip-link" href="#view-overview">Skip to dashboard</a>
+  <%- approvedMarkup %>
+  <div class="overlay" id="approvedOperationOverlay" role="dialog" aria-modal="true"
+       aria-labelledby="approvedOperationTitle" aria-hidden="true">
+    <div class="sheet">
+      <div class="sheetHead">
+        <div><b id="approvedOperationTitle">New operation</b>
+          <br><span id="approvedOperationSub">Choose a section, then choose the exact operation.</span>
+        </div>
+        <button class="btn btnIcon" type="button" id="approvedClose" aria-label="Close operation">×</button>
+      </div>
+      <div class="sheetBody">
+        <div class="seg serviceTabs" id="approvedServices">
+          <button class="chip active" type="button" data-approved-service="transfer">Money Transfer</button>
+          <button class="chip" type="button" data-approved-service="banking">Banking</button>
+          <button class="chip" type="button" data-approved-service="mobile">Mobile Money</button>
+          <button class="chip" type="button" data-approved-service="forex">Forex</button>
+          <button class="chip" type="button" data-approved-service="daily">Daily Operation</button>
+        </div>
+        <div id="approvedOperationContent" aria-live="polite"></div>
+        <div class="rowBtns" id="approvedOperationChoices"></div>
+      </div>
+    </div>
+  </div>
+  <script type="application/json" id="approvedDashboardConfig"><%- approvedConfig %></script>
+  <script src="/js/approved-dashboard.js?v=<%= assetVersion %>"></script>
+</body>
+</html>

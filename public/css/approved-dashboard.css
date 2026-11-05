@@ -1,0 +1,36 @@
+/* Nonintrusive integration of the approved index.html dashboard. All visual
+   design tokens and section wording are loaded from the original source. */
+#approvedOperationOverlay[aria-hidden="true"]{display:none}
+#approvedOperationOverlay.show{display:flex}
+#approvedOperationOverlay .sheet{max-height:92vh;overflow:auto;width:min(900px,calc(100vw - 24px))}
+#approvedOperationContent{min-width:0;margin-top:16px}
+#approvedOperationContent form{display:grid;gap:12px}
+#approvedOperationContent form.card{border:0;box-shadow:none;background:transparent}
+#approvedOperationContent form.card>.cardHead{display:none}
+#approvedOperationContent .cardBody{padding:8px 0 18px}
+#approvedOperationContent .field{display:grid;gap:8px}
+#approvedOperationContent input.control,
+#approvedOperationContent select.control,
+#approvedOperationContent textarea.control{width:100%;min-width:0;color:var(--text);border-radius:14px}
+#approvedOperationChoices{margin-top:14px}
+#approvedOperationOverlay .sheetBody{max-height:calc(92vh - 85px);overflow:auto}
+#approvedOperationOverlay .seg{flex-wrap:wrap}
+.approvedHelp{font-size:13px;color:var(--muted);line-height:1.6;padding:10px 0}
+.approvedHelp .btn{margin-top:10px}
+.approvedControl{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+#approvedOperationOverlay .row2,#approvedOperationOverlay .row3{align-items:stretch}
+#approvedOperationOverlay .control{min-height:44px}
+#approvedOperationOverlay label.field{display:grid;gap:8px}
+#approvedOperationOverlay .control:focus-within{box-shadow:var(--ring)}
+#approvedOperationOverlay [hidden]{display:none!important}
+#approvedOperationOverlay .sheetHead{position:sticky;top:0;z-index:1;background:var(--card)}
+#approvedOperationOverlay .btn{white-space:normal}
+#approvedOperationOverlay .chip:focus-visible{outline:3px solid var(--primary)}
+.approvedLink{color:var(--primary);text-decoration:underline}
+.approvedEmpty{color:var(--muted);padding:12px 0;font-size:13px}
+body.approvedModalOpen{overflow:hidden}
+.nav [role="button"]:focus-visible{outline:3px solid var(--primary);outline-offset:3px}
+@media(max-width:700px){
+  #approvedOperationOverlay .sheet{width:100%;max-height:100vh;border-radius:18px}
+  #approvedOperationOverlay .sheetBody{max-height:calc(100vh - 110px)}
+}

@@ -3,15 +3,15 @@
     <div class="cardHead"><b>Physical cash reconciliation</b><span>Per operator · per branch · UGX or KES</span></div>
     <div class="cardBody">
       <p class="tiny">An independent supervisor must verify opening cash before recording. Counted cash and recorded customer operations only. Cash-in adds to the provisional drawer estimate; cash-out subtracts. Fees are informational and excluded from this calculation. No shift proves provider payment, electronic float, or settlement.</p>
-      <% if(data.canOpen && data.operatingBranch){ %>
+      <% if(data.canOpen){ %>
       <form method="post" action="/tenant/mobile-money/shifts/open" class="row3" data-operation-form="shift" data-operation-title="Request opening cash verification">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-        <p class="tiny">Operating branch: <b><%= data.operatingBranch.name %> · <%= data.operatingBranch.currency %></b>. Bound automatically by your authenticated session.</p>
+        <% if(user.role==='Tenant Owner'){ %>
+          <label class="field">Branch<select class="control" name="branchId" required><option value="">Select an active branch</option><% data.branches.forEach(b=>{ %><option value="<%= b._id %>"><%= b.name %> (<%= b.currency %>)</option><% }) %></select></label>
+        <% } else { %><p class="tiny">The shift will be bound to your active assigned branch.</p><% } %>
         <label class="field">Physically counted opening cash (branch currency)<input class="control" name="openingCash" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" required placeholder="0"></label>
         <div class="rowBtns"><button class="btn btnPrimary" type="submit">Request opening verification</button></div>
       </form>
-      <% } else if(data.canOpen){ %>
-        <p class="tiny">Activate your working location in <a href="/tenant/branches">Branch Management</a> before opening a cash shift.</p>
       <% } %>
     </div>
   </section>

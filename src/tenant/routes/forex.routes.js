@@ -14,7 +14,7 @@ module.exports=function routes({renderTenant}){
  router.get('/',requirePermission('forex.view'),async(req,res,next)=>{
   try{
    const branchList=await available(req);
-   const selectedId=String(req.operatingBranchId||'');
+   const selectedId=req.user.role==='Tenant Owner'?String(req.query.branchId||''):String(req.user.branchId||'');
    const selected=branchList.find(b=>String(b._id)===selectedId);
    const [rates,records,rateQueue,quoteQueue]=await Promise.all([
     selected?fx.listRates(req.tenantDb,req.tenant,req.user,{status:'active',branchId:selectedId}):[],

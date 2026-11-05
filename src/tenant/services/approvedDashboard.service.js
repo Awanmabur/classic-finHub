@@ -12,9 +12,7 @@ const mainStart = source.indexOf('<div class="grain"',headEnd);
 const mainEnd = source.indexOf('</main>',mainStart);
 if(headStart<0||headEnd<0||mainStart<0||mainEnd<0||!source.includes('id="view-reports"'))
   throw new Error('Approved index.html dashboard anchors have changed: review before deployment');
-// The approved design has further CSS blocks after </main> (the final
-// sidebar, forex, modal and theme refinements). Preserve all of them in order.
-const originalCss = (source.match(/<style\b[^>]*>[\s\S]*?<\/style>/gi)||[]).join('\n')
+const originalCss = (source.slice(headStart,headEnd).match(/<style\b[^>]*>[\s\S]*?<\/style>/gi)||[]).join('\n')
   // The relative URL resolves to /tenant/images in the authenticated route.
   .replace(/url\((["']?)images\/classicfinhub-logo\.png\1\)/g,'url("/images/classicfinhub-logo.png")');
 const originalMain = source.slice(mainStart,mainEnd+'</main>'.length);
@@ -26,10 +24,6 @@ function markup(user,branchName='—',extraLinks=[],csrfToken=''){
   body=body.replace(/(<span id="sideOperator">)[\s\S]*?(<\/span>)/,(_,a,b)=>a+html(user?.name||'Account')+b);
   body=body.replace(/(<span id="sideBranch">)[\s\S]*?(<\/span>)/,(_,a,b)=>a+html(branchName)+b);
   body=body.replace('id="openBadge">OPEN','id="openBadge">—');
-  // Keep approved topbar position, but display authoritative branch identity,
-  // not a mutable transaction branch dropdown.
-  body=body.replace('<select id="branchSelect"></select>',
-    '<span id="branchSelect" role="status" aria-label="Operating branch">'+html(branchName)+'</span>');
   body=body.replace(/(<em class="tag" style="background:rgba\(91,92,245,\.12\)">)[\s\S]*?(<\/em>)/,(_,a,b)=>a+html(user?.role||'Operator')+b);
   // Empty, unverified prototype counters must not be reported as real financial totals.
   for(const id of ['trCount','trPending','mmCount','bkCount','fxCount','acctCount','customerCount','customerAccountCount','customerTxnCount','accountsTotal','accountsDepositTotal','accountsWithdrawTotal']){
@@ -90,22 +84,20 @@ function recentProjection(data){
   const transfers=items(data.transferRecords?.items).filter(x=>validId(x._id)).map(x=>({
     id:str(x._id),date:safeDate(x.createdAt),sender:str(x.sender?.name),receiver:str(x.beneficiary?.name),
     amountMinor:str(x.amountMinor),feeMinor:str(x.feeMinor),currency:str(x.currency),status:str(x.status),
-    reference:str(x.reference),branch:(data.branchNames||{})[str(x.branchId)]||str(x.branchId)
+    reference:str(x.reference),branch:str(x.branchId)
   }));
   const mobile=items(data.summary?.recent).filter(x=>validId(x._id)).map(x=>({
     id:str(x._id),date:safeDate(x.createdAt),customer:str(x.customer),network:str(x.network),
     operation:str(x.operation),amountMinor:str(x.amountMinor),currency:str(x.currency),status:str(x.status),
-    reference:str(x.networkReference),branch:(data.branchNames||{})[str(x.branchId)]||str(x.branchId)
+    reference:str(x.networkReference)
   }));
   const bank=items(data.bankingRecords?.items).filter(x=>validId(x._id)).map(x=>({
     id:str(x._id),date:safeDate(x.createdAt),reference:str(x.reference),status:str(x.status),
-    kind:str(x.kind),currency:str(x.currency),amountMinor:str(x.amountMinor),
-    branch:(data.branchNames||{})[str(x.branchId)]||str(x.branchId)
+    kind:str(x.kind),currency:str(x.currency),amountMinor:str(x.amountMinor)
   }));
   const forex=items(data.forexRecords?.items).filter(x=>validId(x._id)).map(x=>({
     id:str(x._id),date:safeDate(x.createdAt),reference:str(x.reference),status:str(x.status),
-    fromCurrency:str(x.fromCurrency),toCurrency:str(x.toCurrency),sourceMinor:str(x.sourceMinor),
-    branch:(data.branchNames||{})[str(x.branchId)]||str(x.branchId)
+    fromCurrency:str(x.fromCurrency),toCurrency:str(x.toCurrency),sourceMinor:str(x.sourceMinor)
   }));
   return {transfers,mobile,bank,forex,mobileTodayTotal:Number.isSafeInteger(data.summary?.total)?data.summary.total:null,
     latestAcknowledgement:data.latestAcknowledgement||null};

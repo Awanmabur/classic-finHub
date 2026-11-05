@@ -5,29 +5,6 @@
     <div class="stat"><div class="k">Operations</div><div class="v">Controlled</div><div class="s">Historical records are not deleted</div></div>
   </div>
   <% if(data.canManage){ %>
-  <section class="card" style="margin-top:14px"><div class="cardHead"><b>Operating branch</b><span>Automatically assigned to new operations</span></div>
-    <div class="cardBody">
-      <p class="tiny">Staff operations use their assigned branch automatically. An owner with several locations activates a working branch here, not on transaction forms. Historical records never change their branch.</p>
-      <% if(data.operatingBranch){ %><p><b>Current location: <%= data.operatingBranch.name %> · <%= data.operatingBranch.currency %></b></p><% }
-         else { %><p class="tiny">No active location. Activate one before recording operations.</p><% } %>
-      <% if(data.branches.filter(b=>b.status==='active').length>1 || !data.operatingBranch){ %>
-        <form method="post" action="/tenant/branches/activate" class="row2">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-          <label class="field">Operating location
-            <select class="control" name="branchId" required>
-              <option value="">Select an active location</option>
-              <% data.branches.filter(b=>b.status==='active').forEach(b=>{ %>
-                <option value="<%= b._id %>" <%= String(data.operatingBranch?._id)===String(b._id)?'selected':'' %>><%= b.name %> · <%= b.currency %></option>
-              <% }) %>
-            </select>
-          </label>
-          <div class="rowBtns"><button class="btn btnPrimary" type="submit">Activate location</button></div>
-        </form>
-      <% } %>
-    </div>
-  </section>
-  <% } %>
-  <% if(data.canManage){ %>
   <section class="card" style="margin-top:14px"><div class="cardHead"><b>Create branch</b><span>Only tenant owners</span></div><div class="cardBody">
     <form action="/tenant/branches" method="post" data-operation-form="branch" data-operation-title="Create branch"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <div class="row3"><label class="field">Name<input class="control" name="name" required minlength="2" maxlength="100" placeholder="Kampala Main"></label>

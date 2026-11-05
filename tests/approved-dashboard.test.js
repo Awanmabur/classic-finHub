@@ -85,28 +85,3 @@ test('original wording is retained while administrative links obey server author
   assert.doesNotMatch(limited,/Staff &amp; Roles/);
   assert.doesNotMatch(limited,/Workspace Administration/);
 });
-
-test('all approved CSS overrides from body and head are included, without executing prototype scripts',()=>{
- const source=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
- const count=(source.match(/<style\b[^>]*>[\s\S]*?<\/style>/gi)||[]).length;
- const rendered=(approved.originalCss.match(/<style\b[^>]*>[\s\S]*?<\/style>/gi)||[]).length;
- assert(count>3,'the reference has final design overrides outside head');
- assert.equal(rendered,count);
- assert(approved.originalCss.includes('classicfinhub-logo-final-fix'));
- assert(approved.originalCss.includes('finalDashboardPagesFix'));
- assert(!approved.originalCss.includes('localStorage.setItem'));
-});
-
-test('historical dashboard rows display the stored branch name rather than the current working branch',()=>{
- const id='aaaaaaaaaaaaaaaaaaaaaaaa', branchId='bbbbbbbbbbbbbbbbbbbbbbbb';
- const row={_id:id,branchId,createdAt:'2026-11-05T10:00:00.000Z',amountMinor:'10000',currency:'UGX'};
- const projection=approved.recentProjection({
-  branchNames:{[branchId]:'Kampala Main'},
-  transferRecords:{items:[row]},
-  summary:{recent:[{...row,customer:'Test Customer'}]},
-  bankingRecords:{items:[row]},
-  forexRecords:{items:[row]}
- });
- for(const list of [projection.transfers,projection.mobile,projection.bank,projection.forex])
-  assert.equal(list[0].branch,'Kampala Main');
-});

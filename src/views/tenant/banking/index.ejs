@@ -2,11 +2,11 @@
  <section class="card"><div class="cardHead"><b>Banking requests</b><span>Internal request workflow — no real bank execution</span></div>
   <div class="cardBody"><p class="tiny"><strong>NO FUNDS MOVED.</strong> Submitted and approved requests are not deposits, withdrawals, cleared transfers, bank statements, or proof of customer balances. Institution/provider verification is not enabled.</p>
    <div class="rowBtns"><a class="btn" href="/tenant/banking/accounts">Masked account references</a><a class="btn" href="/tenant/banking/history">Full request history</a></div>
-   <% if(user.role==='Tenant Owner'){ %><p class="tiny">Operating branch: <b><%= data.branches.find(b=>String(b._id)===data.selectedBranchId)?.name||'Not activated' %></b>. Change the active operating location in <a href="/tenant/branches">Branch Management</a>, not when recording.</p><% } %>
+   <% if(data.branches.length>0 && user.role==='Tenant Owner'){ %><form method="get" action="/tenant/banking" class="rowBtns" style="margin-top:12px"><label class="field">Select branch <select class="control" name="branchId" required><option value="">Select an active branch</option><% data.branches.forEach(b=>{ %><option value="<%= b._id %>" <%= data.selectedBranchId===String(b._id)?'selected':'' %>><%= b.name %> · <%= b.currency %></option><% }) %></select></label><button class="btn" type="submit">Open branch</button></form><% } %>
   </div></section>
  <div class="grid" style="margin-top:14px">
   <% if(data.canCreate && data.selectedBranchId){ %><form method="post" action="/tenant/banking/requests" class="card" autocomplete="off" data-operation-form="request" data-operation-title="New banking request">
-   <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
+   <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>"><input type="hidden" name="branchId" value="<%= data.selectedBranchId %>">
    <div class="cardHead"><b>Record banking request</b><span>Second-person approval</span></div><div class="cardBody" style="display:grid;gap:12px">
     <% if(!data.references.length){ %><p class="tiny">Create a masked bank account reference for this branch before starting a request.</p><% } %>
     <label class="field">Request type<select name="kind" class="control" required><option value="deposit_request">Deposit request</option><option value="withdrawal_request">Withdrawal request</option><option value="transfer_request">Bank transfer request</option></select></label>

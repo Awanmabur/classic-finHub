@@ -23,7 +23,7 @@ async function page(role, view, data) {
   });
 }
 test('operator sees a functional record form but not the review or audit controls',async()=>{
-  const html=await page('Mobile Money Operator','mobile-money',{summary,canRecord:true,branches:[{status:'active',_id:'aaaaaaaaaaaaaaaaaaaaaaaa',name:'Main'}],operatingBranch:{status:'active',_id:'aaaaaaaaaaaaaaaaaaaaaaaa',name:'Main',currency:'UGX'},canReview:false,reviewQueue:[],idempotencyKey:'123'});
+  const html=await page('Mobile Money Operator','mobile-money',{summary,canRecord:true,branches:[{status:'active',_id:'aaaaaaaaaaaaaaaaaaaaaaaa',name:'Main'}],canReview:false,reviewQueue:[],idempotencyKey:'123'});
   assert.match(html,/Record cash in/);
   assert.match(html,/name="_csrf" value="abc123"/);
   assert.doesNotMatch(html,/Independent internal review/);

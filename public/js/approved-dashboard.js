@@ -110,7 +110,8 @@
     const url=new URL(config.page,window.location.origin);
     // The current branch is selection context for owner operations, not a
     // global ledger filter; the backend still validates branch access.
-    // Branch identity is resolved from session and assignment by the backend.
+    const branch=branchSelect?.value;
+    if(branch && branches.some(b=>b.id===branch))url.searchParams.set('branchId',branch);
     return url;
   }
   function selectForm(form,config){
@@ -324,13 +325,23 @@
   const day=one('#repDate');
   if(day)day.textContent=new Date().toISOString().slice(0,10);
   if(branchSelect){
-    branchSelect.textContent=data.user?.branchName||'Not assigned';
-    branchSelect.title='Server-verified branch; authorized owners can activate another in Branch Management.';
+    clear(branchSelect);
+    const option=doc.createElement('option');option.value='';option.textContent='Select branch';
+    branchSelect.appendChild(option);
+    for(const row of branches){
+      const op=doc.createElement('option');op.value=row.id;op.textContent=row.name+' · '+row.currency;
+      branchSelect.appendChild(op);
+    }
+    const own=data.user?.branchId;
+    if(own&&branches.some(b=>b.id===own))branchSelect.value=own;
+    branchSelect.title='Choose branch for new operation forms; reports and totals are not globally filtered by this selector.';
+    const sync=()=>{
+      const active=branches.find(b=>b.id===branchSelect.value);
+      if(one('#sideBranch'))one('#sideBranch').textContent=active?.name||'All permitted branches';
+      if(currencySelect&&active && [...currencySelect.options].some(o=>o.value===active.currency))currencySelect.value=active.currency;
+    };
+    branchSelect.addEventListener('change',sync);sync();
   }
-  const selected=branches.find(b=>b.id===data.user?.branchId);
-  if(currencySelect&&selected&&[...currencySelect.options].some(o=>o.value===selected.currency))
-    currencySelect.value=selected.currency;
-  if(one('#sideBranch'))one('#sideBranch').textContent=data.user?.branchName||'Not assigned';
   if(currencySelect)currencySelect.title='Display currency selector from approved layout. No currency conversion or summed cross-currency balances are inferred.';
   const search=one('#search');
   search?.addEventListener('input',()=>{
@@ -392,15 +403,15 @@
     r.status,r.branch||'—'
   ]);
   renderActivity('mobileList',recent.mobile||[],'mobile-money',r=>({
-    title:r.customer||'Mobile Money',detail:[r.operation?.replace('_',' '),r.network,r.status,r.branch].filter(Boolean).join(' · '),
+    title:r.customer||'Mobile Money',detail:[r.operation?.replace('_',' '),r.network,r.status].filter(Boolean).join(' · '),
     amount:amount(r.amountMinor,r.currency)
   }));
   renderActivity('bankList',recent.bank||[],'banking',r=>({
-    title:r.reference||'Banking request',detail:[r.kind?.replaceAll('_',' '),r.status,r.branch].filter(Boolean).join(' · '),
+    title:r.reference||'Banking request',detail:[r.kind?.replaceAll('_',' '),r.status].filter(Boolean).join(' · '),
     amount:amount(r.amountMinor,r.currency)
   }));
   renderActivity('forexList',recent.forex||[],'forex',r=>({
-    title:r.reference||'Forex quote',detail:[r.fromCurrency+' → '+r.toCurrency,r.status,r.branch].filter(Boolean).join(' · '),
+    title:r.reference||'Forex quote',detail:[r.fromCurrency+' → '+r.toCurrency,r.status].join(' · '),
     amount:amount(r.sourceMinor,r.fromCurrency)
   }));
   if(Number.isSafeInteger(recent.mobileTodayTotal))one('#mmCount').textContent=String(recent.mobileTodayTotal);

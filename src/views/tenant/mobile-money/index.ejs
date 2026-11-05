@@ -1,14 +1,14 @@
 <section class="view show">
   <p class="tiny"><a class="btn" href="/tenant/mobile-money/shifts">Manage physical cash shifts</a> Request an opening cash shift and obtain independent approval before recording new activity. A shift is not provider float or a settled balance.</p>
   <div class="grid">
-    <% if (data.canRecord && data.operatingBranch) { %>
+    <% if (data.canRecord && (user.branchId || (data.branches||[]).some(b=>b.status==='active'))) { %>
     <form class="card" method="post" action="/tenant/mobile-money/cash-in" autocomplete="off" data-operation-form="record" data-operation-title="New mobile money record">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
       <div class="cardHead"><b>Mobile money — operational record</b><span>Cash-in / cash-out registration</span></div>
       <div class="cardBody" style="display:grid;gap:12px">
         <p class="tiny">This records an agent operation for later network verification. It does not send money, debit an account, or confirm settlement.</p>
-        <p class="tiny">Operating branch: <b><%= data.operatingBranch.name %></b> · recorded automatically from your signed-in working context.</p>
+        <% if(user.role==='Tenant Owner'){ %><label class="field">Operating branch<select class="control" name="branchId" data-currency-target="mobileMoneyCurrency" required><option value="">Select branch</option><% (data.branches||[]).filter(b=>b.status==='active').forEach(b=>{ %><option value="<%= b._id %>" data-currency="<%= b.currency %>"><%= b.name %> · <%= b.currency %></option><% }) %></select></label><% } else { %><p class="tiny">Your recorded operation is bound to your assigned branch.</p><% } %>
         <div class="row2">
           <label class="field">Customer name<input class="control" name="customer" maxlength="120" required></label>
           <label class="field">Network<select class="control" name="network"><option>MTN</option><option>Airtel</option><option>M-Pesa</option></select></label>
@@ -17,7 +17,7 @@
         <div class="row3">
           <label class="field">Amount<input class="control" type="number" name="amount" min="1" step="0.01" required></label>
           <label class="field">Fee<input class="control" type="number" name="fee" min="0" step="0.01" value="0" required></label>
-          <label class="field">Branch currency<select class="control" name="currency" id="mobileMoneyCurrency" required><option value="<%= data.operatingBranch.currency %>"><%= data.operatingBranch.currency %></option></select></label>
+          <label class="field">Branch currency<select class="control" name="currency" id="mobileMoneyCurrency" required><% const activeBranch=(data.branches||[]).find(b=>String(b._id)===String(user.branchId)&&b.status==='active'); %><option value="UGX" <%= activeBranch?.currency==='UGX'?'selected':'' %>>UGX</option><option value="KES" <%= activeBranch?.currency==='KES'?'selected':'' %>>KES</option></select></label>
         </div>
         <div class="rowBtns">
         <% if (user.permissions.includes('*') || user.permissions.includes('mobile_money.cash_in')) { %><button class="btn btnPrimary" formaction="/tenant/mobile-money/cash-in">Record cash in</button><% } %>
@@ -27,7 +27,7 @@
       </div>
     </form>
     <% } %>
-    <% if(data.canRecord && !data.operatingBranch){ %><p class="tiny">An active operating branch is required. <a href="/tenant/branches">Open Branch Management</a> to activate your working location.</p><% } %>
+    <% if(data.canRecord && !user.branchId && !(data.branches||[]).some(b=>b.status==='active')){ %><p class="tiny">Create an active branch first before recording new operations.</p><% } %>
     <section class="card"><div class="cardHead"><b>Network activity</b><span><%= data.summary.total %> records today (UTC)</span><a class="btn" href="/tenant/mobile-money/history">All history</a></div><div class="cardBody txList">
       <% if (!data.summary.recent.length) { %><p class="tiny">No records yet. The list uses this tenant's database, not demonstration data.</p><% } %>
       <% data.summary.recent.forEach(t => { %>

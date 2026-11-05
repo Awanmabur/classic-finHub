@@ -1,1 +1,21 @@
-<section class="view show"><div class="grid3"><% data.modules.forEach(m => { const active = tenant.enabledModules.includes(m.key); %><article class="card" data-search-row><div class="cardHead"><b><i class="fa-solid <%= m.icon %>"></i> <%= m.name %></b><span><%= active ? 'Enabled' : 'Available' %></span></div><div class="cardBody"><p class="tiny"><%= m.description %></p><div class="seg"><% m.permissions.forEach(p => { %><span class="chip <%= active ? 'active' : '' %>"><%= p %></span><% }) %></div><% if (!active) { %><form method="post" action="/tenant/modules/request" style="margin-top:12px"><input type="hidden" name="moduleKey" value="<%= m.key %>" /><button class="btn btnPrimary">Request module</button></form><% } %></div></article><% }) %></div></section>
+<section class="view show">
+  <section class="card"><div class="cardHead"><b>Independent module subscriptions</b><span>Modules work separately; platform approval is required for activation</span></div>
+    <div class="cardBody"><p class="tiny">A module grant has its own term and limits. The Operations Reports module does not require Mobile Money. Invoices and automatic collection are not active; grant approval does not prove payment.</p></div>
+  </section>
+  <div class="grid3" style="margin-top:14px"><% data.modules.forEach(m=>{
+     const included=Boolean(data.plan?.modules?.includes(m.key)&&tenant.enabledModules?.includes(m.key));
+     const grant=data.grants.find(g=>g.moduleKey===m.key);
+  %><article class="card" data-search-row><div class="cardHead"><b><i class="fa-solid <%= m.icon %>"></i> <%= m.name %></b>
+    <span><%= (included||grant) ? (m.runtimeStatus==='recording_only'?'Recording only':'Subscribed') : m.runtimeStatus==='disabled'?'Not yet available':'Not subscribed' %></span></div>
+    <div class="cardBody"><p class="tiny"><%= m.description %></p><p class="tiny"><b>Indicative price:</b> USD <%= m.priceMonthly %>/month</p>
+      <% if(grant){ %><p class="tiny">Independent entitlement until <%= new Date(grant.periodEnd).toISOString().slice(0,10) %>. Limits: <%= grant.limits.users %> seats, <%= grant.limits.branches %> branches.</p><% } %>
+      <% if(included){ %><p class="tiny">Included in your active workspace plan.</p><% } %>
+      <% if(user.role==='Tenant Owner' && data.pendingKeys?.includes(m.key)){ %><p class="tiny">Request pending platform review.</p><% } %>
+      <% if(user.role==='Tenant Owner' && !included && !grant && !data.pendingKeys?.includes(m.key) && ['enabled','recording_only'].includes(m.runtimeStatus)){ %>
+      <form method="post" action="/tenant/modules/request"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="moduleKey" value="<%= m.key %>">
+        <label class="field">Request reason<textarea class="control" name="reason" required minlength="20" maxlength="600" rows="2" placeholder="Explain how your organization will use this module."></textarea></label>
+        <button class="btn" type="submit">Request module</button>
+      </form><% } %>
+      <div class="seg"><% m.permissions.forEach(permission=>{ %><span class="chip <%= included||grant?'active':'' %>"><%= permission %></span><% }) %></div>
+    </div></article><% }) %></div>
+</section>

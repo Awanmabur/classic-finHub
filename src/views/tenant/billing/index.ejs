@@ -1,1 +1,21 @@
-<section class="view show"><div class="grid"><section class="card"><div class="cardHead"><b>Tenant billing</b><span>Trial, invoices, payments, grace period, suspension.</span></div><div class="cardBody summary"><div class="sumRow"><span>Plan</span><b><%= tenant.plan %></b></div><div class="sumRow"><span>Status</span><b><%= tenant.status %></b></div><div class="sumRow"><span>Trial ends</span><b><%= tenant.trialEndsAt || 'No active trial' %></b></div><div class="sumRow"><span>Enabled modules</span><b><%= tenant.enabledModules.length %></b></div></div></section><section class="card"><div class="cardHead"><b>Invoices</b><span>Tenant visible billing remains accessible when suspended.</span></div><div class="cardBody tableWrap"><table><thead><tr><th>Invoice</th><th>Amount</th><th>Status</th><th>Due</th></tr></thead><tbody><% data.invoices.forEach(i => { %><tr data-search-row><td><%= i.number %></td><td><%= i.currency %> <%= i.amount %></td><td><span class="tag"><%= i.status %></span></td><td><%= i.dueDate %></td></tr><% }) %></tbody></table></div></section></div></section>
+<section class="view show"><div class="grid"><section class="card"><div class="cardHead"><b>Workspace subscription</b><span>Recorded entitlement · no payment simulation</span></div><div class="cardBody summary">
+<div class="sumRow"><span>Plan</span><b><%= data.subscription?.planName||'Administrator review required' %></b></div>
+<div class="sumRow"><span>Version</span><b><%= data.subscription?.planVersion||'—' %></b></div>
+<div class="sumRow"><span>Access</span><b><%= data.subscription?.status||'Not assigned' %></b></div>
+<div class="sumRow"><span>Term ends</span><b><%= data.subscription?.periodEnd ? new Date(data.subscription.periodEnd).toISOString().slice(0,10) : 'No active term' %></b></div>
+<div class="sumRow"><span>Active modules</span><b><%= data.plan?.modules?.length||0 %></b></div>
+<div class="sumRow"><span>Branch limit</span><b><%= data.subscription?.limits?.branches??'—' %></b></div>
+<div class="sumRow"><span>Staff seats</span><b><%= tenant.seatsReserved %> / <%= data.subscription?.limits?.users??'—' %></b></div>
+</div></section><section class="card"><div class="cardHead"><b>Usage and billing boundaries</b><span>Real persisted counters</span></div><div class="cardBody summary">
+<div class="sumRow"><span>UTC billing meter month</span><b><%= data.period %></b></div>
+<div class="sumRow"><span>Recorded Mobile Money operations</span><b><%= data.usage %> / <%= data.mobileMoneyLimit??data.subscription?.limits?.transactionsPerMonth??'—' %></b></div>
+<div class="sumRow"><span>Money Transfer requests</span><b><%= data.transferUsage %> / <%= data.transferLimit??"—" %></b></div>
+<div class="sumRow"><span>Forex quotes</span><b><%= data.forexUsage %> / <%= data.forexLimit??"—" %></b></div>
+<div class="sumRow"><span>Banking requests</span><b><%= data.bankUsage %> / <%= data.bankLimit??"—" %></b></div>
+<p class="tiny">These are operational recording quotas, not verified payment settlements. Quotas reset on a new UTC month or a new authorized entitlement term.</p>
+<p class="tiny">Automated charging, provider callbacks, invoices, tax calculation and payment receipts are NOT enabled. No invoice is presented as paid. Ask the platform administrator for a supervised entitlement change.</p>
+</div></section></div>
+<section class="card" style="margin-top:14px"><div class="cardHead"><b>Independent module subscriptions</b><span>Separate terms · no payment assumed</span></div><div class="cardBody summary">
+<% if(!(data.grants||[]).length){ %><p class="tiny">No standalone module grants are active.</p><% } %>
+<% (data.grants||[]).forEach(g=>{ %><div class="sumRow"><span><%= g.moduleKey.replaceAll('_',' ') %></span><b>Until <%= new Date(g.periodEnd).toISOString().slice(0,10) %> · USD <%= (g.priceMonthlyMinor/100).toFixed(2) %>/mo</b></div><% }) %>
+<p class="tiny">A module grant is an access entitlement, not a payment receipt. Payment status is managed separately.</p></div></section></section>

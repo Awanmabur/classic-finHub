@@ -1,0 +1,83 @@
+# Cloud development setup
+
+The current environment uses Node.js 24.22.1 (the project requires 22+) and the
+repository's loopback-only MongoDB 8 replica set on port 27018. The tested cloud
+install script and startup instructions are saved in the environment configuration
+draft. Review and publish that configuration to retain the prepared snapshot for
+future tasks. Saving a draft does not publish or deploy the application.
+
+Use the existing `/workspace/classic-finHub` checkout; cloud tasks are already
+isolated. Do not create another Git worktree unless requested. Source files,
+dependencies, database files and private development keys can be retained, but
+running processes must be restarted after restoration.
+
+## Start the prepared instance
+
+From the checkout, start the development database:
+
+```bash
+env -u DOCKER_HOST -u DOCKER_CONTEXT -u DOCKER_TLS -u DOCKER_TLS_VERIFY -u DOCKER_CERT_PATH npm run db:dev:up
+```
+
+In each of three separate service sessions, load the prepared development
+settings, then start the relevant process:
+
+```bash
+cd /workspace/classic-finHub
+. /workspace/.classicfin-local/environment.sh
+npm start
+# Separate sessions, with the same settings:
+# npm run worker
+# npm run worker:notifications
+```
+
+The generated private session and MFA keys live outside the checkout in
+`/workspace/.classicfin-local`. Do not print them, commit them, or replace an
+existing MFA key. The existing local `.env` was preserved, removed from Git
+tracking, and is overridden by these explicit development settings. Production
+requires separate secrets, authenticated MongoDB and least-privilege worker users;
+these local settings must not be reused for production.
+
+Require `/health/ready` to return HTTP 200 and `{"status":"ready"}`, and verify
+the public home and sign-in pages return their expected content. Run
+`npm run worker:ready` and `node scripts/notification-worker-heartbeat.js` to check
+fresh background-worker heartbeats. No user-facing localhost preview is provided
+by the onboarding workflow.
+
+## Initialize a new local database
+
+After loading the prepared settings:
+
+```bash
+npm run indexes
+npm run catalog:publish -- --apply
+```
+
+Both commands were exercised repeatedly. They do not create a default login.
+The first administrator must be explicitly bootstrapped using a user-selected
+email and a protected password file, following the README. Never put an initial
+password into Git or chat, and do not bypass MFA. Tenant creation then provides
+a private, single-use owner activation link.
+
+The Compose configuration preserves its named database volume and sets a 16384
+open-file limit, matching this cloud host's hard ceiling. A lower inherited Docker
+limit caused MongoDB to exhaust descriptors and crash during tenant provisioning.
+Do not delete database volumes as a startup repair.
+
+## Validate changes
+
+```bash
+. /workspace/.classicfin-local/environment.sh
+NODE_ENV=test npm run release:gate
+npm run perf:smoke
+```
+
+The release gate checks actual HTTP/database workflows using disposable scratch
+data; integration commands refuse remote or production targets. It also checks
+the online dependency audit. The performance smoke measures only local HTTP
+responses, not production concurrency or browser Core Web Vitals.
+
+The prepared instance has no live mail/provider credentials. Internal notification
+and financial-recording checks passed without claiming external delivery or money
+movement. See [the project review](PROJECT_REVIEW.md) for fixed defects, remaining
+features and production acceptance work.

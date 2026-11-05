@@ -1,11 +1,24 @@
 <section class="view show">
-  <div class="grid3">
-    <div class="stat"><div class="k">Tenants</div><div class="v"><%= data.tenants.length %></div><div class="s"><span class="dot"></span> Database-per-tenant workspaces</div></div>
-    <div class="stat"><div class="k">Appointments</div><div class="v"><%= data.appointments.length %></div><div class="s"><span class="dot warn"></span> Appointment-first onboarding</div></div>
-    <div class="stat"><div class="k">Pending requests</div><div class="v"><%= data.moduleRequests.filter(r => r.status === 'pending').length %></div><div class="s"><span class="dot bad"></span> Module approvals</div></div>
-  </div>
+  <section class="card"><div class="cardHead"><div><b>Platform snapshot</b><br><span>Tenant onboarding and current platform operations</span></div></div><div class="cardBody"><div class="grid3">
+    <div class="stat"><div class="k">Total tenant workspaces</div><div class="v"><%= data.totalTenants %></div><div class="s"><span class="dot"></span>Live platform records</div></div>
+    <div class="stat"><div class="k">Active workspaces</div><div class="v"><%= data.activeTenants %></div><div class="s"><span class="dot"></span><%= data.suspendedTenants %> suspended</div></div>
+    <div class="stat"><div class="k">Onboarding appointments</div><div class="v"><%= data.appointmentCount %></div><div class="s"><span class="dot warn"></span><%= data.availableModuleCount %> live operational modules</div></div>
+  </div><div class="rowBtns" style="margin-top:12px"><a class="btn btnPrimary" href="/platform/tenants/create">Create tenant</a><a class="btn" href="/platform/tenants">View tenants</a><a class="btn" href="/platform/appointments">Onboarding appointments</a></div></div></section>
   <div class="grid" style="margin-top:14px">
-    <section class="card"><div class="cardHead"><b>Recent tenants</b><span>Trial, active, suspended</span></div><div class="cardBody tableWrap"><table><thead><tr><th>Tenant</th><th>Plan</th><th>Status</th><th>Modules</th><th></th></tr></thead><tbody><% data.tenants.forEach(t => { %><tr data-search-row><td><b><%= t.name %></b><br><span class="tiny"><%= t.dbName %></span></td><td><%= t.plan %></td><td><span class="tag"><%= t.status %></span></td><td><%= t.enabledModules.length %></td><td><a class="btn" href="/platform/tenants/<%= t.id %>">Open</a></td></tr><% }) %></tbody></table></div></section>
-    <section class="card"><div class="cardHead"><b>Module marketplace signals</b><span>Requests and addon demand</span></div><div class="cardBody txList"><% data.moduleRequests.forEach(r => { %><div class="tx" data-search-row><div class="txLeft"><span class="txDot warn"></span><div class="txMeta"><b><%= r.moduleName %></b><span><%= r.tenantName %> — <%= r.reason %></span></div></div><div class="txAmt"><%= r.status %></div></div><% }) %></div></section>
+    <section class="card"><div class="cardHead"><b>Recent tenants</b><span>Latest 30 workspaces</span></div><div class="cardBody tableWrap"><table><thead><tr><th>Tenant</th><th>Plan</th><th>Status</th><th></th></tr></thead><tbody>
+      <% if (!data.tenants.length) { %><tr><td colspan="4">No tenants have been provisioned yet.</td></tr><% } %>
+      <% data.tenants.forEach(t=>{ %><tr data-search-row><td><b><%= t.name %></b><br><span class="tiny"><%= t.slug %></span></td><td><%= t.plan %></td><td><span class="tag"><%= t.status %></span></td><td><a class="btn" href="/platform/tenants/<%= t.id %>">Manage</a></td></tr><% }) %>
+    </tbody></table></div></section>
+    <section class="card"><div class="cardHead"><b>Platform operations</b><span>Administrative overview</span></div><div class="cardBody summary">
+      <div class="sumRow"><span>Active tenants</span><b><%= data.activeTenants %></b></div>
+      <div class="sumRow"><span>Suspended tenants</span><b><%= data.suspendedTenants %></b></div>
+      <div class="sumRow"><span>Enabled runtime modules</span><b><%= data.availableModuleCount %></b></div>
+      <p class="tiny">Tenant management, staff controls and operational review use secured data sources. Settlements, banking and external payments remain disabled.</p>
+      <div class="rowBtns"><a class="btn btnPrimary" href="/platform/tenants/create">Create tenant</a><a class="btn" href="/platform/audit">Platform audit</a></div>
+    </div></section>
   </div>
+  <section class="card" style="margin-top:14px"><div class="cardHead"><b>Recent administration events</b><span>Transactional audit history</span><a class="btn" href="/platform/audit">View all</a></div><div class="cardBody tableWrap"><table><thead><tr><th>UTC time</th><th>Action</th><th>Record</th></tr></thead><tbody>
+    <% if(!data.recentAudits.length){ %><tr><td colspan="3">No administration changes have been recorded.</td></tr><% } %>
+    <% data.recentAudits.forEach(a=>{ %><tr data-search-row><td><%= new Date(a.createdAt).toISOString() %></td><td><%= a.action %></td><td><%= a.recordId||'—' %></td></tr><% }) %>
+  </tbody></table></div></section>
 </section>

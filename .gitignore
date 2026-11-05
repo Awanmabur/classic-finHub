@@ -1,4 +1,24 @@
 node_modules/
 .env
+.env.*
+!.env.example
+*.log
+coverage/
+*.pem
+*.key
+*.zip
 data/classicfinhub-db.json
-npm-debug.log*
+
+# Never commit administrator bootstrap/recovery password files
+.admin-*-secret
+
+# One-time local administrator authenticator encryption key (never commit)
+.classicfin-dev-mfa.key
+
+# Database backups must never enter Git or release packages
+*.cfhb
+*.cfhb.partial
+node_modules
+# Local offsite backup evidence and recovered encrypted copies
+*.cfhb.json
+classicfin-recovery/

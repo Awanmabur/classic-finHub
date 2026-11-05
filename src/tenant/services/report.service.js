@@ -1,5 +1,6 @@
+const unavailable = require('../../utils/unavailableOperation');
 module.exports = {
-  list: () => [],
-  create: (payload = {}) => ({ id: 'report_' + Date.now(), ...payload, createdAt: new Date().toISOString() }),
-  update: (id, payload = {}) => ({ id, ...payload, updatedAt: new Date().toISOString() })
+  list: () => unavailable('report list'),
+  create: () => unavailable('report create'),
+  update: () => unavailable('report update')
 };

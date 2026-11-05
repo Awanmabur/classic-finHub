@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <link rel="icon" type="image/png" href="/images/classicfinhub-logo.png">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title><%= mode === 'setup' ? 'Set up authenticator' : 'Verify authenticator' %> | ClassicFin Hub</title>
+  <link rel="stylesheet" href="/css/style.css?v=<%= assetVersion %>">
+</head>
+<body class="legal-body">
+<main class="page auth-main"><div class="auth-shell"><section class="auth-card">
+  <a href="/signin" class="auth-back">Back to sign in</a>
+  <h1><%= mode === 'setup' ? 'Secure your financial workspace' : 'Account verification' %></h1>
+  <p>Privileged financial access requires an authenticator code after your email-and-password sign-in.</p>
+  <% if (flash) { %><p role="alert"><%= flash.message %></p><% } %>
+  <% if (mode === 'setup') { %>
+    <p>In an authenticator application, select manual setup and enter this secret. The account name is <strong><%= accountEmail %></strong>. Keep it confidential.</p>
+    <p class="mono" style="overflow-wrap:anywhere;font-size:1.15rem"><strong><%= secret %></strong></p>
+    <p>Enter the six-digit code to activate two-step verification. This setup secret is shown only while your enrollment session is valid.</p>
+  <% } else { %>
+    <p>Open your authenticator application and enter the current six-digit code for <strong><%= accountEmail %></strong>.</p>
+  <% } %>
+  <form method="post" action="/mfa/<%= mode %>" autocomplete="off">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <label><span>6-digit authentication code</span><input name="code" type="text" required inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="one-time-code" aria-label="Six digit authenticator code"></label>
+    <button class="btn btn-dark" type="submit"><%= mode === 'setup' ? 'Enable and continue' : 'Verify and continue' %></button>
+  </form>
+</section></div></main>
+</body>
+</html>

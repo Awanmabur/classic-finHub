@@ -1,0 +1,23 @@
+[Unit]
+Description=ClassicFin Hub check local and immutable offsite backup freshness
+After=network-online.target
+Wants=network-online.target
+OnFailure=classicfin-alert@backup-stale.service
+
+[Service]
+Type=oneshot
+User=classicbackup
+Group=classicbackup
+WorkingDirectory=/srv/classic/apps/classicfin
+EnvironmentFile=/etc/classicfin/backup.env
+EnvironmentFile=/etc/classicfin/alert.env
+ExecStart=/usr/bin/node scripts/backup-doctor.js
+ExecStart=/usr/bin/node scripts/offsite-backup.js doctor
+ExecStart=/usr/bin/node scripts/ops-alert.js send backup-heartbeat
+TimeoutStartSec=900
+UMask=0077
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+NoNewPrivileges=yes
+ReadOnlyPaths=/var/backups/classicfin

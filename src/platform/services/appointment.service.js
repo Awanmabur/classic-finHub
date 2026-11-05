@@ -1,13 +1,7 @@
-const { appointments, createAppointment } = require('../../data/store');
-function bookAppointment(payload) { return createAppointment(payload); }
-function confirmAppointment(id, meetingLink) {
-  const appt = appointments.find((item) => item.id === id);
-  if (appt) { appt.status = 'confirmed'; appt.meetingLink = meetingLink || appt.meetingLink || 'https://meet.example.com/classicfin-demo'; }
-  return appt;
-}
-function completeAppointment(id) {
-  const appt = appointments.find((item) => item.id === id);
-  if (appt) appt.status = 'completed';
-  return appt;
-}
+'use strict';
+const Appointment = require('../models/Appointment');
+const unavailable = require('../../utils/unavailableOperation');
+function bookAppointment(payload) { return Appointment.create(payload); }
+function confirmAppointment() { return unavailable('Appointment confirmation and delivery'); }
+function completeAppointment() { return unavailable('Appointment completion'); }
 module.exports = { bookAppointment, confirmAppointment, completeAppointment };

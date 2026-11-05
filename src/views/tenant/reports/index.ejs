@@ -1,1 +1,25 @@
-<section class="view show"><div class="grid3"><% ['Daily business report','Money transfer report','Mobile money report','Banking report','Forex report','Profit and loss report','Cash drawer report','Expense report','Receipt report'].forEach(name => { %><article class="card" data-search-row><div class="cardHead"><b><%= name %></b><span>PDF / CSV / Excel</span></div><div class="cardBody"><p class="tiny">Ready for filters by date, branch, operator, module, currency, and export format.</p><button class="btn">Generate</button></div></article><% }) %></div></section>
+<section class="view show">
+  <section class="card"><div class="cardHead"><b>Operations reporting hub</b><span>Separate subscription · tenant and branch-scoped data</span></div>
+    <div class="cardBody"><form method="get" action="/tenant/reports" class="row3">
+      <label class="field">From (UTC)<input class="control" type="date" name="from" value="<%= data.report.filters.from %>"></label>
+      <label class="field">To (UTC)<input class="control" type="date" name="to" value="<%= data.report.filters.to %>"></label>
+      <label class="field">Report source<select class="control" name="source">
+        <option value="all" <%= data.report.filters.source==='all'?'selected':'' %>>All permitted sources</option>
+        <% data.report.sources.forEach(s=>{ %><option value="<%= s.key %>" <%= data.report.filters.source===s.key?'selected':'' %>><%= s.label %></option><% }) %>
+      </select></label>
+      <div class="rowBtns"><button class="btn btnPrimary" type="submit">Apply filters</button><a class="btn" href="/tenant/reports">Today</a></div>
+    </form><p class="tiny">Date range: today (UTC) or a custom 90-day maximum. Sources are available only when separately subscribed and assigned to your account.</p></div>
+  </section>
+  <div class="grid3" style="margin-top:14px">
+    <div class="stat"><div class="k">Permitted report sources</div><div class="v"><%= data.report.sources.length %></div><div class="s"><span class="dot"></span>Standalone Reports access</div></div>
+    <div class="stat"><div class="k"><%= data.report.total===null?'Activity across sources':'Records in selected source' %></div><div class="v"><%= data.report.total===null?'View per source':data.report.total %></div><div class="s"><span class="dot warn"></span><%= data.report.total===null?'Overlapping counts are not summed':'Not verified settlement' %></div></div>
+    <div class="stat"><div class="k">Export</div><div class="v"><%= data.canExport?'CSV':'View only' %></div><div class="s"><span class="dot"></span>Aggregate values, spreadsheet-safe</div></div>
+  </div>
+  <section class="card" style="margin-top:14px"><div class="cardHead"><b>Operations Reports</b><span>Cross-module normalized results</span>
+  <% if(data.canExport){ %><a class="btn" href="/tenant/reports/export.csv?from=<%= encodeURIComponent(data.report.filters.from) %>&amp;to=<%= encodeURIComponent(data.report.filters.to) %>&amp;source=<%= encodeURIComponent(data.report.filters.source) %>">Export CSV</a><% } %></div>
+  <div class="cardBody tableWrap"><table><thead><tr><th>Source</th><th>Activity</th><th>Status</th><th>Currency</th><th>Records</th><th>Volume</th><th>Fees</th></tr></thead><tbody>
+    <% if(!data.report.rows.length){ %><tr><td colspan="7">No activity in these sources for the selected period.</td></tr><% } %>
+    <% data.report.rows.forEach(r=>{ %><tr data-search-row><td><%= r.module %></td><td><%= r.activity %></td><td><span class="tag"><%= r.status.replaceAll('_',' ') %></span></td><td><%= r.currency %></td><td><%= r.count %></td><td><%= r.volume %></td><td><%= r.fees %></td></tr><% }) %>
+  </tbody></table></div></section>
+  <p class="tiny" style="margin-top:12px"><%= data.report.note %> Reporting alone cannot authorize a module's transactions, approval or settlement.</p>
+</section>

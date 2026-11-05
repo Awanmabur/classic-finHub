@@ -1,23 +1,39 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <link rel="icon" type="image/png" href="/images/classicfinhub-logo.png">
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ClassicFin Hub | Multi-Tenant Finance SaaS for Money Transfer, Mobile Money, Banking & Forex</title>
   <meta name="description" content="ClassicFin Hub is a multi-tenant finance SaaS platform for money transfer, mobile money, banking, forex, reporting, analytics, billing, tenant onboarding, roles, and secure operations." />
-  <link rel="preconnect" href="https://cdnjs.cloudflare.com" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
-  <link rel="stylesheet" href="/css/style.css" />
+  <link rel="stylesheet" href="/vendor/inter/inter.css?v=<%= assetVersion %>" />
+  <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css?v=<%= assetVersion %>" />
+  <link rel="stylesheet" href="/css/style.css?v=<%= assetVersion %>" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="ClassicFin Hub" />
+  <meta property="og:title" content="ClassicFin Hub | Multi-Tenant Finance SaaS for Money Transfer, Mobile Money, Banking & Forex" />
+  <meta property="og:description" content="ClassicFin Hub is a multi-tenant finance SaaS platform for money transfer, mobile money, banking, forex, reporting, analytics, billing, tenant onboarding, roles, and secure operations." />
+  <meta property="og:image" content="<%= appUrl %>/images/classicfinhub-logo.png" />
+  <meta property="og:image:alt" content="ClassicFin Hub logo" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="ClassicFin Hub | Multi-Tenant Finance SaaS for Money Transfer, Mobile Money, Banking & Forex" />
+  <meta name="twitter:description" content="ClassicFin Hub is a multi-tenant finance SaaS platform for money transfer, mobile money, banking, forex, reporting, analytics, billing, tenant onboarding, roles, and secure operations." />
+  <meta name="twitter:image" content="<%= appUrl %>/images/classicfinhub-logo.png" />
+  <link rel="canonical" href="<%= appUrl %>/">
+  <meta property="og:url" content="<%= appUrl %>/">
+  <script type="application/ld+json" nonce="<%= cspNonce %>"><%- JSON.stringify({
+    '@context':'https://schema.org','@graph':[
+      {'@type':'Organization','@id':appUrl+'/#organization','name':'Classic Technologies','url':appUrl,'logo':appUrl+'/images/classicfinhub-logo.png'},
+      {'@type':'WebSite','@id':appUrl+'/#website','name':'ClassicFin Hub','url':appUrl,'publisher':{'@id':appUrl+'/#organization'}}
+    ]
+  }).replace(/</g,'\\u003c') %></script>
 </head>
 <body>
   <div class="cursor-glow" aria-hidden="true"></div>
 
   <aside class="side-rail" aria-label="Desktop navigation">
     <a class="rail-logo logo-mark" href="#home" aria-label="ClassicFin Hub home">
-      <img src="/images/classicfinhub-logo.png" alt="ClassicFin Hub logo" />
+      <img src="/images/classicfinhub-logo.png?v=<%= assetVersion %>" alt="ClassicFin Hub logo" />
     </a>
     <nav>
       <a href="#home" class="active"><i class="fa-solid fa-house"></i><span>Home</span></a>
@@ -36,7 +52,7 @@
   </aside>
 
   <header class="mobile-header">
-    <a class="mobile-brand" href="#home"><span class="mobile-logo"><img src="/images/classicfinhub-logo.png" alt="ClassicFin Hub logo" /></span><strong>ClassicFin Hub</strong></a>
+    <a class="mobile-brand" href="#home"><span class="mobile-logo"><img src="/images/classicfinhub-logo.png?v=<%= assetVersion %>" alt="ClassicFin Hub logo" /></span><strong>ClassicFin Hub</strong></a>
     <div class="mobile-auth-actions"><a href="/signin">Sign in</a><a href="/signup">Request setup</a></div><button class="mobile-menu-btn" id="menuBtn" aria-label="Open menu"><i class="fa-solid fa-bars-staggered"></i></button>
   </header>
 
@@ -48,7 +64,7 @@
     <a href="#pricing">Pricing</a>
     <a href="/price-compare">Price compare</a>
     <a href="#contact">Contact</a>
-    <a href="/tenant/dashboard">Dashboard demo</a>
+    <a href="/signin">Dashboard sign in</a>
     <a href="/signin">Sign in</a>
     <a href="/signup">Request setup</a>
     <button id="themeToggleMobile"><i class="fa-solid fa-moon"></i> Change theme</button>
@@ -85,7 +101,7 @@
           <div><i class="fa-solid fa-check"></i><span>Forex rates, stock, reports</span><b>Ready</b></div>
         </div>
         <div class="dash-bottom">
-          <img src="/images/bg.jpg" alt="ClassicFin Hub dashboard preview" />
+          <img src="/images/bg.webp" width="1837" height="1068" fetchpriority="high" decoding="async" alt="ClassicFin Hub dashboard preview" />
           <p>Appointment-led onboarding, trial support, plans, permissions, notifications, receipts, and audit-ready daily reports.</p>
         </div>
       </div>
@@ -142,7 +158,7 @@
 
       <div class="service-board">
         <article class="service-tile large reveal">
-          <img src="/images/fx.jpg" alt="ClassicFin Hub forex and finance operations" />
+          <img src="/images/fx.webp" width="500" height="281" loading="lazy" decoding="async" alt="ClassicFin Hub forex and finance operations" />
           <div>
             <span>Operations hub</span>
             <h3>One dashboard for four finance service lines</h3>
@@ -188,7 +204,7 @@
         </ul>
       </div>
 
-      <form class="booking-card reveal delay-1" autocomplete="off" method="post" action="/book-appointment">
+      <form class="booking-card reveal delay-1" autocomplete="off" method="post" action="/book-appointment"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <label>
           <span>Business owner name</span>
           <input required type="text" name="Owner" placeholder="Enter owner name" />
@@ -201,16 +217,12 @@
           <span>Preferred demo date</span>
           <input required type="date" name="Demo date" />
         </label>
-        <label>
-          <span>Modules needed</span>
-          <select name="Modules">
-            <option>Money Transfer + Mobile Money</option>
-            <option>Banking + Forex</option>
-            <option>All core modules</option>
-            <option>Enterprise with addons</option>
-            <option>Not sure yet</option>
-          </select>
-        </label>
+        <fieldset class="full" style="border:0;margin:0;padding:0;min-width:0">
+          <legend style="margin-bottom:8px;font-weight:700">Modules needed (select any)</legend>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:8px">
+          <% selectableModules.forEach(m=>{ %><label style="display:flex;align-items:center;gap:8px"><input type="checkbox" name="modules" value="<%= m.key %>" style="width:auto;flex:none;padding:0"><span><%= m.name %></span></label><% }) %>
+          </div><small>Leave unselected if you need help choosing.</small>
+        </fieldset>
         <label class="full">
           <span>Business details</span>
           <textarea name="Message" rows="4" placeholder="Tell us about branches, users, currencies, and expected transactions"></textarea>
@@ -227,12 +239,12 @@
           <p>ClassicFin Hub is designed as a full multi-tenant finance SaaS product: each tenant gets its own database, portal, profile, landing page, staff, customers, accounts, transactions, reports, analytics, receipts, notification templates, billing, and audit trail.</p>
           <p>The platform supports platform admins, onboarding officers, billing officers, auditors, tenant owners, branch managers, tellers, accountants, support teams, and read-only users through clear roles and permissions.</p>
           <div class="company-actions">
-            <a href="/tenant/dashboard" class="btn btn-dark">Open dashboard demo</a>
+            <a href="/signin" class="btn btn-dark">Sign in to dashboard</a>
             <a href="mailto:info@classicfinhub.com" class="btn btn-light">Email us</a>
           </div>
         </div>
         <div class="company-image">
-          <img src="/images/prt.jpg" alt="ClassicFin Hub platform operations team" />
+          <img src="/images/prt.webp" width="1959" height="2357" loading="lazy" decoding="async" alt="ClassicFin Hub platform operations team" />
         </div>
       </div>
     </section>
@@ -370,9 +382,9 @@
         <h2>Operational clarity for every branch, module, and transaction.</h2>
       </div>
       <div class="review-stack">
-        <blockquote class="reveal"><p>The dashboard keeps transfers, customer records, receipts, and daily reports in one clean flow for our branch team.</p><footer><img src="/images/r2.jpg" alt="Tenant admin" />Tenant admin</footer></blockquote>
-        <blockquote class="reveal delay-1"><p>Module-based access helps our team separate teller actions, manager approvals, audit review, and owner settings.</p><footer><img src="/images/r3.jpg" alt="Operations manager" />Operations manager</footer></blockquote>
-        <blockquote class="reveal delay-2"><p>Forex rate boards, cash impact, branch drawers, and report exports make the daily close process much easier.</p><footer><img src="/images/r1.jpg" alt="Finance officer" />Finance officer</footer></blockquote>
+        <blockquote class="reveal"><p>The dashboard keeps transfers, customer records, receipts, and daily reports in one clean flow for our branch team.</p><footer><img src="/images/r2.jpg" loading="lazy" decoding="async" alt="Tenant admin" />Tenant admin</footer></blockquote>
+        <blockquote class="reveal delay-1"><p>Module-based access helps our team separate teller actions, manager approvals, audit review, and owner settings.</p><footer><img src="/images/r3.jpg" loading="lazy" decoding="async" alt="Operations manager" />Operations manager</footer></blockquote>
+        <blockquote class="reveal delay-2"><p>Forex rate boards, cash impact, branch drawers, and report exports make the daily close process much easier.</p><footer><img src="/images/r1.jpg" loading="lazy" decoding="async" alt="Finance officer" />Finance officer</footer></blockquote>
       </div>
     </section>
 
@@ -401,7 +413,7 @@
           <a href="tel:211921789914"><i class="fa-solid fa-phone"></i><span>+211 921 789 914</span></a>
           <a href="https://api.whatsapp.com/send?phone=211921789914"><i class="fa-brands fa-whatsapp"></i><span>WhatsApp support</span></a>
           <a href="mailto:info@classicfinhub.com"><i class="fa-solid fa-envelope"></i><span>info@classicfinhub.com</span></a>
-          <a href="/tenant/dashboard"><i class="fa-solid fa-gauge-high"></i><span>Open dashboard demo</span></a>
+          <a href="/signin"><i class="fa-solid fa-gauge-high"></i><span>Sign in to dashboard</span></a>
         </div>
       </div>
     </section>
@@ -423,7 +435,7 @@
           <a href="/services">Modules</a>
           <a href="/pricing">Pricing</a>
           <a href="/price-compare">Price compare</a>
-          <a href="/tenant/dashboard">Dashboard demo</a>
+          <a href="/signin">Dashboard sign in</a>
         </div>
         <div class="footer-column">
           <h3>Solutions</h3>
@@ -453,6 +465,6 @@
     </footer>
   </main>
 
-  <script src="/js/script.js"></script>
+  <script src="/js/script.js?v=<%= assetVersion %>"></script>
 </body>
 </html>

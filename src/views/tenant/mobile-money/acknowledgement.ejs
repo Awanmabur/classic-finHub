@@ -1,0 +1,19 @@
+<!doctype html><html lang="en"><head>
+  <link rel="icon" type="image/png" href="/images/classicfinhub-logo.png"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Operational acknowledgement — ClassicFin Hub</title>
+<link rel="stylesheet" href="/css/acknowledgement.css"></head><body>
+<main class="receipt"><header><h1>ClassicFin Hub</h1><p>Internal operational acknowledgement</p></header>
+<div class="warning"><strong>NOT PROOF OF PAYMENT OR SETTLEMENT</strong><p>This acknowledgement confirms only that an operation was recorded internally. The network/provider has not been verified by this acknowledgement, and it is not a tax invoice.</p></div>
+<dl><dt>Record reference</dt><dd><%= reference %></dd>
+<dt>Recorded UTC</dt><dd><%= new Date(record.createdAt).toISOString() %></dd>
+<dt>Operation</dt><dd><%= record.operation.replace('_',' ') %></dd>
+<dt>Network</dt><dd><%= record.network %></dd>
+<dt>Network reference (unverified)</dt><dd><%= record.networkReference %></dd>
+<dt>Customer</dt><dd><%= record.customer %></dd>
+<dt>Recorded amount</dt><dd><%= amount %></dd>
+<dt>Recorded fee</dt><dd><%= fee %></dd>
+<dt>Internal status</dt><dd><%= record.status %></dd>
+<dt>Internal review</dt><dd><%= record.reviewState || 'awaiting_review' %></dd>
+<dt>Correction status</dt><dd><%= record.correctionState || 'none' %></dd></dl>
+<p class="foot">If the entry is inaccurate, contact the branch for a controlled correction. No wallet or provider balance is confirmed here.</p>
+<nav><a href="/tenant/mobile-money/<%= record._id %>">Return to record</a> <button id="printAcknowledgement" type="button">Print</button></nav>
+</main><script src="/js/acknowledgement.js" defer></script></body></html>

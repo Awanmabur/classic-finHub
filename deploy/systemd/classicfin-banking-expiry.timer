@@ -1,0 +1,11 @@
+[Unit]
+Description=Periodically expire internal Banking requests
+
+[Timer]
+OnCalendar=*:0/15
+Persistent=true
+RandomizedDelaySec=30
+Unit=classicfin-banking-expiry.service
+
+[Install]
+WantedBy=timers.target

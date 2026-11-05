@@ -1,0 +1,18 @@
+[Unit]
+Description=ClassicFin Hub operational incident notification for %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=classicbackup
+Group=classicbackup
+WorkingDirectory=/srv/classic/apps/classicfin
+EnvironmentFile=/etc/classicfin/alert.env
+ExecStart=/usr/bin/node scripts/ops-alert.js send %i
+TimeoutStartSec=20
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes

@@ -1,16 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <link rel="icon" type="image/png" href="/images/classicfinhub-logo.png">
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Sign in | ClassicFin Hub</title>
   <meta name="description" content="ClassicFin Hub account access and tenant setup page." />
-  <link rel="preconnect" href="https://cdnjs.cloudflare.com" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
-  <link rel="stylesheet" href="/css/style.css" />
+  <link rel="stylesheet" href="/vendor/inter/inter.css?v=<%= assetVersion %>" />
+  <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css?v=<%= assetVersion %>" />
+  <link rel="stylesheet" href="/css/style.css?v=<%= assetVersion %>" />
+  <meta name="robots" content="noindex,nofollow">
 </head>
 <body class="legal-body auth-body" id="top">
   <div class="cursor-glow" aria-hidden="true"></div>
@@ -47,7 +46,7 @@
     <a href="/pricing">Pricing</a>
     <a href="/price-compare">Price compare</a>
     <a href="/support">Support</a>
-    <a href="/tenant/dashboard">Dashboard demo</a>
+    <a href="/signin">Dashboard sign in</a>
     <a href="/signin">Sign in</a>
     <a href="/signup">Request setup</a>
     <button id="themeToggleMobile"><i class="fa-solid fa-moon"></i> Change theme</button>
@@ -70,14 +69,13 @@
       <div>
         <p class="kicker">Account access</p>
         <h2>Sign in</h2>
-        <p class="auth-helper">Use your platform or tenant credentials to access the correct dashboard.</p>
-        <form autocomplete="off" method="post" action="/signin">
-          <label><span>Dashboard type</span><select name="side"><option value="tenant">Tenant dashboard</option><option value="platform">Platform dashboard</option></select></label>
-          <label><span>Email or phone</span><input type="text" placeholder="Enter email or phone" required /></label>
-          <label><span>Password</span><input type="password" placeholder="Enter password" required /></label>
-          <div class="auth-mini"><label><input type="checkbox" /> <span>Remember this device</span></label><a href="/forgot-password">Forgot password?</a></div>
+        <p class="auth-helper">Enter your email address and password. Your dashboard is selected automatically based on your account.</p><% if (flash) { %><p role="alert"><%= flash.message %></p><% } %>
+        <form autocomplete="on" method="post" action="/signin"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <label><span>Email address</span><input type="email" name="email" placeholder="Email address" autocomplete="username" required /></label>
+          <label><span>Password</span><input type="password" name="password" placeholder="Password" autocomplete="current-password" required /></label>
+          <div class="auth-mini"><a href="/forgot-password">Forgot password?</a></div>
           <button class="btn btn-dark" type="submit">Sign in</button>
-          <a class="btn btn-light" href="/tenant/dashboard">Open dashboard demo</a>
+
         </form>
         <p class="auth-switch">Need a tenant workspace? <a href="/signup">Request setup</a></p>
       </div>
@@ -100,7 +98,7 @@
           <a href="/services">Modules</a>
           <a href="/pricing">Pricing</a>
           <a href="/price-compare">Price compare</a>
-          <a href="/tenant/dashboard">Dashboard demo</a>
+          <a href="/signin">Dashboard sign in</a>
         </div>
         <div class="footer-column">
           <h3>Solutions</h3>
@@ -129,6 +127,6 @@
       <div class="footer-note"><p>© <span id="year"></span> ClassicFin Hub by Classic Technologies. All rights reserved.</p><a href="#top">Back to top</a></div>
     </footer>
   </main>
-  <script src="/js/script.js"></script>
+  <script src="/js/script.js?v=<%= assetVersion %>"></script>
 </body>
 </html>

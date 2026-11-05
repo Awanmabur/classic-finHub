@@ -1,1 +1,14 @@
-<section class="view show"><section class="card"><div class="cardHead"><b>Tenant audit logs</b><span>Actor, action, module, IP, before/after ready.</span></div><div class="cardBody tableWrap"><table><thead><tr><th>Actor</th><th>Action</th><th>Module</th><th>IP</th><th>Date</th></tr></thead><tbody><% data.auditLogs.forEach(a => { %><tr data-search-row><td><%= a.actor %></td><td><%= a.action %></td><td><%= a.module %></td><td><%= a.ip %></td><td><%= a.createdAt %></td></tr><% }) %></tbody></table></div></section></section>
+<section class="view show"><section class="card">
+  <div class="cardHead"><b>Tenant security & operations audit</b><span>Latest 100 database-backed events</span></div>
+  <div class="cardBody tableWrap"><table>
+    <thead><tr><th>Time (UTC)</th><th>Actor ID</th><th>Action</th><th>Target ID</th></tr></thead>
+    <tbody>
+      <% if (!data.logs.length) { %><tr><td colspan="4">No recorded events yet.</td></tr><% } %>
+      <% data.logs.forEach(a=>{ %><tr data-search-row>
+        <td><%= new Date(a.createdAt).toISOString() %></td>
+        <td><%= String(a.actorId) %></td><td><%= a.action %></td><td><%= String(a.targetId) %></td>
+      </tr><% }) %>
+    </tbody>
+  </table></div>
+  <p class="tiny">Events are written transactionally with the corresponding operation. Database access must be restricted and audit records retained according to the operator’s compliance policy.</p>
+</section></section>

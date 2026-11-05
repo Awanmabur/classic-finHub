@@ -3,19 +3,19 @@
     <div class="logo"></div>
     <div><h1><%= context === 'platform' ? 'ClassicFin Platform' : (tenant?.name || 'Tenant Workspace') %></h1><p><%= context === 'platform' ? 'Classic Technologies' : (tenant?.status + ' • ' + tenant?.plan) %></p></div>
   </div>
-  <nav class="nav">
+  <nav class="nav" aria-label="Workspace navigation">
     <% menu.forEach(group => { %>
       <div class="navGroup">
-        <button type="button" class="item"><i class="fa-solid fa-folder-tree"></i> <span><%= group.label %></span></button>
+        <div class="item" role="heading" aria-level="2"><i class="fa-solid fa-folder-tree" aria-hidden="true"></i> <span><%= group.label %></span></div>
         <% group.items.forEach(item => { %>
-          <a href="<%= item.href %>" class="subitem <%= currentPath === item.href ? 'active' : '' %>"><i class="fa-solid <%= item.icon %>"></i><span><%= item.label %></span></a>
+          <a href="<%= item.href %>" class="subitem <%= currentPath === item.href ? 'active' : '' %>" <%- currentPath === item.href ? 'aria-current="page"' : '' %>><i class="fa-solid <%= item.icon %>" aria-hidden="true"></i><span><%= item.label %></span></a>
         <% }) %>
       </div>
     <% }) %>
   </nav>
   <div class="sideFoot">
-    <div class="mini"><div><b><%= user?.name || 'Demo Admin' %></b><span><%= user?.role || (context === 'platform' ? 'Super Admin' : 'Tenant Owner') %></span></div><span class="tag"><%= context %></span></div>
-    <div class="mini"><div><b>Data isolation</b><span><%= context === 'platform' ? 'Platform database' : tenant?.dbName %></span></div><i class="fa-solid fa-database"></i></div>
-    <a class="btn" href="/"><i class="fa-solid fa-globe"></i> Public site</a>
+    <div class="mini"><div><b><%= user?.name || 'Account' %></b><span><%= user?.role || (context === 'platform' ? 'Super Admin' : 'Tenant Owner') %></span></div><span class="tag"><%= context %></span></div>
+    <div class="mini"><div><b>Workspace</b><span><%= context === 'platform' ? 'Platform administration' : tenant?.slug %></span></div><i class="fa-solid fa-building" aria-hidden="true"></i></div>
+    <form method="post" action="/logout"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn" type="submit"><i class="fa-solid fa-right-from-bracket"></i> Sign out</button></form><a class="btn" href="/"><i class="fa-solid fa-globe"></i> Public site</a>
   </div>
 </aside>

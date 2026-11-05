@@ -1,0 +1,7 @@
+<section class="view show"><section class="card"><div class="cardHead"><b>Module subscription requests</b><span>Platform administration · no automatic payment</span></div><div class="cardBody tableWrap"><table><thead><tr><th>Tenant</th><th>Module</th><th>Request</th><th>Price snapshot</th><th>Review</th></tr></thead><tbody>
+<% if(!data.requests.length){ %><tr><td colspan="5">No pending module requests.</td></tr><% } %>
+<% data.requests.forEach(r=>{ %><tr data-search-row><td><a href="/platform/tenants/<%= r.tenantId %>"><%= r.tenantId %></a></td><td><%= r.moduleKey %></td><td><%= r.reason %><small>Requested <%= new Date(r.createdAt).toISOString().slice(0,10) %></small></td><td>USD <%= (r.pricingSnapshot.priceMonthlyMinor/100).toFixed(2) %>/mo</td><td>
+ <a class="btn" href="/platform/tenants/<%= r.tenantId %>">Review &amp; grant</a>
+ <form method="post" action="/platform/modules/requests/<%= r._id %>/reject"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><label class="field">Rejection reason<textarea class="control" name="reason" minlength="20" maxlength="600" required></textarea></label><button class="btn" type="submit">Reject with audit</button></form>
+</td></tr><% }) %>
+</tbody></table><% if(data.nextBefore){ %><a class="btn" href="/platform/modules/requests?before=<%= data.nextBefore %>">Older requests</a><% } %></div></section></section>

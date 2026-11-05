@@ -1,2 +1,3 @@
-async function run() { console.log('[job:analyticsSnapshot] ready'); }
+// This job is deliberately not scheduled until its complete production workflow exists.
+async function run() { throw new Error('Job analyticsSnapshot.job is not implemented; no work was completed.'); }
 module.exports = { run };

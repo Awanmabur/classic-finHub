@@ -1,0 +1,41 @@
+name: ClassicFin Hub security and integration
+on:
+  push:
+  pull_request:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NODE_ENV: test
+      APP_URL: http://localhost:3000
+      MONGO_PLATFORM_URI: mongodb://127.0.0.1:27018/classicfin_platform_db?replicaSet=rs0&directConnection=true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      # Must pass: dependency advisories are not waived for a release.
+      - run: npm audit --audit-level=moderate
+      - run: npm run check
+      - run: npm test
+      - run: npm run perf:assets
+      - name: Start isolated MongoDB replica-set container
+        run: |
+          docker run --detach --name cfh-ci-mongo --publish 127.0.0.1:27018:27017 mongo:8.0 --replSet rs0 --bind_ip_all
+          for i in $(seq 1 35); do
+            if docker exec cfh-ci-mongo mongosh --quiet --eval 'db.adminCommand({ping:1}).ok' 2>/dev/null | grep -qx 1; then break; fi
+            sleep 2
+          done
+          docker exec cfh-ci-mongo mongosh --quiet --eval 'rs.initiate({_id:"rs0",members:[{_id:0,host:"127.0.0.1:27017"}]})'
+          for i in $(seq 1 35); do
+            if docker exec cfh-ci-mongo mongosh --quiet --eval 'db.hello().isWritablePrimary' 2>/dev/null | grep -qx true; then break; fi
+            sleep 2
+          done
+          docker exec cfh-ci-mongo mongosh --quiet --eval 'if (!db.hello().isWritablePrimary) quit(1)'
+      - run: npm run indexes
+      - run: npm run catalog:publish -- --apply
+      - name: Run scratch-only production-gate integration tests
+        run: npm run release:gate

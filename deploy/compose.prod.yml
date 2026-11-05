@@ -1,0 +1,92 @@
+# Release with deploy/release.sh after pushing a tested, immutable image digest.
+# No build on the production host; web and worker use the identical artifact.
+# External secured MongoDB replica set + TLS-terminating reverse proxy required.
+services:
+  classicfin:
+    image: ${CLASSICFIN_IMAGE:?Provide a verified immutable image digest}
+    restart: unless-stopped
+    env_file:
+      - ${CLASSICFIN_ENV_FILE:?Provide an absolute path to the production environment file}
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      TRUST_PROXY: "1"
+      NODE_OPTIONS: --max-old-space-size=256
+    ports:
+      - "127.0.0.1:${CLASSICFIN_HOST_PORT:-3500}:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health/ready',{signal:AbortSignal.timeout(4000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 512m
+    cpus: 1.0
+    stop_grace_period: 25s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Separate email-notification worker. Requires an independently scoped
+  # MongoDB user with tenant notification collection access and Resend credentials.
+  classicfin-notifications:
+    image: ${CLASSICFIN_IMAGE:?Provide a verified immutable image digest}
+    command: ["node", "src/tenant/workers/notification.worker.js"]
+    restart: unless-stopped
+    env_file:
+      - ${CLASSICFIN_NOTIFICATION_ENV_FILE:?Provide an absolute notification worker environment file}
+    environment:
+      NODE_ENV: production
+    healthcheck:
+      disable: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 96
+    mem_limit: 256m
+    cpus: 0.5
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Dedicated platform subscription outbox worker.
+  classicfin-worker:
+    image: ${CLASSICFIN_IMAGE:?Provide a verified immutable image digest}
+    command: ["node", "src/platform/workers/outbox.worker.js"]
+    restart: unless-stopped
+    env_file:
+      - ${CLASSICFIN_WORKER_ENV_FILE:?Provide a separate worker-only environment file}
+    environment:
+      NODE_ENV: production
+    healthcheck:
+      disable: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 96
+    mem_limit: 256m
+    cpus: 0.5
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

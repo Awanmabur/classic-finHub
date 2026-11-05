@@ -1,1 +1,38 @@
-<section class="view show"><div class="grid3"><% data.analyticsCards.forEach(card => { %><div class="stat" data-search-row><div class="k"><%= card.label %></div><div class="v"><%= card.value %></div><div class="s"><span class="dot <%= card.tone || '' %>"></span><%= card.note %></div></div><% }) %></div><section class="card" style="margin-top:14px"><div class="cardHead"><b>Comparison views</b><span>Today vs yesterday, module vs module, branch vs branch.</span></div><div class="cardBody"><div class="seg"><% ['Today vs yesterday','This week vs last week','Branch vs branch','Module vs module','Operator vs operator','Network vs network','Forex pair vs forex pair'].forEach(x => { %><span class="chip active"><%= x %></span><% }) %></div></div></section></section>
+<section class="view show">
+  <section class="card"><div class="cardHead"><b>Advanced operational analytics</b><span>Independently subscribed · authorization checked per source</span></div>
+    <div class="cardBody"><form method="get" action="/tenant/analytics" class="row3">
+      <label class="field">Comparison window (UTC)<select class="control" name="days">
+        <% [7,14,30].forEach(n=>{ %><option value="<%= n %>" <%= data.insights.filters.days===n?'selected':'' %>>Last <%= n %> days vs preceding <%= n %> days</option><% }) %>
+      </select></label>
+      <label class="field">Permitted source<select class="control" name="source">
+        <option value="all" <%= data.insights.filters.source==='all'?'selected':'' %>>All available sources</option>
+        <% data.insights.sources.forEach(s=>{ %><option value="<%= s.key %>" <%= data.insights.filters.source===s.key?'selected':'' %>><%= s.label %></option><% }) %>
+      </select></label>
+      <div class="rowBtns"><button class="btn btnPrimary" type="submit">Compare periods</button><a class="btn" href="/tenant/analytics">Reset</a></div>
+    </form><p class="tiny">Current: <%= data.insights.from %> to <%= data.insights.to %> · Previous: <%= data.insights.previousFrom %> to <%= data.insights.previousTo %> (UTC)</p></div>
+  </section>
+  <div class="grid3" style="margin-top:14px">
+    <div class="stat"><div class="k">Available source assignments</div><div class="v"><%= data.insights.sources.length %></div><div class="s"><span class="dot"></span>Analytics entitlement required</div></div>
+    <div class="stat"><div class="k">Comparison period</div><div class="v"><%= data.insights.filters.days %> days</div><div class="s"><span class="dot"></span>Complete UTC days only</div></div>
+    <div class="stat"><div class="k">Export access</div><div class="v"><%= data.canExport?'CSV':'View only' %></div><div class="s"><span class="dot warn"></span>Aggregate counts only</div></div>
+  </div>
+  <section class="card" style="margin-top:14px"><div class="cardHead"><b>Period-over-period comparisons</b><span>Recorded activity, not money movement</span>
+    <% if(data.canExport){ %><a class="btn" href="/tenant/analytics/export.csv?days=<%= data.insights.filters.days %>&amp;source=<%= encodeURIComponent(data.insights.filters.source) %>">Export aggregate CSV</a><% } %>
+  </div><div class="cardBody tableWrap"><table><thead><tr><th>Source</th><th>Current records</th><th>Previous records</th><th>Change</th></tr></thead><tbody>
+    <% if(!data.insights.data.length){ %><tr><td colspan="4">No authorized analytics sources.</td></tr><% } %>
+    <% data.insights.data.forEach(s=>{ %><tr data-search-row><td><%= s.label %></td><td><%= s.current %></td><td><%= s.previous %></td><td><span class="tag"><%= s.change %></span></td></tr><% }) %>
+  </tbody></table></div></section>
+  <% if(data.insights.workspaceTrend.length){ %>
+    <section class="card" style="margin-top:14px"><div class="cardHead"><b>Daily workspace audit activity</b><span>Counts of logged events, not total financial transactions</span></div>
+      <div class="cardBody"><div class="tableWrap"><table><thead><tr><th>Date (UTC)</th><th>Audit events</th><th>Relative volume</th></tr></thead><tbody>
+        <% data.insights.workspaceTrend.forEach(d=>{ %><tr><td><%= d.date %></td><td><%= d.count %></td><td style="min-width:120px"><div style="background:currentColor;opacity:.55;height:7px;width:<%= d.percent %>%;max-width:100%;border-radius:4px" role="img" aria-label="<%= d.count %> logged events"></div></td></tr><% }) %>
+      </tbody></table></div></div>
+    </section>
+  <% } %>
+  <% data.insights.data.forEach(s=>{ if(s.breakdown.length){ %>
+    <section class="card" style="margin-top:14px"><div class="cardHead"><b><%= s.label %> — current-period breakdown</b><span><%= s.breakdownTruncated?'Top 100 groups; narrow the source to inspect further':'Aggregates only' %></span></div><div class="cardBody tableWrap"><table><thead><tr><th>Activity</th><th>Status</th><th>Currency</th><th>Records</th></tr></thead><tbody>
+      <% s.breakdown.forEach(r=>{ %><tr data-search-row><td><%= r.activity %></td><td><%= r.status %></td><td><%= r.currency %></td><td><%= r.count %></td></tr><% }) %>
+    </tbody></table></div></section>
+  <% } }); %>
+  <p class="tiny" style="margin-top:12px"><%= data.insights.note %> Analytics never grants operational or Reports access.</p>
+</section>

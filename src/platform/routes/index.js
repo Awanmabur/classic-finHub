@@ -1,47 +1,140 @@
-const express = require('express');
-const store = require('../../data/store');
+const router = require('express').Router();
+const Tenant = require('../models/Tenant');
+const Appointment = require('../models/Appointment');
+const { modules, plans } = require('../../data/store');
+const commercial=require('../services/commercial.service');
+const outbox=require('../services/outbox.service');
 const { platformMenu } = require('../../services/menu.service');
 const { consumeFlash, flash, money } = require('../../utils/view');
 const { provisionTenant } = require('../services/tenantProvisioning.service');
-const { confirmAppointment, completeAppointment } = require('../services/appointment.service');
-const { toggleModule } = require('../services/module.service');
-const { approveModuleRequest, rejectModuleRequest } = require('../services/moduleRequest.service');
-
-const router = express.Router();
-
-function renderPlatform(req, res, view, pageTitle, pageSub, data = {}) {
+const { changeStatus, updateProfile }=require('../services/tenantAdmin.service');
+const {list: platformAudit}=require('../services/platformAudit.service');
+function renderPlatform(req,res,view,pageTitle,pageSub,data={}){
   res.render('layouts/dashboard', {
-    context: 'platform', currentPath: req.path, pageTitle, pageSub,
-    tenant: null, user: req.session.platformUser, menu: platformMenu(),
-    view: `../platform/${view}`, data, flash: consumeFlash(req), money
+    context:'platform',currentPath:req.baseUrl + req.path,pageTitle,pageSub,tenant:null,user:req.platformUser,menu:platformMenu(req.platformUser),
+    view:`../platform/${view}`,data,flash:consumeFlash(req),money
   });
 }
-
-router.get('/', (req, res) => res.redirect('/platform/dashboard'));
-router.get('/dashboard', (req, res) => renderPlatform(req, res, 'dashboard/index', 'Platform Dashboard', 'Appointments, tenants, plans, modules, subscriptions, billing, analytics, and audit logs.', store));
-router.get('/appointments', (req, res) => renderPlatform(req, res, 'appointments/index', 'Appointments', 'Appointment-led onboarding before tenant creation.', store));
-router.post('/appointments/:id/confirm', (req, res) => { confirmAppointment(req.params.id, req.body.meetingLink); flash(req, 'good', 'Appointment confirmed and meeting link prepared.'); res.redirect('/platform/appointments'); });
-router.post('/appointments/:id/complete', (req, res) => { completeAppointment(req.params.id); flash(req, 'good', 'Appointment marked complete. You can now create the tenant.'); res.redirect('/platform/appointments'); });
-
-router.get('/tenants', (req, res) => renderPlatform(req, res, 'tenants/index', 'Tenants', 'Create, review, suspend, reactivate, bill, and support tenants.', store));
-router.get('/tenants/create', (req, res) => renderPlatform(req, res, 'tenants/create', 'Create Tenant', 'Provision tenant DB, seed defaults, and send tenant owner invitation.', store));
-router.post('/tenants', (req, res) => { const result = provisionTenant(req.body); flash(req, 'good', `${result.tenant.name} created with ${result.database}. Owner invite is ready.`); res.redirect(`/platform/tenants/${result.tenant.id}`); });
-router.get('/tenants/:id', (req, res) => { const tenant = store.tenants.find(t => t.id === req.params.id) || store.tenants[0]; renderPlatform(req, res, 'tenants/show', tenant.name, 'Tenant profile, modules, billing, subscription, and isolation settings.', { ...store, tenant }); });
-
-router.get('/modules', (req, res) => renderPlatform(req, res, 'modules/index', 'Modules', 'Platform registry for money transfer, mobile money, banking, forex, and addons.', store));
-router.post('/modules/:key/toggle', (req, res) => { const mod = toggleModule(req.params.key); flash(req, 'good', `${mod?.name || 'Module'} status updated.`); res.redirect('/platform/modules'); });
-router.get('/marketplace', (req, res) => renderPlatform(req, res, 'marketplace/index', 'Platform Marketplace', 'Sell modules and addons from the module registry.', store));
-
-router.get('/plans', (req, res) => renderPlatform(req, res, 'plans/index', 'Plans', 'Plan versions, modules, limits, prices, and trial terms.', store));
-router.get('/plans/editor', (req, res) => renderPlatform(req, res, 'plans/editor', 'Plan Editor', 'Attach modules, addons, prices, limits, and trials.', store));
-router.get('/module-requests', (req, res) => renderPlatform(req, res, 'module-requests/index', 'Module Requests', 'Review tenant module requests, approve/reject, invoice addons, and activate modules.', store));
-router.post('/module-requests/:id/approve', (req, res) => { approveModuleRequest(req.params.id, req.body.note || 'Approved by platform.'); flash(req, 'good', 'Module request approved and tenant module activated.'); res.redirect('/platform/module-requests'); });
-router.post('/module-requests/:id/reject', (req, res) => { rejectModuleRequest(req.params.id, req.body.note || 'Rejected by platform.'); flash(req, 'bad', 'Module request rejected.'); res.redirect('/platform/module-requests'); });
-router.get('/subscriptions', (req, res) => renderPlatform(req, res, 'subscriptions/index', 'Subscriptions', 'Trials, active plans, suspension, grace period, and billing restrictions.', store));
-router.get('/invoices', (req, res) => renderPlatform(req, res, 'invoices/index', 'Invoices', 'Invoices generated from trials, plans, modules, and addons.', store));
-router.get('/payments', (req, res) => renderPlatform(req, res, 'payments/index', 'Payments', 'Payment provider status and reconciliation.', store));
-router.get('/users', (req, res) => renderPlatform(req, res, 'users/index', 'Platform Users', 'Classic Technologies users and platform roles.', store));
-router.get('/audit-logs', (req, res) => renderPlatform(req, res, 'audit/index', 'Platform Audit Logs', 'Audit every sensitive platform action.', store));
-router.get('/settings', (req, res) => renderPlatform(req, res, 'settings/index', 'Platform Settings', 'Security, system settings, tenant isolation, and environment controls.', store));
-
-module.exports = router;
+router.use((req,res,next)=>req.platformUser.permissions.includes('*')?next():res.status(403).send('Insufficient permissions'));
+router.get('/',(req,res)=>res.redirect(303,'/platform/dashboard'));
+router.get('/dashboard',async(req,res,next)=>{
+  try{
+    const [tenants,appointmentCount,totalTenants,activeTenants,suspendedTenants,recentAudits]=await Promise.all([Tenant.find({}).sort({createdAt:-1}).limit(30).lean(),Appointment.countDocuments(),Tenant.countDocuments(),Tenant.countDocuments({status:'active'}),Tenant.countDocuments({status:'suspended'}),platformAudit(6)]);
+    renderPlatform(req,res,'dashboard/index','Platform Dashboard','Verified tenant and onboarding records.',{
+      tenants:tenants.map(t=>({...t,id:String(t._id)})), appointmentCount, totalTenants,activeTenants,suspendedTenants,recentAudits, availableModuleCount:modules.filter(m=>m.runtimeStatus!=='disabled').length
+    });
+  }catch(e){next(e);}
+});
+router.get('/tenants',async(req,res,next)=>{
+  try {const tenants=(await Tenant.find({}).sort({createdAt:-1}).limit(100).lean()).map(t=>({...t,id:String(t._id)}));
+    renderPlatform(req,res,'tenants/index','Tenants','Tenant directories, plan assignment, isolation boundaries and status.',{tenants,plans,modules});
+  }catch(e){next(e);}
+});
+async function renderTenantCreate(req,res,values={},error=null){
+  const published=await commercial.publishedPlans();
+  const latest=new Map();
+  for(const plan of published) if(!latest.has(plan.code)) latest.set(plan.code,plan);
+  renderPlatform(req,res,'tenants/create','Create Tenant','Create workspace using published plan terms and a one-time owner invitation.',{
+    plans:plans.map(p=>latest.get(p.code)).filter(p=>p?.trialMonths>0),modules,values,error
+  });
+}
+router.get('/tenants/create',async(req,res,next)=>{
+  try{await renderTenantCreate(req,res);}catch(e){next(e);}
+});
+router.post('/tenants',async(req,res,next)=>{
+  try{
+    const { tenant, inviteUrl }=await provisionTenant(req.body,req.platformUser.id);
+    res.setHeader('Cache-Control','no-store');
+    renderPlatform(req,res,'tenants/invite','Tenant created','Copy the one-time invitation link securely. It will not be displayed again.',{tenant,inviteUrl});
+  }catch(e){
+    if([400,409].includes(e.status)){
+      const values=Object.fromEntries(['name','slug','owner','email','phone','plan'].map(key=>[key,typeof req.body[key]==='string'?req.body[key]:'']));
+      try{return await renderTenantCreate(req,res.status(e.status),values,e.message);}catch(renderError){return next(renderError);}
+    }
+    next(e);
+  }
+});
+router.get('/tenants/:id',async(req,res,next)=>{
+  try{
+    if (!/^[a-f0-9]{24}$/i.test(req.params.id)) return res.status(404).send('Tenant not found');
+    const tenant=await Tenant.findById(req.params.id).lean(); if(!tenant) return res.status(404).send('Tenant not found');
+    const published=await commercial.publishedPlans();
+    renderPlatform(req,res,'tenants/show',tenant.name,'Tenant profile, subscription control and audit-safe entitlements.',{tenant:{...tenant,id:String(tenant._id)},tenants:[],plans,modules,published,independentModules:require('../services/moduleSubscriptions.service').listable()});
+  }catch(e){next(e);}
+});
+router.post('/tenants/:id/status',async(req,res,next)=>{
+  try{await changeStatus(req.params.id,req.platformUser,req.body);flash(req,'good','Tenant status updated with an audit record.');res.redirect(303,'/platform/tenants/'+req.params.id);}catch(e){next(e);}
+});
+router.get('/audit',async(req,res,next)=>{
+  try{const auditLogs=await platformAudit(100);renderPlatform(req,res,'audit/index','Platform Audit','Immutable review of platform administration actions.',{auditLogs});}catch(e){next(e);}
+});
+router.post('/tenants/:id/profile',async(req,res,next)=>{
+  try{await updateProfile(req.params.id,req.platformUser,req.body);flash(req,'good','Tenant profile updated and audited.');res.redirect(303,'/platform/tenants/'+req.params.id);}catch(e){next(e);}
+});
+router.get('/plans',async(req,res,next)=>{
+  try{renderPlatform(req,res,'plans/index','Plans & Pricing','Persisted immutable plan versions and publication state.',{plans,published:await commercial.publishedPlans()});}
+  catch(e){next(e);}
+});
+router.get('/subscriptions',async(req,res,next)=>{
+  try{const tenants=await Tenant.find({}).sort({createdAt:-1}).limit(100).lean();
+    renderPlatform(req,res,'subscriptions/index','Subscriptions','Manual grants and expiring trials, from persisted tenant records.',{tenants});
+  }catch(e){next(e);}
+});
+router.post('/tenants/:id/subscription/grant',async(req,res,next)=>{
+  try{await commercial.grantTenantSubscription(req.params.id,req.platformUser,req.body);
+    flash(req,'good','Audited subscription grant saved; notification queued for background processing. No payment was collected.');
+    res.redirect(303,'/platform/tenants/'+req.params.id);
+  }catch(e){next(e);}
+});
+router.post('/tenants/:id/subscription/revoke',async(req,res,next)=>{
+  try{await commercial.revokeTenantSubscription(req.params.id,req.platformUser,req.body);
+    flash(req,'good','Subscription access revoked and audited; notification queued for background processing.');res.redirect(303,'/platform/tenants/'+req.params.id);
+  }catch(e){next(e);}
+});
+router.post('/tenants/:id/modules/grant',async(req,res,next)=>{
+  try{await require('../services/moduleSubscriptions.service').grantModule(req.params.id,req.platformUser,req.body);
+    flash(req,'good','Audited module entitlement saved. No payment has been collected.');res.redirect(303,'/platform/tenants/'+req.params.id);
+  }catch(e){next(e);}
+});
+router.post('/tenants/:id/modules/revoke',async(req,res,next)=>{
+  try{await require('../services/moduleSubscriptions.service').revokeModule(req.params.id,req.platformUser,req.body);
+    flash(req,'good','Standalone module entitlement revoked.');res.redirect(303,'/platform/tenants/'+req.params.id);
+  }catch(e){next(e);}
+});
+router.get('/modules/requests',async(req,res,next)=>{
+  try{
+    const cursor=String(req.query.before||'');
+    if(cursor&&!/^[a-f0-9]{24}$/i.test(cursor))return res.status(400).send('Invalid request cursor');
+    const filter={status:'pending',...(cursor?{_id:{$lt:cursor}}:{})};
+    const batch=await require('../models/ModuleRequest').find(filter).sort({_id:-1}).limit(51).lean();
+    const requests=batch.slice(0,50),nextBefore=batch.length>50?String(requests.at(-1)._id):null;
+    renderPlatform(req,res,'modules/requests','Module Requests','Pending tenant module subscriptions for manual review.',{requests,nextBefore});
+  }catch(e){next(e);}
+});
+router.post('/modules/requests/:id/reject',async(req,res,next)=>{
+  try{await require('../services/moduleRequest.service').reject(req.params.id,req.platformUser,req.body);
+    flash(req,'good','Module request rejected and audited.');res.redirect(303,'/platform/modules/requests');
+  }catch(e){next(e);}
+});
+router.get('/operations/queue',async(req,res,next)=>{
+  try{
+    const status=await outbox.metrics();
+    renderPlatform(req,res,'operations/queue','Background Operations','Durable, audited async notification processing and dead-letter recovery.',{status});
+  }catch(e){next(e);}
+});
+router.post('/operations/queue/:id/retry',async(req,res,next)=>{
+  try{
+    await outbox.retryDead({id:req.params.id,actor:req.platformUser,reason:req.body.reason});
+    flash(req,'good','Dead-letter event requeued and audited. Delivery is not yet confirmed.');
+    res.redirect(303,'/platform/operations/queue');
+  }catch(e){next(e);}
+});
+router.get('/modules',(req,res)=>renderPlatform(req,res,'modules/index','Module Catalogue','Active module definitions, permissions and list prices.',{modules}));
+router.get('/appointments',async(req,res,next)=>{
+  try{
+    const appointments=(await Appointment.find({}).sort({createdAt:-1}).limit(150).lean()).map(a=>({...a,id:String(a._id),modules:a.modules||[], preferredDate:a.preferredDate ? new Date(a.preferredDate).toISOString().slice(0,10) : ''}));
+    renderPlatform(req,res,'appointments/index','Appointments','Stored onboarding requests.',{appointments,moduleLabels:Object.fromEntries(modules.map(m=>[m.key,m.name]))});
+  }catch(e){next(e);}
+});
+router.use((req,res)=>res.status(501).send('This administration workflow has not been verified or enabled.'));
+module.exports=router;

@@ -1,0 +1,16 @@
+<section class="view show"><section class="card"><div class="cardHead"><b>Request <%= data.order.reference %></b><span><%= data.order.status.replaceAll('_',' ') %></span><a class="btn" href="/tenant/money-transfer/history">History</a></div><div class="cardBody">
+<p class="tiny"><strong>INTERNAL REQUEST ONLY — NOT A RECEIPT OF PAYMENT OR PROOF OF FUNDS.</strong> Even an approved request is pending provider integration. No cash has been received, sent, paid out, or settled by ClassicFin.</p>
+<div class="summary">
+<div class="sumRow"><span>Requested amount</span><b><%= data.formatMoneyMinor(data.order.amountMinor,data.order.currency) %></b></div>
+<div class="sumRow"><span>Proposed fee</span><b><%= data.formatMoneyMinor(data.order.feeMinor,data.order.currency) %></b></div>
+<div class="sumRow"><span>Sender</span><b><%= data.order.sender.name %> · <%= data.order.sender.country %></b></div>
+<div class="sumRow"><span>Sender phone</span><b><%= data.order.sender.phone %></b></div>
+<div class="sumRow"><span>Beneficiary</span><b><%= data.order.beneficiary.name %> · <%= data.order.beneficiary.country %></b></div>
+<div class="sumRow"><span>Beneficiary phone</span><b><%= data.order.beneficiary.phone %></b></div>
+<div class="sumRow"><span>Submitted UTC</span><b><%= new Date(data.order.createdAt).toISOString().slice(0,16).replace('T',' ') %></b></div>
+<div class="sumRow"><span>Request expires UTC</span><b><%= new Date(data.order.expiresAt).toISOString().slice(0,16).replace('T',' ') %></b></div>
+<div class="sumRow"><span>Internal decision</span><b><%= data.order.reviewNote||'Not yet reviewed' %></b></div>
+</div><div class="rowBtns" style="margin-top:12px"><a class="btn" href="/tenant/money-transfer/<%= data.order._id %>/acknowledgement">Print request acknowledgement</a></div></div></section>
+<% if(data.canReview){ %><form class="card" style="margin-top:14px" method="post" action="/tenant/money-transfer/<%= data.order._id %>/review"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><div class="cardHead"><b>Independent review</b><span>No self-approval</span></div><div class="cardBody"><label class="field">Review rationale (12–400 characters)<textarea class="control" name="note" minlength="12" maxlength="400" rows="3" required></textarea></label><div class="rowBtns"><button class="btn btnPrimary" name="decision" value="approve">Approve pending provider</button><button class="btn" name="decision" value="reject">Reject</button></div></div></form><% } %>
+<% if(data.canCancel){ %><form class="card" style="margin-top:14px" method="post" action="/tenant/money-transfer/<%= data.order._id %>/cancel"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><div class="cardHead"><b>Cancel undecided request</b></div><div class="cardBody"><label class="field">Cancellation reason (12–400 characters)<textarea class="control" name="note" minlength="12" maxlength="400" required rows="2"></textarea></label><div class="rowBtns"><button class="btn" type="submit">Cancel request</button></div></div></form><% } %>
+</section>

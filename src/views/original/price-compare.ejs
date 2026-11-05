@@ -1,22 +1,38 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <link rel="icon" type="image/png" href="/images/classicfinhub-logo.png">
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ClassicFin Hub price compare | Compare plans and addons</title>
   <meta name="description" content="Compare ClassicFin Hub plans, monthly prices, included modules, users, branches, transaction limits, reports, billing features and addons." />
-  <link rel="preconnect" href="https://cdnjs.cloudflare.com" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
-  <link rel="stylesheet" href="/css/style.css" />
+  <link rel="stylesheet" href="/vendor/inter/inter.css?v=<%= assetVersion %>" />
+  <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css?v=<%= assetVersion %>" />
+  <link rel="stylesheet" href="/css/style.css?v=<%= assetVersion %>" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="ClassicFin Hub" />
+  <meta property="og:title" content="ClassicFin Hub price compare | Compare plans and addons" />
+  <meta property="og:description" content="Compare ClassicFin Hub plans, monthly prices, included modules, users, branches, transaction limits, reports, billing features and addons." />
+  <meta property="og:image" content="<%= appUrl %>/images/classicfinhub-logo.png" />
+  <meta property="og:image:alt" content="ClassicFin Hub logo" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="ClassicFin Hub price compare | Compare plans and addons" />
+  <meta name="twitter:description" content="Compare ClassicFin Hub plans, monthly prices, included modules, users, branches, transaction limits, reports, billing features and addons." />
+  <meta name="twitter:image" content="<%= appUrl %>/images/classicfinhub-logo.png" />
+  <link rel="canonical" href="<%= appUrl %>/price-compare">
+  <meta property="og:url" content="<%= appUrl %>/price-compare">
+  <script type="application/ld+json" nonce="<%= cspNonce %>"><%- JSON.stringify({
+    '@context':'https://schema.org','@type':'BreadcrumbList','itemListElement':[
+      {'@type':'ListItem','position':1,'name':'Home','item':appUrl+'/'},
+      {'@type':'ListItem','position':2,'name':'Price Compare','item':appUrl+'/price-compare'}
+    ]
+  }).replace(/</g,'\\u003c') %></script>
 </head>
 <body class="legal-body" id="top">
   <div class="cursor-glow" aria-hidden="true"></div>
   <aside class="side-rail" aria-label="Desktop navigation">
     <a class="rail-logo logo-mark" href="/#home" aria-label="ClassicFin Hub home">
-      <img src="/images/classicfinhub-logo.png" alt="ClassicFin Hub logo" />
+      <img src="/images/classicfinhub-logo.png?v=<%= assetVersion %>" alt="ClassicFin Hub logo" />
     </a>
     <nav>
       <a href="/#home"><i class="fa-solid fa-house"></i><span>Home</span></a>
@@ -35,7 +51,7 @@
   </aside>
 
   <header class="mobile-header">
-    <a class="mobile-brand" href="/#home"><span class="mobile-logo"><img src="/images/classicfinhub-logo.png" alt="ClassicFin Hub logo" /></span><strong>ClassicFin Hub</strong></a>
+    <a class="mobile-brand" href="/#home"><span class="mobile-logo"><img src="/images/classicfinhub-logo.png?v=<%= assetVersion %>" alt="ClassicFin Hub logo" /></span><strong>ClassicFin Hub</strong></a>
     <div class="mobile-auth-actions"><a href="/signin">Sign in</a><a href="/signup">Request setup</a></div><button class="mobile-menu-btn" id="menuBtn" aria-label="Open menu"><i class="fa-solid fa-bars-staggered"></i></button>
   </header>
 
@@ -47,7 +63,7 @@
     <a href="/pricing">Pricing</a>
     <a href="/price-compare">Price compare</a>
     <a href="/support">Support</a>
-    <a href="/tenant/dashboard">Dashboard demo</a>
+    <a href="/signin">Dashboard sign in</a>
     <a href="/signin">Sign in</a>
     <a href="/signup">Request setup</a>
     <button id="themeToggleMobile"><i class="fa-solid fa-moon"></i> Change theme</button>
@@ -71,10 +87,10 @@
           <thead>
             <tr>
               <th>Feature</th>
-              <th>Starter Trial<br><span>USD $0 / 30 days</span></th>
-              <th>Agent Plan<br><span>USD $29 / month</span></th>
-              <th>Finance Plan<br><span>USD $59 / month</span></th>
-              <th>Enterprise<br><span>From USD $149 / month</span></th>
+              <th>Starter Trial<br><span>USD $0 / trial</span></th>
+              <th>Agent Plan<br><span>USD $<%= plans[1].priceMonthly %> / month</span></th>
+              <th>Finance Plan<br><span>USD $<%= plans[2].priceMonthly %> / month</span></th>
+              <th>Enterprise<br><span>USD $<%= plans[3].priceMonthly %> / month</span></th>
             </tr>
           </thead>
           <tbody>
@@ -100,13 +116,13 @@
         <span>Most affordable</span>
         <h2>Agent Plan</h2>
         <p>Choose this when the business mainly serves walk-in customers, transfer requests, payouts, mobile money float, and daily receipt records.</p>
-        <a class="btn btn-light" href="/signup">Start from $29/mo</a>
+        <a class="btn btn-light" href="/signup">Start from $<%= plans[1].priceMonthly %>/mo</a>
       </article>
       <article>
         <span>Best operational control</span>
         <h2>Finance Plan</h2>
         <p>Choose this when the business needs account records, deposits, withdrawals, forex rates, cash impact, approvals, and richer reports.</p>
-        <a class="btn btn-dark" href="/signup">Start from $59/mo</a>
+        <a class="btn btn-dark" href="/signup">Start from $<%= plans[2].priceMonthly %>/mo</a>
       </article>
       <article>
         <span>Best for scale</span>
@@ -161,7 +177,7 @@
           <a href="/services">Modules</a>
           <a href="/pricing">Pricing</a>
           <a href="/price-compare">Price compare</a>
-          <a href="/tenant/dashboard">Dashboard demo</a>
+          <a href="/signin">Dashboard sign in</a>
         </div>
         <div class="footer-column">
           <h3>Solutions</h3>
@@ -191,6 +207,6 @@
     </footer>
   </main>
 
-  <script src="/js/script.js"></script>
+  <script src="/js/script.js?v=<%= assetVersion %>"></script>
 </body>
 </html>

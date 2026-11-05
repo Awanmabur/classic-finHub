@@ -1,1 +1,26 @@
-<section class="view show"><div class="grid"><form class="card" method="post" action="/tenant/branches"><div class="cardHead"><b>Create branch</b><span>Branch, cash drawer, currencies, open/close day.</span></div><div class="cardBody" style="display:grid;gap:12px"><label class="field">Branch name<input class="control" name="name" required /></label><label class="field">Currency<select class="control" name="currency"><option>UGX</option><option>USD</option><option>SSP</option></select></label><button class="btn btnPrimary">Add branch</button></div></form><section class="card"><div class="cardHead"><b>Day sessions</b><span>Expected vs actual cash.</span></div><div class="cardBody tableWrap"><table><thead><tr><th>Branch</th><th>Currency</th><th>Status</th><th>Opening</th><th>Expected</th><th>Actual</th></tr></thead><tbody><% data.branches.forEach(b => { %><tr data-search-row><td><b><%= b.name %></b></td><td><%= b.currency %></td><td><span class="tag"><%= b.status %></span></td><td><%= money(b.currency,b.openingCash) %></td><td><%= money(b.currency,b.expectedCash) %></td><td><%= money(b.currency,b.actualCash) %></td></tr><% }) %></tbody></table></div></section></div></section>
+<section class="view show">
+  <div class="grid3">
+    <div class="stat"><div class="k">Active branches</div><div class="v"><%= data.branches.filter(b=>b.status==='active').length %></div><div class="s"><span class="dot"></span>Within your workspace</div></div>
+    <div class="stat"><div class="k">Plan branch limit</div><div class="v"><%= data.plan?.limits.branches||0 %></div><div class="s">Platform-enforced</div></div>
+    <div class="stat"><div class="k">Operations</div><div class="v">Controlled</div><div class="s">Historical records are not deleted</div></div>
+  </div>
+  <% if(data.canManage){ %>
+  <section class="card" style="margin-top:14px"><div class="cardHead"><b>Create branch</b><span>Only tenant owners</span></div><div class="cardBody">
+    <form action="/tenant/branches" method="post"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <div class="row3"><label class="field">Name<input class="control" name="name" required minlength="2" maxlength="100" placeholder="Kampala Main"></label>
+      <label class="field">Unique code<input class="control" name="code" required maxlength="32" pattern="[a-z0-9][a-z0-9-]{1,30}" placeholder="kampala-main"></label>
+      <label class="field">Currency<select class="control" name="currency"><option value="UGX">UGX</option><option value="KES">KES</option></select></label></div>
+      <label class="field">Business location / address<input class="control" name="address" maxlength="240"></label>
+      <button class="btn btnPrimary" type="submit">Create branch</button>
+    </form>
+  </div></section><% } %>
+  <section class="card" style="margin-top:14px"><div class="cardHead"><b>Branches</b><span>Names and addresses can be corrected; financial currency and historical records cannot be rewritten</span></div><div class="cardBody tableWrap"><table><thead><tr><th>Branch</th><th>Currency</th><th>Status</th><th>Details</th><% if(data.canManage){ %><th>Management</th><% } %></tr></thead><tbody>
+  <% if(!data.branches.length){ %><tr><td colspan="5">No branches yet. Create the first branch before inviting operational staff or recording transactions.</td></tr><% } %>
+  <% data.branches.forEach(b=>{ %><tr data-search-row><td><b><%= b.name %></b><br><span class="tiny"><%= b.code %></span></td><td><%= b.currency %></td><td><span class="tag"><%= b.status %></span></td><td><%= b.address||'—' %></td>
+  <% if(data.canManage){ %><td>
+    <% if(b.status==='active'){ %><form method="post" action="/tenant/branches/<%= b._id %>/update"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><label class="field">Name<input class="control" name="name" maxlength="100" required value="<%= b.name %>"></label><label class="field">Address<input class="control" name="address" maxlength="240" value="<%= b.address||'' %>"></label><button class="btn">Save changes</button></form>
+    <form method="post" action="/tenant/branches/<%= b._id %>/archive" style="margin-top:8px"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btnDanger">Archive</button></form><% }else{ %>
+    <form method="post" action="/tenant/branches/<%= b._id %>/restore"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn">Restore</button></form><% } %>
+  </td><% } %></tr><% }) %></tbody></table></div></section>
+  <p class="tiny" style="margin-top:12px">Archiving requires no active assigned staff, no pending invitations and no unverified operations. Complete an audit-reviewed correction instead of editing historical transactions.</p>
+</section>

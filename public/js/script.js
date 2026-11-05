@@ -19,55 +19,65 @@ function setThemeIcon() {
 
 function toggleTheme() {
   body.classList.toggle('dark');
-  localStorage.setItem('classicFinHubTheme', body.classList.contains('dark') ? 'dark' : 'light');
+  try { localStorage.setItem('classicFinHubTheme', body.classList.contains('dark') ? 'dark' : 'light'); } catch (_) { /* Storage may be disabled; the current page still works. */ }
   setThemeIcon();
 }
 
-if (localStorage.getItem('classicFinHubTheme') === 'dark') body.classList.add('dark');
+try { if (localStorage.getItem('classicFinHubTheme') === 'dark') body.classList.add('dark'); } catch (_) { /* Use the default theme when storage is unavailable. */ }
 setThemeIcon();
 
 themeToggle?.addEventListener('click', toggleTheme);
 themeToggleMobile?.addEventListener('click', toggleTheme);
 
-menuBtn?.addEventListener('click', () => {
-  mobilePanel?.classList.toggle('open');
+function setMobileMenu(open) {
+  mobilePanel?.classList.toggle('open', open);
+  menuBtn?.setAttribute('aria-expanded', String(open));
+  menuBtn?.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+}
+menuBtn?.setAttribute('aria-controls', 'mobilePanel');
+setMobileMenu(false);
+menuBtn?.addEventListener('click', () => setMobileMenu(!mobilePanel?.classList.contains('open')));
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && mobilePanel?.classList.contains('open')) { setMobileMenu(false); menuBtn?.focus(); }
 });
 
 mobilePanel?.querySelectorAll('a').forEach((link) => {
-  link.addEventListener('click', () => mobilePanel.classList.remove('open'));
+  link.addEventListener('click', () => setMobileMenu(false));
 });
 
 document.querySelectorAll('.faq-item').forEach((item) => {
+  item.setAttribute('aria-expanded', String(item.classList.contains('open')));
   item.addEventListener('click', () => {
     document.querySelectorAll('.faq-item').forEach((other) => {
-      if (other !== item) other.classList.remove('open');
+      if (other !== item) { other.classList.remove('open'); other.setAttribute('aria-expanded', 'false'); }
     });
     item.classList.toggle('open');
+    item.setAttribute('aria-expanded', String(item.classList.contains('open')));
   });
 });
 
-const revealObserver = new IntersectionObserver((entries) => {
+const revealObserver = typeof IntersectionObserver === 'function' ? new IntersectionObserver((entries) => {
   entries.forEach((entry) => {
     if (entry.isIntersecting) {
       entry.target.classList.add('show');
       revealObserver.unobserve(entry.target);
     }
   });
-}, { threshold: 0.14 });
+}, { threshold: 0.14 }) : null;
 
-document.querySelectorAll('.reveal').forEach((el) => revealObserver.observe(el));
+document.querySelectorAll('.reveal').forEach((el) => { if(revealObserver) revealObserver.observe(el); else el.classList.add('show'); });
 
 const sections = [...document.querySelectorAll('section[id]')];
-const railLinks = [...document.querySelectorAll('.side-rail nav a')];
-const activeObserver = new IntersectionObserver((entries) => {
+const railLinks = [...document.querySelectorAll('.side-rail nav a[href^="#"]')];
+const activeObserver = typeof IntersectionObserver === 'function' ? new IntersectionObserver((entries) => {
   entries.forEach((entry) => {
     if (!entry.isIntersecting) return;
     railLinks.forEach((link) => {
       link.classList.toggle('active', link.getAttribute('href') === `#${entry.target.id}`);
     });
   });
-}, { rootMargin: '-35% 0px -55% 0px' });
-sections.forEach((section) => activeObserver.observe(section));
+}, { rootMargin: '-35% 0px -55% 0px' }) : null;
+sections.forEach((section) => activeObserver?.observe(section));
 
 window.addEventListener('mousemove', (event) => {
   if (!cursor) return;

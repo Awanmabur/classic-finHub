@@ -1,16 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <link rel="icon" type="image/png" href="/images/classicfinhub-logo.png">
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title><%= title || 'ClassicFin Hub' %></title>
   <meta name="description" content="ClassicFin Hub is a multi-tenant finance SaaS platform for money transfer, mobile money, banking, forex, reporting, analytics, billing, tenant onboarding, roles, and secure operations." />
-  <link rel="preconnect" href="https://cdnjs.cloudflare.com" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
-  <link rel="stylesheet" href="/css/style.css" />
+  <link rel="canonical" href="<%= appUrl %><%= currentPath %>" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="<%= title %>" />
+  <meta property="og:description" content="ClassicFin Hub module-based finance operations platform." />
+  <meta property="og:url" content="<%= appUrl %><%= currentPath %>" />
+  <meta property="og:image" content="<%= appUrl %>/images/classicfinhub-logo.png" />
+  <meta name="twitter:card" content="summary" />
+  <link rel="stylesheet" href="/vendor/inter/inter.css?v=<%= assetVersion %>" />
+  <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css?v=<%= assetVersion %>" />
+  <link rel="stylesheet" href="/css/style.css?v=<%= assetVersion %>" />
 </head>
 <body>
   <div class="cursor-glow" aria-hidden="true"></div>
@@ -47,6 +52,6 @@
     <div><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/cookies">Cookies</a><a href="/refund-policy">Refund policy</a></div>
     <p>© <span id="year"></span> Classic Technologies. All rights reserved.</p>
   </footer>
-  <script src="/js/script.js"></script>
+  <script src="/js/script.js?v=<%= assetVersion %>"></script>
 </body>
 </html>

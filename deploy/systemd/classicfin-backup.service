@@ -1,0 +1,28 @@
+[Unit]
+Description=ClassicFin Hub encrypted MongoDB full-replica-set backup and immutable offsite copy
+After=network-online.target
+Wants=network-online.target
+OnFailure=classicfin-alert@backup-failure.service
+
+[Service]
+Type=oneshot
+# Provision the non-root account and its credentials before enabling.
+User=classicbackup
+Group=classicbackup
+WorkingDirectory=/srv/classic/apps/classicfin
+EnvironmentFile=/etc/classicfin/backup.env
+StateDirectory=classicfin-backup
+ExecStart=/usr/bin/flock -n /var/lib/classicfin-backup/run.lock /usr/bin/node scripts/backup.js create
+ExecStartPost=/usr/bin/node scripts/offsite-backup.js upload-latest
+ExecStartPost=/usr/bin/node scripts/backup-doctor.js
+ExecStartPost=/usr/bin/node scripts/offsite-backup.js doctor
+TimeoutStartSec=14400
+UMask=0077
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+ReadWritePaths=/var/backups/classicfin /var/lib/classicfin-backup

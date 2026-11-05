@@ -1,24 +1,18 @@
 const mongoose = require('mongoose');
 const env = require('./env');
-const tenantConnections = new Map();
+const {NAME,tenantDbNameFromSlug}=require('./tenantDatabaseName');
 
 async function connectPlatformMongo() {
-  if (process.env.MOCK_DB === 'true') return null;
   mongoose.set('strictQuery', true);
-  return mongoose.connect(env.mongoPlatformUri, { autoIndex: env.nodeEnv !== 'production' });
+  await mongoose.connect(env.mongoPlatformUri, {
+    serverSelectionTimeoutMS: 7000, maxPoolSize: Number(process.env.MONGO_POOL_MAX || 30),
+    autoIndex: env.nodeEnv !== 'production', retryWrites: true
+  });
+  return mongoose.connection;
 }
-
-function tenantDbNameFromSlug(slug) {
-  return `classicfin_tenant_${String(slug).toLowerCase().replace(/[^a-z0-9]+/g, '_')}_db`;
-}
-
+// Logical DBs reuse one bounded connection pool. Never accept DB names from a request.
 function getTenantConnection(slug) {
-  const dbName = tenantDbNameFromSlug(slug);
-  if (tenantConnections.has(dbName)) return tenantConnections.get(dbName);
-  const uri = `${env.mongoTenantBaseUri.replace(/\/$/, '')}/${dbName}`;
-  const conn = mongoose.createConnection(uri, { autoIndex: env.nodeEnv !== 'production' });
-  tenantConnections.set(dbName, conn);
-  return conn;
+  if (mongoose.connection.readyState !== 1) throw new Error('Database unavailable');
+  return mongoose.connection.useDb(tenantDbNameFromSlug(slug), { useCache: true });
 }
-
-module.exports = { connectPlatformMongo, getTenantConnection, tenantDbNameFromSlug };
+module.exports = { connectPlatformMongo, getTenantConnection, tenantDbNameFromSlug, NAME };

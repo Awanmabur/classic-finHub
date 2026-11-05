@@ -1,0 +1,17 @@
+[Unit]
+Description=ClassicFin internal approval request expiry sweep
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=classicdeploy
+Group=classicdeploy
+WorkingDirectory=/srv/classic/apps/classicfin
+EnvironmentFile=/srv/classic/secrets/classicfin.env
+ExecStart=/usr/bin/node scripts/approval-expiry.js
+TimeoutStartSec=180
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true

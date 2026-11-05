@@ -1,5 +1,5 @@
 <section class="pricing" id="pricing">
-  <div class="section-head reveal"><p>Plan-driven SaaS</p><h2>Plan versions control modules, limits, trials, billing, and tenant access.</h2></div>
+  <div class="section-head reveal"><p>Modular subscriptions</p><h2>Choose a workspace plan or request individual modules. Operations Reports can be subscribed to on its own.</h2></div>
   <div class="pricing-grid">
     <% plans.forEach(plan => { %>
       <article class="price-card reveal">
@@ -17,4 +17,8 @@
       </article>
     <% }) %>
   </div>
+  <div class="section-head reveal" style="margin-top:35px"><p>Subscribe only to what you need</p><h2>Independent, separately entitled modules</h2><p>Activation is administrator-reviewed. Pricing shown is indicative; automated billing and real-money processing are not yet enabled.</p></div>
+  <div class="pricing-grid"><% modules.filter(m=>['enabled','recording_only'].includes(m.runtimeStatus)).forEach(m=>{ %>
+    <article class="price-card reveal"><h3><%= m.name %></h3><p><%= m.description %></p><h4>USD <%= m.priceMonthly %><small>/month</small></h4><a class="btn btn-dark" href="/book-appointment">Request this module</a></article>
+  <% }) %></div>
 </section>

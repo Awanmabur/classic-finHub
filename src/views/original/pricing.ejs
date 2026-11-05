@@ -1,22 +1,38 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <link rel="icon" type="image/png" href="/images/classicfinhub-logo.png">
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ClassicFin Hub pricing | Plans, trials, modules and addons</title>
   <meta name="description" content="Compare ClassicFin Hub pricing plans: Starter Trial, Agent Plan, Finance Plan, Enterprise Plan, module subscriptions, trials, addons, invoices, billing and limits." />
-  <link rel="preconnect" href="https://cdnjs.cloudflare.com" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
-  <link rel="stylesheet" href="/css/style.css" />
+  <link rel="stylesheet" href="/vendor/inter/inter.css?v=<%= assetVersion %>" />
+  <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css?v=<%= assetVersion %>" />
+  <link rel="stylesheet" href="/css/style.css?v=<%= assetVersion %>" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="ClassicFin Hub" />
+  <meta property="og:title" content="ClassicFin Hub pricing | Plans, trials, modules and addons" />
+  <meta property="og:description" content="Compare ClassicFin Hub pricing plans: Starter Trial, Agent Plan, Finance Plan, Enterprise Plan, module subscriptions, trials, addons, invoices, billing and limits." />
+  <meta property="og:image" content="<%= appUrl %>/images/classicfinhub-logo.png" />
+  <meta property="og:image:alt" content="ClassicFin Hub logo" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="ClassicFin Hub pricing | Plans, trials, modules and addons" />
+  <meta name="twitter:description" content="Compare ClassicFin Hub pricing plans: Starter Trial, Agent Plan, Finance Plan, Enterprise Plan, module subscriptions, trials, addons, invoices, billing and limits." />
+  <meta name="twitter:image" content="<%= appUrl %>/images/classicfinhub-logo.png" />
+  <link rel="canonical" href="<%= appUrl %>/pricing">
+  <meta property="og:url" content="<%= appUrl %>/pricing">
+  <script type="application/ld+json" nonce="<%= cspNonce %>"><%- JSON.stringify({
+    '@context':'https://schema.org','@type':'BreadcrumbList','itemListElement':[
+      {'@type':'ListItem','position':1,'name':'Home','item':appUrl+'/'},
+      {'@type':'ListItem','position':2,'name':'Pricing','item':appUrl+'/pricing'}
+    ]
+  }).replace(/</g,'\\u003c') %></script>
 </head>
 <body class="legal-body" id="top">
   <div class="cursor-glow" aria-hidden="true"></div>
   <aside class="side-rail" aria-label="Desktop navigation">
     <a class="rail-logo logo-mark" href="/#home" aria-label="ClassicFin Hub home">
-      <img src="/images/classicfinhub-logo.png" alt="ClassicFin Hub logo" />
+      <img src="/images/classicfinhub-logo.png?v=<%= assetVersion %>" alt="ClassicFin Hub logo" />
     </a>
     <nav>
       <a href="/#home"><i class="fa-solid fa-house"></i><span>Home</span></a>
@@ -35,7 +51,7 @@
   </aside>
 
   <header class="mobile-header">
-    <a class="mobile-brand" href="/#home"><span class="mobile-logo"><img src="/images/classicfinhub-logo.png" alt="ClassicFin Hub logo" /></span><strong>ClassicFin Hub</strong></a>
+    <a class="mobile-brand" href="/#home"><span class="mobile-logo"><img src="/images/classicfinhub-logo.png?v=<%= assetVersion %>" alt="ClassicFin Hub logo" /></span><strong>ClassicFin Hub</strong></a>
     <div class="mobile-auth-actions"><a href="/signin">Sign in</a><a href="/signup">Request setup</a></div><button class="mobile-menu-btn" id="menuBtn" aria-label="Open menu"><i class="fa-solid fa-bars-staggered"></i></button>
   </header>
 
@@ -47,7 +63,7 @@
     <a href="/pricing">Pricing</a>
     <a href="/price-compare">Price compare</a>
     <a href="/support">Support</a>
-    <a href="/tenant/dashboard">Dashboard demo</a>
+    <a href="/signin">Dashboard sign in</a>
     <a href="/signin">Sign in</a>
     <a href="/signup">Request setup</a>
     <button id="themeToggleMobile"><i class="fa-solid fa-moon"></i> Change theme</button>
@@ -65,57 +81,58 @@
       </div>
     </header>
 
+    <p class="tiny" style="margin:16px auto;max-width:1050px">Proposed catalogue, not a checkout quote. Payments and full financial settlement workflows are not enabled. Final commercial terms require written confirmation.</p>
     <section class="pricing-page-grid reveal">
       <article class="plan-card">
         <div class="plan-top"><span>Starter Trial</span><strong>USD $0</strong></div>
-        <div class="price-amount"><sup>$</sup>0<span>/30 days</span></div>
+        <div class="price-amount"><sup>$</sup>0<span>/trial</span></div>
         <h3>Validate the platform</h3>
-        <p>For businesses that want to test ClassicFin Hub before launch.</p>
+        <p>For businesses requesting a controlled trial. These prices and features are indicative, subject to confirmation.</p>
         <ul>
           <li>1 branch workspace</li>
           <li>Up to 3 users</li>
-          <li>100 demo transactions</li>
-          <li>Dashboard, customers, receipts</li>
+          <li><%= plans[0].limits.transactionsPerMonth %> record limit (proposed)</li>
+          <li>Read-only plan exploration; product module access follows entitlements</li>
           <li>Basic reports and onboarding guidance</li>
         </ul>
         <a class="btn btn-light" href="/signup">Request free trial</a>
       </article>
       <article class="plan-card featured">
-        <div class="plan-top"><span>Agent Plan</span><strong>USD $29/mo</strong></div>
-        <div class="price-amount"><sup>$</sup>29<span>/month</span></div>
+        <div class="plan-top"><span>Agent Plan</span><strong>USD $<%= plans[1].priceMonthly %>/mo</strong></div>
+        <div class="price-amount"><sup>$</sup><%= plans[1].priceMonthly %><span>/month</span></div>
         <h3>Transfer and mobile money</h3>
         <p>For agent-led businesses that need fast customer service and clean daily records.</p>
         <ul>
-          <li>Money Transfer module</li>
-          <li>Mobile Money module</li>
-          <li>1 branch and 5 users included</li>
+          <li>Money Transfer module (not yet enabled for real payouts)</li>
+          <li>Mobile Money recording (network settlement not connected)</li>
+          <li><%= plans[1].limits.branches %> branches and <%= plans[1].limits.users %> users included</li>
           <li>Receipts, expenses, notifications</li>
           <li>Daily reports and exports</li>
         </ul>
         <a class="btn btn-dark" href="/signup">Start agent plan</a>
       </article>
       <article class="plan-card">
-        <div class="plan-top"><span>Finance Plan</span><strong>USD $59/mo</strong></div>
-        <div class="price-amount"><sup>$</sup>59<span>/month</span></div>
-        <h3>Banking and forex operations</h3>
-        <p>For teams that manage accounts, deposits, withdrawals, cash drawers, rates, and forex reports.</p>
+        <div class="plan-top"><span>Finance Plan</span><strong>USD $<%= plans[2].priceMonthly %>/mo</strong></div>
+        <div class="price-amount"><sup>$</sup><%= plans[2].priceMonthly %><span>/month</span></div>
+        <h3>Banking and forex modules — planned</h3>
+        <p>Planned for finance teams that require accounts, deposits, withdrawals, cash drawers, rate controls and forex reports. Not yet enabled for live operations.</p>
         <ul>
-          <li>Banking Operation module</li>
-          <li>Forex Operation module</li>
-          <li>2 branches and 10 users included</li>
+          <li>Banking Operation module (planned; not enabled)</li>
+          <li>Forex Operation module (planned; not enabled)</li>
+          <li><%= plans[2].limits.branches %> branches and <%= plans[2].limits.users %> users included</li>
           <li>Rate boards and cash impact reports</li>
           <li>Manager approval controls</li>
         </ul>
         <a class="btn btn-light" href="/price-compare">Compare plan</a>
       </article>
       <article class="plan-card">
-        <div class="plan-top"><span>Enterprise Plan</span><strong>From USD $149/mo</strong></div>
-        <div class="price-amount"><sup>$</sup>149<span>/month</span></div>
+        <div class="plan-top"><span>Enterprise Plan</span><strong>USD $<%= plans[3].priceMonthly %>/mo</strong></div>
+        <div class="price-amount"><sup>$</sup><%= plans[3].priceMonthly %><span>/month</span></div>
         <h3>Full finance suite</h3>
         <p>For multi-branch companies that need all modules, advanced controls, API access, and priority support.</p>
         <ul>
           <li>All core modules</li>
-          <li>5 branches and 25 users included</li>
+          <li><%= plans[3].limits.branches %> branches and <%= plans[3].limits.users %> users included</li>
           <li>Advanced analytics and audit logs</li>
           <li>Custom domain, API, branding</li>
           <li>Priority support and onboarding</li>
@@ -125,9 +142,9 @@
     </section>
 
     <section class="conversion-strip reveal" aria-label="ClassicFin Hub price highlights">
-      <div><strong>$29/mo</strong><span>Entry paid plan for transfer and mobile money agents.</span></div>
-      <div><strong>$59/mo</strong><span>Finance plan for banking and forex operation teams.</span></div>
-      <div><strong>$149/mo</strong><span>Enterprise starting price for full-suite branch networks.</span></div>
+      <div><strong>$<%= plans[1].priceMonthly %>/mo</strong><span>Entry paid plan for transfer and mobile money agents.</span></div>
+      <div><strong>$<%= plans[2].priceMonthly %>/mo</strong><span>Finance plan for banking and forex operation teams.</span></div>
+      <div><strong>$<%= plans[3].priceMonthly %>/mo</strong><span>Enterprise starting price for full-suite branch networks.</span></div>
       <div><strong>Save 2 months</strong><span>Use yearly billing to reduce admin and improve renewal flow.</span></div>
     </section>
 
@@ -162,14 +179,14 @@
       <aside class="legal-aside">
         <a href="/price-compare">Open price compare</a>
         <a href="/#book">Book a pricing demo</a>
-        <a href="/tenant/dashboard">Open dashboard demo</a>
+        <a href="/signin">Sign in to dashboard</a>
         <a href="/services">View modules</a>
         <a href="tel:211921789914">Call +211 921 789 914</a>
         <a href="mailto:info@classicfinhub.com">Email sales</a>
       </aside>
       <article class="legal-content">
         <h2>How billing works</h2>
-        <p>Classic Technologies can create plans, set monthly or yearly pricing, enable a trial, attach modules, define user and branch limits, generate invoices, record payments, apply grace periods, suspend overdue tenants, and reactivate tenants after payment.</p>
+        <p>Classic Technologies can provision workspaces, publish versioned plan terms, set user and branch limits, and grant or revoke subscriptions with an audit trail. Automated invoicing, tax handling, provider settlement, renewals and customer payment collection are not yet available.</p>
         <h2>Why the prices are simple</h2>
         <p>Finance operators should understand the cost quickly. The base plan shows the money clearly, while addons keep the platform flexible for different branch sizes and operational needs.</p>
         <h2>Local collection</h2>
@@ -205,7 +222,7 @@
           <a href="/services">Modules</a>
           <a href="/pricing">Pricing</a>
           <a href="/price-compare">Price compare</a>
-          <a href="/tenant/dashboard">Dashboard demo</a>
+          <a href="/signin">Dashboard sign in</a>
         </div>
         <div class="footer-column">
           <h3>Solutions</h3>
@@ -234,6 +251,6 @@
       <div class="footer-note"><p>© <span id="year"></span> ClassicFin Hub by Classic Technologies. All rights reserved.</p><a href="#top">Back to top</a></div>
     </footer>
   </main>
-  <script src="/js/script.js"></script>
+  <script src="/js/script.js?v=<%= assetVersion %>"></script>
 </body>
 </html>

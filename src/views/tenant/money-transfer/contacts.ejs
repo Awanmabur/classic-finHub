@@ -1,0 +1,20 @@
+<section class="view show">
+ <section class="card"><div class="cardHead"><b>Sender & beneficiary contacts</b><span>Branch-scoped · not identity-verified</span><a class="btn" href="/tenant/money-transfer">Money Transfer</a></div><div class="cardBody">
+  <p class="tiny">Contact details are stored only in this tenant database. Editing a contact changes future requests, never an existing transfer's immutable sender/beneficiary snapshot.</p>
+  <% if(user.role==='Tenant Owner'){ %><form method="get" action="/tenant/money-transfer/contacts" class="row2"><label class="field">Select branch<select class="control" name="branchId" required><option value="">Choose branch</option><% data.branches.forEach(b=>{ %><option value="<%= b._id %>" <%= data.selectedBranchId===String(b._id)?'selected':'' %>><%= b.name %></option><% }) %></select></label><div class="rowBtns"><button class="btn btnPrimary" type="submit">View contacts</button></div></form><% } %>
+ </div></section>
+ <% if(data.canManage && data.selectedBranchId){ %><form method="post" class="card" style="margin-top:14px" action="/tenant/money-transfer/contacts" autocomplete="off">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="branchId" value="<%= data.selectedBranchId %>">
+  <div class="cardHead"><b>Add a contact</b><span>No KYC assertion is made</span></div><div class="cardBody" style="display:grid;gap:12px">
+   <div class="row2"><label class="field">Type<select class="control" name="kind"><option value="sender">Sender</option><option value="beneficiary">Beneficiary</option></select></label><label class="field">Name<input class="control" name="fullName" minlength="2" maxlength="120" required></label></div>
+   <div class="row2"><label class="field">Phone in international format<input class="control" name="phone" type="tel" placeholder="+256700000000" required maxlength="16"></label><label class="field">Country<select class="control" name="country" required><option value="">Select country</option><% (data.countryOptions||[]).forEach(c=>{ %><option value="<%= c.code %>"><%= c.name %> (<%= c.code %>)</option><% }) %></select></label></div>
+   <div class="rowBtns"><button class="btn btnPrimary" type="submit">Save contact</button></div>
+  </div>
+ </form><% } %>
+ <section class="card" style="margin-top:14px"><div class="cardHead"><b>Active contacts</b><span>Up to 500 per selected branch</span></div><div class="cardBody tableWrap"><table><thead><tr><th>Type</th><th>Name</th><th>Country</th><th>Phone</th><th>Action</th></tr></thead><tbody>
+  <% if(!data.contacts.length){ %><tr><td colspan="5">No active contacts in the selected branch.</td></tr><% } %>
+  <% data.contacts.forEach(c=>{ %><tr data-search-row><td><%= c.kind %></td><td><%= c.fullName %></td><td><%= c.country %></td><td><%= c.phone.replace(/.(?=.{4})/g,'•') %></td><td>
+   <% if(data.canManage){ %><a class="btn" href="/tenant/money-transfer/contacts/<%= c._id %>/edit">Edit</a><form method="post" action="/tenant/money-transfer/contacts/<%= c._id %>/archive" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn" type="submit">Archive</button></form><% } else { %>Read only<% } %>
+  </td></tr><% }) %>
+ </tbody></table></div></section>
+</section>

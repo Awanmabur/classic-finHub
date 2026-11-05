@@ -1,0 +1,6 @@
+<section class="view show"><section class="card"><div class="cardHead"><b><%= data.message.subject %></b><span><%= data.message.readAt?'Read':'Unread' %></span></div>
+ <div class="cardBody"><p class="tiny">Created: <%= new Date(data.message.createdAt).toISOString().replace('T',' ').slice(0,19) %> UTC · Template <%= data.message.templateCode %> v<%= data.message.templateVersion %></p>
+ <div style="white-space:pre-wrap;overflow-wrap:anywhere;margin:18px 0"><%= data.message.body %></div>
+ <p class="tiny">Email: <%= data.message.emailState.replaceAll('_',' ') %>. Provider acceptance does not establish delivery or reading.</p>
+ <% if(!data.message.readAt){ %><form method="post" action="/tenant/notifications/<%= data.message._id %>/read"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btnPrimary" type="submit">Mark as read</button></form><% } %>
+ <a class="btn" href="/tenant/notifications">Back to inbox</a></div></section></section>

@@ -1,0 +1,40 @@
+<section class="view show">
+  <div class="grid3">
+    <div class="stat"><div class="k">Waiting to process</div><div class="v"><%= data.status.counts.pending %></div><div class="s"><span class="dot"></span>Durable database queue</div></div>
+    <div class="stat"><div class="k">Accepted by provider</div><div class="v"><%= data.status.counts.accepted %></div><div class="s"><span class="dot"></span>Not proof of inbox delivery</div></div>
+    <div class="stat"><div class="k">Needs intervention</div><div class="v"><%= data.status.counts.dead %></div><div class="s"><span class="dot warn"></span>Dead-letter items</div></div>
+  </div>
+  <section class="card" style="margin-top:14px">
+    <div class="cardHead"><b>Worker and queue health</b><span>Platform administrators only</span></div>
+    <div class="cardBody">
+      <div class="summary"><div class="sumRow"><span>Active workers seen within 30 seconds</span><b><%= data.status.liveWorkers %></b></div>
+      <div class="sumRow"><span>Currently leased items</span><b><%= data.status.counts.processing %></b></div></div>
+      <% if(!data.status.liveWorkers){ %><p class="tiny">No recent worker heartbeat. Pending notifications will not be sent until the separate background worker is online. Run <code>npm run worker</code> under a supervised process.</p><% } %>
+      <p class="tiny">This queue tracks administrative notification requests only. It does not process money transfers or settlements. Notification status means provider acceptance, not confirmed email delivery. Failed events never grant access or modify subscriptions on retry.</p>
+    </div>
+  </section>
+  <section class="card" style="margin-top:14px">
+    <div class="cardHead"><b>Recent background activity</b><span>Latest 40 events · no customer addresses or private payloads</span></div>
+    <div class="cardBody tableWrap">
+      <table><thead><tr><th>Created (UTC)</th><th>Type</th><th>State</th><th>Attempts</th><th>Last failure</th><th>Recovery</th></tr></thead><tbody>
+        <% if(!data.status.recent.length){ %><tr><td colspan="6">No background events have been queued yet.</td></tr><% } %>
+        <% data.status.recent.forEach(e=>{ %>
+          <tr data-search-row>
+            <td><%= new Date(e.createdAt).toISOString() %></td>
+            <td><%= e.type %></td>
+            <td><span class="tag"><%= e.state %></span></td>
+            <td><%= e.attempts %> / <%= e.maxAttempts %></td>
+            <td><%= e.failureCode||'—' %></td>
+            <td><% if(e.state==='dead'){ %>
+              <form method="post" action="/platform/operations/queue/<%= e._id %>/retry">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <label class="field">Reason for retry <textarea class="control" name="reason" required minlength="20" maxlength="400" rows="2"></textarea></label>
+                <button type="submit" class="btn">Requeue and audit</button>
+              </form>
+            <% }else{ %>—<% } %></td>
+          </tr>
+        <% }) %>
+      </tbody></table>
+    </div>
+  </section>
+</section>

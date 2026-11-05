@@ -1,4 +1,4 @@
-const { modules } = require('../../data/store');
-function listModules() { return modules; }
-function toggleModule(key) { const m = modules.find(x => x.key === key); if (m) m.status = m.status === 'active' ? 'inactive' : 'active'; return m; }
-module.exports = { listModules, toggleModule };
+'use strict';
+const {modules}=require('../../data/store');
+const unavailable=require('../../utils/unavailableOperation');
+module.exports={listModules:()=>modules,toggleModule:()=>unavailable('Persistent module publishing and entitlement update')};

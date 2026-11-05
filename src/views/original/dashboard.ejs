@@ -1,13 +1,12 @@
 <!doctype html>
 <html lang="en">
 <head>
+  <link rel="icon" type="image/png" href="/images/classicfinhub-logo.png">
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>ClassicFin Hub — Multi-Tenant Finance Operations Dashboard</title>
   <meta name="description" content="Clean multi-tenant finance operations dashboard for money transfer, mobile money, banking, forex, tenants, reports, analytics, and receipts." />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"><style>
+  <link rel="stylesheet" href="/vendor/inter/inter.css?v=<%= assetVersion %>" /><style>
     :root{
       --font:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
       --bg0:#f7f8ff;--bg1:#eef2ff;--card:rgba(255,255,255,.9);--card2:rgba(255,255,255,.68);--border:rgba(15,23,42,.09);
@@ -410,6 +409,8 @@
     .logo{background:url("images/classicfinhub-logo.png") center/cover no-repeat,#fff!important;border:1px solid rgba(8,44,82,.14);box-shadow:0 12px 26px rgba(8,44,82,.14)}
 </style>
 
+  <link rel="canonical" href="<%= appUrl %>/dashboard">
+  <meta property="og:url" content="<%= appUrl %>/dashboard">
 </head>
 <body>
 <div class="grain" aria-hidden="true"></div><div class="menuOverlay" id="menuOverlay"></div>

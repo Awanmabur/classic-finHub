@@ -1,0 +1,11 @@
+.git
+node_modules
+.env
+.env.*
+!.env.example
+*.log
+*.zip
+coverage
+.DS_Store
+*.patch
+tmp

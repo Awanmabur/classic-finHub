@@ -1,1 +1,49 @@
-<section class="view show"><div class="grid"><form class="card" method="post" action="/tenant/money-transfer/send"><div class="cardHead"><b>Send money</b><span>Generate PIN/claim code, notify receiver, create receipt.</span></div><div class="cardBody" style="display:grid;gap:12px"><div class="row2"><label class="field">Sender<input class="control" name="customer" required placeholder="Sender name" /></label><label class="field">Receiver phone<input class="control" name="phone" placeholder="+256…" /></label></div><div class="row3"><label class="field">Amount<input class="control" type="number" name="amount" required /></label><label class="field">Fee<input class="control" type="number" name="fee" value="5000" /></label><label class="field">Currency<select class="control" name="currency"><option>UGX</option><option>USD</option><option>SSP</option></select></label></div><button class="btn btnPrimary">Create transfer</button></div></form><section class="card"><div class="cardHead"><b>Pending payout queue</b><span>Payout by PIN and ID verification.</span></div><div class="cardBody txList"><% data.transactions.filter(t=>t.module==='Money Transfer').forEach(t => { %><div class="tx" data-search-row><div class="txLeft"><span class="txDot warn"></span><div class="txMeta"><b><%= t.reference %></b><span><%= t.customer %> — <%= t.status %></span></div></div><div class="txAmt"><%= money(t.currency,t.amount) %></div></div><% }) %></div></section></div></section>
+<section class="view show">
+ <section class="card"><div class="cardHead"><b>Transfer requests — internal operations</b><span>No funds are sent or settled</span><a class="btn" href="/tenant/money-transfer/history">View history</a></div>
+  <div class="cardBody">
+   <p class="tiny">Register transfer instructions, then obtain a different authorized staff member's review. Identity verification, funds collection, external remittance, payout PINs, ledger settlement and payout receipts are <strong>not active</strong>. Do not accept or release cash based on this screen.</p>
+   <a class="btn" href="/tenant/money-transfer/contacts<%= data.selectedBranchId?'?branchId='+encodeURIComponent(data.selectedBranchId):'' %>">Manage sender and beneficiary contacts</a>
+   <% if(user.role==='Tenant Owner'){ %><form method="get" action="/tenant/money-transfer" class="row2" style="margin-top:12px">
+    <label class="field">Choose branch to create requests<select class="control" name="branchId" required><option value="">Select branch</option><% data.branches.forEach(b=>{ %><option value="<%= b._id %>" <%= data.selectedBranchId===String(b._id)?'selected':'' %>><%= b.name %> · <%= b.currency %></option><% }) %></select></label>
+    <div class="rowBtns"><button class="btn btnPrimary" type="submit">Open branch</button></div>
+   </form><% } %>
+  </div>
+ </section>
+ <div class="grid" style="margin-top:14px">
+  <% if(data.canCreate && data.selectedBranchId){ %><form method="post" action="/tenant/money-transfer/requests" class="card" autocomplete="off">
+   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+   <input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
+   <input type="hidden" name="branchId" value="<%= data.selectedBranchId %>">
+   <div class="cardHead"><b>New transfer request</b><span>Approval required</span></div>
+   <div class="cardBody" style="display:grid;gap:12px">
+    <% const senders=data.contacts.filter(c=>c.kind==='sender'); const beneficiaries=data.contacts.filter(c=>c.kind==='beneficiary'); %>
+    <% if(!senders.length||!beneficiaries.length){ %><p class="tiny">Create an active sender and beneficiary contact in this branch before submitting a transfer request.</p><% } %>
+    <label class="field">Sender<select class="control" name="senderId" required><option value="">Select sender</option><% senders.forEach(c=>{ %><option value="<%= c._id %>"><%= c.fullName %> · <%= c.country %></option><% }) %></select></label>
+    <label class="field">Beneficiary<select class="control" name="beneficiaryId" required><option value="">Select beneficiary</option><% beneficiaries.forEach(c=>{ %><option value="<%= c._id %>"><%= c.fullName %> · <%= c.country %></option><% }) %></select></label>
+    <div class="row3">
+     <label class="field">Requested amount<input class="control" name="amount" type="number" required min="1" step="0.01"></label>
+     <label class="field">Proposed fee<input class="control" name="fee" type="number" required min="0" step="0.01" value="0"></label>
+     <label class="field">Branch currency<select class="control" name="currency" required><% data.branches.filter(b=>String(b._id)===data.selectedBranchId).forEach(b=>{ %><option value="<%= b.currency %>"><%= b.currency %></option><% }) %></select></label>
+    </div>
+    <label class="field">Request validity<select class="control" name="validDays" required><% for(let days=1;days<=30;days++){ %><option value="<%= days %>" <%= days===7?'selected':'' %>><%= days %> day<%= days===1?'':'s' %></option><% } %></select></label>
+    <div class="rowBtns"><button class="btn btnPrimary" type="submit" <%= !senders.length||!beneficiaries.length?'disabled':'' %>>Record transfer request</button></div>
+   </div>
+  </form><% } else if(data.canCreate){ %><section class="card"><div class="cardHead"><b>New request</b></div><div class="cardBody"><p class="tiny">Choose an active branch before starting a new request.</p></div></section><% } %>
+  <section class="card"><div class="cardHead"><b>Recent transfer requests</b><span><%= data.records.items.length %> visible</span></div>
+   <div class="cardBody txList">
+    <% if(!data.records.items.length){ %><p class="tiny">No transfer requests found in your authorized scope.</p><% } %>
+    <% data.records.items.forEach(t=>{ %><div class="tx" data-search-row><div class="txMeta"><b><a href="/tenant/money-transfer/<%= t._id %>"><%= t.reference %></a></b><span><%= t.sender.name %> → <%= t.beneficiary.name %> · <%= t.status.replaceAll('_',' ') %></span></div><b><%= data.formatMoneyMinor(t.amountMinor,t.currency) %></b></div><% }) %>
+   </div><div class="cardBody"><a class="btn" href="/tenant/money-transfer/history">All request history</a></div>
+  </section>
+ </div>
+ <% if(data.canReview){ %><section class="card" style="margin-top:14px"><div class="cardHead"><b>Independent review queue</b><span>Two-person decision</span></div><div class="cardBody">
+  <% if(!data.queue.length){ %><p class="tiny">No requests await your independent review.</p><% } %>
+  <% data.queue.forEach(t=>{ %><form method="post" action="/tenant/money-transfer/<%= t._id %>/review" class="card" style="margin-bottom:12px;padding:12px">
+   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+   <div class="cardHead"><b><a href="/tenant/money-transfer/<%= t._id %>"><%= t.reference %></a></b><span><%= data.formatMoneyMinor(t.amountMinor,t.currency) %></span></div>
+   <p class="tiny">Sender: <%= t.sender.name %> · Beneficiary: <%= t.beneficiary.name %> · Expires: <%= new Date(t.expiresAt).toISOString().slice(0,10) %></p>
+   <label class="field">Decision rationale (12–400 characters)<textarea class="control" name="note" minlength="12" maxlength="400" required rows="2" placeholder="Record evidence reviewed and decision rationale; do not include sensitive identification documents"></textarea></label>
+   <div class="rowBtns"><button class="btn btnPrimary" type="submit" name="decision" value="approve">Approve pending provider</button><button class="btn" type="submit" name="decision" value="reject">Reject</button></div>
+  </form><% }) %>
+ </div></section><% } %>
+</section>

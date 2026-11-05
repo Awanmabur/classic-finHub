@@ -1,0 +1,25 @@
+# Security review — 5 November 2026
+
+This review covers the uploaded application, with focused examination of authentication, MFA, session lifecycle, owner/staff activation, password recovery, CSRF, tenant selection, branch access, module permissions, reporting and error handling. It records observed defects and executed checks; it is not an exhaustive penetration test or a production certification.
+
+## Fixed findings
+
+| Priority | Finding and evidence | Correction |
+| --- | --- | --- |
+| Medium | Password creation accepted up to 128 JavaScript characters even though bcrypt authenticates only the first 72 UTF-8 bytes. A password made of 72 lowercase `a` characters followed by `Z1!` passed the strength policy; its hash also authenticated the 72-character lowercase prefix. Multibyte characters reached the truncation boundary with fewer characters. | `authentication.service.js` now rejects passwords exceeding 72 UTF-8 bytes before creation/reset and before login comparison. Owner/staff invitation and administrator bootstrap guidance states this limit. Tests cover the exact byte boundary, ASCII and multibyte overflow, and rejection before account lookup. |
+| Medium | `errorHandler.js` logged arbitrary exception messages and returned parser errors to the client. Malformed JSON can cause Node to quote the submitted input in the error message, including an accidentally submitted credential or activation token. Database error messages can also contain private field values. | Malformed JSON receives a fixed HTTP 400 message. Request error logs contain a safe classification (`invalid_json`, `request_rejected` or `internal_error`) rather than the raw exception. Internal errors retain a generic client response. A local HTTP regression verifies that a private malformed request is neither returned nor logged. |
+| Medium: validation gap | The authentication integration fixture attempted cash recording before opening and independently verifying a cash shift, producing HTTP 409. It also omitted the independently required Reports subscription/module assignments and expected a superseded detailed CSV format. These stale assumptions prevented the release gate from exercising the current workflow. | `scripts/auth-integration.js` now performs the opening and independent verification over HTTP, checks that both missing and unverified openings block recording, then records and reviews an operation. Reports are explicitly granted and assigned; the export assertion checks the current aggregate contract and excludes customer identities. The application controls remain enforced. |
+
+Existing bcrypt hashes cannot reveal whether a discarded suffix existed. Accounts whose original password exceeded 72 UTF-8 bytes must use password recovery to establish a password within the supported limit. No credential or MFA secret was read or included in this review.
+
+## Executed validation
+
+- Focused source/HTTP suite: **40 tests passed, zero failed and zero skipped** using `node --test tests/security.test.js tests/error-handler.test.js tests/unified-auth.test.js tests/tenant-review-mfa.test.js tests/tenant-mfa-recovery.test.js tests/tenant-administration.test.js`.
+- `scripts/auth-integration.js`: **passed** against the isolated loopback MongoDB replica set after environment recovery. The script exercises actual HTTP sessions and MongoDB writes, platform and privileged tenant MFA, role-based dashboard routing, tenant/platform session separation, operator reporting denial, independent cash-opening verification, operational recording and review, authorized aggregate export, audit access, password reset, reset-token consumption and rejection of previous sessions/passwords.
+- The authentication integration did **not** deliver a security-notification email: no live mail provider was configured. Password rotation and session revocation succeeded, and the application recorded/reported the notification failure. This does not establish provider delivery.
+
+## Reviewed controls and remaining limits
+
+The examined paths regenerate sessions after password and MFA verification; privileged accounts require MFA; account versions revoke older sessions; tenant selection comes from the authenticated session and stored platform records; tenant database names are validated; roles and permissions are server-defined; branch predicates constrain examined operational reads and writes; and state-changing HTTP requests require session-bound CSRF tokens. No confirmed cross-tenant access exploit was found in the examined paths. This is a bounded review result, not proof that every path is secure.
+
+Additional production evidence remains necessary for deployed reverse-proxy trust/TLS, externally distributed abuse/load testing, authenticated browser acceptance, live email delivery, backup restoration and provider reconciliation. Real money movement, provider settlement and disabled placeholder workflows are not validated by these checks. The complete application test and integration results are reported separately by the main project review.

@@ -1,7 +1,4 @@
-const { auditLogs } = require('../data/store');
-module.exports = function auditLogger(action, moduleKey = 'Platform') {
-  return (req, res, next) => {
-    auditLogs.unshift({ actor: req.session.platformUser?.name || req.session.user?.name || 'Anonymous', action, module: moduleKey, record: req.originalUrl, createdAt: new Date().toISOString() });
-    next();
-  };
-};
+'use strict';
+// Historical in-memory audit middleware is deliberately disabled. The active
+// administration services write durable platform/tenant audit events in transactions.
+module.exports=function auditLogger(){throw new Error('In-memory audit logging is forbidden; use a persistent audit service');};

@@ -1,0 +1,23 @@
+'use strict';
+const mongoose=require('mongoose');
+const O=mongoose.Schema.Types.ObjectId;
+const party=new mongoose.Schema({contactId:{type:O,required:true,immutable:true},name:{type:String,required:true,immutable:true},phone:{type:String,required:true,immutable:true},country:{type:String,required:true,immutable:true}}, {_id:false,strict:'throw'});
+const schema=new mongoose.Schema({
+  reference:{type:String,required:true,immutable:true},idempotencyKey:{type:String,required:true,immutable:true},
+  branchId:{type:O,required:true,immutable:true},createdBy:{type:O,required:true,immutable:true},
+  sender:{type:party,required:true,immutable:true},beneficiary:{type:party,required:true,immutable:true},
+  currency:{type:String,enum:['UGX','KES'],required:true,immutable:true},
+  amountMinor:{type:mongoose.Schema.Types.Decimal128,required:true,immutable:true},feeMinor:{type:mongoose.Schema.Types.Decimal128,required:true,immutable:true},
+  status:{type:String,enum:['requested','approved_pending_provider','rejected','cancelled','expired'],default:'requested',required:true},
+  validDays:{type:Number,min:1,max:30,required:true,immutable:true},expiresAt:{type:Date,required:true,immutable:true},
+  reviewedBy:{type:O},reviewedAt:{type:Date},reviewNote:{type:String,maxlength:400},
+  cancelledAt:{type:Date},cancelledBy:{type:O},cancelReason:{type:String,maxlength:400},
+  expiredAt:{type:Date},revision:{type:Number,default:0,min:0}
+},{strict:'throw',timestamps:true,versionKey:false});
+schema.index({reference:1},{unique:true});
+schema.index({idempotencyKey:1},{unique:true});
+schema.index({branchId:1,createdAt:-1,_id:-1});
+schema.index({branchId:1,status:1,createdAt:-1});
+schema.index({createdBy:1,createdAt:-1,_id:-1});
+schema.index({status:1,expiresAt:1});
+module.exports=schema;

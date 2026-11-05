@@ -1,4 +1,3 @@
-const { tenants } = require('../data/store');
 
 function flash(req, type, message) {
   req.session.flash = { type, message };
@@ -14,8 +13,4 @@ function money(currency, amount) {
   return `${currency || 'UGX'} ${Number(amount || 0).toLocaleString()}`;
 }
 
-function currentTenant() {
-  return tenants[0];
-}
-
-module.exports = { flash, consumeFlash, money, currentTenant };
+module.exports = { flash, consumeFlash, money };

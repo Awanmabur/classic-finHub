@@ -1,0 +1,24 @@
+# DEVELOPMENT ONLY. Single-node replica set for MongoDB transactions.
+# Not fault tolerant and intentionally bound to local loopback on port 27018.
+name: classicfin-dev
+services:
+  mongo:
+    image: mongo:8.0
+    command: ["mongod", "--port", "27018", "--replSet", "rs0", "--bind_ip_all"]
+    restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 16384
+        hard: 16384
+    ports:
+      - "127.0.0.1:27018:27018"
+    volumes:
+      - classicfin_mongo_dev:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--port", "27018", "--quiet", "--eval", "db.adminCommand({ping:1}).ok"]
+      interval: 4s
+      timeout: 5s
+      retries: 20
+      start_period: 8s
+volumes:
+  classicfin_mongo_dev:

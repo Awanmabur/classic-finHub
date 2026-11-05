@@ -1,13 +1,13 @@
 <section class="contact-section" id="book">
   <div class="section-head reveal"><p>Appointment first</p><h2>Book the virtual presentation before a tenant is created.</h2></div>
   <div class="contact-grid reveal">
-    <form class="contact-card" method="post" action="/book-appointment">
+    <form class="contact-card" method="post" action="/book-appointment"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <label>Business name<input name="businessName" required placeholder="Your finance business" /></label>
       <label>Contact name<input name="contactName" required placeholder="Owner or manager name" /></label>
       <label>Email<input type="email" name="email" required placeholder="owner@example.com" /></label>
       <label>Phone<input name="phone" required placeholder="+256…" /></label>
       <label>Preferred date<input type="date" name="preferredDate" /></label>
-      <label>Modules<textarea name="modules" placeholder="Money transfer, mobile money, banking, forex…"></textarea></label>
+      <fieldset style="border:0;margin:0;padding:0"><legend>Modules needed (select any)</legend><% (modules||[]).filter(m=>m.runtimeStatus!=='disabled').forEach(m=>{ %><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="modules" value="<%= m.key %>" style="width:auto"><%= m.name %></label><% }) %></fieldset>
       <label>Notes<textarea name="notes" placeholder="Tell us about branches, currencies, volumes, or trial needs."></textarea></label>
       <button class="btn btn-dark" type="submit">Submit appointment request</button>
     </form>

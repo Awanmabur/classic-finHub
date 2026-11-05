@@ -1,0 +1,11 @@
+[Unit]
+Description=ClassicFin Hub four-hourly backup and offsite health verification
+
+[Timer]
+OnCalendar=*-*-* 00/4:30:00 UTC
+Persistent=true
+RandomizedDelaySec=5min
+Unit=classicfin-backup-health.service
+
+[Install]
+WantedBy=timers.target

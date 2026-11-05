@@ -1114,3 +1114,8 @@ select option{
   .footer-inner{grid-template-columns:1fr;padding:24px;}
   .footer-note{display:grid;text-align:center !important;justify-items:center;padding:18px 22px;}
 }
+
+/* Respect the hidden attribute on secure invite activation forms. */
+[hidden] { display: none !important; }
+
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}.reveal{opacity:1!important;transform:none!important}.cursor-glow{display:none!important}}

@@ -1,5 +1,8 @@
-const { invoices, payments } = require('../../data/store');
-function listInvoices() { return invoices; }
-function listPayments() { return payments; }
-function recordPayment(invoiceId, amount) { const payment = { id: `pay_${Date.now()}`, invoice: invoiceId, amount, currency: 'USD', status: 'success', paidAt: new Date().toISOString() }; payments.unshift(payment); return payment; }
-module.exports = { listInvoices, listPayments, recordPayment };
+'use strict';
+const Invoice = require('../models/Invoice');
+const Payment = require('../models/Payment');
+const unavailable = require('../../utils/unavailableOperation');
+async function listInvoices() { return Invoice.find({}).sort({createdAt:-1}).limit(100).lean(); }
+async function listPayments() { return Payment.find({}).sort({createdAt:-1}).limit(100).lean(); }
+function recordPayment() { return unavailable('Billing provider settlement'); }
+module.exports={listInvoices,listPayments,recordPayment};

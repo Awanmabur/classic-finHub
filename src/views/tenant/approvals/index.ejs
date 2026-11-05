@@ -1,0 +1,36 @@
+<section class="view show">
+ <section class="card"><div class="cardHead"><b>Independent approval requests</b><span>Tenant and branch restricted</span></div>
+ <div class="cardBody"><p class="tiny">This is a standalone internal approval service. Approving a request records an authorization decision only. It does not execute payments, reverse accounting entries, edit subscriptions or bypass any financial module's mandatory review.</p></div></section>
+ <div class="grid" style="margin-top:14px">
+ <% if(data.canSubmit){ %><section class="card"><div class="cardHead"><b>Submit request</b><span>Separate reviewer required</span></div><div class="cardBody">
+ <form method="post" action="/tenant/approvals/requests" autocomplete="off" style="display:grid;gap:12px">
+ <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
+ <label class="field">Approval policy<select class="control" name="policyCode" required><option value="">Select an active policy</option><% data.policies.forEach(p=>{ %><option value="<%= p.code %>"><%= p.name %> (v<%= p.version %>)</option><% }) %></select></label>
+ <% if(user.role==='Tenant Owner'){ %><label class="field">Branch<select class="control" name="branchId" required><option value="">Select branch</option><% data.branches.forEach(b=>{ %><option value="<%= b._id %>"><%= b.name %></option><% }) %></select></label><% } %>
+ <label class="field">Subject<input class="control" name="subject" required minlength="4" maxlength="120"></label>
+ <label class="field">Business justification<textarea class="control" name="justification" rows="3" required minlength="15" maxlength="1000"></textarea></label>
+ <button class="btn btnPrimary" type="submit" <%= data.policies.length && data.branches.length?'':'disabled' %>>Submit internal request</button>
+ </form><% if(!data.policies.length){ %><p class="tiny">No active policy available. A Tenant Owner must publish one.</p><% } %>
+ </div></section><% } %>
+ <% if(data.canManage){ %><section class="card"><div class="cardHead"><b>Publish approval policy</b><span>Immutable version snapshots</span></div><div class="cardBody">
+ <form method="post" action="/tenant/approvals/policies" autocomplete="off" style="display:grid;gap:12px">
+ <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+ <label class="field">Policy code (select an existing code or enter a new one)<input class="control" name="code" list="existingApprovalPolicyCodes" required pattern="[a-z][a-z0-9_]{2,39}" placeholder="purchase_review"><datalist id="existingApprovalPolicyCodes"><% data.policies.forEach(p=>{ %><option value="<%= p.code %>"><%= p.name %></option><% }) %></datalist></label>
+ <label class="field">Policy name<input class="control" name="name" required minlength="3" maxlength="100"></label>
+ <label class="field">Category<select class="control" name="category"><% data.categories.forEach(c=>{ %><option value="<%= c %>"><%= c.replaceAll('_',' ') %></option><% }) %></select></label>
+ <% for(let i=1;i<=3;i++){ %><label class="field">Step <%= i %> <%= i===1?'(required)':'(optional)' %><select class="control" name="step<%= i %>" <%= i===1?'required':'' %>><option value="">No step</option><% data.roles.forEach(role=>{ %><option value="<%= role %>"><%= role %></option><% }) %></select></label><% } %>
+ <label class="field">Approval deadline<select class="control" name="expiresHours" required><% [1,2,4,8,12,24,48,72,96,168,336,720].forEach(hours=>{ %><option value="<%= hours %>" <%= hours===72?'selected':'' %>><%= hours %> hour<%= hours===1?'':'s' %></option><% }) %></select></label>
+ <label class="field">Custom deadline in hours (optional, 1–720)<input class="control" type="number" name="customExpiresHours" min="1" max="720" placeholder="Only for a nonstandard deadline"></label>
+ <button class="btn btnPrimary" type="submit">Publish version</button>
+ </form></div></section><% } %>
+ </div>
+ <% if(data.canManage){ %><section class="card" style="margin-top:14px"><div class="cardHead"><b>Active policies</b><span>Historical versions retained</span></div><div class="cardBody tableWrap"><table><thead><tr><th>Policy</th><th>Version</th><th>Review steps</th><th>Action</th></tr></thead><tbody>
+ <% data.policies.forEach(p=>{ %><tr><td><%= p.name %><div class="tiny"><%= p.code %></div></td><td><%= p.version %></td><td><%= p.steps.map(s=>s.role).join(' → ') %></td><td><form method="post" action="/tenant/approvals/policies/<%= p.code %>/retire"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn" type="submit">Retire</button></form></td></tr><% }) %>
+ </tbody></table></div></section><% } %>
+ <% if(data.reviewQueue.length){ %><section class="card" style="margin-top:14px"><div class="cardHead"><b>Your review queue</b><span>No self-approval</span></div><div class="cardBody txList"><% data.reviewQueue.forEach(r=>{ %><div class="tx"><div class="txMeta"><b><a href="/tenant/approvals/<%= r._id %>"><%= r.subject %></a></b><span><%= r.reference %> · Step <%= r.currentStep+1 %> of <%= r.steps.length %></span></div><a class="btn" href="/tenant/approvals/<%= r._id %>">Review</a></div><% }) %></div></section><% } %>
+ <section class="card" style="margin-top:14px"><div class="cardHead"><b>Approval history</b><span>Original requests and decisions retained</span></div><div class="cardBody">
+ <form action="/tenant/approvals" method="get" class="rowBtns"><label class="field">Status<select class="control" name="status"><option value="">All statuses</option><% ['pending','approved','rejected','cancelled','expired'].forEach(s=>{ %><option value="<%= s %>" <%= data.status===s?'selected':'' %>><%= s %></option><% }) %></select></label><button class="btn" type="submit">Filter</button></form></div>
+ <div class="cardBody tableWrap"><table><thead><tr><th>Reference</th><th>Subject</th><th>Policy</th><th>Status</th><th>Created</th></tr></thead><tbody><% data.records.items.forEach(r=>{ %><tr><td><a href="/tenant/approvals/<%= r._id %>"><%= r.reference %></a></td><td><%= r.subject %></td><td><%= r.policyName %> v<%= r.policyVersion %></td><td><%= r.status %></td><td><%= new Date(r.createdAt).toISOString().slice(0,16).replace('T',' ') %> UTC</td></tr><% }) %></tbody></table>
+ <% if(!data.records.items.length){ %><p class="tiny">No requests in the permitted scope.</p><% } %>
+ <% if(data.records.nextCursor){ %><a class="btn" href="/tenant/approvals?status=<%= encodeURIComponent(data.status) %>&amp;cursor=<%= encodeURIComponent(data.records.nextCursor) %>">Next page</a><% } %></div></section>
+</section>

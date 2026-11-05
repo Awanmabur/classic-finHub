@@ -1,0 +1,41 @@
+<section class="view show">
+  <p class="tiny"><a class="btn" href="/tenant/mobile-money/<%= data.record._id %>/acknowledgement">Print internal acknowledgement</a> Not proof of payment or settlement.</p>
+  <section class="card"><div class="cardHead"><b>Recorded operation</b><span>Original financial details are retained</span><a class="btn" href="/tenant/mobile-money/history">History</a></div>
+  <div class="cardBody"><div class="row3">
+    <p><b>Network:</b> <%= data.record.network %></p>
+    <p><b>Reference:</b> <%= data.record.networkReference %></p>
+    <p><b>Operation:</b> <%= data.record.operation.replaceAll('_',' ') %></p>
+    <p><b>Amount:</b> <%= money(data.record.currency,amountFromMinor(data.record.amountMinor,data.record.currency)) %></p>
+    <p><b>Fee:</b> <%= money(data.record.currency,amountFromMinor(data.record.feeMinor,data.record.currency)) %></p>
+    <p><b>Recorded (UTC):</b> <%= new Date(data.record.createdAt).toISOString() %></p>
+    <p><b>Internal review:</b> <%= data.record.reviewState||'awaiting_review' %></p>
+    <p><b>Correction:</b> <%= data.record.correctionState||'none' %></p>
+    <p><b>Record status:</b> <%= data.record.status %></p>
+  </div><p class="tiny">An internally voided entry is retained for investigation and reporting. It does not reverse any provider transaction, refund a customer or settle a balance.</p></div></section>
+  <% if(data.canRequestCorrection){ %>
+  <section class="card" style="margin-top:14px"><div class="cardHead"><b>Request a correction</b><span>Original entry is preserved</span></div>
+    <div class="cardBody"><form method="post" action="/tenant/mobile-money/<%= data.record._id %>/request-void">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label class="field">Explain the recording error (12–400 characters)
+        <textarea class="control" name="note" minlength="12" maxlength="400" rows="3" required></textarea></label>
+      <div class="rowBtns"><button class="btn btnPrimary" type="submit">Submit void request</button></div>
+    </form></div>
+  </section><% } %>
+  <% if(data.canReviewCorrection){ %>
+  <section class="card" style="margin-top:14px"><div class="cardHead"><b>Decide correction request</b><span>Must be a second person</span></div>
+    <div class="cardBody"><p class="tiny">Submitted reason: <%= data.record.correctionReason %></p>
+    <form method="post" action="/tenant/mobile-money/<%= data.record._id %>/decide-void">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label class="field">Your supporting evidence (12–400 characters)
+        <textarea class="control" name="note" minlength="12" maxlength="400" rows="3" required></textarea></label>
+      <div class="rowBtns"><button class="btn btnPrimary" name="decision" value="approve">Approve internal void</button>
+        <button class="btn" name="decision" value="deny">Deny request</button></div>
+    </form></div>
+  </section><% } %>
+  <section class="card" style="margin-top:14px"><div class="cardHead"><b>Correction decisions</b><span>Chronological evidence history</span></div>
+    <div class="cardBody tableWrap"><table><thead><tr><th>Time (UTC)</th><th>Action</th><th>Decision note</th></tr></thead><tbody>
+      <% if(!(data.record.correctionHistory||[]).length){ %><tr><td colspan="3">No corrections requested.</td></tr><% } %>
+      <% (data.record.correctionHistory||[]).forEach(entry=>{ %><tr><td><%= new Date(entry.at).toISOString() %></td><td><%= entry.action %></td><td><%= entry.note %></td></tr><% }) %>
+    </tbody></table></div>
+  </section>
+</section>

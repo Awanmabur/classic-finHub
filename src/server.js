@@ -1,13 +1,37 @@
-const app = require('./app');
+const mongoose = require('mongoose');
+const MongoStore = require('connect-mongo');
+const createApp = require('./app');
 const env = require('./config/env');
 const { connectPlatformMongo } = require('./config/mongo');
-const { createRedisClient } = require('./config/redis');
-
+const { verifyReplicaPrimary } = require('./config/mongoTopology');
 async function boot() {
-  if (process.env.SKIP_EXTERNAL_SERVICES !== 'true') {
-    try { await connectPlatformMongo(); console.log('Mongo platform connection ready'); } catch (err) { console.warn('Mongo skipped:', err.message); }
-    try { await createRedisClient(); console.log('Redis connection ready'); } catch (err) { console.warn('Redis skipped:', err.message); }
+  // Fail closed: never serve financial dashboards when storage is unavailable.
+  await connectPlatformMongo();
+  const hello = await mongoose.connection.db.admin().command({ hello: 1 });
+  verifyReplicaPrimary(hello);
+  // Unique global email identity index is a prerequisite for safe auto-routing.
+  for (const Model of [require('./platform/models/AccountIdentity'),require('./platform/models/LoginThrottle'),require('./platform/models/SecurityEvent'),require('./platform/models/PasswordReset'),require('./platform/models/PlanVersion'),require('./platform/models/UsageCounter'),require('./platform/models/OutboxEvent'),require('./platform/models/WorkerHeartbeat')]) await Model.createIndexes();
+  const store = MongoStore.create({ client: mongoose.connection.getClient(), dbName: mongoose.connection.name, collectionName: 'sessions', ttl: 8 * 3600 });
+  const app = createApp({ sessionStore: store });
+  const server = app.listen(env.port, () => console.log(`ClassicFin Hub listening on ${env.port} (MongoDB replica set: ${hello.setName})`));
+  server.headersTimeout = 15000;
+  server.requestTimeout = 30000;
+  server.keepAliveTimeout = 5000;
+  let closing = false;
+  async function shutdown(signal) {
+    if (closing) return;
+    closing = true;
+    console.log(`Received ${signal}, draining HTTP connections`);
+    const force = setTimeout(() => server.closeAllConnections(), 20000);
+    force.unref();
+    server.close(async err => {
+      clearTimeout(force);
+      try { await mongoose.disconnect(); } catch (disconnectError) { console.error('Mongo shutdown:', disconnectError.message); }
+      process.exit(err ? 1 : 0);
+    });
+    server.closeIdleConnections();
   }
-  app.listen(env.port, () => console.log(`ClassicFin Hub running on port ${env.port}`));
+  process.once('SIGTERM', () => shutdown('SIGTERM'));
+  process.once('SIGINT', () => shutdown('SIGINT'));
 }
-boot();
+boot().catch(err => { console.error('Startup aborted:', err.message); process.exitCode = 1; mongoose.disconnect().catch(() => {}); });

@@ -1,0 +1,31 @@
+<section class="view show">
+  <section class="card">
+    <div class="cardHead"><b>Physical cash reconciliation</b><span>Per operator · per branch · UGX or KES</span></div>
+    <div class="cardBody">
+      <p class="tiny">An independent supervisor must verify opening cash before recording. Counted cash and recorded customer operations only. Cash-in adds to the provisional drawer estimate; cash-out subtracts. Fees are informational and excluded from this calculation. No shift proves provider payment, electronic float, or settlement.</p>
+      <% if(data.canOpen){ %>
+      <form method="post" action="/tenant/mobile-money/shifts/open" class="row3">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <% if(user.role==='Tenant Owner'){ %>
+          <label class="field">Branch<select class="control" name="branchId" required><option value="">Select an active branch</option><% data.branches.forEach(b=>{ %><option value="<%= b._id %>"><%= b.name %> (<%= b.currency %>)</option><% }) %></select></label>
+        <% } else { %><p class="tiny">The shift will be bound to your active assigned branch.</p><% } %>
+        <label class="field">Physically counted opening cash (branch currency)<input class="control" name="openingCash" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" required placeholder="0"></label>
+        <div class="rowBtns"><button class="btn btnPrimary" type="submit">Request opening verification</button></div>
+      </form>
+      <% } %>
+    </div>
+  </section>
+  <section class="card" style="margin-top:14px">
+    <div class="cardHead"><b>Cash shift history</b><span>Chronological history, scoped to your access</span></div>
+    <div class="cardBody tableWrap"><table><thead><tr><th>Opened (UTC)</th><th>Branch</th><th>Operator</th><th>Status</th><th>Currency</th><th>Opening cash</th><th>Records</th><th>Details</th></tr></thead><tbody>
+      <% if(!data.shifts.items.length){ %><tr><td colspan="8">No cash shifts in your permitted scope.</td></tr><% } %>
+      <% data.shifts.items.forEach(shift=>{ %><tr data-search-row>
+        <td><%= new Date(shift.createdAt).toISOString() %></td><td><%= data.branchNames?.[String(shift.branchId)] || shift.branchId %></td><td><%= data.operatorNames?.[String(shift.operatorId)] || shift.operatorId %></td>
+        <td><span class="tag"><%= shift.status %></span></td><td><%= shift.currency %></td>
+        <td><%= shift.openingMinor %></td><td><%= shift.recordCount %></td>
+        <td><a class="btn" href="/tenant/mobile-money/shifts/<%= shift._id %>">View shift</a></td>
+      </tr><% }) %>
+    </tbody></table></div>
+    <% if(data.shifts.nextCursor){ %><div class="cardBody"><a class="btn" href="/tenant/mobile-money/shifts?cursor=<%= encodeURIComponent(data.shifts.nextCursor) %>">Next page</a></div><% } %>
+  </section>
+</section>

@@ -1,0 +1,51 @@
+<section class="view show">
+  <section class="card">
+    <div class="cardHead"><b>Shift <%= data.shift._id %></b><span class="tag"><%= data.shift.status %></span><a class="btn" href="/tenant/mobile-money/shifts">All shifts</a></div>
+    <div class="cardBody">
+      <p class="tiny">Physical cash estimate only. Network settlements and agent e-float are not represented here.</p>
+      <div class="grid3">
+        <div class="stat"><div class="k">Opening cash</div><div class="v"><%= data.shift.currency %> <%= data.shift.openingMinor %></div></div>
+        <div class="stat"><div class="k">Provisional movement</div><div class="v"><%= data.shift.currency %> <%= data.shift.provisionalMovementMinor %></div></div>
+        <div class="stat"><div class="k">Recorded operations</div><div class="v"><%= data.shift.recordCount %></div></div>
+      </div>
+      <% if(data.shift.submittedAt){ %>
+      <div class="grid3" style="margin-top:14px">
+        <div class="stat"><div class="k">Estimated closing cash</div><div class="v"><%= data.shift.currency %> <%= data.shift.expectedClosingMinor %></div></div>
+        <div class="stat"><div class="k">Counted closing cash</div><div class="v"><%= data.shift.currency %> <%= data.shift.declaredClosingMinor %></div></div>
+        <div class="stat"><div class="k">Count variance (+ / −)</div><div class="v"><%= data.shift.currency %> <%= data.shift.varianceMinor %></div></div>
+      </div><% } %>
+      <% if(data.shift.openingReviewNote){ %><p class="tiny">Opening verification evidence: <%= data.shift.openingReviewNote %></p><% } %>
+      <% if(data.canReviewOpening){ %>
+        <form method="post" action="/tenant/mobile-money/shifts/<%= data.shift._id %>/verify-opening" style="margin-top:16px">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <p class="tiny">Independently inspect the counted opening cash before allowing recordings. Reject an incorrect starting balance.</p>
+          <label class="field">Opening verification evidence (12–400 characters)<textarea class="control" name="note" required minlength="12" maxlength="400" rows="2"></textarea></label>
+          <div class="rowBtns"><button class="btn btnPrimary" name="decision" value="approve">Verify and open shift</button><button class="btn" name="decision" value="reject">Reject opening count</button></div>
+        </form>
+      <% } %>
+      <% if(data.canSubmit){ %>
+        <form method="post" action="/tenant/mobile-money/shifts/<%= data.shift._id %>/submit" style="margin-top:16px">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <p class="tiny">All records must be independently reviewed or internally voided first. Reconciliation counts do not include fees or provider e-float.</p>
+          <label class="field">Physically counted closing cash<input class="control" name="countedCash" required inputmode="decimal" placeholder="Enter physical count"></label>
+          <label class="field">Count explanation (required when there is a variance)<textarea class="control" name="note" maxlength="400" rows="2" placeholder="Explain shortages, surpluses or counting evidence"></textarea></label>
+          <div class="rowBtns"><button class="btn btnPrimary" type="submit">Submit shift for independent review</button></div>
+        </form>
+      <% } %>
+      <% if(data.canReview){ %>
+        <form method="post" action="/tenant/mobile-money/shifts/<%= data.shift._id %>/decide" style="margin-top:16px">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <label class="field">Independent review evidence (12–400 characters)<textarea class="control" name="note" required minlength="12" maxlength="400" rows="3"></textarea></label>
+          <div class="rowBtns"><% if(data.canApprove !== false){ %><button class="btn btnPrimary" type="submit" name="decision" value="approve">Approve count</button><% } else { %><p class="tiny">A discrepancy requires Tenant Owner or Reconciliation Officer approval.</p><% } %><button class="btn" type="submit" name="decision" value="dispute">Dispute and return to operator</button></div>
+        </form>
+      <% } %>
+      <% if(data.shift.reviewNote){ %><p class="tiny">Last supervisor decision: <%= data.shift.reviewNote %></p><% } %>
+    </div>
+  </section>
+  <section class="card" style="margin-top:14px"><div class="cardHead"><b>Closing count history</b><span>Preserved across disputed and resubmitted counts</span></div>
+    <div class="cardBody tableWrap"><table><thead><tr><th>UTC</th><th>Declared</th><th>Estimated</th><th>Difference</th><th>Explanation</th></tr></thead><tbody>
+      <% if(!data.shift.closeHistory.length){ %><tr><td colspan="5">Shift has not been submitted.</td></tr><% } %>
+      <% data.shift.closeHistory.forEach(entry=>{ %><tr><td><%= new Date(entry.at).toISOString() %></td><td><%= entry.declaredMinor %></td><td><%= entry.expectedMinor %></td><td><%= entry.varianceMinor %></td><td><%= entry.note %></td></tr><% }) %>
+    </tbody></table></div>
+  </section>
+</section>

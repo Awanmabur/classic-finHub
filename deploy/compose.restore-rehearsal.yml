@@ -1,0 +1,16 @@
+# Disposable restore-only MongoDB. Never join a production network.
+services:
+  restore-mongo:
+    image: mongo:8.0
+    command: ["mongod", "--replSet", "rs-restore", "--bind_ip_all"]
+    ports:
+      - "127.0.0.1:27019:27017"
+    networks:
+      - restore-only
+    tmpfs:
+      - /data/db:size=2g
+    security_opt:
+      - no-new-privileges:true
+networks:
+  restore-only:
+    internal: true

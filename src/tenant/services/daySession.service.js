@@ -1,5 +1,4 @@
-module.exports = {
-  list: () => [],
-  create: (payload = {}) => ({ id: 'daySession_' + Date.now(), ...payload, createdAt: new Date().toISOString() }),
-  update: (id, payload = {}) => ({ id, ...payload, updatedAt: new Date().toISOString() })
-};
+'use strict';
+// Legacy integration surface for the real per-operator cash shift lifecycle.
+// There is deliberately no separate mutable day-session store.
+module.exports=require('./cashDrawer.service');

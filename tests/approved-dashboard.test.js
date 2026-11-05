@@ -72,3 +72,16 @@ test('reference demo/reset controls and service chooser cannot create fake finan
  assert(script.includes('if(submitted){event.preventDefault();return;}'));
  assert(!script.includes('db.txns.unshift'));
 });
+
+test('original wording is retained while administrative links obey server authorization',()=>{
+  const full=approved.markup({name:'Owner',role:'Tenant Owner'},'Main',[
+    {href:'/tenant/users',label:'Staff & Roles'},{href:'/tenant/reports',label:'Operations Reports'}
+  ],'test-csrf');
+  assert.match(full,/Staff &amp; Roles/);
+  assert.match(full,/Operations Reports/);
+  assert.match(full,/name="_csrf" value="test-csrf"/);
+  assert.match(full,/action="\/logout"/);
+  const limited=approved.markup({name:'Operator',role:'Mobile Money Operator'},'Main',[]);
+  assert.doesNotMatch(limited,/Staff &amp; Roles/);
+  assert.doesNotMatch(limited,/Workspace Administration/);
+});

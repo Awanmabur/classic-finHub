@@ -18,7 +18,7 @@ const originalCss = (source.slice(headStart,headEnd).match(/<style\b[^>]*>[\s\S]
 const originalMain = source.slice(mainStart,mainEnd+'</main>'.length);
 const html = value => String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const validId = value => /^[a-f0-9]{24}$/i.test(String(value||''));
-function markup(user,branchName='—'){
+function markup(user,branchName='—',extraLinks=[],csrfToken=''){
   let body=originalMain;
   // Only replace hard-coded demo identity and state, not approved structure or wording.
   body=body.replace(/(<span id="sideOperator">)[\s\S]*?(<\/span>)/,(_,a,b)=>a+html(user?.name||'Account')+b);
@@ -28,6 +28,26 @@ function markup(user,branchName='—'){
   // Empty, unverified prototype counters must not be reported as real financial totals.
   for(const id of ['trCount','trPending','mmCount','bkCount','fxCount','acctCount','customerCount','customerAccountCount','customerTxnCount','accountsTotal','accountsDepositTotal','accountsWithdrawTotal']){
     body=body.replace(new RegExp('(<[^>]+id="'+id+'">)0(</[^>]+>)'),'$1—$2');
+  }
+  // Preserve every original section and label. Newer administration features
+  // have no corresponding index.html entries, so append only role-allowed links.
+  const allowedAdminPaths=new Set([
+    '/tenant/users','/tenant/branches','/tenant/modules','/tenant/billing',
+    '/tenant/notifications','/tenant/approvals','/tenant/reports',
+    '/tenant/analytics','/tenant/audit'
+  ]);
+  const adminItems=extraLinks.filter(item=>allowedAdminPaths.has(item?.href));
+  if(adminItems.length){
+    const extras=adminItems.map(item=>'<a class="subitem" href="'+html(item.href)+'">'+html(item.label)+'</a>').join('');
+    body=body.replace('</nav>','<div class="navGroup"><div class="item" role="heading" aria-level="2">Workspace Administration</div>'+extras+'</div></nav>');
+  }
+  // The reference dashboard did not include sign out. Add the real CSRF-safe
+  // logout control without replacing any original navigation or wording.
+  if(csrfToken){
+    const logout='<form method="post" action="/logout" class="approvedLogout">'+
+      '<input type="hidden" name="_csrf" value="'+html(csrfToken)+'">'+
+      '<button type="submit" class="btn">Sign out</button></form>';
+    body=body.replace('</aside>',logout+'</aside>');
   }
   // Original prototype executes these via inline handler. The authenticated
   // dashboard has a strict external-JS CSP and no simulated payment handlers.

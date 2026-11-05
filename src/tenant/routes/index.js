@@ -66,7 +66,9 @@ router.get('/dashboard', requirePermission('dashboard.view'), async (req,res,nex
     return res.render('layouts/approved-dashboard',{
       approvedCss:approvedDashboard.originalCss,
       approvedMarkup:approvedDashboard.markup(req.user,req.user.branchId ?
-        (branches.find(b=>String(b._id)===String(req.user.branchId))?.name||'Assigned branch') : 'All permitted branches'),
+        (branches.find(b=>String(b._id)===String(req.user.branchId))?.name||'Assigned branch') : 'All permitted branches',
+        tenantMenu(req.tenant,req.user).flatMap(g=>g.items),
+        res.locals.csrfToken),
       approvedConfig:config
     });
     /* Legacy dashboard view retained for nonprototype regression comparisons.

@@ -5,7 +5,7 @@
    <% if(data.branches.length>0 && user.role==='Tenant Owner'){ %><form method="get" action="/tenant/banking" class="rowBtns" style="margin-top:12px"><label class="field">Select branch <select class="control" name="branchId" required><option value="">Select an active branch</option><% data.branches.forEach(b=>{ %><option value="<%= b._id %>" <%= data.selectedBranchId===String(b._id)?'selected':'' %>><%= b.name %> · <%= b.currency %></option><% }) %></select></label><button class="btn" type="submit">Open branch</button></form><% } %>
   </div></section>
  <div class="grid" style="margin-top:14px">
-  <% if(data.canCreate && data.selectedBranchId){ %><form method="post" action="/tenant/banking/requests" class="card" autocomplete="off">
+  <% if(data.canCreate && data.selectedBranchId){ %><form method="post" action="/tenant/banking/requests" class="card" autocomplete="off" data-operation-form="request" data-operation-title="New banking request">
    <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>"><input type="hidden" name="branchId" value="<%= data.selectedBranchId %>">
    <div class="cardHead"><b>Record banking request</b><span>Second-person approval</span></div><div class="cardBody" style="display:grid;gap:12px">
     <% if(!data.references.length){ %><p class="tiny">Create a masked bank account reference for this branch before starting a request.</p><% } %>

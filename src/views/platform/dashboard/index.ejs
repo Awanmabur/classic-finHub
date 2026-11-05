@@ -2,7 +2,8 @@
   <section class="card"><div class="cardHead"><div><b>Platform snapshot</b><br><span>Workspaces and onboarding</span></div></div><div class="cardBody"><div class="grid3">
     <div class="stat"><div class="k">Total workspaces</div><div class="v"><%= data.totalTenants %></div><div class="s"><span class="dot"></span>Across your platform</div></div>
     <div class="stat"><div class="k">Active workspaces</div><div class="v"><%= data.activeTenants %></div><div class="s"><span class="dot"></span><%= data.suspendedTenants %> suspended</div></div>
-    <div class="stat"><div class="k">Onboarding appointments</div><div class="v"><%= data.appointmentCount %></div><div class="s"><span class="dot warn"></span><%= data.availableModuleCount %> available modules</div></div>
+    <div class="stat"><div class="k">Onboarding appointments</div><div class="v"><%= data.appointmentCount %></div><div class="s"><span class="dot warn"></span>Recorded appointments</div></div>
+    <div class="stat"><div class="k">Available modules</div><div class="v"><%= data.availableModuleCount %></div><div class="s"><span class="dot"></span>Module catalogue</div></div>
   </div></div></section>
   <div class="grid" style="margin-top:14px">
     <section class="card"><div class="cardHead"><b>Recent tenants</b><a class="btn" href="/platform/tenants">View all tenants</a></div><div class="cardBody tableWrap"><table><thead><tr><th>Tenant</th><th>Plan</th><th>Status</th><th></th></tr></thead><tbody>

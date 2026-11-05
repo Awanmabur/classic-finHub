@@ -845,3 +845,24 @@ input[type="checkbox"],input[type="radio"]{accent-color:var(--primary);flex:0 0 
   .side:not(.show){visibility:hidden;pointer-events:none}
   .side.show{visibility:visible;pointer-events:auto}
 }
+
+
+/* Prototype modal interaction, scoped to the secure dashboard. All forms remain
+   ordinary server-submitted forms if JavaScript is unavailable. */
+body.modalOpen{overflow:hidden}
+.operationSheet{width:min(900px,100%);max-height:92vh}
+.operationSheet>.sheetBody{display:block;min-height:0;overflow:auto}
+.operationSheet .card{width:100%;box-shadow:none;border-radius:20px}
+.operationSheet .cardHead{display:none}
+.operationSheet .cardBody{padding:16px}
+.operationLauncher .cardBody{display:flex;flex-direction:column;align-items:flex-start;gap:12px}
+.operationLauncher .cardBody p{margin:0}
+#operationChooser .opLauncher{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+#operationChooser .opGroup{justify-content:space-between}
+#operationChooser .opGroup .btn{width:100%}
+.overlay[aria-hidden="true"]{display:none}
+@media(max-width:700px){
+  .operationSheet{width:100%;height:auto;max-height:92vh}
+  #operationChooser .opLauncher{grid-template-columns:1fr}
+}
+@media(prefers-reduced-motion:reduce){.operationSheet{animation:none}}

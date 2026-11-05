@@ -21,7 +21,7 @@ function routes({renderTenant}){
     bank.list(req.tenantDb,req.tenant,req.user),available(req),
     bank.reviewer(req.user)&&hasPermission(req.user,'banking.review')?bank.reviewQueue(req.tenantDb,req.tenant,req.user):[]
    ]);
-   const selectedId=req.user.role==='Tenant Owner'?String(req.query.branchId||''):String(req.user.branchId||'');
+   const selectedId=String(req.operatingBranchId||'');
    const branch=branches.find(b=>String(b._id)===selectedId);
    const references=branch?await bank.listReferences(req.tenantDb,req.tenant,req.user,{branchId:selectedId}):[];
    renderTenant(req,res,'banking/index','Banking Requests','Controlled bank-operation requests. No real balance, deposit, withdrawal, transfer or bank settlement is represented.',{
@@ -34,7 +34,7 @@ function routes({renderTenant}){
  });
  router.get('/accounts',requirePermission('banking.view'),async(req,res,next)=>{
   try{const branches=await available(req);
-   const selectedId=req.user.role==='Tenant Owner'?String(req.query.branchId||''):String(req.user.branchId||'');
+   const selectedId=String(req.operatingBranchId||'');
    const selected=branches.find(b=>String(b._id)===selectedId);
    const references=selected?await bank.listReferences(req.tenantDb,req.tenant,req.user,{branchId:selectedId}):[];
    renderTenant(req,res,'banking/accounts','Bank Account References','Only masked account references; no bank balances or credentials are stored.',{

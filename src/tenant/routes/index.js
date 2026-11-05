@@ -61,12 +61,11 @@ router.get('/dashboard', requirePermission('dashboard.view'), async (req,res,nex
     });
     const config=approvedDashboard.safeJson({access,recent,
       branches:branches.map(b=>({id:String(b._id),name:String(b.name),currency:String(b.currency)})),
-      user:{role:req.user.role,branchId:req.user.branchId?String(req.user.branchId):null}
+      user:{role:req.user.role,branchId:req.operatingBranchId,branchName:req.operatingBranch?.name||null}
     });
     return res.render('layouts/approved-dashboard',{
       approvedCss:approvedDashboard.originalCss,
-      approvedMarkup:approvedDashboard.markup(req.user,req.user.branchId ?
-        (branches.find(b=>String(b._id)===String(req.user.branchId))?.name||'Assigned branch') : 'All permitted branches',
+      approvedMarkup:approvedDashboard.markup(req.user,req.operatingBranch?.name||'Not assigned',
         tenantMenu(req.tenant,req.user).flatMap(g=>g.items),
         res.locals.csrfToken),
       approvedConfig:config
@@ -85,7 +84,7 @@ router.get('/mobile-money', requireModule('mobile_money'), requirePermission('mo
       summary, branches: (await branchService.list(req.tenant)).filter(b=>b.status==='active' && (req.user.role==='Tenant Owner' || String(b._id)===String(req.user.branchId))), reviewQueue: hasPermission(req.user,'mobile_money.review') && (req.user.role==='Tenant Owner'||req.user.branchId) ? await mobile.getReviewQueue(req.tenantDb,req.user.id,25,req.user.role==='Tenant Owner'?null:req.user.branchId) : [],
       voidQueue: hasPermission(req.user,'mobile_money.review') && (req.user.role==='Tenant Owner'||req.user.branchId) ? await mobile.getVoidQueue(req.tenantDb,req.user.id,25,req.user.role==='Tenant Owner'?null:req.user.branchId) : [],
       canReview: hasPermission(req.user,'mobile_money.review'), idempotencyKey:randomUUID(),
-      canRecord: hasPermission(req.user,'mobile_money.cash_in') || hasPermission(req.user,'mobile_money.cash_out')
+      canRecord: hasPermission(req.user,'mobile_money.cash_in') || hasPermission(req.user,'mobile_money.cash_out'),operatingBranch:req.operatingBranch
     });
   } catch(e) { next(e); }
 });
@@ -134,7 +133,7 @@ router.get('/mobile-money/shifts',requireModule('mobile_money'),requirePermissio
     const operatorNames=Object.fromEntries(operators.map(x=>[String(x._id),x.name]));
     renderTenant(req,res,'mobile-money/shifts','Physical Cash Shifts','Operator cash counts and independent branch reconciliation; not electronic float or provider settlement.',
       {shifts,branchNames,operatorNames,branches:branches.filter(b=>b.status==='active'&&(req.user.role==='Tenant Owner'||String(b._id)===String(req.user.branchId))),
-        canOpen:cash.opener(req.user),canReview:cash.reviewer(req.user)});
+        canOpen:cash.opener(req.user),canReview:cash.reviewer(req.user),operatingBranch:req.operatingBranch});
   }catch(e){next(e);}
 });
 router.post('/mobile-money/shifts/open',requireModule('mobile_money'),requirePermission('mobile_money.view'),financialThrottle,async(req,res,next)=>{
@@ -275,9 +274,27 @@ router.get('/branches',requirePermission('branches.view'),async(req,res,next)=>{
   try{const branches=await branchService.list(req.tenant);
     renderTenant(req,res,'branches/index','Branch Management','Active branch limits, staff assignments and audited changes.',{
       branches: req.user.role==='Tenant Owner' ? branches : branches.filter(b=>String(b._id)===String(req.user.branchId)),
-      plan:planForTenant(req.tenant),canManage:req.user.role==='Tenant Owner'
+      plan:planForTenant(req.tenant),canManage:req.user.role==='Tenant Owner',operatingBranch:req.operatingBranch
     });
   }catch(e){next(e);}
+});
+// A tenant owner sets this once per working location; every financial
+// transaction then derives its immutable branch ID server-side.
+router.post('/branches/activate',requirePermission('branches.manage'),async(req,res,next)=>{
+ try{
+  if(req.user.role!=='Tenant Owner')return res.status(403).send('Only the tenant owner may change the working location.');
+  const requested=String(req.body?.branchId||'');
+  if(!/^[a-f0-9]{24}$/i.test(requested))return res.status(400).send('Invalid branch identifier');
+  const {branchModel,auditEventModel}=require('../models');
+  const branch=await branchModel(req.tenantDb).findOne({_id:requested,status:'active'}).lean();
+  if(!branch)return res.status(404).send('Active branch not found');
+  await auditEventModel(req.tenantDb).create({action:'branch.context.activated',actorId:req.user.id,targetId:branch._id,
+    metadata:{branchId:String(branch._id),name:branch.name}});
+  req.session.operatingBranchTenantId=String(req.tenant._id);
+  req.session.operatingBranchId=String(branch._id);
+  flash(req,'good','Working branch activated. Future operations use this branch automatically.');
+  res.redirect(303,'/tenant/dashboard');
+ }catch(error){next(error);}
 });
 router.post('/branches',requirePermission('branches.manage'),async(req,res,next)=>{
   try{await branchService.create(req.tenant,req.user,req.body);flash(req,'good','Branch created and audited.');res.redirect(303,'/tenant/branches');}catch(e){next(e);}

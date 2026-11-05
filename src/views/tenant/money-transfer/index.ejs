@@ -3,17 +3,14 @@
   <div class="cardBody">
    <p class="tiny">Register transfer instructions, then obtain a different authorized staff member's review. Identity verification, funds collection, external remittance, payout PINs, ledger settlement and payout receipts are <strong>not active</strong>. Do not accept or release cash based on this screen.</p>
    <a class="btn" href="/tenant/money-transfer/contacts<%= data.selectedBranchId?'?branchId='+encodeURIComponent(data.selectedBranchId):'' %>">Manage sender and beneficiary contacts</a>
-   <% if(user.role==='Tenant Owner'){ %><form method="get" action="/tenant/money-transfer" class="row2" style="margin-top:12px">
-    <label class="field">Choose branch to create requests<select class="control" name="branchId" required><option value="">Select branch</option><% data.branches.forEach(b=>{ %><option value="<%= b._id %>" <%= data.selectedBranchId===String(b._id)?'selected':'' %>><%= b.name %> · <%= b.currency %></option><% }) %></select></label>
-    <div class="rowBtns"><button class="btn btnPrimary" type="submit">Open branch</button></div>
-   </form><% } %>
+   <% if(user.role==='Tenant Owner'){ %><p class="tiny">Operating branch: <b><%= data.branches.find(b=>String(b._id)===data.selectedBranchId)?.name||'Not activated' %></b>. Change the active operating location in <a href="/tenant/branches">Branch Management</a>, not when recording.</p><% } %>
   </div>
  </section>
  <div class="grid" style="margin-top:14px">
   <% if(data.canCreate && data.selectedBranchId){ %><form method="post" action="/tenant/money-transfer/requests" class="card" autocomplete="off" data-operation-form="request" data-operation-title="New transfer request">
    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
    <input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
-   <input type="hidden" name="branchId" value="<%= data.selectedBranchId %>">
+   
    <div class="cardHead"><b>New transfer request</b><span>Approval required</span></div>
    <div class="cardBody" style="display:grid;gap:12px">
     <% const senders=data.contacts.filter(c=>c.kind==='sender'); const beneficiaries=data.contacts.filter(c=>c.kind==='beneficiary'); %>

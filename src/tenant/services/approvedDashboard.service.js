@@ -24,6 +24,10 @@ function markup(user,branchName='—',extraLinks=[],csrfToken=''){
   body=body.replace(/(<span id="sideOperator">)[\s\S]*?(<\/span>)/,(_,a,b)=>a+html(user?.name||'Account')+b);
   body=body.replace(/(<span id="sideBranch">)[\s\S]*?(<\/span>)/,(_,a,b)=>a+html(branchName)+b);
   body=body.replace('id="openBadge">OPEN','id="openBadge">—');
+  // Keep approved topbar position, but display authoritative branch identity,
+  // not a mutable transaction branch dropdown.
+  body=body.replace('<select id="branchSelect"></select>',
+    '<span id="branchSelect" role="status" aria-label="Operating branch">'+html(branchName)+'</span>');
   body=body.replace(/(<em class="tag" style="background:rgba\(91,92,245,\.12\)">)[\s\S]*?(<\/em>)/,(_,a,b)=>a+html(user?.role||'Operator')+b);
   // Empty, unverified prototype counters must not be reported as real financial totals.
   for(const id of ['trCount','trPending','mmCount','bkCount','fxCount','acctCount','customerCount','customerAccountCount','customerTxnCount','accountsTotal','accountsDepositTotal','accountsWithdrawTotal']){

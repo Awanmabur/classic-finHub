@@ -9,6 +9,7 @@ const csrfProtection = require('./middleware/csrfProtection');
 const requirePlatformAuth = require('./middleware/requirePlatformAuth');
 const requireAuth = require('./middleware/requireAuth');
 const tenantResolver = require('./middleware/tenantResolver');
+const operatingBranch = require('./middleware/operatingBranch');
 const errorHandler = require('./middleware/errorHandler');
 const publicRoutes = require('./routes.public');
 const platformRoutes = require('./platform/routes');
@@ -71,7 +72,7 @@ function createApp({ sessionStore } = {}) {
   app.use('/', publicRoutes);
   app.use('/mfa', mfaRoutes);
   app.use('/platform', requirePlatformAuth, platformRoutes);
-  app.use('/tenant', tenantResolver, requireAuth, tenantRoutes);
+  app.use('/tenant', tenantResolver, requireAuth, operatingBranch, tenantRoutes);
   app.use((req, res) => { res.setHeader('X-Robots-Tag','noindex'); res.setHeader('Cache-Control','no-store'); res.status(404).send('Page not found'); });
   app.use(errorHandler);
   return app;

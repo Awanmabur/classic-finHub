@@ -25,7 +25,7 @@ function routes({renderTenant}){
     hasPermission(req.user,'money_transfer.review')&&reviewerRoles.has(req.user.role)?transfer.reviewQueue(req.tenantDb,req.tenant,req.user):[],
     branches(req)
    ]);
-   const branchId=req.user.role==='Tenant Owner'?(String(req.query.branchId||'')||null):String(req.user.branchId||'');
+   const branchId=String(req.operatingBranchId||'');
    const selected=availableBranches.find(b=>String(b._id)===branchId);
    const contacts=selected?await transfer.listContacts(req.tenantDb,req.tenant,req.user,{branchId}):[];
    renderTenant(req,res,'money-transfer/index','Money Transfer','Internal transfer requests and independent review. No provider payout or settlement is enabled.',{
@@ -37,7 +37,7 @@ function routes({renderTenant}){
   }catch(e){next(e);}
  });
  router.get('/contacts',requirePermission('money_transfer.view'),async(req,res,next)=>{
-  try{const available=await branches(req),requested=req.user.role==='Tenant Owner'?String(req.query.branchId||''):String(req.user.branchId||'');
+  try{const available=await branches(req),requested=String(req.operatingBranchId||'');
    const selected=available.find(b=>String(b._id)===requested);
    const contacts=selected?await transfer.listContacts(req.tenantDb,req.tenant,req.user,{branchId:requested}):[];
    renderTenant(req,res,'money-transfer/contacts','Transfer Contacts',
@@ -48,7 +48,7 @@ function routes({renderTenant}){
  });
  router.post('/contacts',requirePermission('money_transfer.contacts'),financial,async(req,res,next)=>{
   try{await transfer.addContact(req.tenantDb,req.tenant,req.user,req.body);flash(req,'good','Contact saved. Identity verification has not been performed.');
-   res.redirect(303,`/tenant/money-transfer/contacts${req.user.role==='Tenant Owner'?'?branchId='+encodeURIComponent(String(req.body.branchId||'')):''}`);
+   res.redirect(303,'/tenant/money-transfer/contacts');
   }catch(e){next(e);}
  });
  router.get('/contacts/:id/edit',requirePermission('money_transfer.contacts'),async(req,res,next)=>{

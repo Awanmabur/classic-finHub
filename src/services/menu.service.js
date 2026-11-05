@@ -25,6 +25,7 @@ function tenantMenu(tenant,user) {
     const items=[item('Transfer requests','/tenant/money-transfer','fa-money-bill-transfer')];
     if(entitled('money_transfer','money_transfer.create'))items.push(item('New transfer request','/tenant/money-transfer?new=request','fa-plus'));
     items.push(item('Sender and receiver contacts','/tenant/money-transfer/contacts','fa-address-book'));
+    if(entitled('money_transfer','money_transfer.contacts'))items.push(item('Add contact','/tenant/money-transfer/contacts?new=contact','fa-user-plus'));
     if(entitled('money_transfer','money_transfer.review'))items.push(item('Independent review queue','/tenant/money-transfer','fa-user-shield'));
     items.push(item('Transfer history','/tenant/money-transfer/history','fa-clock-rotate-left'));
     add('Money Transfer',items);
@@ -36,6 +37,7 @@ function tenantMenu(tenant,user) {
     if(entitled('mobile_money','mobile_money.cash_out'))items.push(item('Cash-out','/tenant/mobile-money?new=record&operation=cash_out','fa-arrow-up'));
     items.push(item('Mobile activity history','/tenant/mobile-money/history','fa-clock-rotate-left'));
     items.push(item('Physical cash shifts','/tenant/mobile-money/shifts','fa-cash-register'));
+    if(['Tenant Owner','Mobile Money Operator'].includes(user.role))items.push(item('Request cash shift opening','/tenant/mobile-money/shifts?new=shift','fa-vault'));
     add('Mobile Money',items);
   }
 
@@ -47,6 +49,7 @@ function tenantMenu(tenant,user) {
       items.push(item('Account transfer request','/tenant/banking?new=request&kind=transfer_request','fa-right-left'));
     }
     items.push(item('Account references','/tenant/banking/accounts','fa-address-card'));
+    if(entitled('banking','banking.accounts.manage'))items.push(item('Add account reference','/tenant/banking/accounts?new=account','fa-plus'));
     items.push(item('Request history','/tenant/banking/history','fa-clock-rotate-left'));
     add('Banking',items);
   }

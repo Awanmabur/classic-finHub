@@ -87,3 +87,22 @@ test('prototype action links select only backend-supported modules and operation
   assert.match(js,/form\.getAttribute\('action'\)==='\/tenant\/mobile-money\/cash-in'/);
   assert.doesNotMatch(js,/form\.requestSubmit|form\.submit\(\)/);
 });
+
+test('contact, bank reference and physical cash shift actions use protected modal-enabled forms',()=>{
+  const source=load('src/services/menu.service.js');
+  const cases=[
+    ['src/views/tenant/money-transfer/contacts.ejs','/tenant/money-transfer/contacts','?new=contact'],
+    ['src/views/tenant/banking/accounts.ejs','/tenant/banking/accounts','?new=account'],
+    ['src/views/tenant/mobile-money/shifts.ejs','/tenant/mobile-money/shifts/open','?new=shift']
+  ];
+  for(const [file,action,query] of cases){
+    const html=load(file);
+    assert(html.includes('action="'+action+'"'),action);
+    assert(html.includes('data-operation-form='),file);
+    assert(html.includes('name="_csrf"'),file);
+    assert(source.includes(query),query);
+  }
+  assert.match(source,/money_transfer\.contacts/);
+  assert.match(source,/banking\.accounts\.manage/);
+  assert.match(source,/\['Tenant Owner','Mobile Money Operator'\]\.includes\(user\.role\)/);
+});

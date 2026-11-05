@@ -3,7 +3,7 @@
   <p class="tiny">Contact details are stored only in this tenant database. Editing a contact changes future requests, never an existing transfer's immutable sender/beneficiary snapshot.</p>
   <% if(user.role==='Tenant Owner'){ %><form method="get" action="/tenant/money-transfer/contacts" class="row2"><label class="field">Select branch<select class="control" name="branchId" required><option value="">Choose branch</option><% data.branches.forEach(b=>{ %><option value="<%= b._id %>" <%= data.selectedBranchId===String(b._id)?'selected':'' %>><%= b.name %></option><% }) %></select></label><div class="rowBtns"><button class="btn btnPrimary" type="submit">View contacts</button></div></form><% } %>
  </div></section>
- <% if(data.canManage && data.selectedBranchId){ %><form method="post" class="card" style="margin-top:14px" action="/tenant/money-transfer/contacts" autocomplete="off">
+ <% if(data.canManage && data.selectedBranchId){ %><form method="post" class="card" style="margin-top:14px" action="/tenant/money-transfer/contacts" autocomplete="off" data-operation-form="contact" data-operation-title="Add sender or beneficiary contact">
   <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="branchId" value="<%= data.selectedBranchId %>">
   <div class="cardHead"><b>Add a contact</b><span>No KYC assertion is made</span></div><div class="cardBody" style="display:grid;gap:12px">
    <div class="row2"><label class="field">Type<select class="control" name="kind"><option value="sender">Sender</option><option value="beneficiary">Beneficiary</option></select></label><label class="field">Name<input class="control" name="fullName" minlength="2" maxlength="120" required></label></div>

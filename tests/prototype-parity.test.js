@@ -64,3 +64,26 @@ test('additional staff and operational modules use their original secured POST f
   const routes=load('src/tenant/routes/index.js');
   assert.match(routes,/currentPath:req\.baseUrl \+ req\.path/);
 });
+
+test('prototype action links select only backend-supported modules and operation types',()=>{
+  const menu=load('src/services/menu.service.js');
+  for(const href of [
+    '/tenant/money-transfer?new=request',
+    '/tenant/mobile-money?new=record&operation=cash_in',
+    '/tenant/mobile-money?new=record&operation=cash_out',
+    '/tenant/banking?new=request&kind=deposit_request',
+    '/tenant/banking?new=request&kind=withdrawal_request',
+    '/tenant/banking?new=request&kind=transfer_request',
+    '/tenant/forex?new=rate',
+    '/tenant/forex?new=quote'
+  ])assert(menu.includes(href),href);
+  for(const permission of [
+    'money_transfer.create','mobile_money.cash_in','mobile_money.cash_out',
+    'banking.requests.create','forex.rate_manage','forex.quotes.create'
+  ])assert(menu.includes("entitled("),permission);
+  const js=load('public/js/dashboard.js');
+  assert.match(js,/kindSelect\.value=requested/);
+  assert.match(js,/target\.required=kindSelect\.value==='transfer_request'/);
+  assert.match(js,/form\.getAttribute\('action'\)==='\/tenant\/mobile-money\/cash-in'/);
+  assert.doesNotMatch(js,/form\.requestSubmit|form\.submit\(\)/);
+});

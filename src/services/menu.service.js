@@ -21,28 +21,43 @@ function tenantMenu(tenant,user) {
     item('Today snapshot','/tenant/dashboard','fa-gauge-high')
   ]);
 
-  if(entitled('money_transfer','money_transfer.view')) add('Money Transfer',[
-    item('Transfer requests','/tenant/money-transfer','fa-money-bill-transfer'),
-    item('Sender and receiver contacts','/tenant/money-transfer/contacts','fa-address-book'),
-    item('Transfer history','/tenant/money-transfer/history','fa-clock-rotate-left')
-  ]);
+  if(entitled('money_transfer','money_transfer.view')) {
+    const items=[item('Transfer requests','/tenant/money-transfer','fa-money-bill-transfer')];
+    if(entitled('money_transfer','money_transfer.create'))items.push(item('New transfer request','/tenant/money-transfer?new=request','fa-plus'));
+    items.push(item('Sender and receiver contacts','/tenant/money-transfer/contacts','fa-address-book'));
+    if(entitled('money_transfer','money_transfer.review'))items.push(item('Independent review queue','/tenant/money-transfer','fa-user-shield'));
+    items.push(item('Transfer history','/tenant/money-transfer/history','fa-clock-rotate-left'));
+    add('Money Transfer',items);
+  }
 
-  if(entitled('mobile_money','mobile_money.view')) add('Mobile Money',[
-    item('Cash in / Cash out','/tenant/mobile-money','fa-mobile-screen-button'),
-    item('Mobile activity history','/tenant/mobile-money/history','fa-clock-rotate-left'),
-    item('Cash shifts and review','/tenant/mobile-money/shifts','fa-cash-register')
-  ]);
+  if(entitled('mobile_money','mobile_money.view')) {
+    const items=[item('Network activity','/tenant/mobile-money','fa-mobile-screen-button')];
+    if(entitled('mobile_money','mobile_money.cash_in'))items.push(item('Cash-in','/tenant/mobile-money?new=record&operation=cash_in','fa-arrow-down'));
+    if(entitled('mobile_money','mobile_money.cash_out'))items.push(item('Cash-out','/tenant/mobile-money?new=record&operation=cash_out','fa-arrow-up'));
+    items.push(item('Mobile activity history','/tenant/mobile-money/history','fa-clock-rotate-left'));
+    items.push(item('Physical cash shifts','/tenant/mobile-money/shifts','fa-cash-register'));
+    add('Mobile Money',items);
+  }
 
-  if(entitled('banking','banking.view')) add('Banking',[
-    item('Banking requests','/tenant/banking','fa-building-columns'),
-    item('Account references','/tenant/banking/accounts','fa-address-card'),
-    item('Request history','/tenant/banking/history','fa-clock-rotate-left')
-  ]);
+  if(entitled('banking','banking.view')) {
+    const items=[item('Banking requests','/tenant/banking','fa-building-columns')];
+    if(entitled('banking','banking.requests.create')){
+      items.push(item('Deposit request','/tenant/banking?new=request&kind=deposit_request','fa-money-bill-wave'));
+      items.push(item('Withdrawal request','/tenant/banking?new=request&kind=withdrawal_request','fa-arrow-up-from-bracket'));
+      items.push(item('Account transfer request','/tenant/banking?new=request&kind=transfer_request','fa-right-left'));
+    }
+    items.push(item('Account references','/tenant/banking/accounts','fa-address-card'));
+    items.push(item('Request history','/tenant/banking/history','fa-clock-rotate-left'));
+    add('Banking',items);
+  }
 
-  if(entitled('forex','forex.view')) add('Forex',[
-    item('Rate board and quotations','/tenant/forex','fa-chart-line'),
-    item('Forex history','/tenant/forex/history','fa-clock-rotate-left')
-  ]);
+  if(entitled('forex','forex.view')) {
+    const items=[item('Rate board and quotations','/tenant/forex','fa-chart-line')];
+    if(entitled('forex','forex.rate_manage'))items.push(item('Propose indicative rate','/tenant/forex?new=rate','fa-chart-simple'));
+    if(entitled('forex','forex.quotes.create'))items.push(item('New customer quote','/tenant/forex?new=quote','fa-file-circle-plus'));
+    items.push(item('Forex quote history','/tenant/forex/history','fa-clock-rotate-left'));
+    add('Forex',items);
+  }
 
   if(entitled('approval_workflows','approvals.view')) add('Approval Workflows',[
     item('Requests and decisions','/tenant/approvals','fa-user-shield')

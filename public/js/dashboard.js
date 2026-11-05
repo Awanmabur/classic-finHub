@@ -131,7 +131,8 @@
     ...document.querySelectorAll('[data-open-operation-chooser]')
   ].filter(Boolean));
 
-  const requestedForm = (()=>{try{return new URLSearchParams(window.location?.search||'').get('new');}catch{return null;}})();
+  const requestParams=(()=>{try{return new URLSearchParams(window.location?.search||'');}catch{return null;}})();
+  const requestedForm=requestParams?.get('new')||null;
   let autoOpened=false;
   document.querySelectorAll('form[data-operation-form]').forEach(form=>{
     const parent=form.parentElement;
@@ -182,6 +183,31 @@
     closeButton.setAttribute('aria-label','Close '+title);
     closeButton.textContent='×';
     sheetHead.appendChild(sheetTitle);sheetHead.appendChild(closeButton);
+    // Deep links preselect a safe value in the existing server-validated form.
+    // They never submit the form or grant additional permissions.
+    if(form.getAttribute('action')==='/tenant/banking/requests'){
+      const kindSelect=form.querySelector('select[name="kind"]');
+      const target=form.querySelector('select[name="destinationId"]');
+      const choices=['deposit_request','withdrawal_request','transfer_request'];
+      const requested=requestParams?.get('kind');
+      if(kindSelect && choices.includes(requested) &&
+          [...kindSelect.options].some(opt=>opt.value===requested)) kindSelect.value=requested;
+      const syncDestination=()=>{if(target && kindSelect)target.required=kindSelect.value==='transfer_request';};
+      kindSelect?.addEventListener('change',syncDestination);
+      syncDestination();
+    }
+    if(form.getAttribute('action')==='/tenant/mobile-money/cash-in'){
+      const operation=requestParams?.get('operation');
+      const selected=operation==='cash_out'?'cash-out':operation==='cash_in'?'cash-in':null;
+      if(selected){
+        const chosen=form.querySelector('button[formaction="/tenant/mobile-money/'+selected+'"]');
+        if(chosen){
+          for(const action of form.querySelectorAll('button[formaction]'))action.classList.remove('btnPrimary');
+          chosen.classList.add('btnPrimary');
+          sheetTitle.textContent=selected==='cash-out'?'Record cash-out':'Record cash-in';
+        }
+      }
+    }
     const sheetBody=document.createElement('div');
     sheetBody.className='sheetBody';
     sheetBody.appendChild(form);

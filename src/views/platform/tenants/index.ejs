@@ -1,1 +1,14 @@
-<section class="view show"><section class="card"><div class="cardHead"><b>Tenants</b><span>Tenant database, plan, trial, modules, and billing status.</span><a class="btn btnPrimary" href="/platform/tenants/create">Create tenant</a></div><div class="cardBody tableWrap"><table><thead><tr><th>Name</th><th>Owner</th><th>DB</th><th>Plan</th><th>Status</th><th>Modules</th><th></th></tr></thead><tbody><% data.tenants.forEach(t => { %><tr data-search-row><td><b><%= t.name %></b><br><span class="tiny">/<%= t.slug %></span></td><td><%= t.owner %><br><span class="tiny"><%= t.email %></span></td><td><span class="mono"><%= t.dbName %></span></td><td><%= t.plan %></td><td><span class="tag"><%= t.status %></span></td><td><%= t.enabledModules.join(', ') %></td><td><a class="btn" href="/platform/tenants/<%= t.id %>">Details</a></td></tr><% }) %></tbody></table></div></section></section>
+<section class="view show"><section class="card">
+  <div class="cardHead"><b>Tenants</b><span>Workspace owners, plans and access</span></div>
+  <div class="cardBody tableWrap"><table><thead><tr><th>Workspace</th><th>Owner</th><th>Plan</th><th>Status</th><th>Modules</th><th></th></tr></thead><tbody>
+    <% if(!data.tenants.length){ %><tr><td colspan="6">No tenants yet. Use Create tenant to add your first workspace.</td></tr><% } %>
+    <% data.tenants.forEach(t => { %><tr data-search-row>
+      <td><b><%= t.name %></b><br><span class="tiny"><%= t.slug %></span></td>
+      <td><%= t.owner %><br><span class="tiny"><%= t.email %></span></td>
+      <td><%= data.plans.find(p=>p.code===t.plan)?.name || t.plan %></td>
+      <td><span class="tag"><%= t.status.replaceAll('_',' ') %></span></td>
+      <td><%= t.enabledModules.length %> assigned</td>
+      <td><a class="btn" href="/platform/tenants/<%= t.id %>">Manage</a></td>
+    </tr><% }) %>
+  </tbody></table></div>
+</section></section>

@@ -1,3 +1,8 @@
+<% const planByCode = Object.fromEntries(plans.map(plan => [plan.code, plan]));
+const starterPlan = planByCode.starter_trial;
+const agentPlan = planByCode.agent;
+const financePlan = planByCode.finance;
+const enterprisePlan = planByCode.enterprise; %>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -63,7 +68,6 @@
     <a href="/pricing">Pricing</a>
     <a href="/price-compare">Price compare</a>
     <a href="/support">Support</a>
-    <a href="/signin">Dashboard sign in</a>
     <a href="/signin">Sign in</a>
     <a href="/signup">Request setup</a>
     <button id="themeToggleMobile"><i class="fa-solid fa-moon"></i> Change theme</button>
@@ -82,23 +86,23 @@
     </header>
 
     <section class="compare-shell reveal">
-      <div class="compare-table-wrap">
+      <div class="compare-table-wrap" role="region" aria-label="Plan prices and included capacity" tabindex="0">
         <table class="compare-table">
           <thead>
             <tr>
-              <th>Feature</th>
-              <th>Starter Trial<br><span>USD $0 / trial</span></th>
-              <th>Agent Plan<br><span>USD $<%= plans[1].priceMonthly %> / month</span></th>
-              <th>Finance Plan<br><span>USD $<%= plans[2].priceMonthly %> / month</span></th>
-              <th>Enterprise<br><span>USD $<%= plans[3].priceMonthly %> / month</span></th>
+              <th scope="col">Feature</th>
+              <th scope="col">Starter Trial<br><span>USD $<%= starterPlan.priceMonthly %> / trial</span></th>
+              <th scope="col">Agent Plan<br><span>USD $<%= agentPlan.priceMonthly %> / month</span></th>
+              <th scope="col">Finance Plan<br><span>USD $<%= financePlan.priceMonthly %> / month</span></th>
+              <th scope="col">Enterprise<br><span>USD $<%= enterprisePlan.priceMonthly %> / month</span></th>
             </tr>
           </thead>
           <tbody>
             <tr><td>Best for</td><td>Testing the platform</td><td>Transfer and mobile money agents</td><td>Banking and forex teams</td><td>Multi-branch finance companies</td></tr>
             <tr><td>Included modules</td><td>Dashboard preview</td><td>Money Transfer, Mobile Money</td><td>Banking Operation, Forex Operation</td><td>All modules</td></tr>
-            <tr><td>Branches included</td><td>1 demo branch</td><td>1 branch</td><td>2 branches</td><td>5 branches</td></tr>
-            <tr><td>Users included</td><td>3 users</td><td>5 users</td><td>10 users</td><td>25 users</td></tr>
-            <tr><td>Transactions</td><td>100 demo records</td><td>3,000/month</td><td>8,000/month</td><td>Custom volume</td></tr>
+            <tr><th scope="row">Branches included</th><% for (const plan of [starterPlan, agentPlan, financePlan, enterprisePlan]) { %><td><%= plan.limits.branches.toLocaleString('en-US') %></td><% } %></tr>
+            <tr><th scope="row">Users included</th><% for (const plan of [starterPlan, agentPlan, financePlan, enterprisePlan]) { %><td><%= plan.limits.users.toLocaleString('en-US') %></td><% } %></tr>
+            <tr><th scope="row">Monthly record limit</th><% for (const plan of [starterPlan, agentPlan, financePlan, enterprisePlan]) { %><td><%= plan.limits.transactionsPerMonth.toLocaleString('en-US') %></td><% } %></tr>
             <tr><td>Customer records</td><td><i class="fa-solid fa-check"></i></td><td><i class="fa-solid fa-check"></i></td><td><i class="fa-solid fa-check"></i></td><td><i class="fa-solid fa-check"></i></td></tr>
             <tr><td>Receipts and exports</td><td>Basic</td><td>Included</td><td>Included</td><td>Advanced</td></tr>
             <tr><td>Approvals and audit logs</td><td>Limited</td><td>Basic</td><td>Manager approval</td><td>Advanced workflow</td></tr>
@@ -116,13 +120,13 @@
         <span>Most affordable</span>
         <h2>Agent Plan</h2>
         <p>Choose this when the business mainly serves walk-in customers, transfer requests, payouts, mobile money float, and daily receipt records.</p>
-        <a class="btn btn-light" href="/signup">Start from $<%= plans[1].priceMonthly %>/mo</a>
+        <a class="btn btn-light" href="/signup">Start from $<%= agentPlan.priceMonthly %>/mo</a>
       </article>
       <article>
         <span>Best operational control</span>
         <h2>Finance Plan</h2>
         <p>Choose this when the business needs account records, deposits, withdrawals, forex rates, cash impact, approvals, and richer reports.</p>
-        <a class="btn btn-dark" href="/signup">Start from $<%= plans[2].priceMonthly %>/mo</a>
+        <a class="btn btn-dark" href="/signup">Start from $<%= financePlan.priceMonthly %>/mo</a>
       </article>
       <article>
         <span>Best for scale</span>

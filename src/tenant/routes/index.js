@@ -47,7 +47,7 @@ router.get('/dashboard', requirePermission('dashboard.view'), async (req,res,nex
       hasApprovals?require('../services/approvals.service').list(req.tenantDb,req.tenant,req.user):null,
       reportsActive?require('../services/operationsReports.service').generate(req.tenantDb,req.tenant,req.user,{source:'workspace'}):null
     ]);
-    renderTenant(req,res,'dashboard/index',req.user.role==='Tenant Owner'?'Tenant Overview':req.user.role==='Branch Manager'?'Branch Overview':req.user.role==='Reports Analyst'?'Reports Overview':'Operations Overview', 'Activity restricted by your role, branch and assigned modules.',{summary,plan:planForTenant(req.tenant),reportingSummary,hasMobileMoney,
+    renderTenant(req,res,'dashboard/index',req.user.role==='Tenant Owner'?'Tenant Overview':req.user.role==='Branch Manager'?'Branch Overview':req.user.role==='Reports Analyst'?'Reports Overview':'Operations Overview', 'Your workspace activity and services.',{summary,plan:planForTenant(req.tenant),reportingSummary,hasMobileMoney,
       hasTransfer,transferRecords,hasBanking,bankingRecords,hasForex,forexRecords,hasApprovals,approvalRecords,moduleGrants:require('../../platform/services/moduleSubscriptions.service').activeGrants(req.tenant)});
   } catch(e) { next(e); }
 });

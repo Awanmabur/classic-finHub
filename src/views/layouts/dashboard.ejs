@@ -21,7 +21,8 @@
        {href:'/tenant/banking',label:'New banking request',permission:'banking.requests.create'},
        {href:'/tenant/approvals',label:'New approval request',permission:'approvals.submit'}
      ].filter(action => visiblePaths.has(action.href) && (Array.isArray(action.permission) ? action.permission.some(can) : can(action.permission))) : [];
-     const historyPath = ['/tenant/mobile-money','/tenant/money-transfer','/tenant/banking','/tenant/forex'].find(href => visiblePaths.has(href)); %>
+     const pageContent = include(view, { data, money, tenant, user, context, quickActions, visiblePaths });
+     const hasPageSearch = pageContent.includes('data-search-row'); %>
   <a class="skip-link" href="#workspaceContent">Skip to workspace</a>
   <div class="grain" aria-hidden="true"></div>
   <div class="wrap"><div class="shell">
@@ -31,19 +32,15 @@
         <div class="title"><h2 id="pageTitle"><%= pageTitle %></h2><p id="pageSub"><%= pageSub %></p></div>
         <div class="topActions">
           <button class="btn btnIcon mobileOnly" id="menuBtn" type="button" aria-label="Open menu" aria-controls="sidePanel" aria-expanded="false"><i class="fa-solid fa-bars-staggered" aria-hidden="true"></i></button>
-          <% if (context === 'tenant') { %><div class="ctrl"><span class="tag"><%= tenant.slug %></span></div><% } %>
-          <div class="ctrl" style="min-width:260px"><input id="search" type="search" aria-label="Search records on this page" placeholder="Search page records…"></div>
-          <% if (context === 'platform') { %><a class="btn btnPrimary" href="/platform/tenants/create"><i class="fa-solid fa-plus"></i> Create tenant</a><% } %>
-          <% if (context === 'tenant' && historyPath) { %><a class="btn" href="<%= historyPath %>/history">View history</a><% } %>
-          <% if (quickActions.length) { %><a class="btn btnPrimary" href="<%= quickActions[0].href %>"><i class="fa-solid fa-plus" aria-hidden="true"></i> <%= quickActions[0].label %></a><% } else if (context === 'tenant' && can('billing.view')) { %><a class="btn btnPrimary" href="/tenant/billing"><i class="fa-solid fa-file-invoice"></i> Plan & billing</a><% } %>
+          <% if (hasPageSearch) { %><div class="ctrl pageSearch"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input id="search" type="search" aria-label="Search records on this page" placeholder="Search this page…"></div><% } %>
+          <% if (context === 'platform' && ['/platform/dashboard','/platform/tenants'].includes(currentPath)) { %><a class="btn btnPrimary" href="/platform/tenants/create"><i class="fa-solid fa-plus" aria-hidden="true"></i> Create tenant</a><% } %>
         </div>
       </div>
       <%- include('../partials/flash', { flash }) %>
-      <%- include(view, { data, money, tenant, user, context, quickActions, visiblePaths }) %>
+      <%- pageContent %>
     </main>
   </div></div>
   <div class="menuOverlay" id="menuOverlay"></div>
-  <div class="toasts"><% if (flash) { %><div class="toast"><i class="fa-solid fa-circle-info"></i><div><b><%= flash.type === 'bad' ? 'Check this' : 'Success' %></b><p><%= flash.message %></p></div></div><% } %></div>
   <script src="/js/dashboard.js?v=<%= assetVersion %>"></script>
 </body>
 </html>

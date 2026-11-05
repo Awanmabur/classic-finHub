@@ -20,7 +20,7 @@ router.get('/',(req,res)=>res.redirect(303,'/platform/dashboard'));
 router.get('/dashboard',async(req,res,next)=>{
   try{
     const [tenants,appointmentCount,totalTenants,activeTenants,suspendedTenants,recentAudits]=await Promise.all([Tenant.find({}).sort({createdAt:-1}).limit(30).lean(),Appointment.countDocuments(),Tenant.countDocuments(),Tenant.countDocuments({status:'active'}),Tenant.countDocuments({status:'suspended'}),platformAudit(6)]);
-    renderPlatform(req,res,'dashboard/index','Platform Dashboard','Verified tenant and onboarding records.',{
+    renderPlatform(req,res,'dashboard/index','Platform Dashboard','Manage workspaces, plans and onboarding.',{
       tenants:tenants.map(t=>({...t,id:String(t._id)})), appointmentCount, totalTenants,activeTenants,suspendedTenants,recentAudits, availableModuleCount:modules.filter(m=>m.runtimeStatus!=='disabled').length
     });
   }catch(e){next(e);}
@@ -34,7 +34,7 @@ async function renderTenantCreate(req,res,values={},error=null){
   const published=await commercial.publishedPlans();
   const latest=new Map();
   for(const plan of published) if(!latest.has(plan.code)) latest.set(plan.code,plan);
-  renderPlatform(req,res,'tenants/create','Create Tenant','Create workspace using published plan terms and a one-time owner invitation.',{
+  renderPlatform(req,res,'tenants/create','Create Tenant','Add a workspace and invite its owner.',{
     plans:plans.map(p=>latest.get(p.code)).filter(p=>p?.trialMonths>0),catalogueEmpty:published.length===0,modules,values,error
   });
 }

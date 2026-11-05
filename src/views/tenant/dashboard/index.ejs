@@ -1,51 +1,67 @@
+<% const hasOperationalModules = data.hasTransfer || data.hasMobileMoney || data.hasBanking || data.hasForex || data.hasApprovals;
+   const hasOverviewActions = quickActions.length || visiblePaths.has('/tenant/reports') || visiblePaths.has('/tenant/mobile-money/shifts');
+   const hasRecentMobileMoney = data.hasMobileMoney && ((data.summary?.recent?.length || 0) > 0 || (data.summary?.summaries?.length || 0) > 0);
+   const hasRecentActivity = hasRecentMobileMoney ||
+     (data.hasTransfer && (data.transferRecords?.items?.length || 0) > 0) ||
+     (data.hasBanking && (data.bankingRecords?.items?.length || 0) > 0) ||
+     (data.hasForex && (data.forexRecords?.items?.length || 0) > 0) ||
+     (data.hasApprovals && (data.approvalRecords?.items?.length || 0) > 0); %>
 <section class="view show">
-  <section class="card"><div class="cardHead"><div><b>Operations snapshot</b><br><span>Daily records and recent requests in your authorized scope</span></div><span class="mono"><%= tenant.slug %></span></div>
-    <div class="cardBody"><div class="grid3">
+  <section class="card"><div class="cardHead"><div><b>Operations snapshot</b><br><span>Recent workspace activity</span></div><span class="mono"><%= tenant.slug %></span></div>
+    <div class="cardBody">
+    <% if(hasOperationalModules || data.reportingSummary){ %><div class="grid3">
       <% if(data.hasTransfer){ %><div class="stat"><div class="k">Money Transfer requests</div><div class="v"><%= data.transferRecords?.items?.length || 0 %></div><div class="s"><span class="dot"></span>Recent internal requests</div></div><% } %>
       <% if(data.hasMobileMoney){ %><div class="stat"><div class="k">Mobile Money records</div><div class="v"><%= data.summary.total %></div><div class="s"><span class="dot"></span>Today (UTC) · <%= data.summary.awaitingReview || 0 %> awaiting review</div></div><% } %>
       <% if(data.hasBanking){ %><div class="stat"><div class="k">Banking requests</div><div class="v"><%= data.bankingRecords?.items?.length || 0 %></div><div class="s"><span class="dot"></span>Recent internal requests</div></div><% } %>
       <% if(data.hasForex){ %><div class="stat"><div class="k">Forex quotes</div><div class="v"><%= data.forexRecords?.items?.length || 0 %></div><div class="s"><span class="dot warn"></span>Recent indicative quotes</div></div><% } %>
       <% if(data.hasApprovals){ %><div class="stat"><div class="k">Approval requests</div><div class="v"><%= data.approvalRecords?.items?.length || 0 %></div><div class="s"><span class="dot warn"></span>Recent internal requests</div></div><% } %>
       <% if(!data.hasTransfer && !data.hasMobileMoney && !data.hasBanking && !data.hasForex && !data.hasApprovals){ %><div class="stat"><div class="k">Workspace events</div><div class="v"><%= data.reportingSummary?.total || 0 %></div><div class="s"><span class="dot"></span>Today (UTC)</div></div><% } %>
-    </div>
-    <div class="rowBtns" style="margin-top:12px">
+    </div><% } else { %>
+    <p>Your workspace is ready.</p>
+    <p class="tiny"><%= visiblePaths.has('/tenant/modules') ? 'Choose the modules your team needs to start recording activity.' : 'Your administrator can enable the modules you need to get started.' %></p>
+    <% if(visiblePaths.has('/tenant/modules')){ %><a class="btn" href="/tenant/modules">Explore modules</a><% } %>
+    <% } %>
+    <% if(hasOverviewActions){ %><div class="rowBtns" style="margin-top:12px">
       <% quickActions.forEach((action,index)=>{ %><a class="btn <%= index === 0 ? 'btnPrimary' : '' %>" href="<%= action.href %>"><%= action.label %></a><% }) %>
       <% if(visiblePaths.has('/tenant/reports')){ %><a class="btn" href="/tenant/reports">View reports</a><% } %>
       <% if(visiblePaths.has('/tenant/mobile-money/shifts')){ %><a class="btn" href="/tenant/mobile-money/shifts">Cash shifts</a><% } %>
-    </div></div>
+    </div><% } %></div>
   </section>
-  <section class="card" style="margin-top:14px"><div class="cardHead"><b>Workspace subscription</b><span>Current access</span></div><div class="cardBody summary"><div class="sumRow"><span>Plan</span><b><%= data.plan?.name || ((data.moduleGrants||[]).length ? 'Modular workspace' : 'Unassigned') %></b></div><div class="sumRow"><span>Status</span><b><%= tenant.subscription?.status || 'modular' %></b></div><div class="sumRow"><span>Module entitlements</span><b><%= (data.plan?.modules?.length || 0) + (data.moduleGrants||[]).length %></b></div></div></section>
-  <% if(data.hasMobileMoney){ %><div class="grid" style="margin-top:14px">
-    <section class="card"><div class="cardHead"><b>Recent mobile money records</b><span>Recorded, not settled</span></div>
+  <section class="card" style="margin-top:14px"><div class="cardHead"><b>Workspace subscription</b><span>Current plan</span></div><div class="cardBody" style="display:grid;gap:12px"><div class="sumRow"><span>Plan</span><b><%= data.plan?.name || ((data.moduleGrants||[]).length ? 'Modular workspace' : 'Unassigned') %></b></div><div class="sumRow"><span>Status</span><b><%= tenant.subscription?.status || 'modular' %></b></div><div class="sumRow"><span>Active modules</span><b><%= new Set([...(data.plan?.modules || []), ...(data.moduleGrants || []).map(grant => grant.moduleKey)]).size %></b></div></div></section>
+  <% if(hasOperationalModules && !hasRecentActivity){ %>
+  <section class="card" style="margin-top:14px"><div class="cardHead"><b>Recent activity</b><% if(data.hasMobileMoney){ %><a class="btn" href="/tenant/mobile-money/history">View history</a><% } %></div><div class="cardBody"><p class="tiny">No activity to show yet. Your records and requests will appear here.</p></div></section>
+  <% } %>
+  <% if(hasRecentMobileMoney){ %><div class="grid" style="margin-top:14px">
+    <section class="card"><div class="cardHead"><b>Recent mobile money records</b><span>Recorded, not settled</span><a class="btn" href="/tenant/mobile-money/history">View history</a></div>
       <div class="cardBody txList">
-      <% if (!data.summary.recent.length) { %><p class="tiny">No real records yet. Demonstration transactions are intentionally excluded.</p><% } %>
+      <% if (!data.summary.recent.length) { %><p class="tiny">No mobile money records yet.</p><% } %>
       <% data.summary.recent.forEach(t => { %><div class="tx" data-search-row><div class="txLeft"><span class="txDot warn"></span><div class="txMeta"><b><%= t.operation === 'cash_in' ? 'Cash in' : 'Cash out' %> · <%= t.network %></b><span><%= t.customer %> · <%= t.status.replace(/_/g,' ') %> · Review: <%= (t.reviewState || 'awaiting_review').replace(/_/g,' ') %></span></div></div><div class="txAmt"><%= money(t.currency, amountFromMinor(t.amountMinor,t.currency)) %><small><%= t.networkReference %></small></div></div><% }) %>
       </div>
     </section>
-    <section class="card"><div class="cardHead"><b>Operations by currency</b><span>No mixed-currency total</span></div><div class="cardBody summary">
-      <% if (!data.summary.summaries.length) { %><p class="tiny">Volumes will appear after agent records are saved.</p><% } %>
+    <section class="card"><div class="cardHead"><b>Operations by currency</b><span>Recorded amounts</span></div><div class="cardBody summary">
+      <% if (!data.summary.summaries.length) { %><p class="tiny">Amounts will appear after you record activity.</p><% } %>
       <% data.summary.summaries.forEach(s => { %><div class="sumRow" data-search-row><span><%= s._id.network %> · <%= s._id.operation.replace('_',' ') %> · <%= s._id.status.replace(/_/g,' ') %></span><b><%= s.volumeFormatted %></b></div><% }) %>
-      <p class="tiny">These amounts represent unverified operational records, not confirmed funds or balances.</p>
+      <p class="tiny">Recorded amounts are not settled funds or account balances.</p>
     </div></section>
-  </div><% } else if(!data.hasTransfer && !data.hasBanking && !data.hasForex && !data.hasApprovals) { %><section class="card" style="margin-top:14px"><div class="cardHead"><b>Workspace overview</b><span>Modules appear only when subscribed</span></div><div class="cardBody"><p class="tiny">Mobile Money is not assigned to this account. Your standalone reporting and administration modules remain available without Mobile Money.</p><% if(data.reportingSummary){ %><a class="btn" href="/tenant/reports">Open Operations Reports</a><% } %></div></section><% } %>
-<% if(data.hasApprovals){ %>
-<section class="card" style="margin-top:14px"><div class="cardHead"><b>Recent approval requests</b><span>Standalone · internal decisions only</span><a class="btn" href="/tenant/approvals">Open Approval Workflows</a></div>
-<div class="cardBody txList"><% if(!(data.approvalRecords?.items||[]).length){ %><p class="tiny">No approval requests in your authorized scope.</p><% } %>
+  </div><% } %>
+<% if(data.hasApprovals && data.approvalRecords?.items?.length){ %>
+<section class="card" style="margin-top:14px"><div class="cardHead"><b>Recent approval requests</b><span>Internal decisions only</span><a class="btn" href="/tenant/approvals">Open Approval Workflows</a></div>
+<div class="cardBody txList">
 <% (data.approvalRecords?.items||[]).slice(0,8).forEach(t=>{ %><div class="tx"><div class="txMeta"><b><a href="/tenant/approvals/<%= t._id %>"><%= t.subject %></a></b><span><%= t.reference %> · <%= t.status %></span></div></div><% }) %></div></section><% } %>
-<% if(data.hasTransfer){ %>
-<section class="card" style="margin-top:14px"><div class="cardHead"><b>Recent Money Transfer requests</b><span>Internal requests only · payout disabled</span><a class="btn" href="/tenant/money-transfer">Open Money Transfer</a></div>
-<div class="cardBody txList"><% if(!(data.transferRecords?.items||[]).length){ %><p class="tiny">No requests yet in your authorized scope.</p><% } %>
+<% if(data.hasTransfer && data.transferRecords?.items?.length){ %>
+<section class="card" style="margin-top:14px"><div class="cardHead"><b>Recent Money Transfer requests</b><span>Internal requests · no funds moved</span><a class="btn" href="/tenant/money-transfer">Open Money Transfer</a></div>
+<div class="cardBody txList">
 <% (data.transferRecords?.items||[]).slice(0,8).forEach(t=>{ %><div class="tx" data-search-row><div class="txMeta"><b><a href="/tenant/money-transfer/<%= t._id %>"><%= t.reference %></a></b><span><%= t.beneficiary.name %> · <%= t.status.replaceAll('_',' ') %></span></div><b><%= amountFromMinor(t.amountMinor,t.currency) %> <%= t.currency %></b></div><% }) %>
 </div></section>
 <% } %>
-<% if(data.hasBanking){ %>
-<section class="card" style="margin-top:14px"><div class="cardHead"><b>Recent banking requests</b><span>Internal only · bank execution disabled</span><a class="btn" href="/tenant/banking">Open Banking</a></div>
-<div class="cardBody txList"><% if(!(data.bankingRecords?.items||[]).length){ %><p class="tiny">No banking requests yet in your authorized scope.</p><% } %>
+<% if(data.hasBanking && data.bankingRecords?.items?.length){ %>
+<section class="card" style="margin-top:14px"><div class="cardHead"><b>Recent banking requests</b><span>Internal requests · no funds moved</span><a class="btn" href="/tenant/banking">Open Banking</a></div>
+<div class="cardBody txList">
 <% (data.bankingRecords?.items||[]).slice(0,8).forEach(t=>{ %><div class="tx" data-search-row><div class="txMeta"><b><a href="/tenant/banking/<%= t._id %>"><%= t.reference %></a></b><span><%= t.kind.replaceAll('_',' ') %> · <%= t.status.replaceAll('_',' ') %></span></div><b><%= amountFromMinor(t.amountMinor,t.currency) %> <%= t.currency %></b></div><% }) %>
 </div></section><% } %>
-<% if(data.hasForex){ %>
-<section class="card" style="margin-top:14px"><div class="cardHead"><b>Recent Forex quotations</b><span>Indicative only · execution disabled</span><a class="btn" href="/tenant/forex">Open Forex</a></div>
-<div class="cardBody txList"><% if(!(data.forexRecords?.items||[]).length){ %><p class="tiny">No quotations in your assigned scope.</p><% } %>
+<% if(data.hasForex && data.forexRecords?.items?.length){ %>
+<section class="card" style="margin-top:14px"><div class="cardHead"><b>Recent Forex quotations</b><span>Indicative quotes · no funds exchanged</span><a class="btn" href="/tenant/forex">Open Forex</a></div>
+<div class="cardBody txList">
 <% (data.forexRecords?.items||[]).slice(0,8).forEach(t=>{ %><div class="tx"><div class="txMeta"><b><a href="/tenant/forex/<%= t._id %>"><%= t.reference %></a></b><span><%= t.fromCurrency %> → <%= t.toCurrency %> · <%= t.status.replaceAll('_',' ') %></span></div></div><% }) %></div></section>
 <% } %>
 </section>

@@ -1,3 +1,6 @@
+<% const activeHref = menu.flatMap(group => group.items).map(item => item.href)
+  .filter(href => currentPath === href || currentPath.startsWith(href + '/'))
+  .sort((a,b) => b.length - a.length)[0]; %>
 <aside class="panel side" id="sidePanel">
   <div class="brand">
     <div class="logo"></div>
@@ -8,14 +11,13 @@
       <div class="navGroup">
         <div class="item" role="heading" aria-level="2"><i class="fa-solid fa-folder-tree" aria-hidden="true"></i> <span><%= group.label %></span></div>
         <% group.items.forEach(item => { %>
-          <a href="<%= item.href %>" class="subitem <%= currentPath === item.href ? 'active' : '' %>" <%- currentPath === item.href ? 'aria-current="page"' : '' %>><i class="fa-solid <%= item.icon %>" aria-hidden="true"></i><span><%= item.label %></span></a>
+          <a href="<%= item.href %>" class="subitem <%= activeHref === item.href ? 'active' : '' %>" <%- activeHref === item.href ? 'aria-current="page"' : '' %>><i class="fa-solid <%= item.icon %>" aria-hidden="true"></i><span><%= item.label %></span></a>
         <% }) %>
       </div>
     <% }) %>
   </nav>
   <div class="sideFoot">
-    <div class="mini"><div><b><%= user?.name || 'Account' %></b><span><%= user?.role || (context === 'platform' ? 'Super Admin' : 'Tenant Owner') %></span></div><span class="tag"><%= context %></span></div>
-    <div class="mini"><div><b>Workspace</b><span><%= context === 'platform' ? 'Platform administration' : tenant?.slug %></span></div><i class="fa-solid fa-building" aria-hidden="true"></i></div>
-    <form method="post" action="/logout"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn" type="submit"><i class="fa-solid fa-right-from-bracket"></i> Sign out</button></form><a class="btn" href="/"><i class="fa-solid fa-globe"></i> Public site</a>
+    <div class="mini"><div><b><%= user?.name || 'Account' %></b><span><%= user?.role || (context === 'platform' ? 'Super Admin' : 'Tenant Owner') %></span></div></div>
+    <div class="accountActions"><form method="post" action="/logout"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn" type="submit"><i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i> Sign out</button></form><a class="btn" href="/"><i class="fa-solid fa-globe" aria-hidden="true"></i> Public site</a></div>
   </div>
 </aside>

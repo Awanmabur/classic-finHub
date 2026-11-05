@@ -33,11 +33,11 @@ controls, grouped sidebar, typography and responsive grid rules are retained.
 
 | Approved prototype element | Running application behavior | Work needed before exact functional equivalence |
 | --- | --- | --- |
-| Global branch and currency selectors | Branch/currency controls exist inside supported module forms; the shared topbar identifies the workspace | Define one server-validated, cross-module branch/currency filtering contract, persist selection, and apply it to every list/summary with authorization tests; adding decorative selectors would suggest filtering that does not happen |
+| Global branch and currency selectors | Branch/currency controls exist inside supported module forms; the sidebar identifies the workspace | Define one server-validated, cross-module branch/currency filtering contract, persist selection, and apply it to every list/summary with authorization tests; adding decorative selectors would suggest filtering that does not happen |
 | Transfer/mobile/banking/forex monetary volume cards | The snapshot displays daily Mobile Money record counts and explicitly labelled recent request/quote counts | Add authorized, bounded database aggregates with explicit time windows and separate currencies; recent paginated list counts must not be labelled complete daily totals |
 | Generic "New transaction" sheet | Authorized links open the implemented module's record/request/quote workflow | A unified operation launcher can be built over the existing forms; provider execution still requires actual backend integrations |
 | PIN payout, executed banking/FX operations and cash balances | Internal instructions, quotations, review and physical cash evidence are labelled according to what they actually record | Implement and independently validate provider execution, reconciliation and accounting before presenting settled funds or executable payout controls |
-| "Last receipt" | Shared topbar links to authorized module history; supported record pages have non-settlement acknowledgements | Define a tenant/branch-scoped latest acknowledgement lookup; a mock receipt would be misleading |
+| "Last receipt" | Overview and module pages link to authorized history; supported record pages have non-settlement acknowledgements | Define a tenant/branch-scoped latest acknowledgement lookup; a mock receipt would be misleading |
 | Load demo / Reset | No controls that fabricate financial activity or erase records | Keep any future demo mode isolated from real tenant records and clearly identified |
 | One browser-only navigation surface for all roles/modules | Server pages and menus reflect role, branch and subscription access | Preserve authorization boundaries; unsupported or unassigned modules should not appear as working controls |
 | Customers, customer accounts, legacy open/close day and expense actions | Legacy services remain unavailable; newer module-specific contacts and cash shifts are implemented | Implement the missing domain models, permissions, transaction/audit rules and UI, rather than reconnecting prototype arrays or legacy stub controllers |
@@ -72,3 +72,42 @@ The design differences above must remain visible in the project backlog until
 their backend contracts and UI acceptance checks are complete.
 
 Final accepted desktop/mobile captures: [desktop](review/tenant-desktop.png), [mobile](review/tenant-mobile.png), [platform](review/platform-desktop.png). These captures use disposable test accounts and demonstrate the current implementation, not exact prototype parity.
+
+
+## Visual cleanup after the follow-up review
+
+The live EJS navigation uses anchors, while the approved prototype used buttons.
+Without an anchor reset, browser-default underlines appeared throughout navigation
+and action buttons. The shared dashboard now defines link, hover, visited and
+keyboard-focus styles explicitly, preserving intentional inline-link affordances.
+
+This pass also removed repeated Create actions and duplicate flash notifications,
+replaced heavy noninteractive navigation headings, condensed empty activity panels,
+removed search from screens without searchable records, and kept the closest
+navigation entry active on nested pages. Form controls and staff module selection
+now share consistent sizing. Mobile activation guidance wraps instead of clipping;
+the closed drawer and its shadow are fully hidden. Tenant screens use workspace
+and owner information instead of database filenames and implementation commentary.
+
+Public pricing and comparison previously indexed plans by position. Inserting
+Modular Workspace shifted Agent, Finance and Enterprise prices and limits onto
+the wrong cards. These screens now resolve plans by stable codes, with regression
+coverage that deliberately reorders the catalogue. Public mobile navigation has
+one sign-in entry and scrolls within the viewport. Reduced-motion users no longer
+see blurred reveal sections.
+
+Final Chromium validation covered **32 routes and 96 route/viewport combinations**
+at 1440, 768, 390 and (for the creation form) 320 pixels. Checks passed for actual
+HTTP rendering, no document-wide horizontal overflow, navigation/button text
+without unintended underlines, correct icon fonts, contextual search, exactly one
+active navigation entry, mobile drawer closing and visible printed content. The
+real flow still sets up plans, creates a tenant, activates its invitation and
+enrolls owner MFA. Public reduced-motion checks also passed at 320 pixels.
+
+The full local release gate passed **256 tests**, all module/tenant/auth database
+integrations and the advisory audit (zero findings). These visual checks do not
+establish exact prototype equivalence or a full screen-reader/production audit.
+
+Updated captures: [tenant dashboard](review/tenant-desktop.png),
+[mobile dashboard](review/tenant-mobile.png), [platform](review/platform-desktop.png),
+[mobile tenant creation](review/create-tenant-mobile.png).

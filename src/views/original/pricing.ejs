@@ -1,3 +1,8 @@
+<% const planByCode = Object.fromEntries(plans.map(plan => [plan.code, plan]));
+const starterPlan = planByCode.starter_trial;
+const agentPlan = planByCode.agent;
+const financePlan = planByCode.finance;
+const enterprisePlan = planByCode.enterprise; %>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -63,7 +68,6 @@
     <a href="/pricing">Pricing</a>
     <a href="/price-compare">Price compare</a>
     <a href="/support">Support</a>
-    <a href="/signin">Dashboard sign in</a>
     <a href="/signin">Sign in</a>
     <a href="/signup">Request setup</a>
     <button id="themeToggleMobile"><i class="fa-solid fa-moon"></i> Change theme</button>
@@ -84,55 +88,55 @@
     <p class="tiny" style="margin:16px auto;max-width:1050px">Proposed catalogue, not a checkout quote. Payments and full financial settlement workflows are not enabled. Final commercial terms require written confirmation.</p>
     <section class="pricing-page-grid reveal">
       <article class="plan-card">
-        <div class="plan-top"><span>Starter Trial</span><strong>USD $0</strong></div>
-        <div class="price-amount"><sup>$</sup>0<span>/trial</span></div>
+        <div class="plan-top"><span>Starter Trial</span><strong>USD $<%= starterPlan.priceMonthly %></strong></div>
+        <div class="price-amount"><sup>$</sup><%= starterPlan.priceMonthly %><span>/trial</span></div>
         <h3>Validate the platform</h3>
         <p>For businesses requesting a controlled trial. These prices and features are indicative, subject to confirmation.</p>
         <ul>
-          <li>1 branch workspace</li>
-          <li>Up to 3 users</li>
-          <li><%= plans[0].limits.transactionsPerMonth %> record limit (proposed)</li>
+          <li><%= starterPlan.limits.branches %> branch workspace<%= starterPlan.limits.branches === 1 ? '' : 's' %></li>
+          <li>Up to <%= starterPlan.limits.users %> users</li>
+          <li><%= starterPlan.limits.transactionsPerMonth %> record limit (proposed)</li>
           <li>Read-only plan exploration; product module access follows entitlements</li>
           <li>Basic reports and onboarding guidance</li>
         </ul>
         <a class="btn btn-light" href="/signup">Request free trial</a>
       </article>
       <article class="plan-card featured">
-        <div class="plan-top"><span>Agent Plan</span><strong>USD $<%= plans[1].priceMonthly %>/mo</strong></div>
-        <div class="price-amount"><sup>$</sup><%= plans[1].priceMonthly %><span>/month</span></div>
+        <div class="plan-top"><span>Agent Plan</span><strong>USD $<%= agentPlan.priceMonthly %>/mo</strong></div>
+        <div class="price-amount"><sup>$</sup><%= agentPlan.priceMonthly %><span>/month</span></div>
         <h3>Transfer and mobile money</h3>
         <p>For agent-led businesses that need fast customer service and clean daily records.</p>
         <ul>
           <li>Money Transfer module (not yet enabled for real payouts)</li>
           <li>Mobile Money recording (network settlement not connected)</li>
-          <li><%= plans[1].limits.branches %> branches and <%= plans[1].limits.users %> users included</li>
+          <li><%= agentPlan.limits.branches %> branches and <%= agentPlan.limits.users %> users included</li>
           <li>Receipts, expenses, notifications</li>
           <li>Daily reports and exports</li>
         </ul>
         <a class="btn btn-dark" href="/signup">Start agent plan</a>
       </article>
       <article class="plan-card">
-        <div class="plan-top"><span>Finance Plan</span><strong>USD $<%= plans[2].priceMonthly %>/mo</strong></div>
-        <div class="price-amount"><sup>$</sup><%= plans[2].priceMonthly %><span>/month</span></div>
+        <div class="plan-top"><span>Finance Plan</span><strong>USD $<%= financePlan.priceMonthly %>/mo</strong></div>
+        <div class="price-amount"><sup>$</sup><%= financePlan.priceMonthly %><span>/month</span></div>
         <h3>Banking and forex modules — planned</h3>
         <p>Planned for finance teams that require accounts, deposits, withdrawals, cash drawers, rate controls and forex reports. Not yet enabled for live operations.</p>
         <ul>
           <li>Banking Operation module (planned; not enabled)</li>
           <li>Forex Operation module (planned; not enabled)</li>
-          <li><%= plans[2].limits.branches %> branches and <%= plans[2].limits.users %> users included</li>
+          <li><%= financePlan.limits.branches %> branches and <%= financePlan.limits.users %> users included</li>
           <li>Rate boards and cash impact reports</li>
           <li>Manager approval controls</li>
         </ul>
         <a class="btn btn-light" href="/price-compare">Compare plan</a>
       </article>
       <article class="plan-card">
-        <div class="plan-top"><span>Enterprise Plan</span><strong>USD $<%= plans[3].priceMonthly %>/mo</strong></div>
-        <div class="price-amount"><sup>$</sup><%= plans[3].priceMonthly %><span>/month</span></div>
+        <div class="plan-top"><span>Enterprise Plan</span><strong>USD $<%= enterprisePlan.priceMonthly %>/mo</strong></div>
+        <div class="price-amount"><sup>$</sup><%= enterprisePlan.priceMonthly %><span>/month</span></div>
         <h3>Full finance suite</h3>
         <p>For multi-branch companies that need all modules, advanced controls, API access, and priority support.</p>
         <ul>
           <li>All core modules</li>
-          <li><%= plans[3].limits.branches %> branches and <%= plans[3].limits.users %> users included</li>
+          <li><%= enterprisePlan.limits.branches %> branches and <%= enterprisePlan.limits.users %> users included</li>
           <li>Advanced analytics and audit logs</li>
           <li>Custom domain, API, branding</li>
           <li>Priority support and onboarding</li>
@@ -142,9 +146,9 @@
     </section>
 
     <section class="conversion-strip reveal" aria-label="ClassicFin Hub price highlights">
-      <div><strong>$<%= plans[1].priceMonthly %>/mo</strong><span>Entry paid plan for transfer and mobile money agents.</span></div>
-      <div><strong>$<%= plans[2].priceMonthly %>/mo</strong><span>Finance plan for banking and forex operation teams.</span></div>
-      <div><strong>$<%= plans[3].priceMonthly %>/mo</strong><span>Enterprise starting price for full-suite branch networks.</span></div>
+      <div><strong>$<%= agentPlan.priceMonthly %>/mo</strong><span>Entry paid plan for transfer and mobile money agents.</span></div>
+      <div><strong>$<%= financePlan.priceMonthly %>/mo</strong><span>Finance plan for banking and forex operation teams.</span></div>
+      <div><strong>$<%= enterprisePlan.priceMonthly %>/mo</strong><span>Enterprise starting price for full-suite branch networks.</span></div>
       <div><strong>Save 2 months</strong><span>Use yearly billing to reduce admin and improve renewal flow.</span></div>
     </section>
 

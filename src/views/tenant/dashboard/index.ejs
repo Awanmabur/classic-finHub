@@ -1,5 +1,5 @@
 <% const hasOperationalModules = data.hasTransfer || data.hasMobileMoney || data.hasBanking || data.hasForex || data.hasApprovals;
-   const hasOverviewActions = quickActions.length || visiblePaths.has('/tenant/reports') || visiblePaths.has('/tenant/mobile-money/shifts');
+   const hasOverviewActions = quickActions.length || !!data.latestAcknowledgement || visiblePaths.has('/tenant/reports') || visiblePaths.has('/tenant/mobile-money/shifts');
    const hasRecentMobileMoney = data.hasMobileMoney && ((data.summary?.recent?.length || 0) > 0 || (data.summary?.summaries?.length || 0) > 0);
    const hasRecentActivity = hasRecentMobileMoney ||
      (data.hasTransfer && (data.transferRecords?.items?.length || 0) > 0) ||
@@ -24,9 +24,12 @@
     <% if(hasOverviewActions){ %><div class="rowBtns" style="margin-top:12px">
       <% if(quickActions.length){ %><button class="btn btnPrimary" type="button" data-open-operation-chooser aria-haspopup="dialog" aria-controls="operationChooser" aria-expanded="false"><i class="fa-solid fa-plus" aria-hidden="true"></i> New transaction</button><% } %>
       <% quickActions.forEach((action,index)=>{ %><a class="btn <%= index === 0 ? 'btnPrimary' : '' %>" href="<%= action.href %>?new=<%= action.href === '/tenant/forex' ? 'quote' : '1' %>"><%= action.label %></a><% }) %>
+      <% if(data.latestAcknowledgement){ %><a class="btn" href="<%= data.latestAcknowledgement.href %>" aria-label="Open latest visible recent acknowledgement"><i class="fa-solid fa-receipt" aria-hidden="true"></i> Last acknowledgement</a><% } %>
       <% if(visiblePaths.has('/tenant/reports')){ %><a class="btn" href="/tenant/reports">View reports</a><% } %>
       <% if(visiblePaths.has('/tenant/mobile-money/shifts')){ %><a class="btn" href="/tenant/mobile-money/shifts">Cash shifts</a><% } %>
-    </div><% } %></div>
+    </div><% } %>
+    <% if(data.latestAcknowledgement){ %><p class="tiny">Last visible recent record: <%= data.latestAcknowledgement.label %> · <%= data.latestAcknowledgement.recordedAt.slice(0,16).replace('T',' ') %> UTC. This is not proof of payment or settlement.</p><% } %>
+    </div>
   </section>
   <section class="card" style="margin-top:14px"><div class="cardHead"><b>Workspace subscription</b><span>Current plan</span></div><div class="cardBody" style="display:grid;gap:12px"><div class="sumRow"><span>Plan</span><b><%= data.plan?.name || ((data.moduleGrants||[]).length ? 'Modular workspace' : 'Unassigned') %></b></div><div class="sumRow"><span>Status</span><b><%= tenant.subscription?.status || 'modular' %></b></div><div class="sumRow"><span>Active modules</span><b><%= new Set([...(data.plan?.modules || []), ...(data.moduleGrants || []).map(grant => grant.moduleKey)]).size %></b></div></div></section>
   <% if(hasOperationalModules && !hasRecentActivity){ %>

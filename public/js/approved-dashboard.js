@@ -392,15 +392,15 @@
     r.status,r.branch||'—'
   ]);
   renderActivity('mobileList',recent.mobile||[],'mobile-money',r=>({
-    title:r.customer||'Mobile Money',detail:[r.operation?.replace('_',' '),r.network,r.status].filter(Boolean).join(' · '),
+    title:r.customer||'Mobile Money',detail:[r.operation?.replace('_',' '),r.network,r.status,r.branch].filter(Boolean).join(' · '),
     amount:amount(r.amountMinor,r.currency)
   }));
   renderActivity('bankList',recent.bank||[],'banking',r=>({
-    title:r.reference||'Banking request',detail:[r.kind?.replaceAll('_',' '),r.status].filter(Boolean).join(' · '),
+    title:r.reference||'Banking request',detail:[r.kind?.replaceAll('_',' '),r.status,r.branch].filter(Boolean).join(' · '),
     amount:amount(r.amountMinor,r.currency)
   }));
   renderActivity('forexList',recent.forex||[],'forex',r=>({
-    title:r.reference||'Forex quote',detail:[r.fromCurrency+' → '+r.toCurrency,r.status].join(' · '),
+    title:r.reference||'Forex quote',detail:[r.fromCurrency+' → '+r.toCurrency,r.status,r.branch].filter(Boolean).join(' · '),
     amount:amount(r.sourceMinor,r.fromCurrency)
   }));
   if(Number.isSafeInteger(recent.mobileTodayTotal))one('#mmCount').textContent=String(recent.mobileTodayTotal);

@@ -53,11 +53,13 @@ router.get('/dashboard', requirePermission('dashboard.view'), async (req,res,nex
       mobile:hasMobileMoney?summary.recent:[],
       transfers:hasTransfer?(transferRecords?.items||[]):[]
     });
-    const branches=(await branchService.list(req.tenant)).filter(b=>b.status==='active' &&
+    const allBranches=await branchService.list(req.tenant);
+    const branchNames=Object.fromEntries(allBranches.map(b=>[String(b._id),String(b.name)]));
+    const branches=allBranches.filter(b=>b.status==='active' &&
       (req.user.role==='Tenant Owner'||String(b._id)===String(req.user.branchId)));
     const access=approvedDashboard.permissions(req.tenant,req.user);
     const recent=approvedDashboard.recentProjection({
-      summary,bankingRecords,forexRecords,transferRecords,latestAcknowledgement
+      summary,bankingRecords,forexRecords,transferRecords,latestAcknowledgement,branchNames
     });
     const config=approvedDashboard.safeJson({access,recent,
       branches:branches.map(b=>({id:String(b._id),name:String(b.name),currency:String(b.currency)})),

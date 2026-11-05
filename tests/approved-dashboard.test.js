@@ -96,3 +96,17 @@ test('all approved CSS overrides from body and head are included, without execut
  assert(approved.originalCss.includes('finalDashboardPagesFix'));
  assert(!approved.originalCss.includes('localStorage.setItem'));
 });
+
+test('historical dashboard rows display the stored branch name rather than the current working branch',()=>{
+ const id='aaaaaaaaaaaaaaaaaaaaaaaa', branchId='bbbbbbbbbbbbbbbbbbbbbbbb';
+ const row={_id:id,branchId,createdAt:'2026-11-05T10:00:00.000Z',amountMinor:'10000',currency:'UGX'};
+ const projection=approved.recentProjection({
+  branchNames:{[branchId]:'Kampala Main'},
+  transferRecords:{items:[row]},
+  summary:{recent:[{...row,customer:'Test Customer'}]},
+  bankingRecords:{items:[row]},
+  forexRecords:{items:[row]}
+ });
+ for(const list of [projection.transfers,projection.mobile,projection.bank,projection.forex])
+  assert.equal(list[0].branch,'Kampala Main');
+});

@@ -90,20 +90,22 @@ function recentProjection(data){
   const transfers=items(data.transferRecords?.items).filter(x=>validId(x._id)).map(x=>({
     id:str(x._id),date:safeDate(x.createdAt),sender:str(x.sender?.name),receiver:str(x.beneficiary?.name),
     amountMinor:str(x.amountMinor),feeMinor:str(x.feeMinor),currency:str(x.currency),status:str(x.status),
-    reference:str(x.reference),branch:str(x.branchId)
+    reference:str(x.reference),branch:(data.branchNames||{})[str(x.branchId)]||str(x.branchId)
   }));
   const mobile=items(data.summary?.recent).filter(x=>validId(x._id)).map(x=>({
     id:str(x._id),date:safeDate(x.createdAt),customer:str(x.customer),network:str(x.network),
     operation:str(x.operation),amountMinor:str(x.amountMinor),currency:str(x.currency),status:str(x.status),
-    reference:str(x.networkReference)
+    reference:str(x.networkReference),branch:(data.branchNames||{})[str(x.branchId)]||str(x.branchId)
   }));
   const bank=items(data.bankingRecords?.items).filter(x=>validId(x._id)).map(x=>({
     id:str(x._id),date:safeDate(x.createdAt),reference:str(x.reference),status:str(x.status),
-    kind:str(x.kind),currency:str(x.currency),amountMinor:str(x.amountMinor)
+    kind:str(x.kind),currency:str(x.currency),amountMinor:str(x.amountMinor),
+    branch:(data.branchNames||{})[str(x.branchId)]||str(x.branchId)
   }));
   const forex=items(data.forexRecords?.items).filter(x=>validId(x._id)).map(x=>({
     id:str(x._id),date:safeDate(x.createdAt),reference:str(x.reference),status:str(x.status),
-    fromCurrency:str(x.fromCurrency),toCurrency:str(x.toCurrency),sourceMinor:str(x.sourceMinor)
+    fromCurrency:str(x.fromCurrency),toCurrency:str(x.toCurrency),sourceMinor:str(x.sourceMinor),
+    branch:(data.branchNames||{})[str(x.branchId)]||str(x.branchId)
   }));
   return {transfers,mobile,bank,forex,mobileTodayTotal:Number.isSafeInteger(data.summary?.total)?data.summary.total:null,
     latestAcknowledgement:data.latestAcknowledgement||null};

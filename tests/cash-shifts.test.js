@@ -68,8 +68,14 @@ test('cash shift views have real server-backed actions and escape notes',async()
   reviewNote:'<script>alert(1)</script>',closeHistory:[{at:new Date(),declaredMinor:'9000',expectedMinor:'10000',varianceMinor:'-1000',note:'Cash short during shift'}]};
  const base=path.join(__dirname,'../src/views/tenant/mobile-money');
  const rendered=await ejs.renderFile(path.join(base,'shifts.ejs'),{data:{shifts:{items:[item],nextCursor:'a-valid-token'},canOpen:true,
-  canReview:true,branches:[{_id:branchId,currency:'UGX',name:'Main',status:'active'}]},user:{role:'Tenant Owner'},csrfToken:'csrf'});
+  canReview:true,branches:[{_id:branchId,currency:'UGX',name:'Main',status:'active'}],operatingBranch:{_id:branchId,currency:'UGX',name:'Main',status:'active'}},user:{role:'Tenant Owner'},csrfToken:'csrf'});
  assert.match(rendered,/shifts\/open/);assert.match(rendered,/Next page/);assert.match(rendered,/name="_csrf" value="csrf"/);
+ assert.match(rendered,/Operating branch: <b>Main/);assert.doesNotMatch(rendered,/<select[^>]+name="branchId"/);
+ const noContext=await ejs.renderFile(path.join(base,'shifts.ejs'),{data:{
+  shifts:{items:[],nextCursor:null},canOpen:true,canReview:false,branches:[],operatingBranch:null
+ },user:{role:'Tenant Owner'},csrfToken:'csrf'});
+ assert.doesNotMatch(noContext,/action="\/tenant\/mobile-money\/shifts\/open"/);
+ assert.match(noContext,/Activate your working location/);
  const detail=await ejs.renderFile(path.join(base,'shift-detail.ejs'),{data:{shift:item,canSubmit:false,canReview:true},csrfToken:'csrf'});
  assert.match(detail,/name="decision" value="approve"/);assert.doesNotMatch(detail,/<script>/);assert.match(detail,/&lt;script&gt;/);
  const noActions=await ejs.renderFile(path.join(base,'shift-detail.ejs'),{data:{shift:item,canSubmit:false,canReview:false},csrfToken:'csrf'});

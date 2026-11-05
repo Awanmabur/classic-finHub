@@ -129,11 +129,12 @@ test('transaction selectors align with branch currency rather than offering inva
   assert.match(bankingHtml,/<select[^>]+name="currency"[^>]*>\s*<option value="KES">KES<\/option>/);
   assert.doesNotMatch(bankingHtml,/<select[^>]+name="currency"[^>]*>\s*<option value="UGX">UGX<\/option>/);
   const mobileHtml=await render('tenant/mobile-money/index.ejs',{data:{branches:[branch],canRecord:true,canReview:false,
-    idempotencyKey:crypto.randomUUID(),summary:{total:0,recent:[]}},user:{...user,role:'Tenant Owner',permissions:['*']},
+    operatingBranch:branch,idempotencyKey:crypto.randomUUID(),summary:{total:0,recent:[]}},user:{...user,role:'Tenant Owner',permissions:['*']},
     money:()=>'',amountFromMinor:()=>'',csrfToken:'csrf'});
-  assert.match(mobileHtml,/data-currency-target="mobileMoneyCurrency"/);
-  assert.match(mobileHtml,/data-currency="KES"/);
-  assert.match(mobileHtml,/id="mobileMoneyCurrency"/);
+  assert.match(mobileHtml,/Operating branch: <b>Nairobi<\/b>/);
+  assert.doesNotMatch(mobileHtml,/<select[^>]+name="branchId"/);
+  assert.match(mobileHtml,/<select[^>]+name="currency"[^>]+id="mobileMoneyCurrency"[^>]*>\s*<option value="KES">KES<\/option>/);
+  assert.doesNotMatch(mobileHtml,/<option value="UGX">UGX<\/option>/);
 });
 
 test('selected approval deadline presets remain bounded, with explicit custom override',()=>{

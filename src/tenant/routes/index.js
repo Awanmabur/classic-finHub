@@ -22,7 +22,7 @@ function recordScope(req){
 
 function renderTenant(req, res, view, pageTitle, pageSub, data) {
   res.render('layouts/dashboard', {
-    context:'tenant', currentPath:(req.baseUrl + req.path).startsWith('/tenant/money-transfer')?'/tenant/money-transfer':(req.baseUrl + req.path).startsWith('/tenant/banking')?'/tenant/banking':(req.baseUrl + req.path).startsWith('/tenant/forex')?'/tenant/forex':req.baseUrl + req.path, pageTitle, pageSub,
+    context:'tenant', currentPath:req.baseUrl + req.path, pageTitle, pageSub,
     tenant:req.tenant, user:req.user, menu:tenantMenu(req.tenant,req.user),
     view:`../tenant/${view}`, data, flash:consumeFlash(req), money, amountFromMinor:mobile.fromMinor
   });

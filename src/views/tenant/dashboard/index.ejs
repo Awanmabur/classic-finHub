@@ -23,7 +23,7 @@
     <% } %>
     <% if(hasOverviewActions){ %><div class="rowBtns" style="margin-top:12px">
       <% if(quickActions.length){ %><button class="btn btnPrimary" type="button" data-open-operation-chooser aria-haspopup="dialog" aria-controls="operationChooser" aria-expanded="false"><i class="fa-solid fa-plus" aria-hidden="true"></i> New transaction</button><% } %>
-      <% quickActions.forEach((action,index)=>{ %><a class="btn <%= index === 0 ? 'btnPrimary' : '' %>" href="<%= action.href %>"><%= action.label %></a><% }) %>
+      <% quickActions.forEach((action,index)=>{ %><a class="btn <%= index === 0 ? 'btnPrimary' : '' %>" href="<%= action.href %>?new=<%= action.href === '/tenant/forex' ? 'quote' : '1' %>"><%= action.label %></a><% }) %>
       <% if(visiblePaths.has('/tenant/reports')){ %><a class="btn" href="/tenant/reports">View reports</a><% } %>
       <% if(visiblePaths.has('/tenant/mobile-money/shifts')){ %><a class="btn" href="/tenant/mobile-money/shifts">Cash shifts</a><% } %>
     </div><% } %></div>

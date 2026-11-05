@@ -10,6 +10,9 @@
     <% menu.forEach(group => { %>
       <div class="navGroup">
         <a class="item <%= group.items.some(item => item.href === activeHref) ? 'active' : '' %>" href="<%= group.items[0].href %>" aria-label="Open <%= group.label %>"><i class="fa-solid <%= group.items[0].icon %>" aria-hidden="true"></i> <span><%= group.label %></span></a>
+        <% if (context === 'tenant' && group.label === 'Overview' && typeof quickActions !== 'undefined' && quickActions.length) { %>
+          <button class="subitem" type="button" data-open-operation-chooser aria-haspopup="dialog" aria-controls="operationChooser" aria-expanded="false"><i class="fa-solid fa-plus" aria-hidden="true"></i><span>New transaction</span></button>
+        <% } %>
         <% group.items.forEach(item => { %>
           <a href="<%= item.href %>" class="subitem <%= activeHref === item.href ? 'active' : '' %>" <%- activeHref === item.href ? 'aria-current="page"' : '' %>><i class="fa-solid <%= item.icon %>" aria-hidden="true"></i><span><%= item.label %></span></a>
         <% }) %>

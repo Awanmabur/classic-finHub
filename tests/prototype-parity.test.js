@@ -44,3 +44,23 @@ test('module nav links only to actual implemented tenant route groups',()=>{
   assert.match(source,/hasModuleForUser/);
   assert.match(source,/hasPermission/);
 });
+
+
+test('additional staff and operational modules use their original secured POST forms',()=>{
+  for(const [file,action] of [
+    ['src/views/tenant/approvals/index.ejs','/tenant/approvals/requests'],
+    ['src/views/tenant/users/index.ejs','/tenant/users/invite'],
+    ['src/views/tenant/branches/index.ejs','/tenant/branches'],
+    ['src/views/tenant/notifications/index.ejs','/tenant/notifications/send'],
+    ['src/views/tenant/notifications/index.ejs','/tenant/notifications/templates']
+  ]){
+    const source=load(file);
+    assert(source.includes('action="'+action+'"'),action);
+    assert(source.includes('data-operation-form='),file);
+    assert(source.includes('name="_csrf"'),file);
+  }
+  const sidebar=load('src/views/partials/dashboard-sidebar.ejs');
+  assert.match(sidebar,/data-open-operation-chooser/);
+  const routes=load('src/tenant/routes/index.js');
+  assert.match(routes,/currentPath:req\.baseUrl \+ req\.path/);
+});

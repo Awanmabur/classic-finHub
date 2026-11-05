@@ -3,7 +3,7 @@
  <div class="cardBody"><p class="tiny">This is a standalone internal approval service. Approving a request records an authorization decision only. It does not execute payments, reverse accounting entries, edit subscriptions or bypass any financial module's mandatory review.</p></div></section>
  <div class="grid" style="margin-top:14px">
  <% if(data.canSubmit){ %><section class="card"><div class="cardHead"><b>Submit request</b><span>Separate reviewer required</span></div><div class="cardBody">
- <form method="post" action="/tenant/approvals/requests" autocomplete="off" style="display:grid;gap:12px">
+ <form method="post" action="/tenant/approvals/requests" autocomplete="off" style="display:grid;gap:12px" data-operation-form="request" data-operation-title="New approval request">
  <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
  <label class="field">Approval policy<select class="control" name="policyCode" required><option value="">Select an active policy</option><% data.policies.forEach(p=>{ %><option value="<%= p.code %>"><%= p.name %> (v<%= p.version %>)</option><% }) %></select></label>
  <% if(user.role==='Tenant Owner'){ %><label class="field">Branch<select class="control" name="branchId" required><option value="">Select branch</option><% data.branches.forEach(b=>{ %><option value="<%= b._id %>"><%= b.name %></option><% }) %></select></label><% } %>

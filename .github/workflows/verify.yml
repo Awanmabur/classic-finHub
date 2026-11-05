@@ -24,16 +24,32 @@ jobs:
       - run: npm run perf:assets
       - name: Start isolated MongoDB replica-set container
         run: |
+          set -Eeuo pipefail
+          # A failed service must print its logs instead of silently timing out.
+          diagnose() {
+            docker ps -a --filter 'name=cfh-ci-mongo' || true
+            docker logs --tail 100 cfh-ci-mongo || true
+            docker inspect cfh-ci-mongo --format 'ExitCode={{.State.ExitCode}} OOMKilled={{.State.OOMKilled}} Error={{.State.Error}}' || true
+          }
+          trap diagnose ERR
           docker run --detach --name cfh-ci-mongo --publish 127.0.0.1:27018:27017 mongo:8.0 --replSet rs0 --bind_ip_all
+          ready=0
           for i in $(seq 1 35); do
-            if docker exec cfh-ci-mongo mongosh --quiet --eval 'db.adminCommand({ping:1}).ok' 2>/dev/null | grep -qx 1; then break; fi
+            if ! test "$(docker inspect cfh-ci-mongo --format '{{.State.Running}}')" = true; then
+              echo "MongoDB container exited during startup"
+              false
+            fi
+            if docker exec cfh-ci-mongo mongosh --quiet --eval 'db.adminCommand({ping:1}).ok' 2>/dev/null | grep -qx 1; then ready=1; break; fi
             sleep 2
           done
+          test "$ready" = 1
           docker exec cfh-ci-mongo mongosh --quiet --eval 'rs.initiate({_id:"rs0",members:[{_id:0,host:"127.0.0.1:27017"}]})'
+          ready=0
           for i in $(seq 1 35); do
-            if docker exec cfh-ci-mongo mongosh --quiet --eval 'db.hello().isWritablePrimary' 2>/dev/null | grep -qx true; then break; fi
+            if docker exec cfh-ci-mongo mongosh --quiet --eval 'db.hello().isWritablePrimary' 2>/dev/null | grep -qx true; then ready=1; break; fi
             sleep 2
           done
+          test "$ready" = 1
           docker exec cfh-ci-mongo mongosh --quiet --eval 'if (!db.hello().isWritablePrimary) quit(1)'
       - run: npm run indexes
       - run: npm run catalog:publish -- --apply

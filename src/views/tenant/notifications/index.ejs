@@ -12,7 +12,7 @@
  <button class="btn btnPrimary" type="submit">Save preference</button></form></div></section>
  <% if(data.canSend){ %><section class="card" style="margin-top:14px"><div class="cardHead"><b>Send staff notification</b><span>One active, authorized recipient per request</span></div><div class="cardBody">
  <form method="get" action="/tenant/notifications" class="rowBtns"><label class="field">Find recipient by name<input class="control" name="search" value="<%= data.search %>" maxlength="80" placeholder="Type staff name"></label><button class="btn" type="submit">Search</button></form>
- <form method="post" action="/tenant/notifications/send" autocomplete="off" style="display:grid;gap:12px">
+ <form method="post" action="/tenant/notifications/send" autocomplete="off" style="display:grid;gap:12px" data-operation-form="message" data-operation-title="Send internal notification">
  <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="idempotencyKey" value="<%= data.requestKey %>">
  <label class="field">Recipient<select class="control" name="recipientId" required><option value="">Choose active staff</option><% data.recipients.forEach(r=>{ %><option value="<%= r._id %>"><%= r.name %> · <%= r.role %></option><% }) %></select></label>
  <label class="field">Approved template<select class="control" name="templateCode" required><option value="">Choose a template</option><% data.templates.forEach(t=>{ %><option value="<%= t.code %>"><%= t.name %> (v<%= t.version %>)</option><% }) %></select></label>
@@ -20,7 +20,7 @@
  <% if(!data.templates.length){ %><p class="tiny">There are no active templates. Ask the Tenant Owner to publish one.</p><% } %>
  </div></section><% } %>
  <% if(data.canManage){ %><section class="card" style="margin-top:14px"><div class="cardHead"><b>Publish a template</b><span>New versions never rewrite old messages</span></div><div class="cardBody">
- <form method="post" action="/tenant/notifications/templates" autocomplete="off" style="display:grid;gap:12px"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
+ <form method="post" action="/tenant/notifications/templates" autocomplete="off" style="display:grid;gap:12px" data-operation-form="template" data-operation-title="Create notification template"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
  <label class="field">Template code (select an existing code or enter a new one)<input class="control" name="code" list="existingNotificationTemplateCodes" pattern="[a-z][a-z0-9_]{2,39}" placeholder="team_update" required><datalist id="existingNotificationTemplateCodes"><% data.templates.forEach(t=>{ %><option value="<%= t.code %>"><%= t.name %></option><% }) %></datalist></label>
  <label class="field">Name<input class="control" name="name" minlength="3" maxlength="100" required></label>
  <label class="field">Subject<input class="control" name="subject" minlength="3" maxlength="120" required></label>

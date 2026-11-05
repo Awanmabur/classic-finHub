@@ -4,7 +4,9 @@ on:
   pull_request:
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    # MongoDB 8.x fails its kernel guard on 6.19+; hosted Ubuntu 22.04
+    # currently uses kernel 6.8. Keep this job blocking, not ignored.
+    runs-on: ubuntu-22.04
     timeout-minutes: 25
     env:
       NODE_ENV: test
@@ -25,6 +27,7 @@ jobs:
       - name: Start isolated MongoDB replica-set container
         run: |
           set -Eeuo pipefail
+          uname -r
           # A failed service must print its logs instead of silently timing out.
           diagnose() {
             docker ps -a --filter 'name=cfh-ci-mongo' || true

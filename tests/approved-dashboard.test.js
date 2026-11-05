@@ -11,7 +11,7 @@ test('authenticated dashboard uses exactly the original index.html sections and 
   const expected=source.slice(source.indexOf('<div class="grain"'),source.indexOf('</main>')+7);
   assert(approved.originalMain===expected);
   const html=approved.markup({name:'Role Name',role:'Tenant Owner'});
-  for(const wording of ['Today snapshot','Sending / Generate PIN','Payout by PIN','Cash-in','Cash-out',
+  for(const wording of ['Today snapshot','Send money / Generate PIN','Payout by PIN','Cash-in','Cash-out',
     'Buy forex from customer','Sell forex to customer','Accounts directory','Customers directory','Operation reports',
     'New transaction','Last receipt','Forex cash impact','New account'])assert(html.includes(wording),wording);
   assert(html.includes('id="view-forex-rates"'));
@@ -40,6 +40,9 @@ test('approved dashboard EJS reproduces reference shell while using safe externa
     assetVersion:'test'
   });
   assert.match(html,/id="view-overview"/);
+  assert(html.includes('Sending / Generate PIN'));
+  assert(html.includes('Payout by PIN'));
+  assert(html.includes('Close day'));
   assert.doesNotMatch(html,/id="view-money"/); // no fabricated section
   assert.match(html,/id="approvedOperationOverlay"/);
   assert.match(html,/src="\/js\/approved-dashboard\.js\?v=test"/);

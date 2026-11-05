@@ -74,6 +74,8 @@
     modalTitle.textContent=title;
     modalSub.textContent=subtitle;
     services.hidden=true;
+    if(one('#approvedTransferActions'))one('#approvedTransferActions').hidden=true;
+    if(one('#approvedDailyActions'))one('#approvedDailyActions').hidden=true;
     clear(modalContent);clear(choices);
     modal.classList.add('show');
     modal.setAttribute('aria-hidden','false');
@@ -176,6 +178,19 @@
       choices.appendChild(link('Open authorized workflow',url.pathname+url.search));
     }
   }
+  one('#approvedTransferActions')?.addEventListener('click',event=>{
+    const action=event.target.closest('[data-approved-action]')?.dataset.approvedAction;
+    if(action==='transfer')void openAction('transfer');
+    else if(action==='payout')openByType.payout();
+  });
+  one('#approvedDailyActions')?.addEventListener('click',event=>{
+    const action=event.target.closest('[data-approved-action]')?.dataset.approvedAction;
+    if(action==='opening')void openAction('opening');
+    else if(action==='closing')openByType.close_day();
+    else if(action==='expense')openByType.expense();
+    else if(action==='export')openCsv();
+    else if(action==='print')openReport();
+  });
   services?.addEventListener('click',event=>{
     const el=event.target.closest('[data-approved-service]');
     if(!el)return;
@@ -186,11 +201,16 @@
       forex:access.forexQuote?'forexQuote':'forexRate',
       daily:'opening'
     }[el.dataset.approvedService];
+    const group=el.dataset.approvedService;
+    if(one('#approvedTransferActions'))one('#approvedTransferActions').hidden=group!=='transfer';
+    if(one('#approvedDailyActions'))one('#approvedDailyActions').hidden=group!=='daily';
     if(choice)void openAction(choice);
   });
   function showChooser(service=null){
     openModal('New transaction');
     services.hidden=false;
+    if(one('#approvedTransferActions'))one('#approvedTransferActions').hidden=false;
+    if(one('#approvedDailyActions'))one('#approvedDailyActions').hidden=true;
     const available=[
       ['transfer','Money Transfer','transfer'],
       ['banking','Banking','bankingDeposit'],

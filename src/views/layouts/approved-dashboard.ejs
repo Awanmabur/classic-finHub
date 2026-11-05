@@ -31,6 +31,17 @@
           <button class="chip" type="button" data-approved-service="forex">Forex</button>
           <button class="chip" type="button" data-approved-service="daily">Daily Operation</button>
         </div>
+        <div class="seg childActions" id="approvedTransferActions">
+          <button class="chip active" type="button" data-approved-action="transfer">Sending / Generate PIN</button>
+          <button class="chip" type="button" data-approved-action="payout">Payout by PIN</button>
+        </div>
+        <div class="seg childActions" id="approvedDailyActions" hidden>
+          <button class="chip" type="button" data-approved-action="opening">Open day</button>
+          <button class="chip" type="button" data-approved-action="closing">Close day</button>
+          <button class="chip" type="button" data-approved-action="expense">Add expense</button>
+          <button class="chip" type="button" data-approved-action="export">Export CSV</button>
+          <button class="chip" type="button" data-approved-action="print">Print report</button>
+        </div>
         <div id="approvedOperationContent" aria-live="polite"></div>
         <div class="rowBtns" id="approvedOperationChoices"></div>
       </div>

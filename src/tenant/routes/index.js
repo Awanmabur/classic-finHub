@@ -12,8 +12,6 @@ const { hasPermission,hasModuleForUser } = require('../services/moduleAccess.ser
 const branchService=require('../services/branch.service');
 const staffService=require('../services/staff.service');
 const staffPolicy=require('../services/staffPolicy');
-const approvedDashboard=require('../services/approvedDashboard.service');
-const {chooseRecentAcknowledgement}=require('../services/recentAcknowledgement.service');
 // Only owners and auditors have tenant-wide visibility. Other users are branch scoped;
 // legacy unassigned users have no implicit access to other branches.
 function recordScope(req){
@@ -24,7 +22,7 @@ function recordScope(req){
 
 function renderTenant(req, res, view, pageTitle, pageSub, data) {
   res.render('layouts/dashboard', {
-    context:'tenant', currentPath:req.baseUrl + req.path, pageTitle, pageSub,
+    context:'tenant', currentPath:(req.baseUrl + req.path).startsWith('/tenant/money-transfer')?'/tenant/money-transfer':(req.baseUrl + req.path).startsWith('/tenant/banking')?'/tenant/banking':(req.baseUrl + req.path).startsWith('/tenant/forex')?'/tenant/forex':req.baseUrl + req.path, pageTitle, pageSub,
     tenant:req.tenant, user:req.user, menu:tenantMenu(req.tenant,req.user),
     view:`../tenant/${view}`, data, flash:consumeFlash(req), money, amountFromMinor:mobile.fromMinor
   });
@@ -49,32 +47,8 @@ router.get('/dashboard', requirePermission('dashboard.view'), async (req,res,nex
       hasApprovals?require('../services/approvals.service').list(req.tenantDb,req.tenant,req.user):null,
       reportsActive?require('../services/operationsReports.service').generate(req.tenantDb,req.tenant,req.user,{source:'workspace'}):null
     ]);
-    const latestAcknowledgement=chooseRecentAcknowledgement({
-      mobile:hasMobileMoney?summary.recent:[],
-      transfers:hasTransfer?(transferRecords?.items||[]):[]
-    });
-    const branches=(await branchService.list(req.tenant)).filter(b=>b.status==='active' &&
-      (req.user.role==='Tenant Owner'||String(b._id)===String(req.user.branchId)));
-    const access=approvedDashboard.permissions(req.tenant,req.user);
-    const recent=approvedDashboard.recentProjection({
-      summary,bankingRecords,forexRecords,transferRecords,latestAcknowledgement
-    });
-    const config=approvedDashboard.safeJson({access,recent,
-      branches:branches.map(b=>({id:String(b._id),name:String(b.name),currency:String(b.currency)})),
-      user:{role:req.user.role,branchId:req.user.branchId?String(req.user.branchId):null}
-    });
-    return res.render('layouts/approved-dashboard',{
-      approvedCss:approvedDashboard.originalCss,
-      approvedMarkup:approvedDashboard.markup(req.user,req.user.branchId ?
-        (branches.find(b=>String(b._id)===String(req.user.branchId))?.name||'Assigned branch') : 'All permitted branches',
-        tenantMenu(req.tenant,req.user).flatMap(g=>g.items),
-        res.locals.csrfToken),
-      approvedConfig:config
-    });
-    /* Legacy dashboard view retained for nonprototype regression comparisons.
     renderTenant(req,res,'dashboard/index',req.user.role==='Tenant Owner'?'Tenant Overview':req.user.role==='Branch Manager'?'Branch Overview':req.user.role==='Reports Analyst'?'Reports Overview':'Operations Overview', 'Your workspace activity and services.',{summary,plan:planForTenant(req.tenant),reportingSummary,hasMobileMoney,
-      hasTransfer,transferRecords,hasBanking,bankingRecords,hasForex,forexRecords,hasApprovals,approvalRecords,latestAcknowledgement,moduleGrants:require('../../platform/services/moduleSubscriptions.service').activeGrants(req.tenant)});
-    */
+      hasTransfer,transferRecords,hasBanking,bankingRecords,hasForex,forexRecords,hasApprovals,approvalRecords,moduleGrants:require('../../platform/services/moduleSubscriptions.service').activeGrants(req.tenant)});
   } catch(e) { next(e); }
 });
 router.get('/mobile-money', requireModule('mobile_money'), requirePermission('mobile_money.view'), async (req,res,next)=>{

@@ -10,7 +10,7 @@
   </div>
  </section>
  <div class="grid" style="margin-top:14px">
-  <% if(data.canCreate && data.selectedBranchId){ %><form method="post" action="/tenant/money-transfer/requests" class="card" autocomplete="off" data-operation-form="request" data-operation-title="New transfer request">
+  <% if(data.canCreate && data.selectedBranchId){ %><form method="post" action="/tenant/money-transfer/requests" class="card" autocomplete="off">
    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
    <input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
    <input type="hidden" name="branchId" value="<%= data.selectedBranchId %>">

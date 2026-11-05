@@ -29,64 +29,15 @@ Inter and Font Awesome are served from local vendor assets so the application do
 not depend on font CDN availability. The approved colors, glass panels, rounded
 controls, grouped sidebar, typography and responsive grid rules are retained.
 
-## Prototype integration continuation — 5 November 2026
-
-This iteration uses the **root index.html solely as the approved visual and interaction reference**.
-The active authenticated pages still render from EJS with persisted data and
-server-side permission, branch and module checks. No demo transaction code was
-copied into the application, and the original reference HTML was not changed.
-
-Completed in the current GitHub master branch changes:
-
-- **Navigation:** Original-style service sections for Overview, Money Transfer,
-  Mobile Money, Banking, Forex, reporting and administration. Submenu operations
-  are linked to the actual implemented pages; subscription and user permissions
-  govern whether each action appears. Nested-page highlighting is preserved.
-- **Secure modals:** The real POST forms for transfer requests, Mobile Money
-  records, Banking requests, Forex rate proposals and quotes, staff invitations,
-  branch creation, approval requests and notification sending/templates open
-  with the reference dashboard's sheet/overlay presentation. They keep their
-  original action, CSRF field, idempotency key (where applicable) and server checks.
-  Without JavaScript the original forms remain accessible as regular forms.
-- **Quick actions:** The Overview/sidebar and topbar New Transaction launcher
-  offers only permitted module operations. Direct links open their module forms,
-  with Mobile Money cash-in/cash-out and Banking request types preselected using
-  allowlisted values, never auto-submitted.
-- **Last acknowledgement:** Latest visible recent Mobile Money or Money Transfer
-  record links to the existing tenant-scoped, protected acknowledgement page.
-  This is **not a payment receipt**, an all-time global lookup, or evidence of
-  settlement; only already authorized data can be selected.
-- **Platform:** The existing real tenant/appointment/module totals are retained,
-  using the reference design's summary cards.
-- **Continuous integration:** Unit, security audit and isolated replica-set
-  integration tests are required. Ubuntu 22.04 is used to avoid the MongoDB 8
-  startup guard on newer host kernels; this is a CI runner choice, not a
-  downgrade or a production database change.
-
-Still **not implemented / not safe to activate from the prototype**:
-- PIN payout and actual remittance; bank deposit/withdrawal/transfer settlement;
-  executed FX buy/sell trades and currency stock; live balances and profit claims.
-  These require verified external providers, transaction ledgers, reconciliation,
-  permissions, independently tested reversal and recovery processes.
-- Unified global branch/currency filtering across every module, account/customer
-  directory and generic business expense management. Module-specific controls
-  exist, but global controls should not be decorative.
-- A universally latest receipt across all history and providers. The present
-  acknowledgement shortcut is based on bounded recent authorized records.
-
-**Quality boundary:** Passing automated tests establishes code and integration
-gates, not pixel-perfect design parity, browser assistive-technology coverage
-or authorization to move real customer money.
-
 ## Deliberate remaining differences from the prototype
 
 | Approved prototype element | Running application behavior | Work needed before exact functional equivalence |
 | --- | --- | --- |
 | Global branch and currency selectors | Branch/currency controls exist inside supported module forms; the sidebar identifies the workspace | Define one server-validated, cross-module branch/currency filtering contract, persist selection, and apply it to every list/summary with authorization tests; adding decorative selectors would suggest filtering that does not happen |
 | Transfer/mobile/banking/forex monetary volume cards | The snapshot displays daily Mobile Money record counts and explicitly labelled recent request/quote counts | Add authorized, bounded database aggregates with explicit time windows and separate currencies; recent paginated list counts must not be labelled complete daily totals |
-| Generic "New transaction" sheet | Implemented: permission-filtered chooser with original-style modal presentation; opens each real secure module form | Add comprehensive browser/modal and accessibility verification; provider execution still requires actual backend integrations |
+| Generic "New transaction" sheet | Authorized links open the implemented module's record/request/quote workflow | A unified operation launcher can be built over the existing forms; provider execution still requires actual backend integrations |
 | PIN payout, executed banking/FX operations and cash balances | Internal instructions, quotations, review and physical cash evidence are labelled according to what they actually record | Implement and independently validate provider execution, reconciliation and accounting before presenting settled funds or executable payout controls |
-| "Last receipt" | Implemented as last *visible recent acknowledgement* from already authorized Mobile Money and Money Transfer records, never a settlement receipt | A global latest historical receipt across modules needs a separate backed query and additional settlement boundaries |
+| "Last receipt" | Overview and module pages link to authorized history; supported record pages have non-settlement acknowledgements | Define a tenant/branch-scoped latest acknowledgement lookup; a mock receipt would be misleading |
 | Load demo / Reset | No controls that fabricate financial activity or erase records | Keep any future demo mode isolated from real tenant records and clearly identified |
 | One browser-only navigation surface for all roles/modules | Server pages and menus reflect role, branch and subscription access | Preserve authorization boundaries; unsupported or unassigned modules should not appear as working controls |
 | Customers, customer accounts, legacy open/close day and expense actions | Legacy services remain unavailable; newer module-specific contacts and cash shifts are implemented | Implement the missing domain models, permissions, transaction/audit rules and UI, rather than reconnecting prototype arrays or legacy stub controllers |

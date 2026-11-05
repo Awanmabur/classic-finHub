@@ -2,7 +2,7 @@
   <p class="tiny"><a class="btn" href="/tenant/mobile-money/shifts">Manage physical cash shifts</a> Request an opening cash shift and obtain independent approval before recording new activity. A shift is not provider float or a settled balance.</p>
   <div class="grid">
     <% if (data.canRecord && (user.branchId || (data.branches||[]).some(b=>b.status==='active'))) { %>
-    <form class="card" method="post" action="/tenant/mobile-money/cash-in" autocomplete="off" data-operation-form="record" data-operation-title="New mobile money record">
+    <form class="card" method="post" action="/tenant/mobile-money/cash-in" autocomplete="off">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
       <div class="cardHead"><b>Mobile money — operational record</b><span>Cash-in / cash-out registration</span></div>

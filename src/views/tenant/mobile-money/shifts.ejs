@@ -4,7 +4,7 @@
     <div class="cardBody">
       <p class="tiny">An independent supervisor must verify opening cash before recording. Counted cash and recorded customer operations only. Cash-in adds to the provisional drawer estimate; cash-out subtracts. Fees are informational and excluded from this calculation. No shift proves provider payment, electronic float, or settlement.</p>
       <% if(data.canOpen){ %>
-      <form method="post" action="/tenant/mobile-money/shifts/open" class="row3" data-operation-form="shift" data-operation-title="Request opening cash verification">
+      <form method="post" action="/tenant/mobile-money/shifts/open" class="row3">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <% if(user.role==='Tenant Owner'){ %>
           <label class="field">Branch<select class="control" name="branchId" required><option value="">Select an active branch</option><% data.branches.forEach(b=>{ %><option value="<%= b._id %>"><%= b.name %> (<%= b.currency %>)</option><% }) %></select></label>

@@ -26,7 +26,7 @@
   <a class="skip-link" href="#workspaceContent">Skip to workspace</a>
   <div class="grain" aria-hidden="true"></div>
   <div class="wrap"><div class="shell">
-    <%- include('../partials/dashboard-sidebar', { context, menu, currentPath, tenant, user, quickActions, latestAcknowledgement: context === 'tenant' && currentPath === '/tenant/dashboard' ? data.latestAcknowledgement : null }) %>
+    <%- include('../partials/dashboard-sidebar', { context, menu, currentPath, tenant, user }) %>
     <main class="panel main" id="workspaceContent" tabindex="-1">
       <div class="topbar">
         <div class="title"><h2 id="pageTitle"><%= pageTitle %></h2><p id="pageSub"><%= pageSub %></p></div>
@@ -34,7 +34,6 @@
           <button class="btn btnIcon mobileOnly" id="menuBtn" type="button" aria-label="Open menu" aria-controls="sidePanel" aria-expanded="false"><i class="fa-solid fa-bars-staggered" aria-hidden="true"></i></button>
           <% if (hasPageSearch) { %><div class="ctrl pageSearch"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input id="search" type="search" aria-label="Search records on this page" placeholder="Search this page…"></div><% } %>
           <% if (context === 'platform' && ['/platform/dashboard','/platform/tenants'].includes(currentPath)) { %><a class="btn btnPrimary" href="/platform/tenants/create"><i class="fa-solid fa-plus" aria-hidden="true"></i> Create tenant</a><% } %>
-          <% if (context === 'tenant' && quickActions.length) { %><button class="btn btnPrimary" type="button" id="newTransactionBtn" aria-haspopup="dialog" aria-controls="operationChooser" aria-expanded="false"><i class="fa-solid fa-plus" aria-hidden="true"></i> New transaction</button><% } %>
         </div>
       </div>
       <%- include('../partials/flash', { flash }) %>
@@ -42,23 +41,6 @@
     </main>
   </div></div>
   <div class="menuOverlay" id="menuOverlay"></div>
-  <% if (context === 'tenant' && quickActions.length) { %>
-  <div class="overlay" id="operationChooser" role="dialog" aria-modal="true" aria-labelledby="operationChooserTitle" aria-hidden="true">
-    <div class="sheet">
-      <div class="sheetHead"><div><b id="operationChooserTitle">New transaction</b><p class="tiny">Choose an authorized service to open its secured recording form.</p></div>
-        <button class="btn btnIcon" type="button" data-dialog-close aria-label="Close transaction chooser"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>
-      <div class="sheetBody">
-        <div class="opLauncher">
-          <% quickActions.forEach(action => { %>
-          <div class="opGroup"><h3><%= action.label %></h3><p>Continue to the authenticated, tenant-scoped workflow.</p>
-            <a class="btn btnPrimary" href="<%= action.href %>?new=<%= action.href === '/tenant/forex' ? 'quote' : '1' %>"><i class="fa-solid fa-arrow-right" aria-hidden="true"></i> Open form</a></div>
-          <% }) %>
-        </div>
-        <p class="tiny">These are internal records and requests. No money is sent, paid out, exchanged or settled by opening a form.</p>
-      </div>
-    </div>
-  </div>
-  <% } %>
   <script src="/js/dashboard.js?v=<%= assetVersion %>"></script>
 </body>
 </html>

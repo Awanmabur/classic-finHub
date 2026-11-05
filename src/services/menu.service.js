@@ -10,76 +10,27 @@ function platformMenu(user) {
 }
 function tenantMenu(tenant,user) {
   if (!tenant || !user) return [];
-  const allowed = permission => hasPermission(user,permission);
-  const entitled = (moduleKey,permission) =>
-    require('../tenant/services/moduleAccess.service').hasModuleForUser(tenant,user,moduleKey) && allowed(permission);
-  const groups = [];
-  const add = (label,items) => { if(items.length) groups.push({label,items}); };
-  const item = (label,href,icon) => ({label,href,icon});
-
-  if(allowed('dashboard.view')) add('Overview',[
-    item('Today snapshot','/tenant/dashboard','fa-gauge-high')
-  ]);
-
-  if(entitled('money_transfer','money_transfer.view')) {
-    const items=[item('Transfer requests','/tenant/money-transfer','fa-money-bill-transfer')];
-    if(entitled('money_transfer','money_transfer.create'))items.push(item('New transfer request','/tenant/money-transfer?new=request','fa-plus'));
-    items.push(item('Sender and receiver contacts','/tenant/money-transfer/contacts','fa-address-book'));
-    if(entitled('money_transfer','money_transfer.contacts'))items.push(item('Add contact','/tenant/money-transfer/contacts?new=contact','fa-user-plus'));
-    if(entitled('money_transfer','money_transfer.review'))items.push(item('Independent review queue','/tenant/money-transfer','fa-user-shield'));
-    items.push(item('Transfer history','/tenant/money-transfer/history','fa-clock-rotate-left'));
-    add('Money Transfer',items);
-  }
-
-  if(entitled('mobile_money','mobile_money.view')) {
-    const items=[item('Network activity','/tenant/mobile-money','fa-mobile-screen-button')];
-    if(entitled('mobile_money','mobile_money.cash_in'))items.push(item('Cash-in','/tenant/mobile-money?new=record&operation=cash_in','fa-arrow-down'));
-    if(entitled('mobile_money','mobile_money.cash_out'))items.push(item('Cash-out','/tenant/mobile-money?new=record&operation=cash_out','fa-arrow-up'));
-    items.push(item('Mobile activity history','/tenant/mobile-money/history','fa-clock-rotate-left'));
-    items.push(item('Physical cash shifts','/tenant/mobile-money/shifts','fa-cash-register'));
-    if(['Tenant Owner','Mobile Money Operator'].includes(user.role))items.push(item('Request cash shift opening','/tenant/mobile-money/shifts?new=shift','fa-vault'));
-    add('Mobile Money',items);
-  }
-
-  if(entitled('banking','banking.view')) {
-    const items=[item('Banking requests','/tenant/banking','fa-building-columns')];
-    if(entitled('banking','banking.requests.create')){
-      items.push(item('Deposit request','/tenant/banking?new=request&kind=deposit_request','fa-money-bill-wave'));
-      items.push(item('Withdrawal request','/tenant/banking?new=request&kind=withdrawal_request','fa-arrow-up-from-bracket'));
-      items.push(item('Account transfer request','/tenant/banking?new=request&kind=transfer_request','fa-right-left'));
-    }
-    items.push(item('Account references','/tenant/banking/accounts','fa-address-card'));
-    if(entitled('banking','banking.accounts.manage'))items.push(item('Add account reference','/tenant/banking/accounts?new=account','fa-plus'));
-    items.push(item('Request history','/tenant/banking/history','fa-clock-rotate-left'));
-    add('Banking',items);
-  }
-
-  if(entitled('forex','forex.view')) {
-    const items=[item('Rate board and quotations','/tenant/forex','fa-chart-line')];
-    if(entitled('forex','forex.rate_manage'))items.push(item('Propose indicative rate','/tenant/forex?new=rate','fa-chart-simple'));
-    if(entitled('forex','forex.quotes.create'))items.push(item('New customer quote','/tenant/forex?new=quote','fa-file-circle-plus'));
-    items.push(item('Forex quote history','/tenant/forex/history','fa-clock-rotate-left'));
-    add('Forex',items);
-  }
-
-  if(entitled('approval_workflows','approvals.view')) add('Approval Workflows',[
-    item('Requests and decisions','/tenant/approvals','fa-user-shield')
-  ]);
-
-  const reports=[];
-  if(entitled('reports','reports.view'))reports.push(item('Operations Reports','/tenant/reports','fa-file-lines'));
-  if(entitled('analytics','analytics.view'))reports.push(item('Advanced Analytics','/tenant/analytics','fa-chart-pie'));
-  if(allowed('audit.view'))reports.push(item('Audit Trail','/tenant/audit','fa-shield-halved'));
-  add('Reports & Analytics',reports);
-
-  const management=[];
-  if(allowed('users.manage_branch')) management.push(item('Staff & Roles','/tenant/users','fa-users-gear'));
-  if(allowed('branches.view')) management.push(item('Branches','/tenant/branches','fa-code-branch'));
-  if(allowed('modules.view'))management.push(item('Modules & Add-ons','/tenant/modules','fa-layer-group'));
-  if(allowed('billing.view'))management.push(item('Billing & Plan','/tenant/billing','fa-file-invoice-dollar'));
-  if(entitled('notifications','notifications.view'))management.push(item('Notifications','/tenant/notifications','fa-bell'));
-  add('Administration',management);
-
-  return groups;
+  const workspace = [];
+  if (hasPermission(user,'dashboard.view')) workspace.push({ label:'Overview', href:'/tenant/dashboard',icon:'fa-gauge-high' });
+  if (hasPermission(user,'notifications.view') && require('../tenant/services/moduleAccess.service').hasModuleForUser(tenant,user,'notifications')) workspace.push({label:'Notifications',href:'/tenant/notifications',icon:'fa-bell'});
+  if (hasPermission(user,'billing.view')) workspace.push({ label:'Billing & Plan', href:'/tenant/billing', icon:'fa-file-invoice-dollar' });
+  if (hasPermission(user,'modules.view')) workspace.push({ label:'Modules',href:'/tenant/modules',icon:'fa-layer-group' });
+  const ops = [];
+  if (require('../tenant/services/moduleAccess.service').hasModuleForUser(tenant,user,'mobile_money') && hasPermission(user,'mobile_money.view')) {ops.push({ label:'Mobile Money',href:'/tenant/mobile-money',icon:'fa-mobile-screen-button' });ops.push({label:'Cash Shifts',href:'/tenant/mobile-money/shifts',icon:'fa-cash-register'});}
+  if (require('../tenant/services/moduleAccess.service').hasModuleForUser(tenant,user,'money_transfer') && hasPermission(user,'money_transfer.view')) ops.push({label:'Money Transfer',href:'/tenant/money-transfer',icon:'fa-money-bill-transfer'});
+  if (require('../tenant/services/moduleAccess.service').hasModuleForUser(tenant,user,'banking') && hasPermission(user,'banking.view')) ops.push({label:'Banking',href:'/tenant/banking',icon:'fa-building-columns'});
+  if (require('../tenant/services/moduleAccess.service').hasModuleForUser(tenant,user,'forex') && hasPermission(user,'forex.view')) ops.push({label:'Forex',href:'/tenant/forex',icon:'fa-chart-line'});
+  if (require('../tenant/services/moduleAccess.service').hasModuleForUser(tenant,user,'approval_workflows') && hasPermission(user,'approvals.view')) ops.push({label:'Approval Workflows',href:'/tenant/approvals',icon:'fa-user-shield'});
+  if (hasPermission(user,'users.manage') || hasPermission(user,'users.manage_branch')) workspace.push({ label:'Staff & Roles',href:'/tenant/users',icon:'fa-users-gear' });
+  if (hasPermission(user,'branches.view') || hasPermission(user,'*')) workspace.push({ label:'Branches',href:'/tenant/branches',icon:'fa-code-branch' });
+  const reports = [];
+  if (hasPermission(user,'reports.view') && require('../tenant/services/moduleAccess.service').hasModuleForUser(tenant,user,'reports')) reports.push({label:'Operations Reports',href:'/tenant/reports',icon:'fa-file-lines'});
+  if (hasPermission(user,'analytics.view') && require('../tenant/services/moduleAccess.service').hasModuleForUser(tenant,user,'analytics')) reports.push({label:'Advanced Analytics',href:'/tenant/analytics',icon:'fa-chart-pie'});
+  if (hasPermission(user,'audit.view')) reports.push({label:'Audit Trail',href:'/tenant/audit',icon:'fa-shield-halved'});
+  return [
+    { label:'Workspace', items:workspace },
+    { label:'Operations',items:ops },
+    { label:'Reports & Control',items:reports }
+  ].filter(g=>g.items.length);
 }
 module.exports = { platformMenu, tenantMenu };

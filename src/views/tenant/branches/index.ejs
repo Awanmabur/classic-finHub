@@ -6,7 +6,7 @@
   </div>
   <% if(data.canManage){ %>
   <section class="card" style="margin-top:14px"><div class="cardHead"><b>Create branch</b><span>Only tenant owners</span></div><div class="cardBody">
-    <form action="/tenant/branches" method="post" data-operation-form="branch" data-operation-title="Create branch"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <form action="/tenant/branches" method="post"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <div class="row3"><label class="field">Name<input class="control" name="name" required minlength="2" maxlength="100" placeholder="Kampala Main"></label>
       <label class="field">Unique code<input class="control" name="code" required maxlength="32" pattern="[a-z0-9][a-z0-9-]{1,30}" placeholder="kampala-main"></label>
       <label class="field">Currency<select class="control" name="currency"><option value="UGX">UGX</option><option value="KES">KES</option></select></label></div>

@@ -198,7 +198,7 @@ async function recordDraft(conn,tenant,actor,id,input,automatic=false){
   if(!device)throw secure.fail('SMS device is unavailable. Use manual Mobile Money entry if appropriate.',403);
   const fresh=await boundContext(device);
   if(String(fresh.actor.id)!==String(actor.id))throw secure.fail('Device assignment changed.',403);
-  const values={};for(const key of ['operation','customer','network','networkReference','currency','amount','fee'])values[key]=input?.[key];
+  const values={};for(const key of ['operation','customer','network','networkReference','currency','amount','fee','observedWalletBalance','observationEvidenceReference'])values[key]=input?.[key];
   values.idempotencyKey=secure.idempotencyKey(device.deviceId,prior.messageId);
   mobile.validate(values,values.operation);
   if(values.network!==device.network)throw secure.fail('The network must match the enrolled SMS device.');

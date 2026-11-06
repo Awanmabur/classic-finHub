@@ -3,9 +3,9 @@
    const branchProblem = typeof operationBranchError === 'string' && operationBranchError ? operationBranchError : 'An active operating branch must be assigned to your account before creating records.'; %>
 <section class="view show">
  <%- include('../../partials/operation-branch', {currentBranch, branchProblem, user}) %>
- <section class="card"><div class="cardHead"><b><%= data.workspaceTitle||'Forex rate board and quotations' %></b><span>Indicative only · no execution</span></div>
-  <div class="cardBody"><p class="tiny">Use an approved rate to record a customer quotation for independent review. No currency exchanged; quotes remain unexecuted until verified.</p>
-   <div class="rowBtns"><a class="btn" href="/tenant/forex/buy">Buy forex from customer</a><a class="btn" href="/tenant/forex/sell">Sell forex to customer</a><a class="btn" href="/tenant/forex/rates">Active rate board</a><a class="btn" href="/tenant/forex/cash-impact">Forex cash impact</a><a class="btn" href="/tenant/forex/records">Forex operation records</a><a class="btn" href="/tenant/forex/report">Forex report summary</a></div>
+ <section class="card"><div class="cardHead"><b><%= data.workspaceTitle||'Forex rate board and quotations' %></b><span>Approved rates · reviewed manual posting</span></div>
+  <div class="cardBody"><p class="tiny">Use an approved rate to record a quotation, then record the actual exchange against opened foreign currency and settlement accounts for independent review.</p>
+   <div class="rowBtns"><a class="btn" href="/tenant/funded">Manual movements &amp; review</a><a class="btn" href="/tenant/treasury">Balances &amp; reconciliation</a><a class="btn" href="/tenant/forex/buy">Buy forex from customer</a><a class="btn" href="/tenant/forex/sell">Sell forex to customer</a><a class="btn" href="/tenant/forex/rates">Active rate board</a><a class="btn" href="/tenant/forex/cash-impact">Forex cash impact</a><a class="btn" href="/tenant/forex/records">Forex operation records</a><a class="btn" href="/tenant/forex/report">Forex report summary</a></div>
 
   </div></section>
  <div class="grid" style="margin-top:14px">
@@ -22,23 +22,7 @@
  <div class="grid" style="margin-top:14px">
  <% if(data.canQuote && currentBranchId && data.workspaceOperation!=='rates'){ %><form class="card" method="post" action="/tenant/forex/quotes" autocomplete="off" data-forex-form><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>"><input type="hidden" name="operation" value="<%= ['buy','sell'].includes(data.workspaceOperation)?data.workspaceOperation:'quote' %>">
   <div class="cardHead"><b><%= data.workspaceOperation==='buy'?'Forex Operations - Buy':data.workspaceOperation==='sell'?'Forex Operations - Sell':'Create a customer quote' %></b><span>Locked rate snapshot · internal quotation</span></div><div class="cardBody" style="display:grid;gap:12px">
-   <% const availableRates=data.rates.filter(r=>r.status==='active'&&String(r.branchId)===currentBranchId&&new Date(r.expiresAt).getTime()>Date.now()+5*60000); %>
-   <b>Customer and operation</b>
-   <label class="field">Operation<input class="control" value="<%= data.workspaceOperation==='buy'?'Buy forex from customer':data.workspaceOperation==='sell'?'Sell forex to customer':'Customer quote' %>" readonly></label>
-   <label class="field">Customer name<input name="customerLabel" class="control" minlength="2" maxlength="120" required></label>
-   <div class="row2"><label class="field">Customer phone<input class="control" name="customerPhone" type="tel" required maxlength="16" placeholder="+256..."></label><label class="field">ID / Passport No.<input class="control" name="identityDocument" maxlength="80" placeholder="Optional verification document"></label></div>
-   <b>Currency exchange details</b>
-   <div class="row2"><label class="field">Foreign currency<input class="control" data-forex-currency="from" readonly placeholder="Choose an approved rate"></label><label class="field">Settlement currency<input class="control" data-forex-currency="to" readonly placeholder="Choose an approved rate"></label></div>
-   <label class="field">Exchange rate<select name="rateId" class="control" required><option value="">Select active rate</option><% availableRates.forEach(r=>{ %><option value="<%= r._id %>" data-from="<%= r.fromCurrency %>" data-to="<%= r.toCurrency %>" data-rate="<%= r.rateDecimal %>"><%= r.fromCurrency %> → <%= r.toCurrency %> · <%= r.rateDecimal %></option><% }) %></select></label>
-   <label class="field">Foreign amount<input name="amount" class="control" inputmode="decimal" required placeholder="10000"></label>
-   <div class="row2"><label class="field">Commission / fee<input class="control" name="commission" inputmode="decimal" value="0" pattern="[0-9]+([.][0-9]{1,2})?"><span class="tiny">Proposed in the settlement currency.</span></label><label class="field">Settlement method<select class="control" name="settlementMethod"><% ['Cash','Bank settlement','Mobile money','Wallet balance'].forEach(method=>{ %><option><%= method %></option><% }) %></select></label></div>
-   <label class="field">Quote validity<select name="validMinutes" class="control" required><% for(let mins=5;mins<=60;mins++){ %><option value="<%= mins %>" <%= mins===15?'selected':'' %>><%= mins %> minutes</option><% } %></select></label>
-   <b>Reference and notes</b>
-   <div class="row2"><label class="field">Rate source<input class="control" name="rateSource" maxlength="120" placeholder="Internal rate board / market quote"></label><label class="field">External reference<input class="control" name="externalReference" maxlength="120" placeholder="Slip, receipt, or optional ref"></label></div>
-   <label class="field">Note / narration (12–400 characters)<textarea name="note" class="control" minlength="12" maxlength="400" required rows="2"></textarea></label>
-   <div class="summary"><div class="sumRow"><span><%= data.workspaceOperation==='sell'?'Customer pays':'Customer receives' %></span><b data-forex-total>—</b></div><div class="sumRow"><span>Drawer effect</span><b>No posted movement until verified execution</b></div><div class="sumRow"><span>Reference</span><b class="mono"><%= data.idempotencyKey %></b></div></div><p class="tiny">Posts an indicative quote for independent review. The approved rate snapshot controls the calculation.</p>
-   <button type="submit" class="btn btnPrimary" <%= availableRates.length?'':'disabled' %>>Post forex operation</button>
-   <% if(!availableRates.length){ %><p class="tiny">Obtain approval for a rate valid beyond the quotation window first.</p><% } %>
+   <%- include('_entry-form',{currentBranchId}) %>
   </div></form><% } %>
  <section class="card"><div class="cardHead"><b>Recent quotations</b><span>Branch and role scoped</span></div><div class="cardBody txList"><% if(!data.records.items.length){ %><p class="tiny">No quotes in your permitted scope.</p><% } %><% data.records.items.slice(0,12).forEach(q=>{ %><div class="tx"><div class="txMeta"><b><a href="/tenant/forex/<%= q._id %>"><%= q.reference %></a></b><span><%= q.fromCurrency %> → <%= q.toCurrency %> · <%= q.status.replaceAll('_',' ') %></span></div><b><%= data.amountLabel(q.sourceMinor,q.fromCurrency) %></b></div><% }) %></div><div class="cardBody"><a class="btn" href="/tenant/forex/history">All quotes</a></div></section>
  </div>

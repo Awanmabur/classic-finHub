@@ -1,5 +1,7 @@
 # ClassicFin Hub v1.16 — Independently Subscribed Money Transfer Requests
 
+> Historical request-only release notes. The current reviewed manual funds workflow is documented in [Manual funds and UI](MANUAL_FUNDS_AND_UI.md); provider execution remains a separate integration.
+
 **Release scope:** operational case management, not provider remittances. This module deliberately cannot collect, send, hold, disburse, reverse, or settle funds. No payout PINs are issued. API keys alone do not make financial operations live; licensed-provider onboarding, identity/sanctions screening, settlement state machine, authenticated callbacks, reconciliation and approval evidence remain separate launch requirements.
 
 ## Dependency and tenancy design

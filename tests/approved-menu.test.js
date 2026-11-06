@@ -3,7 +3,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const path=require('node:path');
 const ejs=require('ejs');
-const {tenantMenu}=require('../src/services/menu.service');
+const {tenantMenu,tenantNavigationPath}=require('../src/services/menu.service');
 const {plans,modules}=require('../src/data/store');
 const {asPlanVersion,planSnapshot}=require('../src/platform/services/commercial.service');
 const {permissionsFor}=require('../src/config/roles');
@@ -68,7 +68,7 @@ test('duplicate destination links produce exactly one active sidebar entry on ea
  const destinations=new Set([...paths(menu),'/tenant/mobile-money/shifts/507f1f77bcf86cd799439012','/tenant/customers/507f1f77bcf86cd799439013']);
  const template=path.join(__dirname,'../src/views/partials/dashboard-sidebar.ejs');
  for(const currentPath of destinations){
-  const html=await ejs.renderFile(template,{context:'tenant',menu,currentPath,tenant,user:owner,csrfToken:'test'});
+  const html=await ejs.renderFile(template,{context:'tenant',menu,currentPath:tenantNavigationPath(currentPath),tenant,user:owner,csrfToken:'test'});
   assert.equal((html.match(/aria-current="page"/g)||[]).length,1,`Exactly one active entry required for ${currentPath}`);
   assert.equal((html.match(/class="subitem active"/g)||[]).length,1,`Exactly one selected style required for ${currentPath}`);
  }
@@ -87,5 +87,7 @@ test('legacy history, contact and detail links keep the corresponding approved m
  assert.equal(tenantNavigationPath('/tenant/money-transfer/507f1f77bcf86cd799439012'),'/tenant/money-transfer/records');
  assert.equal(tenantNavigationPath('/tenant/money-transfer/contacts'),'/tenant/money-transfer/send');
  assert.equal(tenantNavigationPath('/tenant/forex/history'),'/tenant/forex/records');
- for(const path of ['/tenant/mobile-money/cash-in','/tenant/mobile-money/shifts','/tenant/money-transfer/fees','/tenant/forex/rates','/tenant/forex/buy'])assert.equal(tenantNavigationPath(path),path);
+ assert.equal(tenantNavigationPath('/tenant/mobile-money/shifts'),'/tenant/cash/shifts');
+ assert.equal(tenantNavigationPath('/tenant/mobile-money/shifts/507f1f77bcf86cd799439012'),'/tenant/cash/shifts/507f1f77bcf86cd799439012');
+ for(const path of ['/tenant/mobile-money/cash-in','/tenant/money-transfer/fees','/tenant/forex/rates','/tenant/forex/buy'])assert.equal(tenantNavigationPath(path),path);
 });

@@ -15,10 +15,12 @@ module.exports=function routes({renderTenant}){
    renderTenant(req,res,`mobile-money/${view}`,title,subtitle,{...data,operation,idempotencyKey:randomUUID(),
     branches:branches.filter(branch=>branch.status==='active'&&(req.user.role==='Tenant Owner'||String(branch._id)===String(req.user.branchId))),
     selectedBranchId:req.operationBranch?String(req.operationBranch._id):null,
+    funds:req.operationBranch&&hasPermission(req.user,'treasury.view')?await require('../services/mobileMoneyFunds.service').context(req.tenantDb,req.tenant,req.user,req.operationBranch):null,
     canRecord:operation?hasPermission(req.user,`mobile_money.${operation}`):hasPermission(req.user,'mobile_money.cash_in')||hasPermission(req.user,'mobile_money.cash_out'),
     recordPath:hasPermission(req.user,'mobile_money.cash_in')?'/tenant/mobile-money/cash-in':'/tenant/mobile-money/cash-out'});
   }catch(error){next(error);}
  }
+ router.get('/funds/context',async(req,res,next)=>{try{if(!req.operationBranch)return res.status(409).json({error:'An operating branch is required.'});res.set('Cache-Control','private, no-store').json(await require('../services/mobileMoneyFunds.service').context(req.tenantDb,req.tenant,req.user,req.operationBranch));}catch(error){next(error);}});
  router.get('/cash-in',(req,res,next)=>render(req,res,next,{view:'entry',title:'Cash-in',subtitle:'Cash-in/cash-out activity and cash drawer impact.',operation:'cash_in'}));
  router.get('/cash-out',(req,res,next)=>render(req,res,next,{view:'entry',title:'Cash-out',subtitle:'Cash-in/cash-out activity and cash drawer impact.',operation:'cash_out'}));
  router.get('/network-activity',(req,res,next)=>render(req,res,next,{view:'network',title:'Network activity',subtitle:'Mobile money records grouped by network with recent activity.'}));

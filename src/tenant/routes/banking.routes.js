@@ -1,5 +1,5 @@
 'use strict';
-// All banking endpoints are operational requests. No bank payment/ledger posting.
+// Banking instructions are posted separately through independently reviewed manual movements.
 const routerFactory=require('express').Router;
 const crypto=require('node:crypto');
 const requirePermission=require('../../middleware/requirePermission');
@@ -26,7 +26,7 @@ function routes({renderTenant}){
    const branch=branches.find(b=>String(b._id)===selectedId);
    const references=branch?await bank.listReferences(req.tenantDb,req.tenant,req.user,{branchId:selectedId}):[];
    if(branch&&hasModuleForUser(req.tenant,req.user,'accounts')&&hasPermission(req.user,'accounts.view'))references.push(...await require('../customerAccounts/bankingBridge').choices(req.tenantDb,req.tenant,req.user,{branchId:selectedId}));
-   renderTenant(req,res,'banking/index','Banking Requests','Controlled bank-operation requests. No real balance, deposit, withdrawal, transfer or bank settlement is represented.',{
+   renderTenant(req,res,'banking/index','Banking Requests','Record banking instructions, then post manual movements against reviewed balances.',{
     records,branches,queue,references,selectedBranchId:branch?selectedId:null,
     canCreate:bank.operator(req.user)&&hasPermission(req.user,'banking.requests.create'),
     canReview:bank.reviewer(req.user)&&hasPermission(req.user,'banking.review'),
@@ -90,8 +90,14 @@ function routes({renderTenant}){
  });
  router.get('/:id',requirePermission('banking.view'),async(req,res,next)=>{
   try{const request=await bank.detail(req.tenantDb,req.tenant,req.user,req.params.id);
-   renderTenant(req,res,'banking/detail','Banking Request Details','No bank execution or settlement has been claimed.',{
+   const pendingMovement=await require('../funded/models').models(req.tenantDb).execution.findOne({sourceType:'banking',sourceId:request._id,status:'pending_review'}).select('_id createdBy').lean();
+   renderTenant(req,res,'banking/detail','Banking Request Details','Banking instructions and independently reviewed manual book entries.',{
     request,formatMoneyMinor,
+    pendingMovementId:pendingMovement&&(req.user.role!=='Banking Operator'||String(pendingMovement.createdBy)===String(req.user.id))?pendingMovement._id:null,
+    canRecordManual:!pendingMovement&&bank.operator(req.user)&&hasPermission(req.user,'banking.requests.create')&&hasPermission(req.user,'treasury.view')&&
+     (req.user.role==='Tenant Owner'||String(request.createdBy)===String(req.user.id))&&String(req.operationBranch?._id||'')===String(request.branchId)&&
+     ['requested','approved_pending_bank'].includes(request.status)&&new Date(request.expiresAt)>new Date()&&request.source?.referenceType==='customer_account'&&
+     (request.kind!=='transfer_request'||request.destination?.referenceType==='customer_account'),
     canReview:request.status==='requested'&&new Date(request.expiresAt)>new Date()&&bank.reviewer(req.user)&&hasPermission(req.user,'banking.review')&&String(request.createdBy)!==String(req.user.id),
     canCancel:request.status==='requested'&&(req.user.role==='Tenant Owner'||String(request.createdBy)===String(req.user.id))
    });

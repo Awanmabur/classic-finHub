@@ -1,0 +1,6 @@
+<dialog class="workspaceDialog" id="<%= id %>" aria-labelledby="<%= titleId %>">
+ <div class="tenantCleanSheet">
+  <header class="tenantCleanHead"><div><b id="<%= titleId %>" <% if(remote){ %>data-workspace-editor-title<% } %>><%= title %></b><span><%= subtitle %></span></div><button class="btn btnIcon" type="button" data-workspace-close aria-label="Close">×</button></header>
+  <% if(remote){ %><div data-workspace-editor-body></div><% }else{ %><%- include('form',{form}) %><% } %>
+ </div>
+</dialog>

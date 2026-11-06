@@ -1,6 +1,6 @@
 'use strict';
-// Mounted beneath /tenant/money-transfer. No route can post a payout or mark a
-// payment settled. Each endpoint checks the real entitlement and server role.
+// Transfer instructions are collected and paid out through independently reviewed manual movements.
+// Each endpoint checks the real entitlement and server role.
 const newRouter=require('express').Router;
 const crypto=require('node:crypto');
 const requirePermission=require('../../middleware/requirePermission');
@@ -29,7 +29,7 @@ function routes({renderTenant}){
    const branchId=String(req.operationBranch?._id || '');
    const selected=availableBranches.find(b=>String(b._id)===branchId);
    const contacts=selected?await transfer.listContacts(req.tenantDb,req.tenant,req.user,{branchId}):[];
-   renderTenant(req,res,'money-transfer/index','Money Transfer','Internal transfer requests and independent review. No provider payout or settlement is enabled.',{
+   renderTenant(req,res,'money-transfer/index','Money Transfer','Transfer instructions, reviewed manual collections and secure PIN payouts.',{
     records,queue,branches:availableBranches,selectedBranchId:selected?branchId:null,contacts,
     canCreate:writeRoles.has(req.user.role)&&hasPermission(req.user,'money_transfer.create'),
     canReview:reviewerRoles.has(req.user.role)&&hasPermission(req.user,'money_transfer.review'),
@@ -92,9 +92,15 @@ function routes({renderTenant}){
  });
  router.get('/:id',requirePermission('money_transfer.view'),async(req,res,next)=>{
   try{const order=await transfer.detail(req.tenantDb,req.tenant,req.user,req.params.id);
+   const pendingMovement=await require('../funded/models').models(req.tenantDb).execution.findOne({sourceType:'money_transfer',sourceId:order._id,status:'pending_review'}).select('_id createdBy').lean();
    renderTenant(req,res,'money-transfer/detail','Transfer Request Details',
-    'An internal request is not a payment, remittance receipt or provider confirmation.',{
+    'Transfer instructions and independently reviewed manual collections and payouts.',{
      order,formatMoneyMinor,
+    pendingMovementId:pendingMovement&&(req.user.role!=='Money Transfer Operator'||String(pendingMovement.createdBy)===String(req.user.id))?pendingMovement._id:null,
+     canRecordManual:!pendingMovement&&writeRoles.has(req.user.role)&&hasPermission(req.user,'money_transfer.create')&&hasPermission(req.user,'treasury.view')&&
+      (req.user.role==='Tenant Owner'||String(order.createdBy)===String(req.user.id))&&String(req.operationBranch?._id||'')===String(order.branchId)&&
+      ['requested','approved_pending_provider'].includes(order.status)&&new Date(order.expiresAt)>new Date(),
+     canPayout:order.status==='collected_manual'&&hasPermission(req.user,'money_transfer.payout'),
      canCancel:order.status==='requested'&&(req.user.role==='Tenant Owner'||String(order.createdBy)===String(req.user.id)),
      canReview:order.status==='requested'&&new Date(order.expiresAt)>new Date()&&
       reviewerRoles.has(req.user.role)&&hasPermission(req.user,'money_transfer.review')&&String(order.createdBy)!==String(req.user.id)

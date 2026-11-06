@@ -5,7 +5,7 @@ const links=moduleKey==='money_transfer'?[
 ]:moduleKey==='forex'?[
  ['/buy','Buy forex from customer'],['/sell','Sell forex to customer'],['/rates','Active rate board'],['/cash-impact','Forex cash impact'],['/records','Forex operation records'],['/report','Forex report summary']
 ]:[['/deposit','Deposit'],['/withdraw','Withdraw'],['/transfer','Account transfer'],['/accounts','External bank references'],['/movements','Banking request movements'],['/report','Banking report summary']];
-const statuses=moduleKey==='money_transfer'?['requested','approved_pending_provider','rejected','cancelled','expired']:moduleKey==='forex'?['quoted','approved_pending_execution','rejected','cancelled','expired']:['requested','approved_pending_bank','rejected','cancelled','expired'];
+const statuses=moduleKey==='money_transfer'?['requested','approved_pending_provider','collected_manual','paid_out_manual','rejected','cancelled','expired']:moduleKey==='forex'?['quoted','approved_pending_execution','posted_manual','rejected','cancelled','expired']:['requested','approved_pending_bank','posted_manual','rejected','cancelled','expired'];
 const kinds=moduleKey==='banking'?['deposit_request','withdrawal_request','transfer_request']:moduleKey==='forex'?['buy','sell','quote']:[];
 const currencies=data.currencies||(moduleKey==='forex'?['UGX','USD','SSP','KES','EUR']:['UGX','USD','SSP','KES']);
 const filterQuery=new URLSearchParams();
@@ -21,16 +21,13 @@ const reportMode=!['records','pending','payout'].includes(data.mode);
   </div>
  </section>
  <% if(data.mode==='cash'){ %>
- <section class="card" style="margin-top:14px"><div class="cardHead"><b>Cash stock and drawer impact</b><span>Execution source unavailable</span></div>
-  <div class="cardBody"><p class="tiny">Approved rates and customer quotations are stored in the database. They do not create currency stock, move drawer cash, or post a settled foreign exchange trade. No cash balance is inferred from these quotations.</p><a class="btn" href="/tenant/forex/records">Review quotation records</a></div>
+ <section class="card" style="margin-top:14px"><div class="cardHead"><b>Cash stock and drawer impact</b><span>Reviewed manual balances</span></div>
+  <div class="cardBody"><p class="tiny">Quotations alone do not change currency stock or drawer cash. Independently reviewed manual exchanges post the actual foreign currency and settlement account movements. No cash balance is inferred from these quotations.</p><div class="rowBtns"><a class="btn btnPrimary" href="/tenant/treasury">View balances &amp; reconciliation</a><a class="btn" href="/tenant/funded">Manual movements &amp; review</a><a class="btn" href="/tenant/forex/records">Review quotation records</a></div></div>
  </section>
  <% } %>
  <% if(data.mode==='payout'){ %>
- <section class="card" style="margin-top:14px"><div class="cardHead"><b>Payout by PIN</b><span>Provider payout is not enabled</span></div>
-  <div class="cardBody"><p class="tiny">Transfer instructions can be recorded and independently approved. A provider has not issued payout PINs or confirmed collection in this workspace. PIN checking and cash payout stay unavailable until a verified payout integration is configured.</p>
-   <dl class="row3"><div><dt>PIN match</dt><dd>Provider required</dd></div><div><dt>Amount</dt><dd>Select a transfer record below</dd></div><div><dt>Status</dt><dd>Awaiting provider confirmation</dd></div></dl>
-   <div class="rowBtns"><a class="btn btnPrimary" href="/tenant/money-transfer/pending-payouts">Pending payout queue</a><a class="btn" href="/tenant/money-transfer/send">Record transfer instructions</a></div>
-  </div>
+ <section class="card" style="margin-top:14px"><div class="cardHead"><b>Payout by PIN</b><span>Reviewed manual payout</span></div>
+  <div class="cardBody"><p class="tiny">Check the six-digit PIN and receiver details for a reviewed manual collection, then submit the cash payout for independent review.</p><div class="rowBtns"><a class="btn btnPrimary" href="/tenant/funded/payout">Check PIN and request payout</a><a class="btn" href="/tenant/money-transfer/pending-payouts">Pending payout queue</a></div></div>
  </section>
  <% } %>
  <section class="card" style="margin-top:14px"><div class="cardHead"><b>Filter <%= reportMode?'summary':'records' %></b><span>Dates use UTC · maximum 90 days</span></div>
@@ -44,7 +41,7 @@ const reportMode=!['records','pending','payout'].includes(data.mode);
   </form></div>
  </section>
  <% if(!reportMode){ %>
- <section class="card" style="margin-top:14px"><div class="cardHead"><b><%= data.mode==='pending'?'Awaiting provider execution':'Recorded activity' %></b><span><%= data.records.items.length %> records on this page</span></div>
+ <section class="card" style="margin-top:14px"><div class="cardHead"><b><%= data.mode==='pending'?'Collected funds awaiting payout':'Recorded activity' %></b><span><%= data.records.items.length %> records on this page</span></div>
   <div class="cardBody tableWrap"><table><thead><tr><th>Date UTC</th><th>Reference</th><th>Customer / parties</th><th>Operation</th><th>Amount</th><% if(moduleKey==='forex'){ %><th>Target quote</th><% } %><% if(moduleKey==='money_transfer'){ %><th>Proposed fee</th><% } %><th>Internal status</th><th>Details</th></tr></thead><tbody>
    <% if(!data.records.items.length){ %><tr><td colspan="9">No records match these filters in your authorized scope.</td></tr><% } %>
    <% data.records.items.forEach(row=>{ %><tr data-search-row><td><%= new Date(row.createdAt).toISOString().slice(0,16).replace('T',' ') %></td><td><%= row.reference %></td><td><%= row.party %></td><td><%= row.activity %></td><td><%= row.volume %></td><% if(moduleKey==='forex'){ %><td><%= row.target %></td><% } %><% if(moduleKey==='money_transfer'){ %><td><%= row.fee %></td><% } %><td><span class="tag"><%= row.status.replaceAll('_',' ') %></span></td><td><a class="btn" href="<%= row.href %>">Open record</a></td></tr><% }) %>

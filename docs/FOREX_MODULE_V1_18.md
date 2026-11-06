@@ -1,5 +1,7 @@
 # ClassicFin Hub v1.18 — Forex independent module
 
+> Historical request-only release notes. The current reviewed manual funds workflow is documented in [Manual funds and UI](MANUAL_FUNDS_AND_UI.md); provider execution remains a separate integration.
+
 ## Boundaries
 
 Forex is a separately subscribable **indicative rate and quote operations** module. It is not an FX brokerage, currency wallet, cash-trading ledger, trade execution facility, or settlement product. Internal approval does not establish external market rates or actual bank/cash delivery. No financial ledger posting is made by Forex quotation operations.

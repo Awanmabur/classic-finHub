@@ -3,6 +3,7 @@ const mongoose=require('mongoose');
 const fields=new mongoose.Schema({
   operation:{type:String,enum:['cash_in','cash_out']},customer:{type:String,maxlength:120},
   network:{type:String,enum:['MTN','Airtel','M-Pesa']},networkReference:{type:String,maxlength:100},
+  observedWalletBalance:{type:String,maxlength:32},observationEvidenceReference:{type:String,maxlength:120},
   currency:{type:String,enum:['UGX','KES']},amount:{type:String,maxlength:20},fee:{type:String,maxlength:20}
 },{_id:false,strict:'throw'});
 const schema=new mongoose.Schema({

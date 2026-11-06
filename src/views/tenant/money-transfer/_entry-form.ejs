@@ -19,7 +19,7 @@
 <label class="field">Exchange rate<input class="control" name="exchangeRate" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,8})?" placeholder="Optional indicative rate"><span class="tiny">Reference only; the request does not perform a currency conversion.</span></label>
 <label class="field">Transfer fee<input class="control" name="fee" inputmode="decimal" required pattern="[0-9]+([.][0-9]{1,2})?" value="0"></label>
 </div></div>
-<div class="summary"><div class="sumRow"><span>Generated PIN</span><b>Awaiting verified payout integration</b></div><div class="sumRow"><span>Total sender pays</span><b data-transfer-total>—</b></div><div class="sumRow"><span>Reference</span><b class="mono"><%= data.idempotencyKey %></b></div></div>
+<div class="summary"><div class="sumRow"><span>Generated PIN</span><b>Issued after reviewed collection</b></div><div class="sumRow"><span>Total sender pays</span><b data-transfer-total>—</b></div><div class="sumRow"><span>Reference</span><b class="mono"><%= data.idempotencyKey %></b></div></div>
 <label class="field">Request validity<select class="control" name="validDays" required><% for(let days=1;days<=30;days++){ %><option value="<%= days %>" <%= days===7?'selected':'' %>><%= days %> day<%= days===1?'':'s' %></option><% } %></select></label>
 <% if(!senders.length||!beneficiaries.length){ %><p class="tiny">Create an active sender and beneficiary contact in this branch before submitting a request. <a href="/tenant/money-transfer/contacts">Manage contacts</a></p><% } %>
-<div class="rowBtns"><button class="btn btnPrimary" type="submit" <%= !senders.length||!beneficiaries.length?'disabled':'' %>>Save transfer &amp; open receipt</button></div>
+<div class="rowBtns"><button class="btn btnPrimary" type="submit" <%= !senders.length||!beneficiaries.length?'disabled':'' %>>Save transfer &amp; continue</button></div>

@@ -3,8 +3,9 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const ejs=require('ejs');
 const path=require('node:path');
+const {permissionsFor}=require('../src/config/roles');
 const template=path.resolve(__dirname,'../src/views/layouts/dashboard.ejs');
-const links=[['/tenant/dashboard','Overview'],['/tenant/mobile-money','Mobile Money'],['/tenant/money-transfer','Money Transfer'],['/tenant/banking','Banking'],['/tenant/forex','Forex'],['/tenant/approvals','Approvals']];
+const links=[['/tenant/dashboard','Overview'],['/tenant/mobile-money','Mobile Money'],['/tenant/mobile-money/network-activity','Network activity'],['/tenant/money-transfer','Money Transfer'],['/tenant/banking','Banking'],['/tenant/forex','Forex'],['/tenant/approvals','Approvals']];
 const fixture=(permissions,paths=links.map(entry=>entry[0]))=>({
   context:'tenant',currentPath:'/tenant/dashboard',pageTitle:'Overview',pageSub:'Activity',
   tenant:{name:'Test workspace',slug:'test-workspace',status:'active',plan:'agent',subscription:{status:'granted'}},
@@ -38,10 +39,10 @@ test('transaction choices require both module visibility and the exact operation
 });
 
 test('read-only accounts do not receive write dialogs or a dead New transaction button',async()=>{
-  const html=await ejs.renderFile(template,fixture(['dashboard.view','mobile_money.view'],['/tenant/dashboard','/tenant/mobile-money']));
+  const html=await ejs.renderFile(template,fixture(['dashboard.view','mobile_money.view'],['/tenant/dashboard','/tenant/mobile-money','/tenant/mobile-money/network-activity']));
   assert.doesNotMatch(html,/id="transactionDialog"/);
   assert.doesNotMatch(html,/id="newTransactionBtn"/);
-  assert.match(html,/href="\/tenant\/mobile-money\/history"/);
+  assert.match(html,/href="\/tenant\/mobile-money\/network-activity"/);
 });
 
 test('overview displays supplied database cash and acknowledgements without prototype balances',async()=>{
@@ -61,16 +62,26 @@ test('overview displays supplied database cash and acknowledgements without prot
   assert.doesNotMatch(html,/6,500,000|Load demo|id="branchSelect"/);
 });
 
-test('cash shift actions use the existing opener roles and actual current shift',async()=>{
+test('shared cash shift actions use operator roles and the actual current shift',async()=>{
   const options=fixture(['*']);
-  options.menu[0].items.push({href:'/tenant/mobile-money/shifts',label:'Cash shifts',icon:'fa-cash-register'});
+  options.menu[0].items.push({href:'/tenant/cash/shifts',label:'Cash shifts',icon:'fa-cash-register'});
   const opening=await ejs.renderFile(template,options);
-  assert.match(opening,/href="\/tenant\/mobile-money\/shifts" data-transaction-kind="cash_shift_open">Open day/);
-  options.data.workspaceSnapshot={cash:[],recentActivity:[],currentCashShift:{id:'real-shift',status:'open',href:'/tenant/mobile-money/shifts/real-shift'}};
+  assert.match(opening,/<a[^>]+href="\/tenant\/cash\/shifts"[^>]+data-transaction-kind="cash_shift_open"[^>]*>Open day/);
+  options.data.workspaceSnapshot={cash:[],recentActivity:[],currentCashShift:{id:'real-shift',status:'open',href:'/tenant/cash/shifts/real-shift'}};
   const closing=await ejs.renderFile(template,options);
-  assert.match(closing,/href="\/tenant\/mobile-money\/shifts\/real-shift">Close day/);
-  assert.doesNotMatch(closing,/href="\/tenant\/mobile-money\/shifts" data-transaction-kind="cash_shift_open">Open day/);
+  assert.match(closing,/<a[^>]+href="\/tenant\/cash\/shifts\/real-shift"[^>]*>Close day/);
+  assert.doesNotMatch(closing,/<a[^>]+href="\/tenant\/cash\/shifts"[^>]+data-transaction-kind="cash_shift_open"[^>]*>Open day/);
   options.user.role='Branch Manager';
   const supervisor=await ejs.renderFile(template,options);
   assert.doesNotMatch(supervisor,/data-transaction-kind="cash_shift_open"/,'supervisors review shifts; they do not open an operator shift');
+  for(const [role,moduleKey] of [['Mobile Money Operator','mobile_money'],['Money Transfer Operator','money_transfer'],['Banking Operator','banking'],['Forex Operator','forex']]){
+    const corePath='/tenant/'+moduleKey.replaceAll('_','-');
+    const assigned=fixture(permissionsFor(role),[corePath]);assigned.user.role=role;assigned.data.workspaceSnapshot={};
+    assigned.menu[0].items.push({href:'/tenant/cash/shifts',label:'Open day'});
+    const html=await ejs.renderFile(template,assigned);
+    assert.match(html,/data-transaction-kind="cash_shift_open"/,`${role} can open the actual shared cash drawer with the fixed role permissions`);
+    assigned.user.permissions=assigned.user.permissions.filter(permission=>permission!=='treasury.view');
+    const denied=await ejs.renderFile(template,assigned);
+    assert.doesNotMatch(denied,/data-transaction-kind="cash_shift_open"/,`${role} still requires the shared treasury permission`);
+  }
 });

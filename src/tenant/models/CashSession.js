@@ -7,6 +7,7 @@ const schema=new Schema({
  branchId:{type:Schema.Types.ObjectId,required:true,immutable:true},operatorId:{type:Schema.Types.ObjectId,required:true,immutable:true},
  currency:{type:String,enum:currencyCodes,required:true,immutable:true},activeKey:{type:String,default:undefined},
  status:{type:String,enum:['pending_open','opening_rejected','open','submitted','disputed','approved'],default:'pending_open',required:true},
+ treasuryAccountId:{type:Schema.Types.ObjectId,default:null},treasuryBoundAt:{type:Date,default:null},treasuryBaselineMinor:{type:Schema.Types.Decimal128,default:null},treasuryObservationId:{type:Schema.Types.ObjectId,default:null},treasuryOpeningObservationId:{type:Schema.Types.ObjectId,default:null},
  openingMinor:{type:Schema.Types.Decimal128,required:true,immutable:true},
  openingVerifiedBy:{type:Schema.Types.ObjectId,default:null},openingVerifiedAt:{type:Date,default:null},openingReviewNote:{type:String,default:null,maxlength:400},
  provisionalMovementMinor:{type:Schema.Types.Decimal128,required:true,default:'0'},recordCount:{type:Number,default:0,min:0},

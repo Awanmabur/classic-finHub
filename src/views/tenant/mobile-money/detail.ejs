@@ -17,6 +17,23 @@
     <p><b>Correction:</b> <%= (data.record.correctionState||'none').replaceAll('_',' ') %></p>
     <p><b>Record status:</b> <%= data.record.status.replaceAll('_',' ') %></p>
   </div><p class="tiny">An internally voided entry is retained for investigation and reporting. It does not reverse any provider transaction, refund a customer or settle a balance.</p></div></section>
+  <% if(data.canViewFunds){ const observation=data.walletObservation; %>
+  <section class="card" style="margin-top:14px"><div class="cardHead"><div><b>Wallet balance and evidence</b><br><span>Book amounts at this entry and the reported network balance</span></div><a class="btn" href="/tenant/treasury">Balances &amp; reconciliation</a></div><div class="cardBody">
+    <% if(data.record.fundingState==='book_recorded'){ %><div class="summary">
+      <div class="sumRow"><span>Book wallet balance before</span><b><%= data.formatMoneyMinor(data.record.walletBalanceBeforeMinor,data.record.currency) %></b></div>
+      <div class="sumRow"><span>Book wallet balance after this entry</span><b><%= data.formatMoneyMinor(data.record.walletBalanceAfterMinor,data.record.currency) %></b></div>
+      <div class="sumRow"><span>Fee treatment</span><b><%= (data.record.feeTreatment||'record_only').replaceAll('_',' ') %></b></div>
+      <% if(observation){ const variance=observation.varianceMinorAtReview??observation.varianceMinorAtRequest; %>
+      <div class="sumRow"><span>Reported actual wallet balance</span><b><%= data.formatMoneyMinor(observation.actualMinor,data.record.currency) %></b></div>
+      <div class="sumRow"><span>Difference at observation</span><b><%= variance===null?'Not yet calculated':data.formatMoneyMinor(variance,data.record.currency) %></b></div>
+      <div class="sumRow"><span>Observed (UTC)</span><b><%= new Date(observation.observedAt).toISOString() %></b></div>
+      <div class="sumRow"><span>Evidence</span><b><%= observation.evidenceType.replaceAll('_',' ') %> · <%= observation.evidenceReference %></b></div>
+      <div class="sumRow"><span>Evidence review</span><b><%= observation.status.replaceAll('_',' ') %><%= observation.reviewedAt?' · '+new Date(observation.reviewedAt).toISOString():'' %></b></div>
+      <% }else{ %><div class="sumRow"><span>Actual wallet evidence</span><b>No balance observation attached</b></div><% } %>
+      <div class="sumRow"><span>Balanced book journals</span><b><%= (data.record.fundJournalIds||[]).length %></b></div>
+    </div><p class="tiny">The actual balance is dated evidence from the network app, statement or SMS. Independent review confirms that observation; it does not provide a live provider balance. An internal void posts inverse book movements while retaining this original evidence.</p>
+    <% }else{ %><p class="tiny">This historical entry predates the funded book. It does not establish an accurate wallet balance. Start from a dated, independently reviewed opening balance.</p><% } %>
+  </div></section><% } %>
   <% if(data.canRequestCorrection){ %>
   <section class="card" style="margin-top:14px"><div class="cardHead"><b>Request a correction</b><span>Original entry is preserved</span></div>
     <div class="cardBody"><form method="post" action="/tenant/mobile-money/<%= data.record._id %>/request-void">

@@ -1,9 +1,12 @@
-<dialog id="expenseDialog" class="transactionDialog" aria-labelledby="expenseTitle" <%= data.openModal?'open':'' %>>
- <div class="tenantCleanHead"><div><b id="expenseTitle">Add expense</b><span>Record a business expense</span></div><button class="btn btnIcon" type="button" data-expense-close aria-label="Close expense dialog">×</button></div>
- <form method="post" action="/tenant/expenses" class="tenantCleanBody">
-  <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
-  <%- include('_form') %>
-  <div class="rowBtns"><button class="btn btnPrimary" type="submit" <%= typeof operationBranch==='undefined'||!operationBranch?'disabled':'' %>>Add expense</button><button class="btn" type="button" data-expense-close>Cancel</button></div>
- </form>
+<dialog id="expenseDialog" class="transactionDialog" data-operation-dialog aria-labelledby="expenseTitle" <%= data.openModal?'open':'' %>>
+ <div class="sheet" data-operation-sheet>
+  <header class="sheetHead"><div><b id="expenseTitle">Add expense</b><br><span>Choose a service and enter clean details</span></div><button class="btn btnIcon" type="button" data-expense-close aria-label="Close expense dialog">×</button></header>
+  <div class="sheetBody"><form method="post" action="/tenant/expenses" class="svc" data-expense-form>
+   <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
+   <%- include('_form') %>
+   <button class="btn btnPrimary" type="submit" <%= typeof operationBranch==='undefined'||!operationBranch?'disabled':'' %>>Add expense</button>
+  </form></div>
+  <footer class="sheetFoot"><button class="btn" type="button" data-expense-clear>Clear</button><button class="btn" type="button" data-expense-close>Close</button></footer>
+ </div>
 </dialog>
-<script src="/js/expenses.js" defer></script>
+<script src="/js/expenses.js?v=<%= typeof assetVersion==='undefined'?'1':assetVersion %>" defer></script>

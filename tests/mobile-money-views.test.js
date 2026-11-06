@@ -28,12 +28,15 @@ test('approved mobile money entry preserves the protected server contract and as
   assert.match(html,/<option value="Africell">Africell<\/option>/);
   assert.match(html,/<option value="Wallet Balance">Wallet Balance<\/option>/);
   assert.match(html,/<option value="Bank">Bank<\/option>/);
-  assert.match(html,/name="currency" value="UGX"/);
+  const currency = html.match(/<select\b[^>]*name="currency"[^>]*>([\s\S]*?)<\/select>/);
+  assert(currency,'Approved currency control must be present');
+  assert.deepEqual([...currency[1].matchAll(/<option\b[^>]*value="([^"]+)"/g)].map(match=>match[1]),['UGX']);
   assert.match(html,/Assigned branch/);
   const transactionForm = html.match(/<form[^>]+data-mobile-money-form[\s\S]*?<\/form>/)[0];
-  assert.doesNotMatch(transactionForm,/<select[^>]+name="(?:branchId|currency)"/);
+  assert.doesNotMatch(transactionForm,/<(?:select|input)[^>]+name="branchId"/);
   assert.doesNotMatch(html,/name="branchId"/);
-  assert.match(html,/pending verification record/);
+  assert.match(html,/Saved records and verification status/);
+  assert.match(html,/pending verification/);
   assert.match(html,/Customer &lt;script&gt;/);
   assert.doesNotMatch(html,/Customer <script>/);
 });

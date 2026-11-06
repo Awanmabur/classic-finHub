@@ -3,10 +3,10 @@
    const branchProblem = typeof operationBranchError === 'string' && operationBranchError ? operationBranchError : 'An active operating branch must be assigned to your account before creating records.'; %>
 <section class="view show">
  <%- include('../../partials/operation-branch', {currentBranch, branchProblem, user}) %>
- <section class="card"><div class="cardHead"><b><%= data.workspaceTitle||'Transfer requests — internal operations' %></b><span>No funds are sent or settled</span><a class="btn" href="/tenant/money-transfer/records">Money transfer record</a></div>
+ <section class="card"><div class="cardHead"><b><%= data.workspaceTitle||'Transfer requests — internal operations' %></b><span>Reviewed manual collection and payout</span><a class="btn" href="/tenant/money-transfer/records">Money transfer record</a></div>
   <div class="cardBody">
-   <p class="tiny">Save sender and receiver instructions for independent review. Payout PIN issuance requires a verified payout integration.</p>
-   <div class="rowBtns"><a class="btn" href="/tenant/money-transfer/contacts">Manage sender and beneficiary contacts</a><a class="btn" href="/tenant/money-transfer/payout">Payout by PIN</a><a class="btn" href="/tenant/money-transfer/pending-payouts">Pending payout queue</a><a class="btn" href="/tenant/money-transfer/fees">Transfer fee summary</a><a class="btn" href="/tenant/money-transfer/report">Transfer report summary</a></div>
+   <p class="tiny">Save sender and receiver details, record the actual collection against opened funds accounts, and obtain independent review to generate the payout PIN.</p>
+   <div class="rowBtns"><a class="btn" href="/tenant/funded">Manual movements &amp; review</a><a class="btn" href="/tenant/treasury">Balances &amp; reconciliation</a><a class="btn" href="/tenant/money-transfer/contacts">Manage sender and beneficiary contacts</a><a class="btn" href="/tenant/money-transfer/payout">Payout by PIN</a><a class="btn" href="/tenant/money-transfer/pending-payouts">Pending payout queue</a><a class="btn" href="/tenant/money-transfer/fees">Transfer fee summary</a><a class="btn" href="/tenant/money-transfer/report">Transfer report summary</a></div>
 
   </div>
  </section>
@@ -15,7 +15,7 @@
    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
    <input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
 
-   <div class="cardHead"><b><%= data.workspaceTitle||'New transfer request' %></b><span>Approval required · PIN issuance unavailable</span></div>
+   <div class="cardHead"><b><%= data.workspaceTitle||'New transfer request' %></b><span>Independent collection review required</span></div>
    <div class="cardBody" style="display:grid;gap:12px">
     <%- include('_entry-form',{currentBranch}) %>
    </div>

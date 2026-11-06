@@ -86,7 +86,7 @@ test('Forex UI uses existing card layout, CSRF protection, independent controls 
    selectedBranchId:branch,branches:[{_id:branch,name:'Test',currency:'UGX'}],rates:[],records:{items:[]},rateQueue:[],quoteQueue:[],idempotencyKey:crypto.randomUUID(),amountLabel:fx.amountLabel}
  });
  assert.match(html,/forex\/quotes/);assert.match(html,/forex\/rates/);assert.match(html,/name="_csrf" value="test-csrf"/);
- assert.doesNotMatch(html,/name="decision"/);assert.match(html,/No currency exchanged; quotes remain unexecuted until verified/);
+ assert.doesNotMatch(html,/name="decision"/);assert.match(html,/record the actual exchange against opened foreign currency and settlement accounts for independent review/);
  const detail=await ejs.renderFile(path.join(__dirname,'../src/views/tenant/forex/detail.ejs'),{
   csrfToken:'x',data:{quote:{_id:branch,reference:'FX-test',status:'quoted',customerLabel:'<script>alert(1)<\/script>',
    fromCurrency:'UGX',toCurrency:'USD',sourceMinor:'20000',targetMinor:'550',rateDecimal:'0.000275',note:'Customer asked',expiresAt:new Date(),reviewNote:null},

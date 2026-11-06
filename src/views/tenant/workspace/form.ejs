@@ -1,13 +1,16 @@
 <form method="post" action="<%= form.action %>" data-workspace-form data-workspace-title="<%= form.title %>">
- <input type="hidden" name="_csrf" value="<%= csrfToken %>">
- <input type="hidden" name="revision" value="<%= form.revision %>">
+ <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="revision" value="<%= form.revision %>">
  <% (form.hidden||[]).forEach(f=>{ %><input type="hidden" name="<%= f.name %>" value="<%= f.value %>"><% }) %>
- <div class="workspaceFormSection"><b><%= form.section %></b><div class="workspaceFormGrid">
- <% form.fields.forEach(f=>{ %><label class="field <%= f.full?'workspaceWide':'' %>"><span><%= f.label %></span>
- <% if(f.type==='textarea'){ %><textarea class="control" name="<%= f.name %>" rows="4" maxlength="<%= f.max||2000 %>" <%= f.required?'required':'' %>><%= f.value||'' %></textarea>
- <% }else if(f.type==='select'){ %><select class="control" name="<%= f.name %>" required><% f.options.forEach(option=>{ %><option value="<%= option.value %>" <%= String(f.value)===String(option.value)?'selected':'' %>><%= option.label %></option><% }) %></select>
- <% }else{ %><input class="control" type="<%= f.type||'text' %>" <% if(!f.displayOnly){ %>name="<%= f.name %>"<% } %> value="<%= f.value??'' %>" maxlength="<%= f.max||150 %>" <%= f.required?'required':'' %> <%= f.displayOnly?'readonly':'' %> <% if(f.pattern){ %>pattern="<%= f.pattern %>"<% } %> <% if(f.min!==undefined){ %>min="<%= f.min %>"<% } %> <% if(f.type==='number'){ %>max="<%= f.max||1000 %>" step="1"<% } %>>
- <% } %><% if(f.hint){ %><small><%= f.hint %></small><% } %></label><% }) %>
- </div></div>
- <footer class="workspaceDialogActions"><button class="btn" type="button" data-workspace-close>Cancel</button><button class="btn btnPrimary" type="submit">Save changes</button></footer>
+ <div class="tenantCleanBody">
+  <div class="tenantCleanSection"><div class="tenantCleanTitle"><%= form.section %></div><div class="tenantCleanGrid">
+   <% form.fields.forEach(f=>{ const fieldId='workspace-'+form.action.replace(/[^a-z0-9]/gi,'-')+'-'+f.name; %>
+   <div class="tenantCleanField <%= f.full?'tenantCleanFull':'' %>"><label for="<%= fieldId %>"><%= f.label %></label><div class="control">
+    <% if(f.type==='textarea'){ %><textarea id="<%= fieldId %>" name="<%= f.name %>" rows="4" maxlength="<%= f.max||2000 %>" <%= f.required?'required':'' %>><%= f.value||'' %></textarea>
+    <% }else if(f.type==='select'){ %><select id="<%= fieldId %>" name="<%= f.name %>" required><% f.options.forEach(option=>{ %><option value="<%= option.value %>" <%= String(f.value)===String(option.value)?'selected':'' %>><%= option.label %></option><% }) %></select>
+    <% }else{ %><input id="<%= fieldId %>" type="<%= f.type||'text' %>" <% if(!f.displayOnly){ %>name="<%= f.name %>"<% } %> value="<%= f.value??'' %>" maxlength="<%= f.max||150 %>" <%= f.required?'required':'' %> <%= f.displayOnly?'readonly':'' %> <% if(f.pattern){ %>pattern="<%= f.pattern %>"<% } %> <% if(f.min!==undefined){ %>min="<%= f.min %>"<% } %> <% if(f.type==='number'){ %>max="<%= f.max||1000 %>" step="1"<% } %>>
+    <% } %></div><% if(f.hint){ %><small><%= f.hint %></small><% } %></div><% }) %>
+  </div></div>
+  <div class="tenantCleanHint">This clean modal keeps the same rounded dashboard design, records the action in tenant audit activity, and updates only this tenant workspace data.</div>
+ </div>
+ <footer class="tenantCleanFoot"><button class="btn" type="button" data-workspace-close>Cancel</button><button class="btn btnPrimary" type="submit">Save changes</button></footer>
 </form>

@@ -23,6 +23,9 @@ const createApp = require('../src/app');
 const {asPlanVersion,planSnapshot}=require('../src/platform/services/commercial.service');
 const {plans}=require('../src/data/store');
 const mfa = require('../src/platform/services/mfa.service');
+const treasury = require('../src/tenant/treasury/service');
+const treasuryModels = require('../src/tenant/treasury/models');
+const {trustedActor} = require('../src/tenant/services/financialAuthorization.service');
 
 function assertSafeLocal(uriString) {
   if (nodeEnv === 'production') throw new Error('Refusing auth test in NODE_ENV=production');
@@ -134,25 +137,38 @@ async function main() {
     assert.doesNotMatch(operatorDashboardHtml,/href="\/tenant\/users"/,'operator cannot receive staff management navigation');
     assert.equal((await fetch(`${base}/tenant/users`,{headers:{cookie:operator.cookie}})).status,403,'direct staff management access remains denied');
     assert.equal((await fetch(`${base}/tenant/reports`,{headers:{cookie:operator.cookie}})).status,403);
+    // Real manual HTTP recording needs known funds, not only a verified shift.
+    // Seed reviewed opening evidence using the persisted accounts after owner MFA.
+    const ownerActor=trustedActor(await User.findById(owners.find(o=>o.suffix==='owner').account._id).lean());
+    const operatorActor=trustedActor(await User.findById(owners.find(o=>o.suffix==='operator').account._id).lean());
+    async function openedFund(kind,code,actualBalance,network=''){
+      const account=await treasury.createAccount(tenantDb,tenant,ownerActor,{kind,code,name:`Auth probe ${kind}`,currency:'UGX',operatorId:operatorActor.id,network});
+      const requested=await treasury.requestObservation(tenantDb,tenant,operatorActor,account._id,{kind:'opening',actualBalance,observedAt:new Date(Date.now()-1000).toISOString(),evidenceType:kind==='wallet'?'provider_statement':'cash_count',evidenceReference:`AUTH-OPEN-${code}-${nonce}`,note:'Actual opening balance checked against the named source evidence',idempotencyKey:crypto.randomUUID()});
+      await assert.rejects(treasury.reviewObservation(tenantDb,tenant,operatorActor,requested.observation._id,{decision:'approve',note:'The originator must not approve their own opening balance evidence'}),{status:403});
+      await treasury.reviewObservation(tenantDb,tenant,ownerActor,requested.observation._id,{decision:'approve',note:'Independent opening count and provider statement checked by owner'});
+      return account;
+    }
+    const walletFund=await openedFund('wallet','AUTH_MTN','1000000','MTN'),cashFund=await openedFund('cash','AUTH_CASH','0');
     const moneyPage=await fetch(`${base}/tenant/mobile-money`,{headers:{cookie:operator.cookie}});
     assert.equal(moneyPage.status,200);
     const moneyHtml=await moneyPage.text();
     const ref=`INT-${nonce}`;
     const recordFields={idempotencyKey:crypto.randomUUID(),customer:'Auth Probe Customer',network:'MTN',networkReference:ref,
-      currency:'UGX',amount:'120000',fee:'100'};
+      currency:'UGX',amount:'120000',fee:'100',feeTreatment:'payment_collected',paymentMethod:'Cash',
+      walletAccountId:String(walletFund._id),paymentAccountId:String(cashFund._id),observedWalletBalance:'880000',observationEvidenceReference:`AUTH-ACTUAL-${nonce}`};
     const post=(route,cookie,token,fields)=>fetch(`${base}${route}`,{method:'POST',redirect:'manual',
       headers:{cookie,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({_csrf:token,...fields}).toString()});
     // Physical cash recording requires an independently verified opening count.
     // Exercise the real HTTP workflow instead of bypassing the cash controls in a fixture.
     const beforeOpening=await post('/tenant/mobile-money/cash-in',operator.cookie,csrf(moneyHtml),recordFields);
-    assert.equal(beforeOpening.status,409,'recording without an open cash shift must fail');
+    assert.equal(beforeOpening.status,409,'recording without an open cash shift must fail');assert.match(await beforeOpening.text(),/Open and independently verify the assigned operator cash drawer/);
     assert.equal(await require('../src/tenant/models').mobileTransactionModel(tenantDb).countDocuments({networkReference:ref}),0);
     const opened=await post('/tenant/mobile-money/shifts/open',operator.cookie,csrf(moneyHtml),{openingCash:'0'});
     assert.equal(opened.status,303);
     const shift=await require('../src/tenant/models').cashSessionModel(tenantDb).findOne({operatorId:owners.find(o=>o.suffix==='operator').account._id,status:'pending_open'}).lean();
     assert(shift,'opening must await independent verification');
     const beforeVerification=await post('/tenant/mobile-money/cash-in',operator.cookie,csrf(moneyHtml),recordFields);
-    assert.equal(beforeVerification.status,409,'an unverified opening must not allow recording');
+    assert.equal(beforeVerification.status,409,'an unverified opening must not allow recording');assert.match(await beforeVerification.text(),/Open and independently verify the assigned operator cash drawer/);
     const ownerShifts=await fetch(`${base}/tenant/mobile-money/shifts`,{headers:{cookie:ownerFull.cookie}});
     assert.equal(ownerShifts.status,200);
     const approved=await post(`/tenant/mobile-money/shifts/${shift._id}/verify-opening`,ownerFull.cookie,csrf(await ownerShifts.text()),
@@ -161,7 +177,10 @@ async function main() {
     const record=await post('/tenant/mobile-money/cash-in',operator.cookie,csrf(moneyHtml),recordFields);
     assert.equal(record.status,303);
     const created=await require('../src/tenant/models').mobileTransactionModel(tenantDb).findOne({networkReference:ref}).lean();
-    assert(created); assert.equal(created.status,'pending_verification');
+    assert(created); assert.equal(created.status,'pending_verification');assert.equal(created.fundingState,'book_recorded');
+    assert.equal(String((await treasuryModels.models(tenantDb).account.findById(walletFund._id)).bookBalanceMinor),'880000');
+    assert.equal(String((await treasuryModels.models(tenantDb).account.findById(cashFund._id)).bookBalanceMinor),'120100');
+    assert.equal((await treasuryModels.models(tenantDb).observation.findById(created.walletObservationId)).status,'pending_review');
     const reviewer=await signIn('reviewer');
     const reviewerFull=await finishMfa('reviewer',reviewer,'challenge');
     const reviewPage=await fetch(`${base}/tenant/mobile-money`,{headers:{cookie:reviewerFull.cookie}});
@@ -174,6 +193,7 @@ async function main() {
     assert.equal(reviewPost.status,303);
     const finalRecord=await require('../src/tenant/models').mobileTransactionModel(tenantDb).findById(created._id).lean();
     assert.equal(finalRecord.reviewState,'accepted');
+    const walletObservation=await treasuryModels.models(tenantDb).observation.findById(created.walletObservationId).lean();assert.equal(walletObservation.status,'approved');assert.equal(String(walletObservation.varianceMinorAtReview),'0');
     assert.equal(finalRecord.status,'pending_verification');
     const report=await fetch(`${base}/tenant/reports/export.csv`,{headers:{cookie:reviewerFull.cookie}});
     assert.equal(report.status,200);

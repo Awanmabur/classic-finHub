@@ -3,6 +3,14 @@ const {modules}=require('../../data/store');
 const {effectiveSubscription,limitsFor}=require('./commercial.service');
 const {activeGrants}=require('./moduleSubscriptions.service');
 const REQUIRED_INDEXES=Object.freeze({
+  TreasuryAccountV1: [['branchId',1],['code',1]],
+  TreasuryObservationV1: [['idempotencyKey',1]],
+  TreasuryBatchV1: [['sourceType',1],['sourceRef',1]],
+  TreasuryMovementV1: [['accountId',1],['sequence',1]],
+  TreasuryCounterV1: [['branchId',1],['currency',1],['purpose',1]],
+  TreasuryAdjustmentV1: [['idempotencyKey',1]],
+  FundedExecutionV1: [['idempotencyKey',1]],
+  ManualPayoutVerificationV1: [['tokenHash',1]],
   CustomerDirectoryV1: [['reference',1]],
   CustomerAccountV1: [['accountNumber',1]],
   TenantWorkspaceConfigV1: [['tenantId',1]],

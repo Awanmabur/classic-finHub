@@ -1,0 +1,18 @@
+<div class="formSection"><div class="formSectionTitle">Operation details</div>
+ <div class="row2">
+  <% if(data.workspaceOperation){ %><input type="hidden" name="kind" value="<%= data.workspaceOperation %>"><label class="field">Operation<input class="control" value="<%= data.workspaceTitle %>" readonly></label><% }else{ %><label class="field">Operation<select name="kind" class="control" required><option value="deposit_request">Deposit</option><option value="withdrawal_request">Withdraw</option><option value="transfer_request">Account transfer</option></select></label><% } %>
+  <label class="field">Currency<input type="hidden" name="currency" value="<%= currentBranch.currency %>"><input class="control" value="<%= typeof currencyLabel==='function'?currencyLabel(currentBranch.currency):currentBranch.currency==='KES'?'KSH':currentBranch.currency %>" readonly></label>
+ </div>
+ <div class="row2"><label class="field">Customer account<select name="sourceId" class="control" required><option value="">Select account</option><% data.references.forEach(a=>{ %><option value="<%= a._id %>"><%= a.customerName %> · <%= a.institutionName %> · ****<%= a.last4 %></option><% }) %></select></label>
+ <% if(!data.workspaceOperation||data.workspaceOperation==='transfer_request'){ %><label class="field">To account<select name="destinationId" class="control" <%= data.workspaceOperation==='transfer_request'?'required':'' %>><option value="">Select account</option><% data.references.forEach(a=>{ %><option value="<%= a._id %>"><%= a.customerName %> · <%= a.institutionName %> · ****<%= a.last4 %></option><% }) %></select></label><% } %>
+ </div>
+ <div class="row2"><label class="field">Amount<input name="amount" inputmode="decimal" class="control" placeholder="0" pattern="[0-9]+([.][0-9]{1,2})?" required></label><label class="field">Payment channel<select class="control" name="paymentChannel"><% ['Cash','Internal transfer','Bank settlement','Mobile money'].forEach(channel=>{ %><option><%= channel %></option><% }) %></select></label></div>
+</div>
+<div class="formSection"><div class="formSectionTitle">Reference and verification</div>
+ <div class="row2"><label class="field">Customer phone / contact<input class="control" name="customerPhone" type="tel" maxlength="16" placeholder="Optional phone override"></label><label class="field">External reference<input class="control" name="externalReference" maxlength="120" placeholder="Cheque, slip, bank ref, optional"></label></div>
+ <label class="field">Note / narration<input name="note" class="control" minlength="12" maxlength="400" required placeholder="Reason or operation note"></label>
+</div>
+<div class="summary"><div class="sumRow"><span>Reference</span><b class="mono"><%= data.idempotencyKey %></b></div><div class="sumRow"><span>Handled by</span><b class="mono"><%= user.name||user.id||'Assigned operator' %></b></div></div>
+<details class="logicNote"><summary>Request validity</summary><label class="field">Request validity<select name="validDays" class="control" required><% for(let days=1;days<=30;days++){ %><option value="<%= days %>" <%= days===7?'selected':'' %>><%= days %> day<%= days===1?'':'s' %></option><% } %></select></label></details>
+<% if(!data.references.length){ %><p class="logicNote">Create a customer account or a masked bank reference for your operating branch before starting a request.</p><% } %>
+<button type="submit" class="btn btnPrimary" <%= !data.references.length?'disabled':'' %>>Post banking operation</button>

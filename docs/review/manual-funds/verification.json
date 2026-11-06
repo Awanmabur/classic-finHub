@@ -1,0 +1,48 @@
+{
+  "date": "2026-11-06",
+  "approved_reference": "index.html",
+  "reference_sha256": "81e0405a62e8db0ea95986334536fab51274c297974bc9ec942ae3296c67ab0d",
+  "release_gate": {
+    "passed": true,
+    "javascript_tests": 369,
+    "android_relay_tests": 13,
+    "syntax_template_files": 598,
+    "dependency_vulnerabilities": 0,
+    "registered_integrations_passed": true
+  },
+  "browser": {
+    "report_filter_pages": 16,
+    "operation_modal_captures": 42,
+    "viewport_widths": [
+      1440,
+      390,
+      320
+    ],
+    "compared_css_token_differences": 0,
+    "mobile_sheet_head_body_footer_rectangles_match": true,
+    "javascript_errors": 0,
+    "asset_errors": 0,
+    "manual_financial_flows_passed": [
+      "banking deposit",
+      "banking withdrawal",
+      "internal customer account transfer",
+      "forex buy",
+      "forex sell",
+      "transfer collection",
+      "PIN payout",
+      "mobile money cash-in",
+      "mobile money cash-out"
+    ],
+    "wallet_actual_missing_http": 400,
+    "mismatch_holds_wallet": true,
+    "held_wallet_post_http": 409,
+    "cash_and_customer_wallet_visibility_passed": true,
+    "fee_previews_passed": 6
+  },
+  "boundaries": [
+    "Component comparisons do not assert full pixel identity for every populated page.",
+    "Desktop assigned-currency cash sheets and funded expense fields have content-driven height differences.",
+    "Actual balances are dated reported or independently reviewed evidence; live provider balance APIs remain unconnected."
+  ],
+  "infrastructure": "Development Mongo idle handle limits were verified on restart; the existing named data volume was preserved."
+}

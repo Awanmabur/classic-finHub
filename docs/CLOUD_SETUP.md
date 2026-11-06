@@ -64,9 +64,20 @@ password into Git or chat, and do not bypass MFA. Tenant creation then provides
 a private, single-use owner activation link.
 
 The Compose configuration preserves its named database volume and sets a 16384
-open-file limit, matching this cloud host's hard ceiling. A lower inherited Docker
-limit caused MongoDB to exhaust descriptors and crash during tenant provisioning.
-Do not delete database volumes as a startup repair.
+open-file limit, matching this cloud host's hard ceiling. MongoDB 8 also needs the
+development file-handle settings in Compose: its default 600-second idle retention
+can exhaust even that limit during repeated scratch database/index runs. The
+supported startup parameters use a 5-second idle time, a 1-second scan interval,
+and a minimum of 250 retained handles. These settings apply only to this local
+development database; size production descriptor limits for the actual workload.
+
+After changing Compose, run `npm run db:dev:up` to recreate the development
+container with the same named volume, then verify `npm run db:doctor`. No database
+volume should be removed as a startup repair. For an already-running development
+process, the equivalent reversible setting can be applied through
+`wiredTigerEngineRuntimeConfig`; the native file-handle parameters themselves are
+startup-only. Check the Docker logs for `Too many open files` rather than treating
+a healthy automatic restart as proof that the cause is resolved.
 
 ## Validate changes
 

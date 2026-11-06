@@ -8,7 +8,7 @@ const mongoose = require('mongoose');
 const { ledgerAccountModel, ledgerJournalModel, ledgerPostingModel,
   branchModel, tenantUserModel, auditEventModel, financialOperationModel, ensureTenantIndexes } = require('../models');
 const { Types } = mongoose;
-const SOURCE_TYPES = new Set(['mobile_money', 'money_transfer', 'banking', 'forex']);
+const SOURCE_TYPES = new Set(['mobile_money', 'money_transfer', 'banking', 'forex', 'treasury']);
 const MAX_MINOR = 999999999999999999n;
 const OBJECT_ID = /^[a-f\d]{24}$/i;
 function error(message, status = 400) { const e = new Error(message); e.status = status; return e; }
@@ -69,24 +69,24 @@ function normalizeReversal(input) {
   if (reason.length < 20 || reason.length > 400) throw error('Reversal needs a detailed reason of 20–400 characters');
   return { journalId, requestedBy, approvedBy, reason, ticketRef };
 }
-async function checkBranch(conn, branchId, currency, session, allowArchived = false) {
+async function checkBranch(conn, branchId, currency, session, allowArchived = false, treasury = false) {
   // Write to the branch's revision inside the financial transaction. Without
   // this conflict guard, a concurrent archive could commit while the first
   // journal was being posted based on an older 'active' snapshot.
   const branch = await branchModel(conn).findOneAndUpdate(
     { _id: branchId, ...(allowArchived ? {} : {status:'active'}) },
     {$inc:{revision:1}}, {session,new:true}).lean();
-  if (!branch || branch.currency !== currency) throw error('Inactive branch or currency mismatch', 409);
+  if (!branch || (!treasury && branch.currency !== currency)) throw error('Inactive branch or currency mismatch', 409);
   return branch;
 }
-async function checkActor(conn, actorId, branchId, roles, session) {
+async function checkActor(conn, actorId, branchId, roles, session, operationalTreasury = false) {
   const person = await tenantUserModel(conn).findOne({ _id: actorId, status: 'active' })
     .select('role branchId mfaEnabledAt').session(session).lean();
   if (!person || !roles.includes(person.role)) throw error('Ledger action requires an authorized active user', 403);
   if (person.role !== 'Tenant Owner' && String(person.branchId) !== String(branchId)) throw error('Cross-branch ledger access prohibited', 403);
   // The platform requires TOTP enrollment for privileged tenant roles. This is
   // independent of the HTTP authentication middleware's session MFA check.
-  if (!person.mfaEnabledAt) throw error('Privileged ledger actor must have MFA enrolled', 403);
+  if (!person.mfaEnabledAt && (!operationalTreasury || require('../../config/roles').requiresTenantMfa(person.role))) throw error('Privileged ledger actor must have MFA enrolled', 403);
   return person;
 }
 async function createAccount(conn, input) {
@@ -123,8 +123,9 @@ async function findMatchingExisting(Journal, lookup, fingerprint) {
 }
 async function writeJournal(conn, validated, session, extras = {}) {
   const Account = ledgerAccountModel(conn), Journal = ledgerJournalModel(conn), Posting = ledgerPostingModel(conn);
-  await checkBranch(conn, validated.branchId, validated.currency, session, Boolean(extras.reverses));
-  await checkActor(conn, validated.actorId, validated.branchId, ['Tenant Owner','Reconciliation Officer'], session);
+  if(extras.operationalTreasury && (validated.sourceType!=='treasury'||!session?.inTransaction()))throw error('Treasury posting requires its active business transaction',403);
+  await checkBranch(conn, validated.branchId, validated.currency, session, Boolean(extras.reverses), validated.sourceType==='treasury');
+  await checkActor(conn, validated.actorId, validated.branchId, extras.operationalTreasury?['Tenant Owner','Branch Manager','Mobile Money Operator','Money Transfer Operator','Banking Operator','Forex Operator','Reconciliation Officer']:['Tenant Owner','Reconciliation Officer'], session,Boolean(extras.operationalTreasury));
   const codes = validated.lines.map(p=>p.accountCode);
   const accounts = await Account.find({branchId:validated.branchId, currency:validated.currency, code:{$in:codes}}).session(session).lean();
   if (accounts.length !== codes.length) throw error('Ledger account missing or belongs to another branch/currency', 409);
@@ -144,6 +145,7 @@ async function writeJournal(conn, validated, session, extras = {}) {
 }
 async function postJournal(conn, input) {
   const request = validateJournal(input);
+  if(request.sourceType==='treasury')throw error('Use the reviewed treasury balance or funded operation workflow',403);
   await ensureTenantIndexes(conn);
   const Journal = ledgerJournalModel(conn);
   const lookup = {sourceType:request.sourceType,sourceRef:request.sourceRef};
@@ -170,6 +172,7 @@ async function reverseJournal(conn, input) {
   const Journal = ledgerJournalModel(conn), Posting = ledgerPostingModel(conn), Account = ledgerAccountModel(conn);
   const original = await Journal.findById(request.journalId).lean();
   if (!original || original.reverses || original.sourceType === 'reversal') throw error('Original journal is missing or not reversible',409);
+  if(original.sourceType==='treasury')throw error('Treasury corrections must reverse their linked balance movements in the funded workflow',409);
   // A posted provider settlement must never be undone solely by a local journal
   // reversal. External compensation/refund evidence and reconciliation are
   // required first. The dedicated provider reversal lifecycle is not enabled.
@@ -290,6 +293,10 @@ async function inspectJournal(conn, journalId) {
 const unavailable=require('../../utils/unavailableOperation');
 module.exports={createAccount,postJournal,reverseJournal,trialBalance,inspectJournal,
   writeJournalInSession:writeJournal,
+  writeOperationalJournalInSession:async(conn,input,session)=>{
+    if(input?.sourceType!=='treasury')throw error('Only treasury journals use operational posting',403);
+    return writeJournal(conn,validateJournal(input),session,{operationalTreasury:true});
+  },
   validateLines,validateJournal,normalizeReversal,amount,
   postEntry:()=>unavailable('Legacy unverified financial posting'),
   get entries(){return unavailable('Legacy ledger entries');}};

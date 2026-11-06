@@ -20,7 +20,13 @@ test('operational forms show the account branch and never submit a branch select
   const html=await render(file);
   assert.doesNotMatch(html,/<(?:select|input)\b[^>]*name="branchId"/,file);
   assert.match(html,/Operating at <strong>Nairobi Main<\/strong> · KSH/,file);
-  if(['mobile-money/index','money-transfer/index','banking/index','banking/accounts'].includes(file)){
+  if(file==='mobile-money/index'){
+   const currency=html.match(/<select\b[^>]*name="currency"[^>]*>([\s\S]*?)<\/select>/);
+   assert(currency,'Approved currency control must be present');
+   assert.deepEqual([...currency[1].matchAll(/<option\b[^>]*value="([^"]+)"/g)].map(match=>match[1]),['KES']);
+   assert.match(currency[1],/>KSH<\/option>/);
+  }
+  if(['money-transfer/index','banking/index','banking/accounts'].includes(file)){
    assert.match(html,/<input type="hidden" name="currency" value="KES">/,file);
    assert.doesNotMatch(html,/<select\b[^>]*name="currency"/,file);
   }

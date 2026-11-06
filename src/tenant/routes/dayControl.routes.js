@@ -25,7 +25,7 @@ module.exports=function dayControlRoutes({renderTenant,recordScope}){
    renderTenant(req,res,'workflow/last-receipt','Last receipt','Your latest recorded operation.',{});
   }catch(error){next(error);}
  });
- const guard=[require('../../middleware/requireModule')('mobile_money'),require('../../middleware/requirePermission')('mobile_money.view')];
+ const guard=[(req,res,next)=>{try{cash.allowed(req.tenant,req.user);next();}catch(error){next(error);}}];
  async function ownShift(req){
   if(!cash.opener(req.user))throw fail('Only the originating operator can close their day',403);
   const branch=await require('../services/transactionBranch.service').resolveTransactionBranch(req.tenantDb,req.user,{});

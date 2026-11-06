@@ -24,6 +24,7 @@
  let opener=null;
  function open(button){opener=button||null;if(dialog.open)dialog.close();dialog.showModal();document.body.classList.add('transactionOpen');}
  document.querySelectorAll('[data-directory-open]').forEach(button=>button.addEventListener('click',event=>{event.preventDefault();open(button);}));
+ dialog.querySelector('[data-directory-clear]')?.addEventListener('click',()=>dialog.querySelector('form')?.reset());
  dialog.querySelectorAll('[data-directory-close]').forEach(button=>button.addEventListener('click',()=>dialog.close()));
  dialog.addEventListener('close',()=>{document.body.classList.remove('transactionOpen');opener?.focus();});
  dialog.addEventListener('click',event=>{if(event.target===dialog){const box=dialog.getBoundingClientRect();if(event.clientX<box.left||event.clientX>box.right||event.clientY<box.top||event.clientY>box.bottom)dialog.close();}});

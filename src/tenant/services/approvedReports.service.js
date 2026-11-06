@@ -9,6 +9,7 @@ const adapters=require('../reporting/registry');
 const {cashSessionModel,mobileTransactionModel}=require('../models');
 const {expenseModel}=require('../models/expenses');
 const MAX_ROWS=5000;
+const cashSources=Object.freeze({mobile_money:'Mobile Money',money_transfer:'Money Transfer',banking:'Banking',forex:'Forex',expenses:'Expenses'});
 const pages=Object.freeze({
  daily:{title:'Daily business report',subtitle:'Daily control, multi-currency income, cash summary, and operation totals.'},
  opening:{title:'Opening cash report',subtitle:'Opening drawer baseline captured for the business day.',source:'cash_shifts'},
@@ -46,11 +47,30 @@ async function cashData(conn,scope,dateRange){
  return {items,totals:[...byCurrency.values()].sort((a,b)=>a.currency.localeCompare(b.currency)).map(row=>{
   for(const key of Object.keys(row))if(typeof row[key]==='bigint')row[key]=String(row[key]);return row;})};
 }
-async function cashImpact(conn,scope,dateRange){
+async function cashImpact(conn,scope,dateRange,{legacyOnly=false}={}){
  const rows=await mobileTransactionModel(conn).aggregate([{$match:{...matchFor(scope,dateRange),status:{$ne:'voided_internal'},correctionState:{$ne:'voided'},
+  ...(legacyOnly?{fundingState:{$ne:'book_recorded'}}:{}),
   $or:[{paymentMethod:'Cash'},{paymentMethod:{$exists:false}},{paymentMethod:null}]}},{$group:{_id:'$currency',amount:{$sum:{$cond:[
-   {$eq:['$operation','cash_in']},'$amountMinor',{$multiply:['$amountMinor',-1]}]}}}}]).option({maxTimeMS:5000});
+   {$ne:[{$ifNull:['$physicalCashMovementMinor',null]},null]},'$physicalCashMovementMinor',{$cond:[{$eq:['$operation','cash_in']},'$amountMinor',{$multiply:['$amountMinor',-1]}]}]}}}}]).option({maxTimeMS:5000});
  return Object.fromEntries(rows.map(row=>[row._id,String(row.amount)]));
+}
+async function postedCash(conn,tenant,scope,dateRange,sourceKeys){
+ const permitted=[...new Set(sourceKeys.filter(key=>Object.hasOwn(cashSources,key)))];
+ if(!permitted.length)return [];
+ const funds=require('../treasury/models').models(conn);
+ const rows=await funds.movement.aggregate([
+  {$match:{tenantId:id(tenant._id),occurredAt:dateRange,sourceType:{$in:permitted},...(scope.branchId?{branchId:id(scope.branchId)}:{})}},
+  {$lookup:{from:funds.account.collection.name,localField:'accountId',foreignField:'_id',as:'fund'}},{$unwind:'$fund'},
+  {$match:{'fund.kind':'cash','fund.tenantId':id(tenant._id),...(scope.operatorId?{'fund.operatorId':id(scope.operatorId)}:{}),$expr:{$and:[{$eq:['$fund.branchId','$branchId']},{$eq:['$fund.currency','$currency']}]}}},
+  {$lookup:{from:funds.batch.collection.name,localField:'batchId',foreignField:'_id',as:'batch'}},{$unwind:'$batch'},
+  {$match:{'batch.tenantId':id(tenant._id),...(scope.operatorId?{'batch.operatingActorId':id(scope.operatorId)}:{}),$expr:{$and:[{$eq:['$batch.branchId','$branchId']},{$eq:['$batch.sourceType','$sourceType']}]}}},
+  {$group:{_id:{sourceType:'$sourceType',currency:'$currency'},count:{$sum:1},net:{$sum:'$deltaMinor'},
+   cashIn:{$sum:{$cond:[{$gt:['$deltaMinor',0]},'$deltaMinor',0]}},cashOut:{$sum:{$cond:[{$lt:['$deltaMinor',0]},{$multiply:['$deltaMinor',-1]},0]}}}},
+  {$sort:{'_id.sourceType':1,'_id.currency':1}},{$limit:MAX_ROWS+1}
+ ]).option({maxTimeMS:5000});
+ if(rows.length>MAX_ROWS)throw fail('Cash movement report exceeds 5,000 groups. Narrow the dates.',422);
+ return rows.map(row=>({sourceType:row._id.sourceType,module:cashSources[row._id.sourceType],currency:row._id.currency,count:row.count,
+  cashInMinor:String(row.cashIn),cashOutMinor:String(row.cashOut),netMinor:String(row.net)}));
 }
 async function expenseItems(conn,actor,scope,dateRange){
  if(!hasPermission(actor,'expenses.view'))return null;
@@ -86,12 +106,13 @@ async function generate(conn,tenant,actor,key,query={}){
   if(rows.length>MAX_ROWS)throw fail('Too many report groups. Narrow the date range.',422);
  }
  const hasCash=sources.some(source=>source.key==='cash_shifts'),hasMobile=sources.some(source=>source.key==='mobile_money'),hasExpenses=sources.some(source=>source.key==='expenses');
- const [cash,impact,expenses]=await Promise.all([
+ const [cash,impact,expenses,cashMovements]=await Promise.all([
   hasCash&&['daily','opening','closing'].includes(key)?cashData(conn,scope,filters.dateRange):null,
-  hasMobile&&['daily','transactions','mobile'].includes(key)?cashImpact(conn,scope,filters.dateRange):{},
-  hasExpenses&&key==='expenses'?expenseItems(conn,actor,scope,filters.dateRange):null
+  hasMobile&&['daily','transactions','mobile'].includes(key)?cashImpact(conn,scope,filters.dateRange,{legacyOnly:true}):{},
+  hasExpenses&&key==='expenses'?expenseItems(conn,actor,scope,filters.dateRange):null,
+  sourceAvailable&&!['opening','closing'].includes(key)?postedCash(conn,tenant,scope,filters.dateRange,requested.map(source=>source.key)):[]
  ]);
- return {key,page,filters,sources,scope,sourceAvailable,rows,cash,impact,expenses,income:currencyTotals(rows),format:require('./forex.service').amountLabel,
+ return {key,page,filters,sources,scope,sourceAvailable,rows,cash,impact,postedCash:cashMovements,expenses,income:currencyTotals(rows),format:require('./forex.service').amountLabel,
   note:'Each source describes its own internal evidence. Amounts and currencies remain separate. Pending requests and recorded fees do not prove provider settlement, available funds, or realized income.'};
 }
 function csv(report){
@@ -102,8 +123,10 @@ function csv(report){
    ...report.cash.items.map(shift=>[new Date(shift.createdAt).toISOString(),String(shift._id),shift.currency,shift.status,String(shift.openingMinor),
     shift.openingVerifiedAt?new Date(shift.openingVerifiedAt).toISOString():'',shift.expectedClosingMinor==null?'':String(shift.expectedClosingMinor),
     shift.declaredClosingMinor==null?'':String(shift.declaredClosingMinor),shift.varianceMinor==null?'':String(shift.varianceMinor)])];
- }else rows=[['Source','Activity','Status','Currency','Count','Volume label','Fees label','Amount minor units','Fees minor units','Quoted target currency','Quoted target amount minor units'],
-  ...report.rows.map(row=>[row.module,row.activity,row.status,row.currency,row.count,row.volume,row.fees,row.amountMinor??'',row.feesMinor??'',row.targetCurrency??'',row.targetAmountMinor??''])];
+ }else rows=[['Source','Activity','Status','Currency','Count','Volume label','Fees label','Amount minor units','Fees minor units','Quoted target currency','Quoted target amount minor units','Net cash movement minor units','Cash movement evidence'],
+  ...report.rows.map(row=>[row.module,row.activity,row.status,row.currency,row.count,row.volume,row.fees,row.amountMinor??'',row.feesMinor??'',row.targetCurrency??'',row.targetAmountMinor??'','','']),
+  ...(report.postedCash||[]).map(row=>[row.module,'Physical cash movement','posted',row.currency,row.count,'','','','','','',row.netMinor,'Immutable Treasury movements by actual event date; includes reversals and collected cash fees']),
+  ...Object.entries(report.impact||{}).map(([currency,amount])=>['Mobile Money','Legacy physical cash record','untracked evidence',currency,'','','','','','','',amount,'Legacy records by creation date; no Treasury posting'])];
  return '\uFEFF'+rows.map(row=>row.map(mobile.csvCell).join(',')).join('\r\n')+'\r\n';
 }
-module.exports={pages,generate,csv,scopeFor,matchFor,cashData,cashImpact,currencyTotals};
+module.exports={pages,generate,csv,scopeFor,matchFor,cashData,cashImpact,postedCash,currencyTotals};

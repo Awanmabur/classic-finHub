@@ -100,8 +100,8 @@ test('public pages list individual modules and preserve the approved login field
 test('bounded business validity periods are selectable and continue to obey backend range checks',()=>{
   const f=require('node:fs');
   for(const [file,field] of [
-    ['tenant/money-transfer/_entry-form.ejs','validDays'],['tenant/banking/index.ejs','validDays'],
-    ['tenant/forex/index.ejs','validHours'],['tenant/forex/index.ejs','validMinutes'],
+    ['tenant/money-transfer/_entry-form.ejs','validDays'],['tenant/banking/_entry-form.ejs','validDays'],
+    ['tenant/forex/index.ejs','validHours'],['tenant/forex/_entry-form.ejs','validMinutes'],
     ['tenant/approvals/index.ejs','expiresHours']
   ]){
     const template=f.readFileSync(path.join(views,file),'utf8');
@@ -137,9 +137,12 @@ test('transaction forms use fixed account branch currency without client branch 
   const mobileHtml=await render('tenant/mobile-money/index.ejs',{data:{branches:[branch],canRecord:true,canReview:false,
     idempotencyKey:crypto.randomUUID(),summary:{total:0,recent:[]}},user:{...user,role:'Tenant Owner',permissions:['*']},
     money:()=>'',amountFromMinor:()=>'',csrfToken:'csrf'});
-  assert.match(mobileHtml,/<input type="hidden" name="currency" value="KES">/);
+  const mobileCurrency=mobileHtml.match(/<select\b[^>]*name="currency"[^>]*>([\s\S]*?)<\/select>/);
+  assert(mobileCurrency,'Approved Mobile Money currency control must be present');
+  assert.deepEqual([...mobileCurrency[1].matchAll(/<option\b[^>]*value="([^"]+)"/g)].map(match=>match[1]),['KES']);
+  assert.match(mobileCurrency[1],/>KSH<\/option>/);
   assert.doesNotMatch(mobileHtml,/<(?:select|input)[^>]+name="branchId"/);
-  assert.doesNotMatch(mobileHtml,/<select[^>]+name="currency"/);
+  assert.doesNotMatch(mobileHtml,/<input[^>]+name="currency"/);
 });
 
 test('selected approval deadline presets remain bounded, with explicit custom override',()=>{

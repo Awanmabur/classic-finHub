@@ -27,7 +27,7 @@ test('Banking independently subscribable, but direct deposit and withdrawal are 
  assert.throws(()=>bank.deposit({amount:500}),{status:501});
  assert.throws(()=>bank.withdraw({amount:500}),{status:501});
  const schema=require('../src/tenant/schemas/BankingRequest.schema');
- assert.deepEqual(schema.path('status').enumValues,['requested','approved_pending_bank','rejected','cancelled','expired']);
+ assert.deepEqual(schema.path('status').enumValues,['requested','approved_pending_bank','posted_manual','rejected','cancelled','expired']);
  assert(schema.path('amountMinor').options.immutable);
  assert(!schema.path('status').enumValues.includes('settled'));
  assert(schema.indexes().some(([keys,options])=>keys.idempotencyKey===1&&options.unique));
@@ -82,7 +82,7 @@ test('Immutable banking request snapshots, deduplication and no bank balance mod
  assert(bank.sameRequest(stored,actor('Banking Operator'),branch,v));
  assert(!bank.sameRequest(stored,actor('Banking Operator'),branch,{...v,amountMinor:70000}));
 });
-test('Banking UI renders approved wording on protected request forms and keeps settlement unavailable',async()=>{
+test('Banking UI renders protected instructions and links independently reviewed manual movements',async()=>{
  const data={records:{items:[],nextCursor:null},branches:[{_id:branch,name:'Main',currency:'UGX'}],queue:[],
   references:[{_id:oid(),customerName:'<script>alert(1)</script>',institutionName:'Bank A',last4:'1234'}],
   selectedBranchId:branch,canCreate:true,canReview:false,idempotencyKey:crypto.randomUUID(),formatMoneyMinor:(v,c)=>`${c} ${v}`};
@@ -92,7 +92,7 @@ test('Banking UI renders approved wording on protected request forms and keeps s
  assert.match(html,/Post banking operation/);
  assert.doesNotMatch(html,/<script>alert/);assert.match(html,/&lt;script&gt;/);
  assert.match(html,/action="\/tenant\/banking\/requests"/);
- assert.match(html,/Bank execution remains pending verification/);
+ assert.match(html,/External bank references remain instructions/);
  assert.doesNotMatch(html,/<form[^>]+action="\/tenant\/banking\/(?:deposit|withdraw|transfer)"/);
  const read=await ejs.renderFile(page,{data:{...data,canCreate:false,canReview:false},user:actor('Auditor'),csrfToken:'csrf'});
  assert.doesNotMatch(read,/Post banking operation/);

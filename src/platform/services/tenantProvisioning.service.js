@@ -57,6 +57,8 @@ async function provisionTenant(payload, adminId) {
   await require('../../tenant/customerAccounts/models').ensureIndexes(tenantConnection);
   await require('../../tenant/models/expenses').ensureExpenseIndexes(tenantConnection);
   await require('../../tenant/workspace/models').ensure(tenantConnection);
+  await require('../../tenant/treasury/models').ensure(tenantConnection);
+  await require('../../tenant/funded/models').ensureIndexes(tenantConnection);
   const session = await mongoose.startSession();
   let tenant;
   try {

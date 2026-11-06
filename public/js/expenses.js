@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded',()=>{
  document.querySelectorAll('[data-expense-open]').forEach(trigger=>trigger.addEventListener('click',event=>{
   if(typeof dialog.showModal!=='function')return;event.preventDefault();open();
  }));
+ dialog.querySelector('[data-expense-clear]')?.addEventListener('click',()=>dialog.querySelector('form')?.reset());
  dialog.querySelectorAll('[data-expense-close]').forEach(trigger=>trigger.addEventListener('click',()=>dialog.close()));
  dialog.addEventListener('close',()=>{opener?.focus();});
  dialog.addEventListener('click',event=>{if(event.target!==dialog)return;const bounds=dialog.getBoundingClientRect();

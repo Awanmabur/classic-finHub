@@ -1,15 +1,24 @@
-<dialog id="transactionDialog" class="transactionDialog" aria-labelledby="transactionTitle" aria-describedby="transactionDescription">
-  <div class="tenantCleanSheet">
-    <header class="tenantCleanHead"><div><b id="transactionTitle">New transaction</b><span id="transactionDescription">Choose a module, then enter the operation details.</span></div><button class="btn btnIcon" type="button" data-close-transaction aria-label="Close transaction dialog"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></header>
-    <div class="tenantCleanBody">
-      <div class="transactionChoices" data-transaction-choices>
-        <% transactionOptions.forEach(option=>{ %><button type="button" class="transactionChoice" data-transaction-kind="<%= option.kind %>"><i class="fa-solid <%= option.icon %>" aria-hidden="true"></i><span><b><%= option.label %></b><small><%= option.description %></small></span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button><% }) %>
-        <% if(visiblePaths.has('/tenant/sms-capture')){ %><a class="transactionChoice" href="/tenant/sms-capture"><i class="fa-solid fa-message" aria-hidden="true"></i><span><b>Automatic SMS capture</b><small>Incoming messages and captured records</small></span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></a><% } %>
-      </div>
-      <p class="transactionStatus" data-transaction-status role="status" aria-live="polite" hidden></p>
-      <div class="transactionFormHost" data-transaction-form></div>
-      <p class="tenantCleanHint">Records, requests and quotations retain their required review steps. Recording an operation does not itself confirm provider settlement.</p>
-    </div>
-    <footer class="tenantCleanFoot"><button type="button" class="btn" data-transaction-back hidden><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> All operations</button><button type="button" class="btn" data-close-transaction>Cancel</button><div class="transactionSubmitActions" data-transaction-submit-actions></div></footer>
+<% const operationGroups=[['transfer','Money Transfer'],['banking','Banking'],['mobile','Mobile Money'],['forex','Forex'],['daily','Daily Operation']];
+   const operationGroup=kind=>({transfer:'transfer',payout:'transfer',banking:'banking',banking_deposit:'banking',banking_withdrawal:'banking',banking_transfer:'banking',customer:'banking',account:'banking',cash_in:'mobile',cash_out:'mobile',forex:'forex',forex_buy:'forex',forex_sell:'forex',expense:'daily',cash_shift_open:'daily',cash_shift_close:'daily',approval:'daily'})[kind];
+   const operationLabels={transfer:'Sending / Generate PIN',payout:'Payout by PIN',banking_deposit:'Deposit',banking_withdrawal:'Withdraw',banking_transfer:'Account transfer',cash_in:'Cash-in',cash_out:'Cash-out',forex_buy:'Buy forex from customer',forex_sell:'Sell forex to customer',customer:'New customer',account:'New account',expense:'Add expense',cash_shift_open:'Open day',cash_shift_close:'Close day',approval:'Approval request'};
+   const kindOrder=['transfer','payout','customer','account','banking_deposit','banking_withdrawal','banking_transfer','cash_in','cash_out','forex_buy','forex_sell','cash_shift_open','cash_shift_close','expense','approval'];
+   const visibleGroups=operationGroups.filter(([key])=>transactionOptions.some(option=>operationGroup(option.kind)===key)); %>
+<dialog id="transactionDialog" class="transactionDialog" data-operation-dialog aria-labelledby="transactionTitle" aria-describedby="transactionDescription">
+ <div class="sheet" data-operation-sheet>
+  <header class="sheetHead"><div><b id="transactionTitle">New operation</b><br><span id="transactionDescription">Choose a section, then choose the exact operation.</span></div><button class="btn btnIcon" type="button" data-close-transaction aria-label="Close transaction dialog">×</button></header>
+  <div class="sheetBody">
+   <div data-transaction-choices>
+    <div class="seg serviceTabs" id="serviceSeg" aria-label="Transaction service"><% visibleGroups.forEach(([key,label])=>{ %><button class="chip" type="button" data-transaction-service="<%= key %>" aria-pressed="false"><%= label %></button><% }) %></div>
+    <% visibleGroups.forEach(([key])=>{ %><div class="seg childActions" data-transaction-actions="<%= key %>" aria-label="<%= operationGroups.find(group=>group[0]===key)[1] %> operations" hidden>
+     <% transactionOptions.filter(option=>operationGroup(option.kind)===key).sort((a,b)=>kindOrder.indexOf(a.kind)-kindOrder.indexOf(b.kind)).forEach(option=>{ %><button class="chip" type="button" data-transaction-kind="<%= option.kind %>" data-operation-group="<%= key %>" aria-pressed="false"><%= operationLabels[option.kind]||option.label %></button><% }) %>
+     <% if(key==='transfer'&&!transactionOptions.some(option=>option.kind==='payout')&&visiblePaths.has('/tenant/money-transfer')){ %><a class="chip" href="/tenant/money-transfer/payout">Payout by PIN</a><% } %>
+     <% if(key==='daily'&&visiblePaths.has('/tenant/reports/export.csv')){ %><a class="chip" href="/tenant/reports/export.csv">Export CSV</a><% } %>
+     <% if(key==='daily'&&visiblePaths.has('/tenant/reports/print')){ %><a class="chip" href="/tenant/reports/print">Print report</a><% } %>
+    </div><% }) %>
+   </div>
+   <p class="transactionStatus" data-transaction-status role="status" aria-live="polite" hidden></p>
+   <div class="transactionFormHost" data-transaction-form></div>
   </div>
+  <footer class="sheetFoot"><button type="button" class="btn" data-transaction-clear>Clear</button><button type="button" class="btn" data-close-transaction>Close</button></footer>
+ </div>
 </dialog>

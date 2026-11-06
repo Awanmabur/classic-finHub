@@ -40,17 +40,16 @@ module.exports=function operationWorkspaceRoutes({renderTenant,moduleKey}){
  if(moduleKey==='money_transfer'){
   router.get('/fees',(req,res,next)=>render(req,res,next,'workspace','Transfer fee summary',{mode:'fees'}));
   router.get('/pending-payouts',async(req,res,next)=>{
-   // Approved internal instructions remain pending provider execution. No PIN
-   // or paid-out state is invented from an internal reviewer decision.
+   // Only independently reviewed collections are eligible for manual PIN payout.
    try{
-    const filters={...req.query,status:'approved_pending_provider'};
+    const filters={...req.query,status:'collected_manual'};
     const data=await workspace.report(req.tenantDb,req.tenant,req.user,moduleKey,filters);
     data.records=await workspace.records(req.tenantDb,req.tenant,req.user,moduleKey,filters);
     Object.assign(data,{basePath:'/tenant/money-transfer',title:'Pending payout queue',mode:'pending'});
-    renderTenant(req,res,'money-transfer/workspace',data.title,'Approved transfer instructions awaiting verified provider execution.',data);
+    renderTenant(req,res,'money-transfer/workspace',data.title,'Independently reviewed manual collections awaiting receiver verification and payout.',data);
    }catch(error){next(error);}
   });
-  router.get('/payout',(req,res,next)=>render(req,res,next,'workspace','Payout by PIN',{mode:'payout',records:true}));
+  router.get('/payout',requirePermission('money_transfer.payout'),(req,res)=>res.redirect(303,'/tenant/funded/payout'));
  }
  if(moduleKey==='banking')router.get('/movements',(req,res,next)=>render(req,res,next,'workspace','Banking request movements',{mode:'records',records:true}));
  if(moduleKey==='forex'){

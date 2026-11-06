@@ -1,3 +1,7 @@
-<dialog id="directoryDialog" class="transactionDialog" aria-labelledby="directoryTitle" <%= data.autoOpen?'open':'' %> data-directory-dialog <%= data.autoOpen?'data-directory-auto-open':'' %>>
- <div class="tenantCleanSheet"><header class="tenantCleanHead"><div><b id="directoryTitle"><%= data.formRecord?(data.formKind==='customer'?'Edit customer':'Edit account'):(data.formKind==='customer'?'New customer':'New account') %></b><span><%= data.formKind==='customer'?'Customer identity, next of kin, and contact details.':'Account owner, account intelligence, and opening balances.' %></span></div><button class="btn btnIcon" type="button" data-directory-close aria-label="Close dialog"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></header><div class="tenantCleanBody"><%- include('form',{data,user}) %></div><footer class="tenantCleanFoot"><button type="button" class="btn" data-directory-close>Cancel</button></footer></div>
+<dialog id="directoryDialog" class="transactionDialog" data-operation-dialog aria-labelledby="directoryTitle" <%= data.autoOpen?'open':'' %> data-directory-dialog <%= data.autoOpen?'data-directory-auto-open':'' %>>
+ <div class="sheet" data-operation-sheet>
+  <header class="sheetHead"><div><b id="directoryTitle"><%= data.formRecord?(data.formKind==='customer'?'Edit customer':'Edit account'):(data.formKind==='customer'?'New customer':'New account') %></b><br><span>Choose a service and enter clean details</span></div><button class="btn btnIcon" type="button" data-directory-close aria-label="Close dialog">×</button></header>
+  <div class="sheetBody"><%- include('form',{data,user}) %></div>
+  <footer class="sheetFoot"><button type="button" class="btn" data-directory-clear>Clear</button><button type="button" class="btn" data-directory-close>Close</button></footer>
+ </div>
 </dialog>

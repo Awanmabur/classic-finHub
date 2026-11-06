@@ -94,8 +94,8 @@ test('spreadsheet output escapes formulas and embedded delimiters',()=>{
 });
 
 test('staff permissions are server-defined and tenant owners cannot be self-invited',()=>{
-  assert.deepEqual(permissionsFor('Mobile Money Operator'),['customers.view','customers.create','expenses.view','expenses.create','expenses.correct','mobile_money.report','notifications.view','dashboard.view','mobile_money.view','mobile_money.cash_in','mobile_money.cash_out']);
-  for(const permission of ['customers.manage','customers.export','accounts.manage','expenses.review','expenses.void','mobile_money.review','approvals.decide','workspace.manage'])assert(!permissionsFor('Mobile Money Operator').includes(permission),`Operator cannot receive privileged capability ${permission}`);
+  assert.deepEqual(permissionsFor('Mobile Money Operator'),['accounts.view','treasury.view','treasury.observe','customers.view','customers.create','expenses.view','expenses.create','expenses.correct','mobile_money.report','notifications.view','dashboard.view','mobile_money.view','mobile_money.cash_in','mobile_money.cash_out']);
+  for(const permission of ['customers.manage','customers.export','accounts.manage','treasury.manage','treasury.review','expenses.review','expenses.void','mobile_money.review','approvals.decide','workspace.manage'])assert(!permissionsFor('Mobile Money Operator').includes(permission),`Operator cannot receive privileged capability ${permission}`);
   assert.deepEqual(permissionsFor('fake-role'),[]);
   assert(permissionsFor('Branch Manager').includes('branches.view'));
   assert(!permissionsFor('Branch Manager').includes('users.manage'));

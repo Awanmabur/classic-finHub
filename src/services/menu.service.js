@@ -17,6 +17,7 @@ function tenantMenu(tenant,user) {
   const groups=[];
   const group=(label,items,paths=[])=>{if(items.length)groups.push({label,items,paths:paths.map(path=>'/tenant/'+path)});};
   const mobile=module('mobile_money')&&can('mobile_money.view');
+  const sharedCash=['mobile_money','money_transfer','banking','forex','expenses'].some(module);
   const transfer=module('money_transfer')&&can('money_transfer.view');
   const banking=module('banking')&&can('banking.view');
   const forex=module('forex')&&can('forex.view');
@@ -63,11 +64,11 @@ function tenantMenu(tenant,user) {
   ],banking?['banking']:[]);
   group('Operation Reports',[
     ...(reports?[item('Daily business report','reports/daily','fa-chart-simple')]:[]),
-    ...(mobile&&['Tenant Owner','Mobile Money Operator'].includes(user.role)?[item('Open day','mobile-money/shifts','fa-unlock',{transactionKind:'cash_shift_open'}),item('Close day','day/close','fa-lock',{transactionKind:'cash_shift_close'})]:[]),
+    ...(sharedCash&&['Tenant Owner','Mobile Money Operator','Money Transfer Operator','Banking Operator','Forex Operator'].includes(user.role)?[item('Open day','cash/shifts','fa-unlock',{transactionKind:'cash_shift_open'}),item('Close day','day/close','fa-lock',{transactionKind:'cash_shift_close'})]:[]),
     ...(expenses&&can('expenses.create')?[item('Add expense','expenses/new','fa-money-bill',{transactionKind:'expense'})]:[]),
     ...(reports&&can('reports.export')?[item('Export CSV','reports/export.csv','fa-download')]:[]),
     ...(reports?[item('Print report','reports/print','fa-print'),item('General reports page','reports','fa-file-lines'),item('Opening cash report','reports/opening','fa-unlock'),item('Closing cash / expected cash','reports/closing','fa-lock'),item('Transaction summary','reports/transactions','fa-list'),item('Expenses report','reports/expenses','fa-receipt'),item('Transfer report','reports/transfer','fa-money-bill-transfer'),item('Mobile report','reports/mobile','fa-mobile-screen-button'),item('Banking report','reports/banking','fa-building-columns')]:[])
-  ],[...(reports?['reports']:[]),...(expenses?['expenses']:[])]);
+  ],[...(reports?['reports']:[]),...(expenses?['expenses']:[]),...(sharedCash?['cash/shifts']:[])]);
   group('Tenant Workspace',[
     ...(workspace?[item('Tenant profile','workspace/profile','fa-building'),item('Landing page setup','workspace/landing','fa-window-maximize'),item('Branding & receipts','workspace/branding','fa-palette')]:[]),
     ...(can('branches.view')?[item('Branches & locations','branches','fa-location-dot')]:[]),
@@ -81,12 +82,13 @@ function tenantMenu(tenant,user) {
     ...(staff?[item('Teller & staff users','users','fa-users')]:[]),
     ...(can('audit.view')?[item('Logs and audit trail','audit','fa-shield-halved')]:[]),
     ...(module('approval_workflows')&&can('approvals.view')?[item('Approvals & corrections','approvals','fa-user-check')]:[]),
-    ...(mobile&&['Tenant Owner','Branch Manager','Reconciliation Officer','Auditor'].includes(user.role)?[item('Cash control review','mobile-money/shifts','fa-cash-register')]:[]),
+    ...(sharedCash&&['Tenant Owner','Branch Manager','Reconciliation Officer','Auditor'].includes(user.role)?[item('Cash control review','cash/shifts','fa-cash-register')]:[]),
     ...(workspace?[item('Security & roles','workspace/roles','fa-user-shield'),item('System settings','workspace','fa-gear')]:[])
   ],[...(module('analytics')&&can('analytics.view')?['analytics']:[]),...(module('approval_workflows')&&can('approvals.view')?['approvals']:[])]);
   return groups;
 }
 function tenantNavigationPath(path){
+  if(path.startsWith('/tenant/mobile-money/shifts'))return path.replace('/tenant/mobile-money/shifts','/tenant/cash/shifts');
   if(/^\/tenant\/mobile-money(?:\/(?:history|[a-f0-9]{24})(?:\/.*)?)?\/?$/i.test(path))return '/tenant/mobile-money/network-activity';
   if(/^\/tenant\/money-transfer\/contacts(?:\/.*)?$/i.test(path))return '/tenant/money-transfer/send';
   if(/^\/tenant\/money-transfer(?:\/(?:history|[a-f0-9]{24})(?:\/.*)?)?\/?$/i.test(path))return '/tenant/money-transfer/records';

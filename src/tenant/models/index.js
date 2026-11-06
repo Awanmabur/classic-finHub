@@ -24,6 +24,13 @@ const correctionEventSchema = new mongoose.Schema({
   at:{type:Date,default:Date.now}
 },{_id:false,strict:'throw'});
 const moneySchema = new mongoose.Schema({
+  fundingState:{type:String,enum:['legacy_untracked','book_recorded'],default:'legacy_untracked',immutable:true},
+  walletAccountId:{type:mongoose.Schema.Types.ObjectId,default:null,immutable:true},paymentAccountId:{type:mongoose.Schema.Types.ObjectId,default:null,immutable:true},customerAccountId:{type:mongoose.Schema.Types.ObjectId,default:null,immutable:true},
+  feeTreatment:{type:String,enum:['record_only','payment_collected','wallet_commission'],default:'record_only',immutable:true},
+  observedWalletBalance:{type:String,default:'',maxlength:32,immutable:true},observationEvidenceReference:{type:String,default:'',maxlength:120,immutable:true},
+  walletBalanceBeforeMinor:{type:mongoose.Schema.Types.Decimal128,default:null,immutable:true},walletBalanceAfterMinor:{type:mongoose.Schema.Types.Decimal128,default:null,immutable:true},
+  walletObservationId:{type:mongoose.Schema.Types.ObjectId,default:null,immutable:true},fundsSourceRef:{type:String,default:null,immutable:true},fundJournalIds:{type:[mongoose.Schema.Types.ObjectId],default:[],immutable:true},
+  physicalCashMovementMinor:{type:mongoose.Schema.Types.Decimal128,default:null,immutable:true},
   entrySource:{type:String,enum:['manual','sms'],default:'manual',immutable:true},
   smsInboxId:{type:mongoose.Schema.Types.ObjectId,default:null,immutable:true},
   idempotencyKey: { type: String, required: true, immutable: true, match: /^[0-9a-f-]{36}$/ },

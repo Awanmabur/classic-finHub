@@ -62,7 +62,7 @@ test('Module pages render complete approved submenu wording, records, exports an
   assert.match(html,/Export CSV/);assert.doesNotMatch(html,/name="branchId"/);
   if(key==='money_transfer'){
    for(const label of ['Send money / Generate PIN','Payout by PIN','Pending payout queue','Money transfer record','Transfer fee summary','Transfer report summary'])assert(html.includes(label));
-   assert.match(html,/Provider payout is not enabled/);assert.match(html,/&lt;img/);assert.doesNotMatch(html,/<script>/);
+   assert.match(html,/Check PIN and request payout/);assert.match(html,/&lt;img/);assert.doesNotMatch(html,/<script>/);
   }
   if(key==='forex')assert.match(html,/No cash balance is inferred/);
  }

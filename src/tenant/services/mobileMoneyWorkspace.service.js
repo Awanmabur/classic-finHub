@@ -61,7 +61,7 @@ function summarize(groups){
    if(paymentMethod==='Cash'){
     row[operation==='cash_in'?'physicalCashInCount':'physicalCashOutCount']+=count;
     row[operation==='cash_in'?'physicalCashInMinor':'physicalCashOutMinor']+=amount;
-    row.cashImpactMinor+=operation==='cash_in'?amount:-amount;
+    row.cashImpactMinor+=group.cashMovementMinor==null?(operation==='cash_in'?amount:-amount):BigInt(String(group.cashMovementMinor));
    }
   }
  }
@@ -76,13 +76,20 @@ async function workspace(conn,actor,input={},options={}){
  await ensureTenantIndexes(conn);
  const Model=mobileTransactionModel(conn);
  const [groups,items]=await Promise.all([
-  Model.aggregate([{$match:match},{$group:{_id:{currency:'$currency',network:'$network',operation:'$operation',source:{$ifNull:['$entrySource','manual']},paymentMethod:{$ifNull:['$paymentMethod','Cash']},voided:{$or:[{$eq:['$status','voided_internal']},{$eq:['$correctionState','voided']}]}},count:{$sum:1},amountMinor:{$sum:'$amountMinor'},feeMinor:{$sum:'$feeMinor'}}}]),
+  Model.aggregate([
+   {$match:match},
+   {$group:{
+    _id:{currency:'$currency',network:'$network',operation:'$operation',source:{$ifNull:['$entrySource','manual']},paymentMethod:{$ifNull:['$paymentMethod','Cash']},voided:{$or:[{$eq:['$status','voided_internal']},{$eq:['$correctionState','voided']}] }},
+    count:{$sum:1},amountMinor:{$sum:'$amountMinor'},feeMinor:{$sum:'$feeMinor'},
+    cashMovementMinor:{$sum:{$ifNull:['$physicalCashMovementMinor',{$cond:[{$eq:['$operation','cash_in']},'$amountMinor',{$multiply:['$amountMinor',-1]}]}]}}
+   }}
+  ]),
   Model.find(query).sort({createdAt:-1,_id:-1}).limit(take+1).lean()
  ]);
  const visible=items.slice(0,take).map(row=>mobile.visibleRecordForRole(row,actor.role));
  return {filters:selected,...summarize(groups),records:{items:visible,nextCursor:items.length>take?mobile.encodeCursor(visible.at(-1)):null},
   networksAvailable:[...networks],currencies:Object.keys(mobile.currencies),formatMoneyMinor:mobile.formatMoneyMinor,
-  canReport:canReport(actor),canExport:canExport(actor),cashImpactNote:'Provisional drawer movement is Cash-in minus Cash-out for Cash payments. Recorded fees are separate. Internally voided records and Wallet Balance / Bank methods are excluded; provider settlement is unverified.'};
+  canReport:canReport(actor),canExport:canExport(actor),cashImpactNote:'Cash impact follows the recorded physical movement, including explicitly collected cash fees. Other commissions remain separate. Internally voided records and Wallet Balance / Bank methods are excluded; provider settlement is unverified.'};
 }
 function major(value,currency){const decimals=mobile.currencies[currency],n=BigInt(String(value)),absolute=n<0n?-n:n,base=10n**BigInt(decimals);return `${n<0n?'-':''}${absolute/base}${decimals?'.'+String(absolute%base).padStart(decimals,'0'):''}`;}
 function toCsv(items){
@@ -91,7 +98,7 @@ function toCsv(items){
   const voided=row.status==='voided_internal'||row.correctionState==='voided';
   rows.push([new Date(row.createdAt).toISOString(),row.operation,row.customer,row.customerPhone||'',row.customerNote||'',row.network,row.networkReference,row.currency,
    major(row.amountMinor,row.currency),major(row.feeMinor,row.currency),row.paymentMethod||'Cash',row.entrySource||'manual',row.status,row.reviewState||'awaiting_review',row.correctionState||'none',
-   major(voided||(row.paymentMethod||'Cash')!=='Cash'?0n:BigInt(String(row.amountMinor))*(row.operation==='cash_in'?1n:-1n),row.currency)]);
+   major(voided||(row.paymentMethod||'Cash')!=='Cash'?0n:(row.physicalCashMovementMinor==null?BigInt(String(row.amountMinor))*(row.operation==='cash_in'?1n:-1n):BigInt(String(row.physicalCashMovementMinor))),row.currency)]);
  }
  return rows.map(row=>row.map(mobile.csvCell).join(',')).join('\r\n')+'\r\n';
 }

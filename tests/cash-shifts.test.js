@@ -69,7 +69,7 @@ test('cash shift views have real server-backed actions and escape notes',async()
  const base=path.join(__dirname,'../src/views/tenant/mobile-money');
  const rendered=await ejs.renderFile(path.join(base,'shifts.ejs'),{formatMoneyMinor:mobile.formatMoneyMinor,data:{shifts:{items:[item],nextCursor:'a-valid-token'},canOpen:true,
   canReview:true,branches:[{_id:branchId,currency:'UGX',name:'Main',status:'active'}]},user:{role:'Tenant Owner',branchId},csrfToken:'csrf'});
- assert.match(rendered,/shifts\/open/);assert.match(rendered,/Next page/);assert.match(rendered,/name="_csrf" value="csrf"/);
+ assert.match(rendered,/action="\/tenant\/day\/open"/);assert.match(rendered,/href="\/tenant\/cash\/shifts\?cursor=/);assert.match(rendered,/Next page/);assert.match(rendered,/name="_csrf" value="csrf"/);
  const detail=await ejs.renderFile(path.join(base,'shift-detail.ejs'),{formatMoneyMinor:mobile.formatMoneyMinor,data:{shift:item,canSubmit:false,canReview:true},csrfToken:'csrf'});
  assert.match(detail,/name="decision" value="approve"/);assert.doesNotMatch(detail,/<script>/);assert.match(detail,/&lt;script&gt;/);
  const noActions=await ejs.renderFile(path.join(base,'shift-detail.ejs'),{formatMoneyMinor:mobile.formatMoneyMinor,data:{shift:item,canSubmit:false,canReview:false},csrfToken:'csrf'});

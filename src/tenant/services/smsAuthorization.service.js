@@ -39,7 +39,7 @@ async function authorizeRecording(conn,session,operator,tenant,context,branchId,
   if(!inbox)throw fail('SMS recording lease or operator assignment is unavailable.',403);
   if(values.idempotencyKey!==idempotencyKey(inbox.deviceId,inbox.messageId))throw fail('SMS recording reference is invalid.',403);
   const expected=require('./mobileMoney.service').validate({...inbox.fields,idempotencyKey:values.idempotencyKey},inbox.fields?.operation);
-  if(['operation','customer','customerPhone','customerNote','paymentMethod','network','networkReference','currency','amountMinor','feeMinor','idempotencyKey']
+  if(['operation','customer','customerPhone','customerNote','paymentMethod','network','networkReference','currency','amountMinor','feeMinor','idempotencyKey','observedWalletBalance','observationEvidenceReference','feeTreatment']
     .some(key=>String(expected[key])!==String(values[key])))throw fail('SMS draft changed before recording. Review it again.',409);
   const authorized=await fenceDeviceContext(conn,session,{deviceId:inbox.deviceId,tenantId:tenant._id,actor:operator,branchId});
   if(authorized.device.network!==values.network)throw fail('SMS network does not match the device.',403);

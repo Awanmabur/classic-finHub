@@ -32,7 +32,7 @@
     <div class="formSection">
       <div class="formSectionTitle">Amount details</div>
       <div class="row2">
-        <div class="field"><span>Currency</span><input type="hidden" name="currency" value="<%= currentBranch.currency %>"><span class="control" data-mobile-currency><%= entryCurrencyLabel %></span></div>
+        <label class="field">Currency<select class="control" name="currency" data-mobile-currency required><option value="<%= currentBranch.currency %>"><%= entryCurrencyLabel %></option></select></label>
         <label class="field">Amount<input class="control" type="number" inputmode="decimal" name="amount" placeholder="0" min="<%= entryStep %>" step="<%= entryStep %>" required></label>
       </div>
       <div class="row2">
@@ -41,10 +41,10 @@
       </div>
     </div>
     <div class="summary">
-      <div class="sumRow"><span>Total customer pays</span><b data-mobile-total>—</b></div>
+      <div class="sumRow"><span data-mobile-total-label><%= entryOperation==='cash_out'?'Total customer receives':'Total customer pays' %></span><b data-mobile-total>—</b></div>
       <div class="sumRow"><span>Reference</span><b class="mono mobileRequestReference" data-mobile-reference><%= data.idempotencyKey %></b></div>
     </div>
-    <p class="tiny mobileMoneyRecordNote">Processing saves a pending verification record with this request reference. Cash payments use your assigned branch's cash shift. Bank and Wallet Balance record the declared method; this form does not execute a provider payment. Fee / commission is recorded separately.</p>
+    <%- include('_funds-context') %>
     <div class="rowBtns"><button class="btn btnPrimary" type="submit">Process mobile money</button></div>
   </div>
 </form>

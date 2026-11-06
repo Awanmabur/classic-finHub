@@ -9,13 +9,13 @@ const models=require('../models');
 const {currencyCodes,forexCurrencyCodes}=require('../../config/currencies');
 const definitions=Object.freeze({
  money_transfer:{label:'Money Transfer',path:'money-transfer',model:models.transferOrderModel,
-  creator:'Money Transfer Operator',statuses:['requested','approved_pending_provider','rejected','cancelled','expired'],
+  creator:'Money Transfer Operator',statuses:['requested','approved_pending_provider','rejected','cancelled','expired','collected_manual','paid_out_manual'],
   kinds:[],currencies:currencyCodes,amount:'amountMinor',fees:'feeMinor'},
  banking:{label:'Banking',path:'banking',model:models.bankingRequestModel,
-  creator:'Banking Operator',statuses:['requested','approved_pending_bank','rejected','cancelled','expired'],
+  creator:'Banking Operator',statuses:['requested','approved_pending_bank','rejected','cancelled','expired','posted_manual'],
   kinds:['deposit_request','withdrawal_request','transfer_request'],currencies:currencyCodes,amount:'amountMinor'},
  forex:{label:'Forex',path:'forex',model:models.forexQuoteModel,
-  creator:'Forex Operator',statuses:['quoted','approved_pending_execution','rejected','cancelled','expired'],
+  creator:'Forex Operator',statuses:['quoted','approved_pending_execution','rejected','cancelled','expired','posted_manual'],
   kinds:['buy','sell','quote'],currencies:forexCurrencyCodes,amount:'sourceMinor'}
 });
 function fail(message,status=400){const error=new Error(message);error.status=status;return error;}
@@ -95,9 +95,9 @@ async function report(conn,tenant,actor,key,query={}){
   target:key==='forex'?formatAmount(row.target?.toString()||'0',row._id.targetCurrency):''}));
  return {moduleKey:key,label:spec.label,currencies:spec.currencies,filters,rows,total:rows.reduce((sum,row)=>sum+row.count,0),
   canExport:hasPermission(actor,`${key}.report`)||hasPermission(actor,'reports.export'),
-  note:key==='forex'?'Quotes and approved requests have no posted drawer impact. Cash stock and settled exchange require verified execution.':
-   key==='banking'?'Request totals show instructions awaiting bank verification. They are separate from internal ledger account balances and movements.':
-    'Requested amounts and proposed fees are internal instructions. Provider-confirmed remittance, payout PINs and collected fees are not enabled.'};
+  note:key==='forex'?'Quotations remain separate from posted manual exchanges. Reviewed manual movements update the foreign stock and settlement books; check the cash movement report for physical drawer effects.':
+   key==='banking'?'Pending instructions remain separate from posted manual operations. Reviewed manual movements update the selected funds and internal customer accounts together.':
+    'Pending requests remain separate from collected and paid-out manual transfers. Independently reviewed collection posts the funds and payable, then enables one-time PIN access; provider settlement remains separate.'};
 }
 function csv(report){
  const headers=['Date (UTC)','Operation','Status','Currency','Records','Requested / quoted amount','Proposed fees','Target currency','Target quoted amount'];

@@ -51,13 +51,24 @@ function validate(input, operation) {
   const amountMinor = toMinor(input.amount, currency);
   const feeMinor = toMinor(input.fee ?? '0', currency, true);
   if (feeMinor > amountMinor) throw bad('Fee cannot exceed amount');
-  return { operation, customer, customerPhone, customerNote, paymentMethod, network, networkReference, currency, amountMinor, feeMinor, idempotencyKey };
+  const selected={};
+  for(const key of ['walletAccountId','paymentAccountId','customerAccountId']){
+    const value=input[key];if(value!==undefined&&value!==''&&value!==null&&(typeof value!=='string'||!/^[a-f0-9]{24}$/i.test(value)))throw bad('Choose a valid funds account');
+    selected[key]=value||null;
+  }
+  const feeTreatment=input.feeTreatment||'record_only';if(!['record_only','payment_collected','wallet_commission'].includes(feeTreatment))throw bad('Choose a valid fee treatment');
+  const observedWalletBalance=input.observedWalletBalance||'',observationEvidenceReference=input.observationEvidenceReference||'';
+  if(typeof observedWalletBalance!=='string'||observedWalletBalance.length>32||typeof observationEvidenceReference!=='string'||observationEvidenceReference.length>120||/[\u0000-\u001f\u007f]/.test(observationEvidenceReference))throw bad('Enter a valid actual balance and evidence reference');
+  return { operation, customer, customerPhone, customerNote, paymentMethod, network, networkReference, currency, amountMinor, feeMinor, idempotencyKey,...selected,feeTreatment,observedWalletBalance:observedWalletBalance.trim(),observationEvidenceReference:observationEvidenceReference.trim() };
 }
 function sameDetails(record,values){
   return ['amountMinor','feeMinor','currency','customer','network','networkReference','customerPhone','customerNote','paymentMethod']
-    .every(key=>String(record[key]??(key==='paymentMethod'?'Cash':key==='customerPhone'||key==='customerNote'?'':undefined))===String(values[key]));
+    .every(key=>String(record[key]??(key==='paymentMethod'?'Cash':key==='customerPhone'||key==='customerNote'?'':undefined))===String(values[key])) &&
+    String(record.feeTreatment||'record_only')===String(values.feeTreatment||'record_only') &&
+    ['walletAccountId','paymentAccountId','customerAccountId'].every(key=>!values[key]||String(record[key]||'')===String(values[key])) &&
+    (!values.observedWalletBalance||String(record.observedWalletBalance||'')===values.observedWalletBalance);
 }
-async function recordMobileMoney(conn, operator, input, operation, tenant, sourceContext = null) {
+async function recordMobileMoney(conn, operator, input, operation, tenant, sourceContext = null, options = {}) {
   if(!operator?.id || !['Tenant Owner','Mobile Money Operator'].includes(operator.role))throw bad('This role cannot record Mobile Money operations',403);
   const values = validate(input, operation);
   if(sourceContext !== null && (!sourceContext || typeof sourceContext !== 'object' || Array.isArray(sourceContext) ||
@@ -91,8 +102,11 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
       await require('../../platform/services/commercial.service').reserveUsage(authorization.tenant,'mobile_money_records',session);
       // Wallet and bank are declared receipt methods, not verified integrations.
       // Only physical Cash records may change a verified drawer or join a shift.
-      const cashSessionId=values.paymentMethod==='Cash'?await require('./cashDrawer.service').attachRecord(conn,session,authorization.actor,branch._id,values.currency,operation,BigInt(values.amountMinor),smsAuthorization?{receivedAt:smsAuthorization.receivedAt}:null):null;
-      [created] = await Model.create([{ ...values, ...source, cashSessionId, branchId:branch._id, amountMinor: String(values.amountMinor), feeMinor: String(values.feeMinor), operatorId: operator.id, status: 'pending_verification' }], { session });
+      const funds=require('./mobileMoneyFunds.service');
+      const tracking=await funds.shouldTrack(conn,authorization.tenant,values,options.requireFunds===true);
+      const funding=tracking?await funds.apply(conn,session,authorization,{...values,branchId:branch._id},{requireObservation:options.requireFunds===true&&!sourceContext,receivedAt:smsAuthorization?.receivedAt}):{};
+      const cashSessionId=values.paymentMethod==='Cash'?await require('./cashDrawer.service').attachRecord(conn,session,authorization.actor,branch._id,values.currency,operation,BigInt(values.amountMinor),{...(smsAuthorization?{receivedAt:smsAuthorization.receivedAt}:{}),bookManaged:tracking}):null;
+      [created] = await Model.create([{ ...values, ...source,...funding, cashSessionId, branchId:branch._id, amountMinor: String(values.amountMinor), feeMinor: String(values.feeMinor), operatorId: operator.id, status: 'pending_verification' }], { session });
       await Audit.create([{
         action: `mobile_money.${operation}.recorded`, actorId: operator.id, targetId: created._id,
         metadata: { currency: values.currency, amountMinor: values.amountMinor, network: values.network, paymentMethod:values.paymentMethod, branchId: String(created.branchId) }
@@ -140,6 +154,15 @@ async function reviewMobileMoney(conn, reviewer, recordId, decision, note) {
       } }, { new: true, session }).lean();
       if (!created) throw bad('Record unavailable, already reviewed, or created by this reviewer.', 409);
       await require('./cashDrawer.service').fenceRecordChange(conn,session,created);
+      if(created.walletObservationId){
+        const observation=await require('../treasury/models').models(conn).observation.findOne({_id:created.walletObservationId,status:'pending_review'}).session(session).lean();
+        if(observation){
+          const tenant=await require('../../platform/models/Tenant').findOne({dbName:conn.name,status:{$in:['active','trial']}}).session(session).lean();
+          if(!tenant)throw bad('The funded workspace is unavailable',403);
+          const authorization=await require('./financialAuthorization.service').fenceAction(conn,session,reviewer,tenant,'mobile_money','mobile_money.review');
+          await require('../treasury/service').reviewObservationInSession(conn,session,authorization,observation._id,{decision:decision==='accepted'?'approve':'reject',note:note.trim()});
+        }
+      }
       await Audit.create([{
         action: `mobile_money.review.${decision}`, actorId: reviewer.id, targetId: created._id,
         metadata: { network: created.network, operation: created.operation, recordId: String(created._id), branchId: String(created.branchId||'') }
@@ -203,8 +226,13 @@ async function decideVoid(conn,reviewer,recordId,decision,note){
           correctionReviewedAt:new Date(),correctionReviewNote:reason},
           $push:{correctionHistory:{action:decision==='approve'?'approved':'denied',actorId:reviewer.id,note:reason,at:new Date()}}}, {new:true,session}).lean();
       if(!record)throw bad('Correction already decided, outside your branch, or submitted by you',409);
-      if(record.cashSessionId){
-        const movement=BigInt(String(record.amountMinor))*(record.operation==='cash_in'?1n:-1n);
+      if(record.fundingState==='book_recorded'&&decision==='approve'){
+        const tenant=await require('../../platform/models/Tenant').findOne({dbName:conn.name,status:{$in:['active','trial']}}).session(session).lean();
+        if(!tenant)throw bad('The funded workspace is unavailable',403);
+        const authorization=await require('./financialAuthorization.service').fenceAction(conn,session,reviewer,tenant,'mobile_money','mobile_money.review');
+        await require('../treasury/service').reverseMovements(conn,session,authorization,{sourceType:'mobile_money',sourceRef:record.fundsSourceRef,reversalSourceRef:`MM-VOID:${record._id}`,description:reason});
+      }else if(record.cashSessionId){
+        const movement=BigInt(String(record.physicalCashMovementMinor??record.amountMinor))*(record.physicalCashMovementMinor==null?(record.operation==='cash_in'?1n:-1n):1n);
         await require('./cashDrawer.service').fenceRecordChange(conn,session,record,decision==='approve'?-movement:0n);
       }
       await Audit.create([{action:`mobile_money.void.${decision==='approve'?'approved':'denied'}`,
@@ -274,7 +302,9 @@ async function getTransactionPage(conn,{from,to,cursor,operatorId,branchId,limit
 }
 function visibleRecordForRole(record,role){
   if(role!=='Viewer')return record;
-  return {...record,correctionHistory:(record.correctionHistory||[]).map(entry=>({
+  const visible={...record};
+  for(const key of ['walletAccountId','paymentAccountId','customerAccountId','walletBalanceBeforeMinor','walletBalanceAfterMinor','walletObservationId','fundsSourceRef','fundJournalIds','observedWalletBalance','observationEvidenceReference'])delete visible[key];
+  return {...visible,correctionHistory:(record.correctionHistory||[]).map(entry=>({
     ...entry,note:'Restricted to operational staff'
   }))};
 }

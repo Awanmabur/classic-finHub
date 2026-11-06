@@ -59,7 +59,7 @@ test('Approved reports have all operation report sections and protect invalid sc
 test('Approved expense modal renders all requested fields, CSRF and no branch selector',async()=>{
  const html=await ejs.renderFile(path.join(__dirname,'../src/views/tenant/expenses/_modal.ejs'),{
   data:{openModal:true,idempotencyKey:crypto.randomUUID()},operationBranch:{name:'Main',currency:'USD'},csrfToken:'csrf',currencyLabel:code=>code});
- for(const label of ['Expense details','Expense type','Currency','Amount','Paid to / vendor','Payment method','Reference','Description','Add expense','Cancel'])assert(html.includes(label),label);
+ for(const label of ['Expense details','Expense type','Currency','Amount','Paid to / vendor','Payment method','Reference','Description','Add expense','Clear','Close'])assert(html.includes(label),label);
  assert.match(html,/name="_csrf" value="csrf"/);assert.match(html,/action="\/tenant\/expenses"/);
  assert(!html.includes('name="branchId"'));assert(!html.includes('localStorage'));
 });
@@ -79,4 +79,14 @@ test('Approved forex reports render EUR target amounts with their own currency s
    scope:{},sourceAvailable:true,cash:null,income:[],impact:{},expenses:null,format,note:'Internal evidence',rows:[{module:'Forex',activity:'USD → EUR quote',
     status:'quoted',currency:'USD',count:1,volume:'USD 10.00',fees:'USD 0.00',targetCurrency:'EUR',targetAmountMinor:'987'}]}},user:{name:'Owner'}});
  assert.match(html,/EUR 9\.87/);assert.match(html,/USD 10\.00/);
+});
+
+
+test('expense funds selection is typed and cannot be switched through non-scalar identifiers',()=>{
+ const valid=id();assert.equal(String(expense.fundId(valid)),valid);
+ assert.equal(expense.fundId(undefined),null);assert.equal(expense.fundId(''),null);
+ for(const value of [[valid],{id:valid},'../other','bad'])assert.throws(()=>expense.fundId(value),{status:400});
+ assert.equal(expense.fundKind('Cash'),'cash');assert.equal(expense.fundKind('Bank'),'bank');assert.equal(expense.fundKind('Mobile Money'),'wallet');
+ assert.equal(schema.path('treasuryAccountId').options.immutable,true);assert.equal(schema.path('sourcePolicy').options.immutable,true);
+ assert.deepEqual(schema.path('sourcePolicy').enumValues,['legacy_untracked','funded_required']);
 });

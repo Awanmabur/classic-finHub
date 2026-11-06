@@ -1,23 +1,24 @@
-<% const navigationItems = menu.flatMap((group, groupIndex) => group.items.map((item, itemIndex) => ({...item, key:groupIndex+':'+itemIndex})));
-   const activeItem = navigationItems.filter(item => currentPath === item.href || currentPath.startsWith(item.href + '/'))
-     .sort((a,b) => b.href.length - a.href.length)[0]; %>
+<% const navigationItems=menu.flatMap((group,groupIndex)=>group.items.map((item,itemIndex)=>({...item,key:groupIndex+':'+itemIndex})));
+   const activeItem=navigationItems.filter(item=>currentPath===item.href||currentPath.startsWith(item.href+'/')).sort((a,b)=>b.href.length-a.href.length)[0];
+   const symbols={Overview:'▦','Money Transfer':'⇄','Mobile Money':'▣','Forex Operations':'💱','Banking Operations':'🏦','Operation Reports':'▤','Tenant Workspace':'▥','Phase 2 Control':'◈'};
+   const sidebarBranch=typeof operationBranch==='undefined'?null:operationBranch;
+   const sidebarSnapshot=typeof data==='undefined'?{}:(data.workspaceSnapshot||{}); %>
 <aside class="panel side" id="sidePanel">
-  <div class="brand">
-    <div class="logo"></div>
-    <div><h1><%= context === 'platform' ? 'ClassicFin Platform' : (tenant?.name || 'Tenant Workspace') %></h1><p><%= context === 'platform' ? 'Classic Technologies' : (tenant?.status + ' • ' + tenant?.plan) %></p></div>
-  </div>
-  <nav class="nav" aria-label="Workspace navigation">
-    <% menu.forEach((group, groupIndex) => { %>
-      <div class="navGroup">
-        <div class="item <%= activeItem?.key.startsWith(groupIndex+':') ? 'active' : '' %>" role="heading" aria-level="2"><i class="fa-solid <%= ({Overview:'fa-gauge-high','Money Transfer':'fa-money-bill-transfer','Mobile Money':'fa-mobile-screen-button','Forex Operations':'fa-chart-line','Banking Operations':'fa-building-columns','Operation Reports':'fa-file-lines','Tenant Workspace':'fa-building','Phase 2 Control':'fa-user-shield'})[group.label]||'fa-folder-tree' %>" aria-hidden="true"></i> <span><%= group.label %></span></div>
-        <% group.items.forEach((item, itemIndex) => { const active = activeItem?.key === groupIndex+':'+itemIndex; %>
-          <a href="<%= item.href %>"<% if(item.transactionKind === 'choose'){ %> data-open-transaction<% } else if(item.transactionKind){ %> data-transaction-kind="<%= item.transactionKind %>"<% } %> class="subitem <%= active ? 'active' : '' %>" <%- active ? 'aria-current="page"' : '' %>><i class="fa-solid <%= item.icon %>" aria-hidden="true"></i><span><%= item.label %></span></a>
-        <% }) %>
-      </div>
-    <% }) %>
+  <div class="brand"><div class="logo"></div><div><h1><%= context==='platform'?'ClassicFin Platform':'ClassicFin Hub' %></h1><p><%= context==='platform'?'Classic Technologies':'multi-tenant finance dashboard' %></p></div></div>
+  <nav class="nav" id="nav" aria-label="Workspace navigation">
+    <% menu.forEach((group,groupIndex)=>{ %><div class="navGroup">
+      <div class="item <%= activeItem?.key.startsWith(groupIndex+':')?'active':'' %>" role="heading" aria-level="2"><% if(context==='tenant'){ %><%= symbols[group.label]||'▤' %> <%= group.label %><% } else { %><i class="fa-solid fa-folder-tree" aria-hidden="true"></i><span><%= group.label %></span><% } %></div>
+      <% group.items.forEach((item,itemIndex)=>{const active=activeItem?.key===groupIndex+':'+itemIndex; %><a href="<%= item.href %>"<% if(item.transactionKind==='choose'){ %> data-open-transaction<% } else if(item.transactionKind){ %> data-transaction-kind="<%= item.transactionKind %>"<% } %> class="subitem <%= active?'active':'' %>" <%- active?'aria-current="page"':'' %>><% if(context==='platform'){ %><i class="fa-solid <%= item.icon %>" aria-hidden="true"></i><span><%= item.label %></span><% } else { %><%= item.label %><% } %></a><% }) %>
+    </div><% }) %>
   </nav>
   <div class="sideFoot">
-    <div class="mini"><div><b><%= user?.name || 'Account' %></b><span><%= user?.role || (context === 'platform' ? 'Super Admin' : 'Tenant Owner') %></span></div></div>
-    <div class="accountActions"><form method="post" action="/logout"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn" type="submit"><i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i> Sign out</button></form><a class="btn" href="/"><i class="fa-solid fa-globe" aria-hidden="true"></i> Public site</a></div>
+    <% if(context==='tenant'){ %>
+      <div class="mini"><div><b>Current branch</b><span id="sideBranch" <% if(sidebarBranch){ %>data-operating-branch data-branch-name="<%= sidebarBranch.name %>" data-branch-currency="<%= sidebarBranch.currency %>"<% } %>><%= sidebarBranch?.name||'—' %></span></div><em class="tag" id="openBadge"><%= sidebarSnapshot.dayStatus||'—' %></em></div>
+      <details class="sidebarAccount"><summary class="mini" tabindex="0"><div><b>Operator</b><span id="sideOperator"><%= user?.name||'Account' %></span></div><em class="tag" title="<%= user?.role||'' %>"><%= user?.role==='Viewer'?'READ ONLY':'STANDARD' %></em></summary>
+      <div class="accountActions"><form method="post" action="/logout"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn" type="submit">Sign out</button></form><a class="btn" href="/">Public site</a></div></details>
+    <% } else { %>
+      <div class="mini"><div><b><%= user?.name||'Account' %></b><span><%= user?.role||'Super Admin' %></span></div></div>
+      <div class="accountActions"><form method="post" action="/logout"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn" type="submit"><i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i> Sign out</button></form><a class="btn" href="/"><i class="fa-solid fa-globe" aria-hidden="true"></i> Public site</a></div>
+    <% } %>
   </div>
 </aside>

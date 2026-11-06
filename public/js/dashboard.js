@@ -99,6 +99,24 @@
     });
   });
 
+  let approvedFieldNumber=0;
+  const initialiseApprovedFields = form => {
+    form.querySelectorAll('label.field').forEach(outer=>{
+      const control=[...outer.children].find(node=>node.matches('input,select,textarea,.control'));
+      if(!control)return;
+      const field=document.createElement('div');
+      for(const attribute of outer.attributes){if(attribute.name!=='for')field.setAttribute(attribute.name,attribute.value);}
+      const label=document.createElement('label');
+      for(const node of [...outer.childNodes]){if(node===control)break;label.append(node);}
+      const input=control.matches('input,select,textarea')?control:control.querySelector('input,select,textarea');
+      if(input){if(!input.id)input.id='approved-field-'+(++approvedFieldNumber);label.htmlFor=input.id;}
+      field.append(label);
+      if(control.matches('input,select,textarea')){const wrapper=document.createElement('div');wrapper.className='control';control.classList.remove('control');wrapper.append(control);field.append(wrapper);}else field.append(control);
+      while(outer.firstChild)field.append(outer.firstChild);outer.replaceWith(field);
+    });
+  };
+  document.querySelectorAll('[data-mobile-money-form],[data-transfer-form],[data-forex-form],#directoryForm,[data-expense-form],[data-funded-form],[data-payout-form],[data-cash-open-form]').forEach(initialiseApprovedFields);
+
   // Mobile Money uses the same server-issued form on its pages and in the sheet.
   // The preview is for display only; amounts and branch assignment are checked
   // again by the server when the operation is recorded.
@@ -118,8 +136,11 @@
       fee.setCustomValidity(amountMinor !== null && feeMinor !== null && feeMinor > amountMinor ? 'Fee / commission cannot exceed the amount.' : '');
       const total = form.querySelector('[data-mobile-total]');
       if (!total) return;
+      const totalLabel=form.querySelector('[data-mobile-total-label]');
+      if(totalLabel)totalLabel.textContent=form.dataset.operation==='cash_out'?'Total customer receives':'Total customer pays';
       if (amountMinor === null || amountMinor <= 0n || feeMinor === null || feeMinor > amountMinor) { total.textContent = '—'; return; }
-      const totalMinor = amountMinor + (form.dataset.operation === 'cash_in' ? feeMinor : 0n);
+      const collected=form.elements.namedItem('feeTreatment')?.value==='payment_collected';
+      const totalMinor = amountMinor + (collected?(form.dataset.operation === 'cash_in' ? feeMinor : -feeMinor):0n);
       total.textContent = (form.dataset.currencyLabel || currency) + ' ' + (Number(totalMinor) / 10 ** decimals).toLocaleString('en-US', {minimumFractionDigits:decimals, maximumFractionDigits:decimals});
     };
     amount.addEventListener('input', updateTotal);
@@ -153,6 +174,73 @@
     const scale=code==='UGX'?0:2,factor=10n**BigInt(scale),n=amount<0n?-amount:amount;
     return `${code==='KES'?'KSH':code} ${amount<0n?'-':''}${(n/factor).toString().replace(/\B(?=(\d{3})+(?!\d))/g,',')}${scale?'.'+(n%factor).toString().padStart(scale,'0'):''}`;
   };
+  const mobileFundsBindings=new WeakSet();
+  const initialiseMobileFunds=form=>{
+    if(!form?.matches('[data-mobile-money-form]')||mobileFundsBindings.has(form))return;
+    const wallet=form.querySelector('[data-wallet-account]'),payment=form.querySelector('[data-payment-account]'),customer=form.querySelector('[data-customer-wallet]');
+    if(!wallet||!payment||!customer)return;mobileFundsBindings.add(form);
+    const network=form.elements.namedItem('network'),method=form.elements.namedItem('paymentMethod'),amount=form.elements.namedItem('amount'),fee=form.elements.namedItem('fee'),treatment=form.elements.namedItem('feeTreatment'),actual=form.elements.namedItem('observedWalletBalance');
+    const scale=form.dataset.currency==='UGX'?0:2,currency=form.dataset.currency;
+    const parse=value=>{
+      const match=String(value||'').match(/^(\d{1,11})(?:\.(\d{1,2}))?$/);if(!match||(match[2]||'').length>scale)return null;
+      return BigInt(match[1])*10n**BigInt(scale)+BigInt((match[2]||'').padEnd(scale,'0')||'0');
+    };
+    const book=option=>/^-?\d{1,34}$/.test(option?.dataset.expectedMinor||'')?BigInt(option.dataset.expectedMinor):null;
+    const known=option=>option&&option.value&&option.dataset.state==='active'&&book(option)!==null;
+    const output=selector=>form.querySelector(selector);
+    const filter=(select,predicate)=>{
+      const value=select.value;let available=[];
+      [...select.options].forEach(option=>{if(!option.value)return;const included=predicate(option);option.hidden=!included;option.disabled=!included||option.dataset.state!=='active'||book(option)===null;if(!option.disabled)available.push(option);});
+      const current=[...select.options].find(option=>option.value===value&&!option.disabled);
+      select.value=current?current.value:available.length===1?available[0].value:'';
+    };
+    const refreshVisibility=()=>{
+      filter(wallet,option=>option.dataset.network===network.value&&option.dataset.currency===currency);
+      const internal=method.value==='Wallet Balance',kind=method.value==='Bank'?'bank':'cash';
+      output('[data-payment-account-field]').hidden=internal;output('[data-customer-wallet-field]').hidden=!internal;
+      payment.disabled=internal;customer.disabled=!internal;payment.required=!internal;customer.required=internal;
+      filter(payment,option=>option.dataset.kind===kind&&option.dataset.currency===currency);
+    };
+    const update=()=>{
+      const selected=wallet.selectedOptions[0],before=known(selected)?book(selected):null,value=parse(amount.value),charge=parse(fee.value||'0');
+      const after=before!==null&&value!==null&&charge!==null?before+(form.dataset.operation==='cash_in'?-value:value)+(treatment.value==='wallet_commission'?charge:0n):null;
+      output('[data-wallet-before]').value=before===null?'Unknown':operationAmount(before,currency);
+      output('[data-wallet-after]').value=after===null?'Unknown':operationAmount(after,currency);
+      output('[data-wallet-observed]').value=selected?.value?selected.dataset.observed||'Unknown':'Unknown';
+      const paymentBefore=known(payment.selectedOptions[0])?book(payment.selectedOptions[0]):null;
+      const paymentDelta=value!==null&&charge!==null?(form.dataset.operation==='cash_in'?value:-value)+(treatment.value==='payment_collected'?charge:0n):null;
+      const insufficient=after!==null&&after<0n||!payment.disabled&&paymentBefore!==null&&paymentDelta!==null&&paymentBefore+paymentDelta<0n;
+      amount.setCustomValidity(insufficient?'The selected wallet or payment account has insufficient book funds.':'');
+      const observed=parse(actual.value),comparison=output('[data-wallet-comparison]');
+      if(before===null)comparison.textContent='Select an active wallet with independently confirmed opening evidence. Unknown balances are not treated as zero.';
+      else if(after===null)comparison.textContent='Enter the transaction amount to compare the expected book with the actual network wallet balance.';
+      else if(insufficient)comparison.textContent='The selected wallet or payment account has insufficient book funds. Refresh or reconcile its actual evidence before processing.';
+      else if(observed===null)comparison.textContent='Enter the actual balance shown by the network wallet after this transaction.';
+      else if(observed===after)comparison.textContent='The entered actual wallet balance matches the expected book. The evidence will be saved for independent review.';
+      else comparison.textContent='Actual wallet differs from the expected book by '+operationAmount(observed-after,currency)+'. The difference will be recorded and the wallet held for independent reconciliation.';
+      const totalLabel=output('[data-mobile-total-label]');if(totalLabel)totalLabel.textContent=form.dataset.operation==='cash_out'?'Total customer receives':'Total customer pays';
+      if(value!==null&&value>0n&&charge!==null){const total=output('[data-mobile-total]');if(total)total.textContent=operationAmount(value+(treatment.value==='payment_collected'?(form.dataset.operation==='cash_in'?charge:-charge):0n),currency);}
+    };
+    network.addEventListener('change',()=>{refreshVisibility();update();});method.addEventListener('change',()=>{refreshVisibility();update();});
+    form.addEventListener('input',update);form.addEventListener('change',update);
+    output('[data-funds-refresh]').addEventListener('click',async event=>{
+      const button=event.currentTarget;button.disabled=true;const status=output('[data-wallet-comparison]');status.textContent='Refreshing actual account state…';
+      try{
+        const response=await fetch('/tenant/mobile-money/funds/context',{credentials:'same-origin',headers:{Accept:'application/json'}});
+        if(!response.ok)throw new Error('Current funds could not be loaded.');const context=await response.json();
+        for(const [select,rows]of[[wallet,context.wallets],[payment,context.paymentAccounts]]){
+          const selected=select.value;select.replaceChildren(new Option(select===wallet?'Select wallet':'Select payment account',''));
+          for(const row of Array.isArray(rows)?rows:[]){const option=new Option(row.name+' · '+(row.expected||'Opening evidence required')+(row.state!=='active'?' · '+row.state:''),row.id);Object.assign(option.dataset,{network:row.network||'',currency:row.currency,kind:row.kind,state:row.state,expectedMinor:row.expectedMinor??'',observed:row.observed||'Unknown',observedAt:row.observedAt||'',reconciliation:row.reconciliation});select.add(option);}select.value=selected;
+        }
+        const selected=customer.value;customer.replaceChildren(new Option('Select customer account',''));for(const row of context.customerAccounts||[])customer.add(new Option(row.name+' · ****'+row.last4+' · '+row.balance,row.id));customer.value=selected;
+        refreshVisibility();update();
+      }catch{status.textContent='Funds could not be refreshed. Your entered transaction details are preserved; reload the module before processing.';}
+      finally{button.disabled=false;}
+    });
+    refreshVisibility();update();
+  };
+  document.querySelectorAll('[data-mobile-money-form]').forEach(initialiseMobileFunds);
+
   const initialiseOperationForm = form => {
     if(!form?.matches('[data-transfer-form],[data-forex-form]')||operationBindings.has(form))return;
     operationBindings.add(form);
@@ -177,8 +265,9 @@
       const rate=form.elements.namedItem('rateId');
       const update=()=>{
         const option=rate.selectedOptions[0],from=option?.dataset.from,to=option?.dataset.to;
-        form.querySelector('[data-forex-currency="from"]').value=from==='KES'?'KSH':from||'';
-        form.querySelector('[data-forex-currency="to"]').value=to==='KES'?'KSH':to||'';
+        const fromField=form.querySelector('[data-forex-currency="from"]'),toField=form.querySelector('[data-forex-currency="to"]');
+        if(from)fromField.value=fromField.tagName==='SELECT'?from:from==='KES'?'KSH':from;
+        if(to)toField.value=toField.tagName==='SELECT'?to:to==='KES'?'KSH':to;
         const source=from?operationMinor(form.elements.namedItem('amount').value,from==='UGX'?0:2):null;
         const scaled=option?.dataset.rate?operationMinor(option.dataset.rate,8):null;
         const output=form.querySelector('[data-forex-total]');
@@ -186,7 +275,11 @@
         const numerator=source*scaled*10n**BigInt(to==='UGX'?0:2),denominator=100000000n*10n**BigInt(from==='UGX'?0:2);
         output.textContent=operationAmount((numerator+denominator/2n)/denominator,to)+' (indicative)';
       };
-      form.addEventListener('input',update);rate.addEventListener('change',update);update();
+      form.addEventListener('input',update);rate.addEventListener('change',update);
+      form.querySelectorAll('select[data-forex-currency]').forEach(select=>select.addEventListener('change',()=>{
+        const from=form.querySelector('[data-forex-currency="from"]').value,to=form.querySelector('[data-forex-currency="to"]').value;
+        const match=[...rate.options].find(option=>option.dataset.from===from&&option.dataset.to===to);rate.value=match?.value||'';update();
+      }));update();
     }
   };
   document.querySelectorAll('[data-transfer-form],[data-forex-form]').forEach(initialiseOperationForm);
@@ -198,7 +291,8 @@
     const operations = Object.freeze({
       cash_in: {page:'/tenant/mobile-money/cash-in',form:'/tenant/mobile-money/cash-in',action:'/tenant/mobile-money/cash-in',title:'Mobile Money - Cash-in',description:'Only mobile money fields are shown.'},
       cash_out: {page:'/tenant/mobile-money/cash-out',form:'/tenant/mobile-money/cash-out',action:'/tenant/mobile-money/cash-out',title:'Mobile Money - Cash-out',description:'Only mobile money fields are shown.'},
-      transfer: {page:'/tenant/money-transfer/send',form:'/tenant/money-transfer/requests',action:'/tenant/money-transfer/requests',title:'Send money / Generate PIN'},
+      transfer: {page:'/tenant/money-transfer/send',form:'/tenant/money-transfer/requests',action:'/tenant/money-transfer/requests',title:'New transaction'},
+      payout: {page:'/tenant/funded/payout',form:'/tenant/funded/payout',action:'/tenant/funded/payout',title:'Payout by PIN',keepOpenAfterPost:true},
       banking_deposit: {page:'/tenant/banking/deposit',form:'/tenant/banking/requests',action:'/tenant/banking/requests',title:'Banking - Deposit'},
       banking_withdrawal: {page:'/tenant/banking/withdraw',form:'/tenant/banking/requests',action:'/tenant/banking/requests',title:'Banking - Withdraw'},
       banking_transfer: {page:'/tenant/banking/transfer',form:'/tenant/banking/requests',action:'/tenant/banking/requests',title:'Banking - Account transfer'},
@@ -211,55 +305,46 @@
       forex: {page:'/tenant/forex',form:'/tenant/forex/quotes',action:'/tenant/forex/quotes',title:'New forex quotation'},
       approval: {page:'/tenant/approvals',form:'/tenant/approvals/requests',action:'/tenant/approvals/requests',title:'New approval request'},
       cash_shift_close: {page:'/tenant/day/close',form:'/tenant/day/close',action:'/tenant/day/close',title:'Close day',description:'Auto closing balances from reports.'},
-      cash_shift_open: {page:'/tenant/mobile-money/shifts',form:'/tenant/mobile-money/shifts/open',action:'/tenant/mobile-money/shifts/open',title:'Open day',description:'Opening drawer by currency. An independent supervisor verifies the opening count.'}
+      cash_shift_open: {page:'/tenant/cash/shifts',form:'/tenant/day/open',action:'/tenant/day/open',title:'Open day',description:'Opening drawer by currency. An independent supervisor verifies the opening count.'}
     });
     const choices = transactionDialog.querySelector('[data-transaction-choices]');
     const formHost = transactionDialog.querySelector('[data-transaction-form]');
-    const submitActions = transactionDialog.querySelector('[data-transaction-submit-actions]');
     const status = transactionDialog.querySelector('[data-transaction-status]');
     const title = transactionDialog.querySelector('#transactionTitle');
     const description = transactionDialog.querySelector('#transactionDescription');
-    const back = transactionDialog.querySelector('[data-transaction-back]');
     const enabledKinds = new Set([...choices.querySelectorAll('[data-transaction-kind]')].map(button=>button.dataset.transactionKind));
-    let previousFocus = null, activeRequest = null, requestVersion = 0, saving = false;
+    const groups = Object.freeze({transfer:'transfer',payout:'transfer',banking:'banking',banking_deposit:'banking',banking_withdrawal:'banking',banking_transfer:'banking',customer:'banking',account:'banking',cash_in:'mobile',cash_out:'mobile',forex:'forex',forex_buy:'forex',forex_sell:'forex',expense:'daily',cash_shift_open:'daily',cash_shift_close:'daily',approval:'daily'});
+    const lastKinds = new Map();
+    let previousFocus = null, activeRequest = null, requestVersion = 0, saving = false, currentKind = null;
     const message = (text, failed = false) => {
       status.hidden = !text;
       status.textContent = text;
       status.setAttribute('role', failed ? 'alert' : 'status');
       status.classList.toggle('failed', failed);
     };
-    const reset = group => {
-      activeRequest?.abort();
-      requestVersion++;
-      formHost.replaceChildren();
-      submitActions.replaceChildren();
-      choices.hidden = false;
-      choices.querySelectorAll('[data-transaction-kind]').forEach(button=>{
-        button.hidden = group === 'mobile_money' && !['cash_in','cash_out'].includes(button.dataset.transactionKind);
+    const selectKind = kind => {
+      currentKind=kind;
+      const group=groups[kind];lastKinds.set(group,kind);
+      choices.querySelectorAll('[data-transaction-service]').forEach(button=>{
+        const selected=button.dataset.transactionService===group;
+        button.classList.toggle('active',selected);button.setAttribute('aria-pressed',String(selected));
       });
-      choices.querySelectorAll('a').forEach(link=>{link.hidden = group === 'mobile_money';});
-      title.textContent = group === 'mobile_money' ? 'New mobile money record' : 'New transaction';
-      description.textContent = 'Choose a module, then enter the operation details.';
-      back.hidden = !group;
-      message('');
+      choices.querySelectorAll('[data-transaction-actions]').forEach(row=>{row.hidden=row.dataset.transactionActions!==group;});
+      choices.querySelectorAll('[data-transaction-kind]').forEach(button=>{
+        const selected=button.dataset.transactionKind===kind;
+        button.classList.toggle('active',selected);button.setAttribute('aria-pressed',String(selected));
+      });
+      title.textContent=operations[kind].title;
+      description.textContent=group==='forex'?'Buy or sell foreign currency with rate, commission, and drawer impact.':'Choose a service and enter clean details';
     };
-    const open = group => {
-      if (saving) return;
-      if (!transactionDialog.open) {
-        previousFocus = document.activeElement;
-        setMenu(false);
-        transactionDialog.showModal();
-        document.body.classList.add('transactionOpen');
-      }
-      reset(group);
-      choices.querySelector('button:not([hidden])')?.focus();
+    const show = () => {
+      if(transactionDialog.open)return;
+      previousFocus=document.activeElement;setMenu(false);transactionDialog.showModal();document.body.classList.add('transactionOpen');
     };
     const close = () => {
       if (saving) return;
-      activeRequest?.abort();
-      requestVersion++;
-      transactionDialog.close();
-      document.body.classList.remove('transactionOpen');
+      activeRequest?.abort();requestVersion++;
+      transactionDialog.close();document.body.classList.remove('transactionOpen');
       if(mobile.matches && side?.contains(previousFocus))menuBtn?.focus();else previousFocus?.focus();
     };
     const responseMessage = async response => {
@@ -269,120 +354,85 @@
       return errorPage.querySelector('[role="alert"]')?.textContent?.trim().slice(0,1000) ||
         `The request could not be completed (HTTP ${response.status}). Review the details and try again.`;
     };
-    const load = async kind => {
+    const load = async (kind,{refresh=false}={}) => {
       if (!enabledKinds.has(kind) || !operations[kind] || saving) return;
-      if (!transactionDialog.open) open();
-      activeRequest?.abort();
-      activeRequest = new AbortController();
-      const version = ++requestVersion, operation = operations[kind];
-      choices.hidden = true;
-      formHost.replaceChildren();
-      submitActions.replaceChildren();
-      back.hidden = false;
-      title.textContent = operation.title;
-      const branchLabel = document.querySelector('[data-operating-branch]');
-      const branchDescription = branchLabel?.dataset.branchName ? [branchLabel.dataset.branchName,branchLabel.dataset.branchCurrency].filter(Boolean).join(' · ') : 'Your operating branch follows your account assignment.';
-      description.textContent = operation.description || branchDescription;
-      message('Loading operation details…');
-      try {
-        const response = await fetch(operation.page,{credentials:'same-origin',headers:{Accept:'text/html'},signal:activeRequest.signal});
-        if (version !== requestVersion) return;
-        if (!response.ok) throw new Error(await responseMessage(response));
-        if (new URL(response.url).pathname !== operation.page) throw new Error('Your session or access has changed. Open the module page to continue.');
-        const page = new DOMParser().parseFromString(await response.text(),'text/html');
-        const source = [...page.querySelectorAll('form[method="post"]')].find(form=>form.getAttribute('action') === operation.form);
-        if (!source || source.querySelector('select[name="branchId"]')) {
-          throw new Error(page.querySelector('[data-operation-branch-error]')?.textContent?.trim() ||
-            'This operation needs an assigned operating branch and its required setup. Open the module to review what is needed.');
-        }
-        const form = source.cloneNode(true);
-        form.setAttribute('action',operation.action);
-        form.classList.remove('card');
-        form.classList.add('transactionForm');
-        form.id='transactionOperationForm';
-        form.querySelector('.cardHead')?.remove();
-        form.querySelectorAll('[data-expense-close],[data-directory-close]').forEach(node=>node.remove());
-        form.querySelectorAll('script,style,iframe,object,embed').forEach(node=>node.remove());
-        form.querySelectorAll('*').forEach(node=>{
-          [...node.attributes].filter(attribute=>/^on/i.test(attribute.name)).forEach(attribute=>node.removeAttribute(attribute.name));
-        });
-        form.querySelectorAll('button').forEach(button=>{
-          const action = button.getAttribute('formaction');
-          if (action && action !== operation.action) button.remove();
-          else button.removeAttribute('formaction');
-        });
-        const submitButtons=[...form.querySelectorAll('button[type="submit"],button:not([type])')];
-        submitButtons.forEach(button=>{button.setAttribute('form','transactionOperationForm');button.classList.add('btnPrimary');});
-        const ids = new Map();
-        form.querySelectorAll('[id]').forEach(node=>{ids.set(node.id,'operation-'+node.id);node.id='operation-'+node.id;});
-        form.querySelectorAll('[for],[list],[aria-describedby]').forEach(node=>{
-          for (const attribute of ['for','list','aria-describedby']) {
-            const value=node.getAttribute(attribute);
-            if(value)node.setAttribute(attribute,value.split(' ').map(id=>ids.get(id)||id).join(' '));
-          }
-        });
-        let submitAction = operation.action;
-        initialiseMobileMoneyForm(form, nextKind => {
-          if (!enabledKinds.has(nextKind) || !['cash_in','cash_out'].includes(nextKind) || saving) return false;
-          submitAction = operations[nextKind].action;
-          form.setAttribute('action', submitAction);
-          title.textContent = operations[nextKind].title;
-          message('');
-          return true;
-        });
-        form.addEventListener('invalid', event=>message(event.target.validationMessage || 'Check the highlighted field.',true),true);
-        form.addEventListener('submit',async event=>{
-          event.preventDefault();
-          if(saving || !form.reportValidity())return;
-          const buttons=submitButtons;
-          const disabled=buttons.map(button=>button.disabled);
-          const fields=new URLSearchParams(new FormData(form));
-          saving=true;
-          buttons.forEach(button=>{button.disabled=true;});
-          back.disabled=true;
-          transactionDialog.querySelectorAll('[data-close-transaction]').forEach(button=>{button.disabled=true;});
-          message('Saving the operation…');
-          try {
-            const result=await fetch(submitAction,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:fields});
-            if(result.ok && result.redirected && new URL(result.url).origin===location.origin){location.assign(result.url);return;}
-            message(await responseMessage(result),true);
-          } catch {
-            message('The connection was interrupted. Check the module history before retrying; your request may already have been recorded.',true);
-          } finally {
-            saving=false;
-            buttons.forEach((button,index)=>{button.disabled=disabled[index];});
-            back.disabled=false;
-            transactionDialog.querySelectorAll('[data-close-transaction]').forEach(button=>{button.disabled=false;});
-          }
-        });
-        if(version!==requestVersion)return;
-        formHost.append(form);
-        window.ClassicFinDirectory?.initialiseForm(form);
-        initialiseOperationForm(form);
-        submitButtons.forEach(button=>submitActions.append(button));
-        message('');
-        form.querySelector('input:not([type="hidden"]),select,textarea')?.focus();
-      } catch(error) {
-        if(version!==requestVersion || error.name==='AbortError')return;
-        message(error.message || 'This operation is unavailable. Open the module to continue.',true);
-        const fallback=document.createElement('a');
-        fallback.className='btn';fallback.href=operation.page;fallback.textContent='Open module';formHost.append(fallback);
+      show();
+      const present=formHost.querySelector('form');
+      if(!refresh&&currentKind===kind&&present){present.querySelector('input:not([type="hidden"]):not([readonly]),select,textarea')?.focus();return;}
+      // Cash-in/out share one immutable server-issued request key. Switching the
+      // approved child tabs preserves entered details until the operation saves.
+      if(present?.matches('[data-mobile-money-form]')&&['cash_in','cash_out'].includes(kind)){
+        selectKind(kind);present.action=operations[kind].action;present.dataset.operation=kind;
+        const label=present.querySelector('[data-mobile-operation-label]');if(label)label.value=kind==='cash_in'?'Cash-in':'Cash-out';
+        present.elements.namedItem('amount')?.dispatchEvent(new Event('input',{bubbles:true}));message('');return;
       }
+      activeRequest?.abort();activeRequest=new AbortController();
+      const version=++requestVersion,operation=operations[kind];
+      selectKind(kind);formHost.replaceChildren();message('Loading operation details…');
+      try {
+        const response=await fetch(operation.page,{credentials:'same-origin',headers:{Accept:'text/html'},signal:activeRequest.signal});
+        if(version!==requestVersion)return;
+        if(!response.ok)throw new Error(await responseMessage(response));
+        if(new URL(response.url).pathname!==operation.page)throw new Error('Your session or access has changed. Open the module page to continue.');
+        const page=new DOMParser().parseFromString(await response.text(),'text/html');
+        const source=[...page.querySelectorAll('form[method="post"]')].find(form=>form.getAttribute('action')===operation.form);
+        if(!source||source.querySelector('select[name="branchId"]'))throw new Error(page.querySelector('[data-operation-branch-error]')?.textContent?.trim()||'This operation needs an assigned operating branch and its required setup. Open the module to review what is needed.');
+        const form=source.cloneNode(true);form.action=operation.action;form.classList.remove('card');form.classList.add('transactionForm','svc');form.id='transactionOperationForm';
+        form.querySelector('.cardHead')?.remove();
+        form.querySelectorAll('[data-expense-close],[data-directory-close],.childActions').forEach(node=>node.remove());
+        form.querySelectorAll('script,style,iframe,object,embed').forEach(node=>node.remove());
+        form.querySelectorAll('*').forEach(node=>{[...node.attributes].filter(attribute=>/^on/i.test(attribute.name)).forEach(attribute=>node.removeAttribute(attribute.name));});
+        const body=form.querySelector(':scope > .cardBody');if(body)body.replaceWith(...body.childNodes);
+        form.querySelectorAll('button').forEach(button=>{const action=button.getAttribute('formaction');if(action&&action!==operation.action)button.remove();else button.removeAttribute('formaction');});
+        const submitButtons=[...form.querySelectorAll('button[type="submit"],button:not([type])')];
+        const submitActions=document.createElement('div');submitActions.dataset.transactionSubmitActions='';
+        submitButtons.forEach(button=>{button.setAttribute('form','transactionOperationForm');submitActions.append(button);});
+        form.querySelectorAll('.rowBtns').forEach(row=>{if(!row.children.length)row.remove();});form.append(submitActions);
+        const ids=new Map();form.querySelectorAll('[id]').forEach(node=>{ids.set(node.id,'operation-'+node.id);node.id='operation-'+node.id;});
+        form.querySelectorAll('[for],[list],[aria-describedby]').forEach(node=>{for(const attribute of ['for','list','aria-describedby']){const value=node.getAttribute(attribute);if(value)node.setAttribute(attribute,value.split(' ').map(id=>ids.get(id)||id).join(' '));}});
+        initialiseApprovedFields(form);
+        initialiseMobileMoneyForm(form);
+        form.addEventListener('invalid',event=>message(event.target.validationMessage||'Check the highlighted field.',true),true);
+        form.addEventListener('submit',async event=>{
+          event.preventDefault();if(saving||!form.reportValidity())return;
+          const disabled=submitButtons.map(button=>button.disabled),data=new FormData(form);
+          if(event.submitter?.name)data.set(event.submitter.name,event.submitter.value);
+          const fields=new URLSearchParams(data);
+          saving=true;submitButtons.forEach(button=>{button.disabled=true;});
+          transactionDialog.querySelectorAll('[data-close-transaction],[data-transaction-clear],[data-transaction-service],[data-transaction-kind]').forEach(button=>{button.disabled=true;});
+          message('Saving the operation…');
+          try{
+            const action=operations[currentKind]?.action;if(!action)throw new Error('Operation selection changed. Reload the form.');
+            const result=await fetch(action,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:fields});
+            if(result.ok&&result.redirected&&new URL(result.url).origin===location.origin){
+              if(operations[currentKind]?.keepOpenAfterPost&&new URL(result.url).pathname===operations[currentKind].page){saving=false;await load(currentKind,{refresh:true});return;}
+              location.assign(result.url);return;
+            }
+            message(await responseMessage(result),true);
+          }catch{message('The connection was interrupted. Check the module history before retrying; your request may already have been recorded.',true);}
+          finally{saving=false;submitButtons.forEach((button,index)=>{button.disabled=disabled[index];});transactionDialog.querySelectorAll('[data-close-transaction],[data-transaction-clear],[data-transaction-service],[data-transaction-kind]').forEach(button=>{button.disabled=false;});}
+        });
+        if(version!==requestVersion)return;formHost.append(form);window.ClassicFinDirectory?.initialiseForm(form);initialiseOperationForm(form);initialiseMobileFunds(form);message('');
+        form.querySelector('input:not([type="hidden"]):not([readonly]),select,textarea')?.focus();
+      }catch(error){if(version!==requestVersion||error.name==='AbortError')return;message(error.message||'This operation is unavailable. Open the module to continue.',true);const fallback=document.createElement('a');fallback.className='btn';fallback.href=operation.page;fallback.textContent='Open module';formHost.append(fallback);}
     };
+    const firstKind=group=>group?[...enabledKinds].find(kind=>groups[kind]===group):['transfer','banking','mobile','forex','daily'].map(service=>[...enabledKinds].find(kind=>groups[kind]===service)).find(Boolean);
+    const open=group=>load(lastKinds.get(group)||firstKind(group==='mobile_money'?'mobile':group));
     document.querySelectorAll('[data-open-transaction]').forEach(button=>button.addEventListener('click',event=>{event.preventDefault();open();}));
-    document.querySelectorAll('a[data-transaction-kind]').forEach(link=>link.addEventListener('click',event=>{
-      const kind=link.dataset.transactionKind;
-      if(kind==='mobile_money'){event.preventDefault();open('mobile_money');}
-      else if(enabledKinds.has(kind)){event.preventDefault();open();load(kind);}
-    }));
+    document.querySelectorAll('a[data-transaction-kind]').forEach(link=>link.addEventListener('click',event=>{const kind=link.dataset.transactionKind;if(kind==='mobile_money'){event.preventDefault();open('mobile');}else if(enabledKinds.has(kind)){event.preventDefault();load(kind);}}));
     choices.querySelectorAll('[data-transaction-kind]').forEach(button=>button.addEventListener('click',()=>load(button.dataset.transactionKind)));
+    choices.querySelectorAll('[data-transaction-service]').forEach(button=>button.addEventListener('click',()=>open(button.dataset.transactionService)));
     transactionDialog.querySelectorAll('[data-close-transaction]').forEach(button=>button.addEventListener('click',close));
-    back.addEventListener('click',()=>reset());
-    transactionDialog.addEventListener('cancel',event=>{event.preventDefault();close();});
-    transactionDialog.addEventListener('click',event=>{
-      if(event.target===transactionDialog){const rect=transactionDialog.getBoundingClientRect();if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)close();}
+    transactionDialog.querySelector('[data-transaction-clear]')?.addEventListener('click',()=>{
+      if(saving)return;const form=formHost.querySelector('form');if(!form)return;form.reset();
+      if(form.matches('[data-mobile-money-form]')){form.dataset.operation=currentKind;const label=form.querySelector('[data-mobile-operation-label]');if(label)label.value=currentKind==='cash_in'?'Cash-in':'Cash-out';}
+      form.dispatchEvent(new Event('input',{bubbles:true}));form.elements.namedItem('amount')?.dispatchEvent(new Event('input',{bubbles:true}));message('');
     });
+    transactionDialog.addEventListener('cancel',event=>{event.preventDefault();close();});
+    transactionDialog.addEventListener('click',event=>{if(event.target===transactionDialog){const rect=transactionDialog.getBoundingClientRect();if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)close();}});
   }
+
+  document.querySelectorAll('[data-dashboard-currency-form]').forEach(form=>form.querySelector('select')?.addEventListener('change',()=>form.requestSubmit()));
 
   document.querySelectorAll('[data-print-report]').forEach(button=>button.addEventListener('click',()=>window.print()));
 

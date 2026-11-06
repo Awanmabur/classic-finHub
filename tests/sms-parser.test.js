@@ -77,3 +77,18 @@ test('missing and oversized bodies cannot produce instructions', () => {
   assert.equal(needsReview({body:sample}), 'empty_message');
   assert.equal(needsReview('A'.repeat(2001)), 'message_too_long');
 });
+
+
+test('only explicitly labelled agent balances become dated provider wallet evidence',()=>{
+  const parsed=parseSms(sample+'; Agent Balance: UGX 500,000',{network:'MTN'});
+  assert.equal(parsed.state,'parsed');
+  assert.equal(parsed.fields.observedWalletBalance,'500000');
+  assert.equal(parsed.fields.observationEvidenceReference,'ABC12345');
+  const zero=parseSms(sample+'; Agent Balance: UGX 0',{network:'MTN'});
+  assert.equal(zero.state,'parsed');assert.equal(zero.fields.observedWalletBalance,'0');
+  const cents=parseSms('M-Pesa Cash Out: KES 100.25; Fee: KES 1.25; Customer: Jane Doe; Ref: QE312345; Agent Balance: KES 2,450.50',{network:'M-Pesa'});
+  assert.equal(cents.state,'parsed');assert.equal(cents.fields.observedWalletBalance,'2450.50');
+  assert.equal(needsReview(sample+'; Agent Balance: KES 500,000'),'balance_currency_mismatch');
+  for(const suffix of ['; Balance: UGX 500,000','; Customer Balance: UGX 500,000','; Wallet Balance: UGX 500,000','; Agent Balance: UGX -500','; Agent Balance: UGX 50,00','; Agent Balance: UGX 500,000; Agent Balance: UGX 400,000'])needsReview(sample+suffix);
+  assert.equal('observedWalletBalance' in parseSms(sample,{network:'MTN'}).fields,false,'Missing provider balance must remain unknown');
+});

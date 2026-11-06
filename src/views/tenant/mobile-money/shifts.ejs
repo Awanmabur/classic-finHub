@@ -7,12 +7,12 @@
   <section class="card">
     <div class="cardHead"><b>Physical cash reconciliation</b><span>Per operator · assigned branch currency</span></div>
     <div class="cardBody">
-      <p class="tiny">An independent supervisor must verify opening cash before recording. Counted cash and recorded customer operations only. Cash-in adds to the provisional drawer estimate; cash-out subtracts. Fees are informational and excluded from this calculation. No shift proves provider payment, electronic float, or settlement.</p>
+      <p class="tiny">An independent supervisor verifies the opening count. The expected drawer includes posted cash movements from mobile money, banking, forex, transfers and expenses, including explicitly collected cash fees. Compare it with the physical count before closing.</p>
       <% if(data.canOpen && currentBranch){ %>
-      <form method="post" action="/tenant/mobile-money/shifts/open" class="row3">
+      <form method="post" action="/tenant/day/open" data-cash-open-form>
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
-        <label class="field">Opening <%= typeof currencyLabel==='function'?currencyLabel(currentBranch.currency):currentBranch.currency %><input class="control" name="openingCash" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" required placeholder="0"></label>
+        <div class="formSection"><div class="formSectionTitle">Opening drawer by currency</div><div class="row2"><label class="field">Opening <%= typeof currencyLabel==='function'?currencyLabel(currentBranch.currency):currentBranch.currency %><input class="control" name="openingCash" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" required placeholder="0"></label></div></div>
         <div class="rowBtns"><button class="btn btnPrimary" type="submit">Open day with these balances</button></div>
       </form>
       <% } %>
@@ -26,9 +26,9 @@
         <td><%= new Date(shift.createdAt).toISOString() %></td><td><%= data.branchNames?.[String(shift.branchId)] || shift.branchId %></td><td><%= data.operatorNames?.[String(shift.operatorId)] || shift.operatorId %></td>
         <td><span class="tag"><%= shift.status %></span></td><td><%= shift.currency %></td>
         <td><%= cashLabel(shift.openingMinor,shift.currency) %></td><td><%= shift.recordCount %></td>
-        <td><a class="btn" href="/tenant/mobile-money/shifts/<%= shift._id %>">View shift</a></td>
+        <td><a class="btn" href="/tenant/cash/shifts/<%= shift._id %>">View shift</a></td>
       </tr><% }) %>
     </tbody></table></div>
-    <% if(data.shifts.nextCursor){ %><div class="cardBody"><a class="btn" href="/tenant/mobile-money/shifts?cursor=<%= encodeURIComponent(data.shifts.nextCursor) %>">Next page</a></div><% } %>
+    <% if(data.shifts.nextCursor){ %><div class="cardBody"><a class="btn" href="/tenant/cash/shifts?cursor=<%= encodeURIComponent(data.shifts.nextCursor) %>">Next page</a></div><% } %>
   </section>
 </section>

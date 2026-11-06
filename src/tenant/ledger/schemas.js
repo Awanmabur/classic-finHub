@@ -33,7 +33,7 @@ account.index({ branchId: 1, currency: 1, category: 1 });
 const journal = new Schema({
   branchId: { type: Schema.Types.ObjectId, required: true, immutable: true },
   currency: { type: String, enum: currencyCodes, required: true, immutable: true },
-  sourceType: { type: String, enum: ['mobile_money', 'money_transfer', 'banking', 'forex', 'reversal'], required: true, immutable: true },
+  sourceType: { type: String, enum: ['mobile_money', 'money_transfer', 'banking', 'forex', 'treasury', 'reversal'], required: true, immutable: true },
   sourceRef: { type: String, required: true, immutable: true, match: /^[A-Za-z0-9][A-Za-z0-9._:/-]{5,119}$/ },
   fingerprint: { type: String, required: true, immutable: true, match: /^[0-9a-f]{64}$/ },
   reverses: { type: Schema.Types.ObjectId, default: null, immutable: true },

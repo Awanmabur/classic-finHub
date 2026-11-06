@@ -42,7 +42,7 @@ test('approved profile and receipt forms preserve read-only controls and submit 
  assert.equal(receipt.title,'Edit receipt settings');
  assert.deepEqual(receipt.fields.map(f=>f.label),['Receipt prefix','Template name','QR verification','Duplicate protection','Receipt note']);
  const html=await ejs.renderFile(path.resolve(__dirname,'../src/views/tenant/workspace/form.ejs'),{form:receipt,csrfToken:'csrf'});
- assert.match(html,/name="primary" value="#5b5cf5"/);
+ assert.match(html,/name="primary" value="#082c52"/);assert.match(html,/name="secondary" value="#0d4f91"/);
  assert.match(html,/name="prefix"/);
  assert.doesNotMatch(html,/name="qrVerification"|name="duplicateProtection"/);
  assert.match(html,/Save changes/);

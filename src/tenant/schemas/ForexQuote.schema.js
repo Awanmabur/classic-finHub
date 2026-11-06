@@ -18,7 +18,8 @@ const schema=new mongoose.Schema({
  expiresAt:{type:Date,required:true,immutable:true},
  validMinutes:{type:Number,min:5,max:60,required:true,immutable:true},
  note:{type:String,required:true,maxlength:400,immutable:true},
- status:{type:String,enum:['quoted','approved_pending_execution','rejected','cancelled','expired'],default:'quoted'},
+ status:{type:String,enum:['quoted','approved_pending_execution','posted_manual','rejected','cancelled','expired'],default:'quoted'},
+ manualExecutionId:{type:O,default:null},manualPostedAt:{type:Date,default:null},
  reviewedBy:{type:O},reviewedAt:{type:Date},reviewNote:{type:String,maxlength:400},
  cancelledBy:{type:O},cancelledAt:{type:Date},cancelNote:{type:String,maxlength:400},
  expiredAt:{type:Date},revision:{type:Number,default:0,min:0}

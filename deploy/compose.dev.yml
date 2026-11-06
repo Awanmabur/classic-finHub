@@ -4,7 +4,22 @@ name: classicfin-dev
 services:
   mongo:
     image: mongo:8.0
-    command: ["mongod", "--port", "27018", "--replSet", "rs0", "--bind_ip_all"]
+    # Scratch integration runs create/drop thousands of indexed tables. The
+    # MongoDB 8 default keeps idle file handles for 600 seconds; close them
+    # promptly on this development host instead of exceeding its nofile ceiling.
+    command:
+      - mongod
+      - --port
+      - "27018"
+      - --replSet
+      - rs0
+      - --bind_ip_all
+      - --setParameter
+      - wiredTigerFileHandleCloseIdleTime=5
+      - --setParameter
+      - wiredTigerFileHandleCloseMinimum=250
+      - --setParameter
+      - wiredTigerFileHandleCloseScanInterval=1
     restart: unless-stopped
     ulimits:
       nofile:

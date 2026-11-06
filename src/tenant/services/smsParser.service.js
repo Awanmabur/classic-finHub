@@ -8,7 +8,7 @@
 const NETWORKS = Object.freeze(['MTN', 'Airtel', 'M-Pesa']);
 const AMOUNT = '(?:0|[1-9]\\d{0,10}|[1-9]\\d{0,2}(?:,\\d{3}){1,3})(?:\\.\\d{1,2})?';
 const confirmation = new RegExp(
-  `^(MTN|Airtel|M-Pesa) Cash (In|Out): (UGX|KES) (${AMOUNT}); Fee: (UGX|KES) (${AMOUNT}); Customer: ([^;\\r\\n]{2,120}); Ref: ([A-Za-z0-9._:/-]{5,100})$`,
+  `^(MTN|Airtel|M-Pesa) Cash (In|Out): (UGX|KES) (${AMOUNT}); Fee: (UGX|KES) (${AMOUNT}); Customer: ([^;\\r\\n]{2,120}); Ref: ([A-Za-z0-9._:/-]{5,100})(?:; Agent Balance: (UGX|KES) (${AMOUNT}))?$`,
   'i'
 );
 const review = reasonCode => ({state:'needs_review', fields:null, reasonCode});
@@ -29,6 +29,7 @@ function parseSms(body, {network} = {}) {
   if (matchedNetwork !== network) return review('network_mismatch');
   const currency = match[3].toUpperCase();
   if (match[5].toUpperCase() !== currency) return review('currency_mismatch');
+  if(match[9]&&match[9].toUpperCase()!==currency)return review('balance_currency_mismatch');
   const fields = {
     operation: match[2].toLowerCase() === 'in' ? 'cash_in' : 'cash_out',
     customer: match[7].trim(),
@@ -38,6 +39,7 @@ function parseSms(body, {network} = {}) {
     amount: match[4].replaceAll(',', ''),
     fee: match[6].replaceAll(',', '')
   };
+  if(match[10]){fields.observedWalletBalance=match[10].replaceAll(',', '');fields.observationEvidenceReference=fields.networkReference;}
   try {
     // Share amount, currency, customer and reference constraints with the manual
     // entry service. This key validates the shape only; it is never persisted.

@@ -1,5 +1,7 @@
 # ClassicFin Hub v1.17 — Independently Subscribed Banking Operations
 
+> Historical request-only release notes. The current reviewed manual funds workflow is documented in [Manual funds and UI](MANUAL_FUNDS_AND_UI.md); provider execution remains a separate integration.
+
 ## Release scope and financial boundary
 
 Banking is an independently subscribable **internal banking request-management** module. It **does not** connect to banks, create bank accounts, store real bank balances, accept cash deposits on behalf of a bank, move funds, issue a bank statement, or post any settlement journal. The existing direct `deposit()` and `withdraw()` entrypoints continue to throw a 501 error. Banking account references hold only the last four account characters and operator-supplied labels; they are *not bank-verified*.

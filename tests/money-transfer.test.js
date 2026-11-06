@@ -29,7 +29,7 @@ test('Money Transfer activates as independent internal module but does not enabl
  assert.throws(()=>service.sendMoney({amount:1}),{status:501});
  assert.throws(()=>service.payoutByPin({pin:'0000'}),{status:501});
  const schema=require('../src/tenant/schemas/TransferOrder.schema');
- assert.deepEqual(schema.path('status').enumValues,['requested','approved_pending_provider','rejected','cancelled','expired']);
+ assert.deepEqual(schema.path('status').enumValues,['requested','approved_pending_provider','collected_manual','paid_out_manual','rejected','cancelled','expired']);
  assert(!schema.path('status').enumValues.includes('settled'));
 });
 test('Transfer contact validation requires proper sender/beneficiary and international phone',()=>{
@@ -87,7 +87,7 @@ test('Contact edits cannot mutate immutable historical snapshots and indexes are
  assert(service.equivalent(existing,actor('Money Transfer Operator'),branch,value));
  assert(!service.equivalent(existing,actor('Money Transfer Operator'),branch,{...value,amountMinor:11000}));
 });
-test('Transfer dashboard renders real role-specific forms, escaped contact data and no payout button',async()=>{
+test('Transfer dashboard renders scoped instructions, escaped contacts and reviewed PIN collection status',async()=>{
  const t=tenant(),user=actor('Money Transfer Operator'),fakeId=id(),contact={_id:fakeId,branchId:branch,fullName:'<script>alert(1)</script>',country:'UG',kind:'sender'};
  const data={records:{items:[],nextCursor:null},queue:[],branches:[{_id:branch,name:'Main',currency:'UGX',status:'active'}],
   selectedBranchId:branch,contacts:[contact,{...contact,_id:id(),kind:'beneficiary',fullName:'Beneficiary'}],
@@ -95,17 +95,17 @@ test('Transfer dashboard renders real role-specific forms, escaped contact data 
  const page=path.join(__dirname,'../src/views/tenant/money-transfer/index.ejs');
  const html=await ejs.renderFile(page,{data,user,csrfToken:'token'});
  assert.match(html,/name="idempotencyKey"/);assert.match(html,/name="_csrf" value="token"/);
- assert.match(html,/Save transfer &amp; open receipt/);assert.doesNotMatch(html,/name="decision" value="approve"/);
+ assert.match(html,/Save transfer &amp; continue/);assert.doesNotMatch(html,/name="decision" value="approve"/);
  assert.doesNotMatch(html,/<script>alert/);assert.match(html,/&lt;script&gt;/);
  assert.match(html,/action="\/tenant\/money-transfer\/requests"/);
- assert.match(html,/Awaiting verified payout integration/);
+ assert.match(html,/Issued after reviewed collection/);
  assert.doesNotMatch(html,/<form[^>]+action="\/tenant\/money-transfer\/payout"/);
  const auditor=await ejs.renderFile(page,{data:{...data,canCreate:false,canReview:false},user:actor('Auditor'),csrfToken:'token'});
- assert.doesNotMatch(auditor,/Save transfer &amp; open receipt/);
+ assert.doesNotMatch(auditor,/Save transfer &amp; continue/);
  const reviewer=await ejs.renderFile(page,{data:{...data,canCreate:false,canReview:true,queue:[{
   _id:id(),reference:'TR-ABC',amountMinor:'1000',currency:'UGX',sender:{name:'Sender'},beneficiary:{name:'Recipient'},
   expiresAt:new Date(Date.now()+86400000)}]},user:actor('Reconciliation Officer'),csrfToken:'token'});
- assert.match(reviewer,/Approve pending provider/);assert.doesNotMatch(reviewer,/Save transfer &amp; open receipt/);
+ assert.match(reviewer,/Approve pending provider/);assert.doesNotMatch(reviewer,/Save transfer &amp; continue/);
 });
 test('Transfer expiry job requires actual tenant cursor and never silently reports completion',async()=>{
  const job=require('../src/jobs/transferExpiry.job');

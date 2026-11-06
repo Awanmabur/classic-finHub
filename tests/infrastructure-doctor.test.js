@@ -4,6 +4,14 @@ const {issuesForTenant}=require('../src/platform/services/infrastructureChecks.s
 const {entitledTenant}=require('./helpers/entitlement');
 const valid=entitledTenant({slug:'unit-test',enabledModules:['mobile_money'],branchCount:2,seatsReserved:4});
 const indexes={
+  TreasuryAccountV1:[{unique:true,key:{branchId:1,code:1}}],
+  TreasuryObservationV1:[{unique:true,key:{idempotencyKey:1}}],
+  TreasuryBatchV1:[{unique:true,key:{sourceType:1,sourceRef:1}}],
+  TreasuryMovementV1:[{unique:true,key:{accountId:1,sequence:1}}],
+  TreasuryCounterV1:[{unique:true,key:{branchId:1,currency:1,purpose:1}}],
+  TreasuryAdjustmentV1:[{unique:true,key:{idempotencyKey:1}}],
+  FundedExecutionV1:[{unique:true,key:{idempotencyKey:1}}],
+  ManualPayoutVerificationV1:[{unique:true,key:{tokenHash:1}}],
   CustomerDirectoryV1:[{unique:true,key:{reference:1}}],
   CustomerAccountV1:[{unique:true,key:{accountNumber:1}}],
   ExpenseV1:[{unique:true,key:{idempotencyKey:1}}],
@@ -59,4 +67,11 @@ test('live doctor model registry covers every required index, including approval
    assert.equal(models[key].db,conn,'diagnostic must inspect the selected tenant database');
   }
  }finally{await conn.close();}
+});
+
+test('doctor rejects every missing funds evidence, movement and manual posting unique index',()=>{
+ for(const key of ['TreasuryAccountV1','TreasuryObservationV1','TreasuryBatchV1','TreasuryMovementV1','TreasuryCounterV1','TreasuryAdjustmentV1','FundedExecutionV1','ManualPayoutVerificationV1']){
+  const missing={...indexes,[key]:[]};
+  assert(issuesForTenant(valid,{...state,indexes:missing}).includes('missing-unique-index'),key);
+ }
 });

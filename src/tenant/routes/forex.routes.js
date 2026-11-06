@@ -22,7 +22,7 @@ module.exports=function routes({renderTenant}){
     fx.listQuotes(req.tenantDb,req.tenant,req.user),
     fx.reviewer(req.user)&&hasPermission(req.user,'forex.rate_review')?fx.rateReviewQueue(req.tenantDb,req.tenant,req.user):[],
     fx.reviewer(req.user)&&hasPermission(req.user,'forex.quotes.review')?fx.quoteReviewQueue(req.tenantDb,req.tenant,req.user):[]]);
-   renderTenant(req,res,'forex/index','Forex Rates & Quotes','Indicative exchange quotations only. No currency exchange, balances or settlement.',{
+   renderTenant(req,res,'forex/index','Forex Rates & Quotes','Approved rates, customer quotations and independently reviewed manual exchanges.',{
     branches:branchList,rates,records,rateQueue,quoteQueue,selectedBranchId:selected?selectedId:null,
     canPropose:fx.operator(req.user)&&hasPermission(req.user,'forex.rate_manage'),
     canQuote:fx.operator(req.user)&&hasPermission(req.user,'forex.quotes.create'),
@@ -57,8 +57,13 @@ module.exports=function routes({renderTenant}){
  });
  router.get('/:id',requirePermission('forex.view'),async(req,res,next)=>{
   try{const quote=await fx.detail(req.tenantDb,req.tenant,req.user,req.params.id);
-   renderTenant(req,res,'forex/detail','Forex Quote','Internal quote with fixed approved-rate snapshot; no execution.',{
+   const pendingMovement=await require('../funded/models').models(req.tenantDb).execution.findOne({sourceType:'forex',sourceId:quote._id,status:'pending_review'}).select('_id createdBy').lean();
+   renderTenant(req,res,'forex/detail','Forex Quote','Locked quotation details and independently reviewed manual exchange entries.',{
     quote,amountLabel:fx.amountLabel,
+    pendingMovementId:pendingMovement&&(req.user.role!=='Forex Operator'||String(pendingMovement.createdBy)===String(req.user.id))?pendingMovement._id:null,
+    canRecordManual:!pendingMovement&&fx.operator(req.user)&&hasPermission(req.user,'forex.quotes.create')&&hasPermission(req.user,'treasury.view')&&
+     (req.user.role==='Tenant Owner'||String(quote.createdBy)===String(req.user.id))&&String(req.operationBranch?._id||'')===String(quote.branchId)&&
+     ['quoted','approved_pending_execution'].includes(quote.status)&&['buy','sell'].includes(quote.operation)&&new Date(quote.expiresAt)>new Date(),
     canReview:quote.status==='quoted'&&new Date(quote.expiresAt)>new Date()&&fx.reviewer(req.user)&&
      hasPermission(req.user,'forex.quotes.review')&&String(quote.createdBy)!==String(req.user.id),
     canCancel:quote.status==='quoted'&&(req.user.role==='Tenant Owner'||String(quote.createdBy)===String(req.user.id))

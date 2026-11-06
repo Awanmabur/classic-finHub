@@ -60,7 +60,7 @@ function email(value){const v=plain(value,254);if(v&&!/^[^\s@]+@[^\s@]+\.[^\s@]+
 function phone(value){const v=plain(value,40);if(v&&!/^[+\d][\d ()-]{5,39}$/.test(v))throw fail('Enter a valid support phone.');return v;}
 function defaults(tenant){return {tenantId:String(tenant._id),revision:0,
  profile:{name:tenant.name||'',legalName:'',owner:tenant.owner||'',ownerEmail:tenant.email||'',supportPhone:tenant.phone||'',country:'',timezone:'Africa/Kampala',defaultCurrency:'UGX'},
- landing:{headline:'',subtitle:'',services:[]},branding:{theme:'ClassicFin',primary:'#5b5cf5',secondary:'#0ea5e9',logoStatus:'Not uploaded',receiptNote:'',prefix:'CFH',template:'Standard receipt'}};}
+ landing:{headline:'',subtitle:'',services:[]},branding:{theme:'ClassicFin',primary:'#082c52',secondary:'#0d4f91',logoStatus:'Not uploaded',receiptNote:'',prefix:'CFH',template:'Standard receipt'}};}
 function combine(tenant,saved){const base=defaults(tenant);return {...base,...saved,profile:{...base.profile,...saved?.profile},landing:{...base.landing,...saved?.landing},branding:{...base.branding,...saved?.branding}};}
 function validateConfig(section,input){
  if(section==='profile'){
@@ -202,8 +202,8 @@ async function receiptIdentity(conn,tenant){
  const config=combine(tenant,saved);
  return {name:config.profile.name,supportPhone:config.profile.supportPhone,prefix:config.branding.prefix,
   template:config.branding.template,footerNote:config.branding.receiptNote,
-  primary:/^#[a-fA-F0-9]{6}$/.test(config.branding.primary)?config.branding.primary:'#5b5cf5',
-  secondary:/^#[a-fA-F0-9]{6}$/.test(config.branding.secondary)?config.branding.secondary:'#0ea5e9'};
+  primary:/^#[a-fA-F0-9]{6}$/.test(config.branding.primary)?config.branding.primary:'#082c52',
+  secondary:/^#[a-fA-F0-9]{6}$/.test(config.branding.secondary)?config.branding.secondary:'#0d4f91'};
 }
 async function database(conn,tenant,actor){
  await access(conn,tenant,actor);const stats=await conn.db.stats();

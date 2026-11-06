@@ -14,11 +14,12 @@ module.exports=function expensesRoutes({renderTenant}){
  async function page(req,res,next){try{
   const records=await expenses.list(req.tenantDb,req.tenant,req.user,req.query);
   renderTenant(req,res,'expenses/index','Expenses','Daily expenses with vendor, method, reference, and amount.',{
-   records,permissions:permissions(req.user),idempotencyKey:crypto.randomUUID(),format:mobile.formatMoneyMinor,openModal:req.path.endsWith('/new')});
+   records,permissions:permissions(req.user),idempotencyKey:crypto.randomUUID(),format:mobile.formatMoneyMinor,openModal:req.path.endsWith('/new'),
+   fundChoices:await expenses.fundChoices(req.tenantDb,req.tenant,req.user)});
  }catch(error){next(error);}}
  router.get('/expenses',page);router.get('/expenses/new',requirePermission('expenses.create'),page);
  router.post('/expenses',requirePermission('expenses.create'),throttle,async(req,res,next)=>{try{
-  const result=await expenses.create(req.tenantDb,req.tenant,req.user,req.body);
+  const result=await expenses.create(req.tenantDb,req.tenant,req.user,req.body,{requireFunds:true});
   flash(req,'good',result.duplicate?'Expense already recorded. No duplicate was created.':'Expense submitted for independent review. Pending expenses do not reduce cash.');
   res.redirect(303,`/tenant/expenses/${result.record._id}`);
  }catch(error){next(error);}});
@@ -26,7 +27,8 @@ module.exports=function expensesRoutes({renderTenant}){
   const record=await expenses.detail(req.tenantDb,req.tenant,req.user,req.params.id),perms=permissions(req.user);
   const independent=String(record.operatorId)!==String(req.user.id)&&String(record.pendingChange?.requestedBy||'')!==String(req.user.id);
   renderTenant(req,res,'expenses/detail','Expense details','Original evidence, independent decisions, and correction history.',{
-   record,permissions:perms,format:mobile.formatMoneyMinor,canReview:perms.review&&independent&&record.status==='pending_review'&&!record.pendingChange,
+   record,permissions:perms,format:mobile.formatMoneyMinor,fundChoices:perms.review?await expenses.fundChoices(req.tenantDb,req.tenant,req.user,{expenseId:req.params.id}):[],
+   canReview:perms.review&&independent&&record.status==='pending_review'&&!record.pendingChange,
    canDecide:perms.review&&independent&&!!record.pendingChange,canChange:['pending_review','approved'].includes(record.status)&&!record.pendingChange});
  }catch(error){next(error);}});
  for(const [action,permission,execute,message] of [

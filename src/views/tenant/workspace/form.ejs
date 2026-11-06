@@ -1,0 +1,13 @@
+<form method="post" action="<%= form.action %>" data-workspace-form data-workspace-title="<%= form.title %>">
+ <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+ <input type="hidden" name="revision" value="<%= form.revision %>">
+ <% (form.hidden||[]).forEach(f=>{ %><input type="hidden" name="<%= f.name %>" value="<%= f.value %>"><% }) %>
+ <div class="workspaceFormSection"><b><%= form.section %></b><div class="workspaceFormGrid">
+ <% form.fields.forEach(f=>{ %><label class="field <%= f.full?'workspaceWide':'' %>"><span><%= f.label %></span>
+ <% if(f.type==='textarea'){ %><textarea class="control" name="<%= f.name %>" rows="4" maxlength="<%= f.max||2000 %>" <%= f.required?'required':'' %>><%= f.value||'' %></textarea>
+ <% }else if(f.type==='select'){ %><select class="control" name="<%= f.name %>" required><% f.options.forEach(option=>{ %><option value="<%= option.value %>" <%= String(f.value)===String(option.value)?'selected':'' %>><%= option.label %></option><% }) %></select>
+ <% }else{ %><input class="control" type="<%= f.type||'text' %>" <% if(!f.displayOnly){ %>name="<%= f.name %>"<% } %> value="<%= f.value??'' %>" maxlength="<%= f.max||150 %>" <%= f.required?'required':'' %> <%= f.displayOnly?'readonly':'' %> <% if(f.pattern){ %>pattern="<%= f.pattern %>"<% } %> <% if(f.min!==undefined){ %>min="<%= f.min %>"<% } %> <% if(f.type==='number'){ %>max="<%= f.max||1000 %>" step="1"<% } %>>
+ <% } %><% if(f.hint){ %><small><%= f.hint %></small><% } %></label><% }) %>
+ </div></div>
+ <footer class="workspaceDialogActions"><button class="btn" type="button" data-workspace-close>Cancel</button><button class="btn btnPrimary" type="submit">Save changes</button></footer>
+</form>

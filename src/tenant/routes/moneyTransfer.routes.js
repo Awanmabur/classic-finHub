@@ -16,6 +16,7 @@ const writeRoles=new Set(['Tenant Owner','Money Transfer Operator']);
 const reviewerRoles=new Set(['Tenant Owner','Branch Manager','Reconciliation Officer']);
 function routes({renderTenant}){
  const router=newRouter();
+ router.use(require('./operationWorkspace.routes')({renderTenant,moduleKey:'money_transfer'}));
  async function branches(req){return (await branchService.list(req.tenant)).filter(b=>b.status==='active' &&
    (req.user.role==='Tenant Owner'||String(b._id)===String(req.user.branchId)));}
  router.get('/',requirePermission('money_transfer.view'),async(req,res,next)=>{
@@ -73,7 +74,7 @@ function routes({renderTenant}){
   try{
    const {order,duplicate}=await transfer.createRequest(req.tenantDb,req.tenant,req.user,req.body);
    flash(req,'good',duplicate?'This exact request already exists; nothing was duplicated.':'Transfer request recorded. No money has been sent or collected.');
-   res.redirect(303,`/tenant/money-transfer/${order._id}`);
+   res.redirect(303,`/tenant/money-transfer/${order._id}/acknowledgement`);
   }catch(e){next(e);}
  });
  router.get('/history',requirePermission('money_transfer.view'),async(req,res,next)=>{
@@ -85,7 +86,7 @@ function routes({renderTenant}){
  router.get('/:id/acknowledgement',requirePermission('money_transfer.view'),async(req,res,next)=>{
   try{const order=await transfer.detail(req.tenantDb,req.tenant,req.user,req.params.id);
    res.setHeader('Cache-Control','private, no-store');res.setHeader('X-Robots-Tag','noindex, nofollow');
-   res.render('tenant/money-transfer/acknowledgement',{order,tenant:req.tenant,user:req.user,
+   res.render('tenant/money-transfer/acknowledgement',{order,tenant:req.tenant,user:req.user,identity:req.workspaceIdentity||await require('../workspace/service').receiptIdentity(req.tenantDb,req.tenant),
     formatMoneyMinor,assetVersion:res.locals.assetVersion});
   }catch(e){next(e);}
  });

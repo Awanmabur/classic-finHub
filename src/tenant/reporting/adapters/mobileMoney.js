@@ -6,6 +6,7 @@ module.exports=Object.freeze({
  async rows({conn,filters,scope}){
   const summary=await require('../../services/mobileMoney.service').getSummary(conn,{from:filters.from,to:filters.to,...scope});
   return summary.summaries.map(s=>({module:'Mobile Money',activity:`${s._id.network} · ${s._id.operation}`,
-   status:`${s._id.status} / ${s._id.reviewState} / ${s._id.correctionState||'none'}`,currency:s._id.currency,count:s.count,volume:s.volumeFormatted,fees:s.feesFormatted}));
+   status:`${s._id.status} / ${s._id.reviewState} / ${s._id.correctionState||'none'}`,recordStatus:s._id.status,correctionState:s._id.correctionState||'none',currency:s._id.currency,count:s.count,volume:s.volumeFormatted,fees:s.feesFormatted,
+   amountMinor:String(s.volumeMinor),feesMinor:String(s.feesMinor)}));
  }
 });

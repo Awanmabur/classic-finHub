@@ -1,18 +1,19 @@
+<% const cashLabel=(value,currency)=>typeof formatMoneyMinor==='function'?formatMoneyMinor(value,currency):money(currency,amountFromMinor(value,currency)); %>
 <section class="view show">
   <section class="card">
     <div class="cardHead"><b>Shift <%= data.shift._id %></b><span class="tag"><%= data.shift.status %></span><a class="btn" href="/tenant/mobile-money/shifts">All shifts</a></div>
     <div class="cardBody">
       <p class="tiny">Physical cash estimate only. Network settlements and agent e-float are not represented here.</p>
       <div class="grid3">
-        <div class="stat"><div class="k">Opening cash</div><div class="v"><%= data.shift.currency %> <%= data.shift.openingMinor %></div></div>
-        <div class="stat"><div class="k">Provisional movement</div><div class="v"><%= data.shift.currency %> <%= data.shift.provisionalMovementMinor %></div></div>
+        <div class="stat"><div class="k">Opening cash</div><div class="v"><%= cashLabel(data.shift.openingMinor,data.shift.currency) %></div></div>
+        <div class="stat"><div class="k">Provisional movement</div><div class="v"><%= cashLabel(data.shift.provisionalMovementMinor,data.shift.currency) %></div></div>
         <div class="stat"><div class="k">Recorded operations</div><div class="v"><%= data.shift.recordCount %></div></div>
       </div>
       <% if(data.shift.submittedAt){ %>
       <div class="grid3" style="margin-top:14px">
-        <div class="stat"><div class="k">Estimated closing cash</div><div class="v"><%= data.shift.currency %> <%= data.shift.expectedClosingMinor %></div></div>
-        <div class="stat"><div class="k">Counted closing cash</div><div class="v"><%= data.shift.currency %> <%= data.shift.declaredClosingMinor %></div></div>
-        <div class="stat"><div class="k">Count variance (+ / −)</div><div class="v"><%= data.shift.currency %> <%= data.shift.varianceMinor %></div></div>
+        <div class="stat"><div class="k">Estimated closing cash</div><div class="v"><%= cashLabel(data.shift.expectedClosingMinor,data.shift.currency) %></div></div>
+        <div class="stat"><div class="k">Counted closing cash</div><div class="v"><%= cashLabel(data.shift.declaredClosingMinor,data.shift.currency) %></div></div>
+        <div class="stat"><div class="k">Count variance (+ / −)</div><div class="v"><%= cashLabel(data.shift.varianceMinor,data.shift.currency) %></div></div>
       </div><% } %>
       <% if(data.shift.openingReviewNote){ %><p class="tiny">Opening verification evidence: <%= data.shift.openingReviewNote %></p><% } %>
       <% if(data.canReviewOpening){ %>

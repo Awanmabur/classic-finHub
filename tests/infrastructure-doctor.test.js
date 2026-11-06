@@ -4,6 +4,10 @@ const {issuesForTenant}=require('../src/platform/services/infrastructureChecks.s
 const {entitledTenant}=require('./helpers/entitlement');
 const valid=entitledTenant({slug:'unit-test',enabledModules:['mobile_money'],branchCount:2,seatsReserved:4});
 const indexes={
+  CustomerDirectoryV1:[{unique:true,key:{reference:1}}],
+  CustomerAccountV1:[{unique:true,key:{accountNumber:1}}],
+  ExpenseV1:[{unique:true,key:{idempotencyKey:1}}],
+  TenantWorkspaceConfigV1:[{unique:true,key:{tenantId:1}}],
   SecureTenantUser:[{unique:true,key:{email:1}}], SecureBranch:[{unique:true,key:{code:1}}],
   SecureCashSession:[{unique:true,key:{activeKey:1},partialFilterExpression:{activeKey:{$type:'string'}}}],
   SecureStaffInvite:[{unique:true,key:{tokenHash:1}}], SecureMobileTransaction:[{unique:true,key:{idempotencyKey:1}}],

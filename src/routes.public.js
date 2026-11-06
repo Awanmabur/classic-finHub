@@ -146,7 +146,9 @@ router.get('/t/:slug', async (req, res, next) => {
     const Tenant = require('./platform/models/Tenant');
     const tenant = await Tenant.findOne({ slug: req.params.slug, status: { $in:['active','trial'] } }).lean();
     if (!tenant) return res.status(404).send('Tenant page not found');
-    renderPublic(req, res, 'tenant-landing', `${tenant.name} | ClassicFin Hub`, { tenant });
+    const landing=await require('./tenant/workspace/service').publicLanding(require('./config/mongo').getTenantConnection(tenant.slug),tenant);
+    res.set('Cache-Control','no-store');
+    renderPublic(req, res, 'tenant-landing', `${landing?.name||tenant.name} | ClassicFin Hub`, { tenant,landing });
   } catch (e) { next(e); }
 });
 router.get('/robots.txt', (req,res) => res.type('text/plain').set('Cache-Control','public, max-age=1800').send(seo.robotsTxt()));

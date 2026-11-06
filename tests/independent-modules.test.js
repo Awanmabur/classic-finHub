@@ -100,3 +100,15 @@ test('Reports Analyst role is allowed to be invited and requires MFA',()=>{
  assert.equal(checkStaff({name:'Finance Reporter',email:'finance@example.invalid',role:'Reports Analyst'}).role,'Reports Analyst');
  assert.equal(requiresTenantMfa('Reports Analyst'),true);
 });
+
+
+test('customer, account and expense subscriptions require a positive record allocation',()=>{
+ const modules=require('../src/platform/services/moduleSubscriptions.service');
+ for(const moduleKey of ['customers','accounts','expenses']){
+  assert(modules.requiresRecords(moduleKey));
+  const valid={moduleKey,days:30,users:5,branches:1,recordsPerMonth:1000,reason:'Approved module allocation for the tenant operating workspace.'};
+  assert.equal(modules.validateGrant(valid).limits.recordsPerMonth,1000);
+  assert.throws(()=>modules.validateGrant({...valid,recordsPerMonth:0}));
+ }
+ assert(!modules.requiresRecords('reports'));assert(!modules.requiresRecords('notifications'));
+});

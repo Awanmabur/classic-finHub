@@ -7,7 +7,7 @@
      (data.hasForex && (data.forexRecords?.items?.length || 0) > 0) ||
      (data.hasApprovals && (data.approvalRecords?.items?.length || 0) > 0); %>
 <section class="view show">
-  <section class="card"><div class="cardHead"><div><b>Operations snapshot</b><br><span>Recent workspace activity</span></div><span class="mono"><%= tenant.slug %></span></div>
+  <section class="card"><div class="cardHead"><div><b>Today snapshot</b><br><span>Recent workspace activity</span></div><span class="mono"><%= tenant.slug %></span></div>
     <div class="cardBody">
     <% if(hasOperationalModules || data.reportingSummary){ %><div class="grid3">
       <% if(data.hasTransfer){ %><div class="stat"><div class="k">Money Transfer requests</div><div class="v"><%= data.transferRecords?.items?.length || 0 %></div><div class="s"><span class="dot"></span>Recent internal requests</div></div><% } %>
@@ -23,7 +23,7 @@
     <% } %>
     <% if(hasOverviewActions){ %><div class="rowBtns" style="margin-top:12px">
       <% quickActions.forEach((action,index)=>{ %><a class="btn <%= index === 0 ? 'btnPrimary' : '' %>" href="<%= action.href %>" data-transaction-kind="<%= action.kind %>"><%= action.label %></a><% }) %>
-      <% if(visiblePaths.has('/tenant/mobile-money/shifts') && data.workspaceSnapshot?.currentCashShift){ %><a class="btn" href="<%= data.workspaceSnapshot.currentCashShift.href %>">Close cash shift</a><% } %>
+      <% if(visiblePaths.has('/tenant/mobile-money/shifts') && data.workspaceSnapshot?.currentCashShift){ %><a class="btn" href="<%= data.workspaceSnapshot.currentCashShift.href %>">Close day</a><% } %>
       <% if(visiblePaths.has('/tenant/reports')){ %><a class="btn" href="/tenant/reports">View reports</a><% } %>
       <% if(visiblePaths.has('/tenant/mobile-money/shifts')){ %><a class="btn" href="/tenant/mobile-money/shifts">Cash shifts</a><% } %>
     </div><% } %></div>

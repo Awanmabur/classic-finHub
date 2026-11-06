@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { randomUUID } = require('crypto');
-const { tenantMenu } = require('../../services/menu.service');
+const { tenantMenu,tenantNavigationPath } = require('../../services/menu.service');
 const { consumeFlash, flash, money } = require('../../utils/view');
 const requirePermission = require('../../middleware/requirePermission');
 const requireModule = require('../../middleware/requireModule');
@@ -13,6 +13,9 @@ const branchService=require('../services/branch.service');
 const staffService=require('../services/staff.service');
 const staffPolicy=require('../services/staffPolicy');
 router.use(require('../services/transactionBranch.service').requestContext);
+router.use(async(req,res,next)=>{
+  try{req.workspaceIdentity=await require('../workspace/service').receiptIdentity(req.tenantDb,req.tenant);next();}catch(error){next(error);}
+});
 // Only owners and auditors have tenant-wide visibility. Other users are branch scoped;
 // legacy unassigned users have no implicit access to other branches.
 function recordScope(req){
@@ -23,11 +26,17 @@ function recordScope(req){
 
 function renderTenant(req, res, view, pageTitle, pageSub, data) {
   res.render('layouts/dashboard', {
-    context:'tenant', currentPath:(req.baseUrl + req.path).startsWith('/tenant/money-transfer')?'/tenant/money-transfer':(req.baseUrl + req.path).startsWith('/tenant/banking')?'/tenant/banking':(req.baseUrl + req.path).startsWith('/tenant/forex')?'/tenant/forex':req.baseUrl + req.path, pageTitle, pageSub,
-    tenant:req.tenant, user:req.user, menu:tenantMenu(req.tenant,req.user),
+    context:'tenant', currentPath:tenantNavigationPath(req.baseUrl + req.path), pageTitle, pageSub,
+    tenant:{...req.tenant,name:req.workspaceIdentity?.name||req.tenant.name}, user:req.user, menu:tenantMenu(req.tenant,req.user),
     view:`../tenant/${view}`, data, flash:consumeFlash(req), money, amountFromMinor:mobile.fromMinor
   });
 }
+router.use(require('./dayControl.routes')({renderTenant,recordScope}));
+router.use('/mobile-money',require('./mobileMoneyWorkspace.routes')({renderTenant}));
+router.use(require('../customerAccounts/routes')({renderTenant}));
+router.use('/workspace',require('../workspace/routes')({renderTenant}));
+router.use(require('./expenses.routes')({renderTenant}));
+router.use(require('./approvedReports.routes')({renderTenant}));
 router.get('/', (req,res)=>res.redirect(303,'/tenant/dashboard'));
 router.get('/dashboard', requirePermission('dashboard.view'), async (req,res,next)=>{
   try {
@@ -148,7 +157,7 @@ router.get('/mobile-money/:id/acknowledgement',requireModule('mobile_money'),req
   try{
     const record=await mobile.getRecordDetails(req.tenantDb,req.params.id,recordScope(req));
     res.set('Cache-Control','private, no-store');res.set('X-Robots-Tag','noindex, nofollow');
-    res.render('tenant/mobile-money/acknowledgement',require('../services/receipt.service').acknowledgement(record));
+    res.render('tenant/mobile-money/acknowledgement',{...require('../services/receipt.service').acknowledgement(record),identity:req.workspaceIdentity});
   }catch(e){next(e);}
 });
 router.get('/mobile-money/history', requireModule('mobile_money'),requirePermission('mobile_money.view'),async(req,res,next)=>{
@@ -313,5 +322,5 @@ router.get('/billing',requirePermission('billing.view'),async(req,res,next)=>{
 router.use('/money-transfer',requireModule('money_transfer'),require('./moneyTransfer.routes')({renderTenant}));
 router.use('/banking',requireModule('banking'),require('./banking.routes')({renderTenant}));
 router.use('/forex',requireModule('forex'),require('./forex.routes')({renderTenant}));
-router.use((req,res)=>res.status(501).type('text/plain').send('This workflow is not yet implemented securely. No changes were made.'));
+router.use((req,res)=>res.status(404).type('text/plain').send('This page could not be found.'));
 module.exports = router;

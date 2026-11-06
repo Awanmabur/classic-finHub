@@ -785,23 +785,24 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .cardBody p a:not(.btn):hover,.txMeta a:hover,td a:not(.btn):hover{text-decoration:underline;text-underline-offset:3px}
 .btn:disabled,.btn[aria-disabled="true"]{opacity:.55;cursor:not-allowed;box-shadow:none!important;transform:none}
 
-/* Group titles describe the navigation; they are not another row of buttons. */
-.navGroup>.item[role="heading"],.navGroup>.item[role="heading"]:hover{
-  min-height:30px;
-  padding:7px 9px;
-  border:0;
-  background:transparent!important;
-  box-shadow:none!important;
-  color:var(--muted)!important;
-  font-size:11px;
+/* Group cards preserve the approved hierarchy while remaining real headings. */
+.navGroup>.item[role="heading"]{
+  min-height:42px;
+  padding:10px 11px;
+  border:1px solid rgba(15,23,42,.06);
+  background:rgba(255,255,255,.62);
+  box-shadow:0 8px 20px rgba(15,23,42,.045);
+  color:var(--text);
+  font-size:13px;
   font-weight:700;
-  letter-spacing:.06em;
-  text-transform:uppercase;
+  letter-spacing:-.15px;
+  text-transform:none;
   cursor:default;
   transform:none;
 }
-.navGroup>.item[role="heading"] i{display:none}
-.navGroup:before{top:40px}
+.navGroup>.item[role="heading"]:hover{transform:none}
+.navGroup>.item[role="heading"] i{width:17px;text-align:center}
+.navGroup:before{top:48px}
 .subitem{font-weight:600;line-height:1.35}
 .subitem.active{font-weight:700}
 .subitem>i{width:15px;flex:0 0 15px;text-align:center}
@@ -888,3 +889,31 @@ body.transactionOpen{overflow:hidden}
   .operatingBranch{max-width:100%}
 }
 @media print{.transactionDialog{display:none!important}}
+
+/* Mobile Money pages reuse the approved sections, modes, and activity rows. */
+.mobileMoneyPage{display:grid!important;gap:18px}
+.mobileMoneyPage>p{margin:0}
+.mobileMoneyFormBody{display:grid;gap:16px}
+.mobileMoneyEntry .childActions{align-items:center;justify-content:flex-start}
+.mobileMoneyEntry .childActions .chip{display:inline-flex;align-items:center;justify-content:center;min-height:38px}
+.mobileMoneyEntry .field{font-size:12px;line-height:1.5}
+.mobileMoneyEntry .field .tiny{margin-top:0}
+.mobileMoneyEntry .rowBtns{margin:0}
+.mobileMoneyEntry .control[readonly]{color:var(--muted)}
+.mobileMoneyRecordNote{margin:0;line-height:1.55}
+.mobileRequestReference{max-width:65%;overflow-wrap:anywhere;white-space:normal;text-align:right}
+.mobileMoneyFilters{display:grid;gap:12px;margin:0}
+.mobileMoneyCurrencyBlock{display:grid;gap:12px;min-width:0}
+.mobileMoneyCurrencyBlock h3{margin:0;font-size:13px;color:var(--muted)}
+.mobileMoneyCurrencyBlock .stat .v{white-space:normal;overflow-wrap:anywhere}
+.mobileMoneyActivity{min-width:0;align-items:flex-start}
+.mobileMoneyActivity .txMeta span{white-space:normal;overflow-wrap:anywhere;line-height:1.5}
+.mobileMoneyActivity .txMeta b{white-space:normal;line-height:1.5}
+.mobileMoneyPagination{margin-top:14px}
+.transactionFormHost{min-width:0}
+.transactionFormHost .mobileMoneyEntry .cardBody{padding:0}
+.transactionFormHost .mobileMoneyEntry .childActions{padding:0;background:transparent;border:0;box-shadow:none}
+.transactionFormHost .mobileMoneyEntry .rowBtns:empty{display:none}
+@media(max-width:700px){.mobileMoneyActivity{flex-wrap:wrap}.mobileMoneyActivity .txAmt{margin-left:auto}.mobileRequestReference{font-size:10px}}
+
+.navGroup>.item.active[role="heading"]{color:#fff;background:linear-gradient(135deg,var(--primary),var(--primary2));border-color:rgba(255,255,255,.24);box-shadow:0 14px 28px rgba(91,92,245,.22)}

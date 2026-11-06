@@ -19,7 +19,7 @@ test('operational forms show the account branch and never submit a branch select
  for(const file of files){
   const html=await render(file);
   assert.doesNotMatch(html,/<(?:select|input)\b[^>]*name="branchId"/,file);
-  assert.match(html,/Operating at <strong>Nairobi Main<\/strong> · KES/,file);
+  assert.match(html,/Operating at <strong>Nairobi Main<\/strong> · KSH/,file);
   if(['mobile-money/index','money-transfer/index','banking/index','banking/accounts'].includes(file)){
    assert.match(html,/<input type="hidden" name="currency" value="KES">/,file);
    assert.doesNotMatch(html,/<select\b[^>]*name="currency"/,file);

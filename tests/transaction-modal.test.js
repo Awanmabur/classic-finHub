@@ -23,7 +23,7 @@ test('transaction launcher uses an accessible real-form dialog and a fixed branc
   assert.match(html,/data-branch-name="Kampala Main" data-branch-currency="UGX"/);
   assert.match(html,/data-transaction-kind="cash_in"/);
   assert.match(html,/data-transaction-kind="cash_out"/);
-  assert.match(html,/href="\/tenant\/money-transfer" data-transaction-kind="transfer"/,'quick actions retain a working page fallback');
+  assert.match(html,/href="\/tenant\/money-transfer\/send" data-transaction-kind="transfer"/,'quick actions retain a working page fallback');
   assert.doesNotMatch(html,/<select[^>]+(?:name="branchId"|id="branchSelect")/);
   assert.match(html,/data-transaction-status role="status" aria-live="polite"/);
 });
@@ -57,7 +57,7 @@ test('overview displays supplied database cash and acknowledgements without prot
   assert.match(html,/1 open shift/);
   assert.match(html,/MTN · VERIFIED-REFERENCE/);
   assert.match(html,/href="\/tenant\/mobile-money\/123\/acknowledgement"/);
-  assert.match(html,/Last acknowledgement/);
+  assert.match(html,/Last receipt/);
   assert.doesNotMatch(html,/6,500,000|Load demo|id="branchSelect"/);
 });
 
@@ -65,11 +65,11 @@ test('cash shift actions use the existing opener roles and actual current shift'
   const options=fixture(['*']);
   options.menu[0].items.push({href:'/tenant/mobile-money/shifts',label:'Cash shifts',icon:'fa-cash-register'});
   const opening=await ejs.renderFile(template,options);
-  assert.match(opening,/href="\/tenant\/mobile-money\/shifts" data-transaction-kind="cash_shift_open">Open cash shift/);
+  assert.match(opening,/href="\/tenant\/mobile-money\/shifts" data-transaction-kind="cash_shift_open">Open day/);
   options.data.workspaceSnapshot={cash:[],recentActivity:[],currentCashShift:{id:'real-shift',status:'open',href:'/tenant/mobile-money/shifts/real-shift'}};
   const closing=await ejs.renderFile(template,options);
-  assert.match(closing,/href="\/tenant\/mobile-money\/shifts\/real-shift">Close cash shift/);
-  assert.doesNotMatch(closing,/href="\/tenant\/mobile-money\/shifts" data-transaction-kind="cash_shift_open">Open cash shift/);
+  assert.match(closing,/href="\/tenant\/mobile-money\/shifts\/real-shift">Close day/);
+  assert.doesNotMatch(closing,/href="\/tenant\/mobile-money\/shifts" data-transaction-kind="cash_shift_open">Open day/);
   options.user.role='Branch Manager';
   const supervisor=await ejs.renderFile(template,options);
   assert.doesNotMatch(supervisor,/data-transaction-kind="cash_shift_open"/,'supervisors review shifts; they do not open an operator shift');

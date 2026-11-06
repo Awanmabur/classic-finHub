@@ -24,7 +24,7 @@ test('reject malformed, unbalanced, zero, decimal and unsafe ledger postings',()
   assert.throws(()=>ledger.validateJournal(sample({sourceType:'reversal'})));
   assert.throws(()=>ledger.validateJournal(sample({sourceType:'manual_adjustment'})));
   assert.throws(()=>ledger.validateJournal(sample({branchId:'outside'})));
-  assert.throws(()=>ledger.validateJournal(sample({currency:'USD'})));
+  assert.throws(()=>ledger.validateJournal(sample({currency:'JPY'})));
 });
 test('idempotency fingerprint is deterministic and rejects changed economics',()=>{
   const a=ledger.validateJournal(sample());

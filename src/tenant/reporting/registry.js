@@ -3,6 +3,7 @@
 // The shared Reports product never imports financial transaction controllers.
 const adapters=Object.freeze([
  require('./adapters/workspace'),
+ require('./adapters/expenses'),
  require('./adapters/mobileMoney'),
  require('./adapters/cashShifts'),
  require('./adapters/moneyTransfer'),

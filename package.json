@@ -72,7 +72,15 @@
     "branch:integration": "node scripts/transaction-branch-integration.js",
     "sms:integration": "node scripts/sms-capture-integration.js",
     "relay:test": "python3 -m unittest discover -s tools/android-sms-relay -p 'test_*.py'",
-    "sms:authorization": "node scripts/sms-authorization-integration.js"
+    "sms:authorization": "node scripts/sms-authorization-integration.js",
+    "mobile-workspace:integration": "node scripts/mobile-workspace-integration.js",
+    "operation-workspaces:integration": "node scripts/operation-workspaces-integration.js",
+    "customer-accounts:integration": "node scripts/customer-accounts-integration.js",
+    "expenses-reports:integration": "node scripts/expenses-reports-integration.js",
+    "workspace:integration": "node scripts/workspace-settings-integration.js",
+    "currency:integration": "node scripts/currency-integration.js",
+    "manual:authorization": "node scripts/manual-authorization-integration.js",
+    "operation:authorization": "node scripts/operation-authorization-integration.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

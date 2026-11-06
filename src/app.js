@@ -4,7 +4,7 @@ const session = require('express-session');
 const compression = require('compression');
 const env = require('./config/env');
 const securityHeaders = require('./middleware/securityHeaders');
-const { general } = require('./middleware/rateLimiter');
+const { traffic } = require('./middleware/rateLimiter');
 const csrfProtection = require('./middleware/csrfProtection');
 const requirePlatformAuth = require('./middleware/requirePlatformAuth');
 const requireAuth = require('./middleware/requireAuth');
@@ -20,13 +20,14 @@ function createApp({ sessionStore } = {}) {
   if (env.nodeEnv === 'production' && !sessionStore) throw new Error('A persistent session store is mandatory in production');
   const app = express();
   if (env.trustProxy) app.set('trust proxy', env.trustProxy);
+  Object.assign(app.locals,require('./config/currencies'));
+  app.locals.formatMoneyMinor=require('./tenant/services/mobileMoney.service').formatMoneyMinor;
   app.disable('x-powered-by');
   app.use((req,res,next)=>{ req.requestId = require('crypto').randomUUID(); res.setHeader('X-Request-ID',req.requestId); next(); });
   app.set('view engine', 'ejs');
   app.set('views', path.join(__dirname, 'views'));
   app.use(...securityHeaders);
   app.use(canonicalOrigin);
-  app.use(general);
   app.use(compression());
   app.use(express.static(path.join(__dirname, '..', 'public'), {
     index: false, dotfiles: 'deny', maxAge: '1d', immutable: false, fallthrough: true,
@@ -58,14 +59,16 @@ function createApp({ sessionStore } = {}) {
       res.json({ status:'ready' });
     } catch { res.status(503).json({ status:'unavailable' }); }
   });
-  app.use('/integrations/sms',require('./integrations/sms.routes'));
-  app.use(express.urlencoded({ extended: false, limit: '32kb' }));
-  app.use(express.json({ limit: '32kb' }));
   app.use(session({
     name: 'cfh.sid', secret: env.sessionSecret, store: sessionStore,
     resave: false, saveUninitialized: false, rolling: true,
     cookie: { httpOnly: true, sameSite: 'lax', secure: env.nodeEnv === 'production', maxAge: 30 * 60 * 1000 }
   }));
+  app.use(traffic);
+  // SMS verifies the exact raw bytes before the ordinary body/CSRF parsers.
+  app.use('/integrations/sms',require('./integrations/sms.routes'));
+  app.use(express.urlencoded({ extended: false, limit: '32kb' }));
+  app.use(express.json({ limit: '32kb' }));
   app.use(csrfProtection);
   const assetVersion = require('./config/assetVersion');
   app.use((req,res,next) => { res.locals.appUrl = env.appUrl; res.locals.assetVersion = assetVersion; next(); });

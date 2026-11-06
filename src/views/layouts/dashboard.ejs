@@ -10,29 +10,37 @@
   <link rel="stylesheet" href="/vendor/inter/inter.css?v=<%= assetVersion %>">
   <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css?v=<%= assetVersion %>" />
   <link rel="stylesheet" href="/css/dashboard.css?v=<%= assetVersion %>" />
+  <% if(context==='tenant'){ %><link rel="stylesheet" href="/tenant/workspace/theme.css?v=<%= assetVersion %>" /><% } %>
 </head>
 <body>
-  <% const visiblePaths = new Set(menu.flatMap(group => group.items.map(item => item.href)));
+  <% const visiblePaths = new Set(menu.flatMap(group => [...group.items.map(item => item.href),...(group.paths||[])]));
      const can = permission => user.permissions.includes('*') || user.permissions.includes(permission);
      const quickActions = context === 'tenant' ? [
-       {href:'/tenant/money-transfer',kind:'transfer',label:'New transfer request',permission:'money_transfer.create'},
-       {href:'/tenant/mobile-money',kind:'mobile_money',label:'New mobile money record',permission:['mobile_money.cash_in','mobile_money.cash_out']},
-       {href:'/tenant/forex',kind:'forex',label:'New forex quote',permission:'forex.quotes.create'},
-       {href:'/tenant/banking',kind:'banking',label:'New banking request',permission:'banking.requests.create'},
+       {href:'/tenant/money-transfer/send',accessPath:'/tenant/money-transfer',kind:'transfer',label:'New money transfer',permission:'money_transfer.create'},
+       {href:'/tenant/mobile-money/cash-in',accessPath:'/tenant/mobile-money',kind:'mobile_money',label:'New mobile money',permission:['mobile_money.cash_in','mobile_money.cash_out']},
+       {href:'/tenant/forex/buy',accessPath:'/tenant/forex',kind:'forex_buy',label:'New forex',permission:'forex.quotes.create'},
+       {href:'/tenant/banking/deposit',accessPath:'/tenant/banking',kind:'banking_deposit',label:'New banking',permission:'banking.requests.create'},
        {href:'/tenant/approvals',kind:'approval',label:'New approval request',permission:'approvals.submit'},
-       {href:'/tenant/mobile-money/shifts',kind:'cash_shift_open',label:'Open cash shift',permission:'mobile_money.view',roles:['Tenant Owner','Mobile Money Operator']}
-     ].filter(action => visiblePaths.has(action.href) && (Array.isArray(action.permission) ? action.permission.some(can) : can(action.permission)) && (!action.roles || action.roles.includes(user.role)) && !(action.kind==='cash_shift_open' && data.workspaceSnapshot?.currentCashShift)) : [];
+       {href:'/tenant/mobile-money/shifts',kind:'cash_shift_open',label:'Open day',permission:'mobile_money.view',roles:['Tenant Owner','Mobile Money Operator']}
+     ].filter(action => visiblePaths.has(action.accessPath||action.href) && (Array.isArray(action.permission) ? action.permission.some(can) : can(action.permission)) && (!action.roles || action.roles.includes(user.role)) && !(action.kind==='cash_shift_open' && data.workspaceSnapshot?.currentCashShift)) : [];
      const transactionOptions = context === 'tenant' ? [
-       {kind:'cash_in',href:'/tenant/mobile-money',label:'Mobile money · cash in',description:'Record a customer cash deposit',icon:'fa-arrow-down',permission:'mobile_money.cash_in'},
-       {kind:'cash_out',href:'/tenant/mobile-money',label:'Mobile money · cash out',description:'Record a customer cash withdrawal',icon:'fa-arrow-up',permission:'mobile_money.cash_out'},
-       {kind:'transfer',href:'/tenant/money-transfer',label:'Money transfer request',description:'Sender, beneficiary and request details',icon:'fa-money-bill-transfer',permission:'money_transfer.create'},
-       {kind:'banking',href:'/tenant/banking',label:'Banking request',description:'Create an internal banking instruction',icon:'fa-building-columns',permission:'banking.requests.create'},
-       {kind:'forex',href:'/tenant/forex',label:'Forex quotation',description:'Use an approved rate for a customer quote',icon:'fa-chart-line',permission:'forex.quotes.create'},
-       {kind:'approval',href:'/tenant/approvals',label:'Approval request',description:'Submit a request for independent review',icon:'fa-user-shield',permission:'approvals.submit'},
-       {kind:'cash_shift_open',href:'/tenant/mobile-money/shifts',label:'Open cash shift',description:'Submit counted opening cash for independent verification',icon:'fa-cash-register',permission:'mobile_money.view',roles:['Tenant Owner','Mobile Money Operator']}
+       {kind:'cash_in',href:'/tenant/mobile-money',label:'Cash-in',description:'Mobile Money',icon:'fa-arrow-down',permission:'mobile_money.cash_in'},
+       {kind:'cash_out',href:'/tenant/mobile-money',label:'Cash-out',description:'Mobile Money',icon:'fa-arrow-up',permission:'mobile_money.cash_out'},
+       {kind:'transfer',href:'/tenant/money-transfer',label:'Send money / Generate PIN',description:'Money Transfer',icon:'fa-money-bill-transfer',permission:'money_transfer.create'},
+       {kind:'banking_deposit',href:'/tenant/banking',label:'Deposit',description:'Banking Operations',icon:'fa-building-columns',permission:'banking.requests.create'},
+       {kind:'banking_withdrawal',href:'/tenant/banking',label:'Withdraw',description:'Banking Operations',icon:'fa-arrow-up',permission:'banking.requests.create'},
+       {kind:'banking_transfer',href:'/tenant/banking',label:'Account transfer',description:'Banking Operations',icon:'fa-right-left',permission:'banking.requests.create'},
+       {kind:'forex_buy',href:'/tenant/forex',label:'Buy forex from customer',description:'Forex Operations',icon:'fa-chart-line',permission:'forex.quotes.create'},
+       {kind:'forex_sell',href:'/tenant/forex',label:'Sell forex to customer',description:'Forex Operations',icon:'fa-chart-line',permission:'forex.quotes.create'},
+       {kind:'customer',href:'/tenant/customers',label:'New customer',description:'Customer identity and next of kin',icon:'fa-user-plus',permission:'customers.create'},
+       {kind:'account',href:'/tenant/accounts',label:'New account',description:'Customer account and ledger mapping',icon:'fa-wallet',permission:'accounts.manage'},
+       {kind:'expense',href:'/tenant/expenses',label:'Add expense',description:'Expense details and independent review',icon:'fa-receipt',permission:'expenses.create'},
+       {kind:'approval',href:'/tenant/approvals',label:'Approval request',description:'Independent review',icon:'fa-user-shield',permission:'approvals.submit'},
+       {kind:'cash_shift_close',href:'/tenant/mobile-money/shifts',label:'Close day',description:'Auto closing balances from reports',icon:'fa-lock',permission:'mobile_money.view',roles:['Tenant Owner','Mobile Money Operator']},
+       {kind:'cash_shift_open',href:'/tenant/mobile-money/shifts',label:'Open day',description:'Opening drawer by currency',icon:'fa-cash-register',permission:'mobile_money.view',roles:['Tenant Owner','Mobile Money Operator']}
      ].filter(option=>visiblePaths.has(option.href) && can(option.permission) && (!option.roles || option.roles.includes(user.role))) : [];
      const assignedOperationBranch = typeof operationBranch === 'undefined' ? null : operationBranch;
-     const pageContent = include(view, { data, money, tenant, user, context, quickActions, visiblePaths });
+     const pageContent = include(view, { data, money, tenant, user, context, quickActions, visiblePaths, transactionOptions });
      const hasPageSearch = pageContent.includes('data-search-row'); %>
   <a class="skip-link" href="#workspaceContent">Skip to workspace</a>
   <div class="grain" aria-hidden="true"></div>
@@ -45,7 +53,7 @@
           <button class="btn btnIcon mobileOnly" id="menuBtn" type="button" aria-label="Open menu" aria-controls="sidePanel" aria-expanded="false"><i class="fa-solid fa-bars-staggered" aria-hidden="true"></i></button>
           <% if(context === 'tenant' && assignedOperationBranch){ %><span class="ctrl operatingBranch" data-operating-branch data-branch-name="<%= assignedOperationBranch.name %>" data-branch-currency="<%= assignedOperationBranch.currency %>" title="Transactions use your assigned operating branch"><i class="fa-solid fa-location-dot" aria-hidden="true"></i><%= assignedOperationBranch.name %><span class="tiny"><%= assignedOperationBranch.currency %></span></span><% } %>
           <% if (hasPageSearch) { %><div class="ctrl pageSearch"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input id="search" type="search" aria-label="Search records on this page" placeholder="Search this page…"></div><% } %>
-          <% if(context === 'tenant' && data.workspaceSnapshot?.latestAcknowledgement){ %><a class="btn" href="<%= data.workspaceSnapshot.latestAcknowledgement.href %>"><i class="fa-solid fa-receipt" aria-hidden="true"></i> Last acknowledgement</a><% } %>
+          <% if(context === 'tenant' && data.workspaceSnapshot?.latestAcknowledgement){ %><a class="btn" href="<%= data.workspaceSnapshot.latestAcknowledgement.href %>"><i class="fa-solid fa-receipt" aria-hidden="true"></i> Last receipt</a><% } %>
           <% if(transactionOptions.length){ %><button class="btn btnPrimary" id="newTransactionBtn" type="button" data-open-transaction><i class="fa-solid fa-plus" aria-hidden="true"></i> New transaction</button><% } %>
           <% if (context === 'platform' && ['/platform/dashboard','/platform/tenants'].includes(currentPath)) { %><a class="btn btnPrimary" href="/platform/tenants/create"><i class="fa-solid fa-plus" aria-hidden="true"></i> Create tenant</a><% } %>
         </div>
@@ -56,6 +64,7 @@
   </div></div>
   <div class="menuOverlay" id="menuOverlay"></div>
   <% if(transactionOptions.length){ %><%- include('../partials/transaction-modal', {transactionOptions,visiblePaths}) %><% } %>
-  <script src="/js/dashboard.js?v=<%= assetVersion %>"></script>
+  <% if(context === 'tenant'){ %><script src="/js/customer-accounts.js?v=<%= assetVersion %>" defer></script><% } %>
+  <script src="/js/dashboard.js?v=<%= assetVersion %>" defer></script>
 </body>
 </html>

@@ -1,0 +1,9 @@
+<dialog id="expenseDialog" class="transactionDialog" aria-labelledby="expenseTitle" <%= data.openModal?'open':'' %>>
+ <div class="tenantCleanHead"><div><b id="expenseTitle">Add expense</b><span>Record a business expense</span></div><button class="btn btnIcon" type="button" data-expense-close aria-label="Close expense dialog">×</button></div>
+ <form method="post" action="/tenant/expenses" class="tenantCleanBody">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
+  <%- include('_form') %>
+  <div class="rowBtns"><button class="btn btnPrimary" type="submit" <%= typeof operationBranch==='undefined'||!operationBranch?'disabled':'' %>>Add expense</button><button class="btn" type="button" data-expense-close>Cancel</button></div>
+ </form>
+</dialog>
+<script src="/js/expenses.js" defer></script>

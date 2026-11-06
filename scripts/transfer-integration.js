@@ -45,21 +45,28 @@ async function main(){
    allowedModules:['money_transfer'],branchId:String(a.branch._id)};
   const reviewer={id:reviewerId,role:'Reconciliation Officer',permissions:permissionsFor('Reconciliation Officer'),
    allowedModules:['money_transfer'],branchId:String(a.branch._id)};
+  const User=require('../src/tenant/models').tenantUserModel(a.conn);
+  await User.create([{_id:operator.id,name:'Persisted financial operator',email:`operator-${nonce}@example.invalid`,passwordHash:'unused-integration-password',role:operator.role,branchId:operator.branchId,allowedModules:['money_transfer'],authVersion:0},{_id:reviewer.id,name:'Persisted financial reviewer',email:`reviewer-${nonce}@example.invalid`,passwordHash:'unused-integration-password',role:reviewer.role,branchId:reviewer.branchId,allowedModules:['money_transfer'],authVersion:0}]);
   const sender=await svc.addContact(a.conn,a.tenant,operator,{kind:'sender',branchId:String(a.branch._id),
    fullName:'Sender Scratch',phone:'+256700123456',country:'UG'});
   const beneficiary=await svc.addContact(a.conn,a.tenant,operator,{kind:'beneficiary',branchId:String(a.branch._id),
    fullName:'Recipient Scratch',phone:'+256701234567',country:'UG'});
   const input=()=>({branchId:String(a.branch._id),senderId:String(sender._id),beneficiaryId:String(beneficiary._id),
-   amount:'20000',fee:'100',currency:'UGX',validDays:'2',idempotencyKey:crypto.randomUUID()});
+   amount:'20000',fee:'100',currency:'UGX',validDays:'2',senderDocument:'SENDER-DOC',receiverDocument:'RECEIVER-DOC',transferMethod:'Mobile Money',purpose:'Family support',exchangeRate:'3700.50',idempotencyKey:crypto.randomUUID()});
   const firstInput=input(),first=await svc.createRequest(a.conn,a.tenant,operator,firstInput);
-  assert.equal(first.order.status,'requested');assert(!first.duplicate);
+  assert.equal(first.order.status,'requested');assert.equal(first.order.capture.purpose,'Family support');assert.equal(first.order.capture.exchangeRate,'3700.5');assert(!first.duplicate);
+  await assert.rejects(svc.createRequest(a.conn,a.tenant,operator,{...firstInput,purpose:'Changed purpose'}),e=>e.status===409);
   const retry=await svc.createRequest(a.conn,a.tenant,operator,firstInput);
   assert(retry.duplicate);assert.equal(String(first.order._id),String(retry.order._id));
   await assert.rejects(svc.createRequest(a.conn,a.tenant,operator,{...firstInput,amount:'50000'}),e=>e.status===409);
   await assert.rejects(svc.createRequest(b.conn,b.tenant,operator,input()),e=>e.status===403);
   await assert.rejects(svc.detail(b.conn,{...b.tenant.toObject(),moduleGrants:a.tenant.moduleGrants},operator,String(first.order._id)),e=>e.status===404);
   await assert.rejects(svc.decide(a.conn,a.tenant,{...operator,role:'Tenant Owner',permissions:['*']},String(first.order._id),
+   {decision:'approve',note:'A person cannot approve their own request'}),e=>e.status===403);
+  await User.updateOne({_id:operator.id},{$set:{role:'Tenant Owner'}});
+  await assert.rejects(svc.decide(a.conn,a.tenant,{...operator,role:'Tenant Owner',permissions:['*']},String(first.order._id),
    {decision:'approve',note:'A person cannot approve their own request'}),e=>e.status===409);
+  await User.updateOne({_id:operator.id},{$set:{role:operator.role}});
   const approved=await svc.decide(a.conn,a.tenant,reviewer,String(first.order._id),
    {decision:'approve',note:'Internal request reviewed against the registered contact details'});
   assert.equal(approved.status,'approved_pending_provider');

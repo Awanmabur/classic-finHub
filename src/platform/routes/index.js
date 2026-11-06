@@ -60,7 +60,7 @@ router.get('/tenants/:id',async(req,res,next)=>{
     if (!/^[a-f0-9]{24}$/i.test(req.params.id)) return res.status(404).send('Tenant not found');
     const tenant=await Tenant.findById(req.params.id).lean(); if(!tenant) return res.status(404).send('Tenant not found');
     const published=await commercial.publishedPlans();
-    renderPlatform(req,res,'tenants/show',tenant.name,'Tenant profile, subscription control and audit-safe entitlements.',{tenant:{...tenant,id:String(tenant._id)},tenants:[],plans,modules,published,independentModules:require('../services/moduleSubscriptions.service').listable()});
+    renderPlatform(req,res,'tenants/show',tenant.name,'Tenant profile, subscription control and audit-safe entitlements.',{tenant:{...tenant,id:String(tenant._id)},tenants:[],plans,modules,published,independentModules:require('../services/moduleSubscriptions.service').listable().map(module=>({...module,requiresRecords:require('../services/moduleSubscriptions.service').requiresRecords(module.key)}))});
   }catch(e){next(e);}
 });
 router.post('/tenants/:id/status',async(req,res,next)=>{

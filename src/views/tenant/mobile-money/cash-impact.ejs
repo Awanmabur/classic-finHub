@@ -1,0 +1,14 @@
+<section class="view show mobileMoneyPage">
+  <section class="card"><div class="cardHead"><div><b>Cash impact</b><br><span>Cash-in, cash-out, commission, and net drawer movement for mobile money.</span></div></div><div class="cardBody richPageGrid">
+    <div class="richActions"><% if(data.canRecord){ %><a class="btn btnPrimary" href="<%= data.recordPath || '/tenant/mobile-money/cash-in' %>" data-transaction-kind="mobile_money">New mobile money</a><% } %><a class="btn" href="/tenant/mobile-money/network-activity">Network activity</a><% if(['Tenant Owner','Mobile Money Operator','Branch Manager','Reconciliation Officer','Auditor'].includes(user.role)){ %><a class="btn" href="/tenant/mobile-money/shifts">Physical cash shifts</a><% } %></div>
+    <%- include('_filters',{filterAction:'/tenant/mobile-money/cash-impact'}) %>
+    <% if(!data.summary.byCurrency.length){ %><div class="richPageThree"><div class="stat"><div class="k">Cash-in</div><div class="v">—</div></div><div class="stat"><div class="k">Cash-out</div><div class="v">—</div></div><div class="stat"><div class="k">Net impact</div><div class="v">—</div></div></div><p class="tiny">No cash movement in this period.</p><% } %>
+    <% data.summary.byCurrency.forEach(currency=>{ %><div class="mobileMoneyCurrencyBlock"><h3><%= currency.currency %></h3><div class="richPageThree">
+      <div class="stat"><div class="k">Cash-in</div><div class="v"><%= currency.formatted.physicalCashIn %></div><div class="s"><span class="dot"></span><span><%= currency.physicalCashInCount %> Cash records</span></div></div>
+      <div class="stat"><div class="k">Cash-out</div><div class="v"><%= currency.formatted.physicalCashOut %></div><div class="s"><span class="dot warn"></span><span><%= currency.physicalCashOutCount %> Cash records</span></div></div>
+      <div class="stat"><div class="k">Net impact</div><div class="v"><%= currency.formatted.cashImpact %></div><div class="s"><span class="dot"></span><span>Provisional drawer delta</span></div></div>
+    </div><div class="summary"><div class="sumRow"><span>Fee / commission recorded</span><b><%= currency.formatted.fees %></b></div></div></div><% }) %>
+    <p class="tiny">Provisional cash impact is Cash-method cash-in minus Cash-method cash-out for active records. Bank and Wallet Balance records are excluded from physical cash movement. Fees / commission are shown separately and do not change this drawer movement. Accepted internal voids remove the original movement. These values are not provider float, settled balances, or a physical cash count.</p>
+    <%- include('_activity',{activityRecords:data.records,activityPath:'/tenant/mobile-money/cash-impact'}) %>
+  </div></section>
+</section>

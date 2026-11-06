@@ -1,0 +1,87 @@
+{
+  "passed": true,
+  "navigationCount": 70,
+  "groupLabels": [
+    " Overview",
+    " Money Transfer",
+    " Mobile Money",
+    " Forex Operations",
+    " Banking Operations",
+    " Operation Reports",
+    " Tenant Workspace",
+    " Phase 2 Control"
+  ],
+  "writes": [
+    {
+      "type": "mobile_money",
+      "branchInferred": true,
+      "status": "pending_verification",
+      "amountExact": true
+    },
+    {
+      "type": "customer",
+      "branchInferred": true,
+      "nextOfKinPersisted": true
+    },
+    {
+      "type": "account",
+      "ledgerMapping": true,
+      "openingZero": true,
+      "branchInferred": true
+    },
+    {
+      "type": "banking_instruction",
+      "newAccountConnected": true,
+      "status": "requested",
+      "ledgerUnchanged": true
+    },
+    {
+      "type": "transfer_instruction",
+      "capturePersisted": true,
+      "status": "requested"
+    },
+    {
+      "type": "forex_quote",
+      "capturePersisted": true,
+      "rateExact": true,
+      "status": "quoted"
+    },
+    {
+      "type": "expense",
+      "status": "pending_review",
+      "branchInferred": true
+    },
+    {
+      "type": "cash_day",
+      "independentReviews": true,
+      "expenseCashMinor": "2500",
+      "closingCashMinor": "507500",
+      "variance": "0",
+      "status": "approved"
+    }
+  ],
+  "workspaceWrites": [
+    "profile",
+    "landing_headline",
+    "landing_section",
+    "published_snapshot",
+    "receipt_identity",
+    "actual_acknowledgement_branding"
+  ],
+  "navigationFailures": [],
+  "layoutFailures": [],
+  "modalFailures": [],
+  "browserErrors": [],
+  "resourceErrors": [],
+  "javascriptTests": 347,
+  "relayTests": 13,
+  "releaseGate": "passed",
+  "dependencyVulnerabilities": 0,
+  "viewports": [
+    1440,
+    390,
+    320
+  ],
+  "responsiveChecks": 42,
+  "modalKinds": 13
+}

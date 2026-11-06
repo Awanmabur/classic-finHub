@@ -49,8 +49,8 @@ test('Branch Manager is MFA protected, scoped to permitted branch staff, and can
   assert(menu.includes('/tenant/users'));
   assert(permissionsFor('Branch Manager').includes('users.manage_branch'));
   assert(!permissionsFor('Branch Manager').includes('users.manage'));
-  assert(menu.includes('/tenant/mobile-money'));
-  assert(!menu.includes('/tenant/billing'));
+  assert(menu.includes('/tenant/mobile-money/cash-in'));
+  assert(!menu.includes('/tenant/workspace/subscription'));
 });
 test('branch and platform status validators reject invalid changes before touching a database',()=>{
   assert.deepEqual(branch.validate({name:'Kampala HQ',code:'kla-hq',currency:'UGX',address:'Kitende'},true),{name:'Kampala HQ',code:'kla-hq',currency:'UGX',address:'Kitende'});

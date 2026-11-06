@@ -30,14 +30,14 @@ test('module access requires tenant AND plan entitlements, never defaults to all
 });
 test('dashboard navigation differs by role and tenant plans', () => {
   const paths = user => tenantMenu(tenant,user).flatMap(g=>g.items.map(i=>i.href));
-  assert(paths(operator).includes('/tenant/mobile-money'));
+  assert(paths(operator).includes('/tenant/mobile-money/cash-in'));
   assert(!paths(operator).includes('/tenant/reports'));
-  assert(!paths(operator).includes('/tenant/billing'));
+  assert(!paths(operator).includes('/tenant/workspace/subscription'));
   assert(paths(auditor).includes('/tenant/reports'));
-  assert(!paths(auditor).includes('/tenant/billing'));
-  assert(paths(owner).includes('/tenant/billing'));
-  assert(!paths(owner).includes('/tenant/forex'));
-  assert(!tenantMenu({...tenant, plan:'finance'},owner).flatMap(g=>g.items.map(i=>i.href)).includes('/tenant/mobile-money'));
+  assert(!paths(auditor).includes('/tenant/workspace/subscription'));
+  assert(paths(owner).includes('/tenant/workspace/subscription'));
+  assert(!paths(owner).includes('/tenant/forex/buy'));
+  assert(!tenantMenu({...tenant, plan:'finance'},owner).flatMap(g=>g.items.map(i=>i.href)).includes('/tenant/mobile-money/cash-in'));
 });
 test('tenant provisioning accepts custom plan codes but never trusts submitted entitlements',()=>{
   const p=checkPayload({name:'Company One',slug:'company-one',owner:'Owner',email:'owner@example.com',plan:'agent',enabledModules:['banking','forex','mobile_money']});
@@ -94,7 +94,8 @@ test('spreadsheet output escapes formulas and embedded delimiters',()=>{
 });
 
 test('staff permissions are server-defined and tenant owners cannot be self-invited',()=>{
-  assert.deepEqual(permissionsFor('Mobile Money Operator'),['notifications.view','dashboard.view','mobile_money.view','mobile_money.cash_in','mobile_money.cash_out']);
+  assert.deepEqual(permissionsFor('Mobile Money Operator'),['customers.view','customers.create','expenses.view','expenses.create','expenses.correct','mobile_money.report','notifications.view','dashboard.view','mobile_money.view','mobile_money.cash_in','mobile_money.cash_out']);
+  for(const permission of ['customers.manage','customers.export','accounts.manage','expenses.review','expenses.void','mobile_money.review','approvals.decide','workspace.manage'])assert(!permissionsFor('Mobile Money Operator').includes(permission),`Operator cannot receive privileged capability ${permission}`);
   assert.deepEqual(permissionsFor('fake-role'),[]);
   assert(permissionsFor('Branch Manager').includes('branches.view'));
   assert(!permissionsFor('Branch Manager').includes('users.manage'));

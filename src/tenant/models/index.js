@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const {currencyCodes}=require('../../config/currencies');
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true, maxlength: 120 },
   email: { type: String, required: true, lowercase: true, trim: true, maxlength: 254 },
@@ -28,11 +29,14 @@ const moneySchema = new mongoose.Schema({
   idempotencyKey: { type: String, required: true, immutable: true, match: /^[0-9a-f-]{36}$/ },
   operation: { type: String, enum: ['cash_in','cash_out'], required: true, immutable: true },
   customer: { type: String, required: true, maxlength: 120, immutable: true },
-  network: { type: String, enum: ['MTN','Airtel','M-Pesa'], required: true, immutable: true },
+  customerPhone:{type:String,default:'',maxlength:16,immutable:true},
+  customerNote:{type:String,default:'',maxlength:400,immutable:true},
+  paymentMethod:{type:String,enum:['Cash','Wallet Balance','Bank'],default:'Cash',immutable:true},
+  network: { type: String, enum: ['MTN','Airtel','Africell','M-Pesa'], required: true, immutable: true },
   networkReference: { type: String, required: true, maxlength: 100, immutable: true },
   amountMinor: { type: mongoose.Schema.Types.Decimal128, required: true, immutable: true },
   feeMinor: { type: mongoose.Schema.Types.Decimal128, required: true, immutable: true },
-  currency: { type: String, enum: ['UGX','KES'], required: true, immutable: true },
+  currency: { type: String, enum: currencyCodes, required: true, immutable: true },
   status: { type: String, enum: ['pending_verification','verified','rejected','voided_internal'], default: 'pending_verification' },
   reviewState: { type: String, enum: ['awaiting_review','accepted','disputed'], default: 'awaiting_review' },
   reviewedBy: { type: mongoose.Schema.Types.ObjectId, default: null },
@@ -61,6 +65,10 @@ moneySchema.index({ idempotencyKey: 1 }, { unique: true });
 moneySchema.index({cashSessionId:1,reviewState:1,correctionState:1});
 moneySchema.index({ network: 1, networkReference: 1 }, { unique: true });
 moneySchema.index({ createdAt: -1 });
+moneySchema.index({createdAt:-1,_id:-1});
+moneySchema.index({operation:1,createdAt:-1,_id:-1});
+moneySchema.index({branchId:1,operation:1,createdAt:-1,_id:-1});
+moneySchema.index({branchId:1,operatorId:1,operation:1,createdAt:-1,_id:-1});
 moneySchema.index({ operatorId: 1, createdAt: -1 });
 moneySchema.index({ operatorId:1, createdAt:-1, _id:-1 });
 moneySchema.index({ branchId: 1, createdAt: -1 });

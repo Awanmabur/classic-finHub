@@ -5,6 +5,8 @@ const mongoose=require('mongoose');
 const Tenant=require('../models/Tenant');
 const PlatformAuditLog=require('../models/PlatformAuditLog');
 const {modules}=require('../../data/store');
+const RECORD_MODULES=new Set(['mobile_money','money_transfer','banking','forex','customers','accounts','expenses']);
+function requiresRecords(key){return RECORD_MODULES.has(key);}
 function error(message,status=400){const e=new Error(message);e.status=status;return e;}
 function listable(){return modules.filter(m=>m.key!=='sms_capture'&&['enabled','recording_only'].includes(m.runtimeStatus)&&m.status==='active');}
 function eligible(key){return listable().find(m=>m.key===key)||null;}
@@ -27,7 +29,7 @@ function validateGrant(input){
     !Number.isSafeInteger(users)||users<1||users>10000||
     !Number.isSafeInteger(branches)||branches<1||branches>1000||
     !Number.isSafeInteger(recordsPerMonth)||recordsPerMonth<0||recordsPerMonth>1000000||
-    (['mobile_money','money_transfer','banking','forex'].includes(moduleKey)?recordsPerMonth<1:recordsPerMonth!==0)||reason.length<20||reason.length>600)
+    (requiresRecords(moduleKey)?recordsPerMonth<1:recordsPerMonth!==0)||reason.length<20||reason.length>600)
     throw error('Specify a 1–366 day term, valid workspace limits, and a 20–600-character audit reason');
   return {moduleKey,days,limits:{users,branches,recordsPerMonth},reason,priceMonthlyMinor:Math.round(module.priceMonthly*100)};
 }
@@ -109,4 +111,4 @@ async function revokeModule(tenantId,actor,input){
   });return revoked;}catch(e){if(e.name==='VersionError')throw error('Concurrent module change. Refresh and retry.',409);throw e;}
   finally{await session.endSession();}
 }
-module.exports={listable,eligible,activeGrants,effectiveModuleGrant,validateGrant,grantModule,revokeModule};
+module.exports={requiresRecords,listable,eligible,activeGrants,effectiveModuleGrant,validateGrant,grantModule,revokeModule};

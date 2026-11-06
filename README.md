@@ -1,4 +1,4 @@
-# Configurable plans, Android SMS capture and tenant transaction dialogs
+# Approved tenant workspace, configurable plans and Android SMS capture
 
 Platform administrators can now create versioned custom plans, configure prices,
 modules and quotas, and publish separate manual and higher-priced SMS-assisted
@@ -6,6 +6,10 @@ tiers. Tenant transaction branches come from account/device assignments; the
 workspace uses real database-backed operation dialogs and cash/activity data.
 Manual entry remains available.
 
+- [Approved UI implementation and remaining boundaries](docs/APPROVED_UI_PARITY.md)
+- [Customers and accounts](CUSTOMERS_AND_ACCOUNTS.md)
+- [Expenses and daily reports](docs/EXPENSES_AND_REPORTS.md)
+- [Tenant settings and branding](docs/TENANT_WORKSPACE_CONFIGURATION.md)
 - [Configure plans, SMS capture and the workspace](docs/SMS_AND_PLAN_CONFIGURATION.md)
 - [Connect the Android phone](tools/android-sms-relay/README.md)
 - [Automatic branch behavior](docs/AUTOMATIC_BRANCH_CONTEXT.md)

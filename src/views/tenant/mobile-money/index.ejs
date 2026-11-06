@@ -1,35 +1,17 @@
 <% const currentBranch = typeof operationBranch !== 'undefined' ? operationBranch : (data.branches || []).find(b => String(b._id) === String(user.transactionBranchId || user.branchId || data.selectedBranchId || '') && b.status !== 'archived');
    const currentBranchId = currentBranch ? String(currentBranch._id) : null;
    const branchProblem = typeof operationBranchError === 'string' && operationBranchError ? operationBranchError : 'An active operating branch must be assigned to your account before creating records.'; %>
-<section class="view show">
+<section class="view show mobileMoneyPage">
  <%- include('../../partials/operation-branch', {currentBranch, branchProblem, user}) %>
-  <p class="tiny"><a class="btn" href="/tenant/mobile-money/shifts">Manage physical cash shifts</a> Request an opening cash shift and obtain independent approval before recording new activity. A shift is not provider float or a settled balance.</p>
+  <p class="tiny"><% if(['Tenant Owner','Mobile Money Operator','Branch Manager','Reconciliation Officer','Auditor'].includes(user.role)){ %><a class="btn" href="/tenant/mobile-money/shifts">Manage physical cash shifts</a><% } %> Obtain independent opening approval before recording Cash payments. Bank and Wallet Balance entries do not move the physical cash drawer. A shift is not provider float or a settled balance.</p>
+  <div class="richActions">
+    <% if(user.permissions.includes('*') || user.permissions.includes('mobile_money.cash_in')){ %><a class="btn" href="/tenant/mobile-money/cash-in" data-transaction-kind="cash_in">Cash-in</a><% } %>
+    <% if(user.permissions.includes('*') || user.permissions.includes('mobile_money.cash_out')){ %><a class="btn" href="/tenant/mobile-money/cash-out" data-transaction-kind="cash_out">Cash-out</a><% } %>
+    <a class="btn" href="/tenant/mobile-money/network-activity">Network activity</a><a class="btn" href="/tenant/mobile-money/cash-impact">Cash impact</a><% if((user.permissions||[]).some(permission=>['*','mobile_money.report','reports.view'].includes(permission))){ %><a class="btn" href="/tenant/mobile-money/report">Mobile money report</a><% } %>
+  </div>
   <div class="grid">
     <% if (data.canRecord && currentBranch) { %>
-    <form class="card" method="post" action="/tenant/mobile-money/cash-in" autocomplete="off">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
-      <div class="cardHead"><b>Mobile money — operational record</b><span>Cash-in / cash-out registration</span></div>
-      <div class="cardBody" style="display:grid;gap:12px">
-        <p class="tiny">This records an agent operation for later network verification. It does not send money, debit an account, or confirm settlement.</p>
-
-        <div class="row2">
-          <label class="field">Customer name<input class="control" name="customer" maxlength="120" required></label>
-          <label class="field">Network<select class="control" name="network"><option>MTN</option><option>Airtel</option><option>M-Pesa</option></select></label>
-        </div>
-        <label class="field">Network reference / confirmation number<input class="control" name="networkReference" required minlength="5" maxlength="100" autocomplete="off" placeholder="Reference from the network receipt"></label>
-        <div class="row3">
-          <label class="field">Amount<input class="control" type="number" name="amount" min="1" step="0.01" required></label>
-          <label class="field">Fee<input class="control" type="number" name="fee" min="0" step="0.01" value="0" required></label>
-          <div class="field"><span>Currency</span><input type="hidden" name="currency" value="<%= currentBranch.currency %>"><span class="control"><%= currentBranch.currency %></span></div>
-        </div>
-        <div class="rowBtns">
-        <% if (user.permissions.includes('*') || user.permissions.includes('mobile_money.cash_in')) { %><button class="btn btnPrimary" formaction="/tenant/mobile-money/cash-in">Record cash in</button><% } %>
-        <% if (user.permissions.includes('*') || user.permissions.includes('mobile_money.cash_out')) { %><button class="btn" formaction="/tenant/mobile-money/cash-out">Record cash out</button><% } %>
-        <% if (!data.canRecord) { %><p class="tiny">Your role has read-only access.</p><% } %>
-        </div>
-      </div>
-    </form>
+    <%- include('_entry-form',{currentBranch,operation:(user.permissions.includes('*') || user.permissions.includes('mobile_money.cash_in')) ? 'cash_in' : 'cash_out'}) %>
     <% } %>
 
     <section class="card"><div class="cardHead"><b>Network activity</b><span><%= data.summary.total %> records today (UTC)</span><a class="btn" href="/tenant/mobile-money/history">All history</a></div><div class="cardBody txList">
@@ -37,7 +19,7 @@
       <% data.summary.recent.forEach(t => { %>
         <div class="tx" data-search-row>
           <div class="txMeta"><b><a href="/tenant/mobile-money/<%= t._id %>"><%= t.network %> · <%= t.networkReference %></a></b>
-            <span><%= t.customer %> · <%= t.operation === 'cash_in' ? 'Cash in' : 'Cash out' %> · <%= t.status.replace(/_/g,' ') %> · Internal review: <%= (t.reviewState || 'awaiting_review').replace(/_/g,' ') %> · Correction: <%= (t.correctionState || 'none').replace(/_/g,' ') %></span>
+            <span><%= t.customer %> · <%= t.entrySource === 'sms' ? 'SMS capture' : 'Manual' %> · <%= t.operation === 'cash_in' ? 'Cash-in' : 'Cash-out' %> · <%= t.status.replace(/_/g,' ') %> · Internal review: <%= (t.reviewState || 'awaiting_review').replace(/_/g,' ') %> · Correction: <%= (t.correctionState || 'none').replace(/_/g,' ') %></span>
           </div><b><%= money(t.currency, amountFromMinor(t.amountMinor,t.currency)) %></b>
         </div>
         <% if(data.canRecord && String(t.operatorId)===String(user.id) && t.status==='pending_verification' && ['none','denied',null,undefined].includes(t.correctionState) && (t.correctionAttempts||0)<5){ %>
@@ -78,7 +60,7 @@
       <% data.reviewQueue.forEach(t => { %>
         <form method="post" action="/tenant/mobile-money/<%= t._id %>/review" class="card" style="margin:12px 0;padding:12px">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-          <div class="cardHead"><b><%= t.network %> · <%= t.networkReference %></b><span><%= t.customer %> · <%= t.operation.replace('_',' ') %> · <%= money(t.currency,amountFromMinor(t.amountMinor,t.currency)) %></span></div>
+          <div class="cardHead"><b><%= t.network %> · <%= t.networkReference %></b><span><%= t.customer %> · <%= t.entrySource === 'sms' ? 'SMS capture' : 'Manual' %> · <%= t.operation.replace('_',' ') %> · <%= money(t.currency,amountFromMinor(t.amountMinor,t.currency)) %></span></div>
             <label class="field">Evidence or dispute explanation (12–400 characters)
               <textarea class="control" name="note" minlength="12" maxlength="400" required rows="2" placeholder="State what evidence was checked or why this record is disputed"></textarea>
             </label>

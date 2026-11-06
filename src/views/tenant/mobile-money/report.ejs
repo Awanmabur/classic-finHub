@@ -1,0 +1,16 @@
+<% const exportParams = new URLSearchParams(); Object.entries(data.filters || {}).forEach(([key,value])=>{if(value)exportParams.set(key,value);}); %>
+<section class="view show mobileMoneyPage">
+  <section class="card"><div class="cardHead"><div><b>Mobile money report</b><br><span>Standalone report for mobile money operations.</span></div><% if(data.canExport){ %><a class="btn" href="/tenant/mobile-money/report/export.csv?<%= exportParams.toString() %>">Export CSV</a><% } %></div><div class="cardBody richPageGrid">
+    <%- include('_filters',{filterAction:'/tenant/mobile-money/report'}) %>
+    <% if(!data.summary.byCurrency.length){ %><div class="richPageThree"><div class="stat"><div class="k">Mobile tx</div><div class="v">0</div></div><div class="stat"><div class="k">Mobile volume</div><div class="v">—</div></div><div class="stat"><div class="k">Cash impact</div><div class="v">—</div></div></div><% } %>
+    <% data.summary.byCurrency.forEach(currency=>{ %><div class="mobileMoneyCurrencyBlock"><h3><%= currency.currency %></h3><div class="richPageThree">
+      <div class="stat"><div class="k">Mobile tx</div><div class="v"><%= currency.count %></div><div class="s"><span class="dot"></span><span>Active records</span></div></div>
+      <div class="stat"><div class="k">Mobile volume</div><div class="v"><%= currency.formatted.volume %></div><div class="s"><span class="dot"></span><span>Cash-in and Cash-out</span></div></div>
+      <div class="stat"><div class="k">Cash impact</div><div class="v"><%= currency.formatted.cashImpact %></div><div class="s"><span class="dot"></span><span>Provisional drawer movement</span></div></div>
+    </div></div><% }) %>
+    <div class="summary"><div class="sumRow"><span>Manual records</span><b><%= data.summary.manualCount %></b></div><div class="sumRow"><span>SMS capture records</span><b><%= data.summary.smsCount %></b></div><div class="sumRow"><span>Voided originals</span><b><%= data.summary.voidedCount %></b></div></div>
+    <div class="tableWrap"><table><thead><tr><th>Network</th><th>Cash-in Count</th><th>Cash-out Count</th><th>Total Volume</th><th>Fees</th></tr></thead><tbody><% if(!data.networks.length){ %><tr><td colspan="5">No activity in this period.</td></tr><% } %><% data.networks.forEach(network=>{ %><tr data-search-row><td><%= network.network %> · <%= network.currency %></td><td><%= network.cashInCount %></td><td><%= network.cashOutCount %></td><td><%= network.formatted.volume %></td><td><%= network.formatted.fees %></td></tr><% }) %></tbody></table></div>
+    <%- include('_activity',{activityRecords:data.records,activityPath:'/tenant/mobile-money/report'}) %>
+    <p class="tiny">Report figures respect your tenant, assigned branch, and role scope. Currency totals remain separate. Provider status and internal review are retained on every record; report totals do not confirm settlement.</p>
+  </div></section>
+</section>

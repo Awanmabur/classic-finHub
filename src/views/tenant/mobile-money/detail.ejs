@@ -4,14 +4,18 @@
   <div class="cardBody"><div class="row3">
     <p><b>Network:</b> <%= data.record.network %></p>
     <p><b>Entry source:</b> <%= data.record.entrySource==='sms'?'SMS capture':'Manual entry' %></p>
-    <p><b>Reference:</b> <%= data.record.networkReference %></p>
-    <p><b>Operation:</b> <%= data.record.operation.replaceAll('_',' ') %></p>
+    <p><b>Wallet / agent float reference:</b> <%= data.record.networkReference %></p>
+    <p><b>Operation:</b> <%= data.record.operation === 'cash_in' ? 'Cash-in' : 'Cash-out' %></p>
+    <p><b>Customer name:</b> <%= data.record.customer %></p>
+    <p><b>Customer phone:</b> <%= data.record.customerPhone || 'Not provided' %></p>
+    <p><b>Customer ID / note:</b> <%= data.record.customerNote || 'Not provided' %></p>
+    <p><b>Payment method:</b> <%= data.record.paymentMethod || 'Cash' %></p>
     <p><b>Amount:</b> <%= money(data.record.currency,amountFromMinor(data.record.amountMinor,data.record.currency)) %></p>
-    <p><b>Fee:</b> <%= money(data.record.currency,amountFromMinor(data.record.feeMinor,data.record.currency)) %></p>
+    <p><b>Fee / commission:</b> <%= money(data.record.currency,amountFromMinor(data.record.feeMinor,data.record.currency)) %></p>
     <p><b>Recorded (UTC):</b> <%= new Date(data.record.createdAt).toISOString() %></p>
-    <p><b>Internal review:</b> <%= data.record.reviewState||'awaiting_review' %></p>
-    <p><b>Correction:</b> <%= data.record.correctionState||'none' %></p>
-    <p><b>Record status:</b> <%= data.record.status %></p>
+    <p><b>Internal review:</b> <%= (data.record.reviewState||'awaiting_review').replaceAll('_',' ') %></p>
+    <p><b>Correction:</b> <%= (data.record.correctionState||'none').replaceAll('_',' ') %></p>
+    <p><b>Record status:</b> <%= data.record.status.replaceAll('_',' ') %></p>
   </div><p class="tiny">An internally voided entry is retained for investigation and reporting. It does not reverse any provider transaction, refund a customer or settle a balance.</p></div></section>
   <% if(data.canRequestCorrection){ %>
   <section class="card" style="margin-top:14px"><div class="cardHead"><b>Request a correction</b><span>Original entry is preserved</span></div>

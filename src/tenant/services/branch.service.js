@@ -1,5 +1,6 @@
 'use strict';
 const mongoose=require('mongoose');
+const {currencyCodes}=require('../../config/currencies');
 const Tenant=require('../../platform/models/Tenant');
 const {limitsFor}=require('../../platform/services/commercial.service');
 const {getTenantConnection}=require('../../config/mongo');
@@ -11,7 +12,7 @@ function validate(input,create=false){
   const name=String(input?.name||'').trim(),address=String(input?.address||'').trim();
   const code=String(input?.code||'').trim().toLowerCase();
   if(name.length<2||name.length>100||address.length>240)throw fail('Branch name must be 2–100 characters; address at most 240');
-  if(create&&(!/^[a-z0-9][a-z0-9-]{1,30}$/.test(code)||!['UGX','KES'].includes(input?.currency))) throw fail('Invalid branch code or currency');
+  if(create&&(!/^[a-z0-9][a-z0-9-]{1,30}$/.test(code)||!currencyCodes.includes(input?.currency))) throw fail('Invalid branch code or currency');
   return {name,address,...(create?{code,currency:input.currency}:{})};
 }
 async function list(tenant){const conn=getTenantConnection(tenant.slug);await ensureTenantIndexes(conn);return branchModel(conn).find({}).sort({status:1,name:1}).limit(500).lean();}

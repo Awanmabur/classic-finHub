@@ -1,0 +1,62 @@
+<%
+const moduleKey=data.moduleKey;
+const links=moduleKey==='money_transfer'?[
+ ['/send','Send money / Generate PIN'],['/payout','Payout by PIN'],['/pending-payouts','Pending payout queue'],['/records','Money transfer record'],['/fees','Transfer fee summary'],['/report','Transfer report summary']
+]:moduleKey==='forex'?[
+ ['/buy','Buy forex from customer'],['/sell','Sell forex to customer'],['/rates','Active rate board'],['/cash-impact','Forex cash impact'],['/records','Forex operation records'],['/report','Forex report summary']
+]:[['/deposit','Deposit'],['/withdraw','Withdraw'],['/transfer','Account transfer'],['/accounts','External bank references'],['/movements','Banking request movements'],['/report','Banking report summary']];
+const statuses=moduleKey==='money_transfer'?['requested','approved_pending_provider','rejected','cancelled','expired']:moduleKey==='forex'?['quoted','approved_pending_execution','rejected','cancelled','expired']:['requested','approved_pending_bank','rejected','cancelled','expired'];
+const kinds=moduleKey==='banking'?['deposit_request','withdrawal_request','transfer_request']:moduleKey==='forex'?['buy','sell','quote']:[];
+const currencies=data.currencies||(moduleKey==='forex'?['UGX','USD','SSP','KES','EUR']:['UGX','USD','SSP','KES']);
+const filterQuery=new URLSearchParams();
+['from','to','status','currency','kind'].forEach(key=>{if(data.filters[key])filterQuery.set(key,data.filters[key]);});
+const reportMode=!['records','pending','payout'].includes(data.mode);
+%>
+<section class="view show">
+ <section class="card">
+  <div class="cardHead"><b><%= data.title %></b><span><%= data.total %> internal record<%= data.total===1?'':'s' %> in range</span></div>
+  <div class="cardBody">
+   <nav class="rowBtns" aria-label="<%= data.label %> sections"><% links.forEach(([path,label])=>{ %><a class="btn" href="<%= data.basePath+path %>"><%= label %></a><% }) %></nav>
+   <p class="tiny"><%= data.note %></p>
+  </div>
+ </section>
+ <% if(data.mode==='cash'){ %>
+ <section class="card" style="margin-top:14px"><div class="cardHead"><b>Cash stock and drawer impact</b><span>Execution source unavailable</span></div>
+  <div class="cardBody"><p class="tiny">Approved rates and customer quotations are stored in the database. They do not create currency stock, move drawer cash, or post a settled foreign exchange trade. No cash balance is inferred from these quotations.</p><a class="btn" href="/tenant/forex/records">Review quotation records</a></div>
+ </section>
+ <% } %>
+ <% if(data.mode==='payout'){ %>
+ <section class="card" style="margin-top:14px"><div class="cardHead"><b>Payout by PIN</b><span>Provider payout is not enabled</span></div>
+  <div class="cardBody"><p class="tiny">Transfer instructions can be recorded and independently approved. A provider has not issued payout PINs or confirmed collection in this workspace. PIN checking and cash payout stay unavailable until a verified payout integration is configured.</p>
+   <dl class="row3"><div><dt>PIN match</dt><dd>Provider required</dd></div><div><dt>Amount</dt><dd>Select a transfer record below</dd></div><div><dt>Status</dt><dd>Awaiting provider confirmation</dd></div></dl>
+   <div class="rowBtns"><a class="btn btnPrimary" href="/tenant/money-transfer/pending-payouts">Pending payout queue</a><a class="btn" href="/tenant/money-transfer/send">Record transfer instructions</a></div>
+  </div>
+ </section>
+ <% } %>
+ <section class="card" style="margin-top:14px"><div class="cardHead"><b>Filter <%= reportMode?'summary':'records' %></b><span>Dates use UTC · maximum 90 days</span></div>
+  <div class="cardBody"><form method="get" class="row3">
+   <label class="field">From<input class="control" name="from" type="date" value="<%= data.filters.from %>" required></label>
+   <label class="field">To<input class="control" name="to" type="date" value="<%= data.filters.to %>" required></label>
+   <label class="field">Currency<select class="control" name="currency"><option value="">All currencies · separate totals</option><% currencies.forEach(currency=>{ %><option value="<%= currency %>" <%= data.filters.currency===currency?'selected':'' %>><%= typeof currencyLabel==='function'?currencyLabel(currency):(currency==='KES'?'KSH':currency) %></option><% }) %></select></label>
+   <% if(data.mode!=='pending'){ %><label class="field">Status<select class="control" name="status"><option value="">All internal states</option><% statuses.forEach(status=>{ %><option value="<%= status %>" <%= data.filters.status===status?'selected':'' %>><%= status.replaceAll('_',' ') %></option><% }) %></select></label><% } %>
+   <% if(kinds.length){ %><label class="field">Operation<select class="control" name="kind"><option value="">All operations</option><% kinds.forEach(kind=>{ %><option value="<%= kind %>" <%= data.filters.kind===kind?'selected':'' %>><%= kind.replaceAll('_',' ') %></option><% }) %></select></label><% } %>
+   <div class="rowBtns"><button class="btn btnPrimary" type="submit">Apply filters</button><% if(data.canExport){ %><a class="btn" href="<%= data.basePath %>/report/export.csv?<%= filterQuery.toString() %>">Export CSV</a><% } %></div>
+  </form></div>
+ </section>
+ <% if(!reportMode){ %>
+ <section class="card" style="margin-top:14px"><div class="cardHead"><b><%= data.mode==='pending'?'Awaiting provider execution':'Recorded activity' %></b><span><%= data.records.items.length %> records on this page</span></div>
+  <div class="cardBody tableWrap"><table><thead><tr><th>Date UTC</th><th>Reference</th><th>Customer / parties</th><th>Operation</th><th>Amount</th><% if(moduleKey==='forex'){ %><th>Target quote</th><% } %><% if(moduleKey==='money_transfer'){ %><th>Proposed fee</th><% } %><th>Internal status</th><th>Details</th></tr></thead><tbody>
+   <% if(!data.records.items.length){ %><tr><td colspan="9">No records match these filters in your authorized scope.</td></tr><% } %>
+   <% data.records.items.forEach(row=>{ %><tr data-search-row><td><%= new Date(row.createdAt).toISOString().slice(0,16).replace('T',' ') %></td><td><%= row.reference %></td><td><%= row.party %></td><td><%= row.activity %></td><td><%= row.volume %></td><% if(moduleKey==='forex'){ %><td><%= row.target %></td><% } %><% if(moduleKey==='money_transfer'){ %><td><%= row.fee %></td><% } %><td><span class="tag"><%= row.status.replaceAll('_',' ') %></span></td><td><a class="btn" href="<%= row.href %>">Open record</a></td></tr><% }) %>
+  </tbody></table></div>
+  <% if(data.records.nextCursor){ filterQuery.set('cursor',data.records.nextCursor); %><div class="cardBody"><a class="btn" href="?<%= filterQuery.toString() %>">Next page</a></div><% } %>
+ </section>
+ <% } else { %>
+ <section class="card" style="margin-top:14px"><div class="cardHead"><b><%= data.mode==='fees'?'Proposed transfer fees by day and currency':'Activity by day, currency and status' %></b><span>Amounts stay separate by currency</span></div>
+  <div class="cardBody tableWrap"><table><thead><tr><th>Date UTC</th><th>Operation</th><th>Currency</th><th>Records</th><th>Requested / quoted amount</th><% if(moduleKey==='forex'){ %><th>Target quoted amount</th><% } %><% if(moduleKey==='money_transfer'){ %><th>Proposed fees</th><% } %><th>Internal status</th></tr></thead><tbody>
+   <% if(!data.rows.length){ %><tr><td colspan="8">No activity matches these filters.</td></tr><% } %>
+   <% data.rows.forEach(row=>{ %><tr><td><%= row.day %></td><td><%= row.kind.replaceAll('_',' ') %></td><td><%= row.currency %></td><td><%= row.count %></td><td><%= row.volume %></td><% if(moduleKey==='forex'){ %><td><%= row.target %></td><% } %><% if(moduleKey==='money_transfer'){ %><td><%= row.fees %></td><% } %><td><%= row.status.replaceAll('_',' ') %></td></tr><% }) %>
+  </tbody></table></div>
+ </section>
+ <% } %>
+</section>

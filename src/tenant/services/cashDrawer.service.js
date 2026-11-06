@@ -87,12 +87,18 @@ async function submit(conn,tenant,actor,shiftId,input={}){
    if(outstanding)throw fail(`Review or void ${outstanding} unresolved records before closing`,409);
    const counted=await Money.countDocuments({cashSessionId:result._id}).session(tx);
    if(counted!==result.recordCount)throw fail('Cash shift record count mismatch',409);
+   const Expenses=require('../models/expenses').expenseModel(conn);
+   const unresolvedExpenses=await Expenses.countDocuments({cashSessionId:result._id,
+    $or:[{status:'pending_review'},{correctionState:'requested'}]}).session(tx);
+   if(unresolvedExpenses)throw fail(`Review or void ${unresolvedExpenses} unresolved expenses before closing`,409);
    // Recompute movement from immutable source records. Comparing with the
    // incrementally maintained drawer figure catches drift or missing updates.
    const aggregation=await Money.aggregate([{$match:{cashSessionId:result._id}},
-    {$group:{_id:null,movement:{$sum:{$cond:[{$eq:['$status','voided_internal']},
+    {$group:{_id:null,movement:{$sum:{$cond:[{$or:[{$eq:['$status','voided_internal']},{$ne:[{$ifNull:['$paymentMethod','Cash']},'Cash']}]},
       0,{$cond:[{$eq:['$operation','cash_in']},'$amountMinor',{$multiply:['$amountMinor',-1]}]}]}}}}]).session(tx);
-   const computed=BigInt(String(aggregation[0]?.movement||'0'));
+   const expenseAggregation=await Expenses.aggregate([{$match:{cashSessionId:result._id,paymentMethod:'Cash',status:'approved'}},
+    {$group:{_id:null,amount:{$sum:'$amountMinor'}}}]).session(tx);
+   const computed=BigInt(String(aggregation[0]?.movement||'0'))-BigInt(String(expenseAggregation[0]?.amount||'0'));
    if(computed!==minor(result.provisionalMovementMinor))throw fail('Cash shift movement does not reconcile with original records',409);
    const declared=BigInt(mobile.toMinor(input.countedCash,result.currency,true));
    const expected=minor(result.openingMinor)+minor(result.provisionalMovementMinor);

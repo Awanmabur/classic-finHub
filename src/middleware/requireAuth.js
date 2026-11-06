@@ -18,7 +18,7 @@ return async function requireAuth(req, res, next) {
     // Existing staff retain only their previous role-derived live module access until reassigned.
     const { assignableModules } = require('../tenant/services/moduleAccess.service');
     const legacyModules = account.role === 'Tenant Owner' ? assignableModules(req.tenant,account.role) : [];
-    req.user = { id: String(account._id), name: account.name, email: account.email, role: account.role, permissions: permissionsFor(account.role), branchId: account.branchId || null, allowedModules: account.allowedModules == null ? legacyModules : account.allowedModules };
+    req.user = { id: String(account._id), name: account.name, email: account.email, role: account.role, authVersion: account.authVersion || 0, permissions: permissionsFor(account.role), branchId: account.branchId || null, allowedModules: account.allowedModules == null ? legacyModules : account.allowedModules };
     if (account.role!=='Tenant Owner') {
       if(!/^[a-f0-9]{24}$/i.test(String(account.branchId || ''))) return res.status(403).send('Staff branch assignment is required. Contact your tenant owner.');
       const activeBranch = await getBranchModel(req.tenantDb).exists({_id:account.branchId,status:'active'});

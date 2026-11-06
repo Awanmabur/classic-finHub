@@ -1,12 +1,14 @@
 'use strict';
 const mongoose=require('mongoose');
+const {currencyCodes}=require('../../config/currencies');
 const O=mongoose.Schema.Types.ObjectId;
 const party=new mongoose.Schema({contactId:{type:O,required:true,immutable:true},name:{type:String,required:true,immutable:true},phone:{type:String,required:true,immutable:true},country:{type:String,required:true,immutable:true}}, {_id:false,strict:'throw'});
 const schema=new mongoose.Schema({
+ capture:{type:require('../services/operationCapture.service').schema('money_transfer'),default:()=>({}),immutable:true},
   reference:{type:String,required:true,immutable:true},idempotencyKey:{type:String,required:true,immutable:true},
   branchId:{type:O,required:true,immutable:true},createdBy:{type:O,required:true,immutable:true},
   sender:{type:party,required:true,immutable:true},beneficiary:{type:party,required:true,immutable:true},
-  currency:{type:String,enum:['UGX','KES'],required:true,immutable:true},
+  currency:{type:String,enum:currencyCodes,required:true,immutable:true},
   amountMinor:{type:mongoose.Schema.Types.Decimal128,required:true,immutable:true},feeMinor:{type:mongoose.Schema.Types.Decimal128,required:true,immutable:true},
   status:{type:String,enum:['requested','approved_pending_provider','rejected','cancelled','expired'],default:'requested',required:true},
   validDays:{type:Number,min:1,max:30,required:true,immutable:true},expiresAt:{type:Date,required:true,immutable:true},

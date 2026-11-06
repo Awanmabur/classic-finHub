@@ -1,0 +1,11 @@
+<% const mobileActivity = activityRecords || {items:[]}; const activityFilters = data.filters || {}; %>
+<div class="txList">
+  <% if(!mobileActivity.items.length){ %><p class="tiny">No mobile money records match this period and these filters.</p><% } %>
+  <% mobileActivity.items.forEach(record=>{ %>
+    <a class="tx mobileMoneyActivity" href="/tenant/mobile-money/<%= record._id %>" data-search-row>
+      <div class="txLeft"><span class="txDot <%= record.status === 'internally_voided' ? 'bad' : 'warn' %>" aria-hidden="true"></span><div class="txMeta"><b><%= record.operation === 'cash_in' ? 'Cash-in' : 'Cash-out' %> · <%= record.network %> · <%= record.customer %></b><span><%= record.networkReference %><% if(record.customerPhone){ %> · <%= record.customerPhone %><% } %> · <%= new Date(record.createdAt).toISOString().slice(0,16).replace('T',' ') %> UTC</span><span><%= record.entrySource === 'sms' ? 'SMS capture' : 'Manual' %> · <%= (record.reviewState || 'awaiting_review').replaceAll('_',' ') %> · Correction: <%= (record.correctionState || 'none').replaceAll('_',' ') %></span></div></div>
+      <div class="txAmt"><%= money(record.currency,amountFromMinor(record.amountMinor,record.currency)) %><small><%= record.status.replaceAll('_',' ') %></small></div>
+    </a>
+  <% }) %>
+</div>
+<% if(mobileActivity.nextCursor){ const nextParams = new URLSearchParams(); Object.entries(activityFilters).forEach(([key,value])=>{if(value)nextParams.set(key,value);}); nextParams.set('cursor',mobileActivity.nextCursor); %><div class="rowBtns mobileMoneyPagination"><a class="btn" href="<%= activityPath %>?<%= nextParams.toString() %>">Next page</a></div><% } %>

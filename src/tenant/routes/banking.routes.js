@@ -6,13 +6,14 @@ const requirePermission=require('../../middleware/requirePermission');
 const financial=require('../../platform/services/actionThrottle.service').financial;
 const bank=require('../services/banking.service');
 const branchService=require('../services/branch.service');
-const {hasPermission}=require('../services/moduleAccess.service');
+const {hasPermission,hasModuleForUser}=require('../services/moduleAccess.service');
 const {flash}=require('../../utils/view');
 const {bankReferenceModel}=require('../models');
 const {formatMoneyMinor}=require('../services/mobileMoney.service');
 const {bankInstitutionOptions,resolveBankInstitution}=require('../../utils/selectionOptions');
 function routes({renderTenant}){
  const router=routerFactory();
+ router.use(require('./operationWorkspace.routes')({renderTenant,moduleKey:'banking'}));
  async function available(req){return (await branchService.list(req.tenant)).filter(b=>b.status==='active'&&
   (req.user.role==='Tenant Owner'||String(b._id)===String(req.user.branchId)));}
  router.get('/',requirePermission('banking.view'),async(req,res,next)=>{
@@ -24,6 +25,7 @@ function routes({renderTenant}){
    const selectedId=String(req.operationBranch?._id || '');
    const branch=branches.find(b=>String(b._id)===selectedId);
    const references=branch?await bank.listReferences(req.tenantDb,req.tenant,req.user,{branchId:selectedId}):[];
+   if(branch&&hasModuleForUser(req.tenant,req.user,'accounts')&&hasPermission(req.user,'accounts.view'))references.push(...await require('../customerAccounts/bankingBridge').choices(req.tenantDb,req.tenant,req.user,{branchId:selectedId}));
    renderTenant(req,res,'banking/index','Banking Requests','Controlled bank-operation requests. No real balance, deposit, withdrawal, transfer or bank settlement is represented.',{
     records,branches,queue,references,selectedBranchId:branch?selectedId:null,
     canCreate:bank.operator(req.user)&&hasPermission(req.user,'banking.requests.create'),

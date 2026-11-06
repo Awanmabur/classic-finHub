@@ -9,6 +9,7 @@ const {hasPermission}=require('../services/moduleAccess.service');
 const {flash}=require('../../utils/view');
 module.exports=function routes({renderTenant}){
  const router=routerFactory();
+ router.use(require('./operationWorkspace.routes')({renderTenant,moduleKey:'forex'}));
  async function available(req){return (await branches.list(req.tenant)).filter(b=>b.status==='active'&&
   (req.user.role==='Tenant Owner'||String(b._id)===String(req.user.branchId)));}
  router.get('/',requirePermission('forex.view'),async(req,res,next)=>{

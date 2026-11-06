@@ -1,10 +1,16 @@
-# Project review — 5 November 2026
+# Project review — updated 6 November 2026
 
 This register covers the uploaded application reviewed and repaired in this session, including onboarding, tenant administration, financial recording, authentication, dependencies, and the active EJS interface. It records confirmed findings and concrete remaining work. It is not an exhaustive security audit, a claim that every screen matches the approved prototype, or approval to process real funds.
 
 The active dashboards use `src/views/layouts/dashboard.ejs` and the mounted routers in `src/platform/routes/index.js` and `src/tenant/routes/index.js`. The approved root `index.html` is a design reference containing browser-local simulations. A template or legacy controller existing on disk does not establish a working application feature.
 
 Priority: **P0** blocks real financial deployment or requires operational action; **P1** blocks an intended development/product workflow or causes incorrect results; **P2** affects usability, scale, maintainability, or evidence quality. A fixed finding can retain its original priority.
+
+## Approved UI follow-up — 6 November
+
+[Approved UI implementation and remaining boundaries](APPROVED_UI_PARITY.md) records the complete seventy-item navigation, five Mobile Money pages, real customer/account/expense/settings workflows and the distinction between pending instructions and financial execution. New checks cover fresh authorization inside transactions, concurrent independent expense decisions, USD/SSP minor units, published landing snapshots and shared-IP navigation limits.
+
+The account directory is connected to banking instruction selectors; selecting an account still creates a pending instruction rather than inventing a posted deposit. New module entitlements require an explicit plan publication or grant with a positive record allocation. Existing immutable subscription snapshots are preserved.
 
 ## Confirmed defects fixed
 

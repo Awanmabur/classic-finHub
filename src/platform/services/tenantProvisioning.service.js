@@ -52,7 +52,11 @@ async function provisionTenant(payload, adminId) {
   // a tenant/invitation. A failed index build must not leave an accessible but unsafe
   // workspace. A failed platform transaction can leave an empty indexed database,
   // which is preferable to publishing a partially provisioned financial tenant.
-  await require('../../tenant/models').ensureTenantIndexes(getTenantConnection(valid.slug));
+  const tenantConnection=getTenantConnection(valid.slug);
+  await require('../../tenant/models').ensureTenantIndexes(tenantConnection);
+  await require('../../tenant/customerAccounts/models').ensureIndexes(tenantConnection);
+  await require('../../tenant/models/expenses').ensureExpenseIndexes(tenantConnection);
+  await require('../../tenant/workspace/models').ensure(tenantConnection);
   const session = await mongoose.startSession();
   let tenant;
   try {

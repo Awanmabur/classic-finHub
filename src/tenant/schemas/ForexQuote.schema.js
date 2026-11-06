@@ -1,14 +1,17 @@
 'use strict';
 // Immutable FX quotation, not a trade, receipt or custody instruction.
 const mongoose=require('mongoose');
+const {forexCurrencyCodes}=require('../../config/currencies');
 const O=mongoose.Schema.Types.ObjectId;
 const schema=new mongoose.Schema({
+ capture:{type:require('../services/operationCapture.service').schema('forex'),default:()=>({}),immutable:true},
  reference:{type:String,required:true,immutable:true},
  idempotencyKey:{type:String,required:true,immutable:true},
  branchId:{type:O,required:true,immutable:true},createdBy:{type:O,required:true,immutable:true},
  customerLabel:{type:String,required:true,maxlength:120,immutable:true},
+ operation:{type:String,enum:['buy','sell','quote'],default:'quote',immutable:true},
  rateId:{type:O,required:true,immutable:true},
- fromCurrency:{type:String,required:true,immutable:true},toCurrency:{type:String,required:true,immutable:true},
+ fromCurrency:{type:String,enum:forexCurrencyCodes,required:true,immutable:true},toCurrency:{type:String,enum:forexCurrencyCodes,required:true,immutable:true},
  rateDecimal:{type:String,required:true,immutable:true},
  sourceMinor:{type:mongoose.Schema.Types.Decimal128,required:true,immutable:true},
  targetMinor:{type:mongoose.Schema.Types.Decimal128,required:true,immutable:true},

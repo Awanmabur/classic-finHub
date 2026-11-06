@@ -2,6 +2,7 @@
 // INTERNAL INDICATIVE RATES AND QUOTATIONS ONLY. No currency is bought,
 // sold, held, delivered, posted to a ledger, or settled in this module.
 const crypto=require('node:crypto');
+const financialAuth=require('./financialAuthorization.service');
 const mongoose=require('mongoose');
 const {hasModuleForUser,hasPermission}=require('./moduleAccess.service');
 const {forexRateModel,forexQuoteModel,branchModel,auditEventModel,ensureTenantIndexes}=require('../models');
@@ -9,13 +10,13 @@ const {reserveUsage}=require('../../platform/services/commercial.service');
 const mobile=require('./mobileMoney.service');
 const OID=/^[a-f\d]{24}$/i;
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const DECIMALS=Object.freeze({UGX:0,KES:2,USD:2,EUR:2});
+const {forexCurrencies:DECIMALS}=require('../../config/currencies');
 const RATE_SCALE=100000000n;
 const SYSTEM_ACTOR='000000000000000000000000';
 function fail(message,status=400){const e=new Error(message);e.status=status;return e;}
 function id(value){if(!OID.test(String(value||'')))throw fail('Invalid identifier');return String(value);}
 function text(value,label,min=1,max=120){if(typeof value!=='string'||value.trim().length<min||value.trim().length>max)throw fail(`Invalid ${label}`);return value.trim();}
-function currency(value){if(!Object.hasOwn(DECIMALS,value))throw fail('Unsupported exchange currency');return value;}
+function currency(value){if(typeof value!=='string'||!Object.hasOwn(DECIMALS,value))throw fail('Unsupported exchange currency');return value;}
 function rateScaled(value){
  const valueText=text(value,'exchange rate',1,24);
  if(!/^(?:0|[1-9]\d{0,9})(?:\.\d{1,8})?$/.test(valueText))throw fail('Use a positive rate with no more than eight decimals');
@@ -37,9 +38,9 @@ function converted(sourceMinor,from,to,rate){
  if(rounded<=0n||rounded>100000000000000000n)throw fail('Quote would be too small or exceed the supported limit');
  return rounded;
 }
-function amountLabel(value,ccy){const n=BigInt(String(value?.toString?.()??value)),digits=DECIMALS[currency(ccy)];
- const factor=10n**BigInt(digits),whole=(n/factor).toString(),fraction=digits?'.'+(n%factor).toString().padStart(digits,'0'):'';
- return `${ccy} ${whole.replace(/\B(?=(\d{3})+(?!\d))/g,',')}${fraction}`;
+function amountLabel(value,ccy){const n=BigInt(String(value?.toString?.()??value)),digits=DECIMALS[currency(ccy)],absolute=n<0n?-n:n;
+ const factor=10n**BigInt(digits),whole=(absolute/factor).toString(),fraction=digits?'.'+(absolute%factor).toString().padStart(digits,'0'):'';
+ return `${ccy} ${n<0n?'-':''}${whole.replace(/\B(?=(\d{3})+(?!\d))/g,',')}${fraction}`;
 }
 function moduleAccess(tenant,actor,permission){
  if(!hasModuleForUser(tenant,actor,'forex')||!hasPermission(actor,permission))throw fail('Forex subscription or role permission unavailable',403);
@@ -66,6 +67,8 @@ function rateInput(input){
  return {fromCurrency,toCurrency,rateDecimal,validHours,note};
 }
 function quoteInput(input){
+ const operation=input?.operation||'quote';
+ if(!['buy','sell','quote'].includes(operation))throw fail('Invalid exchange operation');
  const rateId=id(input?.rateId);const customerLabel=text(input?.customerLabel,'customer reference',2,120);
  const amount=text(input?.amount,'source amount',1,32);
  const note=text(input?.note,'quote purpose',12,400);
@@ -73,13 +76,14 @@ function quoteInput(input){
  if(!Number.isSafeInteger(validMinutes)||validMinutes<5||validMinutes>60)throw fail('Quote validity must be 5–60 minutes');
  const idempotencyKey=text(input?.idempotencyKey,'form reference',36,36);
  if(!UUID.test(idempotencyKey))throw fail('Reload the form to obtain a valid request identifier');
- return {rateId,customerLabel,amount,note,validMinutes,idempotencyKey};
+ return {rateId,customerLabel,amount,note,validMinutes,idempotencyKey,operation,capture:require('./operationCapture.service').parse('forex',input)};
 }
 async function proposeRate(conn,tenant,actor,input){
  moduleAccess(tenant,actor,'forex.rate_manage');if(!operator(actor))throw fail('Only assigned Forex staff may propose rates',403);
  const v=rateInput(input),branchId=String((await require('./transactionBranch.service').resolveTransactionBranch(conn,actor,input))._id);await ensureTenantIndexes(conn);
  const session=await conn.startSession();let rate;
  try{await session.withTransaction(async()=>{
+  const authorization=await financialAuth.fenceAction(conn,session,actor,tenant,'forex','forex.rate_manage',{branchId});
   const branch=await branchModel(conn).findOneAndUpdate({_id:branchId,status:'active'},{$inc:{revision:1}},{session,new:true});
   if(!branch)throw fail('The assigned branch must be active',409);
   [rate]=await forexRateModel(conn).create([{branchId,fromCurrency:v.fromCurrency,toCurrency:v.toCurrency,
@@ -94,6 +98,7 @@ async function decideRate(conn,tenant,actor,rateId,input){
  const note=text(input?.note,'review explanation',12,400);await ensureTenantIndexes(conn);
  const session=await conn.startSession();let updated;
  try{await session.withTransaction(async()=>{
+  const authorization=await financialAuth.fenceAction(conn,session,actor,tenant,'forex','forex.rate_review');
   const Rate=forexRateModel(conn);
   const current=await Rate.findOne({_id:id(rateId),status:'pending_review',proposedBy:{$ne:id(actor.id)},expiresAt:{$gt:new Date()},...branchScope(actor)}).session(session);
   if(!current)throw fail('Rate expired, already reviewed, outside your branch, or proposed by you',409);
@@ -120,6 +125,7 @@ function identical(existing,actor,branchId,v){return String(existing.createdBy)=
 // The requested expiry is fixed on creation. For idempotent requests, compare
 // their immutable input fields, not the moving clock-based expiry.
 function equivalent(existing,actor,branchId,v){return String(existing.createdBy)===String(actor.id)&&String(existing.branchId)===branchId&&
+ (existing.operation||'quote')===(v.operation||'quote')&&require('./operationCapture.service').equivalent('forex',existing.capture,v.capture)&&
  String(existing.rateId)===v.rateId&&existing.customerLabel===v.customerLabel&&existing.note===v.note&&
  existing.sourceMinor.toString()===v.sourceMinor.toString()&&existing.validMinutes===v.validMinutes;}
 async function createQuote(conn,tenant,actor,input){
@@ -131,22 +137,25 @@ async function createQuote(conn,tenant,actor,input){
   return {quote:existing,duplicate:true};}
  const session=await conn.startSession();let quote;
  try{await session.withTransaction(async()=>{
+  const authorization=await financialAuth.fenceAction(conn,session,actor,tenant,'forex','forex.quotes.create',{branchId});
   const Rate=forexRateModel(conn);const now=new Date();
   const rate=await Rate.findOneAndUpdate({_id:v.rateId,branchId,status:'active',expiresAt:{$gt:new Date(now.getTime()+v.validMinutes*60000)}},
    {$inc:{revision:1}},{session,new:true});
   if(!rate)throw fail('The approved rate is unavailable or expires before this quote',409);
   const sourceMinor=minor(v.amount,rate.fromCurrency);
   const targetMinor=converted(sourceMinor,rate.fromCurrency,rate.toCurrency,rateScaled(rate.rateDecimal));
+  const proposedFee=require('./operationCapture.service').commissionMinor(v.capture,rate.toCurrency);
+  if(proposedFee>targetMinor)throw fail('Commission / fee cannot exceed the quoted settlement amount');
   const branch=await branchModel(conn).findOneAndUpdate({_id:branchId,status:'active'},{$inc:{revision:1}},{session,new:true});
   if(!branch)throw fail('Assigned branch is unavailable',409);
-  await reserveUsage(tenant,'forex_quotes',session);
+  await reserveUsage(authorization.tenant,'forex_quotes',session);
   [quote]=await Quote.create([{reference:`FX-${crypto.randomBytes(12).toString('hex').toUpperCase()}`,
-   idempotencyKey:v.idempotencyKey,branchId,createdBy:actor.id,customerLabel:v.customerLabel,rateId:rate._id,
+   idempotencyKey:v.idempotencyKey,branchId,createdBy:actor.id,customerLabel:v.customerLabel,operation:v.operation,capture:v.capture,rateId:rate._id,
    fromCurrency:rate.fromCurrency,toCurrency:rate.toCurrency,rateDecimal:rate.rateDecimal,
    sourceMinor:String(sourceMinor),targetMinor:String(targetMinor),note:v.note,validMinutes:v.validMinutes,
    expiresAt:new Date(now.getTime()+v.validMinutes*60000)}],{session});
   await auditEventModel(conn).create([{action:'forex.quote.created',actorId:actor.id,targetId:quote._id,
-   metadata:{branchId,reference:quote.reference,pair:`${rate.fromCurrency}/${rate.toCurrency}`}}],{session});
+   metadata:{branchId,reference:quote.reference,operation:v.operation,pair:`${rate.fromCurrency}/${rate.toCurrency}`}}],{session});
  });return {quote,duplicate:false};}
  catch(e){if(e.code===11000){const found=await Quote.findOne({idempotencyKey:v.idempotencyKey}).lean();
   if(found&&equivalent(found,actor,branchId,{...v,sourceMinor:minor(v.amount,found.fromCurrency)}))return {quote:found,duplicate:true};
@@ -159,6 +168,7 @@ async function decideQuote(conn,tenant,actor,quoteId,input){
  const note=text(input?.note,'review reason',12,400);await ensureTenantIndexes(conn);
  const session=await conn.startSession();let updated;
  try{await session.withTransaction(async()=>{
+  const authorization=await financialAuth.fenceAction(conn,session,actor,tenant,'forex','forex.quotes.review');
   updated=await forexQuoteModel(conn).findOneAndUpdate({_id:id(quoteId),status:'quoted',createdBy:{$ne:id(actor.id)},expiresAt:{$gt:new Date()},...branchScope(actor)},
    {$set:{status:decision==='approve'?'approved_pending_execution':'rejected',reviewedBy:actor.id,reviewedAt:new Date(),reviewNote:note},$inc:{revision:1}},
    {session,new:true});
@@ -171,6 +181,7 @@ async function cancelQuote(conn,tenant,actor,quoteId,input){
  moduleAccess(tenant,actor,'forex.view');const note=text(input?.note,'cancellation reason',12,400);await ensureTenantIndexes(conn);
  const session=await conn.startSession();let updated;
  try{await session.withTransaction(async()=>{
+  const authorization=await financialAuth.fenceAction(conn,session,actor,tenant,'forex','forex.view');
   updated=await forexQuoteModel(conn).findOneAndUpdate({_id:id(quoteId),status:'quoted',...branchScope(actor),
    ...(actor.role==='Tenant Owner'?{}:{createdBy:id(actor.id)})},
    {$set:{status:'cancelled',cancelledBy:actor.id,cancelledAt:new Date(),cancelNote:note},$inc:{revision:1}},
@@ -226,12 +237,14 @@ async function expireDue(conn,now=new Date(),limit=100){
 }
 async function reportRows({conn,filters,scope}){
  const query={createdAt:mobile.dateBounds({from:filters.from,to:filters.to}),
-  ...(scope.branchId?{branchId:new mongoose.Types.ObjectId(id(scope.branchId))}:{})};
+  ...(scope.branchId?{branchId:new mongoose.Types.ObjectId(id(scope.branchId))}:{}),
+  ...(scope.operatorId?{createdBy:new mongoose.Types.ObjectId(id(scope.operatorId))}:{})};
  const found=await forexQuoteModel(conn).aggregate([{$match:query},{$group:{_id:{from:'$fromCurrency',to:'$toCurrency',status:'$status'},
-  count:{$sum:1},amount:{$sum:'$sourceMinor'}}},{$sort:{'_id.from':1,'_id.to':1,'_id.status':1}},{$limit:501}]);
+  count:{$sum:1},amount:{$sum:'$sourceMinor'},target:{$sum:'$targetMinor'}}},{$sort:{'_id.from':1,'_id.to':1,'_id.status':1}},{$limit:501}]);
  if(found.length>500)throw fail('Too many forex report groups',422);
  return found.map(r=>({module:'Forex',activity:`${r._id.from} → ${r._id.to} indicative quote`,status:r._id.status,
-  currency:r._id.from,count:r.count,volume:amountLabel(r.amount?.toString()||'0',r._id.from),fees:amountLabel('0',r._id.from)}));
+  currency:r._id.from,count:r.count,amountMinor:r.amount?.toString()||'0',feesMinor:'0',targetCurrency:r._id.to,targetAmountMinor:r.target?.toString()||'0',
+  volume:amountLabel(r.amount?.toString()||'0',r._id.from),fees:amountLabel('0',r._id.from)}));
 }
 const unavailable=require('../../utils/unavailableOperation');
 const buy=()=>unavailable('forex currency purchase');const sell=()=>unavailable('forex currency sale');

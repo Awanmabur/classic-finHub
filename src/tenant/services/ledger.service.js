@@ -3,6 +3,7 @@
 // provider settlement here. Financial adapters must independently verify provider
 // evidence before a later release is allowed to invoke postJournal.
 const crypto = require('node:crypto');
+const {currencyCodes}=require('../../config/currencies');
 const mongoose = require('mongoose');
 const { ledgerAccountModel, ledgerJournalModel, ledgerPostingModel,
   branchModel, tenantUserModel, auditEventModel, financialOperationModel, ensureTenantIndexes } = require('../models');
@@ -52,8 +53,8 @@ function validateJournal(input) {
   const branchId = objectId(input.branchId, 'branch');
   const actorId = objectId(input.actorId, 'actor');
   const sourceRef = validReference(input.sourceRef);
-  const currency = String(input.currency || '');
-  if (!['UGX', 'KES'].includes(currency)) throw error('Unsupported ledger currency');
+  const currency = input.currency;
+  if (!currencyCodes.includes(currency)) throw error('Unsupported ledger currency');
   const lines = validateLines(input.lines);
   const canonical = { branchId, actorId, sourceType: input.sourceType, sourceRef, currency, lines };
   return { ...canonical, fingerprint: crypto.createHash('sha256').update(JSON.stringify(canonical)).digest('hex') };
@@ -94,9 +95,9 @@ async function createAccount(conn, input) {
   const code = validCode(input.code);
   const name = String(input.name || '').trim();
   const category = String(input.category || '');
-  const currency = String(input.currency || '');
+  const currency = input.currency;
   if (name.length < 3 || name.length > 120 || !['asset','liability','equity','income','expense'].includes(category)) throw error('Invalid chart account');
-  if (!['UGX','KES'].includes(currency)) throw error('Invalid chart currency');
+  if (!currencyCodes.includes(currency)) throw error('Invalid chart currency');
   await ensureTenantIndexes(conn);
   const session = await conn.startSession();
   try {
@@ -225,7 +226,7 @@ async function reverseJournal(conn, input) {
 }
 async function trialBalance(conn, {branchId,currency}={}) {
   const id=objectId(branchId,'branch');
-  if (!['UGX','KES'].includes(currency)) throw error('Unsupported ledger currency');
+  if (!currencyCodes.includes(currency)) throw error('Unsupported ledger currency');
   const Account=ledgerAccountModel(conn), Posting=ledgerPostingModel(conn);
   const accounts=await Account.find({branchId:id,currency}).sort({code:1}).limit(501).lean();
   if (accounts.length > 500) throw error('Trial balance requires paginated account reporting',422);

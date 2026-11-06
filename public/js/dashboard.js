@@ -60,6 +60,19 @@
     });
   });
 
+  document.querySelectorAll('[data-module-record-allocation]').forEach(select=>{
+    const input=select.form?.elements.namedItem('recordsPerMonth');
+    if(!input)return;
+    let previousPositive=Number(input.value)>0?input.value:'1000';
+    const sync=()=>{
+      const required=select.selectedOptions[0]?.dataset.requiresRecords==='true';
+      if(Number(input.value)>0)previousPositive=input.value;
+      input.min=required?'1':'0';input.max=required?'1000000':'0';
+      input.value=required?previousPositive:'0';input.readOnly=!required;
+    };
+    select.addEventListener('change',sync);sync();
+  });
+
   // External event handling keeps the dashboard functional under a strict script CSP.
   document.querySelectorAll('[data-select-on-focus]').forEach(el => el.addEventListener('focus', () => el.select()));
 
@@ -86,18 +99,119 @@
     });
   });
 
+  // Mobile Money uses the same server-issued form on its pages and in the sheet.
+  // The preview is for display only; amounts and branch assignment are checked
+  // again by the server when the operation is recorded.
+  const initialiseMobileMoneyForm = (form, onOperationChange) => {
+    if (!form?.matches('[data-mobile-money-form]')) return;
+    const amount = form.elements.namedItem('amount');
+    const fee = form.elements.namedItem('fee');
+    const currency = form.dataset.currency;
+    const decimals = currency === 'UGX' ? 0 : 2;
+    const toMinor = value => {
+      const match = String(value || '').match(/^(\d+)(?:\.(\d{1,2}))?$/);
+      if (!match || (match[2] || '').length > decimals) return null;
+      return BigInt(match[1]) * (10n ** BigInt(decimals)) + BigInt((match[2] || '').padEnd(decimals, '0') || '0');
+    };
+    const updateTotal = () => {
+      const amountMinor = toMinor(amount.value), feeMinor = toMinor(fee.value);
+      fee.setCustomValidity(amountMinor !== null && feeMinor !== null && feeMinor > amountMinor ? 'Fee / commission cannot exceed the amount.' : '');
+      const total = form.querySelector('[data-mobile-total]');
+      if (!total) return;
+      if (amountMinor === null || amountMinor <= 0n || feeMinor === null || feeMinor > amountMinor) { total.textContent = '—'; return; }
+      const totalMinor = amountMinor + (form.dataset.operation === 'cash_in' ? feeMinor : 0n);
+      total.textContent = (form.dataset.currencyLabel || currency) + ' ' + (Number(totalMinor) / 10 ** decimals).toLocaleString('en-US', {minimumFractionDigits:decimals, maximumFractionDigits:decimals});
+    };
+    amount.addEventListener('input', updateTotal);
+    fee.addEventListener('input', updateTotal);
+    form.querySelectorAll('[data-mobile-operation]').forEach(tab => tab.addEventListener('click', event => {
+      if (!onOperationChange) return; // Real page links remain usable without a dialog.
+      event.preventDefault();
+      const kind = tab.dataset.mobileOperation;
+      if (!onOperationChange(kind)) return;
+      form.dataset.operation = kind;
+      form.querySelector('[data-mobile-operation-label]').value = kind === 'cash_in' ? 'Cash-in' : 'Cash-out';
+      form.querySelectorAll('[data-mobile-operation]').forEach(option => {
+        const selected = option === tab;
+        option.classList.toggle('active', selected);
+        if (selected) option.setAttribute('aria-current', 'page'); else option.removeAttribute('aria-current');
+      });
+      updateTotal();
+    }));
+    updateTotal();
+  };
+  document.querySelectorAll('[data-mobile-money-form]').forEach(form => initialiseMobileMoneyForm(form));
+
+  const operationBindings = new WeakSet();
+  const operationMinor = (text,scale) => {
+    if(!/^(?:0|[1-9]\d{0,8})(?:\.\d{1,8})?$/.test(String(text||'')))return null;
+    const [whole,part='']=String(text).split('.');
+    if(part.length>scale)return null;
+    return BigInt(whole)*10n**BigInt(scale)+BigInt(part.padEnd(scale,'0')||'0');
+  };
+  const operationAmount = (amount,code) => {
+    const scale=code==='UGX'?0:2,factor=10n**BigInt(scale),n=amount<0n?-amount:amount;
+    return `${code==='KES'?'KSH':code} ${amount<0n?'-':''}${(n/factor).toString().replace(/\B(?=(\d{3})+(?!\d))/g,',')}${scale?'.'+(n%factor).toString().padStart(scale,'0'):''}`;
+  };
+  const initialiseOperationForm = form => {
+    if(!form?.matches('[data-transfer-form],[data-forex-form]')||operationBindings.has(form))return;
+    operationBindings.add(form);
+    if(form.matches('[data-transfer-form]')){
+      form.querySelectorAll('[data-party-select]').forEach(select=>{
+        const sync=()=>{
+          const party=select.dataset.partySelect,option=select.selectedOptions[0];
+          const phone=form.querySelector(`[data-party-phone="${party}"]`),country=form.querySelector(`[data-party-country="${party}"]`);
+          if(phone)phone.value=option?.dataset.phone||'';
+          if(country)country.value=[option?.dataset.country,country.dataset.branchName].filter(Boolean).join(' / ');
+        };
+        select.addEventListener('change',sync);sync();
+      });
+      const update=()=>{
+        const scale=form.dataset.currency==='UGX'?0:2;
+        const amount=operationMinor(form.elements.namedItem('amount').value,scale),fee=operationMinor(form.elements.namedItem('fee').value,scale);
+        form.querySelector('[data-transfer-total]').textContent=amount!==null&&amount>0n&&fee!==null?operationAmount(amount+fee,form.dataset.currency):'—';
+      };
+      form.addEventListener('input',update);update();
+    }
+    if(form.matches('[data-forex-form]')){
+      const rate=form.elements.namedItem('rateId');
+      const update=()=>{
+        const option=rate.selectedOptions[0],from=option?.dataset.from,to=option?.dataset.to;
+        form.querySelector('[data-forex-currency="from"]').value=from==='KES'?'KSH':from||'';
+        form.querySelector('[data-forex-currency="to"]').value=to==='KES'?'KSH':to||'';
+        const source=from?operationMinor(form.elements.namedItem('amount').value,from==='UGX'?0:2):null;
+        const scaled=option?.dataset.rate?operationMinor(option.dataset.rate,8):null;
+        const output=form.querySelector('[data-forex-total]');
+        if(source===null||source<=0n||scaled===null||scaled<=0n||!to){output.textContent='—';return;}
+        const numerator=source*scaled*10n**BigInt(to==='UGX'?0:2),denominator=100000000n*10n**BigInt(from==='UGX'?0:2);
+        output.textContent=operationAmount((numerator+denominator/2n)/denominator,to)+' (indicative)';
+      };
+      form.addEventListener('input',update);rate.addEventListener('change',update);update();
+    }
+  };
+  document.querySelectorAll('[data-transfer-form],[data-forex-form]').forEach(initialiseOperationForm);
+
   // The launcher loads the existing, permission-checked server form. It never
   // recreates financial rules, CSRF tokens or idempotency keys in the browser.
   const transactionDialog = document.getElementById('transactionDialog');
   if (transactionDialog && typeof transactionDialog.showModal === 'function') {
     const operations = Object.freeze({
-      cash_in: {page:'/tenant/mobile-money',form:'/tenant/mobile-money/cash-in',action:'/tenant/mobile-money/cash-in',title:'Mobile money · cash in'},
-      cash_out: {page:'/tenant/mobile-money',form:'/tenant/mobile-money/cash-in',action:'/tenant/mobile-money/cash-out',title:'Mobile money · cash out'},
-      transfer: {page:'/tenant/money-transfer',form:'/tenant/money-transfer/requests',action:'/tenant/money-transfer/requests',title:'New transfer request'},
+      cash_in: {page:'/tenant/mobile-money/cash-in',form:'/tenant/mobile-money/cash-in',action:'/tenant/mobile-money/cash-in',title:'Mobile Money - Cash-in',description:'Only mobile money fields are shown.'},
+      cash_out: {page:'/tenant/mobile-money/cash-out',form:'/tenant/mobile-money/cash-out',action:'/tenant/mobile-money/cash-out',title:'Mobile Money - Cash-out',description:'Only mobile money fields are shown.'},
+      transfer: {page:'/tenant/money-transfer/send',form:'/tenant/money-transfer/requests',action:'/tenant/money-transfer/requests',title:'Send money / Generate PIN'},
+      banking_deposit: {page:'/tenant/banking/deposit',form:'/tenant/banking/requests',action:'/tenant/banking/requests',title:'Banking - Deposit'},
+      banking_withdrawal: {page:'/tenant/banking/withdraw',form:'/tenant/banking/requests',action:'/tenant/banking/requests',title:'Banking - Withdraw'},
+      banking_transfer: {page:'/tenant/banking/transfer',form:'/tenant/banking/requests',action:'/tenant/banking/requests',title:'Banking - Account transfer'},
+      customer: {page:'/tenant/customers/new',form:'/tenant/customers',action:'/tenant/customers',title:'New customer'},
+      account: {page:'/tenant/accounts/new',form:'/tenant/accounts',action:'/tenant/accounts',title:'New account'},
+      expense: {page:'/tenant/expenses/new',form:'/tenant/expenses',action:'/tenant/expenses',title:'Add expense'},
+      forex_buy: {page:'/tenant/forex/buy',form:'/tenant/forex/quotes',action:'/tenant/forex/quotes',title:'Forex Operations - Buy',description:'Buy or sell foreign currency with rate, commission, and drawer impact.'},
+      forex_sell: {page:'/tenant/forex/sell',form:'/tenant/forex/quotes',action:'/tenant/forex/quotes',title:'Forex Operations - Sell',description:'Buy or sell foreign currency with rate, commission, and drawer impact.'},
       banking: {page:'/tenant/banking',form:'/tenant/banking/requests',action:'/tenant/banking/requests',title:'New banking request'},
       forex: {page:'/tenant/forex',form:'/tenant/forex/quotes',action:'/tenant/forex/quotes',title:'New forex quotation'},
       approval: {page:'/tenant/approvals',form:'/tenant/approvals/requests',action:'/tenant/approvals/requests',title:'New approval request'},
-      cash_shift_open: {page:'/tenant/mobile-money/shifts',form:'/tenant/mobile-money/shifts/open',action:'/tenant/mobile-money/shifts/open',title:'Open cash shift',description:'An independent supervisor must verify this opening count before transactions can be recorded.'}
+      cash_shift_close: {page:'/tenant/day/close',form:'/tenant/day/close',action:'/tenant/day/close',title:'Close day',description:'Auto closing balances from reports.'},
+      cash_shift_open: {page:'/tenant/mobile-money/shifts',form:'/tenant/mobile-money/shifts/open',action:'/tenant/mobile-money/shifts/open',title:'Open day',description:'Opening drawer by currency. An independent supervisor verifies the opening count.'}
     });
     const choices = transactionDialog.querySelector('[data-transaction-choices]');
     const formHost = transactionDialog.querySelector('[data-transaction-form]');
@@ -146,7 +260,7 @@
       requestVersion++;
       transactionDialog.close();
       document.body.classList.remove('transactionOpen');
-      previousFocus?.focus();
+      if(mobile.matches && side?.contains(previousFocus))menuBtn?.focus();else previousFocus?.focus();
     };
     const responseMessage = async response => {
       const text = await response.text();
@@ -168,7 +282,7 @@
       title.textContent = operation.title;
       const branchLabel = document.querySelector('[data-operating-branch]');
       const branchDescription = branchLabel?.dataset.branchName ? [branchLabel.dataset.branchName,branchLabel.dataset.branchCurrency].filter(Boolean).join(' · ') : 'Your operating branch follows your account assignment.';
-      description.textContent = operation.description ? `${branchDescription} · ${operation.description}` : branchDescription;
+      description.textContent = operation.description || branchDescription;
       message('Loading operation details…');
       try {
         const response = await fetch(operation.page,{credentials:'same-origin',headers:{Accept:'text/html'},signal:activeRequest.signal});
@@ -187,7 +301,7 @@
         form.classList.add('transactionForm');
         form.id='transactionOperationForm';
         form.querySelector('.cardHead')?.remove();
-        if(['cash_in','cash_out'].includes(kind))form.querySelector('.cardBody>p.tiny:first-child')?.remove();
+        form.querySelectorAll('[data-expense-close],[data-directory-close]').forEach(node=>node.remove());
         form.querySelectorAll('script,style,iframe,object,embed').forEach(node=>node.remove());
         form.querySelectorAll('*').forEach(node=>{
           [...node.attributes].filter(attribute=>/^on/i.test(attribute.name)).forEach(attribute=>node.removeAttribute(attribute.name));
@@ -207,6 +321,15 @@
             if(value)node.setAttribute(attribute,value.split(' ').map(id=>ids.get(id)||id).join(' '));
           }
         });
+        let submitAction = operation.action;
+        initialiseMobileMoneyForm(form, nextKind => {
+          if (!enabledKinds.has(nextKind) || !['cash_in','cash_out'].includes(nextKind) || saving) return false;
+          submitAction = operations[nextKind].action;
+          form.setAttribute('action', submitAction);
+          title.textContent = operations[nextKind].title;
+          message('');
+          return true;
+        });
         form.addEventListener('invalid', event=>message(event.target.validationMessage || 'Check the highlighted field.',true),true);
         form.addEventListener('submit',async event=>{
           event.preventDefault();
@@ -220,7 +343,7 @@
           transactionDialog.querySelectorAll('[data-close-transaction]').forEach(button=>{button.disabled=true;});
           message('Saving the operation…');
           try {
-            const result=await fetch(operation.action,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:fields});
+            const result=await fetch(submitAction,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:fields});
             if(result.ok && result.redirected && new URL(result.url).origin===location.origin){location.assign(result.url);return;}
             message(await responseMessage(result),true);
           } catch {
@@ -234,6 +357,8 @@
         });
         if(version!==requestVersion)return;
         formHost.append(form);
+        window.ClassicFinDirectory?.initialiseForm(form);
+        initialiseOperationForm(form);
         submitButtons.forEach(button=>submitActions.append(button));
         message('');
         form.querySelector('input:not([type="hidden"]),select,textarea')?.focus();
@@ -244,7 +369,7 @@
         fallback.className='btn';fallback.href=operation.page;fallback.textContent='Open module';formHost.append(fallback);
       }
     };
-    document.querySelectorAll('[data-open-transaction]').forEach(button=>button.addEventListener('click',()=>open()));
+    document.querySelectorAll('[data-open-transaction]').forEach(button=>button.addEventListener('click',event=>{event.preventDefault();open();}));
     document.querySelectorAll('a[data-transaction-kind]').forEach(link=>link.addEventListener('click',event=>{
       const kind=link.dataset.transactionKind;
       if(kind==='mobile_money'){event.preventDefault();open('mobile_money');}
@@ -258,6 +383,8 @@
       if(event.target===transactionDialog){const rect=transactionDialog.getBoundingClientRect();if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)close();}
     });
   }
+
+  document.querySelectorAll('[data-print-report]').forEach(button=>button.addEventListener('click',()=>window.print()));
 
   const toast = document.querySelector('.toast');
   if (toast) setTimeout(() => toast.remove(), 5200);

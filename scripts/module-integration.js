@@ -65,6 +65,7 @@ async function main(){
   t1=await Tenant.findById(first.tenant._id).lean();
   const operator={id:String(new mongoose.Types.ObjectId()),role:'Mobile Money Operator',permissions:['mobile_money.view','mobile_money.cash_in'],
     allowedModules:['mobile_money'],branchId:String(first.branch._id)};
+    await require('../src/tenant/models').tenantUserModel(first.conn).create({_id:operator.id,name:'Persisted integration operator',email:`operator-${nonce}@example.invalid`,passwordHash:'unused-integration-password',role:operator.role,branchId:operator.branchId,allowedModules:['mobile_money'],status:'active',authVersion:0});
   const input=(reference)=>({customer:'Integration customer',network:'MTN',networkReference:reference,currency:'UGX',amount:'1000',fee:'10',
     idempotencyKey:crypto.randomUUID()});
   const shift=await cash.open(first.conn,t1,operator,{openingCash:'0'});

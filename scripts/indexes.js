@@ -29,6 +29,9 @@ async function main() {
   for (const t of tenants) {
     const conn = getTenantConnection(t.slug);
     await ensureTenantIndexes(conn);
+    await require('../src/tenant/customerAccounts/models').ensureIndexes(conn);
+    await require('../src/tenant/models/expenses').ensureExpenseIndexes(conn);
+    await require('../src/tenant/workspace/models').ensure(conn);
   }
   console.log('Indexes verified for platform and',tenants.length,'tenants');
 }

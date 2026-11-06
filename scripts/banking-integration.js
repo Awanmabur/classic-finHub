@@ -42,19 +42,26 @@ async function main(){
   const [a,b]=scratch;
   const operator={id:ownerId,role:'Banking Operator',branchId:String(a.branch._id),allowedModules:['banking'],permissions:permissionsFor('Banking Operator')};
   const reviewer={id:reviewerId,role:'Reconciliation Officer',branchId:String(a.branch._id),allowedModules:['banking'],permissions:permissionsFor('Reconciliation Officer')};
+  const User=require('../src/tenant/models').tenantUserModel(a.conn);
+  await User.create([{_id:operator.id,name:'Persisted financial operator',email:`operator-${nonce}@example.invalid`,passwordHash:'unused-integration-password',role:operator.role,branchId:operator.branchId,allowedModules:['banking'],authVersion:0},{_id:reviewer.id,name:'Persisted financial reviewer',email:`reviewer-${nonce}@example.invalid`,passwordHash:'unused-integration-password',role:reviewer.role,branchId:reviewer.branchId,allowedModules:['banking'],authVersion:0}]);
   const add=(customerName,last4)=>banking.createReference(a.conn,a.tenant,operator,{customerName,institutionName:'Scratch Bank',last4,currency:'UGX',branchId:String(a.branch._id)});
   const source=await add('Customer A','1234'),destination=await add('Customer B','5678');
   const build=()=>({branchId:String(a.branch._id),sourceId:String(source._id),destinationId:String(destination._id),
-   kind:'transfer_request',amount:'20000',currency:'UGX',note:'Request for a scheduled manual verification before any bank movement',idempotencyKey:crypto.randomUUID()});
+   paymentChannel:'Bank settlement',customerPhone:'+256700123456',externalReference:'BANK-SLIP',kind:'transfer_request',amount:'20000',currency:'UGX',note:'Request for a scheduled manual verification before any bank movement',idempotencyKey:crypto.randomUUID()});
   const input=build(),created=await banking.createRequest(a.conn,a.tenant,operator,input);
-  assert.equal(created.order.status,'requested');assert(!created.duplicate);
+  assert.equal(created.order.status,'requested');assert.equal(created.order.capture.externalReference,'BANK-SLIP');assert(!created.duplicate);
+  await assert.rejects(banking.createRequest(a.conn,a.tenant,operator,{...input,externalReference:'CHANGED'}),e=>e.status===409);
   const replay=await banking.createRequest(a.conn,a.tenant,operator,input);
   assert.equal(replay.duplicate,true);assert.equal(String(created.order._id),String(replay.order._id));
   await assert.rejects(banking.createRequest(a.conn,a.tenant,operator,{...input,amount:'30000'}),e=>e.status===409);
   await assert.rejects(banking.createRequest(b.conn,b.tenant,operator,build()),e=>e.status===403);
   await assert.rejects(banking.detail(b.conn,b.tenant,{...operator,branchId:String(b.branch._id)},String(created.order._id)),e=>e.status===404);
   await assert.rejects(banking.decide(a.conn,a.tenant,{...operator,role:'Tenant Owner',permissions:['*']},String(created.order._id),
+   {decision:'approve',note:'Own request must not be approved by the originator'}),e=>e.status===403);
+  await User.updateOne({_id:operator.id},{$set:{role:'Tenant Owner'}});
+  await assert.rejects(banking.decide(a.conn,a.tenant,{...operator,role:'Tenant Owner',permissions:['*']},String(created.order._id),
    {decision:'approve',note:'Own request must not be approved by the originator'}),e=>e.status===409);
+  await User.updateOne({_id:operator.id},{$set:{role:operator.role}});
   const accepted=await banking.decide(a.conn,a.tenant,reviewer,String(created.order._id),
    {decision:'approve',note:'Internal evidence reviewed, bank integration still unavailable'});
   assert.equal(accepted.status,'approved_pending_bank');

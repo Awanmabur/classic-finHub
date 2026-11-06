@@ -17,7 +17,7 @@ test('cash shifts enforce active uniqueness, branch ownership, allowed state and
  const obj=new Model({branchId,operatorId,currency:'UGX',openingMinor:mongoose.Types.Decimal128.fromString('10000')});
  assert.equal(obj.validateSync(),undefined);
  obj.status='settled';assert(obj.validateSync());obj.status='open';
- const invalid=new Model({branchId,operatorId,currency:'USD',openingMinor:'-1'});assert(invalid.validateSync());
+ const invalid=new Model({branchId,operatorId,currency:'JPY',openingMinor:'1'});assert(invalid.validateSync());
  assert.equal(cash.key(branchId,operatorId),`${branchId}:${operatorId}`);
  assert.notEqual(cash.key(otherBranch,operatorId),cash.key(branchId,operatorId));
  assert.deepEqual(cash.visibleScope(operator()),{branchId:new mongoose.Types.ObjectId(branchId),operatorId:new mongoose.Types.ObjectId(operatorId)});
@@ -67,12 +67,12 @@ test('cash shift views have real server-backed actions and escape notes',async()
   submittedAt:new Date(),expectedClosingMinor:'10000',declaredClosingMinor:'9000',varianceMinor:'-1000',
   reviewNote:'<script>alert(1)</script>',closeHistory:[{at:new Date(),declaredMinor:'9000',expectedMinor:'10000',varianceMinor:'-1000',note:'Cash short during shift'}]};
  const base=path.join(__dirname,'../src/views/tenant/mobile-money');
- const rendered=await ejs.renderFile(path.join(base,'shifts.ejs'),{data:{shifts:{items:[item],nextCursor:'a-valid-token'},canOpen:true,
+ const rendered=await ejs.renderFile(path.join(base,'shifts.ejs'),{formatMoneyMinor:mobile.formatMoneyMinor,data:{shifts:{items:[item],nextCursor:'a-valid-token'},canOpen:true,
   canReview:true,branches:[{_id:branchId,currency:'UGX',name:'Main',status:'active'}]},user:{role:'Tenant Owner',branchId},csrfToken:'csrf'});
  assert.match(rendered,/shifts\/open/);assert.match(rendered,/Next page/);assert.match(rendered,/name="_csrf" value="csrf"/);
- const detail=await ejs.renderFile(path.join(base,'shift-detail.ejs'),{data:{shift:item,canSubmit:false,canReview:true},csrfToken:'csrf'});
+ const detail=await ejs.renderFile(path.join(base,'shift-detail.ejs'),{formatMoneyMinor:mobile.formatMoneyMinor,data:{shift:item,canSubmit:false,canReview:true},csrfToken:'csrf'});
  assert.match(detail,/name="decision" value="approve"/);assert.doesNotMatch(detail,/<script>/);assert.match(detail,/&lt;script&gt;/);
- const noActions=await ejs.renderFile(path.join(base,'shift-detail.ejs'),{data:{shift:item,canSubmit:false,canReview:false},csrfToken:'csrf'});
+ const noActions=await ejs.renderFile(path.join(base,'shift-detail.ejs'),{formatMoneyMinor:mobile.formatMoneyMinor,data:{shift:item,canSubmit:false,canReview:false},csrfToken:'csrf'});
  assert.doesNotMatch(noActions,/name="decision"|name="countedCash"/);
  const ack=await ejs.renderFile(path.join(base,'acknowledgement.ejs'),{record:{_id:shiftId,createdAt:new Date(),operation:'cash_in',network:'MTN',networkReference:'REF-123',
   customer:'<script>alert(1)</script>',status:'pending_verification',reviewState:'accepted',correctionState:'none'},
@@ -110,11 +110,11 @@ test('opening review and report control forms render only for explicitly permitt
  const item={_id:shiftId,branchId,operatorId,currency:'UGX',openingMinor:'10000',provisionalMovementMinor:'0',recordCount:0,
    status:'pending_open',createdAt:new Date(),submittedAt:null,closeHistory:[]};
  const f=path.join(__dirname,'../src/views/tenant/mobile-money/shift-detail.ejs');
- const visible=await ejs.renderFile(f,{data:{shift:item,canReviewOpening:true,canSubmit:false,canReview:false},csrfToken:'proof'});
+ const visible=await ejs.renderFile(f,{formatMoneyMinor:mobile.formatMoneyMinor,data:{shift:item,canReviewOpening:true,canSubmit:false,canReview:false},csrfToken:'proof'});
  assert.match(visible,/verify-opening/);assert.match(visible,/name="decision" value="reject"/);
- const hidden=await ejs.renderFile(f,{data:{shift:item,canReviewOpening:false,canSubmit:false,canReview:false},csrfToken:'proof'});
+ const hidden=await ejs.renderFile(f,{formatMoneyMinor:mobile.formatMoneyMinor,data:{shift:item,canReviewOpening:false,canSubmit:false,canReview:false},csrfToken:'proof'});
  assert.doesNotMatch(hidden,/verify-opening/);
- const variance=await ejs.renderFile(f,{data:{shift:{...item,status:'submitted',submittedAt:new Date(),declaredClosingMinor:'9000',expectedClosingMinor:'10000',varianceMinor:'-1000'},
+ const variance=await ejs.renderFile(f,{formatMoneyMinor:mobile.formatMoneyMinor,data:{shift:{...item,status:'submitted',submittedAt:new Date(),declaredClosingMinor:'9000',expectedClosingMinor:'10000',varianceMinor:'-1000'},
    canReviewOpening:false,canSubmit:false,canReview:true,canApprove:false},csrfToken:'proof'});
  assert.doesNotMatch(variance,/name="decision" value="approve"/);
  assert.match(variance,/Tenant Owner or Reconciliation Officer approval/);
@@ -140,6 +140,7 @@ test('cash close computes exact minor-unit variances for matched, short and exce
    }},
    SecureMobileTransaction:{...noop,countDocuments:()=>({session:async()=>0}),
     aggregate:()=>({session:async()=>[]})},
+   ExpenseV1:{...noop,countDocuments:()=>({session:async()=>0}),aggregate:()=>({session:async()=>[]})},
    SecureAuditEvent:{...noop,create:async(rows,options)=>{assert.equal(options.session,tx);audits.push(...rows);}}
   };
   const conn={models,model:name=>models[name]||noop,startSession:async()=>tx};

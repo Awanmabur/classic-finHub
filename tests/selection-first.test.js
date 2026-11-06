@@ -100,7 +100,7 @@ test('public pages list individual modules and preserve the approved login field
 test('bounded business validity periods are selectable and continue to obey backend range checks',()=>{
   const f=require('node:fs');
   for(const [file,field] of [
-    ['tenant/money-transfer/index.ejs','validDays'],['tenant/banking/index.ejs','validDays'],
+    ['tenant/money-transfer/_entry-form.ejs','validDays'],['tenant/banking/index.ejs','validDays'],
     ['tenant/forex/index.ejs','validHours'],['tenant/forex/index.ejs','validMinutes'],
     ['tenant/approvals/index.ejs','expiresHours']
   ]){
@@ -121,6 +121,10 @@ test('transaction forms use fixed account branch currency without client branch 
       {_id:'507f1f77bcf86cd799439014',kind:'beneficiary',fullName:'Receiver',country:'KE'}],
     canCreate:true,canReview:false,idempotencyKey:crypto.randomUUID(),formatMoneyMinor:(amount,currency)=>currency+amount};
   const transferHtml=await render('tenant/money-transfer/index.ejs',{data:transferData,user,csrfToken:'csrf'});
+  const validity=transferHtml.match(/<select[^>]*name="validDays"[^>]*>([\s\S]*?)<\/select>/);
+  assert(validity,'The extracted entry partial must still render the bounded validity selector');
+  assert.equal((validity[1].match(/<option /g)||[]).length,30);
+  assert.match(validity[1],/value="30"/);assert.doesNotMatch(validity[1],/value="31"/);
   assert.match(transferHtml,/<input type="hidden" name="currency" value="KES">/);
   assert.doesNotMatch(transferHtml,/<(?:select|input)[^>]+name="branchId"/);
   assert.doesNotMatch(transferHtml,/<select[^>]+name="currency"[^>]*>\s*<option value="UGX">UGX<\/option>/);

@@ -43,6 +43,7 @@ async function main(){
   assert(await models.auditEventModel(conn).exists({action:'account.operating_branch.changed',actorId:user._id}));
   const operator={id:String(new mongoose.Types.ObjectId()),role:'Mobile Money Operator',branchId:String(second._id),allowedModules:['mobile_money'],permissions:permissionsFor('Mobile Money Operator')};
   const reviewer={id:String(new mongoose.Types.ObjectId()),role:'Reconciliation Officer',branchId:String(second._id),allowedModules:['mobile_money'],permissions:permissionsFor('Reconciliation Officer')};
+    await require('../src/tenant/models').tenantUserModel(conn).create({_id:operator.id,name:'Persisted integration operator',email:`operator-${nonce}@example.invalid`,passwordHash:'unused-integration-password',role:operator.role,branchId:operator.branchId,allowedModules:['mobile_money'],status:'active',authVersion:0});
   const shift=await cash.open(conn,tenant,operator,{openingCash:'0'});
   assert.equal(String(shift.branchId),String(second._id));assert.equal(shift.currency,'KES');
   await cash.decideOpening(conn,tenant,reviewer,String(shift._id),{decision:'approve',note:'Independent opening cash count verified'});

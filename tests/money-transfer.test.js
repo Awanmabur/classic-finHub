@@ -41,7 +41,7 @@ test('Transfer contact validation requires proper sender/beneficiary and interna
 test('Transfer order validates exact currency minor units and bounded idempotency',()=>{
  const v=validOrder(),parsed=service.validateOrder(v);
  assert.equal(parsed.amountMinor,10000);assert.equal(parsed.feeMinor,200);assert.equal(parsed.validDays,7);
- for(const value of [{currency:'USD'},{currency:'UGX',amount:'1.25'},{amount:'0'},{fee:'20000'},
+ for(const value of [{currency:'JPY'},{currency:'UGX',amount:'1.25'},{amount:'0'},{fee:'20000'},
   {validDays:31},{validDays:0},{idempotencyKey:'test'},{senderId:'invalid'},{beneficiaryId:v.senderId}])
   assert.throws(()=>service.validateOrder({...v,...value}),e=>e.status===400);
  assert.throws(()=>service.validateOrder({...v,amount:'100000000000'}),e=>e.status===400);
@@ -72,7 +72,7 @@ test('Reports-only and Money Transfer-only tenants remain independent',()=>{
  assert(!permissionsFor('Reports Analyst').includes('money_transfer.view'));
  const onlyMoney={...t,moduleGrants:[grant('money_transfer')]};
  assert(!sourcesFor(onlyMoney,both).length);
- assert(tenantMenu(onlyMoney,actor('Money Transfer Operator')).some(g=>g.items.some(i=>i.href==='/tenant/money-transfer')));
+ assert(tenantMenu(onlyMoney,actor('Money Transfer Operator')).some(g=>g.items.some(i=>i.href==='/tenant/money-transfer/send')));
 });
 test('Contact edits cannot mutate immutable historical snapshots and indexes are unique',()=>{
  const schema=require('../src/tenant/schemas/TransferOrder.schema');
@@ -95,15 +95,17 @@ test('Transfer dashboard renders real role-specific forms, escaped contact data 
  const page=path.join(__dirname,'../src/views/tenant/money-transfer/index.ejs');
  const html=await ejs.renderFile(page,{data,user,csrfToken:'token'});
  assert.match(html,/name="idempotencyKey"/);assert.match(html,/name="_csrf" value="token"/);
- assert.match(html,/Record transfer request/);assert.doesNotMatch(html,/name="decision" value="approve"/);
+ assert.match(html,/Save transfer &amp; open receipt/);assert.doesNotMatch(html,/name="decision" value="approve"/);
  assert.doesNotMatch(html,/<script>alert/);assert.match(html,/&lt;script&gt;/);
- assert.doesNotMatch(html,/>Send money</);
+ assert.match(html,/action="\/tenant\/money-transfer\/requests"/);
+ assert.match(html,/Awaiting verified payout integration/);
+ assert.doesNotMatch(html,/<form[^>]+action="\/tenant\/money-transfer\/payout"/);
  const auditor=await ejs.renderFile(page,{data:{...data,canCreate:false,canReview:false},user:actor('Auditor'),csrfToken:'token'});
- assert.doesNotMatch(auditor,/Record transfer request/);
+ assert.doesNotMatch(auditor,/Save transfer &amp; open receipt/);
  const reviewer=await ejs.renderFile(page,{data:{...data,canCreate:false,canReview:true,queue:[{
   _id:id(),reference:'TR-ABC',amountMinor:'1000',currency:'UGX',sender:{name:'Sender'},beneficiary:{name:'Recipient'},
   expiresAt:new Date(Date.now()+86400000)}]},user:actor('Reconciliation Officer'),csrfToken:'token'});
- assert.match(reviewer,/Approve pending provider/);assert.doesNotMatch(reviewer,/Record transfer request/);
+ assert.match(reviewer,/Approve pending provider/);assert.doesNotMatch(reviewer,/Save transfer &amp; open receipt/);
 });
 test('Transfer expiry job requires actual tenant cursor and never silently reports completion',async()=>{
  const job=require('../src/jobs/transferExpiry.job');

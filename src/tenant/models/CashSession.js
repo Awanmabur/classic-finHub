@@ -1,10 +1,11 @@
 'use strict';
 const mongoose=require('mongoose');
+const {currencyCodes}=require('../../config/currencies');
 const {Schema}=mongoose;
 const closeHistory=new Schema({at:{type:Date,required:true},actorId:{type:Schema.Types.ObjectId,required:true},declaredMinor:{type:Schema.Types.Decimal128,required:true},expectedMinor:{type:Schema.Types.Decimal128,required:true},varianceMinor:{type:Schema.Types.Decimal128,required:true},note:{type:String,required:true,maxlength:400}},{_id:false,strict:'throw'});
 const schema=new Schema({
  branchId:{type:Schema.Types.ObjectId,required:true,immutable:true},operatorId:{type:Schema.Types.ObjectId,required:true,immutable:true},
- currency:{type:String,enum:['UGX','KES'],required:true,immutable:true},activeKey:{type:String,default:undefined},
+ currency:{type:String,enum:currencyCodes,required:true,immutable:true},activeKey:{type:String,default:undefined},
  status:{type:String,enum:['pending_open','opening_rejected','open','submitted','disputed','approved'],default:'pending_open',required:true},
  openingMinor:{type:Schema.Types.Decimal128,required:true,immutable:true},
  openingVerifiedBy:{type:Schema.Types.ObjectId,default:null},openingVerifiedAt:{type:Date,default:null},openingReviewNote:{type:String,default:null,maxlength:400},

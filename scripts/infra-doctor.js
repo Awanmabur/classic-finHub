@@ -11,7 +11,8 @@ const {verifyReplicaPrimary}=require('../src/config/mongoTopology');
 const {tenantUserModel,staffInviteModel,branchModel,cashSessionModel,mobileTransactionModel,ledgerAccountModel,ledgerJournalModel,ledgerPostingModel,financialOperationModel,financialEvidenceModel,financialExceptionModel,transferOrderModel,bankingRequestModel,forexRateModel,forexQuoteModel,approvalPolicyModel,approvalRequestModel,notificationTemplateModel,notificationMessageModel,notificationPreferenceModel}=require('../src/tenant/models');
 const {issuesForTenant,REQUIRED_INDEXES}=require('../src/platform/services/infrastructureChecks.service');
 function tenantIndexModels(conn){
-  return {SecureTenantUser:tenantUserModel(conn),SecureBranch:branchModel(conn),SecureCashSession:cashSessionModel(conn),SecureStaffInvite:staffInviteModel(conn),SecureMobileTransaction:mobileTransactionModel(conn),
+  return {CustomerDirectoryV1:require('../src/tenant/customerAccounts/models').customerModel(conn),CustomerAccountV1:require('../src/tenant/customerAccounts/models').accountModel(conn),
+    ExpenseV1:require('../src/tenant/models/expenses').expenseModel(conn),TenantWorkspaceConfigV1:require('../src/tenant/workspace/models').models(conn).config,SecureTenantUser:tenantUserModel(conn),SecureBranch:branchModel(conn),SecureCashSession:cashSessionModel(conn),SecureStaffInvite:staffInviteModel(conn),SecureMobileTransaction:mobileTransactionModel(conn),
     LedgerAccountV2:ledgerAccountModel(conn),LedgerJournalV2:ledgerJournalModel(conn),LedgerPostingV2:ledgerPostingModel(conn),
     FinancialOperationV1:financialOperationModel(conn),VerifiedFinancialEvidenceV1:financialEvidenceModel(conn),
     FinancialExceptionV1:financialExceptionModel(conn),TransferOrderV1:transferOrderModel(conn),BankingRequestV1:bankingRequestModel(conn),ForexRateV1:forexRateModel(conn),ForexQuoteV1:forexQuoteModel(conn),

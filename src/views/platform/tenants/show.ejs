@@ -29,9 +29,9 @@
   <% const grants=data.tenant.moduleGrants||[]; %><div class="summary"><% grants.forEach(g=>{ %><div class="sumRow"><span><%= g.moduleKey %> (<%= g.status %>)</span><b><%= new Date(g.periodEnd).toISOString().slice(0,10) %></b></div><% }) %></div>
   <form method="post" action="/platform/tenants/<%= data.tenant.id %>/modules/grant">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>"><div class="row3">
-      <label class="field">Independent module<select class="control" name="moduleKey" required><% (data.independentModules||[]).forEach(m=>{ %><option value="<%= m.key %>"><%= m.name %> · USD <%= m.priceMonthly %>/mo</option><% }) %></select></label>
+      <label class="field">Independent module<select class="control" name="moduleKey" required data-module-record-allocation><% (data.independentModules||[]).forEach(m=>{ %><option value="<%= m.key %>" data-requires-records="<%= m.requiresRecords===true %>"><%= m.name %> · USD <%= m.priceMonthly %>/mo</option><% }) %></select></label>
       <label class="field">Days<input class="control" type="number" name="days" min="1" max="366" value="30" required></label>
-      <label class="field">Monthly record allocation (0 for Reports; set a positive limit for Mobile Money)<input class="control" type="number" name="recordsPerMonth" min="0" max="1000000" value="0" required></label>
+      <label class="field">Monthly record allocation (positive for transaction modules, customers, accounts and expenses; 0 for report and control modules)<input class="control" type="number" name="recordsPerMonth" min="0" max="1000000" value="0" required></label>
     </div><div class="row2"><label class="field">Workspace seat limit<input class="control" type="number" name="users" min="1" value="5" required></label><label class="field">Branch limit<input class="control" type="number" name="branches" min="1" value="1" required></label></div>
     <label class="field">Approval justification (20–600 characters)<textarea class="control" name="reason" required minlength="20" maxlength="600" rows="2"></textarea></label>
     <button type="submit" class="btn btnPrimary">Grant / renew module access</button>

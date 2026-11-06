@@ -42,28 +42,41 @@ async function main(){
   const [a,b]=scratch;
   const maker={id:ownerId,role:'Forex Operator',branchId:String(a.branch._id),allowedModules:['forex'],permissions:permissionsFor('Forex Operator')};
   const reviewer={id:reviewerId,role:'Reconciliation Officer',branchId:String(a.branch._id),allowedModules:['forex'],permissions:permissionsFor('Reconciliation Officer')};
+  const User=require('../src/tenant/models').tenantUserModel(a.conn);
+  await User.create([{_id:maker.id,name:'Persisted financial operator',email:`operator-${nonce}@example.invalid`,passwordHash:'unused-integration-password',role:maker.role,branchId:maker.branchId,allowedModules:['forex'],authVersion:0},{_id:reviewer.id,name:'Persisted financial reviewer',email:`reviewer-${nonce}@example.invalid`,passwordHash:'unused-integration-password',role:reviewer.role,branchId:reviewer.branchId,allowedModules:['forex'],authVersion:0}]);
   const rateInput={branchId:String(a.branch._id),fromCurrency:'UGX',toCurrency:'USD',rateDecimal:'0.000275',validHours:24,
    note:'Authorized indicative rate proposed from an external observation'};
   const first=await forex.proposeRate(a.conn,a.tenant,maker,rateInput);
   assert.equal(first.status,'pending_review');
   await assert.rejects(forex.decideRate(a.conn,a.tenant,{...maker,role:'Tenant Owner',permissions:['*']},String(first._id),
+   {decision:'approve',note:'A maker must not review own rate'}),e=>e.status===403);
+  await User.updateOne({_id:maker.id},{$set:{role:'Tenant Owner'}});
+  await assert.rejects(forex.decideRate(a.conn,a.tenant,{...maker,role:'Tenant Owner',permissions:['*']},String(first._id),
    {decision:'approve',note:'A maker must not review own rate'}),e=>e.status===409);
+  await User.updateOne({_id:maker.id},{$set:{role:maker.role}});
   const active=await forex.decideRate(a.conn,a.tenant,reviewer,String(first._id),
    {decision:'approve',note:'Independent rate approval, not external price verification'});
   assert.equal(active.status,'active');
   await assert.rejects(forex.decideRate(a.conn,a.tenant,reviewer,String(first._id),
    {decision:'approve',note:'Repeat approval must fail'}),e=>e.status===409);
   const quoteInput=()=>({branchId:String(a.branch._id),rateId:String(active._id),customerLabel:'Scratch customer',
-   amount:'20000',validMinutes:15,note:'Indicative quote with no currency execution',idempotencyKey:crypto.randomUUID()});
+   customerPhone:'+256700123456',identityDocument:'FX-DOC',commission:'0.10',settlementMethod:'Bank settlement',rateSource:'Internal rate board',externalReference:'FX-SLIP',amount:'20000',validMinutes:15,note:'Indicative quote with no currency execution',operation:'buy',idempotencyKey:crypto.randomUUID()});
   const input=quoteInput(),created=await forex.createQuote(a.conn,a.tenant,maker,input);
   assert.equal(created.quote.status,'quoted');assert.equal(created.quote.targetMinor.toString(),'550');
+  assert.equal(created.quote.operation,'buy');assert.equal(created.quote.capture.commission,'0.1');assert.equal(created.quote.capture.externalReference,'FX-SLIP');
+  await assert.rejects(forex.createQuote(a.conn,a.tenant,maker,{...input,commission:'0.2'}),e=>e.status===409);
   const replay=await forex.createQuote(a.conn,a.tenant,maker,input);
   assert.equal(replay.duplicate,true);assert.equal(String(replay.quote._id),String(created.quote._id));
   await assert.rejects(forex.createQuote(a.conn,a.tenant,maker,{...input,amount:'30000'}),e=>e.status===409);
+  await assert.rejects(forex.createQuote(a.conn,a.tenant,maker,{...input,operation:'sell'}),e=>e.status===409);
   await assert.rejects(forex.createQuote(b.conn,b.tenant,maker,quoteInput()),e=>e.status===403);
   await assert.rejects(forex.detail(b.conn,b.tenant,{...maker,branchId:String(b.branch._id)},String(created.quote._id)),e=>e.status===404);
   await assert.rejects(forex.decideQuote(a.conn,a.tenant,{...maker,role:'Tenant Owner',permissions:['*']},String(created.quote._id),
+   {decision:'approve',note:'Attempt to self-approve a customer quote'}),e=>e.status===403);
+  await User.updateOne({_id:maker.id},{$set:{role:'Tenant Owner'}});
+  await assert.rejects(forex.decideQuote(a.conn,a.tenant,{...maker,role:'Tenant Owner',permissions:['*']},String(created.quote._id),
    {decision:'approve',note:'Attempt to self-approve a customer quote'}),e=>e.status===409);
+  await User.updateOne({_id:maker.id},{$set:{role:maker.role}});
   const approved=await forex.decideQuote(a.conn,a.tenant,reviewer,String(created.quote._id),
    {decision:'approve',note:'Internal quote approved; execution unavailable'});
   assert.equal(approved.status,'approved_pending_execution');

@@ -2,6 +2,7 @@
 // Operational requests ONLY. No disbursement, PIN payout or ledger settlement is
 // performed by this service. Provider adapters must be separately verified.
 const crypto=require('node:crypto');
+const financialAuth=require('./financialAuthorization.service');
 const mongoose=require('mongoose');
 const mobile=require('./mobileMoney.service');
 const {hasModuleForUser,hasPermission,hasModule}=require('./moduleAccess.service');
@@ -20,7 +21,7 @@ function requireModuleAccess(tenant,actor,permission){
 function writeActor(actor){return actor?.role==='Tenant Owner'||actor?.role==='Money Transfer Operator';}
 function reviewActor(actor){return ['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(actor?.role);}
 function branchScope(actor){
- if(actor?.role==='Tenant Owner')return {};
+ if(['Tenant Owner','Auditor'].includes(actor?.role))return {};
  if(!OID.test(String(actor?.branchId||'')))throw fail('Active assigned branch required',403);
  return {branchId:id(actor.branchId)};
 }
@@ -50,14 +51,14 @@ function validateOrder(input){
  if(!UUID.test(idempotencyKey))throw fail('Invalid form reference. Reload the page.');
  const validDays=Number(input?.validDays??7);
  if(!Number.isSafeInteger(validDays)||validDays<1||validDays>30)throw fail('Validity must be 1–30 days');
- return {senderId,beneficiaryId,currency,amountMinor,feeMinor,idempotencyKey,validDays};
+ return {senderId,beneficiaryId,currency,amountMinor,feeMinor,idempotencyKey,validDays,capture:require('./operationCapture.service').parse('money_transfer',input)};
 }
 function snapshot(contact){return {contactId:contact._id,name:contact.fullName,phone:contact.phone,country:contact.country};}
 function maskPhone(phone){return String(phone).replace(/.(?=.{4})/g,'•');}
 function equivalent(existing,actor,branchId,v){
  return String(existing.createdBy)===String(actor.id)&&String(existing.branchId)===branchId&&
    String(existing.sender.contactId)===v.senderId&&String(existing.beneficiary.contactId)===v.beneficiaryId&&
-   existing.currency===v.currency&&String(existing.amountMinor)===String(v.amountMinor)&&
+   require('./operationCapture.service').equivalent('money_transfer',existing.capture,v.capture)&&existing.currency===v.currency&&String(existing.amountMinor)===String(v.amountMinor)&&
    String(existing.feeMinor)===String(v.feeMinor)&&existing.validDays===v.validDays;
 }
 async function addContact(conn,tenant,actor,input){
@@ -67,6 +68,7 @@ async function addContact(conn,tenant,actor,input){
  await ensureTenantIndexes(conn);
  const tx=await conn.startSession();let created;
  try{await tx.withTransaction(async()=>{
+  const authorization=await financialAuth.fenceAction(conn,tx,actor,tenant,'money_transfer','money_transfer.contacts',{branchId});
    const branch=await branchModel(conn).findOneAndUpdate({_id:branchId,status:'active'},{$inc:{revision:1}},{session:tx,new:true});
    if(!branch)throw fail('Branch is inactive or unavailable',409);
    [created]=await transferContactModel(conn).create([{...values,branchId,createdBy:actor.id,updatedBy:actor.id}],{session:tx});
@@ -80,6 +82,7 @@ async function updateContact(conn,tenant,actor,contactId,input){
  const values=validateContact(input),filter={_id:id(contactId),...branchScope(actor)};
  await ensureTenantIndexes(conn);const tx=await conn.startSession();let updated;
  try{await tx.withTransaction(async()=>{
+  const authorization=await financialAuth.fenceAction(conn,tx,actor,tenant,'money_transfer','money_transfer.contacts');
    const existing=await transferContactModel(conn).findOne(filter).session(tx);
    if(!existing)throw fail('Contact outside your assigned branch',404);
    if(existing.kind!==values.kind)throw fail('Contact type cannot be changed',409);
@@ -95,6 +98,7 @@ async function archiveContact(conn,tenant,actor,contactId){
  requireModuleAccess(tenant,actor,'money_transfer.contacts');if(!writeActor(actor))throw fail('Contact administration unavailable',403);
  await ensureTenantIndexes(conn);const tx=await conn.startSession();let updated;
  try{await tx.withTransaction(async()=>{
+  const authorization=await financialAuth.fenceAction(conn,tx,actor,tenant,'money_transfer','money_transfer.contacts');
   updated=await transferContactModel(conn).findOneAndUpdate({_id:id(contactId),active:true,...branchScope(actor)},
    {$set:{active:false,updatedBy:actor.id},$inc:{revision:1}},{session:tx,new:true});
   if(!updated)throw fail('Contact not found or already archived',404);
@@ -119,16 +123,17 @@ async function createRequest(conn,tenant,actor,input){
  if(existing){if(!equivalent(existing,actor,branchId,v))throw fail('Form reference reused with different details',409);return {order:existing,duplicate:true};}
  const tx=await conn.startSession();let created;
  try{await tx.withTransaction(async()=>{
+  const authorization=await financialAuth.fenceAction(conn,tx,actor,tenant,'money_transfer','money_transfer.create',{branchId});
   const branch=await branchModel(conn).findOneAndUpdate({_id:branchId,status:'active'},{$inc:{revision:1}},{session:tx,new:true});
   if(!branch||branch.currency!==v.currency)throw fail('Branch is inactive or has a different currency',409);
   const contacts=await transferContactModel(conn).find({_id:{$in:[v.senderId,v.beneficiaryId]},branchId,active:true}).session(tx).lean();
   const sender=contacts.find(c=>String(c._id)===v.senderId&&c.kind==='sender');
   const beneficiary=contacts.find(c=>String(c._id)===v.beneficiaryId&&c.kind==='beneficiary');
   if(!sender||!beneficiary)throw fail('Choose active sender and beneficiary contacts from the same branch',409);
-  await reserveUsage(tenant,'money_transfer_requests',tx);
+  await reserveUsage(authorization.tenant,'money_transfer_requests',tx);
   [created]=await Model.create([{reference:`TR-${crypto.randomBytes(12).toString('hex').toUpperCase()}`,
    idempotencyKey:v.idempotencyKey,branchId,createdBy:actor.id,sender:snapshot(sender),beneficiary:snapshot(beneficiary),
-   currency:v.currency,amountMinor:String(v.amountMinor),feeMinor:String(v.feeMinor),validDays:v.validDays,
+   capture:v.capture,currency:v.currency,amountMinor:String(v.amountMinor),feeMinor:String(v.feeMinor),validDays:v.validDays,
    expiresAt:new Date(Date.now()+v.validDays*86400000),status:'requested'}],{session:tx});
   await auditEventModel(conn).create([{action:'money_transfer.request.created',actorId:actor.id,targetId:created._id,
    metadata:{branchId,currency:v.currency,reference:created.reference,amountMinor:v.amountMinor}}],{session:tx});
@@ -145,6 +150,7 @@ async function decide(conn,tenant,actor,orderId,input){
  const reason=decisionNote(input?.note);await ensureTenantIndexes(conn);
  const tx=await conn.startSession();let updated;
  try{await tx.withTransaction(async()=>{
+  const authorization=await financialAuth.fenceAction(conn,tx,actor,tenant,'money_transfer','money_transfer.review');
   updated=await transferOrderModel(conn).findOneAndUpdate({_id:id(orderId),status:'requested',createdBy:{$ne:actor.id},
     expiresAt:{$gt:new Date()},...branchScope(actor)},
    {$set:{status:decision==='approve'?'approved_pending_provider':'rejected',reviewedBy:actor.id,
@@ -159,6 +165,7 @@ async function cancel(conn,tenant,actor,orderId,input){
  const reason=decisionNote(input?.note);await ensureTenantIndexes(conn);
  const tx=await conn.startSession();let updated;
  try{await tx.withTransaction(async()=>{
+  const authorization=await financialAuth.fenceAction(conn,tx,actor,tenant,'money_transfer','money_transfer.view');
   updated=await transferOrderModel(conn).findOneAndUpdate({_id:id(orderId),status:'requested',
    ...(actor.role==='Tenant Owner'?{}:{createdBy:id(actor.id)}),...branchScope(actor)},
    {$set:{status:'cancelled',cancelledBy:actor.id,cancelledAt:new Date(),cancelReason:reason},$inc:{revision:1}},
@@ -205,12 +212,14 @@ async function reviewQueue(conn,tenant,actor){
   .sort({createdAt:1}).limit(30).lean();
 }
 async function reportRows({conn,filters,scope}){
- const query={createdAt:mobile.dateBounds({from:filters.from,to:filters.to}),...(scope.branchId?{branchId:new mongoose.Types.ObjectId(id(scope.branchId))}:{})};
+ const query={createdAt:mobile.dateBounds({from:filters.from,to:filters.to}),...(scope.branchId?{branchId:new mongoose.Types.ObjectId(id(scope.branchId))}:{}),
+  ...(scope.operatorId?{createdBy:new mongoose.Types.ObjectId(id(scope.operatorId))}:{})};
  const rows=await transferOrderModel(conn).aggregate([{$match:query},{$group:{_id:{currency:'$currency',status:'$status'},
   count:{$sum:1},amount:{$sum:'$amountMinor'},fees:{$sum:'$feeMinor'}}},{$sort:{'_id.currency':1,'_id.status':1}},{$limit:501}]);
  if(rows.length>500)throw fail('Too many transfer report groups',422);
  return rows.map(r=>({module:'Money Transfer',activity:'Internal transfer requests',status:r._id.status,currency:r._id.currency,
-  count:r.count,volume:mobile.formatMoneyMinor(r.amount?.toString()||'0',r._id.currency),fees:mobile.formatMoneyMinor(r.fees?.toString()||'0',r._id.currency)}));
+  count:r.count,amountMinor:r.amount?.toString()||'0',feesMinor:r.fees?.toString()||'0',
+  volume:mobile.formatMoneyMinor(r.amount?.toString()||'0',r._id.currency),fees:mobile.formatMoneyMinor(r.fees?.toString()||'0',r._id.currency)}));
 }
 const unavailable=require('../../utils/unavailableOperation');
 // Old direct payout entrypoints must remain explicitly blocked.

@@ -131,10 +131,12 @@ test('overview restores approved snapshot cards and quick actions using real aut
     hasTransfer: true, transferRecords: {items: []}, hasMobileMoney: true, summary: {total: 23, awaitingReview: 2, recent: [], summaries: []},
     hasBanking: true, bankingRecords: {items: []}, hasForex: true, forexRecords: {items: []}
   });
-  assert.match(html, /Operations snapshot/);
-  for (const label of ['Money Transfer requests', 'Mobile Money records', 'Banking requests', 'Forex quotes', 'New transfer request', 'New mobile money record', 'New banking request', 'New forex quote', 'View reports']) assert(html.includes(label), label);
+  assert.match(html, /Today snapshot/);
+  for (const label of ['Money Transfer requests', 'Mobile Money records', 'Banking requests', 'Forex quotes', 'New money transfer', 'New mobile money', 'New banking', 'New forex', 'View reports']) assert(html.includes(label), label);
   assert.match(html, /class="v">23<\/div>/);
-  assert.doesNotMatch(html, /Load demo|Generate PIN|Payout by PIN|Cash drawer by currency/);
+  assert.doesNotMatch(html, /Load demo|id="branchSelect"|Cash drawer by currency/);
+  assert.match(html,/href="\/tenant\/money-transfer\/send" data-transaction-kind="transfer"/);
+  assert.match(html,/href="\/tenant\/banking\/deposit" data-transaction-kind="banking_deposit"/);
 });
 
 test('read-only overview never offers write actions or links to unassigned modules', async () => {
@@ -142,5 +144,5 @@ test('read-only overview never offers write actions or links to unassigned modul
     hasMobileMoney: true, summary: {total: 0, awaitingReview: 0, recent: [], summaries: []}
   });
   assert.match(html, /href="\/tenant\/mobile-money\/history"/);
-  assert.doesNotMatch(html, /New mobile money record|New transfer request|New banking request|New forex quote|href="\/tenant\/reports"/);
+  assert.doesNotMatch(html, /New mobile money|New money transfer|New banking|New forex|href="\/tenant\/reports"/);
 });

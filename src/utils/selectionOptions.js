@@ -50,4 +50,4 @@ function parsePublicModuleSelection(value){
   }
   return keys;
 }
-module.exports={countryOptions,isCountryCode,bankInstitutionOptions,resolveBankInstitution,publicModuleOptions,parsePublicModuleSelection};
+module.exports={countryOptions,isCountryCode,bankInstitutionOptions,resolveBankInstitution,publicModuleOptions,parsePublicModuleSelection,...require('../config/currencies')};

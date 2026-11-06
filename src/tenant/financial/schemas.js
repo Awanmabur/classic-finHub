@@ -1,7 +1,7 @@
 'use strict';
 const { Schema } = require('mongoose');
 const ID = Schema.Types.ObjectId;
-const CURRENCIES = ['UGX', 'KES'];
+const {currencyCodes:CURRENCIES}=require('../../config/currencies');
 const SOURCES = ['mobile_money', 'money_transfer', 'banking', 'forex'];
 const STATUSES = ['pending_verification', 'provider_verified', 'provider_failed', 'exception', 'reconciled'];
 function appendOnly(schema) {

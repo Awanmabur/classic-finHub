@@ -1,1 +1,15 @@
-<section class="view show"><section class="card"><div class="cardHead"><b>Expenses</b><span>Cash impact and profit/loss deductions.</span></div><div class="cardBody tableWrap"><table><thead><tr><th>Type</th><th>Description</th><th>Amount</th><th>Date</th></tr></thead><tbody><% data.expenses.forEach(e => { %><tr data-search-row><td><%= e.type %></td><td><%= e.description %></td><td><%= money(e.currency,e.amount) %></td><td><%= e.date %></td></tr><% }) %></tbody></table></div></section></section>
+<section class="view show">
+ <section class="card"><div class="cardHead"><div><b>Expenses</b><br><span>Daily business expenses</span></div><div class="rowBtns"><% if(data.permissions.create){ %><a class="btn btnPrimary" href="/tenant/expenses/new" data-expense-open>Add expense</a><% } %></div></div>
+ <div class="cardBody"><form method="get" action="/tenant/expenses" class="row3">
+  <label class="field">From (UTC)<input class="control" type="date" name="from" value="<%= data.records.filters.from %>"></label>
+  <label class="field">To (UTC)<input class="control" type="date" name="to" value="<%= data.records.filters.to %>"></label>
+  <label class="field">Status<select class="control" name="status"><% ['all','pending_review','approved','rejected','voided'].forEach(status=>{ %><option value="<%= status %>" <%= data.records.filters.status===status?'selected':'' %>><%= status.replaceAll('_',' ') %></option><% }) %></select></label>
+  <div class="rowBtns"><button class="btn btnPrimary" type="submit">Apply filters</button><a class="btn" href="/tenant/expenses">Today</a></div>
+ </form><p class="tiny">Pending expenses have no cash effect. Approved cash expenses are included in the originating operator’s cash reconciliation.</p></div></section>
+ <section class="card" style="margin-top:14px"><div class="cardHead"><b>Expense records</b><span>Original evidence and all corrections are retained</span></div><div class="cardBody tableWrap"><table><thead><tr><th>Type</th><th>Amount</th><th>Method</th><th>Vendor</th><th>Reference</th><th>Description</th><th>Status</th><th>Action</th></tr></thead><tbody>
+ <% if(!data.records.items.length){ %><tr><td colspan="8">No expenses recorded for the selected period.</td></tr><% } %>
+ <% data.records.items.forEach(record=>{ %><tr data-search-row><td><b><%= record.expenseType %></b><br><span class="tiny"><%= new Date(record.createdAt).toISOString() %></span></td><td><%= data.format(record.amountMinor,record.currency) %></td><td><%= record.paymentMethod %></td><td><%= record.vendor||'—' %></td><td><%= record.reference||record.recordReference %></td><td><%= record.description||'—' %></td><td><span class="tag"><%= record.status.replaceAll('_',' ') %></span><% if(record.pendingChange){ %><br><span class="tiny">Correction pending</span><% } %></td><td><a class="btn" href="/tenant/expenses/<%= record._id %>">View</a></td></tr><% }) %>
+ </tbody></table></div>
+ <% if(data.records.nextCursor){ %><div class="cardBody"><a class="btn" href="/tenant/expenses?from=<%= encodeURIComponent(data.records.filters.from) %>&amp;to=<%= encodeURIComponent(data.records.filters.to) %>&amp;status=<%= data.records.filters.status %>&amp;cursor=<%= encodeURIComponent(data.records.nextCursor) %>">Next page</a></div><% } %></section>
+ <% if(data.permissions.create){ %><%- include('_modal') %><% } %>
+</section>

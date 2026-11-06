@@ -1,5 +1,5 @@
 <section class="view show">
-  <section class="card"><div class="cardHead"><b>Transaction history</b><span>Records, not verified network settlement</span><a class="btn" href="/tenant/mobile-money">Mobile Money</a></div>
+  <section class="card"><div class="cardHead"><b>Transaction history</b><span>Records, not verified network settlement</span><div class="richActions"><a class="btn" href="/tenant/mobile-money/network-activity">Network activity</a><a class="btn" href="/tenant/mobile-money/report">Mobile money report</a><a class="btn" href="/tenant/mobile-money">Internal review</a></div></div>
     <div class="cardBody"><form method="get" action="/tenant/mobile-money/history" class="row3">
       <label class="field">From (UTC)<input class="control" type="date" name="from" value="<%= data.records.from %>"></label>
       <label class="field">To (UTC)<input class="control" type="date" name="to" value="<%= data.records.to %>"></label>
@@ -7,13 +7,14 @@
     </form><p class="tiny">Results are restricted to your role, assigned branch and any operator-only scope. Maximum custom range: 90 days. Use Next to explore older results without loading entire tenant histories.</p></div>
   </section>
   <section class="card" style="margin-top:14px"><div class="cardHead"><b>Recorded activity</b><span><%= data.records.items.length %> records on this page</span></div>
-    <div class="cardBody tableWrap"><table><thead><tr><th>Date UTC</th><th>Reference</th><th>Network</th><th>Operation</th><th>Entry source</th><th>Amount</th><th>Internal status</th><th>Correction</th></tr></thead><tbody>
-      <% if(!data.records.items.length){ %><tr><td colspan="8">No records in this date range.</td></tr><% } %>
+    <div class="cardBody tableWrap"><table><thead><tr><th>Date UTC</th><th>Reference</th><th>Network</th><th>Operation</th><th>Entry source</th><th>Payment method</th><th>Amount</th><th>Fee / commission</th><th>Internal status</th><th>Correction</th></tr></thead><tbody>
+      <% if(!data.records.items.length){ %><tr><td colspan="10">No records in this date range.</td></tr><% } %>
       <% data.records.items.forEach(t=>{ %><tr data-search-row>
         <td><%= new Date(t.createdAt).toISOString().slice(0,16).replace('T',' ') %></td>
         <td><a href="/tenant/mobile-money/<%= t._id %>"><%= t.networkReference %></a></td>
-        <td><%= t.network %></td><td><%= t.operation.replace('_',' ') %></td><td><span class="tag"><%= t.entrySource==='sms'?'SMS capture':'Manual' %></span></td>
+        <td><%= t.network %></td><td><%= t.operation === 'cash_in' ? 'Cash-in' : 'Cash-out' %></td><td><span class="tag"><%= t.entrySource==='sms'?'SMS capture':'Manual' %></span></td><td><%= t.paymentMethod || 'Cash' %></td>
         <td><%= money(t.currency,amountFromMinor(t.amountMinor,t.currency)) %></td>
+        <td><%= money(t.currency,amountFromMinor(t.feeMinor,t.currency)) %></td>
         <td><%= t.status.replaceAll('_',' ') %> / <%= (t.reviewState||'awaiting_review').replaceAll('_',' ') %></td>
         <td><%= (t.correctionState||'none').replaceAll('_',' ') %></td>
       </tr><% }) %>

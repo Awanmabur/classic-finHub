@@ -45,6 +45,7 @@ async function main() {
     }
     const branch=await branchModel(a).create({name:'Scratch main',code:'scratch-main',currency:'UGX',createdBy:operator.id,updatedBy:operator.id});
     operator.branchId=String(branch._id);reviewer.branchId=String(branch._id);
+    await require('../src/tenant/models').tenantUserModel(a).create({_id:operator.id,name:'Persisted integration operator',email:`operator-${nonce}@example.invalid`,passwordHash:'unused-integration-password',role:operator.role,branchId:operator.branchId,allowedModules:['mobile_money'],status:'active',authVersion:0});
     const shift=await cash.open(a,tenants[0],operator,{openingCash:'0'});
     assert.equal(shift.status,'pending_open');
     await assert.rejects(cash.decideOpening(a,tenants[0],{...operator,role:'Tenant Owner'},String(shift._id),

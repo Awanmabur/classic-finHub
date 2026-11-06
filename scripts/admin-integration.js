@@ -67,7 +67,7 @@ async function main(){
     assert.equal(changed.status,'active');assert(changed.authVersion>1);
     await assert.rejects(branches.archive(tenant,owner,String(second._id)),e=>e.status===409);
     await staff.updateStaff(tenant,owner,userId,{name:'Updated Staff',role:'Mobile Money Operator',branchId:String(second._id),allowedModules:['mobile_money']});
-    const operator={id:userId,role:'Mobile Money Operator',branchId:String(second._id),allowedModules:['mobile_money']};
+    const operator={id:userId,role:'Mobile Money Operator',branchId:String(second._id),allowedModules:['mobile_money'],authVersion:(await tenantUserModel(conn).findById(userId).lean()).authVersion};
     const shift=await cash.open(conn,tenant,operator,{openingCash:'0'});
     await cash.decideOpening(conn,tenant,owner,String(shift._id),{decision:'approve',note:'Independent opening cash count for administration integration'});
     const recorded=await money.recordMobileMoney(conn,operator,{idempotencyKey:crypto.randomUUID(),customer:'Probe Operation',network:'MTN',networkReference:`INT-${nonce}`,currency:'UGX',amount:'1000',fee:'0'},'cash_in',tenant);

@@ -16,7 +16,7 @@ function hasModule(tenant,moduleKey){return entitled(tenant,moduleKey);}
 function assignableModules(tenant,role){
   const perms=permissionsFor(role);
   return modules.filter(m=>entitled(tenant,m.key) && (perms.includes('*') || m.permissions.some(p=>perms.includes(p)) ||
-    (((m.key==='mobile_money' && (perms.includes('mobile_money.review') || (['Reports Analyst','Analytics Analyst'].includes(role) && (perms.includes('reports.view')||perms.includes('analytics.view'))))) || (['money_transfer','banking','forex','approval_workflows','notifications'].includes(m.key) && ['Reports Analyst','Analytics Analyst'].includes(role) && (perms.includes('reports.view')||perms.includes('analytics.view'))))))).map(m=>m.key);
+    (((m.key==='mobile_money' && (perms.includes('mobile_money.review') || (['Reports Analyst','Analytics Analyst'].includes(role) && (perms.includes('reports.view')||perms.includes('analytics.view'))))) || (['money_transfer','banking','forex','approval_workflows','notifications','customers','accounts','expenses'].includes(m.key) && ['Reports Analyst','Analytics Analyst'].includes(role) && (perms.includes('reports.view')||perms.includes('analytics.view'))))))).map(m=>m.key);
 }
 function validateAssignments(tenant,role,raw){
   const input=raw === undefined ? [] : Array.isArray(raw) ? raw : [raw];

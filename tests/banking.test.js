@@ -34,7 +34,7 @@ test('Banking independently subscribable, but direct deposit and withdrawal are 
 });
 test('Account references store last four only; full account numbers, HTML injection and wrong currency fail validation',()=>{
  assert.deepEqual(bank.validateReference(ref()),ref());
- for(const change of [{last4:'1234567890123456'},{last4:'12'},{last4:'<img'},{currency:'USD'},{customerName:' '},{institutionName:'='},
+ for(const change of [{last4:'1234567890123456'},{last4:'12'},{last4:'<img'},{currency:'JPY'},{customerName:' '},{institutionName:'='},
   {customerName:['arrays forbidden']},{institutionName:'a'.repeat(121)}]){
   assert.throws(()=>bank.validateReference({...ref(),...change}),e=>e.status===400);
  }
@@ -44,7 +44,7 @@ test('Banking request validates operation, branch-independent exact amounts, dis
  const v=request();assert.equal(bank.validateRequest(v).amountMinor,15000);
  const transfer={...v,kind:'transfer_request',destinationId:oid()};
  assert.equal(bank.validateRequest(transfer).kind,'transfer_request');
- for(const change of [{kind:'settled'},{kind:'deposit'},{currency:'USD'},{amount:'3.55'},{amount:'0'},{amount:'1000000000000'},
+ for(const change of [{kind:'settled'},{kind:'deposit'},{currency:'JPY'},{amount:'3.55'},{amount:'0'},{amount:'1000000000000'},
   {idempotencyKey:'invalid'},{sourceId:'not-id'},{note:'x'},{kind:'transfer_request',destinationId:v.sourceId},
   {kind:'withdrawal_request',destinationId:oid()},{validDays:0},{validDays:31}])assert.throws(()=>bank.validateRequest({...v,...change}),e=>e.status===400);
  assert.throws(()=>bank.validateRequest({...v,kind:'transfer_request'}),e=>e.status===400);
@@ -70,7 +70,7 @@ test('Standalone Operations Reports remains independent and only includes entitl
  assert.deepEqual(sourcesFor(t,actor('Reports Analyst',['reports','banking'])).map(s=>s.key),['workspace','banking']);
  assert(!permissionsFor('Reports Analyst').includes('banking.view'));
  assert.equal(sourcesFor({...t,moduleGrants:[grant('banking')]},actor('Reports Analyst',['banking','reports'])).length,0);
- assert(tenantMenu({...t,moduleGrants:[grant('banking')]},actor('Banking Operator')).some(g=>g.items.some(x=>x.href==='/tenant/banking')));
+ assert(tenantMenu({...t,moduleGrants:[grant('banking')]},actor('Banking Operator')).some(g=>g.items.some(x=>x.href==='/tenant/banking/deposit')));
 });
 test('Immutable banking request snapshots, deduplication and no bank balance model',()=>{
  const schema=require('../src/tenant/schemas/BankingRequest.schema');
@@ -82,21 +82,23 @@ test('Immutable banking request snapshots, deduplication and no bank balance mod
  assert(bank.sameRequest(stored,actor('Banking Operator'),branch,v));
  assert(!bank.sameRequest(stored,actor('Banking Operator'),branch,{...v,amountMinor:70000}));
 });
-test('Banking UI renders CSRF-protected forms for permitted role, escaped input and no posting button',async()=>{
+test('Banking UI renders approved wording on protected request forms and keeps settlement unavailable',async()=>{
  const data={records:{items:[],nextCursor:null},branches:[{_id:branch,name:'Main',currency:'UGX'}],queue:[],
   references:[{_id:oid(),customerName:'<script>alert(1)</script>',institutionName:'Bank A',last4:'1234'}],
   selectedBranchId:branch,canCreate:true,canReview:false,idempotencyKey:crypto.randomUUID(),formatMoneyMinor:(v,c)=>`${c} ${v}`};
  const page=path.join(__dirname,'../src/views/tenant/banking/index.ejs');
  const html=await ejs.renderFile(page,{data,user:actor('Banking Operator'),csrfToken:'csrf'});
  assert.match(html,/name="idempotencyKey"/);assert.match(html,/name="_csrf" value="csrf"/);
- assert.match(html,/Save request for independent review/);
+ assert.match(html,/Post banking operation/);
  assert.doesNotMatch(html,/<script>alert/);assert.match(html,/&lt;script&gt;/);
- assert.doesNotMatch(html,/>Post banking operation</);
+ assert.match(html,/action="\/tenant\/banking\/requests"/);
+ assert.match(html,/Bank execution remains pending verification/);
+ assert.doesNotMatch(html,/<form[^>]+action="\/tenant\/banking\/(?:deposit|withdraw|transfer)"/);
  const read=await ejs.renderFile(page,{data:{...data,canCreate:false,canReview:false},user:actor('Auditor'),csrfToken:'csrf'});
- assert.doesNotMatch(read,/Save request for independent review/);
+ assert.doesNotMatch(read,/Post banking operation/);
  const queue=[{_id:oid(),reference:'BK-TEST',kind:'deposit_request',currency:'UGX',amountMinor:'10000',source:{last4:'1234',institutionName:'Example'}}];
  const review=await ejs.renderFile(page,{data:{...data,canCreate:false,canReview:true,queue},user:actor('Reconciliation Officer'),csrfToken:'csrf'});
- assert.match(review,/Approve pending bank verification/);assert.doesNotMatch(review,/Save request for independent review/);
+ assert.match(review,/Approve pending bank verification/);assert.doesNotMatch(review,/Post banking operation/);
 });
 test('Banking quota uses standalone counter and does not charge twice for idempotent replay',async()=>{
  const service=require('../src/platform/services/commercial.service');const t=tenant();t._id=oid();

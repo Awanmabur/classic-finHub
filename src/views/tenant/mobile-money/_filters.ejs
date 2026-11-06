@@ -1,0 +1,14 @@
+<% const mobileFilters = data.filters || {}; const filterOperation = typeof fixedOperation === 'string' ? fixedOperation : ''; %>
+<form method="get" action="<%= filterAction %>" class="mobileMoneyFilters">
+  <div class="row3">
+    <label class="field">From (UTC)<input class="control" type="date" name="from" value="<%= mobileFilters.from || '' %>"></label>
+    <label class="field">To (UTC)<input class="control" type="date" name="to" value="<%= mobileFilters.to || '' %>"></label>
+    <label class="field">Network<select class="control" name="network"><option value="">All networks</option><% (data.networksAvailable || ['MTN','Airtel','Africell','M-Pesa']).forEach(network=>{ %><option value="<%= network %>" <%= mobileFilters.network === network ? 'selected' : '' %>><%= network %></option><% }) %></select></label>
+  </div>
+  <div class="row3">
+    <label class="field">Currency<select class="control" name="currency"><option value="">All currencies</option><% (data.currencies || ['UGX','USD','SSP','KES']).forEach(currency=>{ %><option value="<%= currency %>" <%= mobileFilters.currency === currency ? 'selected' : '' %>><%= typeof currencyLabel === 'function' ? currencyLabel(currency) : (currency === 'KES' ? 'KSH' : currency) %></option><% }) %></select></label>
+    <% if(!filterOperation){ %><label class="field">Operation<select class="control" name="operation"><option value="">Cash-in and Cash-out</option><option value="cash_in" <%= mobileFilters.operation === 'cash_in' ? 'selected' : '' %>>Cash-in</option><option value="cash_out" <%= mobileFilters.operation === 'cash_out' ? 'selected' : '' %>>Cash-out</option></select></label><% } %>
+    <label class="field">Entry source<select class="control" name="entrySource"><option value="">Manual and SMS capture</option><option value="manual" <%= mobileFilters.entrySource === 'manual' ? 'selected' : '' %>>Manual</option><option value="sms" <%= mobileFilters.entrySource === 'sms' ? 'selected' : '' %>>SMS capture</option></select></label>
+  </div>
+  <div class="rowBtns"><button class="btn btnPrimary" type="submit">Apply filters</button><a class="btn" href="<%= filterAction %>">Today</a></div>
+</form>

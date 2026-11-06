@@ -1,7 +1,9 @@
 const { mobileTransactionModel, auditEventModel, branchModel, ensureTenantIndexes } = require('../models');
-const currencies = { UGX: 0, KES: 2 };
+const {currencies}=require('../../config/currencies');
 const MAX_MINOR = 10000000000;
 function toMinor(value, currency, allowZero = false) {
+  if(typeof currency!=='string'||!Object.hasOwn(currencies,currency))throw bad('Enter a supported currency');
+  if(value!==undefined&&value!==null&&!['string','number'].includes(typeof value))throw bad('Enter a valid amount');
   const s = String(value ?? '').trim();
   const decimals = currencies[currency];
   if (decimals === undefined || !/^\d{1,11}(?:\.\d{1,2})?$/.test(s)) throw bad('Enter a valid amount and supported currency');
@@ -25,18 +27,35 @@ function formatMoneyMinor(value, currency) {
 function bad(message, status=400) { const e = new Error(message); e.status = status; return e; }
 function validate(input, operation) {
   if (!['cash_in','cash_out'].includes(operation)) throw bad('Unsupported operation');
-  const customer = String(input.customer || '').trim();
-  const network = String(input.network || '');
-  const currency = String(input.currency || '');
+  if(input.customer!==undefined&&typeof input.customer!=='string')throw bad('Enter a valid customer name');
+  const customer = (input.customer||'').trim()||String(input.customerPhone||'').trim().replace(/[ ()-]/g,'');
+  if(typeof input.network!=='string')throw bad('Choose a valid network');
+  const network = input.network;
+  if(typeof input.currency!=='string')throw bad('Enter a supported currency');
+  const currency = input.currency;
   const networkReference = String(input.networkReference || '').trim();
   const idempotencyKey = String(input.idempotencyKey || '');
-  if (customer.length < 2 || customer.length > 120 || !['MTN','Airtel','M-Pesa'].includes(network)) throw bad('Customer and network are required');
+  if (customer.length < 2 || customer.length > 120 || !['MTN','Airtel','Africell','M-Pesa'].includes(network)) throw bad('Customer and network are required');
+  if(input.customerPhone!==undefined&&typeof input.customerPhone!=='string')throw bad('Enter a valid customer phone');
+  const phone=String(input.customerPhone||'').trim();
+  if(phone&&!/^\+?[0-9 ()-]{7,24}$/.test(phone))throw bad('Enter a valid customer phone');
+  const customerPhone=phone.replace(/[ ()-]/g,'');
+  if(customerPhone&&!/^\+?\d{7,15}$/.test(customerPhone))throw bad('Enter a valid customer phone');
+  if(input.customerNote!==undefined&&typeof input.customerNote!=='string')throw bad('Enter a valid customer ID or note');
+  const customerNote=String(input.customerNote||'').trim();
+  if(customerNote.length>400||/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(customerNote))throw bad('Customer ID or note must be at most 400 characters');
+  const paymentMethod=input.paymentMethod===undefined?'Cash':input.paymentMethod;
+  if(!['Cash','Wallet Balance','Bank'].includes(paymentMethod))throw bad('Choose Cash, Wallet Balance or Bank');
   if (!/^[A-Za-z0-9._:/-]{5,100}$/.test(networkReference)) throw bad('Provide the valid network transaction reference (5–100 characters)');
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idempotencyKey)) throw bad('Expired form reference. Reload the page and retry.');
   const amountMinor = toMinor(input.amount, currency);
   const feeMinor = toMinor(input.fee ?? '0', currency, true);
   if (feeMinor > amountMinor) throw bad('Fee cannot exceed amount');
-  return { operation, customer, network, networkReference, currency, amountMinor, feeMinor, idempotencyKey };
+  return { operation, customer, customerPhone, customerNote, paymentMethod, network, networkReference, currency, amountMinor, feeMinor, idempotencyKey };
+}
+function sameDetails(record,values){
+  return ['amountMinor','feeMinor','currency','customer','network','networkReference','customerPhone','customerNote','paymentMethod']
+    .every(key=>String(record[key]??(key==='paymentMethod'?'Cash':key==='customerPhone'||key==='customerNote'?'':undefined))===String(values[key]));
 }
 async function recordMobileMoney(conn, operator, input, operation, tenant, sourceContext = null) {
   if(!operator?.id || !['Tenant Owner','Mobile Money Operator'].includes(operator.role))throw bad('This role cannot record Mobile Money operations',403);
@@ -56,8 +75,7 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
   if(prior){
     if((sourceContext && String(prior.smsInboxId)!==source.smsInboxId) || String(prior.operatorId)!==String(operator.id)||prior.operation!==operation||
       String(prior.branchId)!==requestedBranchId||
-      ['amountMinor','feeMinor','currency','customer','network','networkReference']
-        .some(k=>String(prior[k])!==String(values[k])))throw bad('This operation reference was already used for different details.',409);
+      !sameDetails(prior,values))throw bad('This operation reference was already used for different details.',409);
     return {created:prior,duplicate:true};
   }
   const Audit = auditEventModel(conn);
@@ -66,15 +84,18 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
   try {
     await session.withTransaction(async () => {
       const smsAuthorization=sourceContext?await require('./smsAuthorization.service').authorizeRecording(conn,session,operator,tenant,sourceContext,requestedBranchId,values):null;
+      const authorization=smsAuthorization||await require('./financialAuthorization.service').authorizeMobileRecording(conn,session,operator,tenant,requestedBranchId,operation);
       const branch=await branchModel(conn).findOneAndUpdate({_id:requestedBranchId,status:'active'},{$inc:{revision:1}},{session,new:true});
       if(!branch)throw bad('Assigned branch is inactive or unavailable',409);
       if(branch.currency!==values.currency)throw bad('Operation currency does not match the branch currency',409);
-      await require('../../platform/services/commercial.service').reserveUsage(smsAuthorization?.tenant||tenant,'mobile_money_records',session);
-      const cashSessionId=await require('./cashDrawer.service').attachRecord(conn,session,smsAuthorization?.actor||operator,branch._id,values.currency,operation,BigInt(values.amountMinor),smsAuthorization?{receivedAt:smsAuthorization.receivedAt}:null);
+      await require('../../platform/services/commercial.service').reserveUsage(authorization.tenant,'mobile_money_records',session);
+      // Wallet and bank are declared receipt methods, not verified integrations.
+      // Only physical Cash records may change a verified drawer or join a shift.
+      const cashSessionId=values.paymentMethod==='Cash'?await require('./cashDrawer.service').attachRecord(conn,session,authorization.actor,branch._id,values.currency,operation,BigInt(values.amountMinor),smsAuthorization?{receivedAt:smsAuthorization.receivedAt}:null):null;
       [created] = await Model.create([{ ...values, ...source, cashSessionId, branchId:branch._id, amountMinor: String(values.amountMinor), feeMinor: String(values.feeMinor), operatorId: operator.id, status: 'pending_verification' }], { session });
       await Audit.create([{
         action: `mobile_money.${operation}.recorded`, actorId: operator.id, targetId: created._id,
-        metadata: { currency: values.currency, amountMinor: values.amountMinor, network: values.network, branchId: String(created.branchId) }
+        metadata: { currency: values.currency, amountMinor: values.amountMinor, network: values.network, paymentMethod:values.paymentMethod, branchId: String(created.branchId) }
       }], { session });
     });
     return { created, duplicate: false };
@@ -84,7 +105,7 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
       if (existing) {
         if ((sourceContext && String(existing.smsInboxId)!==source.smsInboxId) || String(existing.operatorId) !== operator.id || existing.operation !== operation ||
           String(existing.branchId)!==requestedBranchId ||
-          ['amountMinor','feeMinor','currency','customer','network','networkReference'].some(k => String(existing[k]) !== String(values[k]))) {
+          !sameDetails(existing,values)) {
           throw bad('This operation reference was already used for different details.', 409);
         }
         return { created: existing, duplicate: true };

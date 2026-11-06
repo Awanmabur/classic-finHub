@@ -36,7 +36,7 @@ test('financial intents require balanced exact, branch-bound accounting and prov
   assert.throws(()=>engine.normalizeIntent(intent({provider:'INVALID SPACE'})));
   assert.throws(()=>engine.normalizeIntent(intent({createdBy:'bad'})));
   assert.throws(()=>engine.normalizeIntent(intent({sourceType:'reversal'})));
-  assert.throws(()=>engine.normalizeIntent(intent({currency:'USD'})));
+  assert.throws(()=>engine.normalizeIntent(intent({currency:'JPY'})));
 });
 test('gateway callback authenticates strict canonical, tenant-bound, time-limited evidence',()=>{
   const p=evidence(),s=sign(p),now=Date.parse(p.issuedAt);

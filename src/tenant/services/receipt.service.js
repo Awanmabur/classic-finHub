@@ -3,8 +3,9 @@
 // an invoice nor evidence of network payment. Access control belongs to the
 // scoped record lookup in the tenant route.
 const mobile=require('./mobileMoney.service');
+const {currencyCodes}=require('../../config/currencies');
 function acknowledgement(record){
- if(!record||!record._id||!['cash_in','cash_out'].includes(record.operation)||!['UGX','KES'].includes(record.currency)){
+ if(!record||!record._id||!['cash_in','cash_out'].includes(record.operation)||!currencyCodes.includes(record.currency)){
    const error=new Error('Invalid operational acknowledgement source');error.status=400;throw error;
  }
  return {record,reference:`CFH-ACK-${String(record._id).toUpperCase()}`,

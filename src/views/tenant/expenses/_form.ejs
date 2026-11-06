@@ -1,0 +1,12 @@
+<% const expenseBranch=typeof operationBranch!=='undefined'?operationBranch:null; %>
+<input type="hidden" name="currency" value="<%= expenseBranch?.currency||'' %>"><div class="formSection"><div class="formSectionTitle">Expense details</div>
+ <div class="row2"><label class="field">Expense type<div class="control"><input name="expenseType" placeholder="Rent, transport, internet..." minlength="2" maxlength="100" required></div></label>
+ <label class="field">Currency<div class="control"><input value="<%= typeof currencyLabel==='function'?currencyLabel(expenseBranch?.currency):expenseBranch?.currency||'' %>" readonly required aria-describedby="expenseBranchHint"></div></label></div>
+ <div class="row2"><label class="field">Amount<div class="control"><input name="amount" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" placeholder="0" required></div></label>
+ <label class="field">Paid to / vendor<div class="control"><input name="vendor" placeholder="Optional vendor" maxlength="120"></div></label></div>
+ <div class="row2"><label class="field">Payment method<div class="control"><select name="paymentMethod"><option>Cash</option><option>Mobile Money</option><option>Bank</option></select></div></label>
+ <label class="field">Reference<div class="control"><input name="reference" placeholder="Receipt / voucher no." maxlength="120"></div></label></div>
+ <label class="field">Description<div class="control"><input name="description" placeholder="Optional description" maxlength="400"></div></label>
+ <p class="tiny" id="expenseBranchHint"><%= expenseBranch?`Operating branch: ${expenseBranch.name}. Currency follows this branch.`:'Assign an active operating branch before adding an expense.' %></p>
+ <p class="tiny">Submitted expenses require independent review. Cash expenses require a verified open cash shift; cash changes only after approval. Mobile Money and Bank record evidence without executing a payment.</p>
+</div>

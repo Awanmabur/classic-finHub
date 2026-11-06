@@ -9,7 +9,7 @@
   <section class="card" style="margin-top:14px"><div class="cardHead"><b>Your operating branch</b><span>Account assignment</span></div><div class="cardBody">
     <p class="tiny">Transactions use your account’s operating branch automatically. This setting does not change your access to reports across the workspace.</p>
     <form method="post" action="/tenant/branches/operating" class="row2"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <label class="field">Assigned location<select class="control" name="branchId" required><option value="">Choose your account location</option><% activeBranches.forEach(b=>{ %><option value="<%= b._id %>" <%= String(user.transactionBranchId||user.branchId||'')===String(b._id)?'selected':'' %>><%= b.name %> · <%= b.currency %></option><% }) %></select></label>
+      <label class="field">Assigned location<select class="control" name="branchId" required><option value="">Choose your account location</option><% activeBranches.forEach(b=>{ %><option value="<%= b._id %>" <%= String(user.transactionBranchId||user.branchId||'')===String(b._id)?'selected':'' %>><%= b.name %> · <%= typeof currencyLabel==='function'?currencyLabel(b.currency):(b.currency==='KES'?'KSH':b.currency) %></option><% }) %></select></label>
       <div class="rowBtns"><button class="btn" type="submit">Save account location</button></div>
     </form>
   </div></section><% } %>
@@ -17,14 +17,14 @@
     <form action="/tenant/branches" method="post"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <div class="row3"><label class="field">Name<input class="control" name="name" required minlength="2" maxlength="100" placeholder="Kampala Main"></label>
       <label class="field">Unique code<input class="control" name="code" required maxlength="32" pattern="[a-z0-9][a-z0-9\-]{1,30}" placeholder="kampala-main"></label>
-      <label class="field">Currency<select class="control" name="currency"><option value="UGX">UGX</option><option value="KES">KES</option></select></label></div>
+      <label class="field">Currency<select class="control" name="currency"><% (typeof currencyOptions!=='undefined'?currencyOptions:[{code:'UGX',label:'UGX'},{code:'USD',label:'USD'},{code:'SSP',label:'SSP'},{code:'KES',label:'KSH'}]).forEach(option=>{ %><option value="<%= option.code %>"><%= option.label %></option><% }) %></select></label></div>
       <label class="field">Business location / address<input class="control" name="address" maxlength="240"></label>
       <button class="btn btnPrimary" type="submit">Create branch</button>
     </form>
   </div></section><% } %>
   <section class="card" style="margin-top:14px"><div class="cardHead"><b>Branches</b><span>Names and addresses can be corrected; financial currency and historical records cannot be rewritten</span></div><div class="cardBody tableWrap"><table><thead><tr><th>Branch</th><th>Currency</th><th>Status</th><th>Details</th><% if(data.canManage){ %><th>Management</th><% } %></tr></thead><tbody>
   <% if(!data.branches.length){ %><tr><td colspan="5">No branches yet. Create the first branch before inviting operational staff or recording transactions.</td></tr><% } %>
-  <% data.branches.forEach(b=>{ %><tr data-search-row><td><b><%= b.name %></b><br><span class="tiny"><%= b.code %></span></td><td><%= b.currency %></td><td><span class="tag"><%= b.status %></span></td><td><%= b.address||'—' %></td>
+  <% data.branches.forEach(b=>{ %><tr data-search-row><td><b><%= b.name %></b><br><span class="tiny"><%= b.code %></span></td><td><%= typeof currencyLabel==='function'?currencyLabel(b.currency):(b.currency==='KES'?'KSH':b.currency) %></td><td><span class="tag"><%= b.status %></span></td><td><%= b.address||'—' %></td>
   <% if(data.canManage){ %><td>
     <% if(b.status==='active'){ %><form method="post" action="/tenant/branches/<%= b._id %>/update"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><label class="field">Name<input class="control" name="name" maxlength="100" required value="<%= b.name %>"></label><label class="field">Address<input class="control" name="address" maxlength="240" value="<%= b.address||'' %>"></label><button class="btn">Save changes</button></form>
     <form method="post" action="/tenant/branches/<%= b._id %>/archive" style="margin-top:8px"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btnDanger">Archive</button></form><% }else{ %>

@@ -1,5 +1,6 @@
 'use strict';
 const mongoose = require('mongoose');
+const {currencyCodes}=require('../../config/currencies');
 const { Schema } = mongoose;
 
 // The general banking Account model and legacy LedgerEntry schema are NOT accounting
@@ -20,7 +21,7 @@ const account = new Schema({
   branchId: { type: Schema.Types.ObjectId, required: true, immutable: true },
   code: { type: String, required: true, uppercase: true, trim: true, match: /^[A-Z][A-Z0-9_]{2,39}$/, immutable: true },
   name: { type: String, required: true, trim: true, maxlength: 120, immutable: true },
-  currency: { type: String, enum: ['UGX', 'KES'], required: true, immutable: true },
+  currency: { type: String, enum: currencyCodes, required: true, immutable: true },
   category: { type: String, enum: ['asset', 'liability', 'equity', 'income', 'expense'], required: true, immutable: true },
   createdBy: { type: Schema.Types.ObjectId, required: true, immutable: true },
   createdAt: { type: Date, default: Date.now, immutable: true }
@@ -31,7 +32,7 @@ account.index({ branchId: 1, currency: 1, category: 1 });
 
 const journal = new Schema({
   branchId: { type: Schema.Types.ObjectId, required: true, immutable: true },
-  currency: { type: String, enum: ['UGX', 'KES'], required: true, immutable: true },
+  currency: { type: String, enum: currencyCodes, required: true, immutable: true },
   sourceType: { type: String, enum: ['mobile_money', 'money_transfer', 'banking', 'forex', 'reversal'], required: true, immutable: true },
   sourceRef: { type: String, required: true, immutable: true, match: /^[A-Za-z0-9][A-Za-z0-9._:/-]{5,119}$/ },
   fingerprint: { type: String, required: true, immutable: true, match: /^[0-9a-f]{64}$/ },
@@ -54,7 +55,7 @@ const posting = new Schema({
   journalId: { type: Schema.Types.ObjectId, required: true, immutable: true },
   branchId: { type: Schema.Types.ObjectId, required: true, immutable: true },
   accountId: { type: Schema.Types.ObjectId, required: true, immutable: true },
-  currency: { type: String, enum: ['UGX', 'KES'], required: true, immutable: true },
+  currency: { type: String, enum: currencyCodes, required: true, immutable: true },
   lineNo: { type: Number, required: true, min: 0, max: 49, immutable: true },
   side: { type: String, enum: ['debit', 'credit'], required: true, immutable: true },
   amountMinor: { type: Schema.Types.Decimal128, required: true, immutable: true },

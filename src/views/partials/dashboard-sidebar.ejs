@@ -1,17 +1,17 @@
-<% const activeHref = menu.flatMap(group => group.items).map(item => item.href)
-  .filter(href => currentPath === href || currentPath.startsWith(href + '/'))
-  .sort((a,b) => b.length - a.length)[0]; %>
+<% const navigationItems = menu.flatMap((group, groupIndex) => group.items.map((item, itemIndex) => ({...item, key:groupIndex+':'+itemIndex})));
+   const activeItem = navigationItems.filter(item => currentPath === item.href || currentPath.startsWith(item.href + '/'))
+     .sort((a,b) => b.href.length - a.href.length)[0]; %>
 <aside class="panel side" id="sidePanel">
   <div class="brand">
     <div class="logo"></div>
     <div><h1><%= context === 'platform' ? 'ClassicFin Platform' : (tenant?.name || 'Tenant Workspace') %></h1><p><%= context === 'platform' ? 'Classic Technologies' : (tenant?.status + ' • ' + tenant?.plan) %></p></div>
   </div>
   <nav class="nav" aria-label="Workspace navigation">
-    <% menu.forEach(group => { %>
+    <% menu.forEach((group, groupIndex) => { %>
       <div class="navGroup">
-        <div class="item" role="heading" aria-level="2"><i class="fa-solid fa-folder-tree" aria-hidden="true"></i> <span><%= group.label %></span></div>
-        <% group.items.forEach(item => { %>
-          <a href="<%= item.href %>" class="subitem <%= activeHref === item.href ? 'active' : '' %>" <%- activeHref === item.href ? 'aria-current="page"' : '' %>><i class="fa-solid <%= item.icon %>" aria-hidden="true"></i><span><%= item.label %></span></a>
+        <div class="item <%= activeItem?.key.startsWith(groupIndex+':') ? 'active' : '' %>" role="heading" aria-level="2"><i class="fa-solid <%= ({Overview:'fa-gauge-high','Money Transfer':'fa-money-bill-transfer','Mobile Money':'fa-mobile-screen-button','Forex Operations':'fa-chart-line','Banking Operations':'fa-building-columns','Operation Reports':'fa-file-lines','Tenant Workspace':'fa-building','Phase 2 Control':'fa-user-shield'})[group.label]||'fa-folder-tree' %>" aria-hidden="true"></i> <span><%= group.label %></span></div>
+        <% group.items.forEach((item, itemIndex) => { const active = activeItem?.key === groupIndex+':'+itemIndex; %>
+          <a href="<%= item.href %>"<% if(item.transactionKind === 'choose'){ %> data-open-transaction<% } else if(item.transactionKind){ %> data-transaction-kind="<%= item.transactionKind %>"<% } %> class="subitem <%= active ? 'active' : '' %>" <%- active ? 'aria-current="page"' : '' %>><i class="fa-solid <%= item.icon %>" aria-hidden="true"></i><span><%= item.label %></span></a>
         <% }) %>
       </div>
     <% }) %>

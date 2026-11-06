@@ -3,31 +3,21 @@
    const branchProblem = typeof operationBranchError === 'string' && operationBranchError ? operationBranchError : 'An active operating branch must be assigned to your account before creating records.'; %>
 <section class="view show">
  <%- include('../../partials/operation-branch', {currentBranch, branchProblem, user}) %>
- <section class="card"><div class="cardHead"><b>Transfer requests — internal operations</b><span>No funds are sent or settled</span><a class="btn" href="/tenant/money-transfer/history">View history</a></div>
+ <section class="card"><div class="cardHead"><b><%= data.workspaceTitle||'Transfer requests — internal operations' %></b><span>No funds are sent or settled</span><a class="btn" href="/tenant/money-transfer/records">Money transfer record</a></div>
   <div class="cardBody">
-   <p class="tiny">Register transfer instructions, then obtain a different authorized staff member's review. Identity verification, funds collection, external remittance, payout PINs, ledger settlement and payout receipts are <strong>not active</strong>. Do not accept or release cash based on this screen.</p>
-   <a class="btn" href="/tenant/money-transfer/contacts">Manage sender and beneficiary contacts</a>
+   <p class="tiny">Save sender and receiver instructions for independent review. Payout PIN issuance requires a verified payout integration.</p>
+   <div class="rowBtns"><a class="btn" href="/tenant/money-transfer/contacts">Manage sender and beneficiary contacts</a><a class="btn" href="/tenant/money-transfer/payout">Payout by PIN</a><a class="btn" href="/tenant/money-transfer/pending-payouts">Pending payout queue</a><a class="btn" href="/tenant/money-transfer/fees">Transfer fee summary</a><a class="btn" href="/tenant/money-transfer/report">Transfer report summary</a></div>
 
   </div>
  </section>
  <div class="grid" style="margin-top:14px">
-  <% if(data.canCreate && currentBranchId){ %><form method="post" action="/tenant/money-transfer/requests" class="card" autocomplete="off">
+  <% if(data.canCreate && currentBranchId){ %><form method="post" action="/tenant/money-transfer/requests" class="card" autocomplete="off" data-transfer-form data-currency="<%= currentBranch.currency %>">
    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
    <input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
 
-   <div class="cardHead"><b>New transfer request</b><span>Approval required</span></div>
+   <div class="cardHead"><b><%= data.workspaceTitle||'New transfer request' %></b><span>Approval required · PIN issuance unavailable</span></div>
    <div class="cardBody" style="display:grid;gap:12px">
-    <% const senders=data.contacts.filter(c=>c.kind==='sender'); const beneficiaries=data.contacts.filter(c=>c.kind==='beneficiary'); %>
-    <% if(!senders.length||!beneficiaries.length){ %><p class="tiny">Create an active sender and beneficiary contact in this branch before submitting a transfer request.</p><% } %>
-    <label class="field">Sender<select class="control" name="senderId" required><option value="">Select sender</option><% senders.forEach(c=>{ %><option value="<%= c._id %>"><%= c.fullName %> · <%= c.country %></option><% }) %></select></label>
-    <label class="field">Beneficiary<select class="control" name="beneficiaryId" required><option value="">Select beneficiary</option><% beneficiaries.forEach(c=>{ %><option value="<%= c._id %>"><%= c.fullName %> · <%= c.country %></option><% }) %></select></label>
-    <div class="row3">
-     <label class="field">Requested amount<input class="control" name="amount" type="number" required min="1" step="0.01"></label>
-     <label class="field">Proposed fee<input class="control" name="fee" type="number" required min="0" step="0.01" value="0"></label>
-     <div class="field"><span>Currency</span><input type="hidden" name="currency" value="<%= currentBranch.currency %>"><span class="control"><%= currentBranch.currency %></span></div>
-    </div>
-    <label class="field">Request validity<select class="control" name="validDays" required><% for(let days=1;days<=30;days++){ %><option value="<%= days %>" <%= days===7?'selected':'' %>><%= days %> day<%= days===1?'':'s' %></option><% } %></select></label>
-    <div class="rowBtns"><button class="btn btnPrimary" type="submit" <%= !senders.length||!beneficiaries.length?'disabled':'' %>>Record transfer request</button></div>
+    <%- include('_entry-form',{currentBranch}) %>
    </div>
   </form><% } else if(data.canCreate){ %><section class="card"><div class="cardHead"><b>New request</b></div><div class="cardBody"><p class="tiny">Your account needs an active operating branch before creating a request.</p></div></section><% } %>
   <section class="card"><div class="cardHead"><b>Recent transfer requests</b><span><%= data.records.items.length %> visible</span></div>

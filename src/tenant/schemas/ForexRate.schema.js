@@ -1,11 +1,12 @@
 'use strict';
 // Internal indicative FX rate. Approval does not verify an external market rate.
 const mongoose=require('mongoose');
+const {forexCurrencyCodes}=require('../../config/currencies');
 const O=mongoose.Schema.Types.ObjectId;
 const schema=new mongoose.Schema({
  branchId:{type:O,required:true,immutable:true},
- fromCurrency:{type:String,enum:['UGX','KES','USD','EUR'],required:true,immutable:true},
- toCurrency:{type:String,enum:['UGX','KES','USD','EUR'],required:true,immutable:true},
+ fromCurrency:{type:String,enum:forexCurrencyCodes,required:true,immutable:true},
+ toCurrency:{type:String,enum:forexCurrencyCodes,required:true,immutable:true},
  // One source major unit equals the given number of target major units.
  rateDecimal:{type:String,required:true,immutable:true,match:/^(?:[1-9]\d{0,9}|0)\.\d{1,8}$|^[1-9]\d{0,9}$/},
  proposedBy:{type:O,required:true,immutable:true},

@@ -3,6 +3,10 @@ const {modules}=require('../../data/store');
 const {effectiveSubscription,limitsFor}=require('./commercial.service');
 const {activeGrants}=require('./moduleSubscriptions.service');
 const REQUIRED_INDEXES=Object.freeze({
+  CustomerDirectoryV1: [['reference',1]],
+  CustomerAccountV1: [['accountNumber',1]],
+  TenantWorkspaceConfigV1: [['tenantId',1]],
+  ExpenseV1: [['idempotencyKey',1]],
   SecureTenantUser: [['email',1]],
   SecureBranch: [['code',1]],
   SecureCashSession: [['activeKey',1]],

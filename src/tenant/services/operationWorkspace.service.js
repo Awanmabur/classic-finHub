@@ -113,10 +113,10 @@ async function formContext(conn,tenant,actor,key,operationBranch){
  const common={branches,selectedBranchId:selected?selectedId:null,idempotencyKey:crypto.randomUUID(),formatMoneyMinor:mobile.formatMoneyMinor};
  if(key==='money_transfer'){
   const service=require('./moneyTransfer.service');
-  const [contacts,list,queue]=await Promise.all([
-   selected?service.listContacts(conn,tenant,operatingActor,{branchId:selectedId}):[],service.list(conn,tenant,actor),
+  const [list,queue]=await Promise.all([
+   service.list(conn,tenant,actor),
    ['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(actor.role)&&hasPermission(actor,'money_transfer.review')?service.reviewQueue(conn,tenant,actor):[]]);
-  return {...common,contacts,records:list,queue,canCreate:['Tenant Owner','Money Transfer Operator'].includes(actor.role)&&hasPermission(actor,'money_transfer.create'),
+  return {...common,countryOptions:require('../../utils/selectionOptions').countryOptions(),records:list,queue,canCreate:['Tenant Owner','Money Transfer Operator'].includes(actor.role)&&hasPermission(actor,'money_transfer.create'),
    canReview:['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(actor.role)&&hasPermission(actor,'money_transfer.review')};
  }
  if(key==='banking'){

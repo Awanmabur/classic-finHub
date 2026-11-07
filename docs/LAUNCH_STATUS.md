@@ -4,11 +4,11 @@ Version 1.24.0 is the prepared launch candidate. The repository contains immutab
 
 | Area | Evidence state |
 | --- | --- |
-| Repository unit, isolated database and browser checks | Passed: 393 JavaScript tests, 13 Android relay tests, 473 JS/EJS syntax/template checks, all registered isolated Mongo integrations, and zero dependency vulnerabilities. [Current evidence](review/launch-1.24.0/README.md). |
+| Repository unit, isolated database and browser checks | Passed: 402 JavaScript tests, 13 Android relay tests, 477 JS/EJS syntax/template checks, all registered isolated Mongo integrations, and zero dependency vulnerabilities. [Latest transfer/Workspace evidence](review/transfer-workspace-operations/README.md); [earlier launch evidence](review/launch-1.24.0/README.md). |
 | Production configuration probe | Implemented and regression-tested; configuration-only mode cannot claim live readiness. |
 | Outbox/notification health | Correct worker classes are checked separately; a notification worker cannot mask a failed outbox worker. |
 | Immutable release and rollback | Tested with controlled deployment doubles, including failed readiness and failed pull. No actual public deployment was performed. |
-| Production image build and isolated startup | Built actual Dockerfile/lockfile; Node 22.23.4, non-root, read-only rootfs, dropped capabilities, ready/home 200 and private 303/no-store/noindex passed. This does not validate a live host. |
+| Production image build and isolated startup | Earlier candidate image passed actual Dockerfile/lockfile build and startup: Node 22.23.4, non-root, read-only rootfs, dropped capabilities, ready/home 200 and private 303/no-store/noindex. Rebuild an immutable image from the final source commit before deployment; the earlier image predates the latest transfer/Workspace changes. This does not validate a live host. |
 | Actual production hostname, DNS, TLS, proxy and cookies | Not supplied/validated in this cloud session. |
 | Authenticated production replica set, service roles and firewall | Not supplied/validated; local replica-set tests do not prove deployment permissions. |
 | Live recovery email and Android/provider message delivery | Not demonstrated on production bindings. |

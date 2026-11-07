@@ -213,15 +213,6 @@
     if(!form?.matches('[data-transfer-form],[data-forex-form]')||operationBindings.has(form))return;
     operationBindings.add(form);
     if(form.matches('[data-transfer-form]')){
-      form.querySelectorAll('[data-party-select]').forEach(select=>{
-        const sync=()=>{
-          const party=select.dataset.partySelect,option=select.selectedOptions[0];
-          const phone=form.querySelector(`[data-party-phone="${party}"]`),country=form.querySelector(`[data-party-country="${party}"]`);
-          if(phone)phone.value=option?.dataset.phone||'';
-          if(country)country.value=[option?.dataset.country,country.dataset.branchName].filter(Boolean).join(' / ');
-        };
-        select.addEventListener('change',sync);sync();
-      });
       const update=()=>{
         const scale=form.dataset.currency==='UGX'?0:2;
         const amount=operationMinor(form.elements.namedItem('amount').value,scale),fee=operationMinor(form.elements.namedItem('fee').value,scale);

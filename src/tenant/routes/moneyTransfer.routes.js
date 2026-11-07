@@ -28,9 +28,8 @@ function routes({renderTenant}){
    ]);
    const branchId=String(req.operationBranch?._id || '');
    const selected=availableBranches.find(b=>String(b._id)===branchId);
-   const contacts=selected?await transfer.listContacts(req.tenantDb,req.tenant,require('../services/branchView.service').withoutReadView(req.user),{branchId}):[];
    renderTenant(req,res,'money-transfer/index','Money Transfer','Transfer instructions, reviewed manual collections and secure PIN payouts.',{
-    records,queue,branches:availableBranches,selectedBranchId:selected?branchId:null,contacts,
+    records,queue,branches:availableBranches,selectedBranchId:selected?branchId:null,countryOptions:require('../../utils/selectionOptions').countryOptions(),
     canCreate:writeRoles.has(req.user.role)&&hasPermission(req.user,'money_transfer.create'),
     canReview:reviewerRoles.has(req.user.role)&&hasPermission(req.user,'money_transfer.review'),
     idempotencyKey:crypto.randomUUID(),formatMoneyMinor

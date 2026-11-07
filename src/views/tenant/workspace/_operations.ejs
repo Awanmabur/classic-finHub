@@ -1,0 +1,35 @@
+<% const ops=data.summary; %>
+<section class="card" aria-labelledby="workspaceReadinessTitle" data-workspace-readiness="<%= ops.state %>">
+ <div class="cardHead"><div><b id="workspaceReadinessTitle">Operational readiness</b><br><span><%= ops.scope %> · Checked <%= fmtDate(ops.checkedAt) %></span></div><span class="tag" data-readiness-status><%= ops.label %></span></div>
+ <div class="cardBody workspaceStack">
+  <div class="workspaceNextAction"><div><b>Next action</b><p><%= ops.next.detail %></p></div><a class="btn btnPrimary" href="<%= ops.next.href %>"><%= ops.next.action||'Open review queue' %></a></div>
+  <div class="workspaceReadinessStats">
+   <div class="stat"><div class="k">Setup blockers</div><div class="v" data-ops-count="blockers"><%= ops.blockers %></div><div class="s"><%= ops.branches %> active branches · <%= ops.staff %> active staff</div></div>
+   <div class="stat"><div class="k">Awaiting action</div><div class="v" data-ops-count="waiting"><%= ops.waiting %></div><div class="s">Pending reviews and disputed records</div></div>
+   <div class="stat"><div class="k">Reviewed fund accounts</div><div class="v"><%= ops.funds.ready %><span class="workspaceStatTotal"> / <%= ops.funds.total %></span></div><div class="s"><%= ops.funds.unknown %> unknown openings · <%= ops.funds.held %> held or stale</div></div>
+   <div class="stat"><div class="k">Verified cash operators</div><div class="v"><%= ops.cash.verified %><span class="workspaceStatTotal"> / <%= ops.cash.eligible %></span></div><div class="s">Own reviewed opening and bound cash account</div></div>
+  </div>
+  <div class="workspaceReadinessChecks">
+   <% ops.checks.forEach(check=>{ %><div class="workspaceOperationRow" data-readiness-check="<%= check.id %>" data-state="<%= check.state %>"><div><b><%= check.label %></b><p><%= check.detail %></p></div><span class="tag"><%= check.state==='ready'?'Complete':'Action required' %></span><a class="btn" href="<%= check.href %>"><%= check.action %></a></div><% }) %>
+  </div>
+  <p class="tiny">These checks use recorded configuration and dated reviewed evidence. They do not verify a live provider balance or available liquidity. Posting still checks the current operator, selected account, cash shift, funds book and independent approval.</p>
+ </div>
+</section>
+<% if(ops.modules.length){ %>
+<section class="card" aria-labelledby="workspaceModuleReadinessTitle">
+ <div class="cardHead"><div><b id="workspaceModuleReadinessTitle">Subscribed operation checklist</b><br><span>Every operator needs an eligible funds path and a different authorized reviewer</span></div><% if(data.canCash){ %><a class="btn" href="/tenant/treasury">Wallets &amp; balances</a><% } %></div>
+ <div class="cardBody tableWrap"><table><thead><tr><th>Operation / branch</th><th>Staff &amp; funds</th><th>Setup status</th><th>Action</th></tr></thead><tbody>
+  <% ops.modules.forEach(row=>{ %><tr data-module-readiness="<%= row.key %>" data-branch-id="<%= row.branchId %>" data-state="<%= row.state %>"><td><b><%= row.label %></b><br><span class="tiny"><%= row.branch %></span></td><td><%= row.operators %> operators · <%= row.reviewers %> reviewers<br><span class="tiny"><%= row.preparedOperators %> operators with reviewed funds paths</span></td><td><span class="tag"><%= row.state==='ready'?'Setup checks complete':'Action required' %></span><% if(row.problems.length){ %><ul class="workspaceIssueList"><% row.problems.forEach(problem=>{ %><li><%= problem %></li><% }) %></ul><% } %></td><td><a class="btn" href="<%= row.path %>">Open <%= row.label %></a></td></tr><% }) %>
+ </tbody></table></div>
+</section>
+<% } %>
+<% if(ops.queues.length){ %>
+<section class="card" aria-labelledby="workspaceReviewQueuesTitle">
+ <div class="cardHead"><div><b id="workspaceReviewQueuesTitle">Daily review queues</b><br><span>Current pending and disputed records in this branch view</span></div><a class="btn" href="/tenant/cash/shifts">Cash control review</a></div>
+ <div class="cardBody workspaceQueues"><% ops.queues.forEach(queue=>{ %><a class="workspaceQueue" href="<%= queue.href %>" data-review-queue="<%= queue.id %>"><div><b><%= queue.label %></b><p><%= queue.detail %></p></div><span class="tag"><%= queue.count %></span></a><% }) %></div>
+ <div class="cardBody workspaceQueueFooter"><span class="tiny"><%= ops.cash.open %> open cash shifts · <%= ops.cash.unfinished %> unfinished shifts. Close and independently review each shift at the end of the operating day.</span></div>
+</section>
+<% } %>
+<% if(ops.sms){ %>
+<section class="card" aria-labelledby="workspaceSmsTitle"><div class="cardHead"><div><b id="workspaceSmsTitle">Android SMS capture</b><br><span>Optional automation for your subscribed mobile money operation</span></div><a class="btn" href="/tenant/sms-capture">Manage SMS devices</a></div><div class="cardBody"><p><b><%= ops.sms.active %></b> active enrolled devices · <b><%= ops.sms.received %></b> have received a message · <b><%= ops.sms.automatic %></b> configured for automatic recording.</p><p class="tiny">Enrollment does not prove a device is online. Inspect received messages and resolve parsing or balance exceptions in SMS capture. Manual entry remains available.</p></div></section>
+<% } %>

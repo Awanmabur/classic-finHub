@@ -19,15 +19,24 @@ stale settings form returns a conflict instead of overwriting a newer update.
 All successful writes and exports record an audit event. A failed audit write
 rolls back the business change.
 
-Settings operations re-read the active account's fixed role and current tenant
+Settings operations re-read the active account's fixed role, assigned modules and current tenant
 subscription from MongoDB, validate the derived tenant database name, and reject
 forged caller roles. Writes also lock the tenant and account authorization rows
-within the same MongoDB transaction to serialize against revocation and
+within the same MongoDB transaction, check the credential revision and MFA enrollment, and serialize against revocation and
 concurrent settings updates.
 
 ## Pages and working actions
 
-- **Tenant profile:** saved business identity and contact preferences.
+- **Tenant Workspace:** a live, read-only operational snapshot of the selected
+  Main/branch/All view. It checks operating assignments, privileged MFA,
+  independent reviewers, reviewed funds paths, verified operator cash shifts,
+  customer-account prerequisites and current indicative FX rates for subscribed
+  operations. It links pending openings, observations, funding, adjustments,
+  cash shifts and module-specific work to their actual review screens.
+  **Setup checks complete** describes these setup checks; transaction services
+  still enforce current permissions, liquidity, ledger integrity and review.
+- **Tenant profile:** saved business identity and contact preferences, the same
+  operational checks, and links to wallet/funds setup and operating instructions.
 - **Landing page setup:** headline and services, ordered sections, draft,
   published or hidden status, edit, archive, restore, preview, and publish.
   Publishing captures an immutable public-content snapshot. Later draft edits
@@ -54,9 +63,8 @@ concurrent settings updates.
   module grants, capacity, and period; module requests remain the route for
   subscription changes.
 - **Import / export data:** scoped settings JSON and audit CSV downloads, plus
-  the separately authorized customer CSV export. Import job descriptions are
-  stored as drafts; unavailable execution is recorded as rejected rather than
-  reporting simulated completion.
+  the separately authorized customer CSV export. Historical onboarding notes
+  are read-only in this screen; there is no import-job creation or execution UI.
 - **Landing, receipt, and customer portal previews:** current saved content,
   with private draft previews and explicit customer-service availability.
 - **Tenant audit activity and control center:** recorded changes and links to
@@ -82,6 +90,7 @@ replica set and the usual application environment:
 
 ```sh
 NODE_ENV=test node scripts/workspace-settings-integration.js
+NODE_ENV=test node scripts/workspace-operations-integration.js
 ```
 
 The integration script refuses production or non-loopback targets, creates
@@ -90,3 +99,6 @@ It verifies fresh authorization, tenant isolation, stale and concurrent writes,
 audit rollback, lifecycle restoration, published snapshot isolation, escaped
 public content, statistics and exports, CSRF protection, authenticated form
 persistence, theme CSS, and account/tenant revocation.
+
+The operating procedures for all roles are in the
+[end-to-end operations manual](OPERATIONS_MANUAL.md).

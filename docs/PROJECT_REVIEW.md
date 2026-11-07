@@ -2,6 +2,14 @@
 
 The current launch candidate is 1.24.0. Use [launch status](LAUNCH_STATUS.md) and the [production runbook](LAUNCH_RUNBOOK.md) for the current deployment decision. Earlier verification counts and file references below are historical where superseded by the current launch evidence and cleanup manifest.
 
+Latest operating update: money transfers accept typed sender/receiver details
+without saved contacts. Tenant Workspace now uses database-backed setup checks
+and real review queues. The [end-to-end operating manual](OPERATIONS_MANUAL.md)
+covers onboarding through daily closing and recovery. The complete release gate
+passed 402 JavaScript tests, 13 relay tests, 477 JS/EJS checks, all registered
+isolated database integrations and the dependency audit. See the
+[focused evidence](review/transfer-workspace-operations/README.md).
+
 This register covers the uploaded application reviewed and repaired in this session, including onboarding, tenant administration, financial recording, authentication, dependencies, and the active EJS interface. It records confirmed findings and concrete remaining work. It is not an exhaustive security audit, a claim that every screen matches the approved prototype, or approval to process real funds.
 
 The active dashboards use `src/views/layouts/dashboard.ejs` and the mounted routers in `src/platform/routes/index.js` and `src/tenant/routes/index.js`. The approved root `index.html` is a design reference containing browser-local simulations. A template or legacy controller existing on disk does not establish a working application feature.

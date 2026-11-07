@@ -15,10 +15,10 @@ const entryPages={
  compliance:{kind:'compliance_rule',title:'Compliance controls',subtitle:'KYC, risk, limits, watchlist, and approval control definitions.',create:'Create rule',modal:'Create compliance rule',section:'Compliance rule'},
  integrations:{kind:'integration',title:'Integrations & API',subtitle:'Integration descriptions and access to configured SMS capture.',create:'Add integration',modal:'Create integration',section:'Integration details'},
  'notification-rules':{kind:'notification_rule',title:'Notification rules',subtitle:'Alert definitions for owners, managers, tellers, and risk events.',create:'Create rule',modal:'Create notification rule',section:'Notification rule'},
- 'import-export':{kind:'data_job',title:'Import / export data',subtitle:'Export existing workspace data and maintain onboarding job descriptions.',create:'Create import job',modal:'Create import/export job',section:'Data job'}
+ 'import-export':{kind:'data_job',title:'Import / export data',subtitle:'Export existing workspace data and record onboarding notes.',create:'Add onboarding note',modal:'Create onboarding note',section:'Onboarding note'}
 };
 const pageNames={
- overview:['Tenant Workspace','Tenant identity, operations setup, controls, and published content.'],profile:['Tenant profile','Business identity and owner contact information.'],
+ overview:['Tenant Workspace','Operating readiness, pending reviews, and business setup.'],profile:['Tenant profile','Business identity, operating setup, and account controls.'],
  branding:['Branding & receipts','Tenant colors, receipt template, and footer settings.'],roles:['Roles & permissions','Fixed server roles and their current permissions.'],
  database:['Tenant database','Current tenant database statistics and managed backup configuration.'],subscription:['Subscription & limits','Authoritative subscription terms, module grants, and usage limits.'],
  'landing-preview':['Landing preview','Preview current tenant content before publishing.'],'receipt-preview':['Receipt preview','Preview the configured receipt identity and wording.'],
@@ -71,13 +71,13 @@ function factory({renderTenant}){
   if(['profile','branding'].includes(page))data.form=configForm(page,config,req.tenant);
   if(page==='branding')data.receiptForm=configForm('receipt',config,req.tenant);
   if(page==='landing'){data.heroForm=configForm('landing',config,req.tenant);data.form=entryForm(spec);}
-  else if(spec)data.form=entryForm(spec);
+  else if(spec&&spec.kind!=='data_job')data.form=entryForm(spec);
   renderTenant(req,res,'workspace/index',names[0],names[1],data);
  }
  router.get('/',async(req,res,next)=>{try{await render(req,res,'overview',{summary:await service.overview(req.tenantDb,req.tenant,req.user)});}catch(error){next(error);}});
  for(const page of ['profile','branding',...Object.keys(entryPages),'landing-preview','receipt-preview','customer-portal-preview']){
   router.get('/'+page,async(req,res,next)=>{try{
-   const extra=page==='landing-preview'?{sections:await service.entries(req.tenantDb,req.tenant,req.user,'landing_section')}:{};
+  const extra=page==='landing-preview'?{sections:await service.entries(req.tenantDb,req.tenant,req.user,'landing_section')}:page==='profile'?{summary:await service.overview(req.tenantDb,req.tenant,req.user)}:{};
    await render(req,res,page,extra);
   }catch(error){next(error);}});
  }

@@ -78,6 +78,7 @@
     "customer-accounts:integration": "node scripts/customer-accounts-integration.js",
     "expenses-reports:integration": "node scripts/expenses-reports-integration.js",
     "workspace:integration": "node scripts/workspace-settings-integration.js",
+    "workspace-operations:integration": "node scripts/workspace-operations-integration.js",
     "currency:integration": "node scripts/currency-integration.js",
     "manual:authorization": "node scripts/manual-authorization-integration.js",
     "operation:authorization": "node scripts/operation-authorization-integration.js",

@@ -95,7 +95,56 @@ async function main(){
   assert.equal(await auditEventModel(a.conn).countDocuments({action:'money_transfer.request.expired'}),1);
   const results=await svc.list(a.conn,a.tenant,operator);
   assert.equal(results.items.length,3);
-  console.log('PASS: independent entitlement, contacts, immutable snapshots, atomic quota, idempotency, independent approval, cancellation, expiry, tenant isolation, audits and reports');
+
+  // A new branch has no saved contacts. Direct teller entry must remain usable
+  // while retaining the same branch, fresh authorization and atomic audit fences.
+  await Tenant.updateOne({_id:a.tenant._id},{$set:{'moduleGrants.0.limits.recordsPerMonth':10}});
+  const walkInBranch=await branchModel(a.conn).create({name:'Walk-in Branch',code:'walkin',currency:'UGX',createdBy:ownerId,updatedBy:ownerId});
+  await User.updateOne({_id:operator.id},{$set:{branchId:walkInBranch._id},$inc:{authVersion:1}});
+  const teller={...operator,branchId:String(walkInBranch._id),authVersion:1};
+  const typedInput=()=>({senderName:'Walk-in Sender',senderPhone:'+256 700 111 222',senderCountry:'UG',
+   receiverName:'Direct Receiver',receiverPhone:'+254712345678',receiverCountry:'KE',senderDocument:'WALKIN-S',receiverDocument:'DIRECT-R',
+   amount:'15000',fee:'200',currency:'UGX',validDays:'7',transferMethod:'Cash',purpose:'Typed teller entry',idempotencyKey:crypto.randomUUID()});
+  const directInput=typedInput(),direct=await svc.createRequest(a.conn,a.tenant,teller,directInput);
+  assert.equal(direct.order.partyEntryMode,'typed');assert.equal(String(direct.order.branchId),teller.branchId);
+  assert.equal(direct.order.sender.contactId,null);assert.equal(direct.order.beneficiary.contactId,null);
+  assert.equal(direct.order.sender.name,'Walk-in Sender');assert.equal(direct.order.sender.phone,'+256700111222');
+  assert.equal(direct.order.beneficiary.name,'Direct Receiver');assert.equal(direct.order.beneficiary.country,'KE');
+  assert.equal(direct.order.capture.receiverDocument,'DIRECT-R');
+  assert.equal(await transferContactModel(a.conn).countDocuments({branchId:walkInBranch._id}),0,'typed entry never creates directory contacts');
+  const directRetry=await svc.createRequest(a.conn,a.tenant,teller,{...directInput,senderPhone:'+256700111222'});
+  assert(directRetry.duplicate);assert.equal(String(directRetry.order._id),String(direct.order._id));
+  for(const change of [{senderName:'Another Sender'},{receiverName:'Another Receiver'},{senderPhone:'+256700111223'},
+   {receiverPhone:'+254712345679'},{senderCountry:'US'},{receiverCountry:'UG'},{receiverDocument:'CHANGED-R'},{purpose:'Changed instruction'}])
+   await assert.rejects(svc.createRequest(a.conn,a.tenant,teller,{...directInput,...change}),e=>e.status===409);
+  await assert.rejects(svc.createRequest(a.conn,a.tenant,teller,{...typedInput(),senderId:String(sender._id)}),e=>e.status===400);
+  await assert.rejects(svc.createRequest(a.conn,a.tenant,teller,{...typedInput(),branchId:String(a.branch._id)}),e=>e.status===403);
+  await assert.rejects(svc.createRequest(a.conn,a.tenant,operator,typedInput()),e=>e.status===403,'stale branch and auth version cannot create');
+  await assert.rejects(svc.createRequest(b.conn,b.tenant,teller,typedInput()),e=>e.status===403);
+
+  const Audit=auditEventModel(a.conn),Order=transferOrderModel(a.conn),originalAuditCreate=Audit.create;
+  const before={orders:await Order.countDocuments(),audits:await Audit.countDocuments(),
+   usage:(await UsageCounter.find({tenantId:a.tenant._id}).lean()).map(row=>[String(row._id),row.quantity]),
+   branchRevision:(await branchModel(a.conn).findById(walkInBranch._id).lean()).revision,
+   tenantVersion:(await Tenant.findById(a.tenant._id).lean()).__v};
+  Audit.create=async()=>{throw Error('Injected direct-transfer audit failure');};
+  try{await assert.rejects(svc.createRequest(a.conn,a.tenant,teller,typedInput()),/Injected direct-transfer audit failure/);}
+  finally{Audit.create=originalAuditCreate;}
+  assert.equal(await Order.countDocuments(),before.orders);assert.equal(await Audit.countDocuments(),before.audits);
+  assert.deepEqual((await UsageCounter.find({tenantId:a.tenant._id}).lean()).map(row=>[String(row._id),row.quantity]),before.usage);
+  assert.equal((await branchModel(a.conn).findById(walkInBranch._id).lean()).revision,before.branchRevision);
+  assert.equal((await Tenant.findById(a.tenant._id).lean()).__v,before.tenantVersion,'fresh authorization locks roll back with the transfer');
+  await User.updateOne({_id:teller.id},{$set:{allowedModules:[]}});
+  await assert.rejects(svc.createRequest(a.conn,a.tenant,teller,typedInput()),e=>e.status===403,'persisted module revocation defeats stale actor permissions');
+  assert.equal(await Order.countDocuments(),before.orders);
+
+  // These states are produced by the separately tested reviewed-funding flow.
+  // Both must be legal filters for teller records and history.
+  for(const status of ['collected_manual','paid_out_manual']){
+   await Order.collection.updateOne({_id:direct.order._id},{$set:{status}});
+   assert.equal((await svc.list(a.conn,a.tenant,teller,{status})).items.length,1);
+  }
+  console.log('PASS: legacy contact compatibility; direct teller identities without saved contacts; immutable normalized snapshots; exact typed retries; changed party/capture conflicts; no mixed modes; branch and tenant isolation; fresh account authorization; atomic quota, audit and authorization rollback; manual status filters; independent approval, expiry and reports');
  }finally{
   for(const slug of slugs){if(!/^probe-transfer-[ab]-[a-f0-9]{16}$/.test(slug))throw Error('Unsafe scratch cleanup slug');
    try{await getTenantConnection(slug).db.dropDatabase();}catch(e){console.error('Scratch cleanup failed:',e.message);process.exitCode=1;}}

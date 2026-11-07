@@ -1,15 +1,15 @@
-<% const senders=data.contacts.filter(c=>c.kind==='sender'); const beneficiaries=data.contacts.filter(c=>c.kind==='beneficiary'); %>
+<% const transferCountries=data.countryOptions||[]; %>
 <div class="formSection"><div class="formSectionTitle">Sender details</div><div class="row2">
-<label class="field">Sender name<select class="control" name="senderId" required data-party-select="sender"><option value="">Select sender</option><% senders.forEach(c=>{ %><option value="<%= c._id %>" data-phone="<%= c.phone %>" data-country="<%= c.country %>"><%= c.fullName %></option><% }) %></select></label>
-<label class="field">Sender phone<input class="control" data-party-phone="sender" placeholder="+256..." readonly></label>
+<label class="field">Sender name<input class="control" name="senderName" required minlength="2" maxlength="120" autocomplete="off" placeholder="Enter sender's full name"></label>
+<label class="field">Sender phone<input class="control" name="senderPhone" type="tel" required maxlength="40" autocomplete="off" placeholder="+256700123456"><span class="tiny">Include the international country code.</span></label>
 <label class="field">Sender ID / document no.<input class="control" name="senderDocument" maxlength="80" placeholder="National ID, passport, or optional"></label>
-<label class="field">Source country / branch<input class="control" data-party-country="sender" data-branch-name="<%= currentBranch.name %>" value="<%= currentBranch.name %>" readonly></label>
+<label class="field">Sender country<select class="control" name="senderCountry" required><option value="">Select country</option><% transferCountries.forEach(country=>{ %><option value="<%= country.code %>"><%= country.name %></option><% }) %></select></label>
 </div></div>
 <div class="formSection"><div class="formSectionTitle">Receiver details</div><div class="row2">
-<label class="field">Receiver name<select class="control" name="beneficiaryId" required data-party-select="receiver"><option value="">Select beneficiary</option><% beneficiaries.forEach(c=>{ %><option value="<%= c._id %>" data-phone="<%= c.phone %>" data-country="<%= c.country %>"><%= c.fullName %></option><% }) %></select></label>
-<label class="field">Receiver phone<input class="control" data-party-phone="receiver" placeholder="+256..." readonly></label>
+<label class="field">Receiver name<input class="control" name="receiverName" required minlength="2" maxlength="120" autocomplete="off" placeholder="Enter receiver's full name"></label>
+<label class="field">Receiver phone<input class="control" name="receiverPhone" type="tel" required maxlength="40" autocomplete="off" placeholder="+256701234567"><span class="tiny">Include the international country code.</span></label>
 <label class="field">Receiver ID / document no.<input class="control" name="receiverDocument" maxlength="80" placeholder="Optional verification ID"></label>
-<label class="field">Payout branch<input class="control" value="<%= currentBranch.name %>" readonly><span class="tiny">Your operating branch is assigned automatically.</span></label>
+<label class="field">Receiver country<select class="control" name="receiverCountry" required><option value="">Select country</option><% transferCountries.forEach(country=>{ %><option value="<%= country.code %>"><%= country.name %></option><% }) %></select></label>
 </div></div>
 <div class="formSection"><div class="formSectionTitle">Transfer details</div><div class="row2">
 <label class="field">Transfer method<select class="control" name="transferMethod"><% ['Cash','Bank','Mobile Money','Online'].forEach(method=>{ %><option><%= method %></option><% }) %></select></label>
@@ -21,5 +21,4 @@
 </div></div>
 <div class="summary"><div class="sumRow"><span>Generated PIN</span><b>Issued after reviewed collection</b></div><div class="sumRow"><span>Total sender pays</span><b data-transfer-total>—</b></div><div class="sumRow"><span>Reference</span><b class="mono"><%= data.idempotencyKey %></b></div></div>
 <label class="field">Request validity<select class="control" name="validDays" required><% for(let days=1;days<=30;days++){ %><option value="<%= days %>" <%= days===7?'selected':'' %>><%= days %> day<%= days===1?'':'s' %></option><% } %></select></label>
-<% if(!senders.length||!beneficiaries.length){ %><p class="tiny">Create an active sender and beneficiary contact in this branch before submitting a request. <a href="/tenant/money-transfer/contacts">Manage contacts</a></p><% } %>
-<div class="rowBtns"><button class="btn btnPrimary" type="submit" <%= !senders.length||!beneficiaries.length?'disabled':'' %>>Save transfer &amp; continue</button></div>
+<div class="rowBtns"><button class="btn btnPrimary" type="submit">Save transfer &amp; continue</button></div>

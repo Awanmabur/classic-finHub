@@ -30,6 +30,7 @@ const steps=[
   [process.execPath,['scripts/expenses-treasury-integration.js']],
   [process.execPath,['scripts/reporting-cash-integration.js']],
   [process.execPath,['scripts/workspace-settings-integration.js']],
+  [process.execPath,['scripts/workspace-operations-integration.js']],
   [process.execPath,['scripts/currency-integration.js']],
   [process.execPath,['scripts/sms-capture-integration.js']],
   [process.execPath,['scripts/sms-authorization-integration.js']],

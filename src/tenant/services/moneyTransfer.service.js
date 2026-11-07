@@ -40,9 +40,23 @@ function validateContact(input){
   throw fail('Provide sender or beneficiary, ISO country code, and E.164 phone beginning with +');
  return {kind,fullName,phone,country};
 }
+function typedParty(name,phone,country,label){
+ if(typeof name==='string'&&/[<>\u0000-\u001f\u007f]/.test(name))throw fail('Enter a valid '+label+' name');
+ const cleanName=text(name,label+' name',2,120);
+ if(typeof phone==='string'&&/[\u0000-\u001f\u007f]/.test(phone))throw fail('Enter a valid '+label+' international phone');
+ const enteredPhone=text(phone,label+' international phone',8,40);
+ const rawPhone=enteredPhone.replace(/[ ().-]/g,'');
+ const code=text(country,label+' country code',2,2).toUpperCase();
+ if(!/^\+[1-9]\d{7,14}$/.test(rawPhone)||!require('../../utils/selectionOptions').isCountryCode(code))throw fail('Use an international phone beginning with + and select a valid '+label+' country');
+ return {contactId:null,name:cleanName,phone:rawPhone,country:code};
+}
 function validateOrder(input){
- const senderId=id(input?.senderId),beneficiaryId=id(input?.beneficiaryId);
- if(senderId===beneficiaryId)throw fail('Sender and beneficiary must be different contacts');
+ const hasTyped=['senderName','senderPhone','senderCountry','receiverName','receiverPhone','receiverCountry'].some(key=>Object.hasOwn(input||{},key));
+ const hasIds=['senderId','beneficiaryId'].some(key=>input?.[key]!==undefined&&input[key]!==null&&input[key]!=='');
+ if(hasTyped&&hasIds)throw fail('Enter sender and receiver details directly, or use saved contact identifiers; do not combine both');
+ let senderId=null,beneficiaryId=null,sender=null,beneficiary=null;
+ if(hasTyped){sender=typedParty(input.senderName,input.senderPhone,input.senderCountry,'sender');beneficiary=typedParty(input.receiverName,input.receiverPhone,input.receiverCountry,'receiver');}
+ else{senderId=id(input?.senderId);beneficiaryId=id(input?.beneficiaryId);if(senderId===beneficiaryId)throw fail('Sender and beneficiary must be different contacts');}
  const currency=text(input?.currency,'currency',3,3);
  const amountMinor=mobile.toMinor(input?.amount,currency);
  const feeMinor=mobile.toMinor(input?.fee??'0',currency,true);
@@ -51,13 +65,16 @@ function validateOrder(input){
  if(!UUID.test(idempotencyKey))throw fail('Invalid form reference. Reload the page.');
  const validDays=Number(input?.validDays??7);
  if(!Number.isSafeInteger(validDays)||validDays<1||validDays>30)throw fail('Validity must be 1–30 days');
- return {senderId,beneficiaryId,currency,amountMinor,feeMinor,idempotencyKey,validDays,capture:require('./operationCapture.service').parse('money_transfer',input)};
+ return {partyEntryMode:hasTyped?'typed':'saved_contact',senderId,beneficiaryId,sender,beneficiary,currency,amountMinor,feeMinor,idempotencyKey,validDays,capture:require('./operationCapture.service').parse('money_transfer',input)};
 }
 function snapshot(contact){return {contactId:contact._id,name:contact.fullName,phone:contact.phone,country:contact.country};}
 function maskPhone(phone){return String(phone).replace(/.(?=.{4})/g,'•');}
 function equivalent(existing,actor,branchId,v){
+ const mode=v.partyEntryMode||'saved_contact',storedMode=existing.partyEntryMode||'saved_contact';
+ const parties=mode==='typed'?['sender','beneficiary'].every(key=>['name','phone','country'].every(field=>existing[key]?.[field]===v[key]?.[field])):
+  String(existing.sender.contactId)===v.senderId&&String(existing.beneficiary.contactId)===v.beneficiaryId;
  return String(existing.createdBy)===String(actor.id)&&String(existing.branchId)===branchId&&
-   String(existing.sender.contactId)===v.senderId&&String(existing.beneficiary.contactId)===v.beneficiaryId&&
+   mode===storedMode&&parties&&
    require('./operationCapture.service').equivalent('money_transfer',existing.capture,v.capture)&&existing.currency===v.currency&&String(existing.amountMinor)===String(v.amountMinor)&&
    String(existing.feeMinor)===String(v.feeMinor)&&existing.validDays===v.validDays;
 }
@@ -126,13 +143,16 @@ async function createRequest(conn,tenant,actor,input){
   const authorization=await financialAuth.fenceAction(conn,tx,actor,tenant,'money_transfer','money_transfer.create',{branchId});
   const branch=await branchModel(conn).findOneAndUpdate({_id:branchId,status:'active'},{$inc:{revision:1}},{session:tx,new:true});
   if(!branch||branch.currency!==v.currency)throw fail('Branch is inactive or has a different currency',409);
-  const contacts=await transferContactModel(conn).find({_id:{$in:[v.senderId,v.beneficiaryId]},branchId,active:true}).session(tx).lean();
-  const sender=contacts.find(c=>String(c._id)===v.senderId&&c.kind==='sender');
-  const beneficiary=contacts.find(c=>String(c._id)===v.beneficiaryId&&c.kind==='beneficiary');
-  if(!sender||!beneficiary)throw fail('Choose active sender and beneficiary contacts from the same branch',409);
+  let sender=v.sender,beneficiary=v.beneficiary;
+  if(v.partyEntryMode==='saved_contact'){
+   const contacts=await transferContactModel(conn).find({_id:{$in:[v.senderId,v.beneficiaryId]},branchId,active:true}).session(tx).lean();
+   const savedSender=contacts.find(c=>String(c._id)===v.senderId&&c.kind==='sender'),savedBeneficiary=contacts.find(c=>String(c._id)===v.beneficiaryId&&c.kind==='beneficiary');
+   if(!savedSender||!savedBeneficiary)throw fail('Choose active sender and beneficiary contacts from the same branch',409);
+   sender=snapshot(savedSender);beneficiary=snapshot(savedBeneficiary);
+  }
   await reserveUsage(authorization.tenant,'money_transfer_requests',tx);
   [created]=await Model.create([{reference:`TR-${crypto.randomBytes(12).toString('hex').toUpperCase()}`,
-   idempotencyKey:v.idempotencyKey,branchId,createdBy:actor.id,sender:snapshot(sender),beneficiary:snapshot(beneficiary),
+   idempotencyKey:v.idempotencyKey,branchId,createdBy:actor.id,partyEntryMode:v.partyEntryMode,sender,beneficiary,
    capture:v.capture,currency:v.currency,amountMinor:String(v.amountMinor),feeMinor:String(v.feeMinor),validDays:v.validDays,
    expiresAt:new Date(Date.now()+v.validDays*86400000),status:'requested'}],{session:tx});
   await auditEventModel(conn).create([{action:'money_transfer.request.created',actorId:actor.id,targetId:created._id,
@@ -194,7 +214,7 @@ async function expireDue(conn,now=new Date(),limit=100){
 }
 async function list(conn,tenant,actor,{cursor=null,status=null}={}){
  requireModuleAccess(tenant,actor,'money_transfer.view');
- if(status&&!['requested','approved_pending_provider','rejected','cancelled','expired'].includes(status))throw fail('Invalid transfer status');
+ if(status&&!['requested','approved_pending_provider','collected_manual','paid_out_manual','rejected','cancelled','expired'].includes(status))throw fail('Invalid transfer status');
  const position=mobile.decodeCursor(cursor),query={...recordScope(actor),...(status?{status}:{})};
  if(position)query.$or=[{createdAt:{$lt:position.at}},{createdAt:position.at,_id:{$lt:id(position.id)}}];
  const found=await transferOrderModel(conn).find(query).sort({createdAt:-1,_id:-1}).limit(41).lean();

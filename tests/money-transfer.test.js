@@ -20,6 +20,7 @@ const tenant=()=>{const t=entitledTenant({plan:'modular',enabledModules:[]});ret
 const actor=(role,mods=['money_transfer'])=>({id:operatorId,role,branchId:branch,permissions:permissionsFor(role),allowedModules:mods});
 const validContact={kind:'sender',fullName:'Test Customer',country:'UG',phone:'+256700123456'};
 const validOrder=()=>({senderId:id(),beneficiaryId:id(),currency:'UGX',amount:'10000',fee:'200',validDays:'7',idempotencyKey:crypto.randomUUID()});
+const typedOrder=()=>({senderName:'Ada Sender',senderPhone:'+256 700 123 456',senderCountry:'UG',receiverName:'Grace Receiver',receiverPhone:'+254712345678',receiverCountry:'KE',currency:'UGX',amount:'10000',fee:'200',validDays:'7',idempotencyKey:crypto.randomUUID()});
 test('Money Transfer activates as independent internal module but does not enable payout endpoints',()=>{
  const item=require('../src/data/store').modules.find(m=>m.key==='money_transfer');
  assert.equal(item.runtimeStatus,'recording_only');
@@ -45,6 +46,31 @@ test('Transfer order validates exact currency minor units and bounded idempotenc
   {validDays:31},{validDays:0},{idempotencyKey:'test'},{senderId:'invalid'},{beneficiaryId:v.senderId}])
   assert.throws(()=>service.validateOrder({...v,...value}),e=>e.status===400);
  assert.throws(()=>service.validateOrder({...v,amount:'100000000000'}),e=>e.status===400);
+});
+test('Tellers type complete sender and receiver identities without saved contact identifiers',()=>{
+ const input=typedOrder(),parsed=service.validateOrder(input);
+ assert.equal(parsed.partyEntryMode,'typed');
+ assert.deepEqual(parsed.sender,{contactId:null,name:'Ada Sender',phone:'+256700123456',country:'UG'});
+ assert.deepEqual(parsed.beneficiary,{contactId:null,name:'Grace Receiver',phone:'+254712345678',country:'KE'});
+ assert.equal(parsed.senderId,null);assert.equal(parsed.beneficiaryId,null);
+ const legacy=service.validateOrder(validOrder());assert.equal(legacy.partyEntryMode,'saved_contact');
+ for(const invalid of [{senderId:id()},{beneficiaryId:id()},{senderName:'A'},{receiverName:'<script>'},
+  {senderName:'\nAda Sender'},{receiverName:'Grace\u0000 Receiver'},{senderPhone:'0700123456'},
+  {receiverPhone:'+256123'},{senderPhone:'+256\n700123456'},{senderPhone:'+01234567890'},
+  {senderCountry:'ZZ'},{receiverCountry:'Uganda'},{receiverPhone:['+254712345678']},{receiverName:undefined}])
+  assert.throws(()=>service.validateOrder({...input,...invalid}),e=>e.status===400);
+});
+test('Typed request retries compare the complete immutable identity and capture, including entry mode',()=>{
+ const parsed=service.validateOrder({...typedOrder(),senderDocument:'S-123',receiverDocument:'R-456'});
+ const existing={...parsed,createdBy:operatorId,branchId:branch};
+ const a=actor('Money Transfer Operator');assert(service.equivalent(existing,a,branch,parsed));
+ for(const party of ['sender','beneficiary'])for(const field of ['name','phone','country'])
+  assert(!service.equivalent(existing,a,branch,{...parsed,[party]:{...parsed[party],[field]:'changed'}}));
+ assert(!service.equivalent(existing,a,branch,{...parsed,capture:{...parsed.capture,receiverDocument:'different'}}));
+ assert(!service.equivalent({...existing,partyEntryMode:'saved_contact'},a,branch,parsed));
+ const schema=require('../src/tenant/schemas/TransferOrder.schema');
+ assert(schema.path('partyEntryMode').options.immutable);
+ assert.equal(schema.path('sender').schema.path('contactId').options.default,null);
 });
 test('Role, branch and module restrictions cannot be bypassed by user-submitted fields',()=>{
  assert(BRANCH_INVITABLE.includes('Money Transfer Operator'));
@@ -87,15 +113,18 @@ test('Contact edits cannot mutate immutable historical snapshots and indexes are
  assert(service.equivalent(existing,actor('Money Transfer Operator'),branch,value));
  assert(!service.equivalent(existing,actor('Money Transfer Operator'),branch,{...value,amountMinor:11000}));
 });
-test('Transfer dashboard renders scoped instructions, escaped contacts and reviewed PIN collection status',async()=>{
+test('Transfer dashboard allows typed names with no saved contacts and escapes immutable record names',async()=>{
  const t=tenant(),user=actor('Money Transfer Operator'),fakeId=id(),contact={_id:fakeId,branchId:branch,fullName:'<script>alert(1)</script>',country:'UG',kind:'sender'};
- const data={records:{items:[],nextCursor:null},queue:[],branches:[{_id:branch,name:'Main',currency:'UGX',status:'active'}],
-  selectedBranchId:branch,contacts:[contact,{...contact,_id:id(),kind:'beneficiary',fullName:'Beneficiary'}],
+ const data={records:{items:[{_id:fakeId,reference:'TR-SAFE',sender:{name:contact.fullName},beneficiary:{name:'Receiver'},status:'requested',amountMinor:'10000',currency:'UGX'}],nextCursor:null},queue:[],branches:[{_id:branch,name:'Main',currency:'UGX',status:'active'}],
+  selectedBranchId:branch,contacts:[],countryOptions:require('../src/utils/selectionOptions').countryOptions(),
   canCreate:true,canReview:false,idempotencyKey:crypto.randomUUID(),formatMoneyMinor:(v,c)=>`${c} ${v}`};
  const page=path.join(__dirname,'../src/views/tenant/money-transfer/index.ejs');
  const html=await ejs.renderFile(page,{data,user,csrfToken:'token'});
  assert.match(html,/name="idempotencyKey"/);assert.match(html,/name="_csrf" value="token"/);
  assert.match(html,/Save transfer &amp; continue/);assert.doesNotMatch(html,/name="decision" value="approve"/);
+ for(const name of ['senderName','senderPhone','senderCountry','receiverName','receiverPhone','receiverCountry'])assert.match(html,new RegExp('name="'+name+'"'));
+ assert.match(html,/<option value="UG">Uganda<\/option>/);
+ assert.doesNotMatch(html,/name="(?:senderId|beneficiaryId)"|Select sender|Select beneficiary|before submitting a request|type="submit" disabled/);
  assert.doesNotMatch(html,/<script>alert/);assert.match(html,/&lt;script&gt;/);
  assert.match(html,/action="\/tenant\/money-transfer\/requests"/);
  assert.match(html,/Issued after reviewed collection/);

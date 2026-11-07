@@ -36,10 +36,13 @@ async function access(conn,tenant,actor,{manage=false,session=null,fence=false}=
  const currentTenant=await tenants.lean();
  if(!currentTenant||(!effectiveSubscription(currentTenant)&&!activeGrants(currentTenant).length))throw fail('An active workspace subscription is required.',403);
  const people=require('../models').tenantUserModel(conn),filter={_id:actorId(actor),status:'active'};
+ if(fence){const version=actor.authVersion??0;if(!Number.isSafeInteger(version)||version<0)throw fail('Workspace authorization changed. Sign in again.',403);filter.authVersion=version===0?{$in:[0,null]}:version;}
  const query=fence?people.findOneAndUpdate({...filter,role:'Tenant Owner'},{$inc:{__v:1}},{session,new:true}):people.findOne(filter).session(session);
  const person=await query.lean();
  if(!person)throw fail('Workspace account access has been revoked.',403);
- const trusted={id:String(person._id),name:person.name,role:person.role,permissions:permissionsFor(person.role),branchId:person.branchId||null};
+ if(manage&&!person.mfaEnabledAt)throw fail('Authenticator enrollment is required to configure the workspace.',403);
+ let trusted={id:String(person._id),name:person.name,role:person.role,permissions:permissionsFor(person.role),branchId:person.branchId||null,allowedModules:Array.isArray(person.allowedModules)?person.allowedModules:[],authVersion:person.authVersion||0};
+ if(!fence&&!session)trusted=require('../services/branchView.service').withReadView(trusted,actor);
  authorize(trusted,manage);
  return {actor:trusted,tenant:currentTenant};
 }
@@ -215,11 +218,7 @@ async function health(conn,tenant,actor){
  await transaction(conn,async session=>{const trusted=await access(conn,tenant,actor,{manage:true,session,fence:true});return audit(conn,session,trusted.tenant,trusted.actor,'workspace.database.health_checked',tenantId(tenant),{collections:result.collections,objects:result.objects});});return result;
 }
 async function overview(conn,tenant,actor){
- await access(conn,tenant,actor);const {entry}=models(conn),id=tenantId(tenant);
- const counts=await entry.aggregate([{$match:{tenantId:id,status:{$ne:'archived'}}},{$group:{_id:'$kind',count:{$sum:1}}}]);
- const {branchModel,tenantUserModel}=require('../models');
- const [branches,users,audits]=await Promise.all([branchModel(conn).countDocuments({status:'active'}),tenantUserModel(conn).countDocuments({status:'active'}),auditEventModel(conn).countDocuments({'metadata.tenantId':String(tenant._id)})]);
- return {counts:Object.fromEntries(counts.map(v=>[v._id,v.count])),branches,users,audits};
+ return require('./operations').snapshot(conn,tenant,actor);
 }
 function roles(actor){authorize(actor);return Object.entries(ROLES).map(([name,permissions])=>({name,permissions:Array.from(permissions)}));}
 async function subscription(conn,tenant,actor){const trusted=await access(conn,tenant,actor);tenant=trusted.tenant;return {subscription:tenant.subscription?JSON.parse(JSON.stringify(tenant.subscription)):null,effective:!!effectiveSubscription(tenant),grants:activeGrants(tenant),seatsReserved:tenant.seatsReserved||0,branchCount:tenant.branchCount||0};}

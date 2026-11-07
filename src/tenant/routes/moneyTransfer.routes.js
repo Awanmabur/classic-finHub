@@ -18,7 +18,7 @@ function routes({renderTenant}){
  const router=newRouter();
  router.use(require('./operationWorkspace.routes')({renderTenant,moduleKey:'money_transfer'}));
  async function branches(req){return (await branchService.list(req.tenant)).filter(b=>b.status==='active' &&
-   (req.user.role==='Tenant Owner'||String(b._id)===String(req.user.branchId)));}
+   (require('../services/branchView.service').canViewBranches(req.user)||String(b._id)===String(req.user.branchId)));}
  router.get('/',requirePermission('money_transfer.view'),async(req,res,next)=>{
   try{
    const [records,queue,availableBranches]=await Promise.all([
@@ -28,7 +28,7 @@ function routes({renderTenant}){
    ]);
    const branchId=String(req.operationBranch?._id || '');
    const selected=availableBranches.find(b=>String(b._id)===branchId);
-   const contacts=selected?await transfer.listContacts(req.tenantDb,req.tenant,req.user,{branchId}):[];
+   const contacts=selected?await transfer.listContacts(req.tenantDb,req.tenant,require('../services/branchView.service').withoutReadView(req.user),{branchId}):[];
    renderTenant(req,res,'money-transfer/index','Money Transfer','Transfer instructions, reviewed manual collections and secure PIN payouts.',{
     records,queue,branches:availableBranches,selectedBranchId:selected?branchId:null,contacts,
     canCreate:writeRoles.has(req.user.role)&&hasPermission(req.user,'money_transfer.create'),
@@ -38,9 +38,9 @@ function routes({renderTenant}){
   }catch(e){next(e);}
  });
  router.get('/contacts',requirePermission('money_transfer.view'),async(req,res,next)=>{
-  try{const available=await branches(req),requested=String(req.operationBranch?._id || '');
+  try{const available=await branches(req),requested=req.viewBranchId?String(req.viewBranchId):String(req.operationBranch?._id || '');
    const selected=available.find(b=>String(b._id)===requested);
-   const contacts=selected?await transfer.listContacts(req.tenantDb,req.tenant,req.user,{branchId:requested}):[];
+   const contacts=selected||requested==='all'?await transfer.listContacts(req.tenantDb,req.tenant,req.user,{branchId:selected?requested:null}):[];
    renderTenant(req,res,'money-transfer/contacts','Transfer Contacts',
     'Branch-scoped senders and beneficiaries. Contact changes never rewrite historical transfer snapshots.',{
      branches:available,selectedBranchId:selected?requested:null,contacts,countryOptions:require('../../utils/selectionOptions').countryOptions(),canManage:writeRoles.has(req.user.role)&&hasPermission(req.user,'money_transfer.contacts')
@@ -74,6 +74,7 @@ function routes({renderTenant}){
   try{
    const {order,duplicate}=await transfer.createRequest(req.tenantDb,req.tenant,req.user,req.body);
    flash(req,'good',duplicate?'This exact request already exists; nothing was duplicated.':'Transfer request recorded. No money has been sent or collected.');
+   require('../services/branchView.service').followRecord(req,order);
    res.redirect(303,`/tenant/money-transfer/${order._id}/acknowledgement`);
   }catch(e){next(e);}
  });

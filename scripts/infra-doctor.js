@@ -13,7 +13,7 @@ const {issuesForTenant,REQUIRED_INDEXES}=require('../src/platform/services/infra
 function tenantIndexModels(conn){
   const treasury=require('../src/tenant/treasury/models').models(conn),funded=require('../src/tenant/funded/models').models(conn);
   return {TreasuryAccountV1:treasury.account,TreasuryObservationV1:treasury.observation,TreasuryBatchV1:treasury.batch,
-    TreasuryMovementV1:treasury.movement,TreasuryCounterV1:treasury.counter,TreasuryAdjustmentV1:treasury.adjustment,
+    TreasuryMovementV1:treasury.movement,TreasuryCounterV1:treasury.counter,TreasuryAdjustmentV1:treasury.adjustment,TreasuryFundingV1:require('../src/tenant/treasury/funding.models').model(conn),
     FundedExecutionV1:funded.execution,ManualPayoutVerificationV1:funded.verification,CustomerDirectoryV1:require('../src/tenant/customerAccounts/models').customerModel(conn),CustomerAccountV1:require('../src/tenant/customerAccounts/models').accountModel(conn),
     ExpenseV1:require('../src/tenant/models/expenses').expenseModel(conn),TenantWorkspaceConfigV1:require('../src/tenant/workspace/models').models(conn).config,SecureTenantUser:tenantUserModel(conn),SecureBranch:branchModel(conn),SecureCashSession:cashSessionModel(conn),SecureStaffInvite:staffInviteModel(conn),SecureMobileTransaction:mobileTransactionModel(conn),
     LedgerAccountV2:ledgerAccountModel(conn),LedgerJournalV2:ledgerJournalModel(conn),LedgerPostingV2:ledgerPostingModel(conn),

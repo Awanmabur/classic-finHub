@@ -67,7 +67,7 @@ test('Standalone Operations Reports remains independent and only includes entitl
  const t=tenant();
  assert.deepEqual(sourcesFor(t,actor('Reports Analyst',['reports'])).map(s=>s.key),['workspace']);
  assert(assignableModules(t,'Reports Analyst').includes('banking'));
- assert.deepEqual(sourcesFor(t,actor('Reports Analyst',['reports','banking'])).map(s=>s.key),['workspace','banking']);
+ assert.deepEqual(sourcesFor(t,actor('Reports Analyst',['reports','banking'])).map(s=>s.key),['workspace','cash_shifts','banking']);
  assert(!permissionsFor('Reports Analyst').includes('banking.view'));
  assert.equal(sourcesFor({...t,moduleGrants:[grant('banking')]},actor('Reports Analyst',['banking','reports'])).length,0);
  assert(tenantMenu({...t,moduleGrants:[grant('banking')]},actor('Banking Operator')).some(g=>g.items.some(x=>x.href==='/tenant/banking/deposit')));

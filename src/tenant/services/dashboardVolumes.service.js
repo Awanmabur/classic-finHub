@@ -23,7 +23,9 @@ function selectedCurrency(value,operationBranch){
 function scopeFor(user,key,operationBranch){
  const spec=sources[key];if(!spec)throw fail('Unknown dashboard source');
  const scope={};
- if(operationBranch){
+ if(require('./branchView.service').canViewBranches(user)&&user.viewBranchId!==undefined){
+  Object.assign(scope,require('./branchView.service').readScope(user));
+ }else if(operationBranch){
   if(!['Tenant Owner','Auditor'].includes(user?.role)&&String(operationBranch._id)!==String(user?.branchId))throw fail('Dashboard branch assignment is unavailable',403);
   scope.branchId=objectId(operationBranch._id);
  }else if(!['Tenant Owner','Auditor'].includes(user?.role))scope.branchId=objectId(user?.branchId);

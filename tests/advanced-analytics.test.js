@@ -36,12 +36,23 @@ test('Advanced Analytics is independently subscribable without Operations Report
 test('Analytics requires own entitlement, and each module source requires its own entitlement and staff assignment',()=>{
  const t=tenant(['analytics','mobile_money','forex']);
  const analyst=actor('Analytics Analyst',['analytics','forex']);
- assert.deepEqual(analytics.sourcesFor(t,analyst).map(s=>s.key),['workspace','forex']);
+ assert.deepEqual(analytics.sourcesFor(t,analyst).map(s=>s.key),['workspace','cash_shifts','forex']);
  assert(assignableModules(t,'Analytics Analyst').includes('mobile_money'));
  assert(!analytics.sourcesFor(t,actor('Analytics Analyst',['analytics'])).some(s=>s.key==='forex'));
  assert.deepEqual(analytics.sourcesFor(tenant(['mobile_money']),analyst),[]);
  denied(()=>analytics.filtersFor({source:'mobile_money'},analytics.sourcesFor(t,analyst)),403);
  denied(()=>analytics.filtersFor({source:'../../other'},analytics.sourcesFor(t,analyst)),403);
+});
+test('cash analytics requires a subscribed and assigned financial source',()=>{
+ for(const key of ['money_transfer','banking','forex','expenses']){
+  const t=tenant(['analytics',key]),assigned=actor('Analytics Analyst',['analytics',key]);
+  assert(analytics.sourcesFor(t,assigned).some(source=>source.key==='cash_shifts'),key);
+  assert(!analytics.sourcesFor(t,actor('Analytics Analyst',['analytics'])).some(source=>source.key==='cash_shifts'),'Unassigned cash source must not leak');
+  const revoked={...t,moduleGrants:t.moduleGrants.map(g=>g.moduleKey===key?{...g,status:'revoked'}:g)};
+  assert(!analytics.sourcesFor(revoked,assigned).some(source=>source.key==='cash_shifts'),'Revoked cash source must disappear');
+  assert(!assigned.permissions.includes('treasury.view'),'Aggregate visibility never grants wallet control');
+ }
+ assert.deepEqual(analytics.sourcesFor(tenant(['analytics']),actor('Analytics Analyst',['analytics'])).map(source=>source.key),['workspace']);
 });
 test('Analytics enforces branch scope and exact bounded UTC comparison periods',()=>{
  const range=analytics.bounds(7,now);

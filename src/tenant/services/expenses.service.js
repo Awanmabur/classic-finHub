@@ -31,14 +31,14 @@ async function access(conn,tenant,actor,permission,session=null){
  const trusted={id:String(person._id),name:person.name,role:person.role,authVersion:person.authVersion||0,permissions:permissionsFor(person.role),
   branchId:person.branchId||null,allowedModules:Array.isArray(person.allowedModules)?person.allowedModules:[]};
  if(!hasModuleForUser(current,trusted,'expenses')||!hasPermission(trusted,permission))throw fail('Expenses module and role permission required',403);
- if(trusted.role!=='Tenant Owner'){
+ if(!['Tenant Owner','Auditor'].includes(trusted.role)){
   const active=session?await branchModel(conn).findOneAndUpdate({_id:id(trusted.branchId),status:'active'},{$inc:{revision:1}},{new:true,session}):await branchModel(conn).exists({_id:id(trusted.branchId),status:'active'});
   if(!active)throw fail('An active branch assignment is required',403);
  }
- return {actor:trusted,tenant:current};
+ return {actor:session?trusted:require('./branchView.service').withReadView(trusted,actor),tenant:current};
 }
 function scopeFor(actor){
- if(['Tenant Owner','Auditor'].includes(actor?.role))return {};
+ if(['Tenant Owner','Auditor'].includes(actor?.role))return require('./branchView.service').readScope(actor);
  if(!OID.test(String(actor?.branchId||'')))throw fail('An active branch assignment is required',403);
  return {branchId:id(actor.branchId),...(!supervisors.includes(actor.role)?{operatorId:id(actor.id)}:{})};
 }

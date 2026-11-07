@@ -41,18 +41,19 @@ async function access(conn,tenant,actor,{permission='treasury.view',session=null
  const filter={_id:actor.id,status:'active'};
  if(fence){filter.role=actor.role;const version=actor.authVersion??0;if(!Number.isSafeInteger(version)||version<0)throw fail('Staff authorization context changed',403);filter.authVersion=version===0?{$in:[0,null]}:version;}
  const uq=fence?core.tenantUserModel(conn).findOneAndUpdate(filter,{$inc:{__v:1}},{session,new:true}):core.tenantUserModel(conn).findOne(filter).session(session);
- const person=await uq.lean();if(!person)throw fail('Funds account staff access was revoked',403);const current=trusted(person);
+ const person=await uq.lean();if(!person)throw fail('Funds account staff access was revoked',403);
+ const current=fence?trusted(person):require('../services/branchView.service').withReadView(trusted(person),actor);
  if(!hasPermission(current,permission))throw fail('Funds account permission required',403);
  if(requiresTenantMfa(current.role)&&!person.mfaEnabledAt)throw fail('Authenticator enrollment is required for privileged funds controls',403);
  if(fence&&current.role!=='Tenant Owner'&&String(current.branchId||'')!==String(actor.branchId||''))throw fail('Your branch assignment changed. Reload before saving.',409);
  const modules=availableModules(currentTenant,current);if(!modules.length||(sourceType&&!modules.includes(sourceType)))throw fail('The relevant financial module is not assigned to this account',403);
- if(current.role!=='Tenant Owner'){
+ if(!['Tenant Owner','Auditor'].includes(current.role)){
   const branchQuery=core.branchModel(conn).findOne({_id:oid(current.branchId,'assigned branch'),status:'active'});if(session)branchQuery.session(session);
   if(!await branchQuery.lean())throw fail('The assigned branch is unavailable',403);
  }
  return {tenant:currentTenant,actor:current,modules,underlyingModules:SOURCES.filter(module=>hasModuleForUser(currentTenant,current,module))};
 }
-function scope(actor){return ['Tenant Owner','Auditor'].includes(actor.role)?{}:{branchId:oid(actor.branchId,'assigned branch')};}
+function scope(actor){return ['Tenant Owner','Auditor'].includes(actor.role)?require('../services/branchView.service').readScope(actor):{branchId:oid(actor.branchId,'assigned branch')};}
 function moduleForKind(kind){return ({wallet:'mobile_money',forex_stock:'forex',transfer_clearing:'money_transfer'})[kind]||'shared';}
 function normalSide(kind){return kind==='transfer_clearing'?'credit':'debit';}
 function canSee(account,authorization){return (account.moduleKey==='shared'||(authorization.underlyingModules||authorization.modules).includes(account.moduleKey))&&
@@ -74,11 +75,32 @@ function validateAccount(input){
  if(input.isDefault!==undefined&&!['true','false',true,false,'on'].includes(input.isDefault))throw fail('Choose a valid default-account option');
  return {code,name,kind,currency,network,operatorId,accountReference,isDefault:input.isDefault===undefined||['true',true,'on'].includes(input.isDefault)};
 }
-async function createAccount(conn,tenant,actor,input){
+async function configureAccount(conn,tenant,actor,accountId,input){
+ await ensure(conn);
+ const name=text(input.name,'account name',3,120),isDefault=['true',true,'on'].includes(input.isDefault);
+ if(!['true','false',true,false,'on'].includes(input.isDefault))throw fail('Choose whether this account is the default');
+ const feeTreatment=input.feeTreatment||'record_only';if(!['record_only','payment_collected','wallet_commission'].includes(feeTreatment))throw fail('Choose a valid fee treatment');
+ return transaction(conn,async session=>{
+  const authorization=await access(conn,tenant,actor,{permission:'treasury.manage',session,fence:true});
+  if(authorization.actor.role!=='Tenant Owner')throw fail('Tenant Owner account administration required',403);
+  const account=await loadAccount(conn,authorization,accountId,{session,fence:true});
+  if(account.status==='archived')throw fail('Restore this funds account before changing its settings',409);
+  const selectionKey=`${account.branchId}:${account.kind}:${account.network}:${account.currency}:${account.operatorId||'shared'}`;
+  if(isDefault)await models(conn).account.updateMany({_id:{$ne:account._id},tenantId:authorization.tenant._id,selectionKey},{$unset:{selectionKey:''},$inc:{revision:1}},{session});
+  const changes={$set:{name,feeTreatment:account.kind==='wallet'?feeTreatment:'record_only'},$inc:{revision:1},...(isDefault?{}:{$unset:{selectionKey:''}})};
+  if(isDefault)changes.$set.selectionKey=selectionKey;
+  const configured=await models(conn).account.findOneAndUpdate({_id:account._id,tenantId:authorization.tenant._id},changes,{session,new:true,runValidators:true}).lean();
+  await audit(conn,session,authorization.actor,'treasury.account.configured',account._id,{branchId:String(account.branchId),isDefault,feeTreatment:configured.feeTreatment});
+  return configured;
+ });
+}
+async function createAccount(conn,tenant,actor,input,{configurationBranchId=null}={}){
  const values=validateAccount(input);await Promise.all([ensure(conn),core.ensureTenantIndexes(conn)]);
  try{return await transaction(conn,async session=>{
   const authorization=await access(conn,tenant,actor,{permission:'treasury.manage',session,fence:true});if(authorization.actor.role!=='Tenant Owner')throw fail('Tenant Owner account administration required',403);
-  const branch=await selectedBranch(conn,authorization,session);if(!authorization.modules.includes(moduleForKind(values.kind))&&moduleForKind(values.kind)!=='shared')throw fail('Subscribe and assign the account financial module first',403);
+  const branch=configurationBranchId?await core.branchModel(conn).findOne({_id:oid(configurationBranchId,'configuration branch'),status:'active'}).session(session).lean():await selectedBranch(conn,authorization,session);
+  if(!branch)throw fail('Choose an active branch before adding an account',409);
+  if(!authorization.modules.includes(moduleForKind(values.kind))&&moduleForKind(values.kind)!=='shared')throw fail('Subscribe and assign the account financial module first',403);
   if(values.kind==='cash'&&values.currency!==branch.currency)throw fail('Cash drawer currency follows the assigned branch; register foreign notes as Forex stock',409);
   if(values.operatorId){const operator=await core.tenantUserModel(conn).findOne({_id:values.operatorId,status:'active'}).session(session).lean();if(!operator||(operator.role!=='Tenant Owner'&&String(operator.branchId)!==String(branch._id)))throw fail('Choose an active staff member from this branch',409);}
   const accountId=new mongoose.Types.ObjectId(),ledgerCode=`TRS_${accountId.toString().toUpperCase()}`;
@@ -169,7 +191,7 @@ async function reviewObservationInSession(conn,session,authorization,observation
 async function reviewObservation(conn,tenant,actor,observationId,input){await ensure(conn);return transaction(conn,async session=>{const authorization=await access(conn,tenant,actor,{permission:'treasury.review',session,fence:true});return reviewObservationInSession(conn,session,authorization,observationId,input);});}
 function stableHash(value){return crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');}
 function normalizeMovement(input){
- const sourceType=input?.sourceType;if(!SOURCES.includes(sourceType)&&sourceType!=='treasury_adjustment')throw fail('Unsupported funds movement source');
+ const sourceType=input?.sourceType;if(!SOURCES.includes(sourceType)&&!['treasury_adjustment','treasury_funding'].includes(sourceType))throw fail('Unsupported funds movement source');
  const sourceRef=reference(input.sourceRef),branchId=String(oid(input.branchId,'operating branch'));
  if(!Array.isArray(input.legs)||input.legs.length>20||(!input.legs.length&&!(Array.isArray(input.ledgerLines)&&input.ledgerLines.length>=2)))throw fail('Choose the actual funds account movements');
  const seen=new Set(),legs=input.legs.map(leg=>{const accountId=String(oid(leg.accountId,'funds account'));if(seen.has(accountId))throw fail('Combine each funds account into one movement');seen.add(accountId);return {accountId,deltaMinor:String(signedMinor(leg.deltaMinor,{zero:false}))};}).sort((a,b)=>a.accountId.localeCompare(b.accountId));
@@ -179,8 +201,8 @@ function normalizeMovement(input){
  return {sourceType,sourceRef,branchId,operatingActorId:input.operatingActorId?String(oid(input.operatingActorId,'operating staff account')):null,legs,ledgerLines,description:text(input.description,'movement explanation',6,400),evidenceReference:text(input.evidenceRef||input.evidenceReference||'','source evidence reference',0,120),occurredAt};
 }
 async function postingAuthorization(conn,session,authorization,value,internal={}){
- const source=value.sourceType==='treasury_adjustment'?null:value.sourceType;
- const current=await access(conn,authorization.tenant,authorization.actor,{permission:value.sourceType==='treasury_adjustment'?'treasury.review':'treasury.observe',session,fence:true,sourceType:source});
+ const internalSource=['treasury_adjustment','treasury_funding'].includes(value.sourceType),source=internalSource?null:value.sourceType;
+ const current=await access(conn,authorization.tenant,authorization.actor,{permission:internalSource?'treasury.review':'treasury.observe',session,fence:true,sourceType:source});
  const branch=await core.branchModel(conn).findOneAndUpdate({_id:value.branchId,status:'active'},{$inc:{revision:1}},{session,new:true}).lean();if(!branch)throw fail('The operating branch is unavailable',409);
  if(current.actor.role!=='Tenant Owner'&&String(current.actor.branchId)!==value.branchId)throw fail('Funds movements cannot cross the assigned branch',403);
  const operatorId=value.operatingActorId||current.actor.id;if(operatorId!==current.actor.id&&!REVIEW_ROLES.includes(current.actor.role))throw fail('Only an authorized reviewer can post a different operator’s execution',403);
@@ -337,4 +359,4 @@ async function reviewAdjustment(conn,tenant,actor,adjustmentId,input){
   await audit(conn,session,authorization.actor,`treasury.adjustment.${input.decision==='approve'?'approved':'rejected'}`,adjustment._id,{branchId:String(account.branchId),accountId:String(account._id),batchId:batchId?String(batchId):null,deltaMinor:String(adjustment.deltaMinor)});return result;
  });
 }
-module.exports={models,ensure,access,loadAccount,createAccount,validateAccount,requestObservation,requestObservationInSession,reviewObservation,reviewObservationInSession,applyMovements,reverseMovements,ensureCounterAccount,findAccount,findOperatingAccounts,balanceSnapshot,accountDetail,reviewQueue,requestAdjustment,reviewAdjustment,expectedAt,assertBookIntegrity,format,major,signedMinor,normalizeMovement,parseObservation,scope,moduleForKind,normalSide,fail,KINDS,NETWORKS};
+module.exports={models,ensure,access,loadAccount,createAccount,configureAccount,validateAccount,requestObservation,requestObservationInSession,reviewObservation,reviewObservationInSession,applyMovements,reverseMovements,ensureCounterAccount,findAccount,findOperatingAccounts,balanceSnapshot,accountDetail,reviewQueue,requestAdjustment,reviewAdjustment,expectedAt,assertBookIntegrity,format,major,signedMinor,normalizeMovement,parseObservation,scope,moduleForKind,normalSide,fail,KINDS,NETWORKS};

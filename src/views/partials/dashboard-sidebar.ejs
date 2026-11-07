@@ -1,7 +1,9 @@
 <% const navigationItems=menu.flatMap((group,groupIndex)=>group.items.map((item,itemIndex)=>({...item,key:groupIndex+':'+itemIndex})));
    const activeItem=navigationItems.filter(item=>currentPath===item.href||currentPath.startsWith(item.href+'/')).sort((a,b)=>b.href.length-a.href.length)[0];
    const symbols={Overview:'▦','Money Transfer':'⇄','Mobile Money':'▣','Forex Operations':'💱','Banking Operations':'🏦','Operation Reports':'▤','Tenant Workspace':'▥','Phase 2 Control':'◈'};
-   const sidebarBranch=typeof operationBranch==='undefined'?null:operationBranch;
+   const operatingSidebarBranch=typeof operationBranch==='undefined'?null:operationBranch;
+   const hasBranchView=typeof canViewBranches!=='undefined'&&canViewBranches;
+   const sidebarBranch=hasBranchView?(typeof viewBranch==='undefined'?null:viewBranch):operatingSidebarBranch;
    const sidebarSnapshot=typeof data==='undefined'?{}:(data.workspaceSnapshot||{}); %>
 <aside class="panel side" id="sidePanel">
   <div class="brand"><div class="logo"></div><div><h1><%= context==='platform'?'ClassicFin Platform':'ClassicFin Hub' %></h1><p><%= context==='platform'?'Classic Technologies':'multi-tenant finance dashboard' %></p></div></div>
@@ -13,7 +15,7 @@
   </nav>
   <div class="sideFoot">
     <% if(context==='tenant'){ %>
-      <div class="mini"><div><b>Current branch</b><span id="sideBranch" <% if(sidebarBranch){ %>data-operating-branch data-branch-name="<%= sidebarBranch.name %>" data-branch-currency="<%= sidebarBranch.currency %>"<% } %>><%= sidebarBranch?.name||'—' %></span></div><em class="tag" id="openBadge"><%= sidebarSnapshot.dayStatus||'—' %></em></div>
+      <div class="mini"><div><b><%= hasBranchView?'Viewing branch':'Current branch' %></b><span id="sideBranch"><%= sidebarBranch?.name||(hasBranchView?'All branches':'—') %></span><% if(operatingSidebarBranch){ %><span data-operating-branch data-branch-name="<%= operatingSidebarBranch.name %>" data-branch-currency="<%= operatingSidebarBranch.currency %>" <%= hasBranchView&&String(sidebarBranch?._id)!==String(operatingSidebarBranch._id)?'':'hidden' %>>Transactions: <%= operatingSidebarBranch.name %></span><% } %></div><em class="tag" id="openBadge"><%= sidebarSnapshot.dayStatus||'—' %></em></div>
       <details class="sidebarAccount"><summary class="mini" tabindex="0"><div><b>Operator</b><span id="sideOperator"><%= user?.name||'Account' %></span></div><em class="tag" title="<%= user?.role||'' %>"><%= user?.role==='Viewer'?'READ ONLY':'STANDARD' %></em></summary>
       <div class="accountActions"><form method="post" action="/logout"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn" type="submit">Sign out</button></form><a class="btn" href="/">Public site</a></div></details>
     <% } else { %>

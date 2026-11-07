@@ -13,13 +13,14 @@ const branchService=require('../services/branch.service');
 const staffService=require('../services/staff.service');
 const staffPolicy=require('../services/staffPolicy');
 router.use(require('../services/transactionBranch.service').requestContext);
+router.post('/view-branch',require('../services/branchView.service').change);
 router.use(async(req,res,next)=>{
   try{req.workspaceIdentity=await require('../workspace/service').receiptIdentity(req.tenantDb,req.tenant);next();}catch(error){next(error);}
 });
 // Only owners and auditors have tenant-wide visibility. Other users are branch scoped;
 // legacy unassigned users have no implicit access to other branches.
 function recordScope(req){
-  if(['Tenant Owner','Auditor'].includes(req.user.role))return {};
+  if(['Tenant Owner','Auditor'].includes(req.user.role))return require('../services/branchView.service').readScope(req.user);
   if(req.user.branchId)return {...(req.user.role==='Mobile Money Operator'?{operatorId:req.user.id}:{}),branchId:req.user.branchId};
   return {operatorId:req.user.id};
 }
@@ -62,7 +63,7 @@ router.get('/dashboard', requirePermission('dashboard.view'), async (req,res,nex
     ]);
     const overview={summary,plan:planForTenant(req.tenant),reportingSummary,hasMobileMoney,
       hasTransfer,transferRecords,hasBanking,bankingRecords,hasForex,forexRecords,hasApprovals,approvalRecords,moduleGrants:require('../../platform/services/moduleSubscriptions.service').activeGrants(req.tenant)};
-    overview.workspaceSnapshot=await require('../services/workspaceSnapshot.service').snapshot(req.tenantDb,req.tenant,req.user,overview,req.operationBranch,{currency:req.query.currency});
+    overview.workspaceSnapshot=await require('../services/workspaceSnapshot.service').snapshot(req.tenantDb,req.tenant,req.user,overview,req.operationBranch,{currency:req.query.currency,viewBranch:req.viewBranch,viewBranchId:req.viewBranchId});
     renderTenant(req,res,'dashboard/index','Overview','Money transfer, mobile money, banking, forex, tenants, roles, reports, analytics, and daily controls.',overview);
   } catch(e) { next(e); }
 });
@@ -71,8 +72,8 @@ router.get('/mobile-money', requireModule('mobile_money'), requirePermission('mo
     await require('../models').ensureTenantIndexes(req.tenantDb);
     const summary = await mobile.getSummary(req.tenantDb, recordScope(req));
     renderTenant(req,res,'mobile-money/index','Mobile Money','Record agent transactions. Provider settlement remains unverified until reconciled.',{
-      summary, branches: (await branchService.list(req.tenant)).filter(b=>b.status==='active' && (req.user.role==='Tenant Owner' || String(b._id)===String(req.user.branchId))), reviewQueue: hasPermission(req.user,'mobile_money.review') && (req.user.role==='Tenant Owner'||req.user.branchId) ? await mobile.getReviewQueue(req.tenantDb,req.user.id,25,req.user.role==='Tenant Owner'?null:req.user.branchId) : [],
-      voidQueue: hasPermission(req.user,'mobile_money.review') && (req.user.role==='Tenant Owner'||req.user.branchId) ? await mobile.getVoidQueue(req.tenantDb,req.user.id,25,req.user.role==='Tenant Owner'?null:req.user.branchId) : [],
+      summary, branches: (await branchService.list(req.tenant)).filter(b=>b.status==='active' && (req.user.role==='Tenant Owner' || String(b._id)===String(req.user.branchId))), reviewQueue: hasPermission(req.user,'mobile_money.review') && (req.user.role==='Tenant Owner'||req.user.branchId) ? await mobile.getReviewQueue(req.tenantDb,req.user.id,25,req.user.role==='Tenant Owner'?(require('../services/branchView.service').readScope(req.user).branchId||null):req.user.branchId) : [],
+      voidQueue: hasPermission(req.user,'mobile_money.review') && (req.user.role==='Tenant Owner'||req.user.branchId) ? await mobile.getVoidQueue(req.tenantDb,req.user.id,25,req.user.role==='Tenant Owner'?(require('../services/branchView.service').readScope(req.user).branchId||null):req.user.branchId) : [],
       funds:req.operationBranch&&hasPermission(req.user,'treasury.view')?await require('../services/mobileMoneyFunds.service').context(req.tenantDb,req.tenant,req.user,req.operationBranch):null,
       canReview: hasPermission(req.user,'mobile_money.review'), idempotencyKey:randomUUID(),
       canRecord: hasPermission(req.user,'mobile_money.cash_in') || hasPermission(req.user,'mobile_money.cash_out')
@@ -84,6 +85,7 @@ for (const [path,op,permission] of [['cash-in','cash_in','mobile_money.cash_in']
     try {
       const result = await mobile.recordMobileMoney(req.tenantDb,req.user,req.body,op,req.tenant,null,{requireFunds:true});
       flash(req,'good',result.duplicate ? 'This request was already recorded. No duplicate created.' : 'Transaction recorded for verification. No provider settlement has been claimed.');
+      require('../services/branchView.service').followRecord(req,result.created);
       res.redirect(303,'/tenant/mobile-money');
     } catch(e) { next(e); }
   });
@@ -128,23 +130,23 @@ router.get('/mobile-money/shifts',requireModule('mobile_money'),requirePermissio
   }catch(e){next(e);}
 });
 router.post('/mobile-money/shifts/open',requireModule('mobile_money'),requirePermission('mobile_money.view'),financialThrottle,async(req,res,next)=>{
-  try{await cash.open(req.tenantDb,req.tenant,req.user,req.body);
-    flash(req,'good','Opening cash count submitted. A different authorized supervisor must approve it before you can record operations.');res.redirect(303,'/tenant/mobile-money/shifts');
+  try{const shift=await cash.open(req.tenantDb,req.tenant,req.user,req.body);
+    flash(req,'good','Opening cash count submitted. A different authorized supervisor must approve it before you can record operations.');require('../services/branchView.service').followRecord(req,shift);res.redirect(303,'/tenant/mobile-money/shifts');
   }catch(e){next(e);}
 });
 router.post('/mobile-money/shifts/:id/verify-opening',requireModule('mobile_money'),requirePermission('mobile_money.view'),financialThrottle,async(req,res,next)=>{
-  try{await cash.decideOpening(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
-    flash(req,'good','Opening count decision saved with an audit record.');res.redirect(303,'/tenant/mobile-money/shifts');
+  try{const shift=await cash.decideOpening(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
+    flash(req,'good','Opening count decision saved with an audit record.');require('../services/branchView.service').followRecord(req,shift);res.redirect(303,'/tenant/mobile-money/shifts');
   }catch(e){next(e);}
 });
 router.post('/mobile-money/shifts/:id/submit',requireModule('mobile_money'),requirePermission('mobile_money.view'),financialThrottle,async(req,res,next)=>{
-  try{await cash.submit(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
-    flash(req,'good','Cash count submitted for independent review; it is not a provider settlement.');res.redirect(303,'/tenant/mobile-money/shifts');
+  try{const shift=await cash.submit(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
+    flash(req,'good','Cash count submitted for independent review; it is not a provider settlement.');require('../services/branchView.service').followRecord(req,shift);res.redirect(303,'/tenant/mobile-money/shifts');
   }catch(e){next(e);}
 });
 router.post('/mobile-money/shifts/:id/decide',requireModule('mobile_money'),requirePermission('mobile_money.view'),financialThrottle,async(req,res,next)=>{
-  try{await cash.decide(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
-    flash(req,'good','Cash reconciliation decision saved and audited.');res.redirect(303,'/tenant/mobile-money/shifts');
+  try{const shift=await cash.decide(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
+    flash(req,'good','Cash reconciliation decision saved and audited.');require('../services/branchView.service').followRecord(req,shift);res.redirect(303,'/tenant/mobile-money/shifts');
   }catch(e){next(e);}
 });
 router.get('/mobile-money/shifts/:id',requireModule('mobile_money'),requirePermission('mobile_money.view'),async(req,res,next)=>{
@@ -192,7 +194,9 @@ router.get('/mobile-money/:id',requireModule('mobile_money'),requirePermission('
 });
 router.get('/audit',requirePermission('audit.view'),async(req,res,next)=>{
   try {
-    const logs=await require('../models').auditEventModel(req.tenantDb).find(['Tenant Owner','Auditor'].includes(req.user.role)?{}:{'metadata.branchId':req.user.branchId||'__unassigned__'})
+    const view=require('../services/branchView.service').readScope(req.user);
+    const auditScope=['Tenant Owner','Auditor'].includes(req.user.role)?(view.branchId?{'metadata.branchId':String(view.branchId)}:{}):{'metadata.branchId':req.user.branchId||'__unassigned__'};
+    const logs=await require('../models').auditEventModel(req.tenantDb).find(auditScope)
       .sort({createdAt:-1}).limit(100).lean();
     renderTenant(req,res,'audit/index','Operations Audit','Tenant event history, including recording and independent review.',{logs});
   }catch(e){next(e);}
@@ -222,8 +226,8 @@ router.get('/users', requirePermission('users.manage_branch'), async (req,res,ne
   try {
     const { tenantUserModel,staffInviteModel }=require('../models');
     const [users,invitations]=await Promise.all([
-      tenantUserModel(req.tenantDb).find(staffPolicy.directoryFilter(req.user)).select('name email role status branchId allowedModules').sort({createdAt:-1}).limit(100).lean(),
-      staffInviteModel(req.tenantDb).find({status:'pending',expiresAt:{$gt:new Date()},...staffPolicy.directoryFilter(req.user)}).select('name email role branchId allowedModules expiresAt').lean()
+      tenantUserModel(req.tenantDb).find({...staffPolicy.directoryFilter(req.user),...require('../services/branchView.service').readScope(req.user)}).select('name email role status branchId allowedModules').sort({createdAt:-1}).limit(100).lean(),
+      staffInviteModel(req.tenantDb).find({status:'pending',expiresAt:{$gt:new Date()},...staffPolicy.directoryFilter(req.user),...require('../services/branchView.service').readScope(req.user)}).select('name email role branchId allowedModules expiresAt').lean()
     ]);
     renderTenant(req,res,'users/index','Staff & Roles','Invite staff with fixed permissions, disable access immediately and monitor seat limits.',{
       users,invitations,roles:staffPolicy.managedRoles(req.user),plan:planForTenant(req.tenant),

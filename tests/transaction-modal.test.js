@@ -47,6 +47,7 @@ test('read-only accounts do not receive write dialogs or a dead New transaction 
 
 test('overview displays supplied database cash and acknowledgements without prototype balances',async()=>{
   const options=fixture(['*']);
+  options.menu[0].items.push({href:'/tenant/treasury',label:'Wallets & balances'},{href:'/tenant/last-receipt',label:'Last receipt'});
   options.data.workspaceSnapshot={
     cash:[{currency:'UGX',expectedFormatted:'UGX 510,000',shiftCount:1}],cashBranchName:'Kampala Main',
     latestAcknowledgement:{href:'/tenant/mobile-money/123/acknowledgement',label:'Last acknowledgement'},

@@ -42,7 +42,7 @@ function sendableRecipient(actor,recipient,tenant){
  return actor.role==='Branch Manager'&&OID.test(String(actor.branchId||''))&&
   String(recipient.branchId||'')===String(actor.branchId)&&BRANCH_INVITABLE.includes(recipient.role);
 }
-function scope(actor){if(actor.role==='Tenant Owner')return {};
+function scope(actor){if(actor.role==='Tenant Owner')return require('./branchView.service').readScope(actor);
  if(!OID.test(String(actor.branchId||'')))throw fail('Active branch assignment required',403);
  return {branchId:String(actor.branchId)};
 }
@@ -74,7 +74,7 @@ async function recipients(conn,tenant,actor,search=""){access(tenant,actor,'noti
  if(!canSend(tenant,actor))throw fail('Message sending not authorized',403);
  const q=String(search||'').trim();if(q.length>80)throw fail('Recipient search is too long');
  const escaped=q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
- const users=await models.tenantUserModel(conn).find({status:'active',...(q?{name:{$regex:escaped,$options:'i'}}:{}),...(actor.role==='Tenant Owner'?{}:{branchId:actor.branchId,role:{$in:BRANCH_INVITABLE}})})
+ const users=await models.tenantUserModel(conn).find({status:'active',...(q?{name:{$regex:escaped,$options:'i'}}:{}),...(actor.role==='Tenant Owner'?require('./branchView.service').readScope(actor):{branchId:actor.branchId,role:{$in:BRANCH_INVITABLE}})})
   .select('_id name role branchId allowedModules status').sort({name:1}).limit(50).lean();
  return users.filter(u=>sendableRecipient(actor,u,tenant));
 }

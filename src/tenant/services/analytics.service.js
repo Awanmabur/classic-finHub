@@ -13,8 +13,10 @@ const MAX_GROUPS=5000;
 function fail(message,status=400){const e=new Error(message);e.status=status;return e;}
 function sourcesFor(tenant,user){
   if(!hasModuleForUser(tenant,user,'analytics')||!hasPermission(user,'analytics.view'))return [];
-  return registry.filter(a=>!a.moduleKey||(hasModule(tenant,a.moduleKey)&&hasModuleForUser(tenant,user,a.moduleKey)))
-    .map(a=>({key:a.key,label:a.label,moduleKey:a.moduleKey}));
+  return registry.filter(a=>Array.isArray(a.moduleKeys)
+    ?a.moduleKeys.some(key=>hasModule(tenant,key)&&hasModuleForUser(tenant,user,key))
+    :!a.moduleKey||(hasModule(tenant,a.moduleKey)&&hasModuleForUser(tenant,user,a.moduleKey)))
+    .map(a=>({key:a.key,label:a.label,moduleKey:a.moduleKey,...(a.moduleKeys?{moduleKeys:a.moduleKeys}:{})}));
 }
 function filtersFor(query={},sources=[]){
   const raw=String(query.days??'7');
@@ -47,7 +49,7 @@ function change(current,previous){
 }
 async function workspaceDaily(conn,range,scope){
   const filter={createdAt:range};
-  if(scope.branchId)filter['metadata.branchId']=scope.branchId;
+  if(scope.branchId)filter['metadata.branchId']=String(scope.branchId);
   const entries=await auditEventModel(conn).aggregate([
     {$match:filter},{$group:{_id:{$dateToString:{format:'%Y-%m-%d',date:'$createdAt',timezone:'UTC'}},count:{$sum:1}}},
     {$sort:{_id:1}},{$limit:32}

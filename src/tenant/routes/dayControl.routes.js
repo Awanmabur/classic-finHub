@@ -42,7 +42,8 @@ module.exports=function dayControlRoutes({renderTenant,recordScope}){
    if(!shift||String(shift._id)!==String(req.body.shiftId))throw fail('Your open cash shift changed. Refresh and try again.',409);
    await cash.submit(req.tenantDb,req.tenant,req.user,shift._id,req.body);
    flash(req,'good','Closing cash submitted for independent reconciliation.');
-   res.redirect(303,`/tenant/mobile-money/shifts/${shift._id}`);
+   require('../services/branchView.service').followRecord(req,shift);
+   res.redirect(303,`/tenant/cash/shifts/${shift._id}`);
   }catch(error){next(error);}
  });
  return router;

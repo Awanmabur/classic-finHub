@@ -11,7 +11,7 @@ function money(value,currency){return require('./mobileMoney.service').formatMon
 function summary(account){return {id:String(account._id),name:account.name,kind:account.kind,network:account.network,currency:account.currency,
  expected:account.openingBalanceMinor===null?null:money(account.bookBalanceMinor,account.currency),observed:account.lastObservedMinor===null?null:money(account.lastObservedMinor,account.currency),
  observedAt:account.lastObservationAt,variance:account.lastVarianceMinor===null?null:money(account.lastVarianceMinor,account.currency),state:account.status,reconciliation:account.reconciliationState,
- expectedMinor:account.openingBalanceMinor===null?null:String(account.bookBalanceMinor),lastFour:String(account.accountReference||'').slice(-4)};}
+ expectedMinor:account.openingBalanceMinor===null?null:String(account.bookBalanceMinor),lastFour:String(account.accountReference||'').slice(-4),isDefault:Boolean(account.selectionKey),feeTreatment:account.feeTreatment||'record_only'};}
 async function context(conn,tenant,actor,branch){
  const trusted=await treasury.access(conn,tenant,actor,{sourceType:'mobile_money'});
  await fundsModels.ensure(conn);
@@ -26,7 +26,7 @@ async function context(conn,tenant,actor,branch){
   const balances=new Map(postings.map(row=>[String(row._id),String(row.amount)]));
   customerAccounts=rows.map(row=>({id:String(row._id),name:row.customer.name,last4:row.accountNumber.slice(-4),currency:row.currency,balance:money(balances.get(String(row.ledgerAccountId))||'0',row.currency)}));
  }
- return {wallets:accounts.filter(account=>account.kind==='wallet').map(summary),paymentAccounts:accounts.filter(account=>['cash','bank'].includes(account.kind)).map(summary),customerAccounts,setupHref:'/tenant/treasury'};
+ return {wallets:accounts.filter(account=>account.kind==='wallet').map(account=>({...summary(account),assignedToOperator:String(account.operatorId||'')===String(actor.id)})),paymentAccounts:accounts.filter(account=>['cash','bank'].includes(account.kind)).map(summary),customerAccounts,setupHref:'/tenant/treasury'};
 }
 async function shouldTrack(conn,tenant,values,required){
  if(required||values.walletAccountId)return true;
@@ -55,13 +55,20 @@ async function customerCounter(conn,session,authorization,values,delta){
  if(BigInt(String(totals[0]?.amount||'0'))+delta<0n)throw fail('The customer wallet balance is insufficient.');
  return {account:row,line:{currency:values.currency,accountId:row.ledgerAccountId,side:delta<0n?'debit':'credit',amountMinor:String(delta<0n?-delta:delta)}};
 }
-async function apply(conn,session,authorization,values,{requireObservation=false,receivedAt=null}={}){
+async function apply(conn,session,authorization,values,{requireObservation=false,receivedAt=null,feeTreatmentSpecified=true,expectedFeeTreatment=null,useConfiguredPolicy=false}={}){
  await fundsModels.ensure(conn);
  const amount=BigInt(values.amountMinor),fee=BigInt(values.feeMinor),sign=values.operation==='cash_in'?-1n:1n;
  const wallet=await selectFund(conn,session,authorization,values,'wallet',values.walletAccountId);
+ if(expectedFeeTreatment!==null&&expectedFeeTreatment!==undefined){
+  if(!['record_only','payment_collected','wallet_commission'].includes(expectedFeeTreatment))throw fail('Reload the transaction form to obtain valid wallet settings.',400);
+  if(expectedFeeTreatment!==(wallet.feeTreatment||'record_only'))throw fail('Wallet settings changed. Reload this page before posting.',409);
+ }
+ const configuredPolicy=wallet.feeTreatment||'record_only';
+ if(useConfiguredPolicy&&feeTreatmentSpecified&&values.feeTreatment!==configuredPolicy)throw fail('Use the fee policy configured on the Wallets page.',409);
+ const feeTreatment=useConfiguredPolicy||!feeTreatmentSpecified?configuredPolicy:values.feeTreatment;
  let walletDelta=sign*amount,paymentDelta=-sign*amount;
- if(values.feeTreatment==='wallet_commission')walletDelta+=fee;
- if(values.feeTreatment==='payment_collected')paymentDelta+=fee;
+ if(feeTreatment==='wallet_commission')walletDelta+=fee;
+ if(feeTreatment==='payment_collected')paymentDelta+=fee;
  const legs=[{accountId:wallet._id,deltaMinor:String(walletDelta)}],ledgerLines=[];
  let payment=null,customer=null;
  if(values.paymentMethod==='Wallet Balance'){
@@ -70,7 +77,7 @@ async function apply(conn,session,authorization,values,{requireObservation=false
   payment=await selectFund(conn,session,authorization,values,values.paymentMethod==='Cash'?'cash':'bank',values.paymentAccountId);
   legs.push({accountId:payment._id,deltaMinor:String(paymentDelta)});
  }
- if(fee>0n&&values.feeTreatment!=='record_only'){
+ if(fee>0n&&feeTreatment!=='record_only'){
   const counter=await treasury.ensureCounterAccount(conn,session,{tenantId:authorization.tenant._id,branchId:values.branchId,currency:values.currency,purpose:'fee_income',actorId:authorization.actor.id});
   ledgerLines.push({currency:values.currency,accountId:counter.ledgerAccountId,side:'credit',amountMinor:String(fee)});
  }
@@ -84,7 +91,7 @@ async function apply(conn,session,authorization,values,{requireObservation=false
    evidenceReference:values.observationEvidenceReference||values.networkReference,note:'Actual wallet balance reported after the recorded network transaction; independent verification required.',idempotencyKey:require('node:crypto').createHash('sha256').update('wallet-observation:'+values.idempotencyKey).digest('hex').slice(0,8)+'-'+values.idempotencyKey.slice(9)});
   observation=response.observation;
  }
- return {walletAccountId:wallet._id,paymentAccountId:payment?._id||null,customerAccountId:customer?._id||null,fundingState:'book_recorded',fundsSourceRef:`MM:${values.idempotencyKey}`,
+ return {walletAccountId:wallet._id,paymentAccountId:payment?._id||null,customerAccountId:customer?._id||null,feeTreatment,fundingState:'book_recorded',fundsSourceRef:`MM:${values.idempotencyKey}`,
   walletBalanceBeforeMinor:String(wallet.bookBalanceMinor),walletBalanceAfterMinor:String(BigInt(String(wallet.bookBalanceMinor))+walletDelta),walletObservationId:observation?._id||null,
   physicalCashMovementMinor:values.paymentMethod==='Cash'?String(paymentDelta):'0',fundJournalIds:applied.journalIds||[]};
 }

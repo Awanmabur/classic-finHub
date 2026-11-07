@@ -15,7 +15,7 @@ function routes({renderTenant}){
  const router=routerFactory();
  router.use(require('./operationWorkspace.routes')({renderTenant,moduleKey:'banking'}));
  async function available(req){return (await branchService.list(req.tenant)).filter(b=>b.status==='active'&&
-  (req.user.role==='Tenant Owner'||String(b._id)===String(req.user.branchId)));}
+  (require('../services/branchView.service').canViewBranches(req.user)||String(b._id)===String(req.user.branchId)));}
  router.get('/',requirePermission('banking.view'),async(req,res,next)=>{
   try{
    const [records,branches,queue]=await Promise.all([
@@ -24,7 +24,7 @@ function routes({renderTenant}){
    ]);
    const selectedId=String(req.operationBranch?._id || '');
    const branch=branches.find(b=>String(b._id)===selectedId);
-   const references=branch?await bank.listReferences(req.tenantDb,req.tenant,req.user,{branchId:selectedId}):[];
+   const references=branch?await bank.listReferences(req.tenantDb,req.tenant,require('../services/branchView.service').withoutReadView(req.user),{branchId:selectedId}):[];
    if(branch&&hasModuleForUser(req.tenant,req.user,'accounts')&&hasPermission(req.user,'accounts.view'))references.push(...await require('../customerAccounts/bankingBridge').choices(req.tenantDb,req.tenant,req.user,{branchId:selectedId}));
    renderTenant(req,res,'banking/index','Banking Requests','Record banking instructions, then post manual movements against reviewed balances.',{
     records,branches,queue,references,selectedBranchId:branch?selectedId:null,
@@ -36,9 +36,9 @@ function routes({renderTenant}){
  });
  router.get('/accounts',requirePermission('banking.view'),async(req,res,next)=>{
   try{const branches=await available(req);
-   const selectedId=String(req.operationBranch?._id || '');
+   const selectedId=req.viewBranchId?String(req.viewBranchId):String(req.operationBranch?._id || '');
    const selected=branches.find(b=>String(b._id)===selectedId);
-   const references=selected?await bank.listReferences(req.tenantDb,req.tenant,req.user,{branchId:selectedId}):[];
+   const references=selected||selectedId==='all'?await bank.listReferences(req.tenantDb,req.tenant,req.user,{branchId:selected?selectedId:null}):[];
    renderTenant(req,res,'banking/accounts','Bank Account References','Only masked account references; no bank balances or credentials are stored.',{
     branches,selectedBranchId:selected?selectedId:null,references,institutions:bankInstitutionOptions(references),
     canManage:bank.operator(req.user)&&hasPermission(req.user,'banking.accounts.manage')
@@ -78,6 +78,7 @@ function routes({renderTenant}){
  router.post('/requests',requirePermission('banking.requests.create'),financial,async(req,res,next)=>{
   try{const {order,duplicate}=await bank.createRequest(req.tenantDb,req.tenant,req.user,req.body);
    flash(req,'good',duplicate?'Existing identical request returned; nothing duplicated.':'Banking request recorded, NOT executed or settled.');
+   require('../services/branchView.service').followRecord(req,order);
    res.redirect(303,`/tenant/banking/${order._id}`);
   }catch(e){next(e);}
  });

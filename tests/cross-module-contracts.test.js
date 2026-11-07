@@ -61,6 +61,7 @@ test('cross-module reports never manufacture an additive total from overlapping 
  const service=loadWithMocks('../src/tenant/services/operationsReports.service.js',{
   './mobileMoney.service':{dateBounds:()=>({$gte:new Date(0),$lt:new Date(86400000)}),csvCell:String},
   './moduleAccess.service':{hasPermission:()=>true,hasModuleForUser:()=>true,hasModule:()=>true},
+  './branchView.service':{readScope:()=>({})},
   '../reporting/registry':sources
  });
  const owner={role:'Tenant Owner'};

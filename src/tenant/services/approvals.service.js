@@ -19,7 +19,7 @@ function objectId(value){if(!OBJECT_ID.test(String(value||'')))throw fail('Inval
 function access(tenant,user,permission){if(!hasModuleForUser(tenant,user,'approval_workflows')||!hasPermission(user,permission))throw fail('Approval module entitlement and user permission required',403);}
 function validBranch(user,requested){return require('./transactionBranch.service').assignedBranchId(user,{branchId:requested});}
 function scope(user){
- if(['Tenant Owner','Auditor'].includes(user?.role))return {};
+ if(['Tenant Owner','Auditor'].includes(user?.role))return require('./branchView.service').readScope(user);
  if(!OBJECT_ID.test(String(user?.branchId||'')))throw fail('An assigned branch is required',403);
  return {branchId:String(user.branchId)};
 }

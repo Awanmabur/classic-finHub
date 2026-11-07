@@ -67,7 +67,7 @@ test('Reports-only and Money Transfer-only tenants remain independent',()=>{
  assert.deepEqual(sourcesFor(t,analyst).map(s=>s.key),['workspace']);
  assert(assignableModules(t,'Reports Analyst').includes('money_transfer'));
  const both=actor('Reports Analyst',['reports','money_transfer']);
- assert.deepEqual(sourcesFor(t,both).map(s=>s.key),['workspace','money_transfer']);
+ assert.deepEqual(sourcesFor(t,both).map(s=>s.key),['workspace','cash_shifts','money_transfer']);
  assert(!permissionsFor('Reports Analyst').includes('money_transfer.create'));
  assert(!permissionsFor('Reports Analyst').includes('money_transfer.view'));
  const onlyMoney={...t,moduleGrants:[grant('money_transfer')]};

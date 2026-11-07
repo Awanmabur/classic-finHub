@@ -10,6 +10,7 @@ const indexes={
   TreasuryMovementV1:[{unique:true,key:{accountId:1,sequence:1}}],
   TreasuryCounterV1:[{unique:true,key:{branchId:1,currency:1,purpose:1}}],
   TreasuryAdjustmentV1:[{unique:true,key:{idempotencyKey:1}}],
+  TreasuryFundingV1:[{unique:true,key:{idempotencyKey:1}}],
   FundedExecutionV1:[{unique:true,key:{idempotencyKey:1}}],
   ManualPayoutVerificationV1:[{unique:true,key:{tokenHash:1}}],
   CustomerDirectoryV1:[{unique:true,key:{reference:1}}],

@@ -86,7 +86,9 @@
     "funded:integration": "node scripts/funded-operations-integration.js",
     "expenses-treasury:integration": "node scripts/expenses-treasury-integration.js",
     "styles:sync-approved": "node scripts/sync-approved-tenant-css.js",
-    "reporting-cash:integration": "node scripts/reporting-cash-integration.js"
+    "reporting-cash:integration": "node scripts/reporting-cash-integration.js",
+    "wallet-funding:integration": "node scripts/wallet-funding-integration.js",
+    "branch-view:integration": "node scripts/branch-view-integration.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

@@ -127,7 +127,7 @@ function overview(role, permissions, paths, data) {
 }
 
 test('overview restores approved snapshot cards and quick actions using real authorized module data', async () => {
-  const html = await overview('Tenant Owner', ['*'], ['/tenant/money-transfer', '/tenant/mobile-money', '/tenant/banking', '/tenant/forex', '/tenant/reports'], {
+  const html = await overview('Tenant Owner', ['*'], ['/tenant/money-transfer', '/tenant/mobile-money', '/tenant/banking', '/tenant/forex', '/tenant/reports', '/tenant/treasury'], {
     hasTransfer: true, transferRecords: {items: []}, hasMobileMoney: true, summary: {total: 23, awaitingReview: 2, recent: [], summaries: []},
     hasBanking: true, bankingRecords: {items: []}, hasForex: true, forexRecords: {items: []},
     workspaceSnapshot:{todayVolumes:{money_transfer:{formatted:'UGX 41,000'},mobile_money:{formatted:'UGX 230,000'},banking:{formatted:'UGX 75,000'},forex:{formatted:'UGX 32,000'}}}

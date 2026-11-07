@@ -1,0 +1,64 @@
+{
+  "date": "2026-11-07",
+  "approved_reference_sha256": "81e0405a62e8db0ea95986334536fab51274c297974bc9ec942ae3296c67ab0d",
+  "branchViews": {
+    "defaultMain": true,
+    "otherBranch": true,
+    "allBranches": true
+  },
+  "walletSetup": {
+    "selectedJinjaCreated": true,
+    "forgedBranchBodyIgnored": true,
+    "operatingMainUnchanged": true,
+    "unknownOpeningRetained": true,
+    "recordAccessible": true,
+    "allViewFormHidden": true,
+    "allViewCreateHttp": 409
+  },
+  "walletFunding": {
+    "actualRenderedForm": true,
+    "unchangedBeforeReview": true,
+    "independentReviewed": true,
+    "walletAfter": "1005000",
+    "bankAfter": "1995000"
+  },
+  "dailyTransaction": {
+    "cleanWalletDefault": true,
+    "withoutRepeatedSetup": true,
+    "configuredFeePreview": true,
+    "hiddenPolicySynced": true,
+    "modalOperatingBranchContext": true,
+    "noNumberSpinners": true,
+    "mobileNoOverflow": true,
+    "postedToAssignedBranch": true,
+    "recordAccessible": true,
+    "walletAfter": "1004900",
+    "bankAfter": "1995105"
+  },
+  "browserErrors": [],
+  "resourceErrors": [],
+  "report_filter_pages": 16,
+  "interaction_viewport_widths": [
+    1440,
+    390,
+    320
+  ],
+  "behavior_checks": [
+    "sidebar stays at y18 during650px document scroll",
+    "navigation scrolls independently",
+    "modal service tabs, header and footer stay fixed during body scroll",
+    "focused nested controls have zero inner border and outline, one approved outer border/ring",
+    "hidden banking currency does not create an empty extra control",
+    "mobile drawer focus, body lock, Escape, backdrop and focus restore"
+  ],
+  "limits": "These checks verify the named components and real workflows; they do not assert pixel identity for every populated application page.",
+  "release": {
+    "javascript_tests": 377,
+    "android_relay_tests": 13,
+    "syntax_template_files": 606,
+    "full_release_gate_passed": true,
+    "dependency_vulnerabilities": 0,
+    "stale_wallet_policy_rejected": true,
+    "forged_daily_fee_policy_rejected": true
+  }
+}

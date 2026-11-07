@@ -149,6 +149,7 @@ async function main() {
       return account;
     }
     const walletFund=await openedFund('wallet','AUTH_MTN','1000000','MTN'),cashFund=await openedFund('cash','AUTH_CASH','0');
+    await treasury.configureAccount(tenantDb,tenant,ownerActor,walletFund._id,{name:walletFund.name,isDefault:'true',feeTreatment:'payment_collected'});
     const moneyPage=await fetch(`${base}/tenant/mobile-money`,{headers:{cookie:operator.cookie}});
     assert.equal(moneyPage.status,200);
     const moneyHtml=await moneyPage.text();

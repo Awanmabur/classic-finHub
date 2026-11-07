@@ -158,7 +158,7 @@ async function receive(deviceId,raw,input,headers){
   }
   return publicResult(row,duplicate);
 }
-function scope(actor){return actor.role==='Tenant Owner'?{}:{operatorId:actor.id,branchId:actor.branchId||null};}
+function scope(actor){return actor.role==='Tenant Owner'?require('./branchView.service').readScope(actor):{operatorId:actor.id,branchId:actor.branchId||null};}
 async function recoverExpired(conn){
   // If a process died after recording, the persisted fields and deterministic
   // key let the operator safely retry the same record without consuming quota.
@@ -173,8 +173,8 @@ async function getInbox(conn,tenant,actor,{cursor}={}){
   if(position)filter.$or=[{createdAt:{$lt:position.at}},{createdAt:position.at,_id:{$lt:new mongoose.Types.ObjectId(position.id)}}];
   const [items,devices,operators,usage]=await Promise.all([
     smsInboxModel(conn).find(filter).sort({createdAt:-1,_id:-1}).limit(101).lean(),
-    SmsDevice.find({tenantId:tenant._id,...(actor.role==='Tenant Owner'?{}:{operatorId:actor.id})}).sort({createdAt:-1}).limit(100).lean(),
-    actor.role==='Tenant Owner'?tenantUserModel(conn).find({status:'active',role:{$in:['Tenant Owner','Mobile Money Operator']}}).select('name role branchId allowedModules').limit(200).lean():[],
+    SmsDevice.find({tenantId:tenant._id,...(actor.role==='Tenant Owner'?require('./branchView.service').readScope(actor):{operatorId:actor.id})}).sort({createdAt:-1}).limit(100).lean(),
+    actor.role==='Tenant Owner'?tenantUserModel(conn).find({status:'active',role:{$in:['Tenant Owner','Mobile Money Operator']},...require('./branchView.service').readScope(actor)}).select('name role branchId allowedModules').limit(200).lean():[],
     SmsUsage.findOne({tenantId:tenant._id,generation:effectiveSubscription(tenant).generation,period:periodKey()}).lean()
   ]);
   return {items:items.slice(0,100),nextCursor:items.length>100?mobile.encodeCursor(items[99]):null,

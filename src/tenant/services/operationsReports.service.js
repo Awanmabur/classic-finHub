@@ -7,14 +7,16 @@ const MAX_ROWS=5000;
 const adapters=require('../reporting/registry');
 function fail(message,status=400){const e=new Error(message);e.status=status;return e;}
 function scopeFor(user){
-  if(['Tenant Owner','Auditor'].includes(user?.role))return {};
+  if(['Tenant Owner','Auditor'].includes(user?.role))return require('./branchView.service').readScope(user);
   if(!/^[a-f0-9]{24}$/i.test(String(user?.branchId||'')))throw fail('Active branch assignment is required for reporting',403);
   return {branchId:String(user.branchId)};
 }
 function sourcesFor(tenant,user){
   if(!hasModuleForUser(tenant,user,'reports')||!hasPermission(user,'reports.view'))return [];
-  const sources=adapters.filter(a=>!a.moduleKey||(hasModule(tenant,a.moduleKey)&&hasModuleForUser(tenant,user,a.moduleKey)))
-    .map(a=>({key:a.key,label:a.label,moduleKey:a.moduleKey}));
+  const sources=adapters.filter(a=>Array.isArray(a.moduleKeys)
+    ?a.moduleKeys.some(key=>hasModule(tenant,key)&&hasModuleForUser(tenant,user,key))
+    :!a.moduleKey||(hasModule(tenant,a.moduleKey)&&hasModuleForUser(tenant,user,a.moduleKey)))
+    .map(a=>({key:a.key,label:a.label,moduleKey:a.moduleKey,...(a.moduleKeys?{moduleKeys:a.moduleKeys}:{})}));
   return sources;
 }
 function parseFilters(query={},sources=[]){

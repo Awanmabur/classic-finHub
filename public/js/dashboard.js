@@ -102,12 +102,12 @@
   let approvedFieldNumber=0;
   const initialiseApprovedFields = form => {
     form.querySelectorAll('label.field').forEach(outer=>{
-      const control=[...outer.children].find(node=>node.matches('input,select,textarea,.control'));
+      const control=[...outer.children].find(node=>node.matches('input,select,textarea,.control')&&!node.matches('input[type="hidden"],input[type="checkbox"],input[type="radio"]'));
       if(!control)return;
       const field=document.createElement('div');
       for(const attribute of outer.attributes){if(attribute.name!=='for')field.setAttribute(attribute.name,attribute.value);}
       const label=document.createElement('label');
-      for(const node of [...outer.childNodes]){if(node===control)break;label.append(node);}
+      for(const node of [...outer.childNodes]){if(node===control)break;if(node.nodeType===1&&node.matches('input[type="hidden"]'))field.append(node);else label.append(node);}
       const input=control.matches('input,select,textarea')?control:control.querySelector('input,select,textarea');
       if(input){if(!input.id)input.id='approved-field-'+(++approvedFieldNumber);label.htmlFor=input.id;}
       field.append(label);
@@ -139,7 +139,7 @@
       const totalLabel=form.querySelector('[data-mobile-total-label]');
       if(totalLabel)totalLabel.textContent=form.dataset.operation==='cash_out'?'Total customer receives':'Total customer pays';
       if (amountMinor === null || amountMinor <= 0n || feeMinor === null || feeMinor > amountMinor) { total.textContent = '—'; return; }
-      const collected=form.elements.namedItem('feeTreatment')?.value==='payment_collected';
+      const collected=(form.elements.namedItem('feeTreatment')?.value||form.querySelector('[data-wallet-account]')?.selectedOptions[0]?.dataset.feeTreatment)==='payment_collected';
       const totalMinor = amountMinor + (collected?(form.dataset.operation === 'cash_in' ? feeMinor : -feeMinor):0n);
       total.textContent = (form.dataset.currencyLabel || currency) + ' ' + (Number(totalMinor) / 10 ** decimals).toLocaleString('en-US', {minimumFractionDigits:decimals, maximumFractionDigits:decimals});
     };
@@ -177,67 +177,35 @@
   const mobileFundsBindings=new WeakSet();
   const initialiseMobileFunds=form=>{
     if(!form?.matches('[data-mobile-money-form]')||mobileFundsBindings.has(form))return;
-    const wallet=form.querySelector('[data-wallet-account]'),payment=form.querySelector('[data-payment-account]'),customer=form.querySelector('[data-customer-wallet]');
-    if(!wallet||!payment||!customer)return;mobileFundsBindings.add(form);
-    const network=form.elements.namedItem('network'),method=form.elements.namedItem('paymentMethod'),amount=form.elements.namedItem('amount'),fee=form.elements.namedItem('fee'),treatment=form.elements.namedItem('feeTreatment'),actual=form.elements.namedItem('observedWalletBalance');
+    const wallet=form.querySelector('[data-wallet-account]'),customer=form.querySelector('[data-customer-wallet]');
+    if(!wallet||!customer)return;mobileFundsBindings.add(form);
+    const network=form.elements.namedItem('network'),method=form.elements.namedItem('paymentMethod'),amount=form.elements.namedItem('amount'),fee=form.elements.namedItem('fee');
     const scale=form.dataset.currency==='UGX'?0:2,currency=form.dataset.currency;
     const parse=value=>{
       const match=String(value||'').match(/^(\d{1,11})(?:\.(\d{1,2}))?$/);if(!match||(match[2]||'').length>scale)return null;
       return BigInt(match[1])*10n**BigInt(scale)+BigInt((match[2]||'').padEnd(scale,'0')||'0');
     };
-    const book=option=>/^-?\d{1,34}$/.test(option?.dataset.expectedMinor||'')?BigInt(option.dataset.expectedMinor):null;
-    const known=option=>option&&option.value&&option.dataset.state==='active'&&book(option)!==null;
-    const output=selector=>form.querySelector(selector);
-    const filter=(select,predicate)=>{
-      const value=select.value;let available=[];
-      [...select.options].forEach(option=>{if(!option.value)return;const included=predicate(option);option.hidden=!included;option.disabled=!included||option.dataset.state!=='active'||book(option)===null;if(!option.disabled)available.push(option);});
-      const current=[...select.options].find(option=>option.value===value&&!option.disabled);
-      select.value=current?current.value:available.length===1?available[0].value:'';
-    };
-    const refreshVisibility=()=>{
-      filter(wallet,option=>option.dataset.network===network.value&&option.dataset.currency===currency);
-      const internal=method.value==='Wallet Balance',kind=method.value==='Bank'?'bank':'cash';
-      output('[data-payment-account-field]').hidden=internal;output('[data-customer-wallet-field]').hidden=!internal;
-      payment.disabled=internal;customer.disabled=!internal;payment.required=!internal;customer.required=internal;
-      filter(payment,option=>option.dataset.kind===kind&&option.dataset.currency===currency);
+    const refresh=()=>{
+      const current=wallet.value,available=[];
+      for(const option of wallet.options){if(!option.value)continue;const visible=option.dataset.network===network.value&&option.dataset.currency===currency;option.hidden=!visible;option.disabled=!visible||option.dataset.state!=='active'||!/^\d{1,34}$/.test(option.dataset.expectedMinor||'');if(!option.disabled)available.push(option);}
+      if(!available.some(option=>option.value===current)){
+        const own=available.filter(option=>option.dataset.assigned==='true'),eligible=own.length?own:available,defaults=eligible.filter(option=>option.dataset.default==='true');
+        wallet.value=defaults.length===1?defaults[0].value:eligible.length===1?eligible[0].value:'';
+      }
+      const internal=method.value==='Wallet Balance';form.querySelector('[data-customer-wallet-field]').hidden=!internal;customer.disabled=!internal;customer.required=internal;
     };
     const update=()=>{
-      const selected=wallet.selectedOptions[0],before=known(selected)?book(selected):null,value=parse(amount.value),charge=parse(fee.value||'0');
-      const after=before!==null&&value!==null&&charge!==null?before+(form.dataset.operation==='cash_in'?-value:value)+(treatment.value==='wallet_commission'?charge:0n):null;
-      output('[data-wallet-before]').value=before===null?'Unknown':operationAmount(before,currency);
-      output('[data-wallet-after]').value=after===null?'Unknown':operationAmount(after,currency);
-      output('[data-wallet-observed]').value=selected?.value?selected.dataset.observed||'Unknown':'Unknown';
-      const paymentBefore=known(payment.selectedOptions[0])?book(payment.selectedOptions[0]):null;
-      const paymentDelta=value!==null&&charge!==null?(form.dataset.operation==='cash_in'?value:-value)+(treatment.value==='payment_collected'?charge:0n):null;
-      const insufficient=after!==null&&after<0n||!payment.disabled&&paymentBefore!==null&&paymentDelta!==null&&paymentBefore+paymentDelta<0n;
-      amount.setCustomValidity(insufficient?'The selected wallet or payment account has insufficient book funds.':'');
-      const observed=parse(actual.value),comparison=output('[data-wallet-comparison]');
-      if(before===null)comparison.textContent='Select an active wallet with independently confirmed opening evidence. Unknown balances are not treated as zero.';
-      else if(after===null)comparison.textContent='Enter the transaction amount to compare the expected book with the actual network wallet balance.';
-      else if(insufficient)comparison.textContent='The selected wallet or payment account has insufficient book funds. Refresh or reconcile its actual evidence before processing.';
-      else if(observed===null)comparison.textContent='Enter the actual balance shown by the network wallet after this transaction.';
-      else if(observed===after)comparison.textContent='The entered actual wallet balance matches the expected book. The evidence will be saved for independent review.';
-      else comparison.textContent='Actual wallet differs from the expected book by '+operationAmount(observed-after,currency)+'. The difference will be recorded and the wallet held for independent reconciliation.';
-      const totalLabel=output('[data-mobile-total-label]');if(totalLabel)totalLabel.textContent=form.dataset.operation==='cash_out'?'Total customer receives':'Total customer pays';
-      if(value!==null&&value>0n&&charge!==null){const total=output('[data-mobile-total]');if(total)total.textContent=operationAmount(value+(treatment.value==='payment_collected'?(form.dataset.operation==='cash_in'?charge:-charge):0n),currency);}
+      const option=wallet.selectedOptions[0],value=parse(amount.value),charge=parse(fee.value||'0'),treatment=option?.dataset.feeTreatment||'record_only';
+      const policy=form.querySelector('[data-wallet-fee-policy]');if(policy){policy.value=treatment;policy.disabled=!option?.value;}
+      const before=option?.value&&/^\d{1,34}$/.test(option.dataset.expectedMinor||'')?BigInt(option.dataset.expectedMinor):null;
+      const after=before!==null&&value!==null&&charge!==null?before+(form.dataset.operation==='cash_in'?-value:value)+(treatment==='wallet_commission'?charge:0n):null;
+      amount.setCustomValidity(value!==null&&value<=0n?'Enter an amount greater than zero.':after!==null&&after<0n?'The selected wallet has insufficient funds.':'');
+      const label=form.querySelector('[data-mobile-total-label]');if(label)label.textContent=form.dataset.operation==='cash_out'?'Total customer receives':'Total customer pays';
+      const total=form.querySelector('[data-mobile-total]');if(total)total.textContent=value!==null&&value>0n&&charge!==null&&charge<=value?operationAmount(value+(treatment==='payment_collected'?(form.dataset.operation==='cash_in'?charge:-charge):0n),currency):'—';
     };
-    network.addEventListener('change',()=>{refreshVisibility();update();});method.addEventListener('change',()=>{refreshVisibility();update();});
-    form.addEventListener('input',update);form.addEventListener('change',update);
-    output('[data-funds-refresh]').addEventListener('click',async event=>{
-      const button=event.currentTarget;button.disabled=true;const status=output('[data-wallet-comparison]');status.textContent='Refreshing actual account state…';
-      try{
-        const response=await fetch('/tenant/mobile-money/funds/context',{credentials:'same-origin',headers:{Accept:'application/json'}});
-        if(!response.ok)throw new Error('Current funds could not be loaded.');const context=await response.json();
-        for(const [select,rows]of[[wallet,context.wallets],[payment,context.paymentAccounts]]){
-          const selected=select.value;select.replaceChildren(new Option(select===wallet?'Select wallet':'Select payment account',''));
-          for(const row of Array.isArray(rows)?rows:[]){const option=new Option(row.name+' · '+(row.expected||'Opening evidence required')+(row.state!=='active'?' · '+row.state:''),row.id);Object.assign(option.dataset,{network:row.network||'',currency:row.currency,kind:row.kind,state:row.state,expectedMinor:row.expectedMinor??'',observed:row.observed||'Unknown',observedAt:row.observedAt||'',reconciliation:row.reconciliation});select.add(option);}select.value=selected;
-        }
-        const selected=customer.value;customer.replaceChildren(new Option('Select customer account',''));for(const row of context.customerAccounts||[])customer.add(new Option(row.name+' · ****'+row.last4+' · '+row.balance,row.id));customer.value=selected;
-        refreshVisibility();update();
-      }catch{status.textContent='Funds could not be refreshed. Your entered transaction details are preserved; reload the module before processing.';}
-      finally{button.disabled=false;}
-    });
-    refreshVisibility();update();
+    network.addEventListener('change',()=>{refresh();update();});method.addEventListener('change',()=>{refresh();update();});
+    form.addEventListener('input',update);form.addEventListener('change',update);form.addEventListener('reset',()=>queueMicrotask(()=>{refresh();update();}));
+    refresh();update();
   };
   document.querySelectorAll('[data-mobile-money-form]').forEach(initialiseMobileFunds);
 
@@ -433,6 +401,7 @@
   }
 
   document.querySelectorAll('[data-dashboard-currency-form]').forEach(form=>form.querySelector('select')?.addEventListener('change',()=>form.requestSubmit()));
+  document.querySelectorAll('[data-branch-view-form]').forEach(form=>form.querySelector('select')?.addEventListener('change',()=>form.requestSubmit()));
 
   document.querySelectorAll('[data-print-report]').forEach(button=>button.addEventListener('click',()=>window.print()));
 

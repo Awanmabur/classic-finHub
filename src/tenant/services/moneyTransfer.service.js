@@ -21,7 +21,7 @@ function requireModuleAccess(tenant,actor,permission){
 function writeActor(actor){return actor?.role==='Tenant Owner'||actor?.role==='Money Transfer Operator';}
 function reviewActor(actor){return ['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(actor?.role);}
 function branchScope(actor){
- if(['Tenant Owner','Auditor'].includes(actor?.role))return {};
+ if(['Tenant Owner','Auditor'].includes(actor?.role))return require('./branchView.service').readScope(actor);
  if(!OID.test(String(actor?.branchId||'')))throw fail('Active assigned branch required',403);
  return {branchId:id(actor.branchId)};
 }
@@ -109,7 +109,7 @@ async function archiveContact(conn,tenant,actor,contactId){
 async function listContacts(conn,tenant,actor,{kind=null,branchId=null}={}){
  requireModuleAccess(tenant,actor,'money_transfer.view');
  const scope=branchScope(actor);
- if(branchId){id(branchId);if(scope.branchId&&scope.branchId!==String(branchId))throw fail('Cross-branch contact access denied',403);scope.branchId=branchId;}
+ if(branchId){id(branchId);if(scope.branchId&&String(scope.branchId)!==String(branchId))throw fail('Cross-branch contact access denied',403);scope.branchId=branchId;}
  const query={...scope,...(kind?{kind}:{}),active:true};
  if(kind&&!['sender','beneficiary'].includes(kind))throw fail('Invalid contact type');
  return transferContactModel(conn).find(query).select('fullName phone country kind branchId active').sort({fullName:1,_id:1}).limit(500).lean();

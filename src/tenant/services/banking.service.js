@@ -20,7 +20,7 @@ function moduleAccess(tenant,actor,permission){
 const operator=actor=>['Tenant Owner','Banking Operator'].includes(actor?.role);
 const reviewer=actor=>['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(actor?.role);
 function branchScope(actor){
- if(['Tenant Owner','Auditor'].includes(actor?.role))return {};
+ if(['Tenant Owner','Auditor'].includes(actor?.role))return require('./branchView.service').readScope(actor);
  if(!OID.test(String(actor?.branchId||'')))throw fail('Active assigned branch required',403);
  return {branchId:id(actor.branchId)};
 }
@@ -105,7 +105,7 @@ async function archiveReference(conn,tenant,actor,referenceId){
 }
 async function listReferences(conn,tenant,actor,{branchId=null}={}){
  moduleAccess(tenant,actor,'banking.view');const scope=branchScope(actor);
- if(branchId){id(branchId);if(scope.branchId&&scope.branchId!==String(branchId))throw fail('Cross-branch reference access',403);scope.branchId=branchId;}
+ if(branchId){id(branchId);if(scope.branchId&&String(scope.branchId)!==String(branchId))throw fail('Cross-branch reference access',403);scope.branchId=branchId;}
  return bankReferenceModel(conn).find({status:'active',...scope}).sort({customerName:1,_id:1}).limit(500).lean();
 }
 async function createRequest(conn,tenant,actor,input){

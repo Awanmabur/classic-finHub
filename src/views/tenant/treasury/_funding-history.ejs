@@ -1,0 +1,10 @@
+<section class="card" style="margin-top:14px" id="funding-history"><div class="cardHead"><div><b>Funding transfers</b><br><span>Original requests and independent decisions</span></div></div><div class="cardBody">
+ <% if(!data.fundings.length){ %><p class="tiny">No funding transfers recorded in this view.</p><% } %>
+ <% data.fundings.forEach(funding=>{ %><article class="card" style="margin-bottom:12px"><div class="cardHead"><b><%= funding.source.name %> → <%= funding.destination.name %></b><span><%= funding.status.replaceAll('_',' ') %><% if(data.allBranches&&data.branchNames[String(funding.branchId)]){ %> · <%= data.branchNames[String(funding.branchId)] %><% } %></span></div><div class="cardBody">
+  <div class="summary"><div class="sumRow"><span>Amount</span><b><%= data.format(funding.amountMinor,funding.currency) %></b></div><div class="sumRow"><span>Reference</span><b><%= funding.evidenceReference %></b></div><div class="sumRow"><span>Requested (UTC)</span><b><%= new Date(funding.createdAt).toISOString() %></b></div><% if(funding.reviewedAt){ %><div class="sumRow"><span>Reviewed (UTC)</span><b><%= new Date(funding.reviewedAt).toISOString() %></b></div><% } %></div>
+  <p class="tiny"><%= funding.note %></p><% if(funding.reviewNote){ %><p class="tiny">Independent review: <%= funding.reviewNote %></p><% } %>
+  <% if(data.canReview&&funding.status==='pending_review'&&String(funding.requestedBy)!==String(user.id)&&String(funding.operatingActorId)!==String(user.id)){ %><form method="post" action="/tenant/treasury/funding/<%= funding._id %>/review" data-wallet-funding-review>
+   <input type="hidden" name="_csrf" value="<%= csrfToken %>"><label class="field">Independent funding review<textarea class="control" name="note" minlength="12" maxlength="400" required rows="2" placeholder="Confirm the source, destination and actual transfer evidence"></textarea></label><div class="rowBtns"><button class="btn btnPrimary" name="decision" value="approve">Approve funding</button><button class="btn" name="decision" value="reject">Reject funding</button></div>
+  </form><% } %>
+ </div></article><% }) %>
+</div></section>

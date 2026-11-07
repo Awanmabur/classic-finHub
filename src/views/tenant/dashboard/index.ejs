@@ -4,7 +4,8 @@
    const opener=quickActions.find(action=>action.kind==='cash_shift_open');
    const currencyRows=typeof currencyOptions==='undefined'?[{code:'UGX',label:'UGX'},{code:'USD',label:'USD'},{code:'SSP',label:'SSP'},{code:'KES',label:'KSH'}]:currencyOptions;
    const cards=[['hasTransfer','money_transfer','Money transfer volume','ovTransfer','Send + payout'],['hasMobileMoney','mobile_money','Mobile money volume','ovMobile','Cash-in + cash-out'],['hasBanking','banking','Banking volume','ovBanking','Deposit/withdraw/transfer'],['hasForex','forex','Forex volume','ovForex','Buy + sell exchange']];
-   const hasSources=cards.some(([flag])=>data[flag]); %>
+   const hasSources=cards.some(([flag])=>data[flag]);
+   const canSeeCash=visiblePaths.has('/tenant/treasury'); %>
 <section class="view show" id="view-overview">
   <div class="card"><div class="cardHead"><div><b>Today snapshot</b><br><span>Core modules plus daily control</span></div><span class="mono" id="terminalCode"><%= snapshot.terminalCode||tenant.slug||'—' %></span></div>
     <div class="cardBody">
@@ -19,13 +20,13 @@
       </div><% } %>
     </div>
   </div>
-  <div class="grid" style="margin-top:14px">
+  <div class="<%= canSeeCash?'grid':'' %>" style="margin-top:14px">
     <div class="card"><div class="cardHead"><div><b>Recent activity</b><br><span>Click any row to open receipt</span></div></div><div class="cardBody"><div class="txList" id="recentList">
       <% if(!(snapshot.recentActivity||[]).length){ %><div class="tiny">No records yet.</div><% } %>
       <% (snapshot.recentActivity||[]).forEach(row=>{ %><a class="tx" data-search-row href="<%= row.href %>"><div class="txLeft"><span class="txDot <%= /voided|rejected|disputed|failed/.test(row.status||'')?'bad':/pending|requested|quoted|awaiting/.test(row.status||'')?'warn':'good' %>"></span><div class="txMeta"><b><%= row.label %></b><span><%= row.subtitle %><% if(row.createdAt){ %> • <%= new Date(row.createdAt).toISOString().slice(0,16).replace('T',' ') %><% } %></span></div></div><div class="txAmt"><%= row.amountLabel %><small><%= row.status||'' %></small></div></a><% }) %>
     </div></div></div>
-    <div class="card"><div class="cardHead"><div><b>Cash drawer by currency</b><br><span>Automatically updated by operations</span></div></div><div class="cardBody"><div class="summary" id="cashSummary" title="Provisional physical cash from independently verified opening counts and recorded drawer movements.">
+    <% if(canSeeCash){ %><div class="card"><div class="cardHead"><div><b>Cash drawer by currency</b><br><span>Automatically updated by operations</span></div></div><div class="cardBody"><div class="summary" id="cashSummary" title="Provisional physical cash from independently verified opening counts and recorded drawer movements.">
       <% currencyRows.forEach(option=>{const row=(snapshot.cash||[]).find(value=>value.currency===option.code); %><div class="sumRow" <% if(row){ %>title="<%= row.shiftCount %> open shift<%= row.shiftCount===1?'':'s' %>"<% } %>><span><%= option.label %></span><b><%= row?.expectedFormatted?.replace(/^KES\s/,'KSH ')||'—' %></b></div><% }) %>
-    </div><p class="tiny">Expected cash uses verified opening counts and recorded cash movements. Compare against the physical count before closing.</p></div></div>
+    </div><p class="tiny">Expected cash uses verified opening counts and recorded cash movements. Compare against the physical count before closing.</p></div></div><% } %>
   </div>
 </section>

@@ -43,6 +43,19 @@ test('Reports Analyst can receive a reporting-source assignment without obtainin
  assert(!analyst.permissions.includes('mobile_money.view'));
  assert(!analyst.permissions.includes('*'));
 });
+test('shared cash reports follow any independently subscribed financial source without Mobile Money',()=>{
+ for(const key of ['money_transfer','banking','forex','expenses']){
+  const t=modular({moduleGrants:[grant('reports'),grant(key,{limits:{users:5,branches:1,recordsPerMonth:100}})]});
+  const analyst=user('Reports Analyst',['reports',key]);
+  assert.equal(hasModule(t,'mobile_money'),false);
+  assert(report.sourcesFor(t,analyst).some(source=>source.key==='cash_shifts'),key);
+  assert(!report.sourcesFor(t,user('Reports Analyst',['reports'])).some(source=>source.key==='cash_shifts'),'Source assignment required');
+  assert(!analyst.permissions.includes('treasury.view'),'Aggregate reporting must not grant wallet controls');
+  const revoked={...t,moduleGrants:t.moduleGrants.map(g=>g.moduleKey===key?{...g,status:'revoked'}:g)};
+  assert(!report.sourcesFor(revoked,analyst).some(source=>source.key==='cash_shifts'),'Revoked source must disappear');
+ }
+ assert(!report.sourcesFor(modular({moduleGrants:[grant('reports')]}),user()).some(source=>source.key==='cash_shifts'));
+});
 test('revoked, expired and suspended module entitlements never grant access',()=>{
  const g=grant('reports');
  for(const t of [modular({moduleGrants:[{...g,status:'revoked'}]}),

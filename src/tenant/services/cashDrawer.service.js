@@ -10,7 +10,7 @@ function decimal(v){return Types.Decimal128.fromString(String(v));}
 function minor(v){return BigInt(String(v));}
 function note(v,required=true){if(typeof v!=='string'||v.trim().length>(400)||(required&&v.trim().length<12))throw fail('A 12–400 character explanation is required');return v.trim();}
 function key(branchId,operatorId){return `${id(branchId)}:${id(operatorId)}`;}
-function scope(actor){return ['Tenant Owner','Auditor'].includes(actor?.role)?{}:{branchId:id(actor?.branchId)};}
+function scope(actor){return ['Tenant Owner','Auditor'].includes(actor?.role)?require('./branchView.service').readScope(actor):{branchId:id(actor?.branchId)};}
 function visibleScope(actor){return {...scope(actor),...(['Mobile Money Operator','Money Transfer Operator','Banking Operator','Forex Operator'].includes(actor.role)?{operatorId:id(actor.id)}:{})};}
 function allowed(tenant,actor){
  if(!['mobile_money','money_transfer','banking','forex','expenses'].some(key=>hasModuleForUser(tenant,actor,key)))throw fail('An assigned operational module is required for cash controls',403);

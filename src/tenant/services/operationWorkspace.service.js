@@ -25,7 +25,7 @@ function authorize(tenant,actor,key){
  if(!hasModuleForUser(tenant,actor,key)||!hasPermission(actor,`${key}.view`))throw fail('Operational module or view permission unavailable',403);
 }
 function scopeFor(actor,key){
- const spec=definition(key),scope={};
+ const spec=definition(key),scope=require('./branchView.service').canViewBranches(actor)?require('./branchView.service').readScope(actor):{};
  if(!['Tenant Owner','Auditor'].includes(actor?.role)){
   if(!/^[a-f0-9]{24}$/i.test(String(actor?.branchId||'')))throw fail('An active assigned branch is required',403);
   scope.branchId=new mongoose.Types.ObjectId(actor.branchId);
@@ -107,27 +107,28 @@ function csv(report){
 async function formContext(conn,tenant,actor,key,operationBranch){
  authorize(tenant,actor,key);
  const branches=(await require('./branch.service').list(tenant)).filter(branch=>branch.status==='active'&&
-  (actor.role==='Tenant Owner'||String(branch._id)===String(actor.branchId)));
+  (require('./branchView.service').canViewBranches(actor)||String(branch._id)===String(actor.branchId)));
  const selectedId=String(operationBranch?._id||''),selected=branches.find(branch=>String(branch._id)===selectedId);
+ const operatingActor=require('./branchView.service').withoutReadView(actor);
  const common={branches,selectedBranchId:selected?selectedId:null,idempotencyKey:crypto.randomUUID(),formatMoneyMinor:mobile.formatMoneyMinor};
  if(key==='money_transfer'){
   const service=require('./moneyTransfer.service');
   const [contacts,list,queue]=await Promise.all([
-   selected?service.listContacts(conn,tenant,actor,{branchId:selectedId}):[],service.list(conn,tenant,actor),
+   selected?service.listContacts(conn,tenant,operatingActor,{branchId:selectedId}):[],service.list(conn,tenant,actor),
    ['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(actor.role)&&hasPermission(actor,'money_transfer.review')?service.reviewQueue(conn,tenant,actor):[]]);
   return {...common,contacts,records:list,queue,canCreate:['Tenant Owner','Money Transfer Operator'].includes(actor.role)&&hasPermission(actor,'money_transfer.create'),
    canReview:['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(actor.role)&&hasPermission(actor,'money_transfer.review')};
  }
  if(key==='banking'){
   const service=require('./banking.service');
-  const [references,list,queue]=await Promise.all([selected?service.listReferences(conn,tenant,actor,{branchId:selectedId}):[],service.list(conn,tenant,actor),
+  const [references,list,queue]=await Promise.all([selected?service.listReferences(conn,tenant,operatingActor,{branchId:selectedId}):[],service.list(conn,tenant,actor),
    service.reviewer(actor)&&hasPermission(actor,'banking.review')?service.reviewQueue(conn,tenant,actor):[]]);
   if(selected&&hasModuleForUser(tenant,actor,'accounts')&&hasPermission(actor,'accounts.view'))references.push(...await require('../customerAccounts/bankingBridge').choices(conn,tenant,actor,{branchId:selectedId}));
   return {...common,references,records:list,queue,canCreate:service.operator(actor)&&hasPermission(actor,'banking.requests.create'),
    canReview:service.reviewer(actor)&&hasPermission(actor,'banking.review')};
  }
  const service=require('./forex.service');
- const [rates,list,rateQueue,quoteQueue]=await Promise.all([service.listRates(conn,tenant,actor,{status:'active',...(selected?{branchId:selectedId}:{})}),service.listQuotes(conn,tenant,actor),
+ const [rates,list,rateQueue,quoteQueue]=await Promise.all([service.listRates(conn,tenant,operatingActor,{status:'active',...(selected?{branchId:selectedId}:{})}),service.listQuotes(conn,tenant,actor),
   service.reviewer(actor)&&hasPermission(actor,'forex.rate_review')?service.rateReviewQueue(conn,tenant,actor):[],
   service.reviewer(actor)&&hasPermission(actor,'forex.quotes.review')?service.quoteReviewQueue(conn,tenant,actor):[]]);
  return {...common,rates,records:list,rateQueue,quoteQueue,amountLabel:service.amountLabel,

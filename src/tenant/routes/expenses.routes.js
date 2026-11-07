@@ -21,6 +21,7 @@ module.exports=function expensesRoutes({renderTenant}){
  router.post('/expenses',requirePermission('expenses.create'),throttle,async(req,res,next)=>{try{
   const result=await expenses.create(req.tenantDb,req.tenant,req.user,req.body,{requireFunds:true});
   flash(req,'good',result.duplicate?'Expense already recorded. No duplicate was created.':'Expense submitted for independent review. Pending expenses do not reduce cash.');
+  require('../services/branchView.service').followRecord(req,result.record);
   res.redirect(303,`/tenant/expenses/${result.record._id}`);
  }catch(error){next(error);}});
  router.get('/expenses/:id',async(req,res,next)=>{try{

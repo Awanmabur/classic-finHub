@@ -86,6 +86,12 @@ async function main(){
   await assert.rejects(capture.getDraft(conn,tenant,secondOperator,captured.json.id),{status:404},'operators cannot inspect another device operator’s SMS');
   await assert.rejects(capture.getDraft(conn,tenant,operator,failed.id),{status:404},'SMS ownership scope applies in both directions');
   const secondBranch=await models.branchModel(conn).create({name:'SMS Other Branch',code:'sms-other',currency:'UGX',createdBy:owner.id,updatedBy:owner.id});
+  const viewedInbox=await capture.getInbox(conn,tenant,{...owner,viewBranchId:String(branch._id)});
+  assert(viewedInbox.items.some(row=>String(row._id)===captured.json.id),'viewed branch includes its captured SMS');
+  const otherInbox=await capture.getInbox(conn,tenant,{...owner,viewBranchId:String(secondBranch._id)});
+  assert.equal(otherInbox.items.length,0);assert.equal(otherInbox.devices.length,0);assert.equal(otherInbox.operators.length,0,'SMS management read choices follow the selected branch');
+  await assert.rejects(capture.getDraft(conn,tenant,{...owner,viewBranchId:String(secondBranch._id)},captured.json.id),{status:404});
+  assert((await capture.getInbox(conn,tenant,{...owner,viewBranchId:'all'})).items.some(row=>String(row._id)===captured.json.id),'All branches retains tenant-wide inbox visibility');
   await User.updateOne({_id:operatorDoc._id},{$set:{branchId:String(secondBranch._id)}});
   try{
     assert.equal((await deliver(payload('branch-mismatch-1','Unrelated transaction message'))).status,403,'reassigned operators cannot deliver through the old branch-bound device');

@@ -9,7 +9,8 @@ const accountSchema=new Schema({
  moduleKey:{type:String,enum:['shared','mobile_money','forex','money_transfer'],required:true,immutable:true},
  network:{type:String,enum:['','MTN','Airtel','Africell','M-Pesa'],default:'',immutable:true},
  currency:{type:String,enum:currencyCodes,required:true,immutable:true},operatorId:{type:O,default:null,immutable:true},
- accountReference:{type:String,maxlength:80,default:'',immutable:true},selectionKey:{type:String,default:undefined,immutable:true},
+ accountReference:{type:String,maxlength:80,default:'',immutable:true},selectionKey:{type:String,default:undefined},
+ feeTreatment:{type:String,enum:['record_only','payment_collected','wallet_commission'],default:'record_only'},
  ledgerAccountId:{type:O,required:true,immutable:true},ledgerCode:{type:String,required:true,immutable:true},
  status:{type:String,enum:['uninitialized','active','held','archived'],default:'uninitialized'},
  openingBalanceMinor:{type:D,default:null},openingObservedAt:{type:Date,default:null},openingObservationId:{type:O,default:null},openingApprovedAt:{type:Date,default:null},
@@ -39,7 +40,7 @@ observationSchema.index({branchId:1,status:1,createdAt:1});
 function appendOnly(schema){schema.set('versionKey',false);schema.pre('save',function(next){next(this.isNew?null:new Error('Treasury evidence and movements are append-only'));});for(const op of ['updateOne','updateMany','replaceOne','findOneAndUpdate','findOneAndReplace','deleteOne','deleteMany','findOneAndDelete'])schema.pre(op,function(next){next(new Error('Treasury evidence and movements are append-only'));});}
 const batchSchema=new Schema({
  tenantId:{type:O,required:true,immutable:true},branchId:{type:O,required:true,immutable:true},actorId:{type:O,required:true,immutable:true},operatingActorId:{type:O,required:true,immutable:true},
- sourceType:{type:String,enum:['mobile_money','money_transfer','banking','forex','expenses','treasury_adjustment'],required:true,immutable:true},
+ sourceType:{type:String,enum:['mobile_money','money_transfer','banking','forex','expenses','treasury_adjustment','treasury_funding'],required:true,immutable:true},
  sourceRef:{type:String,required:true,maxlength:120,immutable:true},fingerprint:{type:String,required:true,match:/^[a-f0-9]{64}$/,immutable:true},
  description:{type:String,required:true,maxlength:400,immutable:true},evidenceReference:{type:String,maxlength:120,default:'',immutable:true},
  occurredAt:{type:Date,required:true,immutable:true},journalIds:{type:[O],required:true,immutable:true},

@@ -3,7 +3,7 @@
    const entryPermissions = user.permissions || [];
    const entryCan = permission => entryPermissions.includes('*') || entryPermissions.includes(permission);
    const entryNetworks = data.networksAvailable || ['MTN','Airtel','Africell','M-Pesa'];
-   const entryStep = currentBranch.currency === 'UGX' ? '1' : '0.01';
+   const entryAmountPattern = currentBranch.currency === 'UGX' ? '[0-9]{1,11}' : '[0-9]{1,11}([.][0-9]{1,2})?';
    const entryCurrencyLabel = typeof currencyLabel === 'function' ? currencyLabel(currentBranch.currency) : (currentBranch.currency === 'KES' ? 'KSH' : currentBranch.currency); %>
 <form class="card mobileMoneyEntry" method="post" action="/tenant/mobile-money/<%= entryOperation === 'cash_in' ? 'cash-in' : 'cash-out' %>" autocomplete="off" data-mobile-money-form data-operation="<%= entryOperation %>" data-currency="<%= currentBranch.currency %>" data-currency-label="<%= entryCurrencyLabel %>">
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
@@ -33,18 +33,18 @@
       <div class="formSectionTitle">Amount details</div>
       <div class="row2">
         <label class="field">Currency<select class="control" name="currency" data-mobile-currency required><option value="<%= currentBranch.currency %>"><%= entryCurrencyLabel %></option></select></label>
-        <label class="field">Amount<input class="control" type="number" inputmode="decimal" name="amount" placeholder="0" min="<%= entryStep %>" step="<%= entryStep %>" required></label>
+        <label class="field">Amount<input class="control" type="text" inputmode="decimal" name="amount" placeholder="0" pattern="<%= entryAmountPattern %>" required></label>
       </div>
       <div class="row2">
-        <label class="field">Fee / commission<input class="control" type="number" inputmode="decimal" name="fee" placeholder="Enter recorded fee or commission" value="0" min="0" step="<%= entryStep %>" required></label>
+        <label class="field">Fee / commission<input class="control" type="text" inputmode="decimal" name="fee" placeholder="0" value="0" pattern="<%= entryAmountPattern %>" required></label>
         <label class="field">Payment method<select class="control" name="paymentMethod" required><option value="Cash">Cash</option><option value="Wallet Balance">Wallet Balance</option><option value="Bank">Bank</option></select></label>
       </div>
+      <%- include('_funds-context') %>
     </div>
     <div class="summary">
       <div class="sumRow"><span data-mobile-total-label><%= entryOperation==='cash_out'?'Total customer receives':'Total customer pays' %></span><b data-mobile-total>—</b></div>
       <div class="sumRow"><span>Reference</span><b class="mono mobileRequestReference" data-mobile-reference><%= data.idempotencyKey %></b></div>
     </div>
-    <%- include('_funds-context') %>
     <div class="rowBtns"><button class="btn btnPrimary" type="submit">Process mobile money</button></div>
   </div>
 </form>

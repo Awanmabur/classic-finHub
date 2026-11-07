@@ -1,4 +1,4 @@
-<% const availableRates=data.rates.filter(r=>r.status==='active'&&String(r.branchId)===currentBranchId&&new Date(r.expiresAt).getTime()>Date.now()+5*60000);
+<% const availableRates=(data.formRates||data.rates).filter(r=>r.status==='active'&&String(r.branchId)===currentBranchId&&new Date(r.expiresAt).getTime()>Date.now()+5*60000);
    const firstRate=availableRates[0], operation=data.workspaceOperation==='sell'?'sell':'buy', labels=['USD','SSP','KES','UGX',...(availableRates.some(rate=>rate.fromCurrency==='EUR'||rate.toCurrency==='EUR')?['EUR']:[])]; %>
 <div class="formSection"><div class="formSectionTitle">Customer and operation</div>
  <div class="row2"><label class="field">Operation<input class="control" value="<%= operation==='buy'?'Buy forex from customer':'Sell forex to customer' %>" readonly></label><label class="field">Customer name<input name="customerLabel" class="control" minlength="2" maxlength="120" placeholder="Customer full name" required></label></div>

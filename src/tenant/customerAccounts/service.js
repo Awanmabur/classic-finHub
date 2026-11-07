@@ -25,7 +25,7 @@ async function context(conn,tenant,actor,moduleKey,permission,session=null){
   if(session)branchQuery.session(session);
   if(!await branchQuery)throw v.fail('An active assigned branch is required',403);
  }
- return {actor:trusted,tenant:currentTenant};
+ return {actor:session?trusted:require('../services/branchView.service').withReadView(trusted,actor),tenant:currentTenant};
 }
 async function access(conn,tenant,actor,moduleKey,permission){return (await context(conn,tenant,actor,moduleKey,permission)).actor;}
 async function fenceAccess(conn,session,tenant,actor,moduleKey,permission){
@@ -33,7 +33,7 @@ async function fenceAccess(conn,session,tenant,actor,moduleKey,permission){
  if(['role','branchId','authVersion'].some(key=>String(actor[key]??'')!==String(current.actor[key]??'')))throw v.fail('Account assignment changed. Reload before saving.',409);
  return current;
 }
-function scope(actor){return ['Tenant Owner','Auditor'].includes(actor.role)?{}:{branchId:v.id(actor.branchId)};}
+function scope(actor){return ['Tenant Owner','Auditor'].includes(actor.role)?require('../services/branchView.service').readScope(actor):{branchId:v.id(actor.branchId)};}
 function queryScope(actor){const s=scope(actor);return s.branchId?{branchId:oid(s.branchId)}:{};}
 async function prepare(conn){await Promise.all([models.ensureTenantIndexes(conn),directory.ensureIndexes(conn)]);}
 async function transaction(conn,run){const session=await conn.startSession();try{let result;await session.withTransaction(async()=>{result=await run(session);});return result;}finally{await session.endSession();}}

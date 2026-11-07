@@ -48,7 +48,7 @@ function moduleAccess(tenant,actor,permission){
 function operator(actor){return ['Tenant Owner','Forex Operator'].includes(actor?.role);}
 function reviewer(actor){return ['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(actor?.role);}
 function branchScope(actor){
- if(['Tenant Owner','Auditor'].includes(actor?.role))return {};
+ if(['Tenant Owner','Auditor'].includes(actor?.role))return require('./branchView.service').readScope(actor);
  if(!OID.test(String(actor?.branchId||'')))throw fail('An assigned branch is required',403);
  return {branchId:id(actor.branchId)};
 }
@@ -194,7 +194,7 @@ async function cancelQuote(conn,tenant,actor,quoteId,input){
 async function listRates(conn,tenant,actor,{status=null,branchId=null}={}){
  moduleAccess(tenant,actor,'forex.view');if(status&&!['pending_review','active','rejected','superseded','expired'].includes(status))throw fail('Invalid rate status');
  const scope=branchScope(actor);
- if(branchId){id(branchId);if(scope.branchId&&scope.branchId!==String(branchId))throw fail('Cross-branch rate access forbidden',403);scope.branchId=branchId;}
+ if(branchId){id(branchId);if(scope.branchId&&String(scope.branchId)!==String(branchId))throw fail('Cross-branch rate access forbidden',403);scope.branchId=branchId;}
  return forexRateModel(conn).find({...scope,...(status?{status}:{})}).sort({createdAt:-1,_id:-1}).limit(100).lean();
 }
 async function rateReviewQueue(conn,tenant,actor){

@@ -9,6 +9,7 @@ const REQUIRED_INDEXES=Object.freeze({
   TreasuryMovementV1: [['accountId',1],['sequence',1]],
   TreasuryCounterV1: [['branchId',1],['currency',1],['purpose',1]],
   TreasuryAdjustmentV1: [['idempotencyKey',1]],
+  TreasuryFundingV1: [['idempotencyKey',1]],
   FundedExecutionV1: [['idempotencyKey',1]],
   ManualPayoutVerificationV1: [['tokenHash',1]],
   CustomerDirectoryV1: [['reference',1]],

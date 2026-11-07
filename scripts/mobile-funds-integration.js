@@ -28,11 +28,14 @@ async function main(){
  async function record(input){return mobile.recordMobileMoney(conn,operator,input,input.operation,tenant,null,{requireFunds:true});}
  async function accept(recorded){return mobile.reviewMobileMoney(conn,reviewer,recorded.created._id,'accepted','Provider evidence, actual wallet and recorded payment checked independently');}
  async function balance(account){return String((await funds.models(conn).account.findById(account._id).lean()).bookBalanceMinor);}
+ await treasury.configureAccount(conn,tenant,owner,wallet._id,{name:wallet.name,isDefault:'true',feeTreatment:'payment_collected'});
  const firstInput=request('cash_in',10000,990000,{fee:'100',feeTreatment:'payment_collected'}),first=await record(firstInput);
  assert.equal(first.created.fundingState,'book_recorded');assert.equal(String(first.created.physicalCashMovementMinor),'10100');assert.equal(await balance(wallet),'990000');assert.equal(await balance(drawer),'510100');assert.equal((await record(firstInput)).duplicate,true);
  await assert.rejects(record({...firstInput,feeTreatment:'record_only'}),{status:409});await accept(first);
  const firstObservation=await funds.models(conn).observation.findById(first.created.walletObservationId).lean();assert.equal(firstObservation.status,'approved');assert.equal(String(firstObservation.varianceMinorAtReview),'0');
+ await treasury.configureAccount(conn,tenant,owner,wallet._id,{name:wallet.name,isDefault:'true',feeTreatment:'wallet_commission'});
  const second=await record(request('cash_out',5000,995050,{fee:'50',feeTreatment:'wallet_commission'}));await accept(second);assert.equal(await balance(wallet),'995050');assert.equal(await balance(drawer),'505100');
+ await treasury.configureAccount(conn,tenant,owner,wallet._id,{name:wallet.name,isDefault:'true',feeTreatment:'record_only'});
  const third=await record(request('cash_in',2000,993050,{paymentMethod:'Bank',paymentAccountId:String(bank._id)}));await accept(third);assert.equal(await balance(bank),'302000');assert.equal(await balance(wallet),'993050');
  const usageBefore=(await Usage.findOne({tenantId:tenant._id,metric:'mobile_money_records'})).quantity,countBefore=await core.mobileTransactionModel(conn).countDocuments(),auditBefore=await core.auditEventModel(conn).countDocuments();
  await assert.rejects(record(request('cash_in',2000000,0)),error=>error.status===409&&/Insufficient/.test(error.message));
@@ -45,7 +48,25 @@ async function main(){
  assert.equal((await require('../src/tenant/services/ledger.service').trialBalance(conn,{branchId:branch._id,currency:'UGX'})).balanced,true);
  const viewer=mobile.visibleRecordForRole(first.created.toObject?first.created.toObject():first.created,'Viewer');assert.equal(viewer.walletBalanceAfterMinor,undefined);
  const context=await require('../src/tenant/services/mobileMoneyFunds.service').context(conn,tenant,operator,branch);assert(context.wallets.some(row=>row.id===String(wallet._id)&&row.expected==='UGX 992,000'));assert(context.paymentAccounts.some(row=>row.id===String(drawer._id)&&row.expected==='UGX 506,100'));
- console.log('PASS: Manual MoMo confirmed openings, exact cash/customer-fee and wallet-commission economics, bank settlement book, actual-after-balance capture and independent review, mismatch hold/adjustment, insufficient-float atomic rollback, replay/void journal reversal, cash closing checkpoints, privacy and balanced ledger.');
+ await treasury.configureAccount(conn,tenant,owner,wallet._id,{name:wallet.name,isDefault:'true',feeTreatment:'wallet_commission'});
+ const dailyInput=request('cash_in',100,0,{paymentMethod:'Bank',fee:'25'});
+ for(const field of ['observedWalletBalance','observationEvidenceReference','feeTreatment','paymentAccountId','walletAccountId'])delete dailyInput[field];
+ const daily=await record(dailyInput);
+ assert.equal(daily.created.fundingState,'book_recorded');assert.equal(daily.created.feeTreatment,'wallet_commission');assert.equal(daily.created.walletObservationId,null,'daily entries do not require a repeated actual balance declaration');
+ assert.equal(String(daily.created.walletAccountId),String(wallet._id));assert.equal(String(daily.created.paymentAccountId),String(bank._id));
+ assert.equal(await balance(wallet),'991925');assert.equal(await balance(bank),'302100');
+ await treasury.configureAccount(conn,tenant,owner,wallet._id,{name:wallet.name,isDefault:'true',feeTreatment:'record_only'});
+ const dailyCount=await core.mobileTransactionModel(conn).countDocuments();
+ assert.equal((await record(dailyInput)).duplicate,true,'retry keeps the original wallet policy even after its configuration changes');
+ assert.equal(await core.mobileTransactionModel(conn).countDocuments(),dailyCount);assert.equal(await balance(wallet),'991925');
+ await assert.rejects(record({...dailyInput,feeTreatment:'record_only'}),{status:409},'an explicit changed fee treatment cannot reuse the posted reference');
+ const changedPolicy={...dailyInput,idempotencyKey:crypto.randomUUID(),networkReference:'POLICY-'+crypto.randomBytes(8).toString('hex'),walletFeePolicy:'wallet_commission'};
+ await assert.rejects(record(changedPolicy),error=>error.status===409&&/settings changed|policy changed/i.test(error.message),'a changed wallet policy cannot silently change the customer preview');
+ assert.equal(await core.mobileTransactionModel(conn).countDocuments(),dailyCount);assert.equal(await balance(wallet),'991925');assert.equal(await balance(bank),'302100');
+ await assert.rejects(record({...changedPolicy,idempotencyKey:crypto.randomUUID(),networkReference:'FORGED-'+crypto.randomBytes(8).toString('hex'),walletFeePolicy:'record_only',feeTreatment:'payment_collected'}),error=>error.status===409&&/configured.*Wallets/i.test(error.message),'ordinary daily posts cannot override the configured wallet policy');
+ assert.equal(await core.mobileTransactionModel(conn).countDocuments(),dailyCount);assert.equal(await balance(bank),'302100');
+ assert.equal((await require('../src/tenant/services/ledger.service').trialBalance(conn,{branchId:branch._id,currency:'UGX'})).balanced,true);
+ console.log('PASS: Configured wallet/payment defaults, daily entries without repeated balance setup, configured fee policy and idempotency, exact funds and balanced journals, optional actual evidence, mismatch holds/adjustments, insufficient-float rollback, inverse corrections, cash close and privacy.');
 }
 async function cleanup(){if(mongoose.connection.readyState===1&&mongoose.connection.name===platformName&&/^cfh_mobile_funds_[a-f0-9]{14}$/.test(platformName)){if(conn)await conn.db.dropDatabase();await mongoose.connection.db.dropDatabase();}await mongoose.disconnect();}
 main().catch(error=>{console.error('MOBILE FUNDS INTEGRATION FAILED:',error.stack||error.message);process.exitCode=1;}).finally(()=>cleanup().catch(error=>{console.error('Mobile funds cleanup failed:',error.message);process.exitCode=1;}));

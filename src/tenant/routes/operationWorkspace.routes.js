@@ -57,6 +57,7 @@ module.exports=function operationWorkspaceRoutes({renderTenant,moduleKey}){
   router.get('/cash-stock',(req,res,next)=>res.redirect(303,'/tenant/forex/cash-impact'));
   router.get('/rates',async(req,res,next)=>{
    try{const data=await workspace.formContext(req.tenantDb,req.tenant,req.user,moduleKey,req.operationBranch);
+    data.rates=await require('../services/forex.service').listRates(req.tenantDb,req.tenant,req.user,{status:'active'});
     Object.assign(data,{workspaceTitle:'Active rate board',workspaceOperation:'rates'});
     renderTenant(req,res,'forex/index','Active rate board','Approved indicative exchange rates and independent review.',data);
    }catch(error){next(error);}

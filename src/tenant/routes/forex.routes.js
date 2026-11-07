@@ -11,19 +11,20 @@ module.exports=function routes({renderTenant}){
  const router=routerFactory();
  router.use(require('./operationWorkspace.routes')({renderTenant,moduleKey:'forex'}));
  async function available(req){return (await branches.list(req.tenant)).filter(b=>b.status==='active'&&
-  (req.user.role==='Tenant Owner'||String(b._id)===String(req.user.branchId)));}
+  (require('../services/branchView.service').canViewBranches(req.user)||String(b._id)===String(req.user.branchId)));}
  router.get('/',requirePermission('forex.view'),async(req,res,next)=>{
   try{
    const branchList=await available(req);
    const selectedId=String(req.operationBranch?._id || '');
    const selected=branchList.find(b=>String(b._id)===selectedId);
-   const [rates,records,rateQueue,quoteQueue]=await Promise.all([
-    selected?fx.listRates(req.tenantDb,req.tenant,req.user,{status:'active',branchId:selectedId}):[],
+   const [formRates,rates,records,rateQueue,quoteQueue]=await Promise.all([
+    selected?fx.listRates(req.tenantDb,req.tenant,require('../services/branchView.service').withoutReadView(req.user),{status:'active',branchId:selectedId}):[],
+    fx.listRates(req.tenantDb,req.tenant,req.user,{status:'active'}),
     fx.listQuotes(req.tenantDb,req.tenant,req.user),
     fx.reviewer(req.user)&&hasPermission(req.user,'forex.rate_review')?fx.rateReviewQueue(req.tenantDb,req.tenant,req.user):[],
     fx.reviewer(req.user)&&hasPermission(req.user,'forex.quotes.review')?fx.quoteReviewQueue(req.tenantDb,req.tenant,req.user):[]]);
    renderTenant(req,res,'forex/index','Forex Rates & Quotes','Approved rates, customer quotations and independently reviewed manual exchanges.',{
-    branches:branchList,rates,records,rateQueue,quoteQueue,selectedBranchId:selected?selectedId:null,
+    branches:branchList,formRates,rates,records,rateQueue,quoteQueue,selectedBranchId:selected?selectedId:null,
     canPropose:fx.operator(req.user)&&hasPermission(req.user,'forex.rate_manage'),
     canQuote:fx.operator(req.user)&&hasPermission(req.user,'forex.quotes.create'),
     canRateReview:fx.reviewer(req.user)&&hasPermission(req.user,'forex.rate_review'),
@@ -45,6 +46,7 @@ module.exports=function routes({renderTenant}){
  router.post('/quotes',requirePermission('forex.quotes.create'),financial,async(req,res,next)=>{
   try{const result=await fx.createQuote(req.tenantDb,req.tenant,req.user,req.body);
    flash(req,'good',result.duplicate?'Identical quote returned; no duplicate created.':'Indicative quote saved. No currency has been exchanged.');
+   require('../services/branchView.service').followRecord(req,result.quote);
    res.redirect(303,`/tenant/forex/${result.quote._id}`);
   }catch(e){next(e);}
  });

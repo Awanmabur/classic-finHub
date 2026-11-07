@@ -61,16 +61,19 @@ function validate(input, operation) {
   if(typeof observedWalletBalance!=='string'||observedWalletBalance.length>32||typeof observationEvidenceReference!=='string'||observationEvidenceReference.length>120||/[\u0000-\u001f\u007f]/.test(observationEvidenceReference))throw bad('Enter a valid actual balance and evidence reference');
   return { operation, customer, customerPhone, customerNote, paymentMethod, network, networkReference, currency, amountMinor, feeMinor, idempotencyKey,...selected,feeTreatment,observedWalletBalance:observedWalletBalance.trim(),observationEvidenceReference:observationEvidenceReference.trim() };
 }
-function sameDetails(record,values){
+function sameDetails(record,values,{feeTreatmentSpecified=true}={}){
   return ['amountMinor','feeMinor','currency','customer','network','networkReference','customerPhone','customerNote','paymentMethod']
     .every(key=>String(record[key]??(key==='paymentMethod'?'Cash':key==='customerPhone'||key==='customerNote'?'':undefined))===String(values[key])) &&
-    String(record.feeTreatment||'record_only')===String(values.feeTreatment||'record_only') &&
+    (!feeTreatmentSpecified||String(record.feeTreatment||'record_only')===String(values.feeTreatment||'record_only')) &&
     ['walletAccountId','paymentAccountId','customerAccountId'].every(key=>!values[key]||String(record[key]||'')===String(values[key])) &&
     (!values.observedWalletBalance||String(record.observedWalletBalance||'')===values.observedWalletBalance);
 }
 async function recordMobileMoney(conn, operator, input, operation, tenant, sourceContext = null, options = {}) {
   if(!operator?.id || !['Tenant Owner','Mobile Money Operator'].includes(operator.role))throw bad('This role cannot record Mobile Money operations',403);
   const values = validate(input, operation);
+  const feeTreatmentSpecified=typeof input.feeTreatment==='string'&&input.feeTreatment!=='';
+  const expectedFeeTreatment=input.walletFeePolicy===''?undefined:input.walletFeePolicy;
+  if(expectedFeeTreatment!==undefined&&!['record_only','payment_collected','wallet_commission'].includes(expectedFeeTreatment))throw bad('Reload the transaction to use the current wallet settings');
   if(sourceContext !== null && (!sourceContext || typeof sourceContext !== 'object' || Array.isArray(sourceContext) ||
     Object.keys(sourceContext).length !== 1 || !/^[a-f0-9]{24}$/i.test(String(sourceContext.smsInboxId || ''))))
     throw bad('Invalid trusted SMS source context',400);
@@ -86,7 +89,7 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
   if(prior){
     if((sourceContext && String(prior.smsInboxId)!==source.smsInboxId) || String(prior.operatorId)!==String(operator.id)||prior.operation!==operation||
       String(prior.branchId)!==requestedBranchId||
-      !sameDetails(prior,values))throw bad('This operation reference was already used for different details.',409);
+      !sameDetails(prior,values,{feeTreatmentSpecified}))throw bad('This operation reference was already used for different details.',409);
     return {created:prior,duplicate:true};
   }
   const Audit = auditEventModel(conn);
@@ -104,7 +107,9 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
       // Only physical Cash records may change a verified drawer or join a shift.
       const funds=require('./mobileMoneyFunds.service');
       const tracking=await funds.shouldTrack(conn,authorization.tenant,values,options.requireFunds===true);
-      const funding=tracking?await funds.apply(conn,session,authorization,{...values,branchId:branch._id},{requireObservation:options.requireFunds===true&&!sourceContext,receivedAt:smsAuthorization?.receivedAt}):{};
+      // Daily transactions use the configured funds book. Actual balance checks
+      // belong on the wallets page; an SMS can still attach its dated balance.
+      const funding=tracking?await funds.apply(conn,session,authorization,{...values,branchId:branch._id},{receivedAt:smsAuthorization?.receivedAt,feeTreatmentSpecified,expectedFeeTreatment,useConfiguredPolicy:options.requireFunds===true}):{};
       const cashSessionId=values.paymentMethod==='Cash'?await require('./cashDrawer.service').attachRecord(conn,session,authorization.actor,branch._id,values.currency,operation,BigInt(values.amountMinor),{...(smsAuthorization?{receivedAt:smsAuthorization.receivedAt}:{}),bookManaged:tracking}):null;
       [created] = await Model.create([{ ...values, ...source,...funding, cashSessionId, branchId:branch._id, amountMinor: String(values.amountMinor), feeMinor: String(values.feeMinor), operatorId: operator.id, status: 'pending_verification' }], { session });
       await Audit.create([{
@@ -119,7 +124,7 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
       if (existing) {
         if ((sourceContext && String(existing.smsInboxId)!==source.smsInboxId) || String(existing.operatorId) !== operator.id || existing.operation !== operation ||
           String(existing.branchId)!==requestedBranchId ||
-          !sameDetails(existing,values)) {
+          !sameDetails(existing,values,{feeTreatmentSpecified})) {
           throw bad('This operation reference was already used for different details.', 409);
         }
         return { created: existing, duplicate: true };

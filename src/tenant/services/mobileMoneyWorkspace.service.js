@@ -10,7 +10,7 @@ function fail(message,status=400){const error=new Error(message);error.status=st
 function objectId(value){if(!/^[a-f0-9]{24}$/i.test(String(value||'')))throw fail('An authorized record scope is required',403);return new Types.ObjectId(String(value));}
 function readScope(actor){
  if(!actor?.id)throw fail('An authenticated staff account is required',403);
- if(['Tenant Owner','Auditor'].includes(actor.role))return {};
+ if(['Tenant Owner','Auditor'].includes(actor.role))return require('./branchView.service').readScope(actor);
  return {...(actor.branchId?{branchId:objectId(actor.branchId)}:{}),
   ...(actor.role==='Mobile Money Operator'||!actor.branchId?{operatorId:objectId(actor.id)}:{})};
 }

@@ -53,10 +53,10 @@ async function context(conn,tenant,actor,type,requiredPermission=null,session=nu
  if(!currentTenant||!person||person.role!==actor.role||(person.authVersion||0)!==(actor.authVersion||0))throw fail('Financial account access changed. Sign in again.',403);
  const trusted=auth.trustedActor(person);
  if(!hasModuleForUser(currentTenant,trusted,type)||!hasPermission(trusted,requiredPermission||`${type}.view`))throw fail('This financial module or operation is unavailable',403);
- if(trusted.role!=='Tenant Owner'&&(!OID.test(String(trusted.branchId||''))||String(trusted.branchId)!==String(actor.branchId||'')))throw fail('Your operating branch changed. Reload before continuing.',403);
- return {tenant:currentTenant,actor:trusted};
+ if(!['Tenant Owner','Auditor'].includes(trusted.role)&&(!OID.test(String(trusted.branchId||''))||String(trusted.branchId)!==String(actor.branchId||'')))throw fail('Your operating branch changed. Reload before continuing.',403);
+ return {tenant:currentTenant,actor:session?trusted:require('./branchView.service').withReadView(trusted,actor)};
 }
-function scope(actor){return ['Tenant Owner','Auditor'].includes(actor.role)?{}:{branchId:id(actor.branchId)};}
+function scope(actor){return ['Tenant Owner','Auditor'].includes(actor.role)?require('./branchView.service').readScope(actor):{branchId:id(actor.branchId)};}
 function readScope(actor){return {...scope(actor),...(['Banking Operator','Forex Operator','Money Transfer Operator'].includes(actor.role)?{createdBy:id(actor.id)}:{})};}
 async function audit(conn,session,actor,execution,action,extra={}){await models.auditEventModel(conn).create([{action:`funded.${action}`,actorId:actor.id,targetId:execution._id,metadata:{branchId:String(execution.branchId),sourceType:execution.sourceType,sourceId:String(execution.sourceId),executionAction:execution.action,...extra}}],{session});}
 async function prepareIndexes(conn){await Promise.all([models.ensureTenantIndexes(conn),ensureIndexes(conn),directory.ensureIndexes(conn)]);}
@@ -233,7 +233,7 @@ async function list(conn,tenant,actor,input={}){
 async function detail(conn,tenant,actor,executionId){
  if(!tenant?.slug||conn.name!==tenantDbNameFromSlug(tenant.slug))throw fail('Manual financial workspace is invalid',403);
  await prepareIndexes(conn);const execution=await fundedModels(conn).execution.findById(id(executionId)).lean();if(!execution)throw fail('Manual movement not found',404);
- const current=await context(conn,tenant,actor,execution.sourceType);if(current.actor.role!=='Tenant Owner'&&current.actor.role!=='Auditor'&&String(current.actor.branchId)!==String(execution.branchId))throw fail('Manual movement not found in your branch',404);
+ const current=await context(conn,tenant,actor,execution.sourceType),view=scope(current.actor);if(view.branchId&&String(view.branchId)!==String(execution.branchId))throw fail('Manual movement not found in the selected branch',404);
  if(['Banking Operator','Forex Operator','Money Transfer Operator'].includes(current.actor.role)&&String(execution.createdBy)!==current.actor.id)throw fail('Manual movement not found in your scope',404);
  const source=await definition(execution.sourceType).model(conn).findById(execution.sourceId).lean();
  return {execution,source,canReview:execution.status==='pending_review'&&String(execution.createdBy)!==current.actor.id&&hasPermission(current.actor,permission(execution.sourceType,true,execution.action)),canRevealPin:execution.action==='transfer_collect'&&execution.status==='posted_manual'&&!execution.pinShownAt&&(current.actor.role==='Tenant Owner'||String(execution.createdBy)===current.actor.id)};

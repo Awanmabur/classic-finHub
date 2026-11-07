@@ -754,6 +754,8 @@ a{color:inherit;text-decoration:none}
 a:visited{color:inherit}
 a.btn,a.item,a.subitem,a.chip{text-decoration:none}
 a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--primary);outline-offset:3px}
+/* Approved controls already expose focus through their outer focus-within ring. */
+.control:focus-visible,.ctrl:focus-visible,.control :is(input,select,textarea):focus-visible,.ctrl :is(input,select,textarea):focus-visible{outline:0}
 .btn:disabled,.btn[aria-disabled="true"]{opacity:.55;cursor:not-allowed;box-shadow:none!important;transform:none}
 .skip-link{position:fixed;left:16px;top:12px;z-index:150;padding:12px 16px;background:#fff;color:#082c52;border:2px solid #082c52;border-radius:12px;transform:translateY(-160%)}
 .skip-link:focus{transform:none}
@@ -782,6 +784,8 @@ dialog[data-operation-dialog]::backdrop{background:rgba(6,26,51,.48)}
 dialog[data-operation-dialog]>.sheet{width:100%;max-height:92vh}
 dialog[data-operation-dialog] [hidden],dialog.workspaceDialog [hidden]{display:none!important}
 dialog[data-operation-dialog] .sheetBody{min-height:0;flex:1;align-content:start}
+/* Keep the approved sticky service tabs in the sheet's scrolling content. */
+dialog[data-operation-dialog] [data-transaction-choices]{display:contents}
 dialog[data-operation-dialog] .transactionForm{margin:0;display:grid;gap:16px}
 dialog[data-operation-dialog] .svc{display:grid;align-content:start}
 /* These aliases target the real dialog ID; their declarations are the literal

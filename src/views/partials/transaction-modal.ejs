@@ -5,7 +5,7 @@
    const visibleGroups=operationGroups.filter(([key])=>transactionOptions.some(option=>operationGroup(option.kind)===key)); %>
 <dialog id="transactionDialog" class="transactionDialog" data-operation-dialog aria-labelledby="transactionTitle" aria-describedby="transactionDescription">
  <div class="sheet" data-operation-sheet>
-  <header class="sheetHead"><div><b id="transactionTitle">New operation</b><br><span id="transactionDescription">Choose a section, then choose the exact operation.</span></div><button class="btn btnIcon" type="button" data-close-transaction aria-label="Close transaction dialog">×</button></header>
+  <header class="sheetHead"><div><b id="transactionTitle">New operation</b><br><span id="transactionDescription">Choose a section, then choose the exact operation.</span><% if(typeof canViewBranches!=='undefined'&&canViewBranches&&typeof operationBranch!=='undefined'&&operationBranch&&String(viewBranchId)!==String(operationBranch._id)){ %><br><small class="tiny" data-transaction-branch-context>Transactions at <strong><%= operationBranch.name %></strong></small><% } %></div><button class="btn btnIcon" type="button" data-close-transaction aria-label="Close transaction dialog">×</button></header>
   <div class="sheetBody">
    <div data-transaction-choices>
     <div class="seg serviceTabs" id="serviceSeg" aria-label="Transaction service"><% visibleGroups.forEach(([key,label])=>{ %><button class="chip" type="button" data-transaction-service="<%= key %>" aria-pressed="false"><%= label %></button><% }) %></div>

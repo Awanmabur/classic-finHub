@@ -46,6 +46,7 @@ async function requestContext(req,res,next){
     }
     res.locals.operationBranch=req.operationBranch;
     res.locals.operationBranchError=req.operationBranchError;
+    await require('./branchView.service').context(req,res);
     next();
   }catch(error){next(error);}
 }

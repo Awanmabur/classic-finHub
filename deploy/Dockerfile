@@ -1,8 +1,11 @@
+# syntax=docker/dockerfile:1
 # Production runtime: dependencies are installed from the committed lockfile.
 FROM node:22-bookworm-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund && npm cache clean --force
+RUN --mount=type=secret,id=proxy_ca \
+    if [ -r /run/secrets/proxy_ca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/proxy_ca; fi; \
+    npm ci --omit=dev --ignore-scripts --no-audit --no-fund --strict-ssl=true && npm cache clean --force
 
 FROM node:22-bookworm-slim
 ENV NODE_ENV=production PORT=3000

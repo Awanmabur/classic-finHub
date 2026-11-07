@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const required = [
-  'src/app.js','src/server.js','src/views/layouts/dashboard.ejs','src/views/platform/marketplace/index.ejs','src/views/tenant/marketplace/index.ejs','src/platform/models/Tenant.js','src/tenant/schemas/MoneyTransfer.schema.js'
+  'src/app.js','src/server.js','src/views/layouts/dashboard.ejs','src/views/platform/modules/index.ejs','src/views/tenant/modules/index.ejs','src/platform/models/Tenant.js','src/tenant/schemas/TransferOrder.schema.js'
 ];
 let ok = true;
 for (const file of required) {

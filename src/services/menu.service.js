@@ -34,8 +34,9 @@ function tenantMenu(tenant,user) {
   group('Overview',can('dashboard.view')?[
     item('Today snapshot','dashboard','fa-gauge-high'),
     ...(canCreate?[item('New transaction','transactions/new','fa-plus',{'transactionKind':'choose'})]:[]),
-    ...(mobile||transfer?[item('Last receipt','last-receipt','fa-receipt')]:[])
-  ]:[]);
+    ...(mobile||transfer?[item('Last receipt','last-receipt','fa-receipt')]:[]),
+    ...(module('analytics')&&can('analytics.view')?[item(user.role==='Tenant Owner'?'Remote owner dashboard':'Advanced Analytics','analytics','fa-chart-pie')]:[])
+  ]:[],module('analytics')&&can('analytics.view')?['analytics']:[]);
   group('Money Transfer',transfer?[
     item('Send money / Generate PIN','money-transfer/send','fa-money-bill-transfer',{transactionKind:can('money_transfer.create')?'transfer':null}),
     ...(can('money_transfer.payout')?[item('Payout by PIN','money-transfer/payout','fa-key',{transactionKind:'payout'})]:[]),
@@ -68,9 +69,11 @@ function tenantMenu(tenant,user) {
   ],banking?['banking']:[]);
   group('Operation Reports',[
     ...(reports?[item('Daily business report','reports/daily','fa-chart-simple')]:[]),
-    ...(sharedCash?[item('Wallets & balances','treasury','fa-wallet')]:[]),
     ...(sharedCash&&['Tenant Owner','Mobile Money Operator','Money Transfer Operator','Banking Operator','Forex Operator'].includes(user.role)?[item('Open day','cash/shifts','fa-unlock',{transactionKind:'cash_shift_open'}),item('Close day','day/close','fa-lock',{transactionKind:'cash_shift_close'})]:[]),
     ...(expenses&&can('expenses.create')?[item('Add expense','expenses/new','fa-money-bill',{transactionKind:'expense'})]:[]),
+    ...(module('approval_workflows')&&can('approvals.view')?[item('Approvals & corrections','approvals','fa-user-check')]:[]),
+    ...(manualMovements?[item('Manual movement review','funded','fa-list-check')]:[]),
+    ...(sharedCash&&['Tenant Owner','Branch Manager','Reconciliation Officer','Auditor'].includes(user.role)?[item('Cash control review','cash/shifts','fa-cash-register')]:[]),
     ...(reports&&can('reports.export')?[item('Export CSV','reports/export.csv','fa-download')]:[]),
     ...(reports?[item('Print report','reports/print','fa-print'),item('General reports page','reports','fa-file-lines'),
       ...(cashReportSource?[item('Opening cash report','reports/opening','fa-unlock'),item('Closing cash / expected cash','reports/closing','fa-lock')]:[]),
@@ -79,24 +82,18 @@ function tenantMenu(tenant,user) {
       ...(module('money_transfer')?[item('Transfer report','reports/transfer','fa-money-bill-transfer')]:[]),
       ...(module('mobile_money')?[item('Mobile report','reports/mobile','fa-mobile-screen-button')]:[]),
       ...(module('banking')?[item('Banking report','reports/banking','fa-building-columns')]:[])]:[])
-  ],[...(reports?['reports']:[]),...(expenses?['expenses']:[]),...(sharedCash?['cash/shifts','treasury']:[])]);
+  ],[...(reports?['reports']:[]),...(expenses?['expenses']:[]),...(sharedCash?['cash/shifts']:[]),...(module('approval_workflows')&&can('approvals.view')?['approvals']:[]),...(manualMovements?['funded']:[])]);
   group('Tenant Workspace',[
-    ...(workspace?[item('Tenant profile','workspace/profile','fa-building'),item('Landing page setup','workspace/landing','fa-window-maximize'),item('Branding & receipts','workspace/branding','fa-palette')]:[]),
+    ...(workspace?[item('Tenant profile','workspace/profile','fa-building')]:[]),
+    ...(sharedCash?[item('Wallets & balances','treasury','fa-wallet')]:[]),
+    ...(workspace?[item('Landing page setup','workspace/landing','fa-window-maximize'),item('Branding & receipts','workspace/branding','fa-palette')]:[]),
     ...(can('branches.view')?[item('Branches & locations','branches','fa-location-dot')]:[]),
     ...(staff?[item('Admins, tellers & users','users','fa-users')]:[]),
-    ...(workspace?[item('Roles & permissions','workspace/roles','fa-user-shield'),item('Customer/KYC setup','workspace/kyc','fa-id-card'),item('Tenant database','workspace/database','fa-database'),item('Subscription & limits','workspace/subscription','fa-file-contract'),item('Notification rules','workspace/notification-rules','fa-bell'),item('Integrations & API','workspace/integrations','fa-plug'),item('Import / export data','workspace/import-export','fa-file-export'),item('Compliance controls','workspace/compliance','fa-shield-halved'),item('Landing preview','workspace/landing-preview','fa-globe'),item('Receipt preview','workspace/receipt-preview','fa-receipt'),...(module('customer_portal')?[item('Customer portal preview','workspace/customer-portal-preview','fa-users-viewfinder')]:[])]:[]),
-    ...(can('audit.view')?[item('Tenant audit activity','audit','fa-clock-rotate-left')]:[])
-  ],[...(can('modules.view')?['modules']:[]),...(can('billing.view')?['billing']:[]),...(workspace?['workspace']:[])]);
-  group('Phase 2 Control',[
+    ...(workspace?[item('Roles & permissions','workspace/roles','fa-user-shield'),...(module('customers')?[item('Customer/KYC setup','workspace/kyc','fa-id-card')]:[]),item('Tenant database','workspace/database','fa-database'),item('Subscription & limits','workspace/subscription','fa-file-contract'),...(module('notifications')?[item('Notification rules','workspace/notification-rules','fa-bell')]:[]),item('Integrations & API','workspace/integrations','fa-plug'),item('Import / export data','workspace/import-export','fa-file-export'),item('Compliance controls','workspace/compliance','fa-shield-halved'),item('Landing preview','workspace/landing-preview','fa-globe'),item('Receipt preview','workspace/receipt-preview','fa-receipt'),...(module('customer_portal')?[item('Customer portal preview','workspace/customer-portal-preview','fa-users-viewfinder')]:[])]:[]),
     ...(module('notifications')&&can('notifications.view')?[item('Notifications center','notifications','fa-bell')]:[]),
-    ...(module('analytics')&&can('analytics.view')?[item(user.role==='Tenant Owner'?'Remote owner dashboard':'Advanced Analytics','analytics','fa-chart-pie')]:[]),
-    ...(staff?[item('Teller & staff users','users','fa-users')]:[]),
-    ...(can('audit.view')?[item('Logs and audit trail','audit','fa-shield-halved')]:[]),
-    ...(module('approval_workflows')&&can('approvals.view')?[item('Approvals & corrections','approvals','fa-user-check')]:[]),
-    ...(sharedCash&&['Tenant Owner','Branch Manager','Reconciliation Officer','Auditor'].includes(user.role)?[item('Cash control review','cash/shifts','fa-cash-register')]:[]),
-    ...(manualMovements?[item('Manual movement review','funded','fa-list-check')]:[]),
-    ...(workspace?[item('Security & roles','workspace/roles','fa-user-shield'),item('System settings','workspace','fa-gear')]:[])
-  ],[...(module('analytics')&&can('analytics.view')?['analytics']:[]),...(module('approval_workflows')&&can('approvals.view')?['approvals']:[])]);
+    ...(can('audit.view')?[item('Tenant audit activity','audit','fa-clock-rotate-left')]:[]),
+    ...(workspace?[item('System settings','workspace','fa-gear')]:[])
+  ],[...(can('modules.view')?['modules']:[]),...(can('billing.view')?['billing']:[]),...(workspace?['workspace']:[]),...(sharedCash?['treasury']:[])]);
   return groups;
 }
 function tenantNavigationPath(path){

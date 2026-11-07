@@ -100,7 +100,7 @@ async function metrics({Event=OutboxEvent,Heartbeat=WorkerHeartbeat,now=new Date
   const [pending,processing,accepted,dead,recent,workers]=await Promise.all([
     ...['pending','processing','accepted','dead'].map(state=>Event.countDocuments({state})),
     Event.find({}).sort({createdAt:-1}).limit(40).select('-payload -leaseToken -providerAcceptance').lean(),
-    Heartbeat.countDocuments({seenAt:{$gte:new Date(now.valueOf()-30000)}})
+    Heartbeat.countDocuments({workerId:/^outbox-/,seenAt:{$gte:new Date(now.valueOf()-30000)}})
   ]);
   return {counts:{pending,processing,accepted,dead},recent,liveWorkers:workers};
 }

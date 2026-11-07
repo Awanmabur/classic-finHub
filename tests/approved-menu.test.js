@@ -8,14 +8,13 @@ const {plans,modules}=require('../src/data/store');
 const {asPlanVersion,planSnapshot}=require('../src/platform/services/commercial.service');
 const {permissionsFor}=require('../src/config/roles');
 const approved={
- Overview:['Today snapshot','New transaction','Last receipt'],
+ Overview:['Today snapshot','New transaction','Last receipt','Remote owner dashboard'],
  'Money Transfer':['Send money / Generate PIN','Payout by PIN','Pending payout queue','Money transfer record','Transfer fee summary','Transfer report summary'],
  'Mobile Money':['Cash-in','Cash-out','Network activity','Cash impact','Mobile money report'],
  'Forex Operations':['Buy forex from customer','Sell forex to customer','Active rate board','Forex cash impact','Forex operation records','Forex report summary'],
  'Banking Operations':['Customers directory','New customer','Customer logbook','Accounts directory','New account','Deposit','Withdraw','Account transfer','Account balances','Account movements','Banking report summary'],
- 'Operation Reports':['Daily business report','Wallets & balances','Open day','Close day','Add expense','Export CSV','Print report','General reports page','Opening cash report','Closing cash / expected cash','Transaction summary','Expenses report','Transfer report','Mobile report','Banking report'],
- 'Tenant Workspace':['Tenant profile','Landing page setup','Branding & receipts','Branches & locations','Admins, tellers & users','Roles & permissions','Customer/KYC setup','Tenant database','Subscription & limits','Notification rules','Integrations & API','Import / export data','Compliance controls','Landing preview','Receipt preview','Tenant audit activity'],
- 'Phase 2 Control':['Notifications center','Remote owner dashboard','Teller & staff users','Logs and audit trail','Approvals & corrections','Cash control review','Manual movement review','Security & roles','System settings']
+ 'Operation Reports':['Daily business report','Open day','Close day','Add expense','Approvals & corrections','Manual movement review','Cash control review','Export CSV','Print report','General reports page','Opening cash report','Closing cash / expected cash','Transaction summary','Expenses report','Transfer report','Mobile report','Banking report'],
+ 'Tenant Workspace':['Tenant profile','Wallets & balances','Landing page setup','Branding & receipts','Branches & locations','Admins, tellers & users','Roles & permissions','Customer/KYC setup','Tenant database','Subscription & limits','Notification rules','Integrations & API','Import / export data','Compliance controls','Landing preview','Receipt preview','Notifications center','Tenant audit activity','System settings']
 };
 const branchId='507f1f77bcf86cd799439011',owner={id:branchId,name:'Owner',role:'Tenant Owner',permissions:['*']};
 function subscribed(){
@@ -30,7 +29,9 @@ function paths(menu){return menu.flatMap(group=>group.items.map(item=>item.href)
 test('fully entitled owner retains approved groups with wallet controls and no disabled portal',()=>{
  const menu=tenantMenu(subscribed(),owner);
  assert.deepEqual(Object.fromEntries(menu.map(group=>[group.label,group.items.map(item=>item.label)])),approved);
- assert.equal(menu.length,8);assert.equal(menu.reduce((sum,group)=>sum+group.items.length,0),71);
+ assert.equal(menu.length,7);assert.equal(menu.reduce((sum,group)=>sum+group.items.length,0),68);
+ assert(!menu.some(group=>/Phase 2/i.test(group.label)));
+ for(const href of ['/tenant/users','/tenant/audit','/tenant/workspace/roles'])assert.equal(paths(menu).filter(path=>path===href).length,1,href+' is not duplicated');
  for(const item of menu.flatMap(group=>group.items)){
   assert.match(item.href,/^\/tenant\/[a-z0-9/.-]+$/);
   assert.doesNotMatch(item.href,/javascript:|undefined|#|\?/);

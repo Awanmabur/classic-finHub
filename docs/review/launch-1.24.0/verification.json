@@ -1,0 +1,64 @@
+{
+  "version": "1.24.0",
+  "date": "2026-11-07",
+  "release_gate": {
+    "passed": true,
+    "javascript_tests": 393,
+    "android_relay_tests": 13,
+    "syntax_template_files": 473,
+    "dependency_vulnerabilities": 0,
+    "registered_database_integrations_passed": true
+  },
+  "browser": {
+    "protected_public_layout_checks": 84,
+    "fresh_public_page_viewport_checks": 52,
+    "viewport_widths": [
+      1440,
+      900,
+      390,
+      320
+    ],
+    "approved_interaction_widths": [
+      1440,
+      390,
+      320
+    ],
+    "javascript_errors": 0,
+    "resource_errors": 0,
+    "overflow_duplicate_ids_unnamed_visible_controls": 0,
+    "tenant_creation_empty_catalogue_recovery": true,
+    "invite_activation_owner_mfa": true,
+    "wallet_funding_default_transactions": true,
+    "appointments_scheduling_cancellation_completion": true,
+    "profile_wallet_guide": true,
+    "phase_2_navigation_absent": true
+  },
+  "local_production_image": {
+    "node": "v22.23.4",
+    "user": "node",
+    "ready": 200,
+    "home": 200,
+    "homeH1": 1,
+    "privateStatus": 303,
+    "privateNoStore": true,
+    "privateNoIndex": true,
+    "developmentKeyAbsent": true,
+    "dotEnvAbsent": true,
+    "imageId": "sha256:76ac01f6727a70970a7a381d3b23cfa71830b26b54a4222896f265e851a2ce83",
+    "readOnlyFilesystem": true,
+    "capabilitiesDropped": true,
+    "noPublicPorts": true,
+    "scope": "Isolated local image smoke; not live TLS, authenticated production Mongo, provider delivery or recovery verification."
+  },
+  "cleanup": {
+    "removed_verified_files": 153,
+    "removed_bytes": 8348631,
+    "manifest": "../../dead-code-manifest.json"
+  },
+  "production_readiness": {
+    "actual_host_supplied": false,
+    "development_configuration_correctly_rejected": true,
+    "live_tls_database_roles_delivery_offsite_restore_capacity": "unverified; complete LAUNCH_RUNBOOK.md",
+    "productionCertification": false
+  }
+}

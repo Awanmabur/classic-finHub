@@ -17,9 +17,12 @@ fail() { printf 'RELEASE BLOCKED: %s\n' "$*" >&2; exit 1; }
 [[ -f "${CLASSICFIN_NOTIFICATION_ENV_FILE:-}" ]] || fail 'Notification worker secrets env file missing'
 command -v docker >/dev/null || fail 'Docker not installed'
 command -v curl >/dev/null || fail 'curl required for health check'
+command -v flock >/dev/null || fail 'flock required to serialize deployments'
 [[ "$STATE_DIR" = /* ]] || fail 'State directory must be absolute'
 mkdir -p "$STATE_DIR"
 chmod 700 "$STATE_DIR"
+exec 9>"$STATE_DIR/release.lock"
+flock -n 9 || fail 'Another release is already running'
 
 previous=""
 if [[ -f "$STATE" ]]; then
@@ -53,12 +56,13 @@ rollback() {
   fi
   exit 1
 }
-trap rollback ERR
 export CLASSICFIN_IMAGE="$IMAGE"
 # Validate fully interpolated configuration before any deployment change.
 compose config --quiet
 echo 'Pulling verified immutable image (web and both workers).'
 docker pull "$IMAGE"
+# Validation or pull failures leave the running deployment untouched.
+trap rollback ERR
 compose up -d --no-build --remove-orphans
 health # ERR trap rolls back if the release never becomes ready
 printf '%s\n' "$IMAGE" >"$STATE.next"

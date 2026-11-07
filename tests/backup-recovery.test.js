@@ -21,6 +21,8 @@ async function fixture(t){
 test('backup refuses a single-database source URI; includes all logical tenants',()=>{
  assert.throws(()=>backup.validateSourceUri('mongodb://localhost:27018/classicfin_platform_db?replicaSet=rs0'),/full replica-set/);
  assert.equal(backup.validateSourceUri('mongodb://localhost:27018/?replicaSet=rs0'),'mongodb://localhost:27018/?replicaSet=rs0');
+ assert.equal(backup.validateSourceUri('mongodb://backup:secret@mongo-a:27017,mongo-b:27017/?replicaSet=rs0&tls=true'),'mongodb://backup:secret@mongo-a:27017,mongo-b:27017/?replicaSet=rs0&tls=true');
+ assert.throws(()=>backup.validateSourceUri('mongodb://backup:secret@mongo-a:27017,mongo-b:27017/platform?replicaSet=rs0&tls=true'),/full replica-set/);
 });
 test('restore target cannot point at production, developer port or an arbitrary replica set',()=>{
  for(const uri of ['mongodb://db.example.com:27019/?replicaSet=rs-restore','mongodb://127.0.0.1:27018/?replicaSet=rs-restore', 'mongodb://127.0.0.1:27019/?replicaSet=rs0','mongodb://127.0.0.1:27019/classicfin_platform_db?replicaSet=rs-restore'])

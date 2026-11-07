@@ -1,6 +1,6 @@
 <% const navigationItems=menu.flatMap((group,groupIndex)=>group.items.map((item,itemIndex)=>({...item,key:groupIndex+':'+itemIndex})));
    const activeItem=navigationItems.filter(item=>currentPath===item.href||currentPath.startsWith(item.href+'/')).sort((a,b)=>b.href.length-a.href.length)[0];
-   const symbols={Overview:'▦','Money Transfer':'⇄','Mobile Money':'▣','Forex Operations':'💱','Banking Operations':'🏦','Operation Reports':'▤','Tenant Workspace':'▥','Phase 2 Control':'◈'};
+   const symbols={Overview:'▦','Money Transfer':'⇄','Mobile Money':'▣','Forex Operations':'💱','Banking Operations':'🏦','Operation Reports':'▤','Tenant Workspace':'▥'};
    const operatingSidebarBranch=typeof operationBranch==='undefined'?null:operationBranch;
    const hasBranchView=typeof canViewBranches!=='undefined'&&canViewBranches;
    const sidebarBranch=hasBranchView?(typeof viewBranch==='undefined'?null:viewBranch):operatingSidebarBranch;

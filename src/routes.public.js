@@ -14,20 +14,24 @@ const original = ['home','services','pricing','price-compare','about','faq','sup
 for (const name of original) router.get(name === 'home' ? '/' : '/' + name, async (req, res, next) => {
   try {
   const canonicalPath = name === 'home' ? '/' : '/' + name;
-  if (req.path.length > 1 && req.path.endsWith('/')) return res.redirect(308, canonicalPath + (req.originalUrl.includes('?') ? '?' + req.originalUrl.split('?').slice(1).join('?') : ''));
+  if (req.path !== canonicalPath) return res.redirect(308, canonicalPath + (req.originalUrl.includes('?') ? '?' + req.originalUrl.split('?').slice(1).join('?') : ''));
   res.setHeader('Cache-Control','private, no-store');
   if (name === 'forgot-password' || name === 'reset-password') res.setHeader('Referrer-Policy', 'no-referrer');
-  const catalogue=['pricing','price-compare'].includes(name)
+  const catalogue=['home','pricing','price-compare'].includes(name)
     ? await require('./platform/services/publicPlans.service').publicPlans() : {plans:store.plans,persisted:false};
-  res.render('original/' + name, { flash: consumeFlash(req), plans:catalogue.plans, cataloguePersisted:catalogue.persisted,selectableModules:require('./utils/selectionOptions').publicModuleOptions() });
+  if(catalogue.unavailable&&name!=='home')res.status(503).set({'Retry-After':'60','X-Robots-Tag':'noindex, nofollow, noarchive'});
+  res.render('original/' + name, { flash: consumeFlash(req), plans:catalogue.plans, cataloguePersisted:catalogue.persisted,catalogueUnavailable:Boolean(catalogue.unavailable),selectableModules:require('./utils/selectionOptions').publicModuleOptions() });
   }catch(error){next(error);}
 });
 function renderPublic(req, res, view, title, data = {}) {
+  const path=req.path.replace(/\/+$/,'').toLowerCase()||'/';
+  if(seo.INDEXABLE_PATHS.includes(path)&&req.path!==path)return res.redirect(308,path+(req.originalUrl.includes('?')?'?'+req.originalUrl.split('?').slice(1).join('?'):''));
   res.setHeader('Cache-Control','private, no-store');
-  res.render('layouts/public', { title, view: `../public/${view}`, data, flash: consumeFlash(req), currentPath: req.path,
+  res.render('layouts/public', { title, pageMeta:seo.publicMetadata(req.path,title), jsonLd:seo.jsonLd, view: `../public/${view}`, data, flash: consumeFlash(req), currentPath: req.path,
     modules: store.modules, plans: store.plans, tenants: [], appointments: [] });
 }
 router.get('/marketplace', (req, res) => renderPublic(req, res, 'marketplace', 'Module Marketplace | ClassicFin Hub'));
+router.get('/product-guide', (req,res) => {if(req.path.endsWith('/'))return res.redirect(308,'/product-guide');renderPublic(req,res,'product-guide','Product and operating guide | ClassicFin Hub');});
 router.get('/book-appointment', (req, res) => res.redirect('/#book'));
 router.post(['/book-appointment','/signup'], require('./platform/services/actionThrottle.service').appointment, async (req, res, next) => {
   try {
@@ -147,6 +151,7 @@ router.get('/t/:slug', async (req, res, next) => {
     const tenant = await Tenant.findOne({ slug: req.params.slug, status: { $in:['active','trial'] } }).lean();
     if (!tenant) return res.status(404).send('Tenant page not found');
     const landing=await require('./tenant/workspace/service').publicLanding(require('./config/mongo').getTenantConnection(tenant.slug),tenant);
+    if(!landing)return res.status(404).send('Tenant page not found');
     res.set('Cache-Control','no-store');
     renderPublic(req, res, 'tenant-landing', `${landing?.name||tenant.name} | ClassicFin Hub`, { tenant,landing });
   } catch (e) { next(e); }

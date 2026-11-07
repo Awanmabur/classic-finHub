@@ -56,3 +56,19 @@ test('saved receipt wording is escaped while immutable transaction references re
  const csv=service.auditCsv([{createdAt:new Date('2026-11-06'),action:'=HYPERLINK("unsafe")',actorId:'actor',targetId:'target'}]);
  assert.match(csv,/"'=HYPERLINK/);
 });
+
+
+test('tenant profile explains wallet setup without adding setup fields to daily transactions',async()=>{
+ const config=service.defaults(tenant);
+ const data={page:'profile',config,canManage:false,spec:null,canCash:true,canObserveFunds:true,canReviewFunds:true};
+ const template=path.resolve(__dirname,'../src/views/tenant/workspace/index.ejs');
+ const html=await ejs.renderFile(template,{data,tenant,user:owner,assetVersion:'test',csrfToken:'csrf'});
+ assert.match(html,/Wallets &amp; daily operations/);assert.match(html,/Set up once/);assert.match(html,/Choose defaults/);assert.match(html,/href="\/tenant\/treasury#add-funds"/);assert.match(html,/href="\/tenant\/treasury\/review"/);
+ assert.doesNotMatch(html,/name="(?:walletAccountId|observedWalletBalance|feeTreatment)"/,'profile guides account setup without embedding a transaction form');
+ data.canObserveFunds=false;data.canReviewFunds=false;
+ const readOnly=await ejs.renderFile(template,{data,tenant,user:owner,assetVersion:'test',csrfToken:'csrf'});
+ assert.doesNotMatch(readOnly,/href="\/tenant\/treasury(?:#add-funds|\/review)"/);
+ data.canCash=false;
+ const noSource=await ejs.renderFile(template,{data,tenant,user:owner,assetVersion:'test',csrfToken:'csrf'});
+ assert.doesNotMatch(noSource,/workspaceOperationsTitle|Wallets &amp; daily operations/);
+});

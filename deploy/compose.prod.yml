@@ -10,7 +10,6 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3000"
-      TRUST_PROXY: "1"
       NODE_OPTIONS: --max-old-space-size=256
     ports:
       - "127.0.0.1:${CLASSICFIN_HOST_PORT:-3500}:3000"
@@ -47,7 +46,11 @@ services:
     environment:
       NODE_ENV: production
     healthcheck:
-      disable: true
+      test: ["CMD", "node", "scripts/notification-worker-heartbeat.js"]
+      interval: 30s
+      timeout: 8s
+      retries: 3
+      start_period: 30s
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=32m
@@ -74,7 +77,11 @@ services:
     environment:
       NODE_ENV: production
     healthcheck:
-      disable: true
+      test: ["CMD", "node", "scripts/worker-heartbeat.js"]
+      interval: 30s
+      timeout: 8s
+      retries: 3
+      start_period: 30s
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=32m

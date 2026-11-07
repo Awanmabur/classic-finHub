@@ -1,6 +1,6 @@
 {
   "name": "classicfin-hub",
-  "version": "1.23.2",
+  "version": "1.24.0",
   "private": true,
   "description": "ClassicFin Hub modular multi-tenant financial operations platform",
   "engines": {
@@ -88,7 +88,10 @@
     "styles:sync-approved": "node scripts/sync-approved-tenant-css.js",
     "reporting-cash:integration": "node scripts/reporting-cash-integration.js",
     "wallet-funding:integration": "node scripts/wallet-funding-integration.js",
-    "branch-view:integration": "node scripts/branch-view-integration.js"
+    "branch-view:integration": "node scripts/branch-view-integration.js",
+    "production:check": "node scripts/production-readiness.js",
+    "worker:notifications:ready": "node scripts/notification-worker-heartbeat.js",
+    "appointments:integration": "node scripts/appointments-integration.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

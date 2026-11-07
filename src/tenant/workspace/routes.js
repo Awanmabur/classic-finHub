@@ -22,8 +22,7 @@ const pageNames={
  branding:['Branding & receipts','Tenant colors, receipt template, and footer settings.'],roles:['Roles & permissions','Fixed server roles and their current permissions.'],
  database:['Tenant database','Current tenant database statistics and managed backup configuration.'],subscription:['Subscription & limits','Authoritative subscription terms, module grants, and usage limits.'],
  'landing-preview':['Landing preview','Preview current tenant content before publishing.'],'receipt-preview':['Receipt preview','Preview the configured receipt identity and wording.'],
- 'customer-portal-preview':['Customer portal preview','Public customer support and receipt verification availability.'],audit:['Tenant audit activity','Recorded workspace configuration changes.'],
- control:['Phase 2 control center','Owner visibility, staff accountability, audit, and operational control.']
+ 'customer-portal-preview':['Customer portal preview','Public customer support and receipt verification availability.'],audit:['Tenant audit activity','Recorded workspace configuration changes.']
 };
 function configForm(section,config,tenant={}){
  const value=config[section==='receipt'?'branding':section];let title,subtitle,group,fields,hidden=[];
@@ -67,7 +66,7 @@ function factory({renderTenant}){
   const config=await service.read(req.tenantDb,req.tenant,req.user),spec=entryPages[page],names=spec?[spec.title,spec.subtitle]:pageNames[page];
   const data={page,title:names[0],subtitle:names[1],config,canManage:req.user.role==='Tenant Owner'&&hasPermission(req.user,'workspace.manage'),
    spec:spec||null,entries:[],form:null,canCustomers:hasModuleForUser(req.tenant,req.user,'customers')&&hasPermission(req.user,'customers.view'),canCustomerExport:hasModuleForUser(req.tenant,req.user,'customers')&&hasPermission(req.user,'customers.export'),
-   canSms:hasModuleForUser(req.tenant,req.user,'sms_capture'),canNotifications:hasModuleForUser(req.tenant,req.user,'notifications'),canCash:hasModuleForUser(req.tenant,req.user,'mobile_money')&&hasPermission(req.user,'mobile_money.view'),...extra};
+   canSms:hasModuleForUser(req.tenant,req.user,'sms_capture')&&hasModuleForUser(req.tenant,req.user,'mobile_money')&&hasPermission(req.user,'mobile_money.cash_in'),canNotifications:hasModuleForUser(req.tenant,req.user,'notifications')&&hasPermission(req.user,'notifications.view'),canCash:['mobile_money','money_transfer','banking','forex','expenses'].some(key=>hasModuleForUser(req.tenant,req.user,key)&&hasPermission(req.user,key+'.view'))&&hasPermission(req.user,'treasury.view'),canObserveFunds:hasPermission(req.user,'treasury.observe'),canReviewFunds:hasPermission(req.user,'treasury.review'),...extra};
   if(spec&&!extra.entries)data.entries=await service.entries(req.tenantDb,req.tenant,req.user,spec.kind,{archived:true});
   if(['profile','branding'].includes(page))data.form=configForm(page,config,req.tenant);
   if(page==='branding')data.receiptForm=configForm('receipt',config,req.tenant);
@@ -86,7 +85,7 @@ function factory({renderTenant}){
  router.get('/database',async(req,res,next)=>{try{await render(req,res,'database',{stats:await service.database(req.tenantDb,req.tenant,req.user)});}catch(error){next(error);}});
  router.get('/subscription',async(req,res,next)=>{try{await render(req,res,'subscription',{terms:await service.subscription(req.tenantDb,req.tenant,req.user)});}catch(error){next(error);}});
  router.get('/audit',async(req,res,next)=>{try{await render(req,res,'audit',{logs:await service.logs(req.tenantDb,req.tenant,req.user)});}catch(error){next(error);}});
- router.get('/control',async(req,res,next)=>{try{await render(req,res,'control',{summary:await service.overview(req.tenantDb,req.tenant,req.user)});}catch(error){next(error);}});
+ router.get('/control',(req,res)=>res.redirect(303,'/tenant/workspace/profile'));
  router.get('/export.json',requirePermission('workspace.manage'),async(req,res,next)=>{try{
   const exported=await service.exportConfig(req.tenantDb,req.tenant,req.user);res.setHeader('Content-Disposition','attachment; filename="tenant-workspace-settings.json"');res.json(exported);
  }catch(error){next(error);}});

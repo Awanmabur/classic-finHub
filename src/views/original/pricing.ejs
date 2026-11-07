@@ -81,7 +81,7 @@
     </header>
 
     <p class="tiny" style="margin:16px auto;max-width:1050px">Published subscription terms, not a payment checkout. Manual recording remains available with SMS-assisted plans. Financial records and SMS confirmations do not by themselves establish provider settlement.</p>
-    <% if(!plans.length){ %><section class="pricing-page-grid reveal"><article class="plan-card"><h2>Plans are being prepared</h2><p>Contact the team for current setup options. No subscription prices are currently published.</p><a class="btn btn-light" href="/signup">Request plan details</a></article></section><% } else { %>
+    <% if(!plans.length){ %><section class="pricing-page-grid reveal"><article class="plan-card"><h2><%= typeof catalogueUnavailable!=='undefined'&&catalogueUnavailable?'Published pricing is temporarily unavailable':'Plans are being prepared' %></h2><p>Contact the team for current published subscription options.</p><a class="btn btn-light" href="/signup">Request plan details</a></article></section><% } else { %>
     <section class="pricing-page-grid reveal">
       <% plans.forEach(plan=>{const auto=plan.entryMode==='sms_assisted';const labels=plan.moduleLabels||plan.modules.map(key=>key.replaceAll('_',' ')); %>
       <article class="plan-card<%= auto?' featured':'' %>" data-plan-code="<%= plan.code %>">
@@ -151,7 +151,7 @@
         </div>
         <div class="footer-column">
           <h3>Legal & access</h3>
-          <a href="/terms">Terms</a>
+          <a href="/product-guide">Product guide</a><a href="/terms">Terms</a>
           <a href="/privacy">Privacy</a>
           <a href="/cookies">Cookies</a>
           <a href="/refund-policy">Refund policy</a>

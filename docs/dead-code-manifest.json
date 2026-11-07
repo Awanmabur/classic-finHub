@@ -1,0 +1,926 @@
+{
+  "date": "2026-11-07",
+  "base_revision": "2e83f5b020bb37850fe35d17a5dd82f9a641d23c",
+  "removed_files": 153,
+  "removed_bytes": 8348631,
+  "files": [
+    {
+      "path": "src/config/moduleRegistry.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 951,
+      "sha256": "2ba891f01d218d09460b8a48b3a21119b5ac561443d555ce723246aa2ff7fd24"
+    },
+    {
+      "path": "src/config/redis.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 386,
+      "sha256": "96f756bcc40b3a8ab76cb9c244a1433e6b22f87688a479dc48c53c7b78487119"
+    },
+    {
+      "path": "src/config/security.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 388,
+      "sha256": "020ecc2daafaa0feef89db0e20f50f7a181e7f1ecaec35ce664a3d999fb82242"
+    },
+    {
+      "path": "src/middleware/auditLogger.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 308,
+      "sha256": "a8c1b40e734f2848c820297913e9c8dcb2eb747cca5842f87cd1e9250ba08536"
+    },
+    {
+      "path": "src/middleware/requireSetupComplete.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 194,
+      "sha256": "48022057ddbf77fab0f7dfb1dd384b03f483fccb8af5939afe848451018be63e"
+    },
+    {
+      "path": "src/middleware/tenantDb.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 249,
+      "sha256": "195b2fd7d2f00b97b3dc4344f4156f70e1c46deaf48174be12e14bc6ff2bc8c8"
+    },
+    {
+      "path": "src/middleware/tenantStatusCheck.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 256,
+      "sha256": "e57895646311e9f64f5520053e310b7f22c9a8be893d1963847132b755b68ec2"
+    },
+    {
+      "path": "src/middleware/validateRequest.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 392,
+      "sha256": "bf2845f31c1283e9262178680e875d3e2449c171766f50088925797e9ca913ba"
+    },
+    {
+      "path": "src/platform/controllers/appointment.controller.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 79,
+      "sha256": "4c5e958b9cb70c913603800cebfef09e4dc14e9e48ee97ff3a74a2e252e24213"
+    },
+    {
+      "path": "src/platform/controllers/audit.controller.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 79,
+      "sha256": "4c5e958b9cb70c913603800cebfef09e4dc14e9e48ee97ff3a74a2e252e24213"
+    },
+    {
+      "path": "src/platform/controllers/auth.controller.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 79,
+      "sha256": "4c5e958b9cb70c913603800cebfef09e4dc14e9e48ee97ff3a74a2e252e24213"
+    },
+    {
+      "path": "src/platform/controllers/dashboard.controller.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 79,
+      "sha256": "4c5e958b9cb70c913603800cebfef09e4dc14e9e48ee97ff3a74a2e252e24213"
+    },
+    {
+      "path": "src/platform/controllers/invoice.controller.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 79,
+      "sha256": "4c5e958b9cb70c913603800cebfef09e4dc14e9e48ee97ff3a74a2e252e24213"
+    },
+    {
+      "path": "src/platform/controllers/module.controller.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 79,
+      "sha256": "4c5e958b9cb70c913603800cebfef09e4dc14e9e48ee97ff3a74a2e252e24213"
+    },
+    {
+      "path": "src/platform/controllers/moduleRequest.controller.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 79,
+      "sha256": "4c5e958b9cb70c913603800cebfef09e4dc14e9e48ee97ff3a74a2e252e24213"
+    },
+    {
+      "path": "src/platform/controllers/payment.controller.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 79,
+      "sha256": "4c5e958b9cb70c913603800cebfef09e4dc14e9e48ee97ff3a74a2e252e24213"
+    },
+    {
+      "path": "src/platform/controllers/plan.controller.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 79,
+      "sha256": "4c5e958b9cb70c913603800cebfef09e4dc14e9e48ee97ff3a74a2e252e24213"
+    },
+    {
+      "path": "src/platform/controllers/subscription.controller.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 79,
+      "sha256": "4c5e958b9cb70c913603800cebfef09e4dc14e9e48ee97ff3a74a2e252e24213"
+    },
+    {
+      "path": "src/platform/controllers/tenant.controller.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 79,
+      "sha256": "4c5e958b9cb70c913603800cebfef09e4dc14e9e48ee97ff3a74a2e252e24213"
+    },
+    {
+      "path": "src/platform/models/Module.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 518,
+      "sha256": "602b45446352c24721e41e4560d7a147d36a90dc2afed2ca7e68161eb1295f3b"
+    },
+    {
+      "path": "src/platform/models/ModuleAddon.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 308,
+      "sha256": "083ae930082c4a398a6556f0e3701b522855a692981477dde1d95c4b05e0be00"
+    },
+    {
+      "path": "src/platform/models/Plan.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 434,
+      "sha256": "f37753e9cfa7869b01a7bf873bfde9943cf47abe3bad614349261f97a6693a36"
+    },
+    {
+      "path": "src/platform/models/PlanModule.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 361,
+      "sha256": "0a35ac737a23f6573c7cb99a159052a3d9b0f295a1d6219fb436ae436a64462e"
+    },
+    {
+      "path": "src/platform/models/PlatformRole.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 299,
+      "sha256": "73533b5e7392e53403314c03cef792ca3763859fdeb93597daf002fbe117b8c0"
+    },
+    {
+      "path": "src/platform/models/Subscription.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 346,
+      "sha256": "b7dfdc733492587c9852d5e363e62bab0d9af92b8f38100caf31df46b28e45f9"
+    },
+    {
+      "path": "src/platform/models/TenantDomain.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 277,
+      "sha256": "c7c2856d72ea31190c1f7b6748949f9860d89fab20df0cab83babc8c5c040b02"
+    },
+    {
+      "path": "src/platform/models/TenantOwnerInvite.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 346,
+      "sha256": "7e5686c2ccad77d1d8ffa09a37ca6c152f5474265189f32360a1842d0b8adf9c"
+    },
+    {
+      "path": "src/platform/models/UsageRecord.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 336,
+      "sha256": "a33c88471a62bfcf6e4dd5aebc3e06bffbda1c8ee0649e9dd1b7fc0d325e6260"
+    },
+    {
+      "path": "src/platform/routes/appointment.routes.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 69,
+      "sha256": "9d66384655bba80dbd7acd3878ff2f10782abe6dee00381d3bdb61ccdf957b16"
+    },
+    {
+      "path": "src/platform/routes/audit.routes.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 69,
+      "sha256": "9d66384655bba80dbd7acd3878ff2f10782abe6dee00381d3bdb61ccdf957b16"
+    },
+    {
+      "path": "src/platform/routes/auth.routes.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 69,
+      "sha256": "9d66384655bba80dbd7acd3878ff2f10782abe6dee00381d3bdb61ccdf957b16"
+    },
+    {
+      "path": "src/platform/routes/dashboard.routes.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 69,
+      "sha256": "9d66384655bba80dbd7acd3878ff2f10782abe6dee00381d3bdb61ccdf957b16"
+    },
+    {
+      "path": "src/platform/routes/invoice.routes.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 69,
+      "sha256": "9d66384655bba80dbd7acd3878ff2f10782abe6dee00381d3bdb61ccdf957b16"
+    },
+    {
+      "path": "src/platform/routes/module.routes.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 69,
+      "sha256": "9d66384655bba80dbd7acd3878ff2f10782abe6dee00381d3bdb61ccdf957b16"
+    },
+    {
+      "path": "src/platform/routes/moduleRequest.routes.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 69,
+      "sha256": "9d66384655bba80dbd7acd3878ff2f10782abe6dee00381d3bdb61ccdf957b16"
+    },
+    {
+      "path": "src/platform/routes/payment.routes.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 69,
+      "sha256": "9d66384655bba80dbd7acd3878ff2f10782abe6dee00381d3bdb61ccdf957b16"
+    },
+    {
+      "path": "src/platform/routes/plan.routes.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 69,
+      "sha256": "9d66384655bba80dbd7acd3878ff2f10782abe6dee00381d3bdb61ccdf957b16"
+    },
+    {
+      "path": "src/platform/routes/subscription.routes.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 69,
+      "sha256": "9d66384655bba80dbd7acd3878ff2f10782abe6dee00381d3bdb61ccdf957b16"
+    },
+    {
+      "path": "src/platform/routes/tenant.routes.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 69,
+      "sha256": "9d66384655bba80dbd7acd3878ff2f10782abe6dee00381d3bdb61ccdf957b16"
+    },
+    {
+      "path": "src/platform/services/module.service.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 248,
+      "sha256": "90fdfbf97386876a1b410843d4d5663ae0814233ab649e1eda428cadc0c957bb"
+    },
+    {
+      "path": "src/platform/services/plan.service.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 203,
+      "sha256": "e81dbab230a80595ddb85f6aa86a2b541486eeb654aa8b81f9ed402544e32c98"
+    },
+    {
+      "path": "src/platform/validators/billing.validator.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 243,
+      "sha256": "7c7cc2816a8dca953f7dc197ecdb7168eb3a14cc31fa0d8fe2a92b7d2f4602ca"
+    },
+    {
+      "path": "src/platform/validators/module.validator.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 240,
+      "sha256": "4051aceac8122b01feb96091879a069aa9a16cad37663ef05628cfbb89eb8306"
+    },
+    {
+      "path": "src/platform/validators/plan.validator.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 241,
+      "sha256": "421e3f598ba7ea1eb5290b08f09fdd461983b2cfeed7127e0c8e3fea9d303220"
+    },
+    {
+      "path": "src/platform/validators/tenant.validator.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 241,
+      "sha256": "421e3f598ba7ea1eb5290b08f09fdd461983b2cfeed7127e0c8e3fea9d303220"
+    },
+    {
+      "path": "src/tenant/controllers/audit.controller.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 77,
+      "sha256": "8bd43f78d34c6655cad2fd1d06715b0c4d90301b7315a8f9accf6dbd8f0fc5b6"
+    },
+    {
+      "path": "src/tenant/controllers/auth.controller.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 77,
+      "sha256": "8bd43f78d34c6655cad2fd1d06715b0c4d90301b7315a8f9accf6dbd8f0fc5b6"
+    },
+    {
+      "path": "src/tenant/controllers/banking.controller.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 77,
+      "sha256": "8bd43f78d34c6655cad2fd1d06715b0c4d90301b7315a8f9accf6dbd8f0fc5b6"
+    },
+    {
+      "path": "src/tenant/controllers/billing.controller.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 77,
+      "sha256": "8bd43f78d34c6655cad2fd1d06715b0c4d90301b7315a8f9accf6dbd8f0fc5b6"
+    },
+    {
+      "path": "src/tenant/controllers/branch.controller.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 77,
+      "sha256": "8bd43f78d34c6655cad2fd1d06715b0c4d90301b7315a8f9accf6dbd8f0fc5b6"
+    },
+    {
+      "path": "src/tenant/controllers/customer.controller.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 77,
+      "sha256": "8bd43f78d34c6655cad2fd1d06715b0c4d90301b7315a8f9accf6dbd8f0fc5b6"
+    },
+    {
+      "path": "src/tenant/controllers/customerInvite.controller.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 77,
+      "sha256": "8bd43f78d34c6655cad2fd1d06715b0c4d90301b7315a8f9accf6dbd8f0fc5b6"
+    },
+    {
+      "path": "src/tenant/controllers/dashboard.controller.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 77,
+      "sha256": "8bd43f78d34c6655cad2fd1d06715b0c4d90301b7315a8f9accf6dbd8f0fc5b6"
+    },
+    {
+      "path": "src/tenant/controllers/daySession.controller.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 77,
+      "sha256": "8bd43f78d34c6655cad2fd1d06715b0c4d90301b7315a8f9accf6dbd8f0fc5b6"
+    },
+    {
+      "path": "src/tenant/controllers/expense.controller.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 77,
+      "sha256": "8bd43f78d34c6655cad2fd1d06715b0c4d90301b7315a8f9accf6dbd8f0fc5b6"
+    },
+    {
+      "path": "src/tenant/controllers/landingPage.controller.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 77,
+      "sha256": "8bd43f78d34c6655cad2fd1d06715b0c4d90301b7315a8f9accf6dbd8f0fc5b6"
+    },
+    {
+      "path": "src/tenant/controllers/mobileMoney.controller.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 77,
+      "sha256": "8bd43f78d34c6655cad2fd1d06715b0c4d90301b7315a8f9accf6dbd8f0fc5b6"
+    },
+    {
+      "path": "src/tenant/controllers/moduleRequest.controller.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 77,
+      "sha256": "8bd43f78d34c6655cad2fd1d06715b0c4d90301b7315a8f9accf6dbd8f0fc5b6"
+    },
+    {
+      "path": "src/tenant/controllers/moneyTransfer.controller.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 77,
+      "sha256": "8bd43f78d34c6655cad2fd1d06715b0c4d90301b7315a8f9accf6dbd8f0fc5b6"
+    },
+    {
+      "path": "src/tenant/controllers/receipt.controller.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 77,
+      "sha256": "8bd43f78d34c6655cad2fd1d06715b0c4d90301b7315a8f9accf6dbd8f0fc5b6"
+    },
+    {
+      "path": "src/tenant/controllers/report.controller.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 77,
+      "sha256": "8bd43f78d34c6655cad2fd1d06715b0c4d90301b7315a8f9accf6dbd8f0fc5b6"
+    },
+    {
+      "path": "src/tenant/controllers/role.controller.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 77,
+      "sha256": "8bd43f78d34c6655cad2fd1d06715b0c4d90301b7315a8f9accf6dbd8f0fc5b6"
+    },
+    {
+      "path": "src/tenant/controllers/setup.controller.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 77,
+      "sha256": "8bd43f78d34c6655cad2fd1d06715b0c4d90301b7315a8f9accf6dbd8f0fc5b6"
+    },
+    {
+      "path": "src/tenant/controllers/staffInvite.controller.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 77,
+      "sha256": "8bd43f78d34c6655cad2fd1d06715b0c4d90301b7315a8f9accf6dbd8f0fc5b6"
+    },
+    {
+      "path": "src/tenant/controllers/user.controller.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 77,
+      "sha256": "8bd43f78d34c6655cad2fd1d06715b0c4d90301b7315a8f9accf6dbd8f0fc5b6"
+    },
+    {
+      "path": "src/tenant/routes/audit.routes.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 69,
+      "sha256": "9d66384655bba80dbd7acd3878ff2f10782abe6dee00381d3bdb61ccdf957b16"
+    },
+    {
+      "path": "src/tenant/routes/auth.routes.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 69,
+      "sha256": "9d66384655bba80dbd7acd3878ff2f10782abe6dee00381d3bdb61ccdf957b16"
+    },
+    {
+      "path": "src/tenant/routes/billing.routes.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 69,
+      "sha256": "9d66384655bba80dbd7acd3878ff2f10782abe6dee00381d3bdb61ccdf957b16"
+    },
+    {
+      "path": "src/tenant/routes/branch.routes.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 69,
+      "sha256": "9d66384655bba80dbd7acd3878ff2f10782abe6dee00381d3bdb61ccdf957b16"
+    },
+    {
+      "path": "src/tenant/routes/customer.routes.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 69,
+      "sha256": "9d66384655bba80dbd7acd3878ff2f10782abe6dee00381d3bdb61ccdf957b16"
+    },
+    {
+      "path": "src/tenant/routes/customerInvite.routes.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 69,
+      "sha256": "9d66384655bba80dbd7acd3878ff2f10782abe6dee00381d3bdb61ccdf957b16"
+    },
+    {
+      "path": "src/tenant/routes/dashboard.routes.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 69,
+      "sha256": "9d66384655bba80dbd7acd3878ff2f10782abe6dee00381d3bdb61ccdf957b16"
+    },
+    {
+      "path": "src/tenant/routes/daySession.routes.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 69,
+      "sha256": "9d66384655bba80dbd7acd3878ff2f10782abe6dee00381d3bdb61ccdf957b16"
+    },
+    {
+      "path": "src/tenant/routes/expense.routes.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 69,
+      "sha256": "9d66384655bba80dbd7acd3878ff2f10782abe6dee00381d3bdb61ccdf957b16"
+    },
+    {
+      "path": "src/tenant/routes/landingPage.routes.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 69,
+      "sha256": "9d66384655bba80dbd7acd3878ff2f10782abe6dee00381d3bdb61ccdf957b16"
+    },
+    {
+      "path": "src/tenant/routes/mobileMoney.routes.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 69,
+      "sha256": "9d66384655bba80dbd7acd3878ff2f10782abe6dee00381d3bdb61ccdf957b16"
+    },
+    {
+      "path": "src/tenant/routes/moduleRequest.routes.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 69,
+      "sha256": "9d66384655bba80dbd7acd3878ff2f10782abe6dee00381d3bdb61ccdf957b16"
+    },
+    {
+      "path": "src/tenant/routes/receipt.routes.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 69,
+      "sha256": "9d66384655bba80dbd7acd3878ff2f10782abe6dee00381d3bdb61ccdf957b16"
+    },
+    {
+      "path": "src/tenant/routes/report.routes.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 69,
+      "sha256": "9d66384655bba80dbd7acd3878ff2f10782abe6dee00381d3bdb61ccdf957b16"
+    },
+    {
+      "path": "src/tenant/routes/role.routes.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 69,
+      "sha256": "9d66384655bba80dbd7acd3878ff2f10782abe6dee00381d3bdb61ccdf957b16"
+    },
+    {
+      "path": "src/tenant/routes/setup.routes.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 69,
+      "sha256": "9d66384655bba80dbd7acd3878ff2f10782abe6dee00381d3bdb61ccdf957b16"
+    },
+    {
+      "path": "src/tenant/routes/staffInvite.routes.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 69,
+      "sha256": "9d66384655bba80dbd7acd3878ff2f10782abe6dee00381d3bdb61ccdf957b16"
+    },
+    {
+      "path": "src/tenant/routes/user.routes.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 69,
+      "sha256": "9d66384655bba80dbd7acd3878ff2f10782abe6dee00381d3bdb61ccdf957b16"
+    },
+    {
+      "path": "src/tenant/schemas/Account.schema.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 409,
+      "sha256": "e7c526772509805fa4aa9c72941fe450bbfdc50637d79d7932b818ab825bd2f1"
+    },
+    {
+      "path": "src/tenant/schemas/AnalyticsSnapshot.schema.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 572,
+      "sha256": "96a8512da3195fb3f713383ac1822015230a38551fb428b722ce81fbe246bacc"
+    },
+    {
+      "path": "src/tenant/schemas/ApiKey.schema.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 302,
+      "sha256": "39e72363ed89905ef69c82a7008bd54aabeb3f29e0a9761e82f532591532d33e"
+    },
+    {
+      "path": "src/tenant/schemas/AuditLog.schema.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 506,
+      "sha256": "135e89a4f6beb71032c5a8f7fc66931693b98cf0348beb82b2af4375143583bd"
+    },
+    {
+      "path": "src/tenant/schemas/BankingTransaction.schema.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 449,
+      "sha256": "162418bd1323ae6935deaf15a9644d9f7f1605a8da5ddddedc5c009827a8a3f3"
+    },
+    {
+      "path": "src/tenant/schemas/Branch.schema.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 349,
+      "sha256": "8c57e36bebf232877df6ec881fb379ddcc57862f877bd191898c83a2d3ebc717"
+    },
+    {
+      "path": "src/tenant/schemas/CashDrawer.schema.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 416,
+      "sha256": "882122297eda2e70ac226a9acdc8692a6508640760606c9d6ccdd6a392d7fc54"
+    },
+    {
+      "path": "src/tenant/schemas/Customer.schema.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 347,
+      "sha256": "03f1610a6fa3f673b4fd73c805a0dcf50e695449aec856b253d74c0abe023fe9"
+    },
+    {
+      "path": "src/tenant/schemas/CustomerInvite.schema.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 352,
+      "sha256": "b87510ecb2a1c213a9037d4787f5d427f5cdae90312b223da3b33705bf182f88"
+    },
+    {
+      "path": "src/tenant/schemas/DaySession.schema.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 463,
+      "sha256": "81d9f823998d96649629d70836a455e669b65ee40ff40461dc998c648046ed34"
+    },
+    {
+      "path": "src/tenant/schemas/Expense.schema.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 456,
+      "sha256": "c0ed878409e96f59158c0bccfd83618f8e02f7e91f08c154b5ddb3e43aaa98b4"
+    },
+    {
+      "path": "src/tenant/schemas/ForexPosition.schema.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 313,
+      "sha256": "e56d508eea9b29857731f2c654baf6b545ddfac37ed6ac1351c13b43f5659ea5"
+    },
+    {
+      "path": "src/tenant/schemas/ForexTransaction.schema.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 499,
+      "sha256": "bd969d4045f0c94e6f4d2152106a7c7b55df2a8b155481bc816e707e38e745b2"
+    },
+    {
+      "path": "src/tenant/schemas/LandingPageSetting.schema.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 403,
+      "sha256": "10e67b186094d90ea3f88cbe35ebc495bb4fe40f997f0579877f7762474ed093"
+    },
+    {
+      "path": "src/tenant/schemas/LedgerEntry.schema.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 458,
+      "sha256": "891d803abf51ae3f3573be927753a5166445bd03e92155ee3b30f343e7d97b86"
+    },
+    {
+      "path": "src/tenant/schemas/MobileMoneyTransaction.schema.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 500,
+      "sha256": "54c716057517602b9b2bfa0f4d6144da125fab794f9c9cd8d07fb196c3c65531"
+    },
+    {
+      "path": "src/tenant/schemas/MoneyTransfer.schema.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 562,
+      "sha256": "e23fe9cd23e65bbb742e9c7367e5259baecac703e87bd30afc77e8b5b307261e"
+    },
+    {
+      "path": "src/tenant/schemas/NotificationLog.schema.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 506,
+      "sha256": "a6574e25f5e2534047b775bcb4d9b169f5bac24898120009099b86fb45940d9d"
+    },
+    {
+      "path": "src/tenant/schemas/Receipt.schema.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 518,
+      "sha256": "11592915dfd90777012f54e21bca0972bdfa1126614877043e1c879f3413c341"
+    },
+    {
+      "path": "src/tenant/schemas/Role.schema.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 253,
+      "sha256": "12602fd30f59861f56290508b5a22263a8a10f7e055917535605af3d515d3b3c"
+    },
+    {
+      "path": "src/tenant/schemas/StaffInvite.schema.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 452,
+      "sha256": "9e772e4155da6d62f6ea2ec4e0263f8a828f1ba6e9f7e549e85ae7960261bbc1"
+    },
+    {
+      "path": "src/tenant/schemas/TenantProfile.schema.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 418,
+      "sha256": "5bab7f9603e529bf8c200c5d0e32b779bd3f2489a7ce8a3f2b2f4ea2dff96815"
+    },
+    {
+      "path": "src/tenant/schemas/TenantSetting.schema.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 197,
+      "sha256": "a5eceeb0741a8f183bde1b82656fbd8e62d477cb3d8ca22624cf4da8ad190f88"
+    },
+    {
+      "path": "src/tenant/schemas/User.schema.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 504,
+      "sha256": "2198252c1d3dac16df44040f89239b416b840af0aa511a002e6f1e227e5dd9b7"
+    },
+    {
+      "path": "src/tenant/schemas/Webhook.schema.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 296,
+      "sha256": "3f0d3e5f3c32a904c2932da41a202366dd9393f240db1d2053b85ca61def64af"
+    },
+    {
+      "path": "src/tenant/services/auth.service.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 239,
+      "sha256": "3863b7fd3b8dce6a02f2a17b3c35d008a5fb66792580be06eaab406f2572df32"
+    },
+    {
+      "path": "src/tenant/services/customerInvite.service.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 249,
+      "sha256": "3fe251c77778e9a6779177c5e0c65a5ce71dfeb38886b58d661e83a0ce1058ee"
+    },
+    {
+      "path": "src/tenant/services/setup.service.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 240,
+      "sha256": "8ae4cadf4f4d139169955f77a5aaca20d56b8e2a9c6715bd2582468e5c9902ab"
+    },
+    {
+      "path": "src/tenant/services/staffInvite.service.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 246,
+      "sha256": "e07def63c466c1b5872486184ad5893f3b2a813979efdcedf62aefd65d5a6189"
+    },
+    {
+      "path": "src/tenant/services/tenantAudit.service.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 246,
+      "sha256": "1b00425e77eea2b0eff3f2b80ab7c4e209018d3a7fe05faf7312ab2527bb83f2"
+    },
+    {
+      "path": "src/tenant/services/user.service.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 239,
+      "sha256": "9b4b446b8d5e5302db24455ed775fc638a66981393088829cc73b3dc94c5dbe3"
+    },
+    {
+      "path": "src/tenant/validators/auth.validator.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 280,
+      "sha256": "2031e07bd14a1319a61edbeeb206a731880a4e28464aecf24a072c6f0ff9ccdf"
+    },
+    {
+      "path": "src/tenant/validators/banking.validator.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 280,
+      "sha256": "2031e07bd14a1319a61edbeeb206a731880a4e28464aecf24a072c6f0ff9ccdf"
+    },
+    {
+      "path": "src/tenant/validators/branch.validator.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 280,
+      "sha256": "2031e07bd14a1319a61edbeeb206a731880a4e28464aecf24a072c6f0ff9ccdf"
+    },
+    {
+      "path": "src/tenant/validators/customer.validator.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 280,
+      "sha256": "2031e07bd14a1319a61edbeeb206a731880a4e28464aecf24a072c6f0ff9ccdf"
+    },
+    {
+      "path": "src/tenant/validators/expense.validator.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 280,
+      "sha256": "2031e07bd14a1319a61edbeeb206a731880a4e28464aecf24a072c6f0ff9ccdf"
+    },
+    {
+      "path": "src/tenant/validators/mobileMoney.validator.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 280,
+      "sha256": "2031e07bd14a1319a61edbeeb206a731880a4e28464aecf24a072c6f0ff9ccdf"
+    },
+    {
+      "path": "src/tenant/validators/moneyTransfer.validator.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 280,
+      "sha256": "2031e07bd14a1319a61edbeeb206a731880a4e28464aecf24a072c6f0ff9ccdf"
+    },
+    {
+      "path": "src/tenant/validators/report.validator.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 280,
+      "sha256": "2031e07bd14a1319a61edbeeb206a731880a4e28464aecf24a072c6f0ff9ccdf"
+    },
+    {
+      "path": "src/tenant/validators/role.validator.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 280,
+      "sha256": "2031e07bd14a1319a61edbeeb206a731880a4e28464aecf24a072c6f0ff9ccdf"
+    },
+    {
+      "path": "src/tenant/validators/setup.validator.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 280,
+      "sha256": "2031e07bd14a1319a61edbeeb206a731880a4e28464aecf24a072c6f0ff9ccdf"
+    },
+    {
+      "path": "src/tenant/validators/user.validator.js",
+      "category": "unreachable legacy JavaScript",
+      "bytes": 280,
+      "sha256": "2031e07bd14a1319a61edbeeb206a731880a4e28464aecf24a072c6f0ff9ccdf"
+    },
+    {
+      "path": "src/views/layouts/platform.ejs",
+      "category": "unmounted duplicate view",
+      "bytes": 2411,
+      "sha256": "66dceff119e57131ab314ab03d40b81137e60889cda44cdee276c4feb5a956eb"
+    },
+    {
+      "path": "src/views/layouts/tenant.ejs",
+      "category": "unmounted duplicate view",
+      "bytes": 2411,
+      "sha256": "66dceff119e57131ab314ab03d40b81137e60889cda44cdee276c4feb5a956eb"
+    },
+    {
+      "path": "src/views/layouts/auth.ejs",
+      "category": "unmounted duplicate view",
+      "bytes": 107,
+      "sha256": "7295b071194f32ecfbab646df318725a033821bac8b2ab7ac55adc5347d3d137"
+    },
+    {
+      "path": "src/views/partials/empty-state.ejs",
+      "category": "unmounted duplicate view",
+      "bytes": 367,
+      "sha256": "c26c9cb3897f3f916b6c3e59487e1b22e0a6e304e48860550c3108bc36dc1e30"
+    },
+    {
+      "path": "src/views/platform/invoices/index.ejs",
+      "category": "unmounted duplicate view",
+      "bytes": 614,
+      "sha256": "212125b6a863c2d2c386d2538779a00008a25e116bee91cededa396dafcafddc"
+    },
+    {
+      "path": "src/views/platform/payments/index.ejs",
+      "category": "unmounted duplicate view",
+      "bytes": 613,
+      "sha256": "3e7900e24f281b21b799461eed391290481c118cdbb2e4245a731d5f6906e3e6"
+    },
+    {
+      "path": "src/views/platform/users/index.ejs",
+      "category": "unmounted duplicate view",
+      "bytes": 532,
+      "sha256": "e9e9c4da8670d3eb6d7f185e4c33f85752eee1df3395ffa478fd529f77859493"
+    },
+    {
+      "path": "src/views/platform/marketplace/index.ejs",
+      "category": "unmounted duplicate view",
+      "bytes": 657,
+      "sha256": "b4c90aee46d9b5870eb4388ec5de1b3ab28f76db5461fdaa69855ae108672b72"
+    },
+    {
+      "path": "src/views/platform/module-requests/index.ejs",
+      "category": "unmounted duplicate view",
+      "bytes": 948,
+      "sha256": "efdc86a044ac46c8f10a51e14f43c8e8235c00845d9c73052fbfc847600853fa"
+    },
+    {
+      "path": "src/views/tenant/roles/index.ejs",
+      "category": "unmounted duplicate view",
+      "bytes": 574,
+      "sha256": "0a55789abd5bd73590c3695cdff3f2bc7c5270054d366fad801b81fce9c2d7e7"
+    },
+    {
+      "path": "src/views/tenant/landing-page/index.ejs",
+      "category": "unmounted duplicate view",
+      "bytes": 827,
+      "sha256": "abbe69d3912a468a85cf43c4ae587515363fd580da42159d5504149f7a16bae8"
+    },
+    {
+      "path": "src/views/tenant/accounts/index.ejs",
+      "category": "unmounted duplicate view",
+      "bytes": 643,
+      "sha256": "87f0b7c5811f9d0ecf89c841c0bec3380db5cb64a0d8a81b7395192572df1e7a"
+    },
+    {
+      "path": "src/views/tenant/customers/index.ejs",
+      "category": "unmounted duplicate view",
+      "bytes": 1204,
+      "sha256": "60602a8c66bb7ddbea8984023072e630a56fef26c558bb15670b4fd6a9e977f5"
+    },
+    {
+      "path": "src/views/tenant/receipts/index.ejs",
+      "category": "unmounted duplicate view",
+      "bytes": 579,
+      "sha256": "c84129bbf2396f09f54ee8ad3286dcdb8355cad207ead389fb830af41b1a30b7"
+    },
+    {
+      "path": "src/views/tenant/setup/index.ejs",
+      "category": "unmounted duplicate view",
+      "bytes": 1190,
+      "sha256": "386879bf1773aef574253dcd6ed2dbd50c59679eb8ef22d857060259834d39d9"
+    },
+    {
+      "path": "src/views/tenant/settings/index.ejs",
+      "category": "unmounted duplicate view",
+      "bytes": 919,
+      "sha256": "bdd63b5800727941f861ae0ddc790d1cc522b84d833a7887beee6dce058b9ec2"
+    },
+    {
+      "path": "src/views/tenant/marketplace/index.ejs",
+      "category": "unmounted duplicate view",
+      "bytes": 1061,
+      "sha256": "beb937adc60074389f1c8664e0f099a416f66d069add47ece45379223af2db39"
+    },
+    {
+      "path": "public/images/a.png",
+      "category": "unreferenced image; optimized/current assets retained",
+      "bytes": 557386,
+      "sha256": "b836dd6c0782e59f72eb18d0da717e89b443c56ee5847555139d5349a4bc6a60"
+    },
+    {
+      "path": "public/images/b.png",
+      "category": "unreferenced image; optimized/current assets retained",
+      "bytes": 976328,
+      "sha256": "40a7d591e9c492a532dbc9ae6bedebb15e329974fc49c1882f375dbb8b07cfa6"
+    },
+    {
+      "path": "public/images/c.png",
+      "category": "unreferenced image; optimized/current assets retained",
+      "bytes": 780148,
+      "sha256": "a39cb792210c178a62130fb19b7c9858abc3c3e86fcde58a47c2cf66ca6d151c"
+    },
+    {
+      "path": "public/images/d.png",
+      "category": "unreferenced image; optimized/current assets retained",
+      "bytes": 1750310,
+      "sha256": "439e2096f2b14ec0c25ddfd27b0fa1ead5549211d9d210783d75d3db67de1275"
+    },
+    {
+      "path": "public/images/tac-logo.png",
+      "category": "unreferenced image; optimized/current assets retained",
+      "bytes": 589198,
+      "sha256": "54a5c9bdc72516e48bd14f0e6d668a37f7df0d490cc8c7d1a001cbeebf934013"
+    },
+    {
+      "path": "public/images/bg.jpg",
+      "category": "unreferenced image; optimized/current assets retained",
+      "bytes": 1675862,
+      "sha256": "c155ed68606b0fe68a14c8045d50f0e993f87ab542a8b082466d141577c101aa"
+    },
+    {
+      "path": "public/images/prt.jpg",
+      "category": "unreferenced image; optimized/current assets retained",
+      "bytes": 1731932,
+      "sha256": "266555378eedc5a0890f0207db5447b45c6b295ab3dc4270f079cafec0c0f06d"
+    },
+    {
+      "path": "public/images/fx.jpg",
+      "category": "unreferenced image; optimized/current assets retained",
+      "bytes": 80981,
+      "sha256": "a8ebfb697ef64b65309de5b0b5b66f00817597dfd21e61f25a5add3edf6c004f"
+    },
+    {
+      "path": "public/images/r1.jpg",
+      "category": "unreferenced image; optimized/current assets retained",
+      "bytes": 52788,
+      "sha256": "1cd26cc6c8d72dfc9405498dab326c2eb86fdd61e2069d56d2395220d41efa02"
+    },
+    {
+      "path": "public/images/r2.jpg",
+      "category": "unreferenced image; optimized/current assets retained",
+      "bytes": 59821,
+      "sha256": "a4c0d98d766e1097808ab3ec67e1ae94821c33c4ff7e07785bd7024ccba3d561"
+    },
+    {
+      "path": "public/images/r3.jpg",
+      "category": "unreferenced image; optimized/current assets retained",
+      "bytes": 51006,
+      "sha256": "4568fa90c37d09ee057589438c711acbed8c0f18e6dcab77fec696c0c890a926"
+    }
+  ]
+}

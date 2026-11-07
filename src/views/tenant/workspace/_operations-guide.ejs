@@ -1,0 +1,13 @@
+<section class="card" aria-labelledby="workspaceOperationsTitle">
+ <div class="cardHead"><div><b id="workspaceOperationsTitle">Wallets &amp; daily operations</b><br><span>Set up once, then use your configured accounts</span></div></div>
+ <div class="cardBody workspaceGuide">
+  <ol class="workspaceGuideSteps">
+   <li><b>Set up accounts</b><p>Register the accounts and currency stock your branch uses. Choose a branch before adding an account.</p></li>
+   <li><b>Confirm opening balances</b><p>Enter the actual statement or count and obtain an independent review before using the account.</p></li>
+   <li><b>Choose defaults</b><p>Save the default wallet, payment accounts and fee treatment where available. Daily entries use your saved settings.</p></li>
+   <li><b>Fund and reconcile</b><p>Transfer existing funds between accounts, review funding requests and compare dated actual balances with the book.</p></li>
+  </ol>
+  <p class="tiny">Daily transactions use your assigned operating branch. The administrator branch selector changes the records being viewed.</p>
+  <div class="workspaceActions"><a class="btn btnPrimary" href="/tenant/treasury">Wallets &amp; balances</a><% if(data.canObserveFunds){ %><a class="btn" href="/tenant/treasury#add-funds">Add funds</a><% } %><% if(data.canReviewFunds){ %><a class="btn" href="/tenant/treasury/review">Review balances</a><% } %></div>
+ </div>
+</section>

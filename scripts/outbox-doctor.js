@@ -15,7 +15,7 @@ async function main(){
   verifyReplicaPrimary(await mongoose.connection.db.admin().command({hello:1,maxTimeMS:2000}));
   const now=new Date();
   const [workers,oldest,dead,stuck]=await Promise.all([
-    Heartbeat.countDocuments({seenAt:{$gte:new Date(now-45000)}}),
+    Heartbeat.countDocuments({workerId:/^outbox-/,seenAt:{$gte:new Date(now-45000)}}),
     Event.findOne({state:'pending',availableAt:{$lt:new Date(now-300000)}}).sort({availableAt:1}).select('_id').lean(),
     Event.countDocuments({state:'dead'}),
     Event.countDocuments({state:'processing',leaseUntil:{$lt:now}})

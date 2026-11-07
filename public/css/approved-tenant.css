@@ -807,6 +807,16 @@ dialog.workspaceDialog .tenantCleanSheet>form{padding:0;margin:0;min-height:0;di
 dialog.workspaceDialog .tenantCleanHead span{line-height:normal}
 .tenantCleanField .control>input,.tenantCleanField .control>select{min-width:0}
 
+/* Launch page rhythm keeps adjacent containers and their contents aligned. */
+.main>.view.show{display:grid;gap:14px}
+.main>.view.show>[style*="margin-top"]{margin-top:0!important}
+.main>.view.show>.card,.cardHead,.cardBody{min-width:0}
+.cardBody>p:first-child{margin-top:0}
+.cardBody>p:last-child{margin-bottom:0}
+.cardBody>.rowBtns{row-gap:10px}
+.cardBody .btn{max-width:100%}
+.row2>*,.row3>*,.grid>*,.grid3>*{min-width:0}
+
 /* Additional server-backed pages reuse the reference's existing components. */
 .operatingBranch{font-size:12px;max-width:240px;overflow-wrap:anywhere}
 .operatingBranch>.tiny{white-space:nowrap}

@@ -16,7 +16,10 @@ async function publicPlans(){
   // Informational pages remain renderable in the disconnected source-test
   // workflow. A connected deployment must always use its persisted catalogue;
   // missing/hidden plans are never replaced with stale standard prices.
-  if(mongoose.connection.readyState!==1)return {plans:plans.map(plan=>publicShape(plan)),persisted:false};
+  if(mongoose.connection.readyState!==1){
+    if(require('../../config/env').nodeEnv==='production')return {plans:[],persisted:true,unavailable:true};
+    return {plans:plans.map(plan=>publicShape(plan)),persisted:false};
+  }
   const latest=await PlanVersion.aggregate([
     {$match:{status:'published'}},{$sort:{code:1,version:-1}},
     {$group:{_id:'$code',plan:{$first:'$$ROOT'}}},{$replaceRoot:{newRoot:'$plan'}},

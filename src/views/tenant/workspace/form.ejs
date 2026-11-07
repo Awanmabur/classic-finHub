@@ -10,7 +10,7 @@
     <% }else{ %><input id="<%= fieldId %>" type="<%= f.type||'text' %>" <% if(!f.displayOnly){ %>name="<%= f.name %>"<% } %> value="<%= f.value??'' %>" maxlength="<%= f.max||150 %>" <%= f.required?'required':'' %> <%= f.displayOnly?'readonly':'' %> <% if(f.pattern){ %>pattern="<%= f.pattern %>"<% } %> <% if(f.min!==undefined){ %>min="<%= f.min %>"<% } %> <% if(f.type==='number'){ %>max="<%= f.max||1000 %>" step="1"<% } %>>
     <% } %></div><% if(f.hint){ %><small><%= f.hint %></small><% } %></div><% }) %>
   </div></div>
-  <div class="tenantCleanHint">This clean modal keeps the same rounded dashboard design, records the action in tenant audit activity, and updates only this tenant workspace data.</div>
+  <div class="tenantCleanHint">Changes apply to this tenant. Review the details before saving.</div>
  </div>
  <footer class="tenantCleanFoot"><button class="btn" type="button" data-workspace-close>Cancel</button><button class="btn btnPrimary" type="submit">Save changes</button></footer>
 </form>

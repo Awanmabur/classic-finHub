@@ -9,20 +9,23 @@ module.exports = [
     // Existing approved HTML still uses inline style attributes; style nonces are a separate upgrade.
     contentSecurityPolicy: { directives: {
       defaultSrc: ["'self'"], scriptSrc: ["'self'", (req, res) => `'nonce-${res.locals.cspNonce}'`],
-      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://cdnjs.cloudflare.com'],
-      fontSrc: ["'self'", 'https://fonts.gstatic.com', 'https://cdnjs.cloudflare.com'],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      fontSrc: ["'self'"],
       imgSrc: ["'self'", 'data:', 'https:'], connectSrc: ["'self'"], objectSrc: ["'none'"],
       formAction: ["'self'"], frameAncestors: ["'none'"], baseUri: ["'self'"], frameSrc: ["'none'"], upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null
     } },
     hsts: process.env.NODE_ENV === 'production' ? undefined : false
   }),
   (req, res, next) => {
+    // Express matches these routes without case sensitivity. Their cache and
+    // crawler protections must cover the same URL variants as the router.
+    const pathname = req.path.toLowerCase();
     if (!indexingEnabled) res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
-    if (/^\/(tenant|platform|signin|signup|forgot-password|reset-password|accept-invite|accept-staff-invite|mfa)(\/|$)/.test(req.path)) {
+    if (/^\/(tenant|platform|signin|signup|forgot-password|reset-password|accept-invite|accept-staff-invite|mfa|logout|integrations)(\/|$)/.test(pathname)) {
       res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
       res.setHeader('Cache-Control', 'private, no-store');
     }
-    if (req.path.startsWith('/t/') || req.path.startsWith('/health/')) {
+    if (pathname.startsWith('/t/') || pathname.startsWith('/health/')) {
       res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
       res.setHeader('Cache-Control','private, no-store');
     }

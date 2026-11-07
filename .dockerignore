@@ -9,3 +9,16 @@ coverage
 .DS_Store
 *.patch
 tmp
+*.key
+*.pem
+*.pfx
+*.cfhb
+*.cfhb.*
+.admin-*-secret
+classicfin-recovery
+private
+tools/android-sms-relay/config.json
+tools/android-sms-relay/*.sqlite*
+docs
+tests
+.github

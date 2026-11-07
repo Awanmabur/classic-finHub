@@ -85,7 +85,11 @@ test('worker lease exhaustion is reaped, and counters cannot expose event payloa
   assert.equal(update.$set.state,'dead');
   const query={sort:()=>({limit:()=>({select:(arg)=>({lean:async()=>{assert.match(arg,/-payload/);return [];}})})})};
   const Event={countDocuments:async()=>0,find:()=>query};
-  const Heartbeat={countDocuments:async()=>1};
+  const Heartbeat={countDocuments:async filter=>{
+    assert.equal(filter.workerId.test('notification-alive'),false,'a notification worker cannot make the outbox look alive');
+    assert.equal(filter.workerId.test('outbox-alive'),true);
+    return 1;
+  }};
   const status=await outbox.metrics({Event,Heartbeat});
   assert.equal(status.liveWorkers,1);
   assert.deepEqual(status.recent,[]);

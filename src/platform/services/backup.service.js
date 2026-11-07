@@ -19,9 +19,13 @@ const ALLOWED_LOCAL = new Set(['localhost', '127.0.0.1', '[::1]']);
 
 function validateSourceUri(uri) {
   if (!uri || typeof uri !== 'string' || !uri.startsWith('mongodb://')) throw new Error('Full replica-set backup requires a mongodb:// BACKUP_SOURCE_URI');
-  const parsed = new URL(uri);
-  if (parsed.pathname && parsed.pathname !== '/') throw new Error('BACKUP_SOURCE_URI must not select one database: full replica-set backup required');
-  if (parsed.searchParams.has('authMechanism') && parsed.searchParams.get('authMechanism') === 'MONGODB-X509') {
+  // The official parser accepts replica-set seed lists; WHATWG URL does not
+  // support multiple host:port authorities used by real MongoDB deployments.
+  const authority = /^mongodb:\/\/[^/]+(\/[^?]*)?(?:\?.*)?$/.exec(uri);
+  if (!authority) throw new Error('Invalid full replica-set backup URI');
+  const options = new (require('mongoose').mongo.MongoClient)(uri).options;
+  if (authority[1] && authority[1] !== '/') throw new Error('BACKUP_SOURCE_URI must not select one database: full replica-set backup required');
+  if (options.credentials?.mechanism === 'MONGODB-X509') {
     throw new Error('Certificate-based backup authentication requires a separately reviewed configuration');
   }
   return uri;

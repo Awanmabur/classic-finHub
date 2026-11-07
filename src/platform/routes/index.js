@@ -5,6 +5,7 @@ const { modules, plans } = require('../../data/store');
 const commercial=require('../services/commercial.service');
 const planBuilder=require('../services/planBuilder.service');
 const outbox=require('../services/outbox.service');
+const appointmentService=require('../services/appointment.service');
 const { platformMenu } = require('../../services/menu.service');
 const { consumeFlash, flash, money } = require('../../utils/view');
 const { provisionTenant } = require('../services/tenantProvisioning.service');
@@ -186,9 +187,13 @@ router.post('/operations/queue/:id/retry',async(req,res,next)=>{
 router.get('/modules',(req,res)=>renderPlatform(req,res,'modules/index','Module Catalogue','Active module definitions, permissions and list prices.',{modules}));
 router.get('/appointments',async(req,res,next)=>{
   try{
-    const appointments=(await Appointment.find({}).sort({createdAt:-1}).limit(150).lean()).map(a=>({...a,id:String(a._id),modules:a.modules||[], preferredDate:a.preferredDate ? new Date(a.preferredDate).toISOString().slice(0,10) : ''}));
-    renderPlatform(req,res,'appointments/index','Appointments','Stored onboarding requests.',{appointments,moduleLabels:Object.fromEntries(modules.map(m=>[m.key,m.name]))});
+    const page=await appointmentService.list(req.query);
+    renderPlatform(req,res,'appointments/index','Appointments','Review and schedule onboarding requests.',{appointments:page.items,...page,moduleLabels:Object.fromEntries(modules.map(m=>[m.key,m.name]))});
   }catch(e){next(e);}
 });
-router.use((req,res)=>res.status(501).send('This administration workflow has not been verified or enabled.'));
+router.post('/appointments/:id/decision',async(req,res,next)=>{try{
+ await appointmentService.decide(req.params.id,req.platformUser,req.body);
+ flash(req,'good','Appointment decision saved and audited. Contact the requester through your configured communication channel.');res.redirect(303,'/platform/appointments');
+}catch(error){next(error);}});
+router.use((req,res)=>res.status(404).send('Page not found'));
 module.exports=router;

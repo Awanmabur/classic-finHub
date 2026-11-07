@@ -1122,3 +1122,15 @@ select option{
 a:focus-visible,button:focus-visible,.compare-table-wrap:focus-visible{outline:3px solid var(--accent);outline-offset:4px;}
 @media(max-width:1050px){.mobile-panel{max-height:calc(100vh - 90px);max-height:calc(100dvh - 90px);overflow-y:auto;}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}.reveal{opacity:1!important;transform:none!important;filter:none!important}.cursor-glow{display:none!important}}
+
+/* Public operating guide and catalogue headings use the same readable rhythm. */
+.marketplace-page .section-head h1,.product-guide .section-head h1{font-size:clamp(1.9rem,3.6vw,3.4rem);line-height:1.08;letter-spacing:-.045em;font-weight:800;max-width:850px;margin:12px 0 18px}
+.product-guide .section-head{display:block;max-width:1000px;margin-bottom:22px}
+.product-guide .section-head p:not(:first-child){font-size:1rem;line-height:1.7;letter-spacing:normal;text-transform:none;font-weight:400;color:var(--muted)}
+.product-guide .section{padding-top:28px;padding-bottom:28px}
+.product-guide .feature-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.product-guide .feature-card{min-width:0;padding:24px}
+.product-guide .feature-card h2,.product-guide .feature-card h3{font-size:1.2rem;line-height:1.3;margin:0 0 12px}
+.product-guide .feature-card p{line-height:1.7;margin:0}
+.product-guide .hero-actions{margin-bottom:22px}
+@media(max-width:700px){.product-guide .feature-grid{grid-template-columns:1fr}.product-guide .feature-card{padding:20px}.product-guide .section{padding-top:20px;padding-bottom:20px}}

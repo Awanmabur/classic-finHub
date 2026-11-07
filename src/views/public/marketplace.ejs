@@ -1,9 +1,9 @@
-<section class="services">
-  <div class="section-head reveal"><p>Module marketplace</p><h2>Sell core modules and addons by plan, trial, or manual approval.</h2></div>
+<section class="services marketplace-page">
+  <div class="section-head reveal"><p>Module marketplace</p><h1>Choose the modules your team needs</h1></div>
   <div class="pricing-grid">
-    <% modules.forEach(module => { %>
+    <% modules.filter(module=>module.runtimeStatus!=='disabled').forEach(module => { %>
       <article class="price-card reveal">
-        <span class="plan-badge"><%= module.runtimeStatus==='recording_only'?'Recording-only pilot':module.runtimeStatus==='disabled'?'Planned — not live':(module.isCore?'Core module':'Addon') %></span>
+        <span class="plan-badge"><%= module.runtimeStatus==='recording_only'?(module.key==='sms_capture'?'SMS-assisted capture':'Reviewed manual books'):(module.isCore?'Core module':'Addon') %></span>
         <h3><i class="fa-solid <%= module.icon %>"></i> <%= module.name %></h3>
         <p><%= module.description %></p>
         <h4>$<%= module.priceMonthly %><small>/month indicative</small></h4>

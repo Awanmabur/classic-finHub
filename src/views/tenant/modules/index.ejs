@@ -6,7 +6,7 @@
      const included=Boolean(data.plan?.modules?.includes(m.key)&&tenant.enabledModules?.includes(m.key));
      const grant=data.grants.find(g=>g.moduleKey===m.key);
   %><article class="card" data-search-row><div class="cardHead"><b><i class="fa-solid <%= m.icon %>"></i> <%= m.name %></b>
-    <span><%= (included||grant) ? (m.runtimeStatus==='recording_only'?'Recording only':'Subscribed') : m.runtimeStatus==='disabled'?'Not yet available':'Not subscribed' %></span></div>
+    <span><%= (included||grant) ? (m.runtimeStatus==='recording_only'?(m.key==='sms_capture'?'SMS capture':'Manual operations'):'Subscribed') : m.runtimeStatus==='disabled'?'Not yet available':'Not subscribed' %></span></div>
     <div class="cardBody"><p class="tiny"><%= m.description %></p><p class="tiny"><b>Indicative price:</b> USD <%= m.priceMonthly %>/month</p>
       <% if(grant){ %><p class="tiny">Independent entitlement until <%= new Date(grant.periodEnd).toISOString().slice(0,10) %>. Limits: <%= grant.limits.users %> seats, <%= grant.limits.branches %> branches.</p><% } %>
       <% if(included){ %><p class="tiny">Included in your active workspace plan.</p><% } %>

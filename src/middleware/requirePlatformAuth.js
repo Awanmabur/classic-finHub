@@ -8,7 +8,7 @@ module.exports = async function requirePlatformAuth(req, res, next) {
     if (!account || !account.mfaEnabledAt || account.role !== 'Super Admin' || (account.authVersion || 0) !== req.session.authVersion) return res.status(401).send('Access revoked. Sign in again.');
     const identity = await AccountIdentity.exists({ _id: req.session.identityId, kind: 'platform', accountId: account._id, email: account.email, tenantId: null });
     if (!identity) return res.status(401).send('Access revoked. Sign in again.');
-    req.platformUser = { id: String(account._id), name: account.name, role: account.role, permissions: account.role === 'Super Admin' ? ['*'] : [] };
+    req.platformUser = { id: String(account._id), name: account.name, role: account.role, authVersion:account.authVersion||0, permissions: account.role === 'Super Admin' ? ['*'] : [] };
     next();
   } catch (e) { next(e); }
 };

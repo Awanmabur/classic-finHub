@@ -14,7 +14,7 @@ async function setup(t){
  t.after(()=>fs.rm(dir,{recursive:true,force:true}));
  const bin=path.join(dir,'bin');await fs.mkdir(bin);
  for(const [name,contents] of Object.entries({
-  docker:`#!/usr/bin/env bash\nset -e\nif [[ "$1" == "compose" ]]; then\n  if [[ " $* " == *" up -d "* ]]; then printf '%s' "$CLASSICFIN_IMAGE" >"$FAKE_ACTIVE"; fi\n  if [[ " $* " == *" exec -T "* && "$CLASSICFIN_IMAGE" == "$FAKE_BAD" ]]; then exit 1; fi\nfi\nexit 0\n`,
+  docker:`#!/usr/bin/env bash\nset -e\nif [[ "$1" == "pull" && "\${FAKE_PULL_FAIL:-}" == "1" ]]; then exit 1; fi\nif [[ "$1" == "compose" ]]; then\n  if [[ " $* " == *" up -d "* ]]; then printf '%s' "$CLASSICFIN_IMAGE" >"$FAKE_ACTIVE"; fi\n  if [[ " $* " == *" exec -T "* && "$CLASSICFIN_IMAGE" == "$FAKE_BAD" ]]; then exit 1; fi\nfi\nexit 0\n`,
   curl:'#!/usr/bin/env bash\nexit 0\n',
   sleep:'#!/usr/bin/env bash\nexit 0\n'
  })){
@@ -48,4 +48,10 @@ test('failed worker readiness rolls web and worker back to the previous image', 
  assert.match(result.stderr,/restoring previous immutable image/);
  assert.equal((await fs.readFile(path.join(x.stateDir,'current-image'),'utf8')).trim(),previous);
  assert.equal((await fs.readFile(x.active,'utf8')).trim(),previous);
+});
+test('failed image pull leaves the running deployment and saved rollback target untouched', {skip:process.platform==='win32'},async t=>{
+ const x=await setup(t);await fs.writeFile(path.join(x.stateDir,'current-image'),previous);await fs.writeFile(x.active,previous);
+ const result=run({...x.env,CLASSICFIN_RELEASE_IMAGE:newest,FAKE_PULL_FAIL:'1'});
+ assert.notEqual(result.status,0);assert.doesNotMatch(result.stderr,/restoring previous immutable image/);
+ assert.equal(await fs.readFile(x.active,'utf8'),previous);assert.equal((await fs.readFile(path.join(x.stateDir,'current-image'),'utf8')).trim(),previous);
 });

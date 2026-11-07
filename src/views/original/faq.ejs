@@ -84,11 +84,15 @@
         <a href="mailto:info@classicfinhub.com">Email ClassicFin Hub</a>
       </aside>
       <article class="legal-content">
-<h2>What does ClassicFin Hub include?</h2><p>It includes tenant onboarding, user roles, permissions, branches, customers, accounts, transactions, money transfer, mobile money, banking, forex, receipts, reports, analytics, notifications, billing, and audit logs.</p>
-<h2>Can a tenant start with a trial?</h2><p>Yes. The blueprint supports no trial, one-month trial, two-month trial, and custom trial periods. Reminders can be sent before expiry, then invoices, grace period, restrictions, suspension, and reactivation can be managed.</p>
-<h2>Can tenants request more modules later?</h2><p>Yes. Tenant admins can request modules or addons. Platform staff review the request, approve or reject it, create an invoice when paid, activate the module after payment or manual approval, and refresh permissions and menus.</p>
-<h2>What reports are supported?</h2><p>Daily, weekly, monthly, money transfer, mobile money, banking, forex, profit and loss, cash drawer, forex stock, expense, operator, branch, customer, receipt, notification delivery, and module usage reports can be exported as PDF, CSV, Excel, print, or scheduled email.</p>
-<h2>How is tenant data protected?</h2><p>The architecture uses database-per-tenant isolation, hashed passwords and PINs, HttpOnly cookies, refresh token rotation, CSRF protection, rate limits, validation, module checks, permission checks, audit logs, day locks, and reversals instead of deleting financial transactions.</p>
+<h2>What does ClassicFin Hub do?</h2><p>It records and reviews manual financial operations in tenant workspaces: mobile money, banking, forex, money transfer, expenses and the reports available through the subscription. A recorded instruction is separate from a posted manual movement or provider settlement.</p>
+<h2>How are plans and trials managed?</h2><p>Platform administrators publish versioned plans with module inclusions, prices, limits and trial terms. Current offers appear on the <a href="/pricing">pricing page</a>. Subscription grants and extensions are manually approved access decisions; they are not evidence of payment collection.</p>
+<h2>Can tenants request more modules later?</h2><p>Yes. Owners can request available modules. Platform staff review the request and can grant access for a defined term and limits. Staff assignments and permissions continue to control what each person can use.</p>
+<h2>How are wallet balances established?</h2><p>Register the actual funds account on Wallets, submit dated opening evidence, and obtain independent review. Funding transfers move money between existing accounts. Later observations are compared with the book rather than silently replacing it.</p>
+<h2>Does SMS capture replace manual entry?</h2><p>No. Separately subscribed Android SMS capture retains manual entry. It requires a configured gateway and supported confirmation wording; unknown messages stay in the capture inbox for review.</p>
+<h2>Can administrators view other branches?</h2><p>Tenant owners and auditors can view Main, another active branch or All branches. Daily customer transactions still use the assigned operating branch. The form identifies that branch when it differs from the viewing context.</p>
+<h2>What reports are available?</h2><p>Authorized users can filter permitted operation, cash, expense and module reports by the controls shown on each page. CSV exports and browser printing are supported. Unlike currencies and proposed instructions remain separate from posted movements.</p>
+<h2>Are provider balances and payment delivery live?</h2><p>Manual books and dated SMS or statement evidence do not provide a live provider balance or automated settlement. Provider connections and deployment-specific delivery require separate configuration and validation.</p>
+<h2>Where can I read the operating workflow?</h2><p>The <a href="/product-guide">product guide</a> describes manual entry, wallet setup, funding, independent review and current operating boundaries. Contact support to discuss the intended deployment.</p>
       </article>
     </section>
     <footer class="footer reveal">
@@ -126,7 +130,7 @@
         </div>
         <div class="footer-column">
           <h3>Legal & access</h3>
-          <a href="/terms">Terms</a>
+          <a href="/product-guide">Product guide</a><a href="/terms">Terms</a>
           <a href="/privacy">Privacy</a>
           <a href="/cookies">Cookies</a>
           <a href="/refund-policy">Refund policy</a>

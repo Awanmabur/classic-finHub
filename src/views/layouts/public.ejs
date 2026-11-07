@@ -4,15 +4,22 @@
   <link rel="icon" type="image/png" href="/images/classicfinhub-logo.png">
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title><%= title || 'ClassicFin Hub' %></title>
-  <meta name="description" content="ClassicFin Hub is a multi-tenant finance SaaS platform for money transfer, mobile money, banking, forex, reporting, analytics, billing, tenant onboarding, roles, and secure operations." />
-  <link rel="canonical" href="<%= appUrl %><%= currentPath %>" />
+  <title><%= pageMeta.title %></title>
+  <meta name="description" content="<%= pageMeta.description %>" />
+  <% if(!pageMeta.indexable){ %><meta name="robots" content="noindex,nofollow,noarchive" /><% } %>
+  <link rel="canonical" href="<%= pageMeta.canonical %>" />
   <meta property="og:type" content="website" />
-  <meta property="og:title" content="<%= title %>" />
-  <meta property="og:description" content="ClassicFin Hub module-based finance operations platform." />
-  <meta property="og:url" content="<%= appUrl %><%= currentPath %>" />
-  <meta property="og:image" content="<%= appUrl %>/images/classicfinhub-logo.png" />
+  <meta property="og:site_name" content="ClassicFin Hub" />
+  <meta property="og:title" content="<%= pageMeta.title %>" />
+  <meta property="og:description" content="<%= pageMeta.description %>" />
+  <meta property="og:url" content="<%= pageMeta.canonical %>" />
+  <meta property="og:image" content="<%= pageMeta.image %>" />
+  <meta property="og:image:alt" content="ClassicFin Hub logo" />
   <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="<%= pageMeta.title %>" />
+  <meta name="twitter:description" content="<%= pageMeta.description %>" />
+  <meta name="twitter:image" content="<%= pageMeta.image %>" />
+  <% if(pageMeta.indexable){ %><script type="application/ld+json" nonce="<%= cspNonce %>"><%- jsonLd(pageMeta.graph) %></script><% } %>
   <link rel="stylesheet" href="/vendor/inter/inter.css?v=<%= assetVersion %>" />
   <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css?v=<%= assetVersion %>" />
   <link rel="stylesheet" href="/css/style.css?v=<%= assetVersion %>" />
@@ -41,7 +48,7 @@
     <div class="mobile-auth-actions"><a href="/signin">Sign in</a><a href="/signup">Request setup</a></div><button class="mobile-menu-btn" id="menuBtn" aria-label="Open menu"><i class="fa-solid fa-bars-staggered"></i></button>
   </header>
   <nav class="mobile-panel" id="mobilePanel" aria-label="Mobile navigation">
-    <a href="/">Home</a><a href="/services">Modules</a><a href="/marketplace">Marketplace</a><a href="/book-appointment">Book demo</a><a href="/pricing">Pricing</a><a href="/price-compare">Price compare</a><a href="/support">Support</a><a href="/platform/dashboard">Platform dashboard</a><a href="/tenant/dashboard">Tenant dashboard</a><a href="/signin">Sign in</a><a href="/signup">Request setup</a><button id="themeToggleMobile"><i class="fa-solid fa-moon"></i> Change theme</button>
+    <a href="/">Home</a><a href="/services">Modules</a><a href="/marketplace">Marketplace</a><a href="/book-appointment">Book demo</a><a href="/pricing">Pricing</a><a href="/price-compare">Price compare</a><a href="/support">Support</a><a href="/product-guide">Product guide</a><a href="/signin">Sign in</a><a href="/signup">Request setup</a><button id="themeToggleMobile"><i class="fa-solid fa-moon"></i> Change theme</button>
   </nav>
   <main class="page smooth-page">
     <%- include('../partials/flash', { flash }) %>
@@ -49,7 +56,7 @@
   </main>
   <footer class="footer" id="contact">
     <div><img src="/images/classicfinhub-logo.png" alt="ClassicFin Hub logo" /><strong>ClassicFin Hub</strong><p>Multi-tenant finance SaaS for Classic Technologies.</p></div>
-    <div><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/cookies">Cookies</a><a href="/refund-policy">Refund policy</a></div>
+    <div><a href="/product-guide">Product guide</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/cookies">Cookies</a><a href="/refund-policy">Refund policy</a></div>
     <p>© <span id="year"></span> Classic Technologies. All rights reserved.</p>
   </footer>
   <script src="/js/script.js?v=<%= assetVersion %>"></script>

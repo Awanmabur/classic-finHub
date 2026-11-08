@@ -58,6 +58,18 @@ test('payout PIN storage is domain-separated, bound to tenant/branch/receiver an
 });
 test('payout form uses one protected MVC stage and cannot pay before a matched receiver',async()=>{
  const file=path.resolve(__dirname,'../src/views/tenant/funded/payout.ejs');const html=await ejs.renderFile(file,{data:{verification:null,idempotencyKey:crypto.randomUUID()},csrfToken:'csrf'});
- for(const field of ['PIN','Receiver phone','Receiver name check','ID / Passport presented','Payout note','Match','Amount','Status'])assert(html.includes(field));
+ for(const field of ['PIN','Sender phone','Receiver name check','ID / Passport presented','Payout note','Match','Amount','Status'])assert(html.includes(field));
  assert.match(html,/name="phase" value="check"/);assert.match(html,/name="_csrf" value="csrf"/);assert.match(html,/<button class="btn" type="submit" disabled>Pay out cash/);assert.doesNotMatch(html,/name="branchId"/);
+});
+
+test('sender-phone PIN lookup is versioned and cannot be downgraded to receiver verification',()=>{
+ const previous=process.env.MFA_ENCRYPTION_KEY;process.env.MFA_ENCRYPTION_KEY=crypto.randomBytes(32).toString('hex');
+ try{const scope={tenantId:ids[0],branchId:ids[1],phone:'+256700123456'};assert.notEqual(pin.hash('123456',scope),pin.hash('123456',{...scope,version:'sender_v2'}));assert.deepEqual(service.payoutLookup({senderPhone:scope.phone}),{phone:scope.phone,version:'sender_v2'});assert.deepEqual(service.payoutLookup({legacyReceiverPhone:scope.phone}),{phone:scope.phone,version:'receiver_v1'});assert.throws(()=>service.payoutLookup({senderPhone:scope.phone,receiverPhone:scope.phone}),{status:400});assert.throws(()=>service.payoutLookup({senderPhone:'0700123456'}),{status:400});}finally{if(previous===undefined)delete process.env.MFA_ENCRYPTION_KEY;else process.env.MFA_ENCRYPTION_KEY=previous;}
+});
+test('legacy manual transfer fingerprints remain valid without rewriting their immutable snapshots',()=>{
+ const source={_id:ids[0],branchId:ids[1],createdBy:ids[2],reference:'TR-LEGACY',currency:'UGX',amountMinor:'10000',feeMinor:'100',sender:{name:'Sender',phone:'+256700111222'},beneficiary:{name:'Receiver',phone:'+256700123456'},capture:{method:'Cash'}};
+ const current=service.sourceSnapshot('money_transfer',source),old={...current};delete old.senderPhone;delete old.senderName;
+ const execution={sourceType:'money_transfer',sourceSnapshot:old,sourceFingerprint:crypto.createHash('sha256').update(JSON.stringify(old)).digest('hex')};
+ assert.equal(service.sourceMatches(execution,source),true);assert.equal(service.sourceMatches(execution,{...source,amountMinor:'20000'}),false);
+ const fresh={sourceType:'money_transfer',sourceSnapshot:current,sourceFingerprint:crypto.createHash('sha256').update(JSON.stringify(current)).digest('hex')};assert.equal(service.sourceMatches(fresh,source),true);assert.equal(service.sourceMatches(fresh,{...source,sender:{...source.sender,phone:'+256700999999'}}),false);
 });

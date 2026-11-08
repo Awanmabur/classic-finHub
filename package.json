@@ -59,6 +59,7 @@
     "cash:integration": "node scripts/review-integration.js",
     "transfer:expiry": "node scripts/transfer-expiry.js",
     "transfer:integration": "node scripts/transfer-integration.js",
+    "transfer-sms:integration": "node scripts/transfer-sms-integration.js",
     "banking:integration": "node scripts/banking-integration.js",
     "banking:expiry": "node scripts/banking-expiry.js",
     "forex:expiry": "node scripts/forex-expiry.js",

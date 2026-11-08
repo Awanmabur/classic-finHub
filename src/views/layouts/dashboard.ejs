@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="/vendor/inter/inter.css?v=<%= assetVersion %>">
   <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css?v=<%= assetVersion %>" />
   <% if(context==='tenant'){ %><link rel="stylesheet" href="/tenant/workspace/theme.css?v=<%= assetVersion %>" /><link rel="stylesheet" href="/css/approved-tenant.css?v=<%= assetVersion %>" /><% } else { %><link rel="stylesheet" href="/css/dashboard.css?v=<%= assetVersion %>" /><% } %>
+  <link rel="stylesheet" href="/css/dashboard-layout.css?v=<%= assetVersion %>" />
 </head>
 <body>
   <% const visiblePaths = new Set(menu.flatMap(group => [...group.items.map(item => item.href),...(group.paths||[])]));
@@ -50,22 +51,27 @@
     <%- include('../partials/dashboard-sidebar', { context, menu, currentPath, tenant, user }) %>
     <main class="panel main" id="workspaceContent" tabindex="-1">
       <div class="topbar">
-        <div class="title"><h2 id="pageTitle"><%= pageTitle %></h2><p id="pageSub"><%= pageSub %></p></div>
         <div class="topActions">
+          <button class="btn btnIcon mobileOnly headerMenu" id="menuBtn" type="button" aria-label="Open menu" aria-controls="sidePanel" aria-expanded="false">☰</button>
           <% if(context==='tenant'){ %>
-            <% if(visiblePaths.has('/tenant/notifications')){ %><a class="btn phase2TopNotice" id="phase2NotifyBtn" href="/tenant/notifications">Notifications <span class="phase2Badge" id="phase2NotifyCount"><%= data.workspaceSnapshot?.notificationUnread??'—' %></span></a><% } %>
-            <button class="btn btnIcon mobileOnly" id="menuBtn" type="button" aria-label="Open menu" aria-controls="sidePanel" aria-expanded="false">☰</button>
-            <% if(typeof canViewBranches!=='undefined'&&canViewBranches){ %><form method="post" action="/tenant/view-branch" class="ctrl" data-branch-view-form><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="returnTo" value="<%= branchViewReturnTo %>"><select name="viewBranchId" aria-label="Viewing branch"><option value="all" <%= viewBranchId==='all'?'selected':'' %>>All branches</option><% viewBranches.forEach(branch=>{ %><option value="<%= branch._id %>" <%= String(branch._id)===viewBranchId?'selected':'' %>><%= branch.name %></option><% }) %></select><noscript><button class="btn" type="submit">View branch</button></noscript></form><% } %>
-            <form method="get" action="<%= currentPath %>" class="ctrl" data-dashboard-currency-form><select id="currencySelect" name="currency" aria-label="Display currency"><% dashboardCurrencies.forEach(option=>{ %><option value="<%= option.code %>" <%= selectedDisplayCurrency===option.code?'selected':'' %>><%= option.label %></option><% }) %></select><button type="submit" hidden>Apply currency</button><noscript><button type="submit" class="btn">Apply currency</button></noscript></form>
-            <div class="ctrl" style="min-width:290px"><input id="search" type="search" aria-label="Search loaded records" placeholder="Search name, phone, ref, PIN, account…"></div>
-            <% if(visiblePaths.has('/tenant/last-receipt')){ %><a class="btn" id="lastReceiptBtn" href="<%= data.workspaceSnapshot?.latestAcknowledgement?.href||'/tenant/last-receipt' %>">Last receipt</a><% } %>
-            <% if(transactionOptions.length){ %><button class="btn btnPrimary" id="newTransactionBtn" type="button" data-open-transaction>New transaction</button><% } %>
+            <div class="headerScope">
+              <% if(typeof canViewBranches!=='undefined'&&canViewBranches){ %><form method="post" action="/tenant/view-branch" class="ctrl" data-branch-view-form><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="returnTo" value="<%= branchViewReturnTo %>"><select name="viewBranchId" aria-label="Viewing branch"><option value="all" <%= viewBranchId==='all'?'selected':'' %>>All branches</option><% viewBranches.forEach(branch=>{ %><option value="<%= branch._id %>" <%= String(branch._id)===viewBranchId?'selected':'' %>><%= branch.name %></option><% }) %></select><noscript><button class="btn" type="submit">View branch</button></noscript></form><% } %>
+              <form method="get" action="<%= currentPath %>" class="ctrl" data-dashboard-currency-form><select id="currencySelect" name="currency" aria-label="Display currency"><% dashboardCurrencies.forEach(option=>{ %><option value="<%= option.code %>" <%= selectedDisplayCurrency===option.code?'selected':'' %>><%= option.label %></option><% }) %></select><button type="submit" hidden>Apply currency</button><noscript><button type="submit" class="btn">Apply currency</button></noscript></form>
+            </div>
+            <div class="ctrl headerSearch"><input id="search" type="search" aria-label="Search loaded records" placeholder="Search name, phone, ref, PIN, account…"></div>
+            <div class="headerButtons">
+              <% if(visiblePaths.has('/tenant/notifications')){ %><a class="btn headerNotice" id="phase2NotifyBtn" href="/tenant/notifications">Notifications <span class="phase2Badge" id="phase2NotifyCount"><%= data.workspaceSnapshot?.notificationUnread??'—' %></span></a><% } %>
+              <div class="headerPrimaryActions">
+                <% if(visiblePaths.has('/tenant/last-receipt')){ %><a class="btn" id="lastReceiptBtn" href="<%= data.workspaceSnapshot?.latestAcknowledgement?.href||'/tenant/last-receipt' %>">Last receipt</a><% } %>
+                <% if(transactionOptions.length){ %><button class="btn btnPrimary" id="newTransactionBtn" type="button" data-open-transaction>New transaction</button><% } %>
+              </div>
+            </div>
           <% } else { %>
-            <button class="btn btnIcon mobileOnly" id="menuBtn" type="button" aria-label="Open menu" aria-controls="sidePanel" aria-expanded="false"><i class="fa-solid fa-bars-staggered" aria-hidden="true"></i></button>
-            <% if(hasPageSearch){ %><div class="ctrl pageSearch"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input id="search" type="search" aria-label="Search records on this page" placeholder="Search this page…"></div><% } %>
-            <% if(['/platform/dashboard','/platform/tenants'].includes(currentPath)){ %><a class="btn btnPrimary" href="/platform/tenants/create"><i class="fa-solid fa-plus" aria-hidden="true"></i> Create tenant</a><% } %>
+            <% if(hasPageSearch){ %><div class="ctrl pageSearch headerSearch"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input id="search" type="search" aria-label="Search records on this page" placeholder="Search this page…"></div><% } %>
+            <div class="headerButtons"><% if(['/platform/dashboard','/platform/tenants'].includes(currentPath)){ %><a class="btn btnPrimary" href="/platform/tenants/create"><i class="fa-solid fa-plus" aria-hidden="true"></i> Create tenant</a><% } %></div>
           <% } %>
         </div>
+        <div class="title"><h2 id="pageTitle"><%= pageTitle %></h2><p id="pageSub"><%= pageSub %></p></div>
       </div>
       <%- include('../partials/flash', { flash }) %>
       <%- pageContent %>

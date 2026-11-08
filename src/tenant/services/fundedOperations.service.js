@@ -6,6 +6,7 @@ const mongoose=require('mongoose');
 const models=require('../models');
 const {models:fundedModels,ensureIndexes}=require('../funded/models');
 const pin=require('../funded/pin');
+const transferSms=()=>require('../transferSms/service');
 const Tenant=require('../../platform/models/Tenant');
 const {tenantDbNameFromSlug}=require('../../config/tenantDatabaseName');
 const {permissionsFor}=require('../../config/roles');
@@ -42,7 +43,24 @@ function sourceSnapshot(type,source){
   if(source.source?.referenceType!=='customer_account'||(source.kind==='transfer_request'&&source.destination?.referenceType!=='customer_account'))throw fail('Manual banking posting requires real internal customer accounts. External bank references remain instructions until independently verified.',409);
   return {...base,kind:source.kind,currency:source.currency,amountMinor:minor(source.amountMinor),customerAccountId:id(source.source.referenceId),destinationAccountId:source.destination?id(source.destination.referenceId):null,paymentChannel:source.capture?.paymentChannel||'Cash'};
  }
- return {...base,currency:source.currency,amountMinor:minor(source.amountMinor),feeMinor:minor(source.feeMinor,true),method:source.capture?.method||'Cash',receiverPhone:pin.normalPhone(source.beneficiary.phone),receiverName:String(source.beneficiary.name)};
+ return {...base,currency:source.currency,amountMinor:minor(source.amountMinor),feeMinor:minor(source.feeMinor,true),method:source.capture?.method||'Cash',receiverPhone:pin.normalPhone(source.beneficiary.phone),receiverName:String(source.beneficiary.name),senderPhone:pin.normalPhone(source.sender.phone),senderName:String(source.sender.name)};
+}
+// Old pending and collected executions retain the snapshot fingerprint they
+// were created with. Never rewrite those immutable snapshots during an upgrade.
+function sourceMatches(execution,source){
+ const candidate=sourceSnapshot(execution.sourceType,source);
+ if(execution.sourceType==='money_transfer'&&!Object.hasOwn(execution.sourceSnapshot||{},'senderPhone')){delete candidate.senderPhone;delete candidate.senderName;}
+ return hash(candidate)===execution.sourceFingerprint;
+}
+function payoutLookup(input={}){
+ const sender=input.senderPhone,legacy=input.legacyReceiverPhone??input.receiverPhone;
+ if(sender&&legacy)throw fail('Use the sender phone, or the receiver phone for an older transfer; do not combine both');
+ return {phone:pin.normalPhone(sender||legacy),version:sender?'sender_v2':'receiver_v1'};
+}
+function transferMessage(source,branch,payoutPin){
+ const amount=require('./mobileMoney.service').formatMoneyMinor(source.amountMinor,source.currency);
+ // This immutable message is encrypted in its own outbox, never audit metadata.
+ return `ClassicFin Hub transfer ${source.reference}. Amount ${amount}. Sender ${source.sender.name}, ${source.sender.phone}. Payout PIN ${payoutPin}. Collect at ${branch.name} with this PIN, sender phone and your ID. Keep the PIN private. Cash payout requires teller verification.`;
 }
 async function context(conn,tenant,actor,type,requiredPermission=null,session=null){
  definition(type);
@@ -59,7 +77,7 @@ async function context(conn,tenant,actor,type,requiredPermission=null,session=nu
 function scope(actor){return ['Tenant Owner','Auditor'].includes(actor.role)?require('./branchView.service').readScope(actor):{branchId:id(actor.branchId)};}
 function readScope(actor){return {...scope(actor),...(['Banking Operator','Forex Operator','Money Transfer Operator'].includes(actor.role)?{createdBy:id(actor.id)}:{})};}
 async function audit(conn,session,actor,execution,action,extra={}){await models.auditEventModel(conn).create([{action:`funded.${action}`,actorId:actor.id,targetId:execution._id,metadata:{branchId:String(execution.branchId),sourceType:execution.sourceType,sourceId:String(execution.sourceId),executionAction:execution.action,...extra}}],{session});}
-async function prepareIndexes(conn){await Promise.all([models.ensureTenantIndexes(conn),ensureIndexes(conn),directory.ensureIndexes(conn)]);}
+async function prepareIndexes(conn){await Promise.all([models.ensureTenantIndexes(conn),ensureIndexes(conn),directory.ensureIndexes(conn),transferSms().ensureIndexes(conn)]);}
 async function transaction(conn,work){const session=await conn.startSession();try{let result;await session.withTransaction(async()=>{result=await work(session);});return result;}finally{await session.endSession();}}
 function formInput(input={}){if(!UUID.test(String(input.idempotencyKey||'')))throw fail('Reload the form to obtain a new request reference');return {idempotencyKey:input.idempotencyKey,evidenceReference:text(input.evidenceReference,'counted cash / statement reference',5,120),note:text(input.note,'manual movement explanation',12,400)};}
 function paymentKind(method){return ['Cash','Cash payment'].includes(method)?'cash':['Mobile Money','Mobile money','Wallet Balance','Wallet balance'].includes(method)?'wallet':'bank';}
@@ -185,7 +203,7 @@ async function review(conn,tenant,actor,executionId,input={}){
   const execution=await Execution.findOneAndUpdate({_id:initial._id,status:'pending_review',createdBy:{$ne:actor.id},...scope(authorization.actor)},{$inc:{revision:1}},{new:true,session}).lean();
   if(!execution)throw fail('Manual movement already reviewed or outside your branch',409);
   const sourceModel=definition(execution.sourceType).model(conn),source=await sourceModel.findById(execution.sourceId).session(session).lean();
-  if(!source||hash(sourceSnapshot(execution.sourceType,source))!==execution.sourceFingerprint)throw fail('Original instruction is missing or its economics changed',409);
+  if(!source||!sourceMatches(execution,source))throw fail('Original instruction is missing or its economics changed',409);
   if(input.decision==='reject'){
    const rejected=await Execution.findOneAndUpdate({_id:execution._id,status:'pending_review'},{$set:{status:'rejected',reviewedBy:actor.id,reviewedAt:new Date(),reviewNote:note},$unset:{activeKey:''}},{new:true,session}).lean();
    await audit(conn,session,authorization.actor,rejected,'manual.rejected');return {execution:rejected,duplicate:false};
@@ -209,14 +227,25 @@ async function review(conn,tenant,actor,executionId,input={}){
   const posting=await treasury().applyMovements(conn,session,authorization,{sourceType:execution.sourceType,sourceRef:`FUNDED:${execution._id}`,branchId:String(execution.branchId),operatingActorId:String(execution.createdBy),...plan,evidenceRef:execution.evidenceReference,description:execution.note});
   const changes={status:'posted_manual',reviewedBy:actor.id,reviewedAt:new Date(),reviewNote:note,journalIds:posting.journalIds||[]};
   if(execution.action==='transfer_collect'){
-   const generated=pin.generate();changes.pinHash=pin.hash(generated,{tenantId:String(authorization.tenant._id),branchId:String(execution.branchId),phone:snapshot.receiverPhone});
+   let generated;
+   for(let attempt=0;attempt<8;attempt++){
+    generated=pin.generate();changes.pinHash=pin.hash(generated,{tenantId:String(authorization.tenant._id),branchId:String(execution.branchId),phone:source.sender.phone,version:'sender_v2'});
+    if(!await Execution.exists({pinHash:changes.pinHash}).session(session))break;
+    if(attempt===7)throw fail('Unable to allocate a payout PIN. Retry the independent review.',409);
+   }
+   changes.pinLookupVersion='sender_v2';
    changes.pinEncrypted=pin.encrypt(generated,`${conn.name}:${execution._id}:${execution.sourceId}`);
+   await transferSms().enqueue(conn,{tenantId:authorization.tenant._id,branchId:execution.branchId,executionId:execution._id,sourceId:execution.sourceId,to:source.beneficiary.phone,body:transferMessage(source,branch,generated)},session);
   }
   const posted=await Execution.findOneAndUpdate({_id:execution._id,status:'pending_review'},{$set:changes},{new:true,session}).lean();
   const sourceChanges=execution.action==='transfer_collect'?{status:'collected_manual',manualCollectionExecutionId:execution._id,manualPostedAt:new Date()}:
    execution.action==='transfer_payout'?{status:'paid_out_manual',manualPayoutExecutionId:execution._id,manualPostedAt:new Date()}:{status:'posted_manual',manualExecutionId:execution._id,manualPostedAt:new Date()};
   const changed=await sourceModel.findOneAndUpdate({_id:source._id,status:source.status},{$set:sourceChanges,$inc:{revision:1}},{new:true,session,runValidators:true}).lean();
   if(!changed)throw fail('The instruction changed during manual posting',409);
+  if(execution.action==='transfer_payout'){
+   await transferSms().closeAfterPayout(conn,execution.collectionExecutionId,session);
+   await Execution.updateOne({_id:execution.collectionExecutionId,action:'transfer_collect'},{$unset:{pinEncrypted:''},$inc:{revision:1}},{session});
+  }
   await audit(conn,session,authorization.actor,posted,'manual.posted',{journalIds:(posting.journalIds||[]).map(String),evidenceMode:'independently_reviewed_manual'});
   return {execution:posted,source:changed,duplicate:false};
  });
@@ -236,7 +265,12 @@ async function detail(conn,tenant,actor,executionId){
  const current=await context(conn,tenant,actor,execution.sourceType),view=scope(current.actor);if(view.branchId&&String(view.branchId)!==String(execution.branchId))throw fail('Manual movement not found in the selected branch',404);
  if(['Banking Operator','Forex Operator','Money Transfer Operator'].includes(current.actor.role)&&String(execution.createdBy)!==current.actor.id)throw fail('Manual movement not found in your scope',404);
  const source=await definition(execution.sourceType).model(conn).findById(execution.sourceId).lean();
- return {execution,source,canReview:execution.status==='pending_review'&&String(execution.createdBy)!==current.actor.id&&hasPermission(current.actor,permission(execution.sourceType,true,execution.action)),canRevealPin:execution.action==='transfer_collect'&&execution.status==='posted_manual'&&!execution.pinShownAt&&(current.actor.role==='Tenant Owner'||String(execution.createdBy)===current.actor.id)};
+ const sms=execution.action==='transfer_collect'?await transferSms().summary(conn,execution._id):null;
+ const smsRetryAt=sms?.lastRequeuedAt?new Date(new Date(sms.lastRequeuedAt).getTime()+60000):null;
+ const smsRetryConfigured=require('../transferSms/config').validateConfig().enabled;
+ const smsRetryLimited=(sms?.redrives||0)>=3;
+ const smsRetryCooling=!!smsRetryAt&&smsRetryAt>new Date();
+ return {execution,source,sms,smsRetryAt,smsRetryLimited,smsRetryCooling,canRetrySms:execution.action==='transfer_collect'&&execution.status==='posted_manual'&&source?.status==='collected_manual'&&current.actor.role==='Tenant Owner'&&['dead','not_configured'].includes(sms?.state)&&smsRetryConfigured&&!smsRetryLimited&&!smsRetryCooling,canReview:execution.status==='pending_review'&&String(execution.createdBy)!==current.actor.id&&hasPermission(current.actor,permission(execution.sourceType,true,execution.action)),canRevealPin:execution.action==='transfer_collect'&&execution.status==='posted_manual'&&source?.status==='collected_manual'&&!execution.pinShownAt&&(current.actor.role==='Tenant Owner'||String(execution.createdBy)===current.actor.id)};
 }
 async function revealPin(conn,tenant,actor,executionId){
  await prepareIndexes(conn);const current=await context(conn,tenant,actor,'money_transfer','money_transfer.create');
@@ -245,10 +279,37 @@ async function revealPin(conn,tenant,actor,executionId){
   const execution=await fundedModels(conn).execution.findOneAndUpdate({_id:id(executionId),action:'transfer_collect',status:'posted_manual',pinShownAt:null,
    ...(authorization.actor.role==='Tenant Owner'?{}:{createdBy:actor.id}),...scope(authorization.actor)},{$set:{pinShownAt:new Date()},$inc:{revision:1}},{session,new:true}).select('+pinEncrypted').lean();
   if(!execution||!execution.pinEncrypted)throw fail('This PIN has already been displayed or is unavailable',409);
+  const source=await models.transferOrderModel(conn).findOne({_id:execution.sourceId,status:'collected_manual',manualCollectionExecutionId:execution._id}).session(session).lean();
+  if(!source)throw fail('This transfer was paid out or is no longer available',409);
   const value=pin.decrypt(execution.pinEncrypted,`${conn.name}:${execution._id}:${execution.sourceId}`);
   await audit(conn,session,authorization.actor,execution,'transfer.pin_revealed');
   await fundedModels(conn).execution.updateOne({_id:execution._id},{$unset:{pinEncrypted:''}},{session});
-  return {pin:value,execution,source:await models.transferOrderModel(conn).findById(execution.sourceId).session(session).lean()};
+  return {pin:value,execution,source};
+ });
+}
+async function retrySms(conn,tenant,actor,executionId,input={}){
+ const note=text(input.note,'SMS retry reason',20,400);
+ const current=await context(conn,tenant,actor,'money_transfer','money_transfer.create');
+ if(current.actor.role!=='Tenant Owner')throw fail('Only the tenant owner may retry receiver SMS',403);
+ await prepareIndexes(conn);
+ return transaction(conn,async session=>{
+  const authorization=await auth.fenceAction(conn,session,actor,current.tenant,'money_transfer','money_transfer.create');
+  if(!await models.tenantUserModel(conn).exists({_id:actor.id,status:'active',mfaEnabledAt:{$ne:null}}).session(session))throw fail('Authenticator enrollment is required for SMS retry',403);
+  const execution=await fundedModels(conn).execution.findOneAndUpdate({_id:id(executionId),action:'transfer_collect',status:'posted_manual',...scope(authorization.actor)},{$inc:{revision:1}},{session,new:true}).select('+pinEncrypted').lean();
+  const source=execution?await models.transferOrderModel(conn).findOne({_id:execution.sourceId,status:'collected_manual',manualCollectionExecutionId:execution._id}).session(session).lean():null;
+  if(!source)throw fail('Only an unclaimed collected transfer may retry receiver SMS',409);
+  const row=await transferSms().record(conn,execution._id,session);
+  if(!row||!['dead','not_configured'].includes(row.state))throw fail('This SMS cannot be retried. Inspect uncertain delivery with the provider before sending again.',409);
+  let message=null;
+  if(!row.payloadEncrypted){
+   if(!execution.pinEncrypted)throw fail('The one-time PIN was already handed over and no encrypted SMS is available. Use that private handoff.',409);
+   const branch=await models.branchModel(conn).findOne({_id:execution.branchId,status:'active'}).session(session).lean();
+   if(!branch)throw fail('The operating branch is unavailable',409);
+   message={to:source.beneficiary.phone,body:transferMessage(source,branch,pin.decrypt(execution.pinEncrypted,`${conn.name}:${execution._id}:${execution.sourceId}`))};
+  }
+  const updated=await transferSms().requeue(conn,row._id,message,session);
+  await audit(conn,session,authorization.actor,execution,'transfer.sms_requeued',{reason:note});
+  return updated;
  });
 }
 async function reservePinCheck(current,branch,rawPhone){
@@ -269,9 +330,11 @@ function normalizedName(value){return value.normalize('NFKC').trim().replace(/\s
 async function checkPayout(conn,tenant,actor,input={}){
  const current=await context(conn,tenant,actor,'money_transfer','money_transfer.payout');await prepareIndexes(conn);
  const branch=await resolveTransactionBranch(conn,current.actor,input);
- const failureBudget=await reservePinCheck(current,branch,input.receiverPhone);
- const phone=pin.normalPhone(input.receiverPhone),value=text(input.pin,'six-digit payout PIN',6,6),pinHash=pin.hash(value,{tenantId:String(current.tenant._id),branchId:String(branch._id),phone});
- const collection=await fundedModels(conn).execution.findOne({action:'transfer_collect',status:'posted_manual',branchId:branch._id,pinHash}).lean();
+ const lookup=payoutLookup(input),phone=lookup.phone;
+ const failureBudget=await reservePinCheck(current,branch,phone);
+ const value=text(input.pin,'six-digit payout PIN',6,6),pinHash=pin.hash(value,{tenantId:String(current.tenant._id),branchId:String(branch._id),phone,version:lookup.version});
+ const versionFilter=lookup.version==='sender_v2'?{pinLookupVersion:'sender_v2'}:{$or:[{pinLookupVersion:'receiver_v1'},{pinLookupVersion:{$exists:false}}]};
+ const collection=await fundedModels(conn).execution.findOne({action:'transfer_collect',status:'posted_manual',branchId:branch._id,pinHash,...versionFilter}).lean();
  const source=collection?await models.transferOrderModel(conn).findOne({_id:collection.sourceId,status:'collected_manual',manualCollectionExecutionId:collection._id}).lean():null;
  const nameCheck=text(input.receiverNameCheck||'','receiver name check',0,120),identityDocument=text(input.identityDocument||'','ID / Passport presented',0,80);
  if(!collection||!source||(nameCheck&&normalizedName(nameCheck)!==normalizedName(source.beneficiary.name)))throw fail('PIN and receiver details could not be matched',404);
@@ -279,7 +342,7 @@ async function checkPayout(conn,tenant,actor,input={}){
  const verification=await transaction(conn,async session=>{
   const authorization=await auth.fenceAction(conn,session,actor,current.tenant,'money_transfer','money_transfer.payout',{branchId:String(branch._id)});
   const fresh=await models.transferOrderModel(conn).findOne({_id:source._id,status:'collected_manual',manualCollectionExecutionId:collection._id}).session(session).lean();if(!fresh)throw fail('PIN and receiver details could not be matched',404);
-  const [verified]=await fundedModels(conn).verification.create([{collectionExecutionId:collection._id,branchId:branch._id,createdBy:actor.id,tokenHash:pin.tokenHash(token),expiresAt:new Date(Date.now()+5*60000),receiverName:source.beneficiary.name,receiverPhone:phone,receiverNameCheck:nameCheck,identityDocument}],{session});
+  const [verified]=await fundedModels(conn).verification.create([{collectionExecutionId:collection._id,branchId:branch._id,createdBy:actor.id,tokenHash:pin.tokenHash(token),expiresAt:new Date(Date.now()+5*60000),lookupVersion:lookup.version,lookupPhone:phone,receiverName:source.beneficiary.name,receiverPhone:source.beneficiary.phone,receiverNameCheck:nameCheck,identityDocument}],{session});
   await audit(conn,session,authorization.actor,collection,'transfer.pin_checked');return verified;
  });
  await refundPinCheck(failureBudget);
@@ -314,4 +377,4 @@ async function requestPayout(conn,tenant,actor,input={}){
   await audit(conn,session,authorization.actor,execution,'payout.requested');return {execution,duplicate:false};
  });}catch(error){if(error.code===11000)throw fail('A payout is already pending or posted for this transfer',409);throw error;}
 }
-module.exports={definitions,definition,sourceSnapshot,economicPlan,context,prepare,request,review,list,detail,revealPin,checkPayout,payoutContext,requestPayout,prepareIndexes,fail,minor,paymentKind,choose};
+module.exports={sourceMatches,payoutLookup,transferMessage,retrySms,definitions,definition,sourceSnapshot,economicPlan,context,prepare,request,review,list,detail,revealPin,checkPayout,payoutContext,requestPayout,prepareIndexes,fail,minor,paymentKind,choose};

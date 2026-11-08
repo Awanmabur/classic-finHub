@@ -5,6 +5,14 @@ Both use the same database-backed Mobile Money records, cash controls, quotas an
 independent review. SMS reception does not assert payment settlement or execute a
 provider transaction.
 
+This guide covers **incoming Android Mobile Money capture** and its plan pricing.
+Outbound receiver PIN SMS for Money Transfer is a separate transactional workflow:
+after independently reviewed collection it uses Twilio through the tenant
+notification worker. It does not consume the Android capture quota or require
+the staff Notifications add-on. Configure that service through the
+[deployment setup checklist](DEPLOYMENT_SETUP.md#4-configure-receiver-transfer-sms)
+and follow the [transfer operating procedure](OPERATIONS_MANUAL.md#11-money-transfer-sender-entry-through-final-payout).
+
 ## Platform administrator: create and price plans
 
 Open **Plans → Create plan**. Set a stable code, name, description, monthly and
@@ -97,12 +105,15 @@ Cash drawer figures come from independently verified open physical-cash shifts
 and are labelled provisional; they are not provider balances. Recent activity and
 the latest acknowledgement link refer to real scoped records. Open cash shift
 uses the existing opening workflow, and closing links to the actual reconciliation
-form. The workspace shows its resolved branch rather than a branch picker.
+form. Transaction forms show their resolved operating branch. Owners and auditors
+can separately switch their permitted reading view between Main, another branch
+and All without changing that operating assignment.
 
-Prototype-only provider payouts, customer accounts, expenses and other unfinished
-legacy workflows have not been connected to simulated browser arrays. Their
-remaining backend work is still recorded in [the issue register](PROJECT_REVIEW.md).
-Visual alignment does not imply all prototype domain features now execute.
+Customers, ledger-mapped accounts, reviewed expenses and manual funded transfer,
+Banking and Forex movements use their implemented database-backed services.
+Live provider payout execution remains separate work recorded in
+[the issue register](PROJECT_REVIEW.md). Visual alignment does not certify
+external provider settlement.
 
 ## Integrity, privacy and validation
 

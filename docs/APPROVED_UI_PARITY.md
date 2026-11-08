@@ -45,7 +45,7 @@ Manual funds now have a separate durable book backed by reviewed opening evidenc
 - Customer accounts start with zero posted balance. A funded, independently reviewed manual banking deposit can credit an account; entered directory metadata cannot mint funds. Balances/movements reflect actual ledger postings. Overdraft metadata does not permit an unfunded debit.
 - KYC verification, automated compliance enforcement, custom permission-role authoring, tenant-safe backup/restore/import runners and customer self-service are not supplied by descriptive workspace settings. Subscription terms and routing/domain allocation remain platform-controlled.
 
-Provider adapters and the remaining configuration-driven capabilities are still separate work. See [Customers and accounts](../CUSTOMERS_AND_ACCOUNTS.md), [Expenses and reports](EXPENSES_AND_REPORTS.md), [Workspace configuration](TENANT_WORKSPACE_CONFIGURATION.md) and the existing SMS/plan guide for the individual workflows.
+Provider adapters and the remaining configuration-driven capabilities are still separate work. See [Customers and accounts](CUSTOMERS_AND_ACCOUNTS.md), [Expenses and reports](EXPENSES_AND_REPORTS.md), [Workspace configuration](TENANT_WORKSPACE_CONFIGURATION.md) and the existing SMS/plan guide for the individual workflows.
 
 ## Design source and validation
 

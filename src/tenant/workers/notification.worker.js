@@ -10,12 +10,14 @@ const {tenantDbNameFromSlug}=require('../../config/tenantDatabaseName');
 function getTenantConnection(slug){return mongoose.connection.useDb(tenantDbNameFromSlug(slug),{useCache:true});}
 const {verifyReplicaPrimary}=require('../../config/mongoTopology');
 const service=require('../services/notification.service');
+const transferSms=require('../transferSms/service');
 const workerId=`notification-${crypto.randomUUID()}`;
 const every=Number(process.env.NOTIFICATION_POLL_MS||5000);
 if(!Number.isSafeInteger(every)||every<1000||every>60000)throw new Error('NOTIFICATION_POLL_MS must be 1000–60000');
 let closing=false;
 for(const signal of ['SIGINT','SIGTERM'])process.once(signal,()=>{closing=true;});
 async function connect(){
+ require('../transferSms/config').validateConfig(process.env,{worker:true});
  const uri=process.env.MONGO_NOTIFICATION_WORKER_URI;
  if(!uri)throw new Error('MONGO_NOTIFICATION_WORKER_URI is required for the notification worker');
  const parsed=new URL(uri);
@@ -25,6 +27,8 @@ async function connect(){
  verifyReplicaPrimary(await mongoose.connection.db.admin().command({hello:1}));
  await WorkerHeartbeat.createIndexes();
 }
+let lastBeat=0;
+async function heartbeat(){const now=Date.now();if(now-lastBeat<10000)return;await WorkerHeartbeat.updateOne({workerId},{$set:{seenAt:new Date(),expiresAt:new Date(Date.now()+90000)}},{upsert:true});lastBeat=now;}
 async function sweep(){
  let processed=0,scanned=0;
  for await (const tenant of Tenant.find({status:{$in:['active','trial','past_due','suspended']}})
@@ -33,9 +37,14 @@ async function sweep(){
   scanned++;
   if(scanned>10000)throw new Error('Notification worker tenant scan safety limit exceeded');
   try{
+   await heartbeat();
    const conn=getTenantConnection(tenant.slug);
    const result=await service.processOne(conn,tenant,workerId);
    if(result)processed++;
+   await heartbeat();
+   const transfer=await transferSms.processOne(conn,tenant,workerId);
+   if(transfer)processed++;
+   await heartbeat();
   }catch(error){
    // Logs never include message bodies, addresses, or tenant names.
    console.error(JSON.stringify({event:'notifications.worker_error',kind:error?.name||'Error'}));
@@ -49,7 +58,7 @@ async function run(){
  console.log(JSON.stringify({event:'notifications.worker_started',workerId}));
  while(!closing){
   try{
-   await WorkerHeartbeat.updateOne({workerId},{$set:{seenAt:new Date(),expiresAt:new Date(Date.now()+90000)}},{upsert:true});
+   await heartbeat();
    const result=await sweep();
    if(result.processed)console.log(JSON.stringify({event:'notifications.processed',processed:result.processed}));
   }catch(error){console.error(JSON.stringify({event:'notifications.sweep_error',kind:error?.name||'Error'}));}

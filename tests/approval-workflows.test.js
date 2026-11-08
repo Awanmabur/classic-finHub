@@ -123,7 +123,7 @@ test('A real decision service appends only one stage and a same-transaction audi
  const conn={models:{},startSession:async()=>({withTransaction:async fn=>fn(),endSession:async()=>{}})};
  for(const name of ['SecureTenantUser','SecureMobileTransaction','SecureAuditEvent','SecureStaffInvite','SecureBranch',
   'SecureCashSession','TransferContactV1','TransferOrderV1','BankReferenceV1','BankingRequestV1','ForexRateV1',
-  'ForexQuoteV1','ApprovalPolicyV1','ApprovalRequestV1','NotificationMessageV1','NotificationTemplateV1','NotificationPreferenceV1','SmsInboxV1','LedgerAccountV2','LedgerJournalV2',
+  'ForexQuoteV1','ApprovalPolicyV1','ApprovalRequestV1','NotificationMessageV1','NotificationTemplateV1','NotificationPreferenceV1','SmsInboxV1','TransferSmsDeliveryV1','LedgerAccountV2','LedgerJournalV2',
   'LedgerPostingV2','FinancialOperationV1','VerifiedFinancialEvidenceV1','FinancialExceptionV1'])conn.models[name]=noop;
  conn.models.ApprovalRequestV1=model;conn.models.SecureAuditEvent=audit;
  const t=tenant(['approval_workflows']),officer=actor('Approval Officer',['approval_workflows'],reviewer);

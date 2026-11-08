@@ -50,7 +50,7 @@ contracts were checked against current services and role permissions. Same-
 branch transfer payout and manual/provider boundaries are explicit.
 
 The [Word](../../operations/OPERATIONS_MANUAL.docx) and
-[28-page tagged PDF](../../operations/OPERATIONS_MANUAL.pdf) derive from the
+[tagged PDF](../../operations/OPERATIONS_MANUAL.pdf) derive from the
 same source. Word structure, PDF text and representative table/page layout were
 inspected. Rebuild instructions live in [tools/docs](../../../tools/docs/README.md).
 

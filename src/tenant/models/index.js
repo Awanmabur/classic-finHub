@@ -117,6 +117,7 @@ const initialized = new WeakMap();
 function ensureTenantIndexes(conn) {
   if (!initialized.has(conn)) {
     const job = Promise.all([
+      require('../transferSms/models').ensureIndexes(conn),
       model(conn, 'SecureTenantUser',userSchema).createIndexes(),
       model(conn, 'SecureMobileTransaction',moneySchema).createIndexes(),
       model(conn, 'SecureAuditEvent',auditSchema).createIndexes(),

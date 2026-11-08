@@ -35,8 +35,8 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # Separate email-notification worker. Requires an independently scoped
-  # MongoDB user with tenant notification collection access and Resend credentials.
+  # Separate tenant email + receiver transfer SMS worker. Requires a scoped
+  # MongoDB user, mail config and (when enabled) the transfer SMS key/Twilio config.
   classicfin-notifications:
     image: ${CLASSICFIN_IMAGE:?Provide a verified immutable image digest}
     command: ["node", "src/tenant/workers/notification.worker.js"]

@@ -48,6 +48,7 @@ const steps=[
   [process.execPath,['scripts/financial-integration.js']],
   [process.execPath,['scripts/module-integration.js']],
   [process.execPath,['scripts/transfer-integration.js']],
+  [process.execPath,['scripts/transfer-sms-integration.js']],
   [process.execPath,['scripts/banking-integration.js']],
   [process.execPath,['scripts/forex-integration.js']],
   [process.execPath,['scripts/analytics-integration.js']],

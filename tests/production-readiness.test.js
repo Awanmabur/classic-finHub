@@ -13,6 +13,12 @@ test('configuration-only checks cannot claim live launch verification',async()=>
  assert.equal(report.automatedChecksPassed,true);assert.equal(report.liveChecksCompleted,false);assert.equal(report.productionCertification,false);assert(report.manualVerificationRequired.length>=4);
  const blocked=await readiness.inspect({}, {connect:()=>{throw Error('must not connect with invalid configuration');}});assert.equal(blocked.automatedChecksPassed,false);
 });
+test('receiver SMS readiness requires complete worker settings and an independent key without leaking credentials',()=>{
+ const input={...config(),TRANSFER_SMS_PROVIDER:'twilio',TRANSFER_SMS_ENCRYPTION_KEY:'37'.repeat(32),TWILIO_ACCOUNT_SID:'AC'+'ab'.repeat(16),TWILIO_AUTH_TOKEN:'c8'.repeat(16),TWILIO_FROM_NUMBER:'+256700123456'};
+ const valid=readiness.configurationChecks(input);assert(valid.checks.every(check=>check.passed),JSON.stringify(valid));
+ for(const invalid of [{TWILIO_AUTH_TOKEN:''},{TRANSFER_SMS_ENCRYPTION_KEY:''},{TWILIO_FROM_NUMBER:'invalid'},{TWILIO_MESSAGING_SERVICE_SID:'MG'+'ef'.repeat(16)},{TRANSFER_SMS_PROVIDER:'unknown'},{TRANSFER_SMS_ENCRYPTION_KEY:input.MFA_ENCRYPTION_KEY.toUpperCase()},{TRANSFER_SMS_ENCRYPTION_KEY:'0'.repeat(64)}])assert(readiness.configurationChecks({...input,...invalid}).checks.some(check=>!check.passed));
+ const report=JSON.stringify(valid);for(const secret of [input.TRANSFER_SMS_ENCRYPTION_KEY,input.TWILIO_AUTH_TOKEN,input.TWILIO_ACCOUNT_SID,input.TWILIO_FROM_NUMBER])assert(!report.includes(secret));
+});
 function connection({user='web',kind='outbox',active=true,roles=[],dead=0}={}){
  return {db:{admin:()=>({command:async()=>({setName:'rs0',isWritablePrimary:true,hosts:['db-a:27017','db-b:27017']})}),command:async()=>({authInfo:{authenticatedUsers:user?[{user,db:'admin'}]:[],authenticatedUserRoles:roles.map(role=>({role,db:'admin'}))}}),collection:name=>({countDocuments:async query=>{
   if(name==='workerheartbeats')return active&&query.workerId.test(kind+'-test')?1:0;

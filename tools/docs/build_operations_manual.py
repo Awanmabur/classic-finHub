@@ -2,7 +2,7 @@
 """Build the editable Word and printable HTML handbook from the Markdown source.
 
 Requires Python 3 and python-docx. Run from the repository root:
-  python3 tools/docs/build_operations_manual.py
+  python3 tools/docs/build_operations_manual.py --edition "8 November 2026"
 HTML can be printed to PDF in a browser. No application/database access is used.
 """
 from pathlib import Path
@@ -206,6 +206,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, default=Path("docs/OPERATIONS_MANUAL.md"))
     parser.add_argument("--output-dir", type=Path, default=Path("docs/operations"))
-    parser.add_argument("--edition", default="7 November 2026")
+    parser.add_argument("--edition", required=True, help="Reader-facing edition date, for example 8 November 2026")
     args = parser.parse_args()
     build(args.source, args.output_dir, args.edition)

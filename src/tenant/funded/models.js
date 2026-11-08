@@ -17,6 +17,7 @@ const executionSchema=new Schema({
  status:{type:String,enum:['pending_review','posted_manual','rejected'],required:true,default:'pending_review'},
  activeKey:{type:String,maxlength:100},reviewedBy:{type:O,default:null},reviewedAt:{type:Date,default:null},reviewNote:{type:String,maxlength:400,default:''},
  journalIds:{type:[O],default:[]},
+ pinLookupVersion:{type:String,enum:['receiver_v1','sender_v2'],default:'receiver_v1'},
  pinHash:{type:String,select:false,match:/^[a-f0-9]{64}$/},pinEncrypted:{type:String,select:false,maxlength:300},pinShownAt:{type:Date,default:null},
  revision:{type:Number,default:0,min:0}
 },{strict:'throw',timestamps:true});
@@ -29,6 +30,7 @@ executionSchema.index({status:1,createdAt:1});executionSchema.index({createdBy:1
 const verificationSchema=new Schema({
  collectionExecutionId:{type:O,required:true,immutable:true},branchId:{type:O,required:true,immutable:true},createdBy:{type:O,required:true,immutable:true},
  tokenHash:{type:String,required:true,immutable:true,match:/^[a-f0-9]{64}$/},expiresAt:{type:Date,required:true,immutable:true},consumedAt:{type:Date,default:null},
+ lookupVersion:{type:String,enum:['receiver_v1','sender_v2'],default:'receiver_v1',immutable:true},lookupPhone:{type:String,maxlength:16,immutable:true},
  receiverName:{type:String,required:true,maxlength:120,immutable:true},receiverPhone:{type:String,required:true,maxlength:16,immutable:true},
  receiverNameCheck:{type:String,maxlength:120,default:'',immutable:true},identityDocument:{type:String,maxlength:80,default:'',immutable:true}
 },{strict:'throw',timestamps:true});

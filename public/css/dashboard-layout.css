@@ -1,0 +1,62 @@
+/* Shared platform/tenant layout. The approved reference cascade stays intact. */
+.topbar{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
+.topbar>.topActions{display:flex;align-items:center;gap:10px;width:100%;min-width:0;flex-wrap:nowrap}
+.topbar>.title{min-width:0}
+.headerScope{display:flex;align-items:center;gap:8px;min-width:0;max-width:300px;flex:0 1 auto}
+.headerScope>.ctrl{margin:0;min-width:0}
+.headerScope [data-branch-view-form]{max-width:210px;flex:0 1 auto}
+.headerScope [data-dashboard-currency-form]{flex:0 0 82px}
+.headerScope select{min-width:0;text-overflow:ellipsis}
+.headerSearch{flex:1 1 180px;min-width:100px;max-width:360px}
+.headerButtons{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex:0 0 auto;flex-wrap:wrap;margin-left:auto;min-width:0}
+.headerButtons:empty,.headerPrimaryActions:empty{display:none}
+.headerPrimaryActions{display:flex;align-items:center;gap:10px;flex-wrap:nowrap;min-width:0}
+.headerNotice{gap:6px}
+
+/* Each dot and the rail share the same horizontal center, including the
+   narrower navigation-group padding on phones. */
+.navGroup{--navigation-inset:8px}
+.navGroup::before{left:calc(var(--navigation-inset) + 13px)}
+.navGroup .subitem.active,.navGroup .subitem:hover,.navGroup .subitem:focus-visible{transform:none!important}
+
+/* Two statistics per row at every viewport size; long balances remain legible. */
+#workspaceContent :has(>.stat){display:grid;grid-template-columns:repeat(2,minmax(0,1fr))!important}
+.stat .k,.stat .s{line-height:1.45;overflow-wrap:anywhere}
+.stat .v{white-space:normal;overflow-wrap:anywhere;text-overflow:clip}
+.stat .s{align-items:flex-start}
+.stat .s>.dot{margin-top:4px}
+
+/* GET filter controls retain two columns on phones. Transaction forms retain
+   their separate approved form layout and modal behavior. */
+form[method="get"]:has(>.field),form[method="get"] :is(.row2,.row3):has(>.field){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:end}
+form[method="get"]:has(>.field)>.rowBtns{grid-column:1/-1;justify-content:flex-end}
+form[method="get"] :is(.row2,.row3):has(>.field)>.rowBtns{grid-column:1/-1;justify-content:flex-end}
+form[method="get"] .field{min-width:0;overflow-wrap:anywhere}
+form[method="get"] .field>.control{min-width:0;width:100%}
+.mobileMoneyFilters{grid-template-columns:repeat(2,minmax(0,1fr))}
+.mobileMoneyFilters>.row3{display:contents!important}
+.mobileMoneyFilters>.rowBtns{grid-column:1/-1;justify-content:flex-end}
+
+@media(max-width:1120px){
+ .topbar{grid-template-columns:44px minmax(0,1fr);grid-template-areas:"menu scope" "title title" "search search" "buttons buttons";align-items:center;gap:12px 10px}
+ .topbar>.topActions{display:contents}
+ .headerMenu{grid-area:menu;justify-self:start;margin:0}
+ .headerScope{grid-area:scope;justify-self:end;justify-content:flex-end;width:100%}
+ .headerScope [data-branch-view-form]{max-width:calc(100% - 90px);flex:0 1 210px}
+ .topbar>.title{grid-area:title}
+ .topbar .headerSearch{grid-area:search;width:100%;max-width:none;min-width:0;margin:0}
+ .headerButtons{grid-area:buttons;width:100%;margin:0;justify-content:flex-end}
+ .headerPrimaryActions{justify-content:flex-end}
+}
+@media(max-width:700px){
+ .headerNotice{display:none}
+ .headerScope>.ctrl{padding:10px}
+ .headerScope [data-dashboard-currency-form]{flex-basis:76px}
+ .headerScope [data-branch-view-form]{max-width:calc(100% - 84px)}
+ .headerPrimaryActions{width:100%}
+ .headerPrimaryActions>.btn{flex:1 1 0;min-width:0;padding-inline:10px;font-size:12px;text-align:center}
+ .headerButtons>.btn{min-width:0;white-space:normal}
+ form[method="get"] .field>.control{padding-inline:9px;font-size:12px}
+}
+@media(max-width:520px){.navGroup{--navigation-inset:7px}}
+@media print{.topbar{display:none!important}}

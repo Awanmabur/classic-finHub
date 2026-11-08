@@ -21,6 +21,8 @@ const mongoPlatformUri = process.env.MONGO_PLATFORM_URI || 'mongodb://127.0.0.1:
 const mongoShape = /^mongodb(?:\+srv)?:\/\/[^/?#]+(?:\/([^?#]*))?(?:\?[^#]*)?$/i.exec(mongoPlatformUri);
 if (!mongoShape) throw new Error('MONGO_PLATFORM_URI must be a MongoDB connection URI');
 if (production && !mongoShape[1]) throw new Error('Production MONGO_PLATFORM_URI must explicitly name the platform database');
+// Receiver SMS is a separate outbound transport; never inherit the MFA key.
+require('../tenant/transferSms/config').validateConfig();
 if (process.env.REAL_MONEY_ENABLED === 'true') throw new Error('Real money features are not yet certified or implemented');
 module.exports = {
   nodeEnv: process.env.NODE_ENV || 'development',

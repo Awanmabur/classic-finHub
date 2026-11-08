@@ -22,7 +22,7 @@
 .workspaceActions .btn{max-width:100%;white-space:normal;text-align:center}
 @media(max-width:720px){.workspaceGuideSteps{grid-template-columns:1fr;gap:14px}.workspacePageHero{padding:16px}.workspaceFacts>div{grid-template-columns:minmax(0,1fr) minmax(0,1.2fr)}}
 
-.workspaceReadinessStats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.workspaceReadinessStats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 .workspaceReadinessStats .stat{min-width:0}
 .workspaceStatTotal{font-size:16px;color:var(--muted);font-weight:500}
 .workspaceNextAction{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px;background:var(--card2);border:1px solid var(--border);border-radius:14px}
@@ -42,4 +42,3 @@
 .workspaceSecondary[open]>summary{border-bottom:1px solid var(--border)}
 @media(max-width:1050px){.workspaceReadinessStats{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:720px){.workspaceNextAction{align-items:flex-start;flex-direction:column}.workspaceOperationRow{grid-template-columns:minmax(0,1fr) auto;gap:10px}.workspaceOperationRow>.btn{grid-column:1/-1;justify-self:start}.workspaceQueues{grid-template-columns:1fr}.workspaceSecondary>summary{padding:14px 16px}}
-@media(max-width:420px){.workspaceReadinessStats{grid-template-columns:1fr}}

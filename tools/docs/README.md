@@ -4,7 +4,7 @@ The canonical source is `docs/OPERATIONS_MANUAL.md`. The editable Word and print
 
 ```bash
 python3 -m pip install python-docx
-python3 tools/docs/build_operations_manual.py
+python3 tools/docs/build_operations_manual.py --edition "8 November 2026"
 # With Playwright available as optional documentation tooling:
 node tools/docs/print_operations_manual.cjs
 ```

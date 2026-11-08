@@ -1,0 +1,187 @@
+{
+  "browserErrors": [],
+  "resourceErrors": [],
+  "layouts": [
+    {
+      "name": "workspace-unconfigured",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": [],
+      "h1": 1
+    },
+    {
+      "name": "workspace-unconfigured",
+      "width": 900,
+      "overflow": false,
+      "duplicateIds": [],
+      "h1": 1
+    },
+    {
+      "name": "workspace-unconfigured",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": [],
+      "h1": 1
+    },
+    {
+      "name": "workspace-unconfigured",
+      "width": 320,
+      "overflow": false,
+      "duplicateIds": [],
+      "h1": 1
+    },
+    {
+      "name": "typed-transfer-page",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": [],
+      "h1": 1
+    },
+    {
+      "name": "typed-transfer-page",
+      "width": 900,
+      "overflow": false,
+      "duplicateIds": [],
+      "h1": 1
+    },
+    {
+      "name": "typed-transfer-page",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": [],
+      "h1": 1
+    },
+    {
+      "name": "typed-transfer-page",
+      "width": 320,
+      "overflow": false,
+      "duplicateIds": [],
+      "h1": 1
+    },
+    {
+      "name": "typed-transfer-modal",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": [],
+      "h1": 1
+    },
+    {
+      "name": "typed-transfer-modal",
+      "width": 900,
+      "overflow": false,
+      "duplicateIds": [],
+      "h1": 1
+    },
+    {
+      "name": "typed-transfer-modal",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": [],
+      "h1": 1
+    },
+    {
+      "name": "typed-transfer-modal",
+      "width": 320,
+      "overflow": false,
+      "duplicateIds": [],
+      "h1": 1
+    },
+    {
+      "name": "workspace-operations",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": [],
+      "h1": 1
+    },
+    {
+      "name": "workspace-operations",
+      "width": 900,
+      "overflow": false,
+      "duplicateIds": [],
+      "h1": 1
+    },
+    {
+      "name": "workspace-operations",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": [],
+      "h1": 1
+    },
+    {
+      "name": "workspace-operations",
+      "width": 320,
+      "overflow": false,
+      "duplicateIds": [],
+      "h1": 1
+    },
+    {
+      "name": "workspace-profile",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": [],
+      "h1": 1
+    },
+    {
+      "name": "workspace-profile",
+      "width": 900,
+      "overflow": false,
+      "duplicateIds": [],
+      "h1": 1
+    },
+    {
+      "name": "workspace-profile",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": [],
+      "h1": 1
+    },
+    {
+      "name": "workspace-profile",
+      "width": 320,
+      "overflow": false,
+      "duplicateIds": [],
+      "h1": 1
+    }
+  ],
+  "transfer": {
+    "typedSnapshot": true,
+    "noSavedContactsRequired": true,
+    "noAutomaticContactsCreated": true,
+    "missingPhoneNativeRejected": true,
+    "malformedPhoneHttp": 400,
+    "invalidCountryHttp": 400,
+    "identicalRetryReturned": true,
+    "changedPartyRetryHttp": 409,
+    "noDuplicateOrder": true,
+    "bookUnchangedBeforeCollection": true,
+    "smsNotConfiguredExplicit": true,
+    "selfReviewHttp": 403,
+    "collectionCash": "1010100",
+    "collectionPayable": "10000",
+    "pinOneTime": true,
+    "secondRevealHttp": 409,
+    "senderPhoneCheck": true,
+    "payoutCash": "1000100",
+    "payoutPayable": "0",
+    "balancedLedger": true
+  },
+  "workspace": {
+    "beforeText": "All branches\nKampala Main\nJinja\nUGX\nUSD\nSSP\nKSH\nLast receipt\nNew transaction\nTenant Workspace\n\nOperating readiness, pending reviews, and business setup.\n\nOperational readiness\nKampala Main · Checked 08/11/2026, 03:26:48\nSetup required\nNext action\n\n0 of 1 branch/module setup checks complete. Open the module checklist below for missing prerequisites.\n\nSet up funds\nSetup blockers\n1\n1 active branches · 3 active staff\nAwaiting action\n0\nPending reviews and disputed records\nReviewed fund accounts\n0 / 0\n0 unknown openings · 0 held or stale\nVerified cash operators\n0 / 0\nOwn reviewed opening and bound cash account\nOperating branches\n\n1 active branch in this view.\n\nComplete\nManage branches\nStaff operating assignments\n\nActive operating accounts in this view have a resolvable branch.\n\nComplete\nAssign staff\nPrivileged account protection\n\nActive privileged accounts in this view have authenticator enrollment.\n\nComplete\nReview staff access\nOperators, reviewers & funds\n\n0 of 1 branch/module setup checks complete. Open the module checklist below for missing prerequisites.\n\nAction required\nSet up funds\n\nThese checks use recorded configuration and dated reviewed evidence. They do not verify a live provider balance or available liquidity. Posting still checks the current operator, selected account, cash shift, funds book and independent approval.\n\nSubscribed operation checklist\nEvery operator needs an eligible funds path and a different authorized reviewer\nWallets & balances\nOperation / branch\tStaff & funds\tSetup status\tAction\nMoney Transfer\nKampala Main\t1 operators · 2 reviewers\n0 operators with reviewed funds paths\tAction required\n1 operator(s) lack a reviewed funds path for collection and cash payout with a shared transfer payable. Cash requires their own verified open shift; reviewers ne",
+    "freshSetupBlocked": true,
+    "setupLinkOpensWorkingAccountForm": true,
+    "unsubscribedOperationsHidden": true,
+    "configuredMainReady": true,
+    "ordinaryRoleWorkspaceHttp": 403,
+    "ordinaryRoleHasNoBranchViewingSelector": true,
+    "pendingCollectionQueueCount": 1,
+    "pendingQueueLinksToActualMovement": true,
+    "allBranchesIncludesUnconfiguredBranch": true,
+    "branchSelectionScopesReadiness": true,
+    "pendingOpeningQueueCount": 1,
+    "unknownOpeningNeedsAttention": true,
+    "afterText": "All branches\nKampala Main\nJinja\nUGX\nUSD\nSSP\nKSH\nLast receipt\nNew transaction\nTenant Workspace\n\nOperating readiness, pending reviews, and business setup.\n\nOperational readiness\nKampala Main · Checked 08/11/2026, 03:27:01\nAttention required\nNext action\n\nConfirm unknown openings and investigate held or stale balances.\n\nReview fund accounts\nSetup blockers\n0\n1 active branches · 3 active staff\nAwaiting action\n1\nPending reviews and disputed records\nReviewed fund accounts\n3 / 4\n1 unknown openings · 0 held or stale\nVerified cash operators\n1 / 1\nOwn reviewed opening and bound cash account\nOperating branches\n\n1 active branch in this view.\n\nComplete\nManage branches\nStaff operating assignments\n\nActive operating accounts in this view have a resolvable branch.\n\nComplete\nAssign staff\nPrivileged account protection\n\nActive privileged accounts in this view have authenticator enrollment.\n\nComplete\nReview staff access\nOperators, reviewers & funds\n\n1 of 1 branch/module setup checks complete. Open the module checklist below for missing prerequisites.\n\nComplete\nSet up funds\n\nThese checks use recorded configuration and dated reviewed evidence. They do not verify a live provider balance or available liquidity. Posting still checks the current operator, selected account, cash shift, funds book and independent approval.\n\nSubscribed operation checklist\nEvery operator needs an eligible funds path and a different authorized reviewer\nWallets & balances\nOperation / branch\tStaff & funds\tSetup status\tAction\nMoney Transfer\nKampala Main\t1 operators · 2 reviewers\n1 operators with reviewed funds paths\tSetup checks complete\tOpen Money Transfer\nDaily review queues\nCurrent pending and disputed records in this branch view\nCash control review\nOpening balances awaiting review\n\nIndependent approval establishes the opening book balance.\n\n1\nBalance observations awaiting review\n\nReview dated statements or physical counts against the book.\n\n0\nFunding transfers awaiting review\n\nApprove the recorded transfer between existing accounts.\n\n0\nReconciliation adjustments awaiting review\n\nReview evidence before changing the funds book.\n\n0\nCash openings awaiting verification\n\nA different authorized person must verify each opening.\n\n0\nCash closings awaiting review\n\nReview closing counts and the recorded variance.\n\n0\nDisputed cash shifts\n\nInvestigate the difference before closing the shift.\n\n0\nMoney Transfer manual move",
+    "singleActiveBranchScopeCorrect": true,
+    "ordinaryRoleForgedBranchViewHttp": 403
+  },
+  "passed": true
+}

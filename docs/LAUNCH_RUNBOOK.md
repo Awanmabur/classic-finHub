@@ -8,6 +8,11 @@ Enable reliable time synchronization on application, database and operator devic
 
 Use three different database principals: web/provisioning, outbox worker and tenant notification worker. Review their actual roles. Do not use root, user administration or cluster administration roles for services. Web needs the application platform/tenant namespaces; notification worker needs its tenant notification namespaces; outbox worker needs the platform outbox and heartbeat collections. Provision backup/recovery credentials separately. Logical tenant databases share an application deployment and do not constitute separate clusters.
 
+The [MongoDB and service-key checklist](DEPLOYMENT_SETUP.md) gives Atlas setup,
+per-tenant role provisioning and the exact active key inventory. The tenant
+notification worker also processes encrypted receiver transfer-SMS delivery;
+grant its documented queue/source reads without granting financial write access.
+
 Choose the real canonical domain, sending domain and recovery mailbox. Configure DNS and a valid HTTPS certificate. `deploy/Caddyfile.classicfin.example` is a template: replace both domain blocks, validate Caddy, and test the real host. With the shipped single-hop proxy, set `TRUST_PROXY=1`; use 2 only after validating an actual two-hop topology. Do not trust arbitrary forwarded headers.
 
 ## 2. Prepare private service configuration
@@ -20,6 +25,14 @@ Create private host files outside the checkout/public directory, mode 0600, acce
 - `deploy/backup.env.example` and `deploy/alert.env.example` → separately protected backup/monitoring configuration
 
 Generate independent strong session and MFA encryption keys. Keep the MFA key stable across application upgrades: replacing it without an explicit migration makes existing encrypted MFA/SMS data unreadable. Escrow the backup encryption key separately from archives and application secrets. Never put populated environment files, credentials or backups into Git, images or support messages.
+
+Generate a separate `TRANSFER_SMS_ENCRYPTION_KEY` (64 hexadecimal characters)
+and put the same value in web and the tenant notification worker. Keep it stable
+so queued encrypted messages remain readable. Set `TRANSFER_SMS_PROVIDER=twilio`
+in both when enabling receiver messages; Twilio account/authentication/sender
+credentials belong only in the notification worker. Set exactly one
+`TWILIO_FROM_NUMBER` or `TWILIO_MESSAGING_SERVICE_SID`. `none` is an explicit
+manual-handoff fallback, not evidence that automatic SMS has been configured.
 
 Web requires explicit `NODE_ENV=production`, actual HTTPS `APP_URL`, `SESSION_SECRET`, `MFA_ENCRYPTION_KEY`, `MONGO_PLATFORM_URI`, valid `PORT` and `TRUST_PROXY`, and `REAL_MONEY_ENABLED=false`. Configure Resend and a verified `MAIL_FROM` before accepting users who need invitations/recovery. Both worker files require their own database URI and mail configuration. All URIs identify the same platform database/replica set. Use TLS on private database connections too. In the app's manual mode, trusted gateway evidence HMAC keys are optional until a corresponding adapter is deliberately enabled.
 
@@ -121,6 +134,13 @@ npm run notification:doctor
 `production:check` reads the configured database primary/authenticated principals, worker-class heartbeats and outbox backlog, checks all services observe the same replica set, and makes bounded HTTPS GETs to the deployed readiness/home/crawler/private routes. It does not send email/SMS, create records, change indexes or process financial operations. Nonzero exit blocks the automated check. A passing report still lists manual evidence and explicitly does not certify production.
 
 On the actual HTTPS domain verify secure cookies, MFA and role restrictions; real email recovery delivery; published landing-page escaping; canonical/robots/sitemap/AI-guide access; private noindex/no-store responses; and mobile/desktop flows. Test a documented low-impact manual transaction with its authorized operator/reviewer and reconcile the actual source balances; do not claim provider execution. Enroll the Android gateway using its private credentials and a supported anonymized message, test deduplication and revocation, and retain its manual fallback. Verify that notifications reach the intended inbox and that dead letters alert.
+
+For transfer SMS, use an authorized controlled receiver number and real provider
+configuration. Post a reviewed collection, confirm the encrypted queue's provider
+acceptance and actual handset receipt, then check the new PIN with the sender
+phone and complete the independent same-branch payout procedure. Verify a retry
+does not create another financial posting. Investigate uncertain provider outcomes
+before retrying a message. Keep SMS providers disabled on restored/rehearsal data.
 
 ## 8. Operate and roll back
 

@@ -13,6 +13,7 @@ const indexes={
   TreasuryFundingV1:[{unique:true,key:{idempotencyKey:1}}],
   FundedExecutionV1:[{unique:true,key:{idempotencyKey:1}}],
   ManualPayoutVerificationV1:[{unique:true,key:{tokenHash:1}}],
+  TransferSmsDeliveryV1:[{unique:true,key:{executionId:1}}],
   CustomerDirectoryV1:[{unique:true,key:{reference:1}}],
   CustomerAccountV1:[{unique:true,key:{accountNumber:1}}],
   ExpenseV1:[{unique:true,key:{idempotencyKey:1}}],
@@ -71,7 +72,7 @@ test('live doctor model registry covers every required index, including approval
 });
 
 test('doctor rejects every missing funds evidence, movement and manual posting unique index',()=>{
- for(const key of ['TreasuryAccountV1','TreasuryObservationV1','TreasuryBatchV1','TreasuryMovementV1','TreasuryCounterV1','TreasuryAdjustmentV1','FundedExecutionV1','ManualPayoutVerificationV1']){
+ for(const key of ['TreasuryAccountV1','TreasuryObservationV1','TreasuryBatchV1','TreasuryMovementV1','TreasuryCounterV1','TreasuryAdjustmentV1','FundedExecutionV1','ManualPayoutVerificationV1','TransferSmsDeliveryV1']){
   const missing={...indexes,[key]:[]};
   assert(issuesForTenant(valid,{...state,indexes:missing}).includes('missing-unique-index'),key);
  }

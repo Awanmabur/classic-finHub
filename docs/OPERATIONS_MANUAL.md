@@ -341,12 +341,16 @@ The retained legacy contact-ID API is for compatibility with existing integratio
 2. Enter the actual collection voucher/statement reference and explanation, then **Record for independent review**. Saving the request alone has not made it payable.
 3. Another authorized reviewer verifies the real collection, amount, fee and accounts, then chooses **Approve and post manual movement**.
 4. Confirm the source transfer is `collected_manual`, the collection account increased, the unpaid amount is in the payable account and the item appears in **Pending payout queue**.
-5. Use **Show payout PIN once** when authorized. Share it privately with the intended sender/receiver under your business procedure. Do not put the PIN into report notes, screenshots, audit descriptions or support tickets. It is intentionally not a repeatedly readable password.
+5. If receiver SMS is configured, posting the collection automatically queues an encrypted message to the saved receiver phone with the reference, amount, generated PIN, sender name/phone and collecting branch. The tenant notification worker sends it through the configured provider. Inspect the transfer's SMS status: queued is not sent, and provider acceptance is not proof of handset delivery. Confirm actual receipt where needed. This outbound service is separate from Android Mobile Money capture and does not require the staff Notifications add-on.
+6. When SMS is unavailable, use **Show payout PIN once** when authorized and share it privately under the business's approved handoff procedure. The UI explicitly reports an unconfigured SMS provider rather than pretending delivery. Do not put the PIN into report notes, screenshots, audit descriptions or support tickets. It is intentionally not a repeatedly readable password.
+7. An owner can use **Retry receiver SMS** for a failed or unconfigured message after correcting its cause and entering the required justification. Retries are capped and rate limited. An uncertain send stops automatic retry and has no normal resend button: a network timeout can occur after the provider accepted the message. Inspect provider evidence and follow the controlled handoff/support procedure. Do not create another transfer to resend a PIN. Transport charges follow the configured SMS provider and are not Android capture quota.
+
+After reviewed payout, the system clears unsent receiver-SMS payloads and the one-time PIN display ciphertext. Provider acceptance metadata remains available. An SMS already submitted to a provider cannot be recalled, but a spent PIN cannot authorize another payout or be revealed again.
 
 ### C. Check the receiver and request payout
 
 1. At the same operating branch, open **Payout by PIN**, `/tenant/money-transfer/payout` (the payout form is `/tenant/funded/payout`).
-2. Enter the six-digit **PIN** and the **Receiver phone** from the transfer. Choose **Check PIN**. The phone must match the immutable receiver record; do not substitute the sender's phone.
+2. For a new collection, enter the six-digit **PIN** and the **Sender phone** from the transfer/SMS, then choose **Check PIN**. The phone must match the immutable sender record. Collections made before the sender-phone lookup change retain their original receiver-phone PIN binding; use the explicitly labelled legacy receiver-phone mode only for those transfers. Changing a phone or trying another branch does not change the PIN's stored mode.
 3. Follow the business's physical receiver-identification procedure. The UI also accepts **Receiver name check** and **ID / Passport presented** as optional fields. If a name check is entered, it must match the stored receiver name. The application does not authenticate a government document.
 4. After the match, review the displayed transfer, currency, amount and receiver before continuing. Add the required **Payout note**, actual cash/statement evidence reference and the eligible payout account shown on the form.
 5. Choose **Pay out cash** to submit the payout request for independent review. The button creates the reviewed-payout workflow; the success message is **Payout requested for independent review**, not proof that cash has already been handed over.
@@ -397,7 +401,7 @@ Mobile Money has its own source review and correction/void controls; use those o
 4. Inspect email state accurately: pending/processing/retry is queued work; accepted means provider acceptance only; dead needs investigation; suppressed means the current recipient/access/preference blocks sending.
 5. Owner may audited-requeue a dead letter after fixing the actual cause. Do not repeatedly requeue an inactive or opted-out person.
 
-Saving **Notification rules** in Workspace records configuration descriptions; it does not create an automatic rule scheduler. The actual send/template/inbox workflow is in Notifications. SMS Capture receives provider transaction evidence; it is not an outbound customer SMS or WhatsApp notification service.
+Saving **Notification rules** in Workspace records configuration descriptions; it does not create an automatic rule scheduler. The actual staff send/template/inbox workflow is in Notifications. SMS Capture receives provider transaction evidence. Outbound receiver PIN SMS is the separately configured transfer workflow in section 11, sent by the tenant notification worker after reviewed collection; it does not enable WhatsApp or arbitrary customer marketing messages.
 
 ## 14. Reporting and owner oversight
 
@@ -618,7 +622,7 @@ For each incident record the start/end UTC times, affected tenants/accounts, las
 | Banking manual post unavailable | Internal customer account and Customer Accounts access | Use an eligible real internal account with the required module assignment; external masked references alone cannot post |
 | Forex quote cannot post | Approved unexpired rate/quote, stock/settlement funds and review | Obtain a valid quote/review and real funded accounts; never change historical rates |
 | Transfer cannot issue PIN | Collection manual movement still pending/rejected or not posted | Complete legitimate independent collection review, then use the authorized one-time reveal |
-| Transfer payout PIN will not match | Same operating branch, receiver phone, prior use and original transfer; five-minute verification if already checked | Correct/repeat the check or escalate; no cross-branch or duplicate-transfer workaround |
+| Transfer payout PIN will not match | Same operating branch, sender phone for a new PIN or the explicit legacy receiver-phone mode, prior use and original transfer; five-minute verification if already checked | Correct/repeat the check or escalate; no cross-branch or duplicate-transfer workaround |
 | Transfer payable unavailable to another teller | Clearing account assigned to an individual operator | Owner checks intended shared branch setup and existing evidence; do not reassign staff to evade scope |
 | Payout requested but not complete | Payout manual movement pending/rejected, funds/reviewer | Check the original request and obtain independent review before treating it as a completed payout |
 | Close day blocked | Pending MoMo, expense/correction or cash-bound manual requests | Complete the source review/reject/void process; do not create another shift |

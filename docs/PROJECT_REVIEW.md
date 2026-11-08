@@ -1,14 +1,18 @@
-# Project review — updated 7 November 2026
+# Project review — updated 8 November 2026
 
 The current launch candidate is 1.24.0. Use [launch status](LAUNCH_STATUS.md) and the [production runbook](LAUNCH_RUNBOOK.md) for the current deployment decision. Earlier verification counts and file references below are historical where superseded by the current launch evidence and cleanup manifest.
 
-Latest operating update: money transfers accept typed sender/receiver details
-without saved contacts. Tenant Workspace now uses database-backed setup checks
-and real review queues. The [end-to-end operating manual](OPERATIONS_MANUAL.md)
-covers onboarding through daily closing and recovery. The complete release gate
-passed 402 JavaScript tests, 13 relay tests, 477 JS/EJS checks, all registered
-isolated database integrations and the dependency audit. See the
-[focused evidence](review/transfer-workspace-operations/README.md).
+Money transfers accept typed sender/receiver details without saved contacts.
+Reviewed collection automatically generates a PIN and queues encrypted receiver
+SMS when configured; new claims use the sender phone, while old PINs retain
+their explicit legacy mode. Workspace uses database-backed setup checks and
+real review queues. Shared headers, two-column stats/filters and centered sidebar
+rails follow the requested desktop and phone layout. The
+[end-to-end operating manual](OPERATIONS_MANUAL.md) and
+[MongoDB/key setup](DEPLOYMENT_SETUP.md) cover the operating and host procedures.
+The complete release gate passed 414 JavaScript tests, 13 relay tests, 484
+JS/EJS checks, all registered isolated integrations and the dependency audit.
+See the [focused evidence](review/predeployment-ui-sms/README.md).
 
 This register covers the uploaded application reviewed and repaired in this session, including onboarding, tenant administration, financial recording, authentication, dependencies, and the active EJS interface. It records confirmed findings and concrete remaining work. It is not an exhaustive security audit, a claim that every screen matches the approved prototype, or approval to process real funds.
 

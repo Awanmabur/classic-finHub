@@ -42,7 +42,7 @@ function fixture(){
   const conn={models:{SecureMobileTransaction:transactions,SecureAuditEvent:audits,
     SecureTenantUser:noop,SecureStaffInvite:noop,SecureBranch:noop,SecureCashSession:noop,
     LedgerAccountV2:noop,LedgerJournalV2:noop,LedgerPostingV2:noop,
-    FinancialOperationV1:noop,VerifiedFinancialEvidenceV1:noop,FinancialExceptionV1:noop,TransferContactV1:noop,TransferOrderV1:noop,BankReferenceV1:noop,BankingRequestV1:noop,ForexRateV1:noop,ForexQuoteV1:noop,ApprovalPolicyV1:noop,ApprovalRequestV1:noop,NotificationMessageV1:noop,NotificationTemplateV1:noop,NotificationPreferenceV1:noop,SmsInboxV1:noop},
+    FinancialOperationV1:noop,VerifiedFinancialEvidenceV1:noop,FinancialExceptionV1:noop,TransferContactV1:noop,TransferOrderV1:noop,BankReferenceV1:noop,BankingRequestV1:noop,ForexRateV1:noop,ForexQuoteV1:noop,ApprovalPolicyV1:noop,ApprovalRequestV1:noop,NotificationMessageV1:noop,NotificationTemplateV1:noop,NotificationPreferenceV1:noop,SmsInboxV1:noop,TransferSmsDeliveryV1:noop},
     startSession:async()=>({withTransaction:async fn=>{transactionCount++;await fn();},endSession:async()=>{}})};
   return {conn,row,audit,get transactionCount(){return transactionCount;}};
 }

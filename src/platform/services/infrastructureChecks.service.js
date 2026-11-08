@@ -12,6 +12,7 @@ const REQUIRED_INDEXES=Object.freeze({
   TreasuryFundingV1: [['idempotencyKey',1]],
   FundedExecutionV1: [['idempotencyKey',1]],
   ManualPayoutVerificationV1: [['tokenHash',1]],
+  TransferSmsDeliveryV1: [['executionId',1]],
   CustomerDirectoryV1: [['reference',1]],
   CustomerAccountV1: [['accountNumber',1]],
   TenantWorkspaceConfigV1: [['tenantId',1]],

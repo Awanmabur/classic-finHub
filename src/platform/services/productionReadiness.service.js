@@ -25,6 +25,13 @@ function configurationChecks(input){
  entries.push(check('port',/^\d+$/.test(input.PORT||'3000')&&Number(input.PORT||3000)>=1&&Number(input.PORT||3000)<=65535,'PORT must be an integer from 1 to 65535.'));
  entries.push(check('provider_execution_disabled',input.REAL_MONEY_ENABLED==='false','REAL_MONEY_ENABLED must remain explicitly false; manual books do not certify provider execution.'));
  entries.push(check('recovery_mail_configured',configured(input.RESEND_API_KEY)&&configured(input.MAIL_FROM)&&/^(?:[^<>\r\n]{1,80}\s<)?[^<>\s@]+@[^<>\s@]+\.[^<>\s@]+>?$/.test(input.MAIL_FROM),'Configure Resend and a verified MAIL_FROM address; delivery still needs a real inbox test.'));
+ let smsValid=false;
+ try{require('../../tenant/transferSms/config').validateConfig(input,{worker:true});smsValid=true;}catch{}
+ entries.push(check('transfer_sms_configuration',smsValid,'Transfer SMS requires a supported provider, a dedicated encryption key and complete notification-worker credentials when enabled.'));
+ if(input.TRANSFER_SMS_ENCRYPTION_KEY){
+  const smsKey=String(input.TRANSFER_SMS_ENCRYPTION_KEY).toLowerCase();
+  entries.push(check('separate_transfer_sms_key',/^[a-f0-9]{64}$/.test(smsKey)&&!/^([a-f0-9])\1{63}$/.test(smsKey)&&smsKey!==String(input.MFA_ENCRYPTION_KEY||'').toLowerCase()&&smsKey!==String(input.SESSION_SECRET||'').toLowerCase(),'Use a separate random 32-byte hexadecimal transfer SMS encryption key; do not reuse session or MFA keys.'));
+ }
  const keys=['MONGO_PLATFORM_URI','MONGO_WORKER_URI','MONGO_NOTIFICATION_WORKER_URI'],uris=keys.map(key=>parseMongo(input[key]));
  keys.forEach((key,index)=>{
   const uri=uris[index];entries.push(check(key.toLowerCase()+'_configured',Boolean(uri),key+' must explicitly name its platform database.'));
@@ -82,6 +89,8 @@ async function inspect(input,{live=true,connect,fetchImpl}={}){
   const dbs=await Promise.all([inspectMongo(input.MONGO_PLATFORM_URI,{kind:'web',connect}),inspectMongo(input.MONGO_WORKER_URI,{kind:'outbox',connect}),inspectMongo(input.MONGO_NOTIFICATION_WORKER_URI,{kind:'notification',connect})]);
   checks.push(...dbs.flatMap(result=>result.checks),check('same_live_replica_set',dbs.every(result=>result.topologyFingerprint)&&new Set(dbs.map(result=>result.topologyFingerprint)).size===1,'Web and both workers must connect to the same actual replica set.'),check('distinct_authenticated_service_principals',dbs.every(result=>result.principalFingerprint)&&new Set(dbs.map(result=>result.principalFingerprint)).size===3,'The live database connections must authenticate as three distinct service principals.'),...await inspectPublic(config.origin,{fetchImpl}));
  }
- return {event:'production.readiness',mode:live?'live-read-only':'configuration-only',configurationValid,automatedChecksPassed:configurationValid&&(!live||checks.every(entry=>entry.passed)),liveChecksCompleted:live&&configurationValid,checks,manualVerificationRequired:[...MANUAL_EVIDENCE],productionCertification:false};
+ const manualVerificationRequired=[...MANUAL_EVIDENCE];
+ if(input.TRANSFER_SMS_PROVIDER==='twilio')manualVerificationRequired.push('Confirm receiver SMS reaches a controlled real handset, then verify the sender-phone/PIN payout and inspect provider acceptance separately from receipt.');
+ return {event:'production.readiness',mode:live?'live-read-only':'configuration-only',configurationValid,automatedChecksPassed:configurationValid&&(!live||checks.every(entry=>entry.passed)),liveChecksCompleted:live&&configurationValid,checks,manualVerificationRequired,productionCertification:false};
 }
 module.exports={configurationChecks,inspectMongo,inspectPublic,inspect,FORBIDDEN_ROLES,MANUAL_EVIDENCE};

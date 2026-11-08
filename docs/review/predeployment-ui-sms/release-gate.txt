@@ -1,0 +1,96 @@
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/check-project.js
+Static checks passed for 484 JS and EJS files
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node --test
+ℹ tests 414
+ℹ pass 414
+ℹ fail 0
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/asset-budget.js
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/db-doctor.js
+PASS: MongoDB rs0 has a writable primary.
+PASS: Connection is ready for transactions (deployment permissions and multi-document writes still need a live integration test).
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/catalog-integration.js
+PASS: empty catalogue publication, atomic rollback, complete audit, repeatability and immutable-version conflict (local scratch only)
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/tenant-integration.js
+PASS: administrator/MFA/CSRF-protected in-app catalogue recovery, repeatability and audit attribution; HTTP tenant creation, contact persistence, 42-character slug, validation feedback, duplicate rejection, owner activation, single-use invitation and sign-in
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/plan-builder-integration.js
+PASS: authenticated draft creation, custom plan publication, field validation, CSRF, symmetric SMS premium pricing, shared publication fence, manual fallback, immutable version history, availability, concurrency and administrator audits
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/transaction-branch-integration.js
+PASS: automatic account branch, owner first-branch assignment, ambiguous-owner rejection, audited reassignment, fixed currency, real cash opening/recording and cross-tenant/forged-branch rejection
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/branch-view-integration.js
+PASS: real HTTP main/default and All branch views, selected source/customer/account/expense/funded/treasury/cash/audit/report/analytics isolation, preserved filters, CSRF/foreign branch/operator denial, tenant-wide Auditor, assigned-branch transaction choices and writes, actual saved-record redirects, staff directory and assigned-branch cash opening/closing.
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/manual-authorization-integration.js
+PASS: committed manual account disable, credential revoke, branch/role reassignment, staff/tenant module removal, subscription revoke, suspension and quota reduction block Cash/Bank/Wallet records without cash/quota/audit effects; concurrent revoke is serialized after an already-authorized financial commit.
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/operation-authorization-integration.js
+PASS: 35 committed authorization races block transfer/banking/forex creation, review, cancellation, contacts, bank references and FX rates without record/audit/quota side effects; independent authorized review remains available.
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/mobile-workspace-integration.js
+PASS: Mobile Money real writes/metadata, Cash/Bank/Wallet isolation, void-aware exact totals, currency/network/source/date filters, branch/operator/tenant scopes, keyset pages and complete safe CSV exports.
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/operation-workspaces-integration.js
+PASS: approved operation workspaces, real Mongo records/aggregates, currency separation, creator/branch/tenant isolation, FX direction, rendered routes, authenticated manual PIN payout redirect and controlled CSV exports
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/customer-accounts-integration.js
+PASS: customer/account real writes, audited idempotency, duplicate rollback, fixed branch and exact USD ledger balances, linked logbook/movements, scoped safe CSV and live tenant/staff authorization.
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/expenses-reports-integration.js
+PASS: Expenses pending/approval cash effect, exact currencies, correction/void dual control, quota/idempotency, cash close, reports/CSV, fresh authorization and tenant/branch isolation.
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/treasury-integration.js
+PASS: Treasury real independent opening evidence, exact posted funds and cash, balanced journals, idempotency, insufficient-float and mismatch holds, dated checkpoints, explicit suspense adjustments, late-entry invalidation, historical-maker correction, concurrent balance guards, audit rollback, append-only history, live revocation and tenant isolation.
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/wallet-funding-integration.js
+PASS: Wallet funding conserves assets with independent review, exact journals, defaults and operator controls; tenant owners configure and fund a selected branch without changing their operating assignment; branch views isolate history; insufficient/held/foreign sources and stale makers are rejected with full audit rollback.
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/mobile-funds-integration.js
+PASS: Configured wallet/payment defaults, daily entries without repeated balance setup, configured fee policy and idempotency, exact funds and balanced journals, optional actual evidence, mismatch holds/adjustments, insufficient-float rollback, inverse corrections, cash close and privacy.
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/funded-operations-integration.js
+PASS: actual manual banking deposits/withdrawals/internal transfers, customer liability balances, FX stock/settlement/explicit fees, transfer collection/payable/PIN once-only verification/payout, maker-checker, cash closing, ledger integrity, concurrency/idempotency, insufficient-fund rollback, privacy, revocation and role-scoped cash dashboard snapshots across all four operator modules.
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/expenses-treasury-integration.js
+PASS: independently approved expenses post balanced funds-book journals once, Cash updates its physical drawer once, Bank/wallet expense sources remain separate, corrections and voids append reversals, and mismatches/insufficient or foreign sources cannot spend.
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/reporting-cash-integration.js
+PASS: Posted report cash impacts include exact collected fees, reversals and historical event dates; exclude bank/wallet assets, other operators/branches/tenants and unavailable sources; legacy MoMo never double counts funded records.
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/workspace-settings-integration.js
+PASS: Workspace settings, validated owner authorization, tenant binding, optimistic concurrency, transactional audit rollback, archive/restore, published snapshot isolation, real statistics and exports, escaped public HTTP content, CSRF, authenticated form persistence, and revocation.
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/workspace-operations-integration.js
+PASS: Workspace operational readiness moves from fresh blocked setup to reviewed funds and own verified shift, scoped Main/All, real pending opening queues, module isolation, fresh operator/tenant revocation, and credential-fenced settings writes.
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/currency-integration.js
+PASS: USD/SSP real branch creation, exact cash-in/out, immutable replay, currency mismatch rollback, verified drawer closing, balanced ledger, bank/transfer instructions, FX quotes, scoped currency filters and tenant isolation.
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/sms-capture-integration.js
+PASS: signed HTTP Android delivery, sender/tenant/signature/time rejection, encrypted credentials/SMS, scoped automatic recording, pending verification, duplicate safety, unknown review, verified-shift control, branch/staff reassignment, SMS quota atomicity, manual entry at full SMS quota, interrupted-recording recovery, browser auth/CSRF and revocation
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/sms-authorization-integration.js
+PASS: delayed SMS cannot enter a newer verified drawer; committed device revoke, user disable/auth-version change, branch reassignment, staff module revoke and tenant module revoke after draft claim prevent financial writes; automatic receive returns review; denied writes preserve cash/quota and authorized positive control succeeds
+CHECK: python3 -m
+Ran 13 tests in 1.122s
+OK
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/auth-integration.js
+PASS: HTTP+Mongo two-field sign-in, privileged tenant/platform MFA, automatic dashboards, tenant boundaries, reset and session revocation
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/admin-integration.js
+PASS: branch quotas, delegated branch-only user administration, non-escalating roles, invitation cancellation, module scope, audit transactions, session revocation and tenant financial isolation
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/appointments-integration.js
+PASS: appointment scheduling/completion/cancellation, HTTPS/date validation, fresh MFA/admin authorization, optimistic concurrency, complete audit rollback, terminal states and bounded cursor/search.
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/review-integration.js
+PASS: MongoDB shift opening, record binding, independent review, corrections, cash count, approval, reporting, idempotency and tenant isolation.
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/db-integration.js
+PASS: replica-set transaction commit and rollback, unique index and cross-tenant database isolation (scratch DBs only).
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/infra-doctor.js
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/catalog-publish.js
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/commercial-integration.js
+PASS: published plan, manual grant, extension, audit, bounded quota, rejection, rollback, revocation, reactivation and safe staff-permission downgrade (local scratch only)
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/outbox-integration.js
+PASS: transactional outbox commit/rollback, dedup index, competing workers, retry delay, provider acceptance, lease fencing, dead-letter and audited redrive (scratch database only)
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/ledger-integration.js
+PASS: scratch tenant ledger posting, source replay, balanced trial, rollback, authorized reversal, exact offset, audit and isolation
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/financial-integration.js
+PASS: tenant-isolated gateway verification, callback/statement matching, independent accounting, replay protection, out-of-order delivery, mismatch and failure exception recovery
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/module-integration.js
+PASS: manual request, audited independent subscription, Reports-only access, cross-tenant isolation, per-module quota, staff source scope, revocation and surviving standalone reporting
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/transfer-integration.js
+PASS: legacy contact compatibility; direct teller identities without saved contacts; immutable normalized snapshots; exact typed retries; changed party/capture conflicts; no mixed modes; branch and tenant isolation; fresh account authorization; atomic quota, audit and authorization rollback; manual status filters; independent approval, expiry and reports
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/transfer-sms-integration.js
+PASS: typed transfer collection and encrypted SMS queue commit atomically; worker-only credentials; redacted PIN payloads; single provider submission; sender-phone payout and legacy snapshots/PINs; fresh MFA owner retry; uncertain lease fencing; queue doctor and revoked-module suppression; balanced books. No live SMS sent.
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/banking-integration.js
+PASS: banking requests, idempotency, atomic quotas, independently audited review, edits preserving snapshots, cancellation, reports and cross-tenant isolation
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/forex-integration.js
+PASS: Forex rate approvals, rate supersession, exact quote snapshots, idempotency, quota, review, expiry, reports and tenant isolation
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/analytics-integration.js
+PASS: Analytics-only access, branch and tenant isolation, complete UTC periods, prior-window comparison, optional Forex source, safe report independence and CSV
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/approval-integration.js
+PASS: Approval policies, version snapshots, idempotency, independent decisions, tenant scope, expiry, audit and reports
+CHECK: /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/notification-integration.js
+PASS: Notification templates, immutable versions, inbox, idempotency, email acceptance, opt-out, cross-tenant isolation and reporting
+CHECK: npm audit
+found 0 vulnerabilities
+Local release checks passed. Live backup restore, TLS, browser, provider and load tests still require separate evidence.

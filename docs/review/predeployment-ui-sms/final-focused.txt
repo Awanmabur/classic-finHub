@@ -1,0 +1,5 @@
+ℹ tests 32
+ℹ pass 32
+ℹ fail 0
+PASS: typed transfer collection and encrypted SMS queue commit atomically; worker-only credentials; redacted PIN payloads; single provider submission; sender-phone payout and legacy snapshots/PINs; fresh MFA owner retry; uncertain lease fencing; queue doctor and revoked-module suppression; balanced books. No live SMS sent.
+PASS: actual manual banking deposits/withdrawals/internal transfers, customer liability balances, FX stock/settlement/explicit fees, transfer collection/payable/PIN once-only verification/payout, maker-checker, cash closing, ledger integrity, concurrency/idempotency, insufficient-fund rollback, privacy, revocation and role-scoped cash dashboard snapshots across all four operator modules.

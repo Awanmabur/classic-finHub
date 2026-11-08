@@ -70,6 +70,19 @@ async function main(){
  const limited={...tenant,enabledModules:['reports','forex'],subscription:{...tenant.subscription,modules:['reports','forex']}};
  const unavailable=await reports.generate(conn,limited,actor,'banking',range);assert.equal(unavailable.sourceAvailable,false);assert.deepEqual(unavailable.postedCash,[]);
  assert.match(reports.csv(banking),/Net cash movement minor units/);assert.match(reports.csv(banking),/9007199254740993/);
+ // Owner viewing scopes carry ObjectIds; role-assigned scopes can be strings.
+ // Both must render the approval summary and exclude the other branch.
+ const approvals=require('../src/tenant/reporting/adapters/approvals');
+ await core.approvalRequestModel(conn).collection.insertMany([
+  {_id:oid(),branchId,createdAt:event,category:'operational',status:'approved',note:'PRIVATE-APPROVAL-NOTE'},
+  {_id:oid(),branchId:otherBranch,createdAt:event,category:'operational',status:'approved'}
+ ]);
+ for(const selected of [branchId,String(branchId)]){
+  const summary=await approvals.rows({conn,dateRange,scope:{branchId:selected}});
+  assert.equal(summary.length,1);assert.equal(summary[0].count,1);
+  assert(!JSON.stringify(summary).includes('PRIVATE-APPROVAL-NOTE'));
+ }
+ assert.equal((await approvals.rows({conn,dateRange,scope:{}}))[0].count,2);
  console.log('PASS: Posted report cash impacts include exact collected fees, reversals and historical event dates; exclude bank/wallet assets, other operators/branches/tenants and unavailable sources; legacy MoMo never double counts funded records.');
 }
 main().catch(error=>{console.error('Reporting cash integration FAILED:',error.stack||error.message);process.exitCode=1;}).finally(async()=>{

@@ -9,7 +9,7 @@ The tenant workspace follows the approved `index.html` design. Its navigation di
 - Platform administrators publish versioned plans with modules, prices, quotas and higher-priced SMS-assisted tiers; provision tenants; and manage manual subscription grants.
 - Mobile money cash-in/out uses configured wallet and payment-account defaults. Wallets provides account setup, reviewed opening evidence, funding transfers, fee policy and reconciliation.
 - Banking, forex, money transfers and expenses use independently reviewed manual postings, exact currency amounts, balanced journals, immutable source records and controlled corrections.
-- Money transfer tellers type sender and receiver details directly. Each transfer retains those details through reviewed collection, PIN verification and same-branch cash payout; saved contacts are optional.
+- Money transfer tellers type sender and receiver details directly. Reviewed collection generates a PIN and queues receiver SMS when configured; new payouts match the PIN and sender phone in the same branch. Saved contacts are optional.
 - Tenant Workspace checks actual branch assignments, independent reviewers, funds accounts, verified cash shifts and subscribed operation prerequisites, and links to current review queues.
 - Customers, accounts, branches, staff, notifications, reports, analytics and audit views follow subscription, role and branch permissions. Reporting filters and controlled exports remain available.
 - Onboarding appointments support scheduling, rescheduling, cancellation and completion with an audited decision history.
@@ -21,6 +21,8 @@ Manual books and dated SMS/count/statement observations do not execute a provide
 Use the [end-to-end operations manual](docs/OPERATIONS_MANUAL.md) for platform onboarding, plan configuration, tenant setup, every operating module, reviews, reports, daily closing and incident procedures. Download the [PDF](docs/operations/OPERATIONS_MANUAL.pdf) or [editable Word copy](docs/operations/OPERATIONS_MANUAL.docx).
 
 Start with the [launch status](docs/LAUNCH_STATUS.md) and follow the [production runbook](docs/LAUNCH_RUNBOOK.md) in order. It covers service credentials, HTTPS, database roles, immutable images, migrations, initial administrator setup, backups/restore, workers, monitoring, smoke checks and rollback.
+
+For first setup, use the [MongoDB Atlas and service-key checklist](docs/DEPLOYMENT_SETUP.md). It explains which credentials to create, where they belong, and which optional keys can stay blank.
 
 The application includes a read-only production probe:
 
@@ -64,12 +66,12 @@ Use protected environment files and distinct service identities; never commit ke
 ## Guides and maintenance
 
 - [Manual funds, wallets and branch views](docs/MANUAL_FUNDS_AND_UI.md)
+- [Customers and internal accounts](docs/CUSTOMERS_AND_ACCOUNTS.md)
 - [Tenant workspace configuration](docs/TENANT_WORKSPACE_CONFIGURATION.md)
 - [Plans and Android SMS capture](docs/SMS_AND_PLAN_CONFIGURATION.md)
 - [Android relay setup](tools/android-sms-relay/README.md)
 - [Launch UI and navigation](docs/LAUNCH_UI.md)
 - [Verified dead-code removal manifest](docs/DEAD_CODE_CLEANUP.md)
 - [Current review register](docs/PROJECT_REVIEW.md)
-- [Historical release README](docs/history/README_PRE_1_24.md)
 
 The active entrypoints are `src/server.js`, `src/app.js`, the mounted public/platform/tenant routers and the separately supervised workers. The root `index.html` is retained as the approved design reference and stylesheet-generation fixture.

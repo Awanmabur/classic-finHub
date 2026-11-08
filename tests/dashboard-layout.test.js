@@ -57,3 +57,15 @@ test('tenant header groups branch/currency and receipt/transaction controls with
   assert.equal((html.match(/id="currencySelect"/g)||[]).length,1);
   assert(header.indexOf('class="headerScope"')<header.indexOf('id="pageTitle"'));
 });
+
+test('changing header currency preserves report filters and resets pagination',async()=>{
+  const html=await render({context:'tenant',currentPath:'/tenant/dashboard',view:'../tenant/dashboard/index',tenant:{slug:'layout-test',name:'Layout test'},menu:[],data:{},
+    branchViewReturnTo:'/tenant/dashboard?from=2026-11-01&to=2026-11-08&status=posted&network=MTN&network=Airtel&q=%22%3E%3Cscript%3E&currency=USD&page=3&cursor=old&_csrf=old'});
+  const form=html.match(/<form[^>]*data-dashboard-currency-form>([\s\S]*?)<\/form>/)[1];
+  for(const [key,value] of [['from','2026-11-01'],['to','2026-11-08'],['status','posted']])assert(form.includes(`name="${key}" value="${value}"`));
+  assert.equal((form.match(/name="network"/g)||[]).length,2);
+  assert.match(form,/value="USD" selected/);
+  assert.match(form,/name="q" value="&#34;&gt;&lt;script&gt;"/);
+  assert.doesNotMatch(form,/name="(?:page|cursor|_csrf)"/);
+  assert.equal((form.match(/name="currency"/g)||[]).length,1);
+});

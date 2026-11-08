@@ -10,7 +10,7 @@ const {reserveUsage}=require('../../platform/services/commercial.service');
 const mobile=require('./mobileMoney.service');
 const OID=/^[a-f\d]{24}$/i;
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const {forexCurrencies:DECIMALS}=require('../../config/currencies');
+const {forexCurrencies:DECIMALS,currencyCodes}=require('../../config/currencies');
 const RATE_SCALE=100000000n;
 const SYSTEM_ACTOR='000000000000000000000000';
 function fail(message,status=400){const e=new Error(message);e.status=status;return e;}
@@ -134,6 +134,15 @@ function equivalent(existing,actor,branchId,v){return String(existing.createdBy)
  (existing.operation||'quote')===(v.operation||'quote')&&require('./operationCapture.service').equivalent('forex',existing.capture,v.capture)&&
  String(existing.rateId)===v.rateId&&existing.customerLabel===v.customerLabel&&existing.note===v.note&&
  existing.sourceMinor.toString()===v.sourceMinor.toString()&&existing.validMinutes===v.validMinutes;}
+function quoteEconomics(input,rate){
+ if(['buy','sell'].includes(input.operation)&&(!currencyCodes.includes(rate.fromCurrency)||!currencyCodes.includes(rate.toCurrency)))throw fail('Buy and sell operations require currencies supported by the funds books',409);
+ const sourceMinor=minor(input.amount,rate.fromCurrency);
+ const targetMinor=converted(sourceMinor,rate.fromCurrency,rate.toCurrency,rateScaled(rate.rateDecimal));
+ const proposedFee=require('./operationCapture.service').commissionMinor(input.capture,rate.toCurrency);
+ if(proposedFee>targetMinor)throw fail('Commission / fee cannot exceed the quoted settlement amount');
+ if(input.operation==='buy'&&proposedFee===targetMinor)throw fail('Commission must leave a positive customer settlement amount');
+ return {sourceMinor,targetMinor};
+}
 async function createQuote(conn,tenant,actor,input){
  moduleAccess(tenant,actor,'forex.quotes.create');if(!operator(actor))throw fail('Quote creation role required',403);
  const v=quoteInput(input),branchId=String((await require('./transactionBranch.service').resolveTransactionBranch(conn,actor,input))._id);await ensureTenantIndexes(conn);
@@ -148,10 +157,7 @@ async function createQuote(conn,tenant,actor,input){
   const rate=await Rate.findOneAndUpdate({_id:v.rateId,branchId,status:'active',expiresAt:{$gt:new Date(now.getTime()+v.validMinutes*60000)}},
    {$inc:{revision:1}},{session,new:true});
   if(!rate)throw fail('The approved rate is unavailable or expires before this quote',409);
-  const sourceMinor=minor(v.amount,rate.fromCurrency);
-  const targetMinor=converted(sourceMinor,rate.fromCurrency,rate.toCurrency,rateScaled(rate.rateDecimal));
-  const proposedFee=require('./operationCapture.service').commissionMinor(v.capture,rate.toCurrency);
-  if(proposedFee>targetMinor)throw fail('Commission / fee cannot exceed the quoted settlement amount');
+  const {sourceMinor,targetMinor}=quoteEconomics(v,rate);
   const branch=await branchModel(conn).findOneAndUpdate({_id:branchId,status:'active'},{$inc:{revision:1}},{session,new:true});
   if(!branch)throw fail('Assigned branch is unavailable',409);
   enabledPair(branch,rate.fromCurrency,rate.toCurrency);
@@ -210,7 +216,7 @@ async function rateReviewQueue(conn,tenant,actor){
 }
 async function listQuotes(conn,tenant,actor,{status=null,cursor=null}={}){
  moduleAccess(tenant,actor,'forex.view');
- if(status&&!['quoted','approved_pending_execution','rejected','cancelled','expired'].includes(status))throw fail('Invalid quote status');
+ if(status&&!['quoted','approved_pending_execution','posted_manual','rejected','cancelled','expired'].includes(status))throw fail('Invalid quote status');
  const position=mobile.decodeCursor(cursor),query={...quoteScope(actor),...(status?{status}:{})};
  if(position)query.$or=[{createdAt:{$lt:position.at}},{createdAt:position.at,_id:{$lt:id(position.id)}}];
  const found=await forexQuoteModel(conn).find(query).sort({createdAt:-1,_id:-1}).limit(41).lean();
@@ -256,4 +262,4 @@ async function reportRows({conn,filters,scope}){
 const unavailable=require('../../utils/unavailableOperation');
 const buy=()=>unavailable('forex currency purchase');const sell=()=>unavailable('forex currency sale');
 module.exports={fail,id,text,currency,rateScaled,minor,converted,amountLabel,enabledRate,moduleAccess,operator,reviewer,branchScope,quoteScope,branchFor,
- rateInput,quoteInput,proposeRate,decideRate,createQuote,decideQuote,cancelQuote,listRates,rateReviewQueue,listQuotes,detail,quoteReviewQueue,expireDue,reportRows,buy,sell};
+ rateInput,quoteInput,quoteEconomics,proposeRate,decideRate,createQuote,decideQuote,cancelQuote,listRates,rateReviewQueue,listQuotes,detail,quoteReviewQueue,expireDue,reportRows,buy,sell};

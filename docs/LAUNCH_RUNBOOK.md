@@ -145,7 +145,7 @@ On the actual HTTPS domain verify secure cookies, MFA and role restrictions; rea
 For transfer SMS, use an authorized controlled receiver number and real provider
 configuration. Post a reviewed collection, confirm the encrypted queue's provider
 acceptance and actual handset receipt, then check the new PIN with the sender
-phone and complete the independent same-branch payout procedure. Verify a retry
+phone at the selected different receiving branch and complete its independently reviewed payout procedure. Confirm each branch journal balances and the corresponding interbranch dues are recorded; test historical same-branch transfers separately. Verify a retry
 does not create another financial posting. Investigate uncertain provider outcomes
 before retrying a message. Keep SMS providers disabled on restored/rehearsal data.
 

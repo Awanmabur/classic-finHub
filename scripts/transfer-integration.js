@@ -31,14 +31,15 @@ async function main(){
   for(let i=0;i<2;i++){
    const slug=slugs[i],conn=getTenantConnection(slug);await ensureTenantIndexes(conn);
    const branch=await branchModel(conn).create({name:'Scratch Branch',code:'scratch',currency:'UGX',createdBy:ownerId,updatedBy:ownerId});
+   const destinationBranch=await branchModel(conn).create({name:'Scratch Receiving Branch',code:'receiving',currency:'UGX',createdBy:ownerId,updatedBy:ownerId});
    const tenant=await Tenant.create({name:`Transfer Scratch ${i}`,slug,dbName:`classicfin_tenant_${slug.replace(/-/g,'_')}_db`,
     email:`transfer-${i}-${nonce}@example.invalid`,owner:'Scratch Owner',plan:'modular',status:'active',setupStatus:'complete',
-    seatsReserved:1,branchCount:1,enabledModules:[],subscription:{planCode:'modular',planVersion:1,planName:snapshot.name,
+    seatsReserved:1,branchCount:2,enabledModules:[],subscription:{planCode:'modular',planVersion:1,planName:snapshot.name,
     currency:'USD',priceMonthlyMinor:0,priceYearlyMinor:0,modules:[],limits:snapshot.limits,generation:1,status:'granted',
     periodStart:early,periodEnd:later,source:'manual_admin_grant'},
     moduleGrants:i===0?[{moduleKey:'money_transfer',status:'granted',generation:1,periodStart:early,periodEnd:later,
-     currency:'USD',priceMonthlyMinor:8900,limits:{users:5,branches:1,recordsPerMonth:3}}]:[]});
-   tenants.push({tenant,conn,branch});
+     currency:'USD',priceMonthlyMinor:8900,limits:{users:5,branches:3,recordsPerMonth:3}}]:[]});
+   tenants.push({tenant,conn,branch,destinationBranch});
   }
   const [a,b]=tenants;
   const operator={id:ownerId,role:'Money Transfer Operator',permissions:permissionsFor('Money Transfer Operator'),
@@ -51,8 +52,12 @@ async function main(){
    fullName:'Sender Scratch',phone:'+256700123456',country:'UG'});
   const beneficiary=await svc.addContact(a.conn,a.tenant,operator,{kind:'beneficiary',branchId:String(a.branch._id),
    fullName:'Recipient Scratch',phone:'+256701234567',country:'UG'});
-  const input=()=>({branchId:String(a.branch._id),senderId:String(sender._id),beneficiaryId:String(beneficiary._id),
+  const input=()=>({branchId:String(a.branch._id),destinationBranchId:String(a.destinationBranch._id),senderId:String(sender._id),beneficiaryId:String(beneficiary._id),
    amount:'20000',fee:'100',currency:'UGX',validDays:'2',senderDocument:'SENDER-DOC',receiverDocument:'RECEIVER-DOC',transferMethod:'Mobile Money',purpose:'Family support',exchangeRate:'3700.50',idempotencyKey:crypto.randomUUID()});
+  const beforeInvalidOrders=await transferOrderModel(a.conn).countDocuments(),beforeInvalidAudits=await auditEventModel(a.conn).countDocuments();
+  await assert.rejects(svc.createRequest(a.conn,a.tenant,operator,{...input(),destinationBranchId:undefined}),{status:400},'saved-contact requests require an explicit receiving branch');
+  await assert.rejects(svc.createRequest(a.conn,a.tenant,operator,{...input(),destinationBranchId:String(a.branch._id)}),{status:400},'saved-contact requests cannot be sent to the operating branch');
+  assert.equal(await transferOrderModel(a.conn).countDocuments(),beforeInvalidOrders);assert.equal(await auditEventModel(a.conn).countDocuments(),beforeInvalidAudits);
   const firstInput=input(),first=await svc.createRequest(a.conn,a.tenant,operator,firstInput);
   assert.equal(first.order.status,'requested');assert.equal(first.order.capture.purpose,'Family support');assert.equal(first.order.capture.exchangeRate,'3700.5');assert(!first.duplicate);
   await assert.rejects(svc.createRequest(a.conn,a.tenant,operator,{...firstInput,purpose:'Changed purpose'}),e=>e.status===409);
@@ -100,13 +105,16 @@ async function main(){
   // while retaining the same branch, fresh authorization and atomic audit fences.
   await Tenant.updateOne({_id:a.tenant._id},{$set:{'moduleGrants.0.limits.recordsPerMonth':10}});
   const walkInBranch=await branchModel(a.conn).create({name:'Walk-in Branch',code:'walkin',currency:'UGX',createdBy:ownerId,updatedBy:ownerId});
+  await Tenant.updateOne({_id:a.tenant._id},{$inc:{branchCount:1}});
   await User.updateOne({_id:operator.id},{$set:{branchId:walkInBranch._id},$inc:{authVersion:1}});
   const teller={...operator,branchId:String(walkInBranch._id),authVersion:1};
-  const typedInput=()=>({senderName:'Walk-in Sender',senderPhone:'+256 700 111 222',senderCountry:'UG',
+  const typedInput=()=>({destinationBranchId:String(a.destinationBranch._id),senderName:'Walk-in Sender',senderPhone:'+256 700 111 222',senderCountry:'UG',
    receiverName:'Direct Receiver',receiverPhone:'+254712345678',receiverCountry:'KE',senderDocument:'WALKIN-S',receiverDocument:'DIRECT-R',
    amount:'15000',fee:'200',currency:'UGX',validDays:'7',transferMethod:'Cash',purpose:'Typed teller entry',idempotencyKey:crypto.randomUUID()});
+  await assert.rejects(svc.createRequest(a.conn,a.tenant,teller,{...typedInput(),destinationBranchId:''}),{status:400},'typed requests require an explicit receiving branch');
+  await assert.rejects(svc.createRequest(a.conn,a.tenant,teller,{...typedInput(),destinationBranchId:String(walkInBranch._id)}),{status:400},'typed requests cannot be sent to the operating branch');
   const directInput=typedInput(),direct=await svc.createRequest(a.conn,a.tenant,teller,directInput);
-  assert.equal(direct.order.partyEntryMode,'typed');assert.equal(String(direct.order.branchId),teller.branchId);
+  assert.equal(direct.order.partyEntryMode,'typed');assert.equal(String(direct.order.branchId),teller.branchId);assert.equal(String(direct.order.destinationBranchId),String(a.destinationBranch._id));
   assert.equal(direct.order.sender.contactId,null);assert.equal(direct.order.beneficiary.contactId,null);
   assert.equal(direct.order.sender.name,'Walk-in Sender');assert.equal(direct.order.sender.phone,'+256700111222');
   assert.equal(direct.order.beneficiary.name,'Direct Receiver');assert.equal(direct.order.beneficiary.country,'KE');
@@ -144,7 +152,7 @@ async function main(){
    await Order.collection.updateOne({_id:direct.order._id},{$set:{status}});
    assert.equal((await svc.list(a.conn,a.tenant,teller,{status})).items.length,1);
   }
-  console.log('PASS: legacy contact compatibility; direct teller identities without saved contacts; immutable normalized snapshots; exact typed retries; changed party/capture conflicts; no mixed modes; branch and tenant isolation; fresh account authorization; atomic quota, audit and authorization rollback; manual status filters; independent approval, expiry and reports');
+  console.log('PASS: saved-contact compatibility; explicit different receiving branch required in both entry modes; direct teller identities without saved contacts; immutable normalized snapshots; exact typed retries; changed party/capture conflicts; no mixed modes; branch and tenant isolation; fresh account authorization; atomic quota, audit and authorization rollback; manual status filters; independent approval, expiry and reports');
  }finally{
   for(const slug of slugs){if(!/^probe-transfer-[ab]-[a-f0-9]{16}$/.test(slug))throw Error('Unsafe scratch cleanup slug');
    try{await getTenantConnection(slug).db.dropDatabase();}catch(e){console.error('Scratch cleanup failed:',e.message);process.exitCode=1;}}

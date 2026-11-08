@@ -49,7 +49,7 @@ test('transfer and banking accept exact USD/SSP amounts while rejecting unsuppor
   assert.equal(reference.currency,currency);
   const bank=banking.validateRequest({kind:'deposit_request',sourceId:branchId,currency,amount:'12.34',note:'Recorded customer instruction',idempotencyKey:crypto.randomUUID()});
   assert.equal(bank.amountMinor,1234);
-  const request=transfer.validateOrder({senderId:branchId,beneficiaryId:otherId,currency,amount:'12.34',fee:'0.01',idempotencyKey:crypto.randomUUID()});
+  const request=transfer.validateOrder({destinationBranchId:otherId,senderId:branchId,beneficiaryId:otherId,currency,amount:'12.34',fee:'0.01',idempotencyKey:crypto.randomUUID()});
   assert.equal(request.amountMinor,1234);assert.equal(request.feeMinor,1);
   for(const key of ['money_transfer','banking','forex'])assert.equal(workspace.filtersFor(key,{currency}).currency,currency);
  }

@@ -12,7 +12,7 @@
   <% if(context==='tenant'){ %><link rel="stylesheet" href="/tenant/workspace/theme.css?v=<%= assetVersion %>" /><link rel="stylesheet" href="/css/approved-tenant.css?v=<%= assetVersion %>" /><% } else { %><link rel="stylesheet" href="/css/dashboard.css?v=<%= assetVersion %>" /><% } %>
   <link rel="stylesheet" href="/css/dashboard-layout.css?v=<%= assetVersion %>" />
 </head>
-<body<% if(context==='tenant'){ %> data-phone-prefix="<%= typeof phoneDefaults==='undefined'?'+211':phoneDefaults.dialCode %>"<% } %>>
+<body<% if(context==='tenant'){ %> data-workspace="tenant" data-offline-scope="<%= typeof offlineIdentity!=='undefined'?offlineIdentity.scope:'' %>" data-offline-branch="<%= typeof offlineIdentity!=='undefined'?offlineIdentity.branchId:'' %>" data-offline-view="<%= typeof offlineIdentity!=='undefined'?offlineIdentity.viewBranchId:'' %>" data-offline-cacheable="<%= typeof offlineCacheable!=='undefined'&&offlineCacheable?'true':'false' %>" data-phone-prefix="<%= typeof phoneDefaults==='undefined'?'+211':phoneDefaults.dialCode %>"<% } %>>
   <% const visiblePaths = new Set(menu.flatMap(group => [...group.items.map(item => item.href),...(group.paths||[])]));
      const can = permission => user.permissions.includes('*') || user.permissions.includes(permission);
      const quickActions = context === 'tenant' ? [
@@ -41,8 +41,10 @@
        {kind:'cash_shift_open',href:'/tenant/cash/shifts',label:'Open day',description:'Opening drawer by currency',icon:'fa-cash-register',permission:'treasury.view',roles:['Tenant Owner','Mobile Money Operator','Money Transfer Operator','Banking Operator','Forex Operator']}
      ].filter(option=>visiblePaths.has(option.href) && can(option.permission) && (!option.roles || option.roles.includes(user.role))) : [];
      const assignedOperationBranch = typeof operationBranch === 'undefined' ? null : operationBranch;
-     const selectedDisplayCurrency=data.workspaceSnapshot?.selectedCurrency||data.filters?.currency||data.selectedCurrency||data.entryCurrency||assignedOperationBranch?.currency||'UGX';
      const dashboardCurrencies=typeof currencyOptions==='undefined'?[{code:'UGX',label:'UGX'},{code:'USD',label:'USD'},{code:'SSP',label:'SSP'},{code:'KES',label:'KSH'}]:currencyOptions;
+     const currencyFilterParams=new URLSearchParams(typeof branchViewReturnTo==='string'?branchViewReturnTo.split('?')[1]||'':'');
+     const requestedDisplayCurrency=currencyFilterParams.get('currency');
+     const selectedDisplayCurrency=data.workspaceSnapshot?.selectedCurrency||data.filters?.currency||data.selectedCurrency||data.entryCurrency||(dashboardCurrencies.some(option=>option.code===requestedDisplayCurrency)?requestedDisplayCurrency:null)||assignedOperationBranch?.currency||'UGX';
      const pageContent = include(view, { data, money, tenant, user, context, quickActions, visiblePaths, transactionOptions });
      const hasPageSearch = pageContent.includes('data-search-row'); %>
   <a class="skip-link" href="#workspaceContent">Skip to workspace</a>
@@ -56,7 +58,7 @@
           <% if(context==='tenant'){ %>
             <div class="headerScope">
               <% if(typeof canViewBranches!=='undefined'&&canViewBranches){ %><form method="post" action="/tenant/view-branch" class="ctrl" data-branch-view-form><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="returnTo" value="<%= branchViewReturnTo %>"><select name="viewBranchId" aria-label="Viewing branch"><option value="all" <%= viewBranchId==='all'?'selected':'' %>>All branches</option><% viewBranches.forEach(branch=>{ %><option value="<%= branch._id %>" <%= String(branch._id)===viewBranchId?'selected':'' %>><%= branch.name %></option><% }) %></select><noscript><button class="btn" type="submit">View branch</button></noscript></form><% } %>
-              <form method="get" action="<%= currentPath %>" class="ctrl" data-dashboard-currency-form><select id="currencySelect" name="currency" aria-label="Display currency"><% dashboardCurrencies.forEach(option=>{ %><option value="<%= option.code %>" <%= selectedDisplayCurrency===option.code?'selected':'' %>><%= option.label %></option><% }) %></select><button type="submit" hidden>Apply currency</button><noscript><button type="submit" class="btn">Apply currency</button></noscript></form>
+              <form method="get" action="<%= currentPath %>" class="ctrl" data-dashboard-currency-form><% for(const [key,value] of currencyFilterParams){if(!['currency','page','cursor','_csrf'].includes(key)){ %><input type="hidden" name="<%= key %>" value="<%= value %>"><% }} %><select id="currencySelect" name="currency" aria-label="Display currency"><% dashboardCurrencies.forEach(option=>{ %><option value="<%= option.code %>" <%= selectedDisplayCurrency===option.code?'selected':'' %>><%= option.label %></option><% }) %></select><button type="submit" hidden>Apply currency</button><noscript><button type="submit" class="btn">Apply currency</button></noscript></form>
             </div>
             <div class="ctrl headerSearch"><input id="search" type="search" aria-label="Search loaded records" placeholder="Search name, phone, ref, PIN, account…"></div>
             <div class="headerButtons">
@@ -80,7 +82,7 @@
   </div></div>
   <div class="menuOverlay" id="menuOverlay"></div>
   <% if(transactionOptions.length){ %><%- include('../partials/transaction-modal', {transactionOptions,visiblePaths}) %><% } %>
-  <% if(context === 'tenant'){ %><script src="/js/offline.js?v=<%= assetVersion %>" defer></script><script src="/js/customer-accounts.js?v=<%= assetVersion %>" defer></script><% } %>
+  <% if(context === 'tenant'){ %><%- include('../partials/offline-queue') %><script src="/js/offline.js?v=<%= assetVersion %>" defer></script><script src="/js/customer-accounts.js?v=<%= assetVersion %>" defer></script><% } %>
   <script src="/js/dashboard.js?v=<%= assetVersion %>" defer></script>
 </body>
 </html>

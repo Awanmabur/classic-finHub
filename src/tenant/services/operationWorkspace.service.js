@@ -120,7 +120,7 @@ async function formContext(conn,tenant,actor,key,operationBranch,input={}){
   const [list,queue]=await Promise.all([
    service.list(conn,tenant,actor),
    ['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(actor.role)&&hasPermission(actor,'money_transfer.review')?service.reviewQueue(conn,tenant,actor):[]]);
-  return {...common,destinationBranches:(await require('./branch.service').list(tenant)).filter(branch=>branch.status==='active'),countryOptions:require('../../utils/selectionOptions').countryOptions(),records:list,queue,canCreate:['Tenant Owner','Money Transfer Operator'].includes(actor.role)&&hasPermission(actor,'money_transfer.create'),
+  return {...common,destinationBranches:(await require('./branch.service').list(tenant)).filter(branch=>branch.status==='active'&&String(branch._id)!==selectedId),countryOptions:require('../../utils/selectionOptions').countryOptions(),records:list,queue,canCreate:['Tenant Owner','Money Transfer Operator'].includes(actor.role)&&hasPermission(actor,'money_transfer.create'),
    canReview:['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(actor.role)&&hasPermission(actor,'money_transfer.review')};
  }
  if(key==='banking'){

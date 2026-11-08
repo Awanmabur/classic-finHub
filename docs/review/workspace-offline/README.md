@@ -1,0 +1,12 @@
+# Workspace offline and operating rules — 1.26.0
+
+Verified on 8 November 2026 against disposable loopback MongoDB replica-set databases. These checks do not activate Atlas, Google Drive, email or Yoola, and do not certify a live deployment.
+
+- Full release gate passed: unit/HTTP coverage, registered MongoDB financial/authorization integrations, Android relay tests and npm audit (zero vulnerabilities). The final unit/HTTP run passed 472 tests; static validation passed 523 JS/EJS files.
+- [Browser results](browser.json): identical sidebar/page/form structure online and offline; the existing transaction modal; encrypted snapshots and pending entries; public resources only in CacheStorage; Clear creates separate references; repeated sync creates one server record; normal online submission; internet failure while `navigator.onLine` remains true; cross-tab logout and explicit server-denial locking. Nine layouts at 1440, 390 and 320 px had no horizontal overflow, duplicate IDs, browser exceptions or failed static resources.
+- [Container results](container.json): Node 22.23.4, non-root, read-only filesystem, dropped capabilities, readiness/public HTTP 200 and protected-route redirect/no-store/noindex. Real branch-transfer and password/MFA integration checks also passed inside this image.
+- Operational choices were checked in Chromium: banking account/channel compatibility; funding account/branch/currency/operator compatibility; forex currency switching, commission totals and approved-rate expiry; preserved report filters when changing display currency.
+
+Reproduce the optional browser check from the repository root with `npm run offline:browser`. It needs Playwright, `/usr/bin/chromium` and the local unauthenticated replica set on port 27018. It creates random test databases, temporary accounts and temporary archive storage, then removes those fixtures. Set `BROWSER_REVIEW_DIR` to choose the output directory; the default is under `/tmp`. Playwright is optional development tooling, absent from the production image.
+
+Compare [connected transfer](online-transfer-390.png) with [the same offline transfer](offline-transfer-390.png), and inspect the [saved dashboard](offline-dashboard-1440.png). Offline financial entries remain pending until the server validates them; payout, approval, fund setup and configuration changes require a connection. See [the procedure](../../TENANT_BACKUPS_AND_OFFLINE.md).

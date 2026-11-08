@@ -1,0 +1,7 @@
+<dialog id="offlineQueueDialog" class="transactionDialog" aria-labelledby="offlineQueueTitle">
+ <div class="sheet">
+  <header class="sheetHead"><div><b id="offlineQueueTitle">Pending sync</b><br><span>Entries saved on this device</span></div><button class="btn btnIcon" type="button" data-offline-close aria-label="Close pending sync">×</button></header>
+  <div class="sheetBody"><p class="tiny">Pending entries have not changed balances or issued a final receipt. Reconnect to submit them for the usual validation and review.</p><p id="offlineStatus" role="status" aria-live="polite"></p><div id="offlineQueue" class="offlineQueue"></div></div>
+  <footer class="sheetFoot"><button class="btn btnPrimary" id="offlineSync" type="button">Sync now</button><button class="btn" type="button" data-offline-close>Close</button></footer>
+ </div>
+</dialog>

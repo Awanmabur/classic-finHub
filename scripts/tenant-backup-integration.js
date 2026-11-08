@@ -38,7 +38,12 @@ async function main(){
  async function opened(kind,code,balance,operatorId){const account=await treasury.createAccount(conn,tenant,owner,{kind,code,name:code,currency:'UGX',isDefault:true,...(operatorId?{operatorId}:{})});const observation=await treasury.requestObservation(conn,tenant,teller,account._id,{kind:'opening',actualBalance:balance,observedAt:new Date(Date.now()-1000).toISOString(),evidenceType:kind==='cash'?'cash_count':'transfer_register',evidenceReference:'OPEN-'+code,note:'Actual original balances independently counted before operating',idempotencyKey:crypto.randomUUID()});await treasury.reviewObservation(conn,tenant,owner,observation.observation._id,decision);return account;}
  const drawer=await opened('cash','TELLER_CASH','1000000',teller.id),payable=await opened('transfer_clearing','TRANSFER_PAYABLE','0');
  const shift=await cash.open(conn,tenant,teller,{openingCash:'1000000'});await cash.decideOpening(conn,tenant,owner,shift._id,decision);
- async function request(){const source=(await transfer.createRequest(conn,tenant,teller,{senderName:'Typed Sender',senderPhone:'+256700111222',senderCountry:'UG',receiverName:'Typed Receiver',receiverPhone:'+256700123456',receiverCountry:'UG',currency:'UGX',amount:'10000',fee:'100',transferMethod:'Cash',idempotencyKey:crypto.randomUUID()})).order;const collection=(await funded.request(conn,tenant,teller,'money_transfer',source._id,input())).execution;return {source,collection};}
+ async function request(){
+  // Backup fixtures retain historical same-branch transfers. Seed the persisted legacy format,
+  // because new transfer creation requires a separate receiving branch.
+  const source=await core.transferOrderModel(conn).create({reference:'TR-LEGACY-'+crypto.randomBytes(12).toString('hex'),idempotencyKey:crypto.randomUUID(),branchId:branch._id,createdBy:teller.id,partyEntryMode:'typed',sender:{name:'Typed Sender',phone:'+256700111222',country:'UG'},beneficiary:{name:'Typed Receiver',phone:'+256700123456',country:'UG'},capture:{method:'Cash'},currency:'UGX',amountMinor:'10000',feeMinor:'100',validDays:7,expiresAt:new Date(Date.now()+7*86400000),status:'requested'});
+  const collection=(await funded.request(conn,tenant,teller,'money_transfer',source._id,input())).execution;return {source,collection};
+ }
 
  const view=await backup.overview(conn,tenant,owner),policy=view.policy;assert.equal(policy.scopeKey,'tenant');assert.equal(view.googleConfigured,true);
  await assert.rejects(backup.overview(conn,tenant,teller),{status:403});

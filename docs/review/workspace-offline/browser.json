@@ -1,0 +1,102 @@
+{
+  "browserErrors": [],
+  "resourceErrors": [],
+  "layouts": [
+    {
+      "name": "online-transfer",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "online-transfer",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "online-transfer",
+      "width": 320,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "offline-same-transfer",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "offline-same-transfer",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "offline-same-transfer",
+      "width": 320,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "offline-dashboard",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "offline-dashboard",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "offline-dashboard",
+      "width": 320,
+      "overflow": false,
+      "duplicateIds": []
+    }
+  ],
+  "cash": {
+    "independentCurrencyShifts": true
+  },
+  "offline": {
+    "sameWorkspaceDOM": true,
+    "sameTransactionModal": true,
+    "encryptedSnapshotsAndDrafts": true,
+    "publicAssetsOnly": {
+      "classicfin-offline-9dc8762ec215": [
+        "/offline.html",
+        "/js/offline.js",
+        "/js/dashboard.js",
+        "/js/customer-accounts.js",
+        "/js/expenses.js",
+        "/js/workspace.js",
+        "/css/dashboard-layout.css",
+        "/css/workspace.css",
+        "/css/approved-tenant.css",
+        "/images/classicfinhub-logo.png",
+        "/vendor/inter/inter.css",
+        "/vendor/fontawesome/css/all.min.css",
+        "/vendor/fontawesome/webfonts/fa-brands-400.woff2",
+        "/vendor/fontawesome/webfonts/fa-regular-400.woff2",
+        "/vendor/fontawesome/webfonts/fa-solid-900.woff2",
+        "/vendor/fontawesome/webfonts/fa-v4compatibility.woff2",
+        "/vendor/inter/files/inter-latin-wght-normal.woff2",
+        "/vendor/inter/files/inter-cyrillic-wght-normal.woff2",
+        "/vendor/inter/files/inter-cyrillic-ext-wght-normal.woff2",
+        "/vendor/inter/files/inter-latin-ext-wght-normal.woff2",
+        "/vendor/inter/files/inter-greek-wght-normal.woff2",
+        "/vendor/inter/files/inter-greek-ext-wght-normal.woff2",
+        "/vendor/inter/files/inter-vietnamese-wght-normal.woff2"
+      ]
+    },
+    "exactlyOneRecordPerKey": true,
+    "clearKeepsSeparateReferences": true,
+    "onlineSubmission": true,
+    "networkOutageWithOnlineFlag": true,
+    "crossTabLogoutLocks": true,
+    "serverDenialLocks": true,
+    "logoutLocks": true
+  }
+}

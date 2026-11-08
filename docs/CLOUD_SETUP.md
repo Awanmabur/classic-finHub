@@ -19,7 +19,7 @@ From the checkout, start the development database:
 env -u DOCKER_HOST -u DOCKER_CONTEXT -u DOCKER_TLS -u DOCKER_TLS_VERIFY -u DOCKER_CERT_PATH npm run db:dev:up
 ```
 
-In each of three separate service sessions, load the prepared development
+In each of four separate service sessions, load the prepared development
 settings, then start the relevant process:
 
 ```bash
@@ -29,6 +29,7 @@ npm start
 # Separate sessions, with the same settings:
 # npm run worker
 # npm run worker:notifications
+# npm run worker:tenant-backups
 ```
 
 The generated private session and MFA keys live outside the checkout in

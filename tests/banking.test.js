@@ -49,6 +49,34 @@ test('Banking request validates operation, branch-independent exact amounts, dis
   {kind:'withdrawal_request',destinationId:oid()},{validDays:0},{validDays:31}])assert.throws(()=>bank.validateRequest({...v,...change}),e=>e.status===400);
  assert.throws(()=>bank.validateRequest({...v,kind:'transfer_request'}),e=>e.status===400);
 });
+test('banking channels follow the actual customer-account or settlement movement',()=>{
+ const value=request();
+ for(const kind of ['deposit_request','withdrawal_request']){
+  assert.equal(bank.validateRequest({...value,kind}).capture.paymentChannel,'Cash');
+  assert.equal(bank.validateRequest({...value,kind,paymentChannel:''}).capture.paymentChannel,'Cash');
+  for(const paymentChannel of ['Cash','Bank settlement','Mobile money'])assert.equal(bank.validateRequest({...value,kind,paymentChannel}).capture.paymentChannel,paymentChannel);
+  assert.throws(()=>bank.validateRequest({...value,kind,paymentChannel:'Internal transfer'}),{status:400});
+ }
+ const transfer={...value,kind:'transfer_request',destinationId:oid()};
+ for(const paymentChannel of [undefined,'','Internal transfer'])assert.equal(bank.validateRequest({...transfer,paymentChannel}).capture.paymentChannel,'Internal transfer');
+ for(const paymentChannel of ['Cash','Bank settlement','Mobile money'])assert.throws(()=>bank.validateRequest({...transfer,paymentChannel}),{status:400});
+});
+test('identical historical account transfers remain idempotent without rewriting their old channel',()=>{
+ const value=bank.validateRequest({...request(),kind:'transfer_request',destinationId:oid()});
+ const stored={createdBy:operatorId,branchId:branch,source:{referenceId:value.sourceId},destination:{referenceId:value.destinationId},
+  kind:value.kind,currency:value.currency,amountMinor:String(value.amountMinor),note:value.note,validDays:value.validDays,capture:{...value.capture,paymentChannel:'Cash'}};
+ const original=JSON.stringify(stored);
+ assert(bank.sameRequest(stored,actor('Banking Operator'),branch,value));
+ assert(!bank.sameRequest(stored,actor('Banking Operator'),branch,{...value,capture:{...value.capture,externalReference:'DIFFERENT-REFERENCE'}}));
+ assert(!bank.sameRequest(stored,actor('Banking Operator'),branch,{...value,amountMinor:value.amountMinor+1}));
+ assert.equal(JSON.stringify(stored),original);
+});
+test('posted banking history remains branch and originator scoped when filtering',async()=>{
+ let query;const conn={models:{BankingRequestV1:{find(value){query=value;return{sort(){return this;},limit(){return this;},lean:async()=>[]};}}}};
+ await bank.list(conn,tenant(),actor('Banking Operator'),{status:'posted_manual'});
+ assert.deepEqual(query,{branchId:branch,createdBy:operatorId,status:'posted_manual'});
+ await assert.rejects(bank.list(null,tenant(),actor('Banking Operator'),{status:'not_a_state'}),{status:400});
+});
 test('Banking role scope and branch assignment must not be supplied by client',()=>{
  assert(BRANCH_INVITABLE.includes('Banking Operator'));assert(!requiresTenantMfa('Banking Operator'));
  const operator=actor('Banking Operator');

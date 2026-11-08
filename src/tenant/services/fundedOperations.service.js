@@ -85,11 +85,11 @@ async function transaction(conn,work){const session=await conn.startSession();tr
 function formInput(input={}){if(!UUID.test(String(input.idempotencyKey||'')))throw fail('Reload the form to obtain a new request reference');return {idempotencyKey:input.idempotencyKey,evidenceReference:text(input.evidenceReference,'counted cash / statement reference',5,120),note:text(input.note,'manual movement explanation',12,400)};}
 function paymentKind(method){return ['Cash','Cash payment'].includes(method)?'cash':['Mobile Money','Mobile money','Wallet Balance','Wallet balance'].includes(method)?'wallet':'bank';}
 function arrayAccounts(result){return Array.isArray(result)?result:(result?.accounts||result?.items||[]);}
-async function availableAccounts(conn,tenant,actor,branchId,type){return arrayAccounts(await treasury().findOperatingAccounts(conn,tenant,actor,{branchId:String(branchId),moduleKey:type}));}
+function selectableAccount(account,actorId){return account.status==='active'&&account.openingBalanceMinor!=null&&Boolean(account.openingApprovedAt)&&account.reconciliationState==='matched'&&
+ (!account.operatorId||String(account.operatorId)===String(actorId))&&(account.kind!=='cash'||String(account.operatorId||'')===String(actorId));}
+async function availableAccounts(conn,tenant,actor,branchId,type){return arrayAccounts(await treasury().findOperatingAccounts(conn,tenant,actor,{branchId:String(branchId),moduleKey:type})).filter(account=>selectableAccount(account,actor.id));}
 function choose(accounts,submitted,{kind,currency,actorId,label}){
- const candidates=accounts.filter(account=>account.kind===kind&&account.currency===currency&&account.status==='active'&&
-  (!account.operatorId||String(account.operatorId)===String(actorId))&&
-  (kind!=='cash'||String(account.operatorId||'')===String(actorId)));
+ const candidates=accounts.filter(account=>account.kind===kind&&account.currency===currency&&selectableAccount(account,actorId));
  let selected;
  if(submitted)selected=candidates.find(account=>String(account._id)===id(submitted));
  else{

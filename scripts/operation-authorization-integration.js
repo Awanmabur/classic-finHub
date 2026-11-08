@@ -64,7 +64,7 @@ async function main(){
  const rateInput={fromCurrency:'UGX',toCurrency:'USD',rateDecimal:'0.000275',validHours:24,note};
  const rate=await forex.proposeRate(conn,tenant,makers[2],rateInput);await forex.decideRate(conn,tenant,reviewers[2],String(rate._id),{decision:'approve',note});
  const pendingRate=await forex.proposeRate(conn,tenant,makers[2],{...rateInput,rateDecimal:'0.000280'});
- const transferInput=()=>({senderId:String(sender._id),beneficiaryId:String(receiver._id),currency:'UGX',amount:'20000',fee:'100',validDays:7,idempotencyKey:crypto.randomUUID()});
+ const transferInput=()=>({destinationBranchId:String(second._id),senderId:String(sender._id),beneficiaryId:String(receiver._id),currency:'UGX',amount:'20000',fee:'100',validDays:7,idempotencyKey:crypto.randomUUID()});
  const bankInput=()=>({kind:'transfer_request',sourceId:String(source._id),destinationId:String(destination._id),currency:'UGX',amount:'20000',validDays:7,note,idempotencyKey:crypto.randomUUID()});
  const quoteInput=()=>({rateId:String(rate._id),customerLabel:'Quote probe',amount:'20000',validMinutes:15,note,idempotencyKey:crypto.randomUUID(),operation:'buy'});
  const transferRecord=(await transfer.createRequest(conn,tenant,makers[0],transferInput())).order;

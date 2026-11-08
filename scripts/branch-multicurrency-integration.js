@@ -23,6 +23,7 @@ async function main(){
  const snapshot=commerce.planSnapshot({...commerce.asPlanVersion(require('../src/data/store').plans.find(plan=>plan.code==='enterprise')),status:'published'});
  const tenant=await Tenant.create({name:'Branch multicurrency proof',slug,dbName:conn.name,owner:'Owner',email:`${nonce}@example.invalid`,plan:snapshot.planCode,status:'active',setupStatus:'complete',enabledModules:snapshot.modules,seatsReserved:2,branchCount:0,subscription:{...snapshot,status:'granted',source:'manual_admin_grant',generation:1,periodStart:new Date(Date.now()-60000),periodEnd:new Date(Date.now()+86400000)}});
  const branch=await branches.create(tenant,owner,{name:'Main multicurrency',code:'main',currency:'UGX'});owner.branchId=reviewer.branchId=String(branch._id);await core.tenantUserModel(conn).updateOne({_id:reviewer.id},{$set:{branchId:reviewer.branchId}});
+ const destinationBranch=await branches.create(tenant,owner,{name:'Receiving multicurrency',code:'receiving',currency:'UGX'});
  assert.deepEqual(policy.supported(branch),['UGX','USD','SSP','KES']);
  const opened=new Map();
  const ugx=await cash.open(conn,tenant,owner,{currency:'UGX',openingCash:'500'});opened.set('UGX',ugx);
@@ -45,7 +46,7 @@ async function main(){
    if(unchanged.recordCount===0)assert.equal(String(unchanged.provisionalMovementMinor),'0','another currency cash drawer must remain unchanged');
   }
   const reference=await banking.createReference(conn,tenant,owner,{customerName:'Multicurrency customer',institutionName:'Recorded bank',last4:'1234',currency});assert.equal(reference.currency,currency);
-  const instruction=await transfer.createRequest(conn,tenant,owner,{senderName:'Typed sender',senderPhone:'+256700111222',senderCountry:'UG',receiverName:'Typed receiver',receiverPhone:'+256700123456',receiverCountry:'UG',currency,amount,fee:'0',idempotencyKey:crypto.randomUUID()});assert.equal(instruction.order.currency,currency);
+  const instruction=await transfer.createRequest(conn,tenant,owner,{destinationBranchId:String(destinationBranch._id),senderName:'Typed sender',senderPhone:'+256700111222',senderCountry:'UG',receiverName:'Typed receiver',receiverPhone:'+256700123456',receiverCountry:'UG',currency,amount,fee:'0',idempotencyKey:crypto.randomUUID()});assert.equal(instruction.order.currency,currency);
   for(const [suffix,category] of [['CASH','asset'],['CONTROL','liability']])await ledger.createAccount(conn,{branchId:owner.branchId,actorId:owner.id,code:`MULTI_${currency}_${suffix}`,name:`${currency} recorded ${suffix}`,category,currency});
   const journal=await ledger.postJournal(conn,{branchId:owner.branchId,actorId:owner.id,currency,sourceType:'banking',sourceRef:`multicurrency:${nonce}:${currency}`,lines:[{accountCode:`MULTI_${currency}_CASH`,side:'debit',amountMinor:'1234'},{accountCode:`MULTI_${currency}_CONTROL`,side:'credit',amountMinor:'1234'}]});assert((await ledger.inspectJournal(conn,journal.journal._id)).valid);
   assert((await ledger.trialBalance(conn,{branchId:owner.branchId,currency})).balanced);

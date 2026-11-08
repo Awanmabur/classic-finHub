@@ -33,6 +33,7 @@ async function main(){
  const snapshot=commerce.planSnapshot({...commerce.asPlanVersion(require('../src/data/store').plans.find(plan=>plan.code==='enterprise')),status:'published'});
  const tenant=await Tenant.create({name:'Currency integration',slug:slugs[0],dbName:conn.name,owner:'Scratch owner',email:`${nonce}@example.invalid`,plan:'enterprise',status:'active',setupStatus:'complete',enabledModules:snapshot.modules,seatsReserved:2,branchCount:0,
   subscription:{...snapshot,status:'granted',source:'manual_admin_grant',generation:1,periodStart:new Date(Date.now()-60000),periodEnd:new Date(Date.now()+86400000)}});
+ const destinationBranch=await branches.create(tenant,owner,{name:'Multicurrency receiving branch',code:'receiving',currency:'UGX'});
  const createdBranches=[];
  for(const currency of ['USD','SSP']){
   const branch=await branches.create(tenant,owner,{name:`${currency} branch`,code:currency.toLowerCase()+'-branch',currency});createdBranches.push(branch);
@@ -74,7 +75,7 @@ async function main(){
   assert.equal(String(request.order.amountMinor),'1234');
   const contacts=[];
   for(const [kind,phone] of [['sender','+256700123456'],['beneficiary','+256700123457']])contacts.push(await transfer.addContact(conn,tenant,owner,{kind,phone,country:'UG',fullName:`Currency ${kind}`}));
-  const order=await transfer.createRequest(conn,tenant,owner,{senderId:String(contacts[0]._id),beneficiaryId:String(contacts[1]._id),currency,amount:'12.34',fee:'0.01',idempotencyKey:crypto.randomUUID()});
+  const order=await transfer.createRequest(conn,tenant,owner,{destinationBranchId:String(destinationBranch._id),senderId:String(contacts[0]._id),beneficiaryId:String(contacts[1]._id),currency,amount:'12.34',fee:'0.01',idempotencyKey:crypto.randomUUID()});
   assert.equal(String(order.order.amountMinor),'1234');assert.equal(String(order.order.feeMinor),'1');
   const rate=await forex.proposeRate(conn,tenant,owner,{fromCurrency:currency,toCurrency:currency==='USD'?'SSP':'USD',rateDecimal:'2.5',validHours:2,note:'Internal indicative rate for exact currency test'});
   await forex.decideRate(conn,tenant,reviewer,String(rate._id),{decision:'approve',note:'Independent indicative rate source checked for test'});

@@ -12,15 +12,15 @@ const {sourcesFor}=require('../src/tenant/services/operationsReports.service');
 const {tenantMenu}=require('../src/services/menu.service');
 const {entitledTenant}=require('./helpers/entitlement');
 const id=()=>String(new mongoose.Types.ObjectId());
-const branch=id(),operatorId=id(),reviewerId=id();
+const branch=id(),destinationBranch=id(),operatorId=id(),reviewerId=id();
 const now=Date.now();
 const grant=key=>({moduleKey:key,status:'granted',generation:1,periodStart:new Date(now-86400000),periodEnd:new Date(now+86400000),
  currency:'USD',priceMonthlyMinor:8900,limits:{users:6,branches:2,recordsPerMonth:key==='money_transfer'?12:0}});
 const tenant=()=>{const t=entitledTenant({plan:'modular',enabledModules:[]});return {...t,status:'active',moduleGrants:[grant('money_transfer'),grant('reports')]};};
 const actor=(role,mods=['money_transfer'])=>({id:operatorId,role,branchId:branch,permissions:permissionsFor(role),allowedModules:mods});
 const validContact={kind:'sender',fullName:'Test Customer',country:'UG',phone:'+256700123456'};
-const validOrder=()=>({senderId:id(),beneficiaryId:id(),currency:'UGX',amount:'10000',fee:'200',validDays:'7',idempotencyKey:crypto.randomUUID()});
-const typedOrder=()=>({senderName:'Ada Sender',senderPhone:'+256 700 123 456',senderCountry:'UG',receiverName:'Grace Receiver',receiverPhone:'+254712345678',receiverCountry:'KE',currency:'UGX',amount:'10000',fee:'200',validDays:'7',idempotencyKey:crypto.randomUUID()});
+const validOrder=()=>({destinationBranchId:destinationBranch,senderId:id(),beneficiaryId:id(),currency:'UGX',amount:'10000',fee:'200',validDays:'7',idempotencyKey:crypto.randomUUID()});
+const typedOrder=()=>({destinationBranchId:destinationBranch,senderName:'Ada Sender',senderPhone:'+256 700 123 456',senderCountry:'UG',receiverName:'Grace Receiver',receiverPhone:'+254712345678',receiverCountry:'KE',currency:'UGX',amount:'10000',fee:'200',validDays:'7',idempotencyKey:crypto.randomUUID()});
 test('Money Transfer activates as independent internal module but does not enable payout endpoints',()=>{
  const item=require('../src/data/store').modules.find(m=>m.key==='money_transfer');
  assert.equal(item.runtimeStatus,'recording_only');
@@ -41,8 +41,9 @@ test('Transfer contact validation requires proper sender/beneficiary and interna
 });
 test('Transfer order validates exact currency minor units and bounded idempotency',()=>{
  const v=validOrder(),parsed=service.validateOrder(v);
+ assert.equal(service.validateOrder({...v,destinationBranchId:destinationBranch.toUpperCase()}).destinationBranchId,destinationBranch);
  assert.equal(parsed.amountMinor,10000);assert.equal(parsed.feeMinor,200);assert.equal(parsed.validDays,7);
- for(const value of [{currency:'JPY'},{currency:'UGX',amount:'1.25'},{amount:'0'},{fee:'20000'},
+ for(const value of [{destinationBranchId:null},{destinationBranchId:''},{destinationBranchId:'invalid'},{currency:'JPY'},{currency:'UGX',amount:'1.25'},{amount:'0'},{fee:'20000'},
   {validDays:31},{validDays:0},{idempotencyKey:'test'},{senderId:'invalid'},{beneficiaryId:v.senderId}])
   assert.throws(()=>service.validateOrder({...v,...value}),e=>e.status===400);
  assert.throws(()=>service.validateOrder({...v,amount:'100000000000'}),e=>e.status===400);
@@ -116,7 +117,7 @@ test('Contact edits cannot mutate immutable historical snapshots and indexes are
 });
 test('Transfer dashboard allows typed names with no saved contacts and escapes immutable record names',async()=>{
  const t=tenant(),user=actor('Money Transfer Operator'),fakeId=id(),contact={_id:fakeId,branchId:branch,fullName:'<script>alert(1)</script>',country:'UG',kind:'sender'};
- const data={records:{items:[{_id:fakeId,reference:'TR-SAFE',sender:{name:contact.fullName},beneficiary:{name:'Receiver'},status:'requested',amountMinor:'10000',currency:'UGX'}],nextCursor:null},queue:[],branches:[{_id:branch,name:'Main',currency:'UGX',status:'active'}],
+ const data={records:{items:[{_id:fakeId,reference:'TR-SAFE',sender:{name:contact.fullName},beneficiary:{name:'Receiver'},status:'requested',amountMinor:'10000',currency:'UGX'}],nextCursor:null},queue:[],branches:[{_id:branch,name:'Main',currency:'UGX',status:'active'},{_id:destinationBranch,name:'Receiving office',currency:'UGX',status:'active'}],
   selectedBranchId:branch,contacts:[],countryOptions:require('../src/utils/selectionOptions').countryOptions(),
   canCreate:true,canReview:false,idempotencyKey:crypto.randomUUID(),formatMoneyMinor:(v,c)=>`${c} ${v}`};
  const page=path.join(__dirname,'../src/views/tenant/money-transfer/index.ejs');
@@ -124,6 +125,8 @@ test('Transfer dashboard allows typed names with no saved contacts and escapes i
  assert.match(html,/name="idempotencyKey"/);assert.match(html,/name="_csrf" value="token"/);
  assert.match(html,/Save transfer &amp; continue/);assert.doesNotMatch(html,/name="decision" value="approve"/);
  for(const name of ['senderName','senderPhone','senderCountry','receiverName','receiverPhone','receiverCountry'])assert.match(html,new RegExp('name="'+name+'"'));
+ assert.doesNotMatch(html,/<select[^>]+name="fromBranchId"/);assert.match(html,/<input[^>]+value="Main"[^>]+readonly/);
+ assert.match(html,new RegExp('<option value="'+destinationBranch+'"'));assert.doesNotMatch(html,new RegExp('<option value="'+branch+'"'));
  assert.match(html,/name="destinationBranchId"/);assert.match(html,/data-phone-prefix="\+211"/);assert.doesNotMatch(html,/<select[^>]+name="(?:senderCountry|receiverCountry)"/);
  assert.doesNotMatch(html,/name="(?:senderId|beneficiaryId)"|Select sender|Select beneficiary|before submitting a request|type="submit" disabled/);
  assert.doesNotMatch(html,/<script>alert/);assert.match(html,/&lt;script&gt;/);

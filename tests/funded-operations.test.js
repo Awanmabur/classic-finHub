@@ -22,7 +22,7 @@ test('manual remittance collection records transfer payable and explicit fee inc
 });
 test('manual settlement account selection rejects ambiguous network defaults and other operators balances',()=>{
  const options={kind:'wallet',currency:'UGX',actorId:ids[0]};
- const shared={_id:ids[1],kind:'wallet',currency:'UGX',status:'active',operatorId:null,selectionKey:'shared:MTN'};
+ const shared={_id:ids[1],kind:'wallet',currency:'UGX',status:'active',openingBalanceMinor:'0',openingApprovedAt:new Date(),reconciliationState:'matched',operatorId:null,selectionKey:'shared:MTN'};
  const assigned={...shared,_id:ids[2],operatorId:ids[0],selectionKey:'assigned:MTN'};
  const otherNetwork={...assigned,_id:ids[3],selectionKey:'assigned:Airtel'};
  const otherOperator={...assigned,_id:ids[4],operatorId:ids[5],selectionKey:'other:MTN'};

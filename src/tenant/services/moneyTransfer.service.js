@@ -13,7 +13,7 @@ const {reserveUsage}=require('../../platform/services/commercial.service');
 const OID=/^[a-f0-9]{24}$/i;
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function fail(message,status=400){const e=new Error(message);e.status=status;return e;}
-function id(value){if(!OID.test(String(value||'')))throw fail('Invalid record identifier');return String(value);}
+function id(value){if(!OID.test(String(value||'')))throw fail('Invalid record identifier');return String(value).toLowerCase();}
 function text(value,label,min,max){if(typeof value!=='string'||value.trim().length<min||value.trim().length>max)throw fail(`Invalid ${label}`);return value.trim();}
 function requireModuleAccess(tenant,actor,permission){
  if(!hasModuleForUser(tenant,actor,'money_transfer')||!hasPermission(actor,permission))throw fail('Money Transfer module or role permission is unavailable',403);
@@ -55,6 +55,8 @@ function typedParty(name,phone,country,label){
  return {contactId:null,name:cleanName,phone:rawPhone,country:code};
 }
 function validateOrder(input){
+ if(!input?.destinationBranchId)throw fail('Select a receiving branch');
+ const destinationBranchId=id(input.destinationBranchId);
  const hasTyped=['senderName','senderPhone','senderCountry','receiverName','receiverPhone','receiverCountry'].some(key=>Object.hasOwn(input||{},key));
  const hasIds=['senderId','beneficiaryId'].some(key=>input?.[key]!==undefined&&input[key]!==null&&input[key]!=='');
  if(hasTyped&&hasIds)throw fail('Enter sender and receiver details directly, or use saved contact identifiers; do not combine both');
@@ -69,7 +71,7 @@ function validateOrder(input){
  if(!UUID.test(idempotencyKey))throw fail('Invalid form reference. Reload the page.');
  const validDays=Number(input?.validDays??7);
  if(!Number.isSafeInteger(validDays)||validDays<1||validDays>30)throw fail('Validity must be 1–30 days');
- return {partyEntryMode:hasTyped?'typed':'saved_contact',senderId,beneficiaryId,sender,beneficiary,currency,amountMinor,feeMinor,idempotencyKey,validDays,destinationBranchId:input.destinationBranchId?id(input.destinationBranchId):null,capture:require('./operationCapture.service').parse('money_transfer',input)};
+ return {partyEntryMode:hasTyped?'typed':'saved_contact',senderId,beneficiaryId,sender,beneficiary,currency,amountMinor,feeMinor,idempotencyKey,validDays,destinationBranchId,capture:require('./operationCapture.service').parse('money_transfer',input)};
 }
 function snapshot(contact){return {contactId:contact._id,name:contact.fullName,phone:contact.phone,country:contact.country};}
 function maskPhone(phone){return String(phone).replace(/.(?=.{4})/g,'•');}
@@ -138,7 +140,8 @@ async function listContacts(conn,tenant,actor,{kind=null,branchId=null}={}){
 async function createRequest(conn,tenant,actor,input){
  requireModuleAccess(tenant,actor,'money_transfer.create');if(!writeActor(actor))throw fail('Only transfer operators can request transfers',403);
  const v=validateOrder(input),branchId=String((await require('./transactionBranch.service').resolveTransactionBranch(conn,actor,input))._id);
- if(input.fromBranchId&&String(input.fromBranchId)!==branchId)throw fail('From branch must match your assigned operating branch',403);
+ if(input.fromBranchId&&id(input.fromBranchId)!==branchId)throw fail('From branch must match your assigned operating branch',403);
+ if(v.destinationBranchId===branchId)throw fail('Choose a receiving branch different from your operating branch');
  await ensureTenantIndexes(conn);
  const Model=transferOrderModel(conn);
  const existing=await Model.findOne({idempotencyKey:v.idempotencyKey}).lean();
@@ -149,8 +152,8 @@ async function createRequest(conn,tenant,actor,input){
   const branch=await branchModel(conn).findOneAndUpdate({_id:branchId,status:'active'},{$inc:{revision:1}},{session:tx,new:true});
   if(!branch)throw fail('Branch is inactive or unavailable',409);
   require('./branchCurrency.service').resolve(branch,v.currency);
-  const destinationBranchId=v.destinationBranchId||branchId;
-  const destination=destinationBranchId===branchId?branch:await branchModel(conn).findOneAndUpdate({_id:destinationBranchId,status:'active'},{$inc:{revision:1}},{session:tx,new:true});
+  const destinationBranchId=v.destinationBranchId;
+  const destination=await branchModel(conn).findOneAndUpdate({_id:destinationBranchId,status:'active'},{$inc:{revision:1}},{session:tx,new:true});
   if(!destination)throw fail('Choose an active receiving branch in this tenant',409);
   require('./branchCurrency.service').resolve(destination,v.currency);
   let sender=v.sender,beneficiary=v.beneficiary;

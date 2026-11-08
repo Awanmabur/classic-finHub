@@ -47,7 +47,7 @@ async function main(){
   const add=(customerName,last4)=>banking.createReference(a.conn,a.tenant,operator,{customerName,institutionName:'Scratch Bank',last4,currency:'UGX',branchId:String(a.branch._id)});
   const source=await add('Customer A','1234'),destination=await add('Customer B','5678');
   const build=()=>({branchId:String(a.branch._id),sourceId:String(source._id),destinationId:String(destination._id),
-   paymentChannel:'Bank settlement',customerPhone:'+256700123456',externalReference:'BANK-SLIP',kind:'transfer_request',amount:'20000',currency:'UGX',note:'Request for a scheduled manual verification before any bank movement',idempotencyKey:crypto.randomUUID()});
+   paymentChannel:'Internal transfer',customerPhone:'+256700123456',externalReference:'BANK-SLIP',kind:'transfer_request',amount:'20000',currency:'UGX',note:'Request for a scheduled manual verification before any bank movement',idempotencyKey:crypto.randomUUID()});
   const input=build(),created=await banking.createRequest(a.conn,a.tenant,operator,input);
   assert.equal(created.order.status,'requested');assert.equal(created.order.capture.externalReference,'BANK-SLIP');assert(!created.duplicate);
   await assert.rejects(banking.createRequest(a.conn,a.tenant,operator,{...input,externalReference:'CHANGED'}),e=>e.status===409);

@@ -35,7 +35,7 @@ async function main(){
  async function opened(kind,code,balance,operatorId){const account=await treasury.createAccount(conn,tenant,owner,{kind,code,name:code,currency:'UGX',isDefault:true,...(operatorId?{operatorId}:{})});const observation=await treasury.requestObservation(conn,tenant,teller,account._id,{kind:'opening',actualBalance:balance,observedAt:new Date(Date.now()-1000).toISOString(),evidenceType:kind==='cash'?'cash_count':'transfer_register',evidenceReference:'OPEN-'+code,note:'Actual original balances independently counted before operating',idempotencyKey:crypto.randomUUID()});await treasury.reviewObservation(conn,tenant,owner,observation.observation._id,decision);return account;}
  const drawer=await opened('cash','TELLER_CASH','1000000',teller.id),payable=await opened('transfer_clearing','TRANSFER_PAYABLE','0');
  const shift=await cash.open(conn,tenant,teller,{openingCash:'1000000'});await cash.decideOpening(conn,tenant,owner,shift._id,decision);
- async function request(){const source=(await transfer.createRequest(conn,tenant,teller,{senderName:'Typed Sender',senderPhone:'+256700111222',senderCountry:'UG',receiverName:'Typed Receiver',receiverPhone:'+256700123456',receiverCountry:'UG',currency:'UGX',amount:'10000',fee:'100',transferMethod:'Cash',idempotencyKey:crypto.randomUUID()})).order;const collection=(await funded.request(conn,tenant,teller,'money_transfer',source._id,input())).execution;return {source,collection};}
+
 
  const destination=await core.branchModel(conn).create({name:'Receiving branch',code:'receiving',currency:'UGX',currencies:['UGX','SSP'],createdBy:owner.id,updatedBy:owner.id});
  const receivingTeller={...teller,id:oid(),branchId:String(destination._id)},manager={id:oid(),role:'Branch Manager',permissions:permissionsFor('Branch Manager'),allowedModules:['money_transfer'],branchId:String(destination._id),authVersion:0};
@@ -48,10 +48,14 @@ async function main(){
  await transfer.createRequest(conn,tenant,teller,{senderName:'Reserved Sender',senderPhone:'+211921234567',receiverName:'Reserved Receiver',receiverPhone:'+211922345678',currency:'SSP',amount:'5.00',fee:'0',destinationBranchId:String(reservedDestination._id),idempotencyKey:crypto.randomUUID()});
  const branchService=require('../src/tenant/services/branch.service');await assert.rejects(branchService.update(tenant,owner,String(reservedDestination._id),{name:reservedDestination.name,address:'',currencies:['UGX'],currenciesConfigured:'true'}),{status:409},'incoming uncollected orders retain their destination currency');await assert.rejects(branchService.archive(tenant,owner,String(reservedDestination._id)),{status:409},'incoming transfer history prevents destination archival');
  const sourceInput={senderName:'Sending Customer',senderPhone:'+211921234567',receiverName:'Receiving Customer',receiverPhone:'+211922345678',currency:'UGX',amount:'10000',fee:'100',transferMethod:'Cash',destinationBranchId:String(destination._id),idempotencyKey:crypto.randomUUID()};
+ const beforeInvalid=await core.transferOrderModel(conn).countDocuments();
+ for(const destinationBranchId of [undefined,'',String(branch._id),String(branch._id).toUpperCase()])await assert.rejects(transfer.createRequest(conn,tenant,teller,{...sourceInput,destinationBranchId}),{status:400},'every new transfer requires a different receiving branch');
+ await assert.rejects(transfer.createRequest(conn,tenant,teller,{...sourceInput,fromBranchId:String(destination._id)}),{status:403},'the source branch cannot be changed by the form');
+ assert.equal(await core.transferOrderModel(conn).countDocuments(),beforeInvalid,'invalid routes create no order or economic obligation');
  await assert.rejects(transfer.createRequest(conn,tenant,teller,{...sourceInput,destinationBranchId:oid()}),{status:409});
  await assert.rejects(transfer.createRequest(conn,tenant,teller,{...sourceInput,branchId:String(destination._id)}),{status:403});
  const source=(await transfer.createRequest(conn,tenant,teller,sourceInput)).order;assert((await transfer.createRequest(conn,tenant,teller,sourceInput)).duplicate);
- await assert.rejects(transfer.createRequest(conn,tenant,teller,{...sourceInput,destinationBranchId:String(branch._id)}),{status:409});
+ await assert.rejects(transfer.createRequest(conn,tenant,teller,{...sourceInput,destinationBranchId:String(branch._id)}),{status:400});
  const collection=(await funded.request(conn,tenant,teller,'money_transfer',source._id,input())).execution;await funded.review(conn,tenant,owner,collection._id,decision);
  const secret=await funded.revealPin(conn,tenant,teller,collection._id);assert.equal((await fundedModels.models(conn).execution.findById(collection._id)).pinLookupVersion,'sender_destination_v3');
  await assert.rejects(funded.checkPayout(conn,tenant,teller,{pin:secret.pin,senderPhone:sourceInput.senderPhone}),{status:404},'sending branch cannot pay a destination-bound PIN');

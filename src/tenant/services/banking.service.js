@@ -53,13 +53,20 @@ function validateRequest(input){
  if(!Number.isSafeInteger(validDays)||validDays<1||validDays>30)throw fail('Request expiry must be 1–30 days');
  const idempotencyKey=text(input?.idempotencyKey,'form reference',36,36);
  if(!UUID.test(idempotencyKey))throw fail('Reload the form to generate a valid reference');
- return {kind,sourceId,destinationId,currency,amountMinor,note,idempotencyKey,validDays,capture:require('./operationCapture.service').parse('banking',input)};
+ const capture=require('./operationCapture.service').parse('banking',{...input,
+  paymentChannel:input?.paymentChannel===undefined||input.paymentChannel===''?(kind==='transfer_request'?'Internal transfer':'Cash'):input.paymentChannel});
+ if(kind==='transfer_request'&&capture.paymentChannel!=='Internal transfer')throw fail('Account transfers use the Internal transfer payment channel');
+ if(kind!=='transfer_request'&&capture.paymentChannel==='Internal transfer')throw fail('Choose Cash, Bank settlement or Mobile money for a deposit or withdrawal');
+ return {kind,sourceId,destinationId,currency,amountMinor,note,idempotencyKey,validDays,capture};
 }
 function snapshot(reference){return {referenceId:reference._id,referenceType:reference.referenceType||'bank_reference',customerName:reference.customerName,institutionName:reference.institutionName,last4:reference.last4};}
 function sameRequest(existing,actor,branchId,v){return String(existing.createdBy)===String(actor.id)&&String(existing.branchId)===branchId&&
  existing.kind===v.kind&&require('../customerAccounts/bankingBridge').matches(existing.source,v.sourceId)&&
  (v.destinationId?require('../customerAccounts/bankingBridge').matches(existing.destination,v.destinationId):!existing.destination)&&
- require('./operationCapture.service').equivalent('banking',existing.capture,v.capture)&&existing.currency===v.currency&&String(existing.amountMinor)===String(v.amountMinor)&&existing.note===v.note&&existing.validDays===v.validDays;}
+ // Historical transfer instructions could retain a cash/bank channel even
+ // though account transfers only move customer liabilities. Preserve that
+ // snapshot while allowing an otherwise identical retry to return its record.
+ require('./operationCapture.service').equivalent('banking',existing.kind==='transfer_request'?{...existing.capture,paymentChannel:'Internal transfer'}:existing.capture,v.capture)&&existing.currency===v.currency&&String(existing.amountMinor)===String(v.amountMinor)&&existing.note===v.note&&existing.validDays===v.validDays;}
 async function createReference(conn,tenant,actor,input){
  moduleAccess(tenant,actor,'banking.accounts.manage');if(!operator(actor))throw fail('Bank references may only be maintained by banking staff',403);
  const value=validateReference(input),branchId=String((await require('./transactionBranch.service').resolveTransactionBranch(conn,actor,input))._id);
@@ -169,7 +176,7 @@ async function cancel(conn,tenant,actor,requestId,input){
 }
 async function list(conn,tenant,actor,{status=null,cursor=null}={}){
  moduleAccess(tenant,actor,'banking.view');
- if(status&&!['requested','approved_pending_bank','rejected','cancelled','expired'].includes(status))throw fail('Invalid request status');
+ if(status&&!['requested','approved_pending_bank','posted_manual','rejected','cancelled','expired'].includes(status))throw fail('Invalid request status');
  const position=mobile.decodeCursor(cursor);const query={...requestScope(actor),...(status?{status}:{})};
  if(position)query.$or=[{createdAt:{$lt:position.at}},{createdAt:position.at,_id:{$lt:id(position.id)}}];
  const found=await bankingRequestModel(conn).find(query).sort({createdAt:-1,_id:-1}).limit(41).lean();

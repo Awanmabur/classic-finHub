@@ -10,7 +10,7 @@
   event.preventDefault();lastTrigger=edit;const dialog=document.getElementById('workspaceRemoteEditor');if(!dialog){window.location.assign(edit.href);return;}
   edit.setAttribute('aria-busy','true');
   try{
-   const response=await fetch(edit.href,{headers:{Accept:'text/html'},credentials:'same-origin'});
+   const response=await (window.ClassicFinOffline?.pageResponse||fetch)(edit.href,{headers:{Accept:'text/html'},credentials:'same-origin'});
    if(!response.ok||response.redirected)throw new Error('Unable to open the form');
    const parsed=new DOMParser().parseFromString(await response.text(),'text/html'),form=parsed.querySelector('[data-workspace-form]');
    if(!form)throw new Error('Form unavailable');

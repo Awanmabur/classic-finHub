@@ -244,35 +244,102 @@
         const amount=operationMinor(form.elements.namedItem('amount').value,scale),fee=operationMinor(form.elements.namedItem('fee').value,scale);
         form.querySelector('[data-transfer-total]').textContent=amount!==null&&amount>0n&&fee!==null?operationAmount(amount+fee,form.dataset.currency):'—';
       };
-      form.addEventListener('input',update);form.addEventListener('change',update);update();
+      form.addEventListener('input',update);form.addEventListener('change',update);form.addEventListener('reset',()=>queueMicrotask(update));update();
     }
     if(form.querySelector('[data-account-currency]')){
-      const currency=form.elements.namedItem('currency');
-      const update=()=>{form.querySelectorAll('select:has([data-account-currency])').forEach(select=>{for(const option of select.options){if(!option.value)continue;option.hidden=option.dataset.accountCurrency!==currency.value;option.disabled=option.hidden;}if(select.selectedOptions[0]?.disabled)select.value='';});};
-      currency?.addEventListener('change',update);if(currency)update();
+      const currency=form.elements.namedItem('currency'),kind=form.elements.namedItem('kind'),source=form.elements.namedItem('sourceId'),destination=form.elements.namedItem('destinationId'),channel=form.elements.namedItem('paymentChannel');
+      const update=()=>{
+        const transfer=kind?.value==='transfer_request';
+        form.querySelectorAll('select:has([data-account-currency])').forEach(select=>{
+          for(const option of select.options){
+            if(!option.value)continue;
+            const sameAccount=select===destination&&Boolean(source?.value)&&option.value===source.value;
+            option.hidden=option.dataset.accountCurrency!==currency.value||sameAccount;option.disabled=option.hidden;
+          }
+          if(select.selectedOptions[0]?.disabled)select.value='';
+        });
+        if(destination){
+          destination.disabled=!transfer;destination.required=transfer;
+          const field=form.querySelector('[data-banking-destination-field]');if(field)field.hidden=!transfer;
+          if(!transfer)destination.value='';
+        }
+        if(channel){
+          for(const option of channel.options){option.hidden=(option.dataset.bankingChannel==='transfer')!==transfer;option.disabled=option.hidden;}
+          if(!channel.value||channel.selectedOptions[0]?.disabled)channel.value=[...channel.options].find(option=>!option.disabled)?.value||'';
+        }
+        const available=source?[...source.options].filter(option=>option.value&&!option.disabled).length:0;
+        const insufficient=available<(transfer?2:1),submit=form.querySelector('[data-banking-submit]'),status=form.querySelector('[data-banking-choices-status]');
+        if(submit)submit.disabled=insufficient;
+        if(status)status.textContent=insufficient?(transfer?'Account transfers need two different accounts in the selected currency.':'No customer account is available in the selected currency.'):'';
+      };
+      currency?.addEventListener('change',update);kind?.addEventListener('change',update);source?.addEventListener('change',update);
+      form.addEventListener('reset',()=>queueMicrotask(update));if(currency)update();
     }
     if(form.matches('[data-forex-form]')){
-      const rate=form.elements.namedItem('rateId');
+      const rate=form.elements.namedItem('rateId'),validity=form.elements.namedItem('validMinutes'),commission=form.elements.namedItem('commission');
+      const fromField=form.querySelector('[data-forex-currency="from"]'),toField=form.querySelector('[data-forex-currency="to"]');
+      const pairOptions=()=>[...rate.options].filter(option=>option.value&&!option.disabled);
+      const filterDestinations=()=>{
+        if(toField?.tagName!=='SELECT')return;
+        for(const option of toField.options){option.hidden=option.value===fromField.value||!pairOptions().some(candidate=>candidate.dataset.from===fromField.value&&candidate.dataset.to===option.value);option.disabled=option.hidden;}
+        if(toField.selectedOptions[0]?.disabled)toField.value=[...toField.options].find(option=>!option.disabled)?.value||'';
+      };
       const update=()=>{
+        const now=Date.now();
+        for(const candidate of rate.options){if(candidate.value&&candidate.dataset.expiresAt){const expiresAt=new Date(candidate.dataset.expiresAt).getTime();candidate.hidden=!Number.isFinite(expiresAt)||expiresAt<=now+5*60000+1000;candidate.disabled=candidate.hidden;}}
+        if(rate.selectedOptions[0]?.disabled)rate.value='';
         const option=rate.selectedOptions[0],from=option?.dataset.from,to=option?.dataset.to;
-        const fromField=form.querySelector('[data-forex-currency="from"]'),toField=form.querySelector('[data-forex-currency="to"]');
         if(from)fromField.value=fromField.tagName==='SELECT'?from:from==='KES'?'KSH':from;
         if(to)toField.value=toField.tagName==='SELECT'?to:to==='KES'?'KSH':to;
+        filterDestinations();
+        if(validity&&option?.dataset.expiresAt){
+          const expiresAt=new Date(option.dataset.expiresAt).getTime(),previous=Number(validity.value)||15;
+          for(const minutes of validity.options){minutes.hidden=!Number.isFinite(expiresAt)||expiresAt<=now+Number(minutes.value)*60000+1000;minutes.disabled=minutes.hidden;}
+          if(!validity.value||validity.selectedOptions[0]?.disabled)validity.value=[...validity.options].filter(minutes=>!minutes.disabled&&Number(minutes.value)<=previous).at(-1)?.value||[...validity.options].find(minutes=>!minutes.disabled)?.value||'';
+        }
+        rate.setCustomValidity(!rate.value||validity&&!validity.value?'Choose an approved rate with enough remaining validity.':'');
         const source=from?operationMinor(form.elements.namedItem('amount').value,from==='UGX'?0:2):null;
         const scaled=option?.dataset.rate?operationMinor(option.dataset.rate,8):null;
         const output=form.querySelector('[data-forex-total]');
+        commission?.setCustomValidity('');
         if(source===null||source<=0n||scaled===null||scaled<=0n||!to){output.textContent='—';return;}
         const numerator=source*scaled*10n**BigInt(to==='UGX'?0:2),denominator=100000000n*10n**BigInt(from==='UGX'?0:2);
-        output.textContent=operationAmount((numerator+denominator/2n)/denominator,to)+' (indicative)';
+        const converted=(numerator+denominator/2n)/denominator,fee=operationMinor(commission?.value||'0',to==='UGX'?0:2),operation=form.elements.namedItem('operation')?.value||'quote';
+        const invalidFee=fee===null||fee>converted||operation==='buy'&&fee===converted;
+        if(commission&&invalidFee)commission.setCustomValidity(fee===null?'Enter a commission in the settlement currency’s precision.':operation==='buy'?'Commission must leave a positive amount for the customer.':'Commission cannot exceed the quoted settlement amount.');
+        if(invalidFee){output.textContent='—';return;}
+        output.textContent=operationAmount(operation==='buy'?converted-fee:operation==='sell'?converted+fee:converted,to)+' (indicative)';
       };
-      form.addEventListener('input',update);rate.addEventListener('change',update);
+      form.addEventListener('input',event=>{if(event.target!==fromField&&event.target!==toField)update();});rate.addEventListener('change',update);
       form.querySelectorAll('select[data-forex-currency]').forEach(select=>select.addEventListener('change',()=>{
+        filterDestinations();
         const from=form.querySelector('[data-forex-currency="from"]').value,to=form.querySelector('[data-forex-currency="to"]').value;
-        const match=[...rate.options].find(option=>option.dataset.from===from&&option.dataset.to===to);rate.value=match?.value||'';update();
-      }));update();
+        const match=pairOptions().find(option=>option.dataset.from===from&&option.dataset.to===to);rate.value=match?.value||'';update();
+      }));
+      form.addEventListener('submit',event=>{update();if(!rate.value||validity&&!validity.value){event.preventDefault();rate.setCustomValidity('Choose an approved rate with enough remaining validity.');rate.reportValidity();}else rate.setCustomValidity('');},{capture:true});
+      form.addEventListener('reset',()=>queueMicrotask(update));update();
     }
   };
   document.querySelectorAll('[data-transfer-form],[data-forex-form],form:has([data-account-currency])').forEach(initialiseOperationForm);
+
+  document.querySelectorAll('[data-wallet-funding-form]').forEach(form=>{
+    const source=form.elements.namedItem('sourceAccountId'),destination=form.elements.namedItem('destinationAccountId'),submit=form.querySelector('[data-funding-submit]'),status=form.querySelector('[data-funding-choices-status]');
+    if(!source||!destination)return;
+    const compatible=(from,to)=>Boolean(from?.value&&to?.value&&from.value!==to.value&&from.dataset.branchId&&from.dataset.currency&&from.dataset.branchId===to.dataset.branchId&&from.dataset.currency===to.dataset.currency&&(!from.dataset.operatorId||!to.dataset.operatorId||from.dataset.operatorId===to.dataset.operatorId));
+    const update=()=>{
+      const selected=source.selectedOptions[0];let available=0;
+      for(const option of destination.options){
+        if(!option.value)continue;
+        option.hidden=Boolean(source.value)&&!compatible(selected,option);option.disabled=option.hidden;
+        if(source.value&&!option.disabled)available++;
+      }
+      if(destination.selectedOptions[0]?.disabled)destination.value='';
+      destination.disabled=!source.value;
+      if(submit)submit.disabled=!compatible(selected,destination.selectedOptions[0]);
+      if(status)status.textContent=!source.value?'Choose a funding source to see compatible destinations.':!available?'No other eligible account uses this source’s branch, currency and operator assignment.':'';
+    };
+    source.addEventListener('change',update);destination.addEventListener('change',update);form.addEventListener('reset',()=>queueMicrotask(update));update();
+  });
 
   // The launcher loads the existing, permission-checked server form. It never
   // recreates financial rules, CSRF tokens or idempotency keys in the browser.
@@ -362,7 +429,7 @@
       try {
         const requestUrl=new URL(operation.page,location.origin),selectedCurrency=document.getElementById('currencySelect')?.value;
         if(selectedCurrency)requestUrl.searchParams.set('currency',selectedCurrency);
-        const response=await fetch(requestUrl,{credentials:'same-origin',headers:{Accept:'text/html'},signal:activeRequest.signal});
+        const response=await (window.ClassicFinOffline?.pageResponse||fetch)(requestUrl,{credentials:'same-origin',headers:{Accept:'text/html'},signal:activeRequest.signal});
         if(version!==requestVersion)return;
         if(!response.ok)throw new Error(await responseMessage(response));
         if(new URL(response.url).pathname!==operation.page)throw new Error('Your session or access has changed. Open the module page to continue.');

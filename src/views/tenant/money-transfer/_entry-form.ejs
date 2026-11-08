@@ -1,16 +1,16 @@
-<% const phoneLocation=typeof phoneDefaults==='undefined'?{country:'SS',dialCode:'+211'}:phoneDefaults; %>
+<% const receivingBranches=(data.destinationBranches||data.branches||[]).filter(branch=>String(branch._id)!==String(currentBranch._id)&&branch.status==='active'); const phoneLocation=typeof phoneDefaults==='undefined'?{country:'SS',dialCode:'+211'}:phoneDefaults; %>
 <input type="hidden" name="senderCountry" value="<%= phoneLocation.country %>"><input type="hidden" name="receiverCountry" value="<%= phoneLocation.country %>">
 <div class="formSection"><div class="formSectionTitle">Sender details</div><div class="row2">
 <label class="field">Sender name<input class="control" name="senderName" required minlength="2" maxlength="120" autocomplete="off" placeholder="Enter sender's full name"></label>
 <label class="field">Sender phone<input class="control" name="senderPhone" type="tel" required maxlength="40" autocomplete="off" placeholder="<%= phoneLocation.dialCode %>…" data-phone-prefix="<%= phoneLocation.dialCode %>"><span class="tiny">Include the international country code.</span></label>
 <label class="field">Sender ID / document no.<input class="control" name="senderDocument" maxlength="80" placeholder="National ID, passport, or optional"></label>
-<label class="field">From branch<select class="control" name="fromBranchId" required><option value="<%= currentBranch._id %>"><%= currentBranch.name %></option></select><span class="tiny">Your operating branch receives the sender’s funds.</span></label>
+<label class="field">From branch<input class="control" value="<%= currentBranch.name %>" readonly aria-readonly="true"><span class="tiny">Your operating branch receives the sender’s funds.</span></label>
 </div></div>
 <div class="formSection"><div class="formSectionTitle">Receiver details</div><div class="row2">
 <label class="field">Receiver name<input class="control" name="receiverName" required minlength="2" maxlength="120" autocomplete="off" placeholder="Enter receiver's full name"></label>
 <label class="field">Receiver phone<input class="control" name="receiverPhone" type="tel" required maxlength="40" autocomplete="off" placeholder="<%= phoneLocation.dialCode %>…" data-phone-prefix="<%= phoneLocation.dialCode %>"><span class="tiny">Include the international country code.</span></label>
 <label class="field">Receiver ID / document no.<input class="control" name="receiverDocument" maxlength="80" placeholder="Optional verification ID"></label>
-<label class="field">To branch<select class="control" name="destinationBranchId" required><option value="">Select receiving branch</option><% (data.destinationBranches||data.branches||[]).forEach(branch=>{ %><option value="<%= branch._id %>" data-currencies="<%= (branch.currencies?.length?branch.currencies:(typeof currencyOptions==='undefined'?[branch.currency]:currencyOptions.map(option=>option.code))).join(',') %>"><%= branch.name %></option><% }) %></select><span class="tiny">The receiver collects from this branch.</span></label>
+<label class="field">To branch<select class="control" name="destinationBranchId" required><option value="">Select receiving branch</option><% receivingBranches.forEach(branch=>{ %><option value="<%= branch._id %>" data-currencies="<%= (branch.currencies?.length?branch.currencies:(typeof currencyOptions==='undefined'?[branch.currency]:currencyOptions.map(option=>option.code))).join(',') %>"><%= branch.name %></option><% }) %></select><span class="tiny"><%= receivingBranches.length?'The receiver collects from this branch.':'Ask your administrator to configure another active receiving branch before sending.' %></span></label>
 </div></div>
 <div class="formSection"><div class="formSectionTitle">Transfer details</div><div class="row2">
 <label class="field">Transfer method<select class="control" name="transferMethod"><% ['Cash','Bank','Mobile Money','Online'].forEach(method=>{ %><option><%= method %></option><% }) %></select></label>

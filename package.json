@@ -1,6 +1,6 @@
 {
   "name": "classicfin-hub",
-  "version": "1.25.1",
+  "version": "1.26.0",
   "private": true,
   "description": "ClassicFin Hub modular multi-tenant financial operations platform",
   "engines": {
@@ -101,7 +101,8 @@
     "branch-transfer:integration": "node scripts/branch-transfer-integration.js",
     "tenant-backup:integration": "node scripts/tenant-backup-integration.js",
     "worker:tenant-backups:ready": "node scripts/tenant-backup-heartbeat.js",
-    "login:integration": "node scripts/login-render-integration.js"
+    "login:integration": "node scripts/login-render-integration.js",
+    "offline:browser": "node tools/browser/offline-workspace.cjs"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

@@ -29,7 +29,7 @@ function recordScope(req){
 
 function renderTenant(req, res, view, pageTitle, pageSub, data) {
   res.render('layouts/dashboard', {
-    context:'tenant', currentPath:tenantNavigationPath(req.baseUrl + req.path), pageTitle, pageSub,
+    context:'tenant', offlineIdentity:require('../services/offlineIdentity')(req), offlineCacheable:req.method==='GET', currentPath:tenantNavigationPath(req.baseUrl + req.path), pageTitle, pageSub,
     tenant:{...req.tenant,name:req.workspaceIdentity?.name||req.tenant.name}, user:req.user, menu:tenantMenu(req.tenant,req.user),
     view:`../tenant/${view}`, data, flash:consumeFlash(req), money, formatUtcDate, amountFromMinor:mobile.fromMinor
   });

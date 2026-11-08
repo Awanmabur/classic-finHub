@@ -37,8 +37,8 @@ function createApp({ sessionStore } = {}) {
       else res.setHeader('Cache-Control','public, max-age=86400');
     }
   }));
-  // A content-addressed service-worker script updates the fixed public shell
-  // when deployed assets change; no private response is part of this cache.
+  // Update the public workspace resources when deployed assets change.
+  // Private snapshots use encrypted IndexedDB, never the service-worker cache.
   app.get('/offline-runtime.js',(req,res)=>{res.setHeader('Cache-Control','no-cache');res.setHeader('Service-Worker-Allowed','/');res.type('application/javascript').send("self.CLASSICFIN_ASSET_VERSION="+JSON.stringify(require('./config/assetVersion'))+";\n"+require('fs').readFileSync(path.join(__dirname,'..','public','offline-sw.js'),'utf8'));});
   // Structured, newline-safe access logs. Never log request query values, bodies,
   // Authorization headers, cookies or user-controlled referrers.

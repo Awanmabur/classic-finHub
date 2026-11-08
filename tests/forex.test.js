@@ -54,6 +54,41 @@ test('Input validation requires valid pair, expiry, idempotency and explanations
  fail(()=>fx.quoteInput({...quote,idempotencyKey:'bad'}),400);
  fail(()=>fx.quoteInput({...quote,customerLabel:'x'}),400);
 });
+test('executable forex quotations use supported funds currencies and preserve a positive buy settlement',()=>{
+ const input={operation:'buy',amount:'10.00',capture:{commission:'0'}};
+ const rate={fromCurrency:'USD',toCurrency:'SSP',rateDecimal:'1'};
+ assert.deepEqual(fx.quoteEconomics(input,rate),{sourceMinor:1000n,targetMinor:1000n});
+ assert.deepEqual(fx.quoteEconomics({...input,capture:{commission:'9.99'}},rate),{sourceMinor:1000n,targetMinor:1000n});
+ assert.throws(()=>fx.quoteEconomics({...input,capture:{commission:'10.00'}},rate),{status:400});
+ assert.throws(()=>fx.quoteEconomics({...input,capture:{commission:'10.01'}},rate),{status:400});
+ assert.deepEqual(fx.quoteEconomics({...input,operation:'sell',capture:{commission:'10.00'}},rate),{sourceMinor:1000n,targetMinor:1000n});
+ for(const operation of ['buy','sell'])for(const pair of [{...rate,fromCurrency:'EUR'},{...rate,toCurrency:'EUR'}])assert.throws(()=>fx.quoteEconomics({...input,operation},pair),{status:409});
+ assert.deepEqual(fx.quoteEconomics({...input,operation:'quote'},{...rate,fromCurrency:'EUR'}),{sourceMinor:1000n,targetMinor:1000n},'indicative EUR arithmetic and historical quotations remain supported');
+});
+test('posted forex history remains branch and originator scoped when filtering',async()=>{
+ let query;const conn={models:{ForexQuoteV1:{find(value){query=value;return{sort(){return this;},limit(){return this;},lean:async()=>[]};}}}};
+ await fx.listQuotes(conn,base,actor('Forex Operator'),{status:'posted_manual'});
+ assert.deepEqual(query,{branchId:branch,createdBy:actorId,status:'posted_manual'});
+ await assert.rejects(fx.listQuotes(null,base,actor('Forex Operator'),{status:'not_a_state'}),{status:400});
+});
+test('executable forex forms offer eligible approved pairs and a validity the selected rate can honor',async()=>{
+ const rates=[{_id:'507f1f77bcf86cd799439021',branchId:branch,status:'active',fromCurrency:'EUR',toCurrency:'USD',rateDecimal:'1.10',expiresAt:new Date(Date.now()+3600000)},
+  {_id:'507f1f77bcf86cd799439022',branchId:branch,status:'active',fromCurrency:'USD',toCurrency:'SSP',rateDecimal:'100',expiresAt:new Date(Date.now()+10*60000)},
+  {_id:'507f1f77bcf86cd799439023',branchId:branch,status:'active',fromCurrency:'KES',toCurrency:'USD',rateDecimal:'0.01',expiresAt:new Date(Date.now()+3600000)}];
+ const template=path.join(__dirname,'../src/views/tenant/forex/_entry-form.ejs');
+ const locals={currentBranchId:branch,user:actor('Forex Operator'),data:{rates,workspaceOperation:'buy',currencyChoices:[{code:'USD'},{code:'SSP'}],idempotencyKey:crypto.randomUUID()}};
+ const html=await ejs.renderFile(template,locals);
+ assert.doesNotMatch(html,/value="(?:EUR|KES)"/);
+ assert.doesNotMatch(html,new RegExp(rates[0]._id+'|'+rates[2]._id));
+ assert.match(html,/data-expires-at="[^"]+"/);
+ const validity=html.match(/<select name="validMinutes"[^>]*>([\s\S]*?)<\/select>/)[1];
+ const selected=Number(validity.match(/<option value="(\d+)" selected/)[1]);
+ assert(selected>=5&&selected<10);
+ assert.match(validity,/<option value="15"\s+disabled/);
+ const indicative=await ejs.renderFile(template,{...locals,data:{...locals.data,workspaceOperation:'quote'}});
+ assert.match(indicative,/value="EUR"/);
+ assert.match(indicative,/Indicative quotation/);
+});
 test('Tenant and branch access fail closed for unrelated roles and assignments',async()=>{
  const viewer=actor('Viewer'),op=actor('Forex Operator');
  await assert.rejects(fx.proposeRate(null,base,viewer,{}),{status:403});

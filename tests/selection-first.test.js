@@ -108,8 +108,8 @@ test('bounded business validity periods are selectable and continue to obey back
     assert.match(template,new RegExp(`<select[^>]*name="${field}"`));
     assert.doesNotMatch(template,new RegExp(`<input[^>]*name="${field}"`));
   }
-  assert.equal(transfer.validateOrder({senderId:'507f1f77bcf86cd799439011',beneficiaryId:'507f1f77bcf86cd799439012',amount:'100',fee:'0',currency:'UGX',idempotencyKey:crypto.randomUUID(),validDays:'30'}).validDays,30);
-  assert.throws(()=>transfer.validateOrder({senderId:'507f1f77bcf86cd799439011',beneficiaryId:'507f1f77bcf86cd799439012',amount:'100',fee:'0',currency:'UGX',idempotencyKey:crypto.randomUUID(),validDays:'31'}),{status:400});
+  assert.equal(transfer.validateOrder({destinationBranchId:'507f1f77bcf86cd799439013',senderId:'507f1f77bcf86cd799439011',beneficiaryId:'507f1f77bcf86cd799439012',amount:'100',fee:'0',currency:'UGX',idempotencyKey:crypto.randomUUID(),validDays:'30'}).validDays,30);
+  assert.throws(()=>transfer.validateOrder({destinationBranchId:'507f1f77bcf86cd799439013',senderId:'507f1f77bcf86cd799439011',beneficiaryId:'507f1f77bcf86cd799439012',amount:'100',fee:'0',currency:'UGX',idempotencyKey:crypto.randomUUID(),validDays:'31'}),{status:400});
 });
 
 test('transaction forms offer enabled account-branch currencies without client branch selection',async()=>{

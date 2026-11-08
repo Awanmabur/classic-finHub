@@ -11,6 +11,7 @@
     "dev": "node --watch src/server.js",
     "test": "node --test tests/*.test.js",
     "check": "node scripts/check-project.js",
+    "secrets:check": "node scripts/check-secret-examples.js",
     "bootstrap": "node scripts/bootstrap.js",
     "indexes": "node scripts/indexes.js",
     "catalog:publish": "node scripts/catalog-publish.js",

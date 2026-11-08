@@ -73,16 +73,18 @@ journals or alter a customer's balance.
 
 ### Obtain three connection strings
 
-Use **Connect → Drivers → Node.js**, copy the SRV connection string, then insert
-the correct service user's credentials and the database name:
+Use **Connect → Drivers → Node.js**, copy each service user's actual SRV
+connection string directly into its private environment file, and set the
+database path to `classicfin_platform_db`. The repository templates deliberately
+leave these secret values blank:
 
 ```dotenv
-MONGO_PLATFORM_URI='mongodb+srv://classicfin_web:ENCODED_PASSWORD@YOUR_CLUSTER.mongodb.net/classicfin_platform_db?retryWrites=true&w=majority&authSource=admin'
-MONGO_WORKER_URI='mongodb+srv://classicfin_outbox:ENCODED_PASSWORD@YOUR_CLUSTER.mongodb.net/classicfin_platform_db?retryWrites=true&w=majority&authSource=admin'
-MONGO_NOTIFICATION_WORKER_URI='mongodb+srv://classicfin_notifications:ENCODED_PASSWORD@YOUR_CLUSTER.mongodb.net/classicfin_platform_db?retryWrites=true&w=majority&authSource=admin'
+MONGO_PLATFORM_URI=
+MONGO_WORKER_URI=
+MONGO_NOTIFICATION_WORKER_URI=
 ```
 
-Replace `YOUR_CLUSTER` with the actual Atlas host and each password independently.
+Use the actual Atlas host and each service's different password.
 URI-encode reserved characters in usernames/passwords; a long randomly generated
 hexadecimal password avoids those URI characters. Keep all three URIs on the
 same deployment and same platform database. Atlas SRV connections use TLS;

@@ -8,6 +8,7 @@ if(process.env.NODE_ENV==='production'){
   process.exit(1);
 }
 const steps=[
+  [process.execPath,['scripts/check-secret-examples.js']],
   [process.execPath,['scripts/check-project.js']],
   [process.execPath,['--test','tests/*.test.js']],
   [process.execPath,['scripts/asset-budget.js']],

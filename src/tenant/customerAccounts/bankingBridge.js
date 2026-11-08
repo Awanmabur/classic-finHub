@@ -9,6 +9,7 @@ const {tenantDbNameFromSlug}=require('../../config/tenantDatabaseName');
 const {hasPermission,hasModuleForUser,assignableModules}=require('../services/moduleAccess.service');
 const {resolveTransactionBranch}=require('../services/transactionBranch.service');
 const {currencyCodes}=require('../../config/currencies');
+const branchCurrency=require('../services/branchCurrency.service');
 const OID=/^[a-f0-9]{24}$/i;
 function fail(message,status=400){return Object.assign(new Error(message),{status});}
 function decodeSelection(value){
@@ -39,7 +40,7 @@ async function context(conn,tenant,actor,{session=null,write=false}={}){
 function customerReference(account,customer){
  return {_id:account._id,referenceType:'customer_account',customerName:customer.name,institutionName:'Internal customer account',last4:account.accountNumber.slice(-4),currency:account.currency};
 }
-async function choices(conn,tenant,actor,{branchId=null,limit=500}={}){
+async function choices(conn,tenant,actor,{branchId=null,currency=null,limit=500}={}){
  if(!Number.isSafeInteger(limit)||limit<1||limit>500)throw fail('Invalid account selection limit');
  const current=await context(conn,tenant,actor);
  if(!current.canUseAccounts)return [];
@@ -47,7 +48,7 @@ async function choices(conn,tenant,actor,{branchId=null,limit=500}={}){
  if(branchId&&String(branch._id)!==String(branchId))throw fail('Account choices follow your operating branch',403);
  await directory.ensureIndexes(conn);
  const rows=await directory.accountModel(conn).aggregate([
-  {$match:{branchId:branch._id,currency:branch.currency,status:'active'}},
+  {$match:{branchId:branch._id,currency:currency?branchCurrency.resolve(branch,currency):{$in:branchCurrency.supported(branch)},status:'active'}},
   {$lookup:{from:directory.customerModel(conn).collection.name,let:{customer:'$customerId',branch:'$branchId'},pipeline:[{$match:{$expr:{$and:[{$eq:['$_id','$$customer']},{$eq:['$branchId','$$branch']},{$eq:['$status','active']}]}}},{$project:{name:1}}],as:'customer'}},
   {$unwind:'$customer'},
   {$lookup:{from:models.ledgerAccountModel(conn).collection.name,let:{ledger:'$ledgerAccountId',branch:'$branchId',currency:'$currency'},pipeline:[{$match:{$expr:{$and:[{$eq:['$_id','$$ledger']},{$eq:['$branchId','$$branch']},{$eq:['$currency','$$currency']},{$eq:['$category','liability']}]}}},{$project:{_id:1}}],as:'ledger'}},
@@ -64,7 +65,7 @@ async function fenceSelection(conn,session,authorization,{selection,branchId,cur
  // accidentally use a stale request-body role or module assignment here.
  const Branch={findOne:query=>models.branchModel(conn).findOne(query).session(session),find:query=>models.branchModel(conn).find(query).session(session)};
  const branch=await resolveTransactionBranch(conn,current.actor,{}, {Branch});
- if(String(branch._id)!==String(branchId)||branch.currency!==currency)throw fail('Account instruction branch or currency has changed',409);
+ if(String(branch._id)!==String(branchId)||!branchCurrency.supports(branch,currency))throw fail('Account instruction branch or currency has changed',409);
  if(parsed.type==='bank_reference'){
   const reference=await models.bankReferenceModel(conn).findOneAndUpdate({_id:parsed.id,branchId,currency,status:'active'},{$inc:{revision:1}},{session,new:true}).lean();
   if(!reference)throw fail('Select active account references in the same branch and currency',409);

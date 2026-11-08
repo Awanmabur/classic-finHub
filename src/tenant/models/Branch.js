@@ -6,6 +6,7 @@ const schema = new mongoose.Schema({
   name: { type:String, required:true, trim:true, maxlength:100 },
   address: { type:String, default:'', trim:true, maxlength:240 },
   currency: { type:String, enum:currencyCodes, required:true, immutable:true },
+  currencies: {type:[String],enum:currencyCodes,default:()=>[...currencyCodes],validate:{validator:value=>Array.isArray(value)&&value.length>0&&new Set(value).size===value.length&&value.every(code=>currencyCodes.includes(code)),message:'Choose supported operating currencies'}},
   status: { type:String, enum:['active','archived'], default:'active', required:true },
   revision: { type:Number, default:0, min:0 },
   createdBy: { type:mongoose.Schema.Types.ObjectId, required:true, immutable:true },

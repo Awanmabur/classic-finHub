@@ -22,7 +22,7 @@ async function main(){
  const User=core.tenantUserModel(conn);
  await User.create({_id:owner.id,name:'Workspace Owner',email:`owner-${nonce}@example.invalid`,passwordHash:'isolated-test-only',role:owner.role,allowedModules:modules,mfaEnabledAt:new Date(),authVersion:0});
  let report=await workspace.overview(conn,tenant,owner);assert.equal(report.state,'blocked');assert.equal(report.branches,0);assert.equal(report.funds.ready,0);assert.equal(report.waiting,0);
- const main=await core.branchModel(conn).create({code:'main',name:'Main',currency:'UGX',createdBy:owner.id,updatedBy:owner.id});
+ const main=await core.branchModel(conn).create({code:'main',name:'Main',currency:'UGX',currencies:['UGX'],createdBy:owner.id,updatedBy:owner.id});
  owner.branchId=teller.branchId=String(main._id);owner.viewBranchId=String(main._id);
  await User.updateOne({_id:owner.id},{$set:{branchId:main._id}});
  await User.create({_id:teller.id,name:'Transfer Teller',email:`teller-${nonce}@example.invalid`,passwordHash:'isolated-test-only',role:teller.role,branchId:main._id,allowedModules:modules,authVersion:0});
@@ -42,7 +42,7 @@ async function main(){
  report=await workspace.overview(conn,tenant,owner);assert.equal(report.state,'ready');assert.equal(report.modules[0].preparedOperators,1);assert.equal(report.cash.verified,1);assert.equal(report.waiting,0);assert.equal(report.sms,null);assert(!report.queues.some(row=>row.id==='momo'||row.id==='expenses'),'unlicensed operations do not leak counts or actions');
  const bank=await open('bank','SETTLEMENT_BANK');report=await workspace.overview(conn,tenant,owner);assert.equal(report.state,'attention');assert.equal(report.queues.find(row=>row.id==='opening').count,1);assert.equal(report.funds.unknown,1);assert.equal(report.next.href,'/tenant/treasury');
  await treasury.reviewObservation(conn,tenant,owner,bank.observation._id,{decision:'approve',note:'Independent current bank statement agrees with its registered opening'});assert.equal((await workspace.overview(conn,tenant,owner)).state,'ready');
- await core.branchModel(conn).create({code:'east',name:'East not configured',currency:'UGX',createdBy:owner.id,updatedBy:owner.id});
+ await core.branchModel(conn).create({code:'east',name:'East not configured',currency:'UGX',currencies:['UGX'],createdBy:owner.id,updatedBy:owner.id});
  const all=await workspace.overview(conn,tenant,{...owner,viewBranchId:'all'});assert.equal(all.state,'blocked');assert.equal(all.modules.length,2);assert(all.modules.some(row=>row.branch==='East not configured'&&row.state==='blocked'));assert.equal((await workspace.overview(conn,tenant,owner)).state,'ready');assert.equal(String((await User.findById(teller.id)).branchId),String(main._id),'read view never changes transaction assignments');
  await User.updateOne({_id:teller.id},{$set:{allowedModules:[]}});assert.equal((await workspace.overview(conn,tenant,owner)).state,'blocked','fresh stored operator assignment overrides stale caller data');await User.updateOne({_id:teller.id},{$set:{allowedModules:modules}});
  await User.updateOne({_id:owner.id},{$set:{authVersion:1}});

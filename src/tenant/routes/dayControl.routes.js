@@ -29,7 +29,8 @@ module.exports=function dayControlRoutes({renderTenant,recordScope}){
  async function ownShift(req){
   if(!cash.opener(req.user))throw fail('Only the originating operator can close their day',403);
   const branch=await require('../services/transactionBranch.service').resolveTransactionBranch(req.tenantDb,req.user,{});
-  return cashSessionModel(req.tenantDb).findOne({operatorId:req.user.id,branchId:branch._id,status:{$in:['open','disputed']}}).lean();
+  const currency=require('../services/branchCurrency.service').resolve(branch,req.method==='POST'?req.body.currency:req.query.currency);
+  return cashSessionModel(req.tenantDb).findOne({...cash.activeFilter(branch._id,req.user.id,currency),status:{$in:['open','disputed']}}).lean();
  }
  router.get('/day/close',...guard,async(req,res,next)=>{
   try{const shift=await ownShift(req);renderTenant(req,res,'workflow/close-day','Close day','Auto closing balances from reports.',{shift,

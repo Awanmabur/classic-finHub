@@ -21,6 +21,7 @@ async function snapshot(conn,tenant,user,data,operationBranch,options={}){
  const cash=[];let currentCashShift=null,dayStatus=null,notificationUnread=null;
  const viewing=require('./branchView.service').canViewBranches(user)&&user.viewBranchId!==undefined;
  const viewedBranch=viewing?options.viewBranch:operationBranch;
+ const selectedCurrency=volumeService.selectedCurrency(options.currency,viewedBranch||operationBranch);
  const canCash=(operationBranch||viewing)&&cashRoles.has(user.role)&&hasPermission(user,'treasury.view')&&
   cashModules.some(key=>hasModuleForUser(tenant,user,key))&&
   (['Tenant Owner','Auditor'].includes(user.role)||String(operationBranch._id)===String(user.branchId));
@@ -30,9 +31,9 @@ async function snapshot(conn,tenant,user,data,operationBranch,options={}){
   const totals=await cashSessionModel(conn).aggregate([{$match:scope},{$group:{_id:'$currency',
    amount:{$sum:{$add:['$openingMinor','$provisionalMovementMinor']}},shiftCount:{$sum:1}}}]).option({maxTimeMS:2000});
   for(const total of totals)cash.push({currency:total._id,expectedFormatted:formatMoneyMinor(total.amount,total._id),shiftCount:total.shiftCount});
-  dayStatus=totals.length?'OPEN':null;
+  dayStatus=totals.some(total=>total._id===selectedCurrency)?'OPEN':null;
   if(operationBranch&&(user.role==='Tenant Owner'||cashOperators.has(user.role))){
-   const ownShift=await cashSessionModel(conn).findOne({branchId:operationBranch._id,operatorId:user.id})
+   const ownShift=await cashSessionModel(conn).findOne({branchId:operationBranch._id,operatorId:user.id,currency:selectedCurrency})
     .select('_id status currency openingVerifiedAt').sort({createdAt:-1,_id:-1}).lean();
    if(ownShift){
     if(!viewing||String(viewedBranch?._id)===String(operationBranch._id))dayStatus=({open:'OPEN',disputed:'REVIEW',submitted:'REVIEW',pending_open:'PENDING',approved:'CLOSED',opening_rejected:'CLOSED'})[ownShift.status]||null;

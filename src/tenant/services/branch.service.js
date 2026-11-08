@@ -13,7 +13,14 @@ function validate(input,create=false){
   const code=String(input?.code||'').trim().toLowerCase();
   if(name.length<2||name.length>100||address.length>240)throw fail('Branch name must be 2–100 characters; address at most 240');
   if(create&&(!/^[a-z0-9][a-z0-9-]{1,30}$/.test(code)||!currencyCodes.includes(input?.currency))) throw fail('Invalid branch code or currency');
-  return {name,address,...(create?{code,currency:input.currency}:{})};
+  let currencies;
+  if(create||Object.hasOwn(input||{},'currencies')||input?.currenciesConfigured){
+    currencies=input?.currencies===undefined&&!input?.currenciesConfigured?[...currencyCodes]:Array.isArray(input?.currencies)?input.currencies:[input?.currencies];
+    if(!currencies.length||currencies.length>currencyCodes.length||new Set(currencies).size!==currencies.length||currencies.some(value=>!currencyCodes.includes(value)))throw fail('Select at least one supported operating currency');
+    currencies=currencyCodes.filter(code=>currencies.includes(code));
+    if(create&&!currencies.includes(input.currency))throw fail('The default currency must be included among the operating currencies');
+  }
+  return {name,address,...(create?{code,currency:input.currency}:{}),...(currencies?{currencies}:{})};
 }
 async function list(tenant){const conn=getTenantConnection(tenant.slug);await ensureTenantIndexes(conn);return branchModel(conn).find({}).sort({status:1,name:1}).limit(500).lean();}
 async function create(tenant,actor,input){
@@ -29,7 +36,7 @@ async function create(tenant,actor,input){
     // a branch picker to transaction forms or narrowing owner reporting scope.
     if(reserved.branchCount===1)await tenantUserModel(conn).updateOne({_id:actor.id,role:'Tenant Owner',status:'active',
       $or:[{branchId:null},{branchId:{$exists:false}},{branchId:''}]},{$set:{branchId:String(created._id)}},{session});
-    await auditEventModel(conn).create([{action:'branch.created',actorId:actor.id,targetId:created._id,metadata:{code:values.code,currency:values.currency}}],{session});
+    await auditEventModel(conn).create([{action:'branch.created',actorId:actor.id,targetId:created._id,metadata:{code:values.code,currency:values.currency,currencies:values.currencies}}],{session});
   });return created;
   }catch(e){if(e.code===11000)throw fail('A branch with this code already exists',409);throw e;}finally{await session.endSession();}
 }
@@ -52,9 +59,28 @@ async function update(tenant,actor,branchId,input){
   const conn=getTenantConnection(tenant.slug);await ensureTenantIndexes(conn);
   const session=await mongoose.startSession();let updated;
   try{await session.withTransaction(async()=>{
+    if(values.currencies){
+      const old=await branchModel(conn).findOneAndUpdate({_id:branchId,status:'active'},{$inc:{revision:1}},{session,new:true}).lean();
+      if(!old)throw fail('Branch not found or archived',404);
+      if(!values.currencies.includes(old.currency))throw fail('Keep the immutable default currency enabled',409);
+      const removed=require('./branchCurrency.service').supported(old).filter(code=>!values.currencies.includes(code));
+      if(removed.length){
+        const currency={$in:removed},checks=await Promise.all([
+          require('../treasury/models').models(conn).account.exists({branchId,currency,status:{$ne:'archived'}}).session(session),
+          require('../models').cashSessionModel(conn).exists({branchId,currency,status:{$in:['pending_open','open','submitted','disputed']}}).session(session),
+          require('../models').transferOrderModel(conn).exists({branchId,currency,status:{$in:['requested','approved_pending_provider','collected_manual']}}).session(session),
+          require('../models').bankingRequestModel(conn).exists({branchId,currency,status:{$in:['requested','approved_pending_bank']}}).session(session),
+          require('../models').forexQuoteModel(conn).exists({branchId,status:{$in:['quoted','approved_pending_execution']},$or:[{fromCurrency:currency},{toCurrency:currency}]}).session(session),
+          require('../customerAccounts/models').accountModel(conn).exists({branchId,currency,status:{$ne:'closed'}}).session(session),
+          require('../models/expenses').expenseModel(conn).exists({branchId,currency,$or:[{status:'pending_review'},{correctionState:'requested'}]}).session(session),
+          require('../funded/models').models(conn).execution.exists({branchId,status:'pending_review',$or:[{'sourceSnapshot.currency':currency},{'sourceSnapshot.fromCurrency':currency},{'sourceSnapshot.toCurrency':currency}]}).session(session)
+        ]);
+        if(checks.some(Boolean))throw fail('Currencies used by existing fund accounts, open customer accounts or unfinished operations must remain enabled',409);
+      }
+    }
     updated=await branchModel(conn).findOneAndUpdate({_id:branchId,status:'active'},{$set:{...values,updatedBy:actor.id},$inc:{revision:1}},{session,new:true});
     if(!updated)throw fail('Branch not found or archived',404);
-    await auditEventModel(conn).create([{action:'branch.updated',actorId:actor.id,targetId:updated._id,metadata:{name:updated.name,address:updated.address}}],{session});
+    await auditEventModel(conn).create([{action:'branch.updated',actorId:actor.id,targetId:updated._id,metadata:{name:updated.name,address:updated.address,currencies:require('./branchCurrency.service').supported(updated)}}],{session});
   });return updated;
   }finally{await session.endSession();}
 }

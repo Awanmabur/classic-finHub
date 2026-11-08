@@ -3,7 +3,7 @@
   <div class="row3">
     <label class="field">From (UTC)<input class="control" type="date" name="from" value="<%= mobileFilters.from || '' %>"></label>
     <label class="field">To (UTC)<input class="control" type="date" name="to" value="<%= mobileFilters.to || '' %>"></label>
-    <label class="field">Network<select class="control" name="network"><option value="">All networks</option><% (data.networksAvailable || ['MTN','Airtel','Africell','M-Pesa']).forEach(network=>{ %><option value="<%= network %>" <%= mobileFilters.network === network ? 'selected' : '' %>><%= network %></option><% }) %></select></label>
+    <label class="field">Network<select class="control" name="network"><option value="">All networks</option><% (data.networksAvailable || ['MTN','MTN SSD','Airtel','Africell','M-Pesa']).forEach(network=>{ %><option value="<%= network %>" <%= mobileFilters.network === network ? 'selected' : '' %>><%= network %></option><% }) %></select></label>
   </div>
   <div class="row3">
     <label class="field">Currency<select class="control" name="currency"><option value="">All currencies</option><% (data.currencies || ['UGX','USD','SSP','KES']).forEach(currency=>{ %><option value="<%= currency %>" <%= mobileFilters.currency === currency ? 'selected' : '' %>><%= typeof currencyLabel === 'function' ? currencyLabel(currency) : (currency === 'KES' ? 'KSH' : currency) %></option><% }) %></select></label>

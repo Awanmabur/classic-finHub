@@ -32,5 +32,5 @@ function main(){
   process.exitCode=1;
  }else console.log(`Credential-shaped Atlas URI check passed for ${result.checked} text files.`);
 }
-if(require.main===module)main();
+if(require.main===module){try{main();}catch{console.error('Credential-shaped Atlas URI check could not enumerate or read repository files.');process.exitCode=1;}}
 module.exports={scanText,checkRepository};

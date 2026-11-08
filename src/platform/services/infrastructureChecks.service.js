@@ -56,6 +56,8 @@ function issuesForTenant(tenant,{branchCount,activeNonOwnerCount,pendingInviteCo
   if(!Number.isSafeInteger(invalidAssignments) || invalidAssignments>0)issues.push('invalid-staff-branch-assignment');
   if(!indexes || Object.entries(REQUIRED_INDEXES).some(([key,pattern])=>!Array.isArray(indexes[key])||
     !indexes[key].some(index=>index.unique===true&&Object.keys(index.key||{}).length===pattern.length&&pattern.every(([field,order])=>index.key?.[field]===order) && (key!=='ForexRateV1'||index.partialFilterExpression?.status==='active'))))issues.push('missing-unique-index');
+  const cashIndexes=indexes?.SecureCashSession||[];
+  if(!cashIndexes.some(index=>index.unique===true&&Object.keys(index.key||{}).length===3&&index.key.branchId===1&&index.key.operatorId===1&&index.key.currency===1&&index.partialFilterExpression?.activeKey?.$type==='string'))issues.push('missing-cash-currency-unique-index');
   return issues;
 }
 module.exports={issuesForTenant,REQUIRED_INDEXES};

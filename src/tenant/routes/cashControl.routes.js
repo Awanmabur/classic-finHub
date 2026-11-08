@@ -11,7 +11,9 @@ module.exports=({renderTenant})=>{
   try{
    const [shifts,branches]=await Promise.all([cash.list(req.tenantDb,req.tenant,req.user,{cursor:req.query.cursor}),require('../services/branch.service').list(req.tenant)]);
    const operators=await require('../models').tenantUserModel(req.tenantDb).find({_id:{$in:shifts.items.map(row=>row.operatorId)}}).select('_id name').lean();
+   const currencyPolicy=require('../services/branchCurrency.service'),branch=req.operationBranch;
    renderTenant(req,res,'mobile-money/shifts','Cash control review','Opening counts, fund balances and independent physical reconciliation.',{shifts,branches,
+    currencyOptions:branch?currencyPolicy.options(branch):[],selectedCurrency:branch?(currencyPolicy.supports(branch,req.query.currency)?req.query.currency:branch.currency):null,
     branchNames:Object.fromEntries(branches.map(row=>[String(row._id),row.name])),operatorNames:Object.fromEntries(operators.map(row=>[String(row._id),row.name])),canOpen:cash.opener(req.user),canReview:cash.reviewer(req.user)});
   }catch(error){next(error);}
  });

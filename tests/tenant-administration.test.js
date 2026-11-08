@@ -53,7 +53,7 @@ test('Branch Manager is MFA protected, scoped to permitted branch staff, and can
   assert(!menu.includes('/tenant/workspace/subscription'));
 });
 test('branch and platform status validators reject invalid changes before touching a database',()=>{
-  assert.deepEqual(branch.validate({name:'Kampala HQ',code:'kla-hq',currency:'UGX',address:'Kitende'},true),{name:'Kampala HQ',code:'kla-hq',currency:'UGX',address:'Kitende'});
+  assert.deepEqual(branch.validate({name:'Kampala HQ',code:'kla-hq',currency:'UGX',address:'Kitende'},true),{name:'Kampala HQ',code:'kla-hq',currency:'UGX',currencies:['UGX','USD','SSP','KES'],address:'Kitende'});
   assert.throws(()=>branch.validate({name:'Branch',code:'../admin',currency:'USD'},true),e=>e.status===400);
   assert.throws(()=>branch.validate({name:'A',code:'a',currency:'UGX'},true),e=>e.status===400);
   assert.throws(()=>branch.validId('../other'),e=>e.status===400);

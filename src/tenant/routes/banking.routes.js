@@ -28,6 +28,7 @@ function routes({renderTenant}){
    if(branch&&hasModuleForUser(req.tenant,req.user,'accounts')&&hasPermission(req.user,'accounts.view'))references.push(...await require('../customerAccounts/bankingBridge').choices(req.tenantDb,req.tenant,req.user,{branchId:selectedId}));
    renderTenant(req,res,'banking/index','Banking Requests','Record banking instructions, then post manual movements against reviewed balances.',{
     records,branches,queue,references,selectedBranchId:branch?selectedId:null,
+    currencyChoices:require('../services/branchCurrency.service').options(req.operationBranch),selectedCurrency:req.operationBranch?require('../services/branchCurrency.service').resolve(req.operationBranch,req.query.currency):null,
     canCreate:bank.operator(req.user)&&hasPermission(req.user,'banking.requests.create'),
     canReview:bank.reviewer(req.user)&&hasPermission(req.user,'banking.review'),
     idempotencyKey:crypto.randomUUID(),formatMoneyMinor
@@ -41,6 +42,7 @@ function routes({renderTenant}){
    const references=selected||selectedId==='all'?await bank.listReferences(req.tenantDb,req.tenant,req.user,{branchId:selected?selectedId:null}):[];
    renderTenant(req,res,'banking/accounts','Bank Account References','Only masked account references; no bank balances or credentials are stored.',{
     branches,selectedBranchId:selected?selectedId:null,references,institutions:bankInstitutionOptions(references),
+    currencyChoices:require('../services/branchCurrency.service').options(req.operationBranch),selectedCurrency:req.operationBranch?require('../services/branchCurrency.service').resolve(req.operationBranch,req.query.currency):null,
     canManage:bank.operator(req.user)&&hasPermission(req.user,'banking.accounts.manage')
    });
   }catch(e){next(e);}

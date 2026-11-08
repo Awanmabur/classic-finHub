@@ -70,8 +70,9 @@ test('branch, cash, financial, ledger and operation schemas share supported pers
  const conn=mongoose.createConnection();
  assert.deepEqual(require('../src/tenant/models').mobileTransactionModel(conn).schema.path('currency').enumValues,[...config.currencyCodes]);
  assert.deepEqual(require('../src/tenant/schemas/ForexQuote.schema').path('fromCurrency').enumValues,[...config.forexCurrencyCodes]);
- // Broadening manual accounting does not guess a network's SMS wording.
- assert.deepEqual(require('../src/tenant/schemas/SmsInbox.schema').path('fields.currency').enumValues,['UGX','KES']);
+ // Each supported currency still requires the explicit confirmation profile;
+ // broadening the enum does not infer amounts from arbitrary provider wording.
+ assert.deepEqual(require('../src/tenant/schemas/SmsInbox.schema').path('fields.currency').enumValues,[...config.currencyCodes]);
  conn.destroy();
 });
 

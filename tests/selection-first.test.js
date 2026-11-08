@@ -112,11 +112,12 @@ test('bounded business validity periods are selectable and continue to obey back
   assert.throws(()=>transfer.validateOrder({senderId:'507f1f77bcf86cd799439011',beneficiaryId:'507f1f77bcf86cd799439012',amount:'100',fee:'0',currency:'UGX',idempotencyKey:crypto.randomUUID(),validDays:'31'}),{status:400});
 });
 
-test('transaction forms use fixed account branch currency without client branch selection',async()=>{
+test('transaction forms offer enabled account-branch currencies without client branch selection',async()=>{
   const id='507f1f77bcf86cd799439011';
   const user={id:'507f1f77bcf86cd799439012',role:'Money Transfer Operator',branchId:id,permissions:['money_transfer.create','mobile_money.cash_in']};
-  const branch={_id:id,name:'Nairobi',currency:'KES',status:'active'};
-  const transferData={records:{items:[],nextCursor:null},queue:[],branches:[branch],selectedBranchId:id,
+  const branch={_id:id,name:'Nairobi',currency:'KES',currencies:['KES'],status:'active'};
+  const currencyChoices=require('../src/tenant/services/branchCurrency.service').options(branch);
+  const transferData={currencyChoices,selectedCurrency:'KES',records:{items:[],nextCursor:null},queue:[],branches:[branch],selectedBranchId:id,
     contacts:[{_id:'507f1f77bcf86cd799439013',kind:'sender',fullName:'Sender',country:'KE'},
       {_id:'507f1f77bcf86cd799439014',kind:'beneficiary',fullName:'Receiver',country:'KE'}],
     canCreate:true,canReview:false,idempotencyKey:crypto.randomUUID(),formatMoneyMinor:(amount,currency)=>currency+amount};
@@ -125,13 +126,13 @@ test('transaction forms use fixed account branch currency without client branch 
   assert(validity,'The extracted entry partial must still render the bounded validity selector');
   assert.equal((validity[1].match(/<option /g)||[]).length,30);
   assert.match(validity[1],/value="30"/);assert.doesNotMatch(validity[1],/value="31"/);
-  assert.match(transferHtml,/<input type="hidden" name="currency" value="KES">/);
+  assert.match(transferHtml,/<select[^>]+name="currency"[^>]*>[\s\S]*value="KES" selected/);
   assert.doesNotMatch(transferHtml,/<(?:select|input)[^>]+name="branchId"/);
   assert.doesNotMatch(transferHtml,/<select[^>]+name="currency"[^>]*>\s*<option value="UGX">UGX<\/option>/);
-  const bankingData={branches:[branch],selectedBranchId:id,references:[{_id:'507f1f77bcf86cd799439013',institutionName:'Bank',customerName:'A',last4:'1234'}],
+  const bankingData={currencyChoices,selectedCurrency:'KES',branches:[branch],selectedBranchId:id,references:[{_id:'507f1f77bcf86cd799439013',institutionName:'Bank',customerName:'A',last4:'1234'}],
     records:{items:[],nextCursor:null},queue:[],canCreate:true,canReview:false,idempotencyKey:crypto.randomUUID(),formatMoneyMinor:(amount,currency)=>currency+amount};
   const bankingHtml=await render('tenant/banking/index.ejs',{data:bankingData,user:{...user,role:'Banking Operator'},csrfToken:'csrf'});
-  assert.match(bankingHtml,/<input type="hidden" name="currency" value="KES">/);
+  assert.match(bankingHtml,/<select[^>]+name="currency"[^>]*>[\s\S]*value="KES" selected/);
   assert.doesNotMatch(bankingHtml,/<(?:select|input)[^>]+name="branchId"/);
   assert.doesNotMatch(bankingHtml,/<select[^>]+name="currency"[^>]*>\s*<option value="UGX">UGX<\/option>/);
   const mobileHtml=await render('tenant/mobile-money/index.ejs',{data:{branches:[branch],canRecord:true,canReview:false,

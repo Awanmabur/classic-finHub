@@ -43,7 +43,7 @@ async function context(req,res){
  res.locals.canViewBranches=wide;res.locals.viewBranches=[];res.locals.viewBranch=null;res.locals.viewBranchId=null;
  res.locals.branchViewReturnTo=safeReturnTo(req.originalUrl||'/tenant/dashboard');
  if(!wide||!req.session)return;
- const branches=await require('../models').branchModel(req.tenantDb).find({status:'active'}).sort({_id:1}).select('_id name code currency').lean();
+ const branches=await require('../models').branchModel(req.tenantDb).find({status:'active'}).sort({_id:1}).select('_id name code currency currencies').lean();
  const selected=req.session?.viewBranchId;
  const view=selected==='all'?null:branches.find(branch=>String(branch._id)===String(selected))||mainBranch(branches);
  const id=selected==='all'?'all':view?String(view._id):'all';

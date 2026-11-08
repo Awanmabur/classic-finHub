@@ -2,10 +2,12 @@
    const entryLabel = entryOperation === 'cash_in' ? 'Cash-in' : 'Cash-out';
    const entryPermissions = user.permissions || [];
    const entryCan = permission => entryPermissions.includes('*') || entryPermissions.includes(permission);
-   const entryNetworks = data.networksAvailable || ['MTN','Airtel','Africell','M-Pesa'];
-   const entryAmountPattern = currentBranch.currency === 'UGX' ? '[0-9]{1,11}' : '[0-9]{1,11}([.][0-9]{1,2})?';
-   const entryCurrencyLabel = typeof currencyLabel === 'function' ? currencyLabel(currentBranch.currency) : (currentBranch.currency === 'KES' ? 'KSH' : currentBranch.currency); %>
-<form class="card mobileMoneyEntry" method="post" action="/tenant/mobile-money/<%= entryOperation === 'cash_in' ? 'cash-in' : 'cash-out' %>" autocomplete="off" data-mobile-money-form data-operation="<%= entryOperation %>" data-currency="<%= currentBranch.currency %>" data-currency-label="<%= entryCurrencyLabel %>">
+   const entryNetworks = data.networksAvailable || ['MTN','MTN SSD','Airtel','Africell','M-Pesa'];
+   const entryCurrency=data.entryCurrency||currentBranch.currency;
+   const entryCurrencyOptions=data.entryCurrencies?.length?data.entryCurrencies:(currentBranch.currencies||['UGX','USD','SSP','KES']).map(code=>({code,label:code==='KES'?'KSH':code}));
+   const entryAmountPattern = entryCurrency === 'UGX' ? '[0-9]{1,11}' : '[0-9]{1,11}([.][0-9]{1,2})?';
+   const entryCurrencyLabel = typeof currencyLabel === 'function' ? currencyLabel(entryCurrency) : (entryCurrency === 'KES' ? 'KSH' : entryCurrency); %>
+<form class="card mobileMoneyEntry" method="post" action="/tenant/mobile-money/<%= entryOperation === 'cash_in' ? 'cash-in' : 'cash-out' %>" autocomplete="off" data-mobile-money-form data-operation="<%= entryOperation %>" data-currency="<%= entryCurrency %>" data-currency-label="<%= entryCurrencyLabel %>">
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
   <input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
   <div class="cardHead"><div><b>Mobile Money - <%= entryLabel %></b><br><span>Customer, network, and amount details</span></div></div>
@@ -32,7 +34,7 @@
     <div class="formSection">
       <div class="formSectionTitle">Amount details</div>
       <div class="row2">
-        <label class="field">Currency<select class="control" name="currency" data-mobile-currency required><option value="<%= currentBranch.currency %>"><%= entryCurrencyLabel %></option></select></label>
+        <label class="field">Currency<select class="control" name="currency" data-mobile-currency required><% entryCurrencyOptions.forEach(option=>{ %><option value="<%= option.code %>" <%= option.code===entryCurrency?'selected':'' %>><%= option.label %></option><% }) %></select></label>
         <label class="field">Amount<input class="control" type="text" inputmode="decimal" name="amount" placeholder="0" pattern="<%= entryAmountPattern %>" required></label>
       </div>
       <div class="row2">

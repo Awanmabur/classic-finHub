@@ -9,6 +9,7 @@ const WorkerHeartbeat=require('../../platform/models/WorkerHeartbeat');
 const {tenantDbNameFromSlug}=require('../../config/tenantDatabaseName');
 function getTenantConnection(slug){return mongoose.connection.useDb(tenantDbNameFromSlug(slug),{useCache:true});}
 const {verifyReplicaPrimary}=require('../../config/mongoTopology');
+const {parseMongoUri}=require('../../config/mongoUris');
 const service=require('../services/notification.service');
 const transferSms=require('../transferSms/service');
 const workerId=`notification-${crypto.randomUUID()}`;
@@ -20,8 +21,7 @@ async function connect(){
  require('../transferSms/config').validateConfig(process.env,{worker:true});
  const uri=process.env.MONGO_NOTIFICATION_WORKER_URI;
  if(!uri)throw new Error('MONGO_NOTIFICATION_WORKER_URI is required for the notification worker');
- const parsed=new URL(uri);
- if(!['mongodb:','mongodb+srv:'].includes(parsed.protocol)||parsed.pathname.length<2)throw new Error('Notification worker URI requires a named MongoDB database');
+ parseMongoUri(uri,'Notification worker MongoDB URI');
  mongoose.set('strictQuery',true);
  await mongoose.connect(uri,{serverSelectionTimeoutMS:7000,maxPoolSize:10,autoIndex:false,retryWrites:true});
  verifyReplicaPrimary(await mongoose.connection.db.admin().command({hello:1}));

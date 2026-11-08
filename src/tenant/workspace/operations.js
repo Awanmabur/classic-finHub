@@ -6,6 +6,7 @@ const {models:fundModels}=require('../treasury/models');
 const {hasModuleForUser,hasPermission}=require('../services/moduleAccess.service');
 const {permissionsFor,requiresTenantMfa}=require('../../config/roles');
 const branchView=require('../services/branchView.service');
+const branchCurrency=require('../services/branchCurrency.service');
 const SPECS=Object.freeze({
  mobile_money:{label:'Mobile Money',path:'/tenant/mobile-money',create:'mobile_money.cash_in',review:'mobile_money.review'},
  money_transfer:{label:'Money Transfer',path:'/tenant/money-transfer',create:'money_transfer.create',review:'money_transfer.review'},
@@ -37,7 +38,7 @@ function fundedPath(module,accounts,rates,branch,customerAccounts=[]){
  if(module==='mobile_money')return ready.some(wallet=>wallet.kind==='wallet'&&wallet.currency===branch.currency&&payments.some(payment=>payment.kind!=='wallet'&&payment.currency===wallet.currency));
  if(module==='money_transfer')return ready.some(clearing=>clearing.kind==='transfer_clearing'&&!clearing.operatorId&&clearing.currency===branch.currency&&payments.some(payment=>payment.currency===clearing.currency)&&ready.some(cash=>cash.kind==='cash'&&cash.currency===clearing.currency));
  if(module==='banking')return payments.some(payment=>payment.currency===branch.currency&&customerAccounts.some(account=>key(account.branchId)===key(branch._id)&&account.currency===payment.currency));
- if(module==='forex')return rates.some(rate=>ready.some(stock=>stock.kind==='forex_stock'&&stock.currency===rate.fromCurrency)&&payments.some(payment=>payment.currency===rate.toCurrency));
+ if(module==='forex')return rates.some(rate=>rate.toCurrency===branch.currency&&ready.some(stock=>stock.kind==='forex_stock'&&stock.currency===rate.fromCurrency)&&payments.some(payment=>payment.currency===rate.toCurrency));
  return payments.some(payment=>payment.currency===branch.currency);
 }
 function build({tenant,actor,allBranches,people,accounts=[],shifts=[],rates=[],customerAccounts=[],queueCounts={},queueLinks={},devices=[],now=new Date()}){
@@ -71,28 +72,30 @@ function build({tenant,actor,allBranches,people,accounts=[],shifts=[],rates=[],c
    const independent=branchPeople.filter(person=>reviewers.some(reviewer=>key(reviewer._id)!==key(person._id)));
    const branchAccounts=fundRows.filter(account=>key(account.branchId)===key(branch._id));
    const branchRates=rates.filter(rate=>key(rate.branchId)===key(branch._id)&&rate.status==='active'&&new Date(rate.expiresAt)>now);
-   const funded=independent.filter(person=>(module!=='banking'||accountAccess(person))&&reviewers.some(reviewer=>key(reviewer._id)!==key(person._id)&&fundedPath(module,branchAccounts.filter(account=>eligible(account,person,tenant)&&(account.moduleKey==='shared'||hasModuleForUser(tenant,staffActor(reviewer),account.moduleKey))&&(account.kind!=='cash'||(key(account.operatorId)===key(person._id)&&shifts.some(shift=>key(shift.operatorId)===key(person._id)&&key(shift.branchId)===key(branch._id)&&shift.status==='open'&&shift.openingVerifiedAt&&key(shift.treasuryAccountId)===key(account._id))))),branchRates,branch,customerAccounts)));
-   const applicable=branchAccounts.filter(account=>module==='mobile_money'?['wallet','cash','bank'].includes(account.kind)&&account.currency===branch.currency:module==='money_transfer'?['cash','bank','wallet','transfer_clearing'].includes(account.kind):module==='forex'?['forex_stock','cash','bank','wallet'].includes(account.kind):settlement(account));
-   const ambiguities=defaultIssues(applicable,branchPeople,tenant);
-   const problems=[];
-   if(!branchPeople.length)problems.push('Assign an active operator with this module and create permission.');
-   else if(independent.length<branchPeople.length)problems.push(`${branchPeople.length-independent.length} operator(s) need a different authorized reviewer.`);
-   if(module==='forex'&&!branchRates.length)problems.push('Approve an unexpired indicative rate for a stocked currency pair.');
-   if(module==='banking'&&!customerAccounts.some(account=>key(account.branchId)===key(branch._id)))problems.push('Create an active internal customer account with a liability ledger mapping. Operator and reviewer both need Customer Accounts access.');
-   if(branchPeople.length&&funded.length<branchPeople.length)problems.push(`${branchPeople.length-funded.length} operator(s) lack a reviewed funds path${module==='money_transfer'?' for collection and cash payout with a shared transfer payable':''}. Cash requires their own verified open shift; reviewers need the underlying account modules.`);
-   const state=problems.length?'blocked':ambiguities?'attention':'ready';
-   if(ambiguities)problems.push(`${ambiguities} account group(s) need a default or an explicit account choice.`);
-   const row={key:module,branchId:key(branch._id),label:spec.label,branch:branch.name,path:spec.path,operators:branchPeople.length,preparedOperators:funded.length,reviewers:reviewers.length,state,problems};
-   moduleRows.push(row);
+   for(const currency of branchCurrency.supported(branch)){
+    const currencyBranch={...branch,currency},currencyRates=branchRates.filter(rate=>rate.toCurrency===currency&&branchCurrency.supports(branch,rate.fromCurrency));
+    const eligibleAccounts=module==='forex'?branchAccounts.filter(account=>account.currency===currency||account.kind==='forex_stock'&&currencyRates.some(rate=>rate.fromCurrency===account.currency)):branchAccounts.filter(account=>account.currency===currency);
+    const funded=independent.filter(person=>(module!=='banking'||accountAccess(person))&&reviewers.some(reviewer=>key(reviewer._id)!==key(person._id)&&fundedPath(module,eligibleAccounts.filter(account=>eligible(account,person,tenant)&&(account.moduleKey==='shared'||hasModuleForUser(tenant,staffActor(reviewer),account.moduleKey))&&(account.kind!=='cash'||(key(account.operatorId)===key(person._id)&&shifts.some(shift=>key(shift.operatorId)===key(person._id)&&key(shift.branchId)===key(branch._id)&&shift.currency===account.currency&&shift.status==='open'&&shift.openingVerifiedAt&&key(shift.treasuryAccountId)===key(account._id))))),currencyRates,currencyBranch,customerAccounts)));
+    const applicable=eligibleAccounts.filter(account=>module==='mobile_money'?['wallet','cash','bank'].includes(account.kind):module==='money_transfer'?['cash','bank','wallet','transfer_clearing'].includes(account.kind):module==='forex'?['forex_stock','cash','bank','wallet'].includes(account.kind):settlement(account));
+    const ambiguities=defaultIssues(applicable,branchPeople,tenant),problems=[];
+    if(!branchPeople.length)problems.push('Assign an active operator with this module and create permission.');
+    else if(independent.length<branchPeople.length)problems.push(`${branchPeople.length-independent.length} operator(s) need a different authorized reviewer.`);
+    if(module==='forex'&&!currencyRates.length)problems.push(`Approve an unexpired indicative rate settling in ${currency} for a stocked currency pair.`);
+    if(module==='banking'&&!customerAccounts.some(account=>key(account.branchId)===key(branch._id)&&account.currency===currency))problems.push(`Create an active ${currency} internal customer account with a liability ledger mapping. Operator and reviewer both need Customer Accounts access.`);
+    if(branchPeople.length&&funded.length<branchPeople.length)problems.push(`${branchPeople.length-funded.length} operator(s) lack a reviewed ${currency} funds path${module==='money_transfer'?' for collection and cash payout with a shared transfer payable':''}. Cash requires their own verified ${currency} shift; reviewers need the underlying account modules.`);
+    const state=problems.length?'blocked':ambiguities?'attention':'ready';
+    if(ambiguities)problems.push(`${ambiguities} account group(s) need a default or an explicit account choice.`);
+    moduleRows.push({key:module,branchId:key(branch._id),currency,label:spec.label,branch:branch.name,path:spec.path+'?currency='+currency,operators:branchPeople.length,preparedOperators:funded.length,reviewers:reviewers.length,state,problems});
+   }
   }
  }
- if(modules.length&&branches.length)checks.push(check('funded-operations','Operators, reviewers & funds',moduleRows.some(row=>row.state==='blocked')?'blocked':moduleRows.some(row=>row.state==='attention')?'attention':'ready',`${moduleRows.filter(row=>row.state==='ready').length} of ${moduleRows.length} branch/module setup checks complete. Open the module checklist below for missing prerequisites.`,'/tenant/treasury','Set up funds'));
+ if(modules.length&&branches.length)checks.push(check('funded-operations','Operators, reviewers & funds',moduleRows.some(row=>row.state==='blocked')?'blocked':moduleRows.some(row=>row.state==='attention')?'attention':'ready',`${moduleRows.filter(row=>row.state==='ready').length} of ${moduleRows.length} branch/module/currency setup checks complete. Open the module checklist below for missing prerequisites.`,'/tenant/treasury','Set up funds'));
  const unknown=fundRows.filter(account=>account.openingBalanceMinor==null).length;
  const held=fundRows.filter(account=>account.status==='held'||['mismatch','stale'].includes(account.reconciliationState)||account.lastObservationStale).length;
  const readyFunds=fundRows.filter(usable).length;
  const scopedShifts=shifts.filter(shift=>branchIds.has(key(shift.branchId)));
- const cashPeople=operators.filter(person=>branchIds.has(operationBranch(person,allBranches))&&fundRows.some(account=>account.kind==='cash'&&usable(account)&&key(account.branchId)===operationBranch(person,allBranches)&&eligible(account,person,tenant)));
- const verifiedCashPeople=cashPeople.filter(person=>scopedShifts.some(shift=>key(shift.operatorId)===key(person._id)&&shift.status==='open'&&shift.openingVerifiedAt&&shift.treasuryAccountId&&fundRows.some(account=>key(account._id)===key(shift.treasuryAccountId)&&usable(account))));
+ const cashPeople=fundRows.filter(account=>account.kind==='cash'&&usable(account)&&account.operatorId&&operators.some(person=>key(account.operatorId)===key(person._id)&&key(account.branchId)===operationBranch(person,allBranches)&&eligible(account,person,tenant)));
+ const verifiedCashPeople=cashPeople.filter(account=>scopedShifts.some(shift=>key(shift.operatorId)===key(account.operatorId)&&key(shift.branchId)===key(account.branchId)&&shift.currency===account.currency&&shift.status==='open'&&shift.openingVerifiedAt&&key(shift.treasuryAccountId)===key(account._id)));
  const queues=[];
  const queue=(id,label,count,href,detail)=>queues.push({id,label,count:Number(count||0),href,detail});
  if(modules.length&&hasPermission(actor,'treasury.view')){
@@ -124,7 +127,7 @@ function build({tenant,actor,allBranches,people,accounts=[],shifts=[],rates=[],c
 async function snapshot(conn,tenant,actor){
  const trusted=await require('./service').access(conn,tenant,actor);tenant=trusted.tenant;actor=trusted.actor;
  const modules=Object.keys(SPECS).filter(module=>hasModuleForUser(tenant,actor,module)&&hasPermission(actor,module+'.view'));
- const allBranches=await core.branchModel(conn).find({status:'active'}).select('_id name code currency').sort({_id:1}).lean();
+ const allBranches=await core.branchModel(conn).find({status:'active'}).select('_id name code currency currencies').sort({_id:1}).lean();
  const scope=branchView.canViewBranches(actor)?branchView.readScope(actor):{branchId:actor.branchId};
  if(scope.branchId&&!allBranches.some(branch=>key(branch._id)===key(scope.branchId)))throw Object.assign(new Error('The selected viewing branch is inactive or unavailable.'),{status:403});
  const fundFilter={tenantId:tenant._id,...scope,status:{$ne:'archived'},moduleKey:{$in:['shared',...modules]}};
@@ -133,7 +136,7 @@ async function snapshot(conn,tenant,actor){
  const [people,accounts,shifts,rates,customerAccounts]=await Promise.all([
   core.tenantUserModel(conn).find({status:'active'}).select('_id role branchId allowedModules mfaEnabledAt').lean(),
   canFunds?account.find(fundFilter).select('_id branchId kind moduleKey network currency operatorId selectionKey status openingBalanceMinor openingApprovedAt reconciliationState lastObservationStale').lean():[],
-  canFunds?core.cashSessionModel(conn).find({...scope,status:{$in:['pending_open','open','submitted','disputed']}}).select('branchId operatorId status openingVerifiedAt treasuryAccountId').lean():[],
+  canFunds?core.cashSessionModel(conn).find({...scope,status:{$in:['pending_open','open','submitted','disputed']}}).select('branchId operatorId currency status openingVerifiedAt treasuryAccountId').lean():[],
   modules.includes('forex')?core.forexRateModel(conn).find({...scope,status:'active',expiresAt:{$gt:new Date()}}).select('branchId status fromCurrency toCurrency expiresAt').lean():[],
   modules.includes('banking')&&hasModuleForUser(tenant,actor,'accounts')?directory.accountModel(conn).aggregate([
    {$match:{...scope,status:'active'}},

@@ -6,7 +6,7 @@ const schema=new mongoose.Schema({
   operatorId:{type:mongoose.Schema.Types.ObjectId,required:true,immutable:true},
   branchId:{type:mongoose.Schema.Types.ObjectId,required:true,immutable:true},
   name:{type:String,required:true,maxlength:80},
-  network:{type:String,enum:['MTN','Airtel','M-Pesa'],required:true,immutable:true},
+  network:{type:String,enum:require('../../config/mobileNetworks').smsNetworks,required:true,immutable:true},
   allowedSenders:{type:[String],required:true},
   secretEncrypted:{type:String,required:true,select:false},
   autoRecord:{type:Boolean,default:false},

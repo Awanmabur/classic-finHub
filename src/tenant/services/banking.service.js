@@ -67,8 +67,9 @@ async function createReference(conn,tenant,actor,input){
  const session=await conn.startSession();let created;
  try{await session.withTransaction(async()=>{
   const authorization=await financialAuth.fenceAction(conn,session,actor,tenant,'banking','banking.accounts.manage',{branchId});
-  const branch=await branchModel(conn).findOneAndUpdate({_id:branchId,status:'active',currency:value.currency},{$inc:{revision:1}},{session,new:true});
-  if(!branch)throw fail('Active branch and account currency must agree',409);
+  const branch=await branchModel(conn).findOneAndUpdate({_id:branchId,status:'active'},{$inc:{revision:1}},{session,new:true});
+  if(!branch)throw fail('Active branch required',409);
+  require('./branchCurrency.service').resolve(branch,value.currency);
   [created]=await bankReferenceModel(conn).create([{...value,branchId,createdBy:actor.id,updatedBy:actor.id}],{session});
   await auditEventModel(conn).create([{action:'banking.reference.created',actorId:actor.id,targetId:created._id,
    metadata:{branchId,currency:value.currency}}],{session});
@@ -117,8 +118,9 @@ async function createRequest(conn,tenant,actor,input){
  const session=await conn.startSession();let order;
  try{await session.withTransaction(async()=>{
   const authorization=await financialAuth.fenceAction(conn,session,actor,tenant,'banking','banking.requests.create',{branchId});
-  const branch=await branchModel(conn).findOneAndUpdate({_id:branchId,status:'active',currency:value.currency},{$inc:{revision:1}},{session,new:true});
-  if(!branch)throw fail('Branch unavailable or currency does not match',409);
+  const branch=await branchModel(conn).findOneAndUpdate({_id:branchId,status:'active'},{$inc:{revision:1}},{session,new:true});
+  if(!branch)throw fail('Branch unavailable',409);
+  require('./branchCurrency.service').resolve(branch,value.currency);
   // Snapshot and fence either a masked bank reference or an entitled internal
   // customer account. Neither selection posts funds or changes ledger balances.
   const bridge=require('../customerAccounts/bankingBridge');

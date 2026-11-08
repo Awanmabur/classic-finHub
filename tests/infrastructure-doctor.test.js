@@ -19,7 +19,7 @@ const indexes={
   ExpenseV1:[{unique:true,key:{idempotencyKey:1}}],
   TenantWorkspaceConfigV1:[{unique:true,key:{tenantId:1}}],
   SecureTenantUser:[{unique:true,key:{email:1}}], SecureBranch:[{unique:true,key:{code:1}}],
-  SecureCashSession:[{unique:true,key:{activeKey:1},partialFilterExpression:{activeKey:{$type:'string'}}}],
+  SecureCashSession:[{unique:true,key:{activeKey:1},partialFilterExpression:{activeKey:{$type:'string'}}},{unique:true,key:{branchId:1,operatorId:1,currency:1},partialFilterExpression:{activeKey:{$type:'string'}}}],
   SecureStaffInvite:[{unique:true,key:{tokenHash:1}}], SecureMobileTransaction:[{unique:true,key:{idempotencyKey:1}}],
   TransferOrderV1:[{unique:true,key:{idempotencyKey:1}}],
   BankingRequestV1:[{unique:true,key:{idempotencyKey:1}}],
@@ -75,5 +75,11 @@ test('doctor rejects every missing funds evidence, movement and manual posting u
  for(const key of ['TreasuryAccountV1','TreasuryObservationV1','TreasuryBatchV1','TreasuryMovementV1','TreasuryCounterV1','TreasuryAdjustmentV1','FundedExecutionV1','ManualPayoutVerificationV1','TransferSmsDeliveryV1']){
   const missing={...indexes,[key]:[]};
   assert(issuesForTenant(valid,{...state,indexes:missing}).includes('missing-unique-index'),key);
+ }
+});
+test('doctor requires the per-currency cash uniqueness fence in addition to legacy active keys',()=>{
+ for(const replacement of [[indexes.SecureCashSession[0]],indexes.SecureCashSession.map(index=>({...index,unique:false})),indexes.SecureCashSession.map(index=>({...index,partialFilterExpression:{status:'open'}}))]){
+  const issues=issuesForTenant(valid,{...state,indexes:{...indexes,SecureCashSession:replacement}});
+  assert(issues.includes('missing-cash-currency-unique-index'));
  }
 });

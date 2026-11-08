@@ -18,7 +18,7 @@ const {resolveTransactionBranch}=require('../services/transactionBranch.service'
 const OID=/^[a-f0-9]{24}$/i,UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 const SOURCES=['mobile_money','money_transfer','banking','forex','expenses'];
 const KINDS=['wallet','cash','bank','forex_stock','transfer_clearing'];
-const NETWORKS=['MTN','Airtel','Africell','M-Pesa'];
+const {networks:NETWORKS}=require('../../config/mobileNetworks');
 const REVIEW_ROLES=['Tenant Owner','Reconciliation Officer','Branch Manager'];
 const MAX=999999999999999999n;
 function fail(message,status=400){return Object.assign(new Error(message),{status});}
@@ -101,7 +101,7 @@ async function createAccount(conn,tenant,actor,input,{configurationBranchId=null
   const branch=configurationBranchId?await core.branchModel(conn).findOne({_id:oid(configurationBranchId,'configuration branch'),status:'active'}).session(session).lean():await selectedBranch(conn,authorization,session);
   if(!branch)throw fail('Choose an active branch before adding an account',409);
   if(!authorization.modules.includes(moduleForKind(values.kind))&&moduleForKind(values.kind)!=='shared')throw fail('Subscribe and assign the account financial module first',403);
-  if(values.kind==='cash'&&values.currency!==branch.currency)throw fail('Cash drawer currency follows the assigned branch; register foreign notes as Forex stock',409);
+  require('../services/branchCurrency.service').resolve(branch,values.currency);
   if(values.operatorId){const operator=await core.tenantUserModel(conn).findOne({_id:values.operatorId,status:'active'}).session(session).lean();if(!operator||(operator.role!=='Tenant Owner'&&String(operator.branchId)!==String(branch._id)))throw fail('Choose an active staff member from this branch',409);}
   const accountId=new mongoose.Types.ObjectId(),ledgerCode=`TRS_${accountId.toString().toUpperCase()}`;
   const [chart]=await core.ledgerAccountModel(conn).create([{branchId:branch._id,code:ledgerCode,name:values.name,currency:values.currency,category:values.kind==='transfer_clearing'?'liability':'asset',createdBy:authorization.actor.id}],{session});
@@ -209,7 +209,7 @@ async function postingAuthorization(conn,session,authorization,value,internal={}
  const historicalCorrection=Boolean(internal.reversesBatchId)||value.sourceType==='treasury_adjustment';
  const person=await core.tenantUserModel(conn).findOneAndUpdate({_id:operatorId,...(historicalCorrection?{}:{status:'active'})},{$inc:{__v:1}},{session,new:true}).lean();if(!person||(!historicalCorrection&&person.role!=='Tenant Owner'&&String(person.branchId)!==value.branchId))throw fail('The originating operator is no longer active in this branch',403);
  const operating=trusted(person);if(!historicalCorrection&&source&&(!hasModuleForUser(current.tenant,operating,source)||!hasPermission(operating,`${source}.view`)))throw fail('Originating staff module access changed',403);
- return {...current,operatingActor:operating};
+ return {...current,operatingActor:operating,operatingBranch:branch,historicalCorrection};
 }
 async function applyMovements(conn,session,authorization,input,internal={}){
  if(!session?.inTransaction())throw fail('Funds movements must share the business transaction',409);
@@ -221,6 +221,7 @@ async function applyMovements(conn,session,authorization,input,internal={}){
  for(const leg of value.legs){
   const account=await Account.findOneAndUpdate({_id:leg.accountId,tenantId:current.tenant._id,branchId:value.branchId},{$inc:{revision:1}},{session,new:true}).lean();
   if(!account||!canSee(account,current))throw fail('A funds account is unavailable or outside your scope',404);
+  if(!current.historicalCorrection)require('../services/branchCurrency.service').resolve(current.operatingBranch,account.currency);
   if(!internal.reversesBatchId&&value.sourceType!=='treasury_adjustment'&&account.moduleKey!=='shared'&&!hasModuleForUser(current.tenant,current.operatingActor,account.moduleKey))throw fail('The originating operator no longer has access to this underlying funds module',403);
   if(account.operatorId&&String(account.operatorId)!==current.operatingActor.id)throw fail('Use the actual account assigned to the originating operator',403);
   if(account.openingBalanceMinor===null||!account.openingApprovedAt)throw fail(`Independently approve the actual opening balance for ${account.name} first`,409);
@@ -240,7 +241,7 @@ async function applyMovements(conn,session,authorization,input,internal={}){
   accounts.set(String(account._id),account);updates.push({account:changed,delta,balanceAfter:after});addLine(account.currency,account.ledgerCode,delta>0n?normalSide(account.kind):opposite(normalSide(account.kind)),delta<0n?-delta:delta);
  }
  const fundLedgerIds=new Set([...accounts.values()].map(account=>String(account.ledgerAccountId)));
- for(const line of value.ledgerLines){if(fundLedgerIds.has(line.accountId))throw fail('A fund account cannot be supplied again as a counterparty ledger line');const chart=await core.ledgerAccountModel(conn).findOne({_id:line.accountId,branchId:value.branchId,currency:line.currency}).session(session).lean();if(!chart)throw fail('Counterparty ledger account belongs to a different branch or currency',409);addLine(line.currency,chart.code,line.side,BigInt(line.amountMinor));}
+ for(const line of value.ledgerLines){if(!current.historicalCorrection)require('../services/branchCurrency.service').resolve(current.operatingBranch,line.currency);if(fundLedgerIds.has(line.accountId))throw fail('A fund account cannot be supplied again as a counterparty ledger line');const chart=await core.ledgerAccountModel(conn).findOne({_id:line.accountId,branchId:value.branchId,currency:line.currency}).session(session).lean();if(!chart)throw fail('Counterparty ledger account belongs to a different branch or currency',409);addLine(line.currency,chart.code,line.side,BigInt(line.amountMinor));}
  const journalIds=[],journalByCurrency=new Map();
  for(const [currency,raw] of [...linesByCurrency].sort(([a],[b])=>a.localeCompare(b))){
   const grouped=new Map();for(const line of raw){const amount=BigInt(line.amountMinor)*(line.side==='debit'?1n:-1n);grouped.set(line.accountCode,(grouped.get(line.accountCode)||0n)+amount);}

@@ -1,5 +1,6 @@
 const { mobileTransactionModel, auditEventModel, branchModel, ensureTenantIndexes } = require('../models');
 const {currencies}=require('../../config/currencies');
+const {networks}=require('../../config/mobileNetworks');
 const MAX_MINOR = 10000000000;
 function toMinor(value, currency, allowZero = false) {
   if(typeof currency!=='string'||!Object.hasOwn(currencies,currency))throw bad('Enter a supported currency');
@@ -35,7 +36,7 @@ function validate(input, operation) {
   const currency = input.currency;
   const networkReference = String(input.networkReference || '').trim();
   const idempotencyKey = String(input.idempotencyKey || '');
-  if (customer.length < 2 || customer.length > 120 || !['MTN','Airtel','Africell','M-Pesa'].includes(network)) throw bad('Customer and network are required');
+  if (customer.length < 2 || customer.length > 120 || !networks.includes(network)) throw bad('Customer and network are required');
   if(input.customerPhone!==undefined&&typeof input.customerPhone!=='string')throw bad('Enter a valid customer phone');
   const phone=String(input.customerPhone||'').trim();
   if(phone&&!/^\+?[0-9 ()-]{7,24}$/.test(phone))throw bad('Enter a valid customer phone');
@@ -101,7 +102,7 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
       const authorization=smsAuthorization||await require('./financialAuthorization.service').authorizeMobileRecording(conn,session,operator,tenant,requestedBranchId,operation);
       const branch=await branchModel(conn).findOneAndUpdate({_id:requestedBranchId,status:'active'},{$inc:{revision:1}},{session,new:true});
       if(!branch)throw bad('Assigned branch is inactive or unavailable',409);
-      if(branch.currency!==values.currency)throw bad('Operation currency does not match the branch currency',409);
+      require('./branchCurrency.service').resolve(branch,values.currency);
       await require('../../platform/services/commercial.service').reserveUsage(authorization.tenant,'mobile_money_records',session);
       // Wallet and bank are declared receipt methods, not verified integrations.
       // Only physical Cash records may change a verified drawer or join a shift.

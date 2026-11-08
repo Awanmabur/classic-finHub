@@ -41,7 +41,7 @@
        {kind:'cash_shift_open',href:'/tenant/cash/shifts',label:'Open day',description:'Opening drawer by currency',icon:'fa-cash-register',permission:'treasury.view',roles:['Tenant Owner','Mobile Money Operator','Money Transfer Operator','Banking Operator','Forex Operator']}
      ].filter(option=>visiblePaths.has(option.href) && can(option.permission) && (!option.roles || option.roles.includes(user.role))) : [];
      const assignedOperationBranch = typeof operationBranch === 'undefined' ? null : operationBranch;
-     const selectedDisplayCurrency=data.workspaceSnapshot?.selectedCurrency||data.filters?.currency||assignedOperationBranch?.currency||'UGX';
+     const selectedDisplayCurrency=data.workspaceSnapshot?.selectedCurrency||data.filters?.currency||data.selectedCurrency||data.entryCurrency||assignedOperationBranch?.currency||'UGX';
      const dashboardCurrencies=typeof currencyOptions==='undefined'?[{code:'UGX',label:'UGX'},{code:'USD',label:'USD'},{code:'SSP',label:'SSP'},{code:'KES',label:'KSH'}]:currencyOptions;
      const pageContent = include(view, { data, money, tenant, user, context, quickActions, visiblePaths, transactionOptions });
      const hasPageSearch = pageContent.includes('data-search-row'); %>

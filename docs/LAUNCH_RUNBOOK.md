@@ -8,6 +8,13 @@ Enable reliable time synchronization on application, database and operator devic
 
 Use three different database principals: web/provisioning, outbox worker and tenant notification worker. Review their actual roles. Do not use root, user administration or cluster administration roles for services. Web needs the application platform/tenant namespaces; notification worker needs its tenant notification namespaces; outbox worker needs the platform outbox and heartbeat collections. Provision backup/recovery credentials separately. Logical tenant databases share an application deployment and do not constitute separate clusters.
 
+The web platform URI may use `PLATFORM_DB_URI` instead of `MONGO_PLATFORM_URI`.
+Set one, or equivalent values for both. Optional `MONGO_URI_BASE` must leave the
+database path empty and match the same web principal, deployment, explicit
+authentication source, TLS and driver settings; only `appName` may differ.
+See [deployment setup](DEPLOYMENT_SETUP.md) before copying Academy-style settings.
+Redis is not used for current sessions or rate limits.
+
 The [MongoDB and service-key checklist](DEPLOYMENT_SETUP.md) gives Atlas setup,
 per-tenant role provisioning and the exact active key inventory. The tenant
 notification worker also processes encrypted receiver transfer-SMS delivery;

@@ -26,6 +26,8 @@
     "db:dev:status": "node scripts/db-local.js status",
     "deps:repair": "node scripts/repair-dependencies.js",
     "db:integration": "node scripts/db-integration.js",
+    "mongo-config:integration": "node scripts/mongo-config-integration.js",
+    "branch-multicurrency:integration": "node scripts/branch-multicurrency-integration.js",
     "auth:migrate": "node scripts/migrate-login-identities.js",
     "auth:integration": "node scripts/auth-integration.js",
     "admin:recover": "node scripts/admin-recovery.js",

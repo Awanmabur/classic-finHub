@@ -67,6 +67,10 @@ complete their fields. Fees and cash-in/out direction are not guessed.
 
 The current conservative parser profile requires an explicit confirmation, such
 as `MTN Cash In: UGX 1,000; Fee: UGX 10; Customer: Jane Doe; Ref: ABC12345`.
+**MTN SSD (South Sudan)** is a distinct network, with its own wallet and reference
+namespace. Its explicit supported example is `MTN SSD Cash In: SSP 1,000.25; Fee: SSP 10.05; Customer: Jane Doe; Ref: SSD12345`.
+UGX, USD, SSP and KES are supported when the explicit currency, accounts and
+verified operator drawer agree. One currency's cash cannot cover another.
 Real provider formats vary; this is not a declaration that every native MTN,
 Airtel or M-Pesa message matches that example. Unmatched messages are still
 captured. The intended phone, its SMS permission/background behavior and its real

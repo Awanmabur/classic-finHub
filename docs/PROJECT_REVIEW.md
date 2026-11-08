@@ -10,9 +10,19 @@ real review queues. Shared headers, two-column stats/filters and centered sideba
 rails follow the requested desktop and phone layout. The
 [end-to-end operating manual](OPERATIONS_MANUAL.md) and
 [MongoDB/key setup](DEPLOYMENT_SETUP.md) cover the operating and host procedures.
-The complete release gate passed 414 JavaScript tests, 13 relay tests, 484
+Branches now operate in their selected currencies with independent accounts and
+cash shifts; MTN SSD is a separate manual/capture network. Platform URI aliases
+and optional tenant base links preserve atomic writes through one MongoClient.
+The complete release gate passed 432 JavaScript tests, 13 relay tests, 493
 JS/EJS checks, all registered isolated integrations and the dependency audit.
-See the [focused evidence](review/predeployment-ui-sms/README.md).
+See the [focused evidence](review/multicurrency-and-mongo/README.md).
+
+GitHub secret alerts 1–3 identify placeholder documentation examples in
+`deb2434`, not working Atlas credentials. Commit `1a1231c` removed those examples;
+CI now rejects credential-shaped Atlas examples, including placeholders. The
+verified alert resolution is **False positive**. GitHub API egress is blocked in
+this cloud environment, so no remote alert-state change was performed. This
+specific review is not a comprehensive audit of every historical secret type.
 
 This register covers the uploaded application reviewed and repaired in this session, including onboarding, tenant administration, financial recording, authentication, dependencies, and the active EJS interface. It records confirmed findings and concrete remaining work. It is not an exhaustive security audit, a claim that every screen matches the approved prototype, or approval to process real funds.
 

@@ -21,7 +21,7 @@ module.exports=function operationWorkspaceRoutes({renderTenant,moduleKey}){
  for(const [path,title,operation] of spec.forms){
   router.get(path,async(req,res,next)=>{
    try{
-    const data=await workspace.formContext(req.tenantDb,req.tenant,req.user,moduleKey,req.operationBranch);
+    const data=await workspace.formContext(req.tenantDb,req.tenant,req.user,moduleKey,req.operationBranch,req.query);
     Object.assign(data,{workspaceTitle:title,workspaceOperation:operation});
     renderTenant(req,res,`${definition.path}/index`,title,moduleKey==='forex'?'Customer exchange quotations with approved rates and independent review.':'Record instructions and review their status.',data);
    }catch(error){next(error);}
@@ -56,7 +56,7 @@ module.exports=function operationWorkspaceRoutes({renderTenant,moduleKey}){
   router.get('/cash-impact',(req,res,next)=>render(req,res,next,'workspace','Forex cash impact',{mode:'cash'}));
   router.get('/cash-stock',(req,res,next)=>res.redirect(303,'/tenant/forex/cash-impact'));
   router.get('/rates',async(req,res,next)=>{
-   try{const data=await workspace.formContext(req.tenantDb,req.tenant,req.user,moduleKey,req.operationBranch);
+   try{const data=await workspace.formContext(req.tenantDb,req.tenant,req.user,moduleKey,req.operationBranch,req.query);
     data.rates=await require('../services/forex.service').listRates(req.tenantDb,req.tenant,req.user,{status:'active'});
     Object.assign(data,{workspaceTitle:'Active rate board',workspaceOperation:'rates'});
     renderTenant(req,res,'forex/index','Active rate board','Approved indicative exchange rates and independent review.',data);

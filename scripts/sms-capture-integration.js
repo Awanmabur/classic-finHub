@@ -147,7 +147,28 @@ async function main(){
   await User.updateOne({_id:noShift._id},{$set:{status:'disabled'}});
   await assert.rejects(capture.receive(other.device.deviceId,otherRaw,otherValue,{timestamp,signature:crypto.createHmac('sha256',Buffer.from(other.secret,'hex')).update(timestamp+'.').update(otherRaw).digest('hex')}),{status:403});
   assert(await models.auditEventModel(conn).exists({action:'sms.device.revoked'}));
+  // A newly published capture allowance leaves one unit for the separate
+  // South Sudan device; the existing UGX drawer remains independent.
+  await Tenant.updateOne({_id:tenant._id},{$set:{'subscription.limits.smsPerMonth':9}});
+  tenant=await Tenant.findById(tenant._id).lean();
+  const originalMovement=String((await models.cashSessionModel(conn).findById(shift._id)).provisionalMovementMinor);
+  const sspShift=await cash.open(conn,tenant,operator,{currency:'SSP',openingCash:'0.00'});
+  await cash.decideOpening(conn,tenant,owner,sspShift._id,{decision:'approve',note:'Independent physical SSP opening count checked separately from the UGX drawer'});
+  tenant=await Tenant.findById(tenant._id).lean();
+  const ssd=await capture.enroll(conn,tenant,owner,{operatorId:operator.id,name:'MTN South Sudan Android',network:'MTN SSD',allowedSenders:'MTNSSD',autoRecord:'on'});
+  const ssdPayload={messageId:'ssd-sspcents-1',sender:'MTNSSD',receivedAt:new Date().toISOString(),body:`MTN SSD Cash In: SSP 1,000.25; Fee: SSP 10.05; Customer: SSP Customer; Ref: SSD-${nonce}`};
+  const ssdRaw=Buffer.from(JSON.stringify(ssdPayload)),ssdAt=String(Math.floor(Date.now()/1000));
+  const ssdHeaders={timestamp:ssdAt,signature:crypto.createHmac('sha256',Buffer.from(ssd.secret,'hex')).update(ssdAt+'.').update(ssdRaw).digest('hex')};
+  const ssdResult=await capture.receive(ssd.device.deviceId,ssdRaw,ssdPayload,ssdHeaders);
+  assert.equal(ssdResult.state,'recorded');
+  const ssdInbox=await models.smsInboxModel(conn).findById(ssdResult.id).lean(),ssdRecord=await models.mobileTransactionModel(conn).findById(ssdInbox.recordId).lean();
+  assert.equal(ssdRecord.network,'MTN SSD');assert.equal(ssdRecord.currency,'SSP');assert.equal(String(ssdRecord.amountMinor),'100025');assert.equal(String(ssdRecord.feeMinor),'1005');
+  assert.equal(String(ssdRecord.cashSessionId),String(sspShift._id));assert.equal(String((await models.cashSessionModel(conn).findById(shift._id)).provisionalMovementMinor),originalMovement);
+  assert.equal(String((await models.cashSessionModel(conn).findById(sspShift._id)).provisionalMovementMinor),'100025');
+  assert.equal((await capture.receive(ssd.device.deviceId,ssdRaw,ssdPayload,ssdHeaders)).duplicate,true);
+  assert.equal((await Usage.findOne({tenantId:tenant._id})).quantity,9);
   console.log('PASS: signed HTTP Android delivery, sender/tenant/signature/time rejection, encrypted credentials/SMS, scoped automatic recording, pending verification, duplicate safety, unknown review, verified-shift control, branch/staff reassignment, SMS quota atomicity, manual entry at full SMS quota, interrupted-recording recovery, browser auth/CSRF and revocation');
+  console.log('PASS: enrolled MTN SSD device records explicit SSP confirmations with exact cents into its own verified SSP drawer; UGX drawer and duplicate/quota protections remain intact.');
 }
 async function cleanup(){
   if(server)await new Promise(resolve=>server.close(resolve));

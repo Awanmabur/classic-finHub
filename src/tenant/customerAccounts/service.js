@@ -10,6 +10,7 @@ const {tenantDbNameFromSlug}=require('../../config/tenantDatabaseName');
 const {resolveTransactionBranch}=require('../services/transactionBranch.service');
 const {reserveUsage}=require('../../platform/services/commercial.service');
 const {currencyOptions,currencyLabel}=require('../../config/currencies');
+const branchCurrency=require('../services/branchCurrency.service');
 const oid=x=>new mongoose.Types.ObjectId(String(x));
 async function context(conn,tenant,actor,moduleKey,permission,session=null){
  if(!tenant||conn.name!==tenantDbNameFromSlug(tenant.slug))throw v.fail('Tenant database context does not match this account',403);
@@ -82,15 +83,15 @@ async function customerDetail(conn,tenant,actor,customerId){
 async function customerChoices(conn,tenant,actor,input={}){actor=await access(conn,tenant,actor,'accounts','accounts.manage');await prepare(conn);const branch=await resolveTransactionBranch(conn,actor);return directory.customerModel(conn).find({$and:[{branchId:branch._id,status:'active'},search(input.q)]}).select('name phone reference branchId').sort({normalizedName:1,_id:1}).limit(50).lean();}
 async function accountCreate(conn,tenant,actor,input){
  actor=await access(conn,tenant,actor,'accounts','accounts.manage');const value=v.account(input),customerId=v.id(input.customerId),key=v.key(input.idempotencyKey);if(value.status==='closed')throw v.fail('A new account cannot start closed');
- const branchId=String((await resolveTransactionBranch(conn,actor,input))._id);await prepare(conn);const Model=directory.accountModel(conn);
- const replay=async()=>{const record=await Model.findOne({idempotencyKey:key}).lean();if(!record)return null;if(!same(record,actor,branchId,{...value,customerId})||(input.accountNumber&&record.accountNumber!==v.reference(input.accountNumber,'ACC')))throw v.fail('Creation reference was already used with different details',409);return {record,duplicate:true};};
+ const operatingBranch=await resolveTransactionBranch(conn,actor,input),branchId=String(operatingBranch._id),currency=branchCurrency.resolve(operatingBranch,input.currency);await prepare(conn);const Model=directory.accountModel(conn);
+ const replay=async()=>{const record=await Model.findOne({idempotencyKey:key}).lean();if(!record)return null;if(!same(record,actor,branchId,{...value,customerId,currency})||(input.accountNumber&&record.accountNumber!==v.reference(input.accountNumber,'ACC')))throw v.fail('Creation reference was already used with different details',409);return {record,duplicate:true};};
  const prior=await replay();if(prior)return prior;
  try{return await transaction(conn,async session=>{const current=await fenceAccess(conn,session,tenant,actor,'accounts','accounts.manage');const branch=await fenceBranch(conn,session,branchId);
   const customer=await directory.customerModel(conn).findOneAndUpdate({_id:customerId,branchId,status:'active'},{$inc:{revision:1}},{session,new:true});if(!customer)throw v.fail('Choose an active customer in your operating branch',409);
-  if(input.currency&&input.currency!==branch.currency)throw v.fail('Account currency must match the operating branch',409);
+  branchCurrency.resolve(branch,currency);
   await reserveUsage(current.tenant,'customer_accounts',session);const accountNumber=v.reference(input.accountNumber,'ACC'),accountId=new mongoose.Types.ObjectId();
-  const [ledger]=await models.ledgerAccountModel(conn).create([{branchId,currency:branch.currency,code:`CUS_${String(accountId).toUpperCase()}`,name:`Customer account ${accountNumber}`,category:'liability',createdBy:actor.id}],{session});
-  const [record]=await Model.create([{_id:accountId,...value,customerId,accountNumber,idempotencyKey:key,branchId,currency:branch.currency,ledgerAccountId:ledger._id,createdBy:actor.id,updatedBy:actor.id}],{session});
+  const [ledger]=await models.ledgerAccountModel(conn).create([{branchId,currency,code:`CUS_${String(accountId).toUpperCase()}`,name:`Customer account ${accountNumber}`,category:'liability',createdBy:actor.id}],{session});
+  const [record]=await Model.create([{_id:accountId,...value,customerId,accountNumber,idempotencyKey:key,branchId,currency,ledgerAccountId:ledger._id,createdBy:actor.id,updatedBy:actor.id}],{session});
   await audit(conn,session,actor,record,'customer.account.created');return {record,duplicate:false};
  });}catch(e){if(e.code===11000){const old=await replay();if(old)return old;throw v.fail('Account number is already in use',409);}throw e;}
 }

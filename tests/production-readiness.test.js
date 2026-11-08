@@ -13,6 +13,14 @@ test('configuration-only checks cannot claim live launch verification',async()=>
  assert.equal(report.automatedChecksPassed,true);assert.equal(report.liveChecksCompleted,false);assert.equal(report.productionCertification,false);assert(report.manualVerificationRequired.length>=4);
  const blocked=await readiness.inspect({}, {connect:()=>{throw Error('must not connect with invalid configuration');}});assert.equal(blocked.automatedChecksPassed,false);
 });
+test('production probe honors the platform alias and rejects incompatible base URIs before connecting',async()=>{
+ const input=config();input.PLATFORM_DB_URI=input.MONGO_PLATFORM_URI;delete input.MONGO_PLATFORM_URI;
+ assert(readiness.configurationChecks(input).checks.every(check=>check.passed));
+ let connections=0;
+ const bad=await readiness.inspect({...input,MONGO_URI_BASE:'mongodb://elsewhere:27017/?tls=true'},{connect:async()=>{connections++;throw Error('must not connect');}});
+ assert.equal(bad.configurationValid,false);assert.equal(connections,0);
+ assert(bad.checks.some(check=>check.name==='mongo_alias_and_base_configuration'&&!check.passed));
+});
 test('receiver SMS readiness requires complete worker settings and an independent key without leaking credentials',()=>{
  const input={...config(),TRANSFER_SMS_PROVIDER:'twilio',TRANSFER_SMS_ENCRYPTION_KEY:'37'.repeat(32),TWILIO_ACCOUNT_SID:'AC'+'ab'.repeat(16),TWILIO_AUTH_TOKEN:'c8'.repeat(16),TWILIO_FROM_NUMBER:'+256700123456'};
  const valid=readiness.configurationChecks(input);assert(valid.checks.every(check=>check.passed),JSON.stringify(valid));

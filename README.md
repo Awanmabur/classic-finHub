@@ -8,6 +8,7 @@ The tenant workspace follows the approved `index.html` design. Its navigation di
 
 - Platform administrators publish versioned plans with modules, prices, quotas and higher-priced SMS-assisted tiers; provision tenants; and manage manual subscription grants.
 - Mobile money cash-in/out uses configured wallet and payment-account defaults. Wallets provides account setup, reviewed opening evidence, funding transfers, fee policy and reconciliation.
+- Each branch supports its selected UGX, USD, SSP and KES currencies with separate accounts, verified cash shifts and ledger totals. MTN SSD (South Sudan) is available separately from MTN in manual entry and supported Android SMS capture.
 - Banking, forex, money transfers and expenses use independently reviewed manual postings, exact currency amounts, balanced journals, immutable source records and controlled corrections.
 - Money transfer tellers type sender and receiver details directly. Reviewed collection generates a PIN and queues receiver SMS when configured; new payouts match the PIN and sender phone in the same branch. Saved contacts are optional.
 - Tenant Workspace checks actual branch assignments, independent reviewers, funds accounts, verified cash shifts and subscribed operation prerequisites, and links to current review queues.
@@ -23,6 +24,12 @@ Use the [end-to-end operations manual](docs/OPERATIONS_MANUAL.md) for platform o
 Start with the [launch status](docs/LAUNCH_STATUS.md) and follow the [production runbook](docs/LAUNCH_RUNBOOK.md) in order. It covers service credentials, HTTPS, database roles, immutable images, migrations, initial administrator setup, backups/restore, workers, monitoring, smoke checks and rollback.
 
 For first setup, use the [MongoDB Atlas and service-key checklist](docs/DEPLOYMENT_SETUP.md). It explains which credentials to create, where they belong, and which optional keys can stay blank.
+
+`PLATFORM_DB_URI` is supported as an alias for `MONGO_PLATFORM_URI`.
+Optional `MONGO_URI_BASE` derives private tenant links using the same deployment
+and web credential. Each tenant keeps its own logical database while sharing one
+bounded MongoClient for atomic authorization and financial writes. Redis is not
+required by the current runtime.
 
 The application includes a read-only production probe:
 
@@ -51,6 +58,7 @@ There are no seeded administrator credentials. Follow the protected password-fil
 
 ```bash
 npm run check
+npm run secrets:check
 npm test
 npm run release:gate
 ```

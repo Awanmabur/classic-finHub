@@ -51,7 +51,12 @@ async function main(){
  assert.equal(account.currency,'USD');assert.equal((await service.accountCreate(conn,tenant,banker,accountBody)).duplicate,true);
  assert.equal((await service.accountDetail(conn,tenant,banker,account._id)).balance.minor,'0');assert.equal(await models.ledgerPostingModel(conn).countDocuments(),0);
  await assert.rejects(service.accountCreate(conn,tenant,banker,{...accountBody,idempotencyKey:crypto.randomUUID(),accountNumber:'OPEN-'+nonce.toUpperCase(),openingUSD:'10'}),{status:400});
- await assert.rejects(service.accountCreate(conn,tenant,banker,{...accountBody,idempotencyKey:crypto.randomUUID(),accountNumber:'CURRENCY-'+nonce.toUpperCase(),currency:'UGX'}),{status:409});
+ const ugxInput={...accountBody,idempotencyKey:crypto.randomUUID(),accountNumber:'CURRENCY-'+nonce.toUpperCase(),currency:'UGX'};
+ const ugxAccount=(await service.accountCreate(conn,tenant,banker,ugxInput)).record;
+ assert.equal(ugxAccount.currency,'UGX');assert.equal((await models.ledgerAccountModel(conn).findById(ugxAccount.ledgerAccountId)).currency,'UGX');
+ assert.equal((await service.accountCreate(conn,tenant,banker,ugxInput)).duplicate,true);
+ await assert.rejects(service.accountCreate(conn,tenant,banker,{...ugxInput,currency:'SSP'}),{status:409},'idempotency cannot change account currency');
+ await assert.rejects(service.accountCreate(conn,tenant,banker,{...accountBody,idempotencyKey:crypto.randomUUID(),accountNumber:'INVALID-'+nonce.toUpperCase(),currency:'EUR'}),{status:409});
  const usageBefore=await Usage.findOne({tenantId:tenant._id,metric:'customer_accounts'}).lean(),ledgerBefore=await models.ledgerAccountModel(conn).countDocuments(),customerBefore=await directory.customerModel(conn).findById(customer._id).lean();
  await assert.rejects(service.accountCreate(conn,tenant,banker,{...accountBody,idempotencyKey:crypto.randomUUID()}),{status:409},'duplicate account number rolls back ledger mapping and quota');
  assert.equal(await models.ledgerAccountModel(conn).countDocuments(),ledgerBefore);assert.equal((await Usage.findById(usageBefore._id)).quantity,usageBefore.quantity);assert.equal((await directory.customerModel(conn).findById(customer._id)).revision,customerBefore.revision);
@@ -59,7 +64,9 @@ async function main(){
  const bridge=require('../src/tenant/customerAccounts/bankingBridge'),banking=require('../src/tenant/services/banking.service');
  const choices=await bridge.choices(conn,tenant,banker,{branchId:String(branch._id)});assert(choices.some(x=>x._id==='account:'+account._id));assert(!JSON.stringify(choices).includes(account.accountNumber),'banking options disclose only the last four account characters');
  const secondAccount=(await service.accountCreate(conn,tenant,banker,{...accountBody,idempotencyKey:crypto.randomUUID(),accountNumber:'DST-'+nonce.toUpperCase()})).record;
+ const ugxChoices=await bridge.choices(conn,tenant,banker,{currency:'UGX'});assert(ugxChoices.some(row=>row._id==='account:'+ugxAccount._id));assert(!ugxChoices.some(row=>row._id==='account:'+account._id));
  const bankBody={kind:'deposit_request',sourceId:'account:'+account._id,currency:'USD',amount:'5.25',note:'Customer instruction captured for independent review',validDays:7,idempotencyKey:crypto.randomUUID()};
+ await assert.rejects(banking.createRequest(conn,tenant,banker,{...bankBody,sourceId:'account:'+ugxAccount._id,idempotencyKey:crypto.randomUUID()}),{status:409},'a USD instruction cannot use a UGX customer ledger');
  const requested=await banking.createRequest(conn,tenant,banker,bankBody);assert.equal(requested.order.status,'requested');assert.equal(requested.order.source.referenceType,'customer_account');assert.equal(String(requested.order.source.referenceId),String(account._id));assert.equal(requested.order.source.institutionName,'Internal customer account');assert.equal(requested.order.source.last4,account.accountNumber.slice(-4));assert.equal((await banking.createRequest(conn,tenant,banker,bankBody)).duplicate,true);
  assert.equal((await banking.list(conn,tenant,banker)).items.length,1);assert.equal(await models.ledgerPostingModel(conn).countDocuments(),0,'a customer account instruction never posts money');
  const approved=await banking.decide(conn,tenant,owner,requested.order._id,{decision:'approve',note:'Independent account instruction details reviewed'});assert.equal(approved.status,'approved_pending_bank');assert.equal(await models.ledgerPostingModel(conn).countDocuments(),0);
@@ -83,7 +90,7 @@ async function main(){
  const detail=await service.accountDetail(conn,tenant,banker,account._id);assert.equal(detail.balance.minor,'12345');assert.equal(service.formatMinor(detail.balance.minor,'USD'),'USD 123.45');
  assert.equal((await service.movements(conn,tenant,banker,{accountId:String(account._id)})).items.length,1);assert.equal((await service.movements(conn,tenant,manager)).items.length,0);
  await assert.rejects(service.accountUpdate(conn,tenant,banker,account._id,{...accountBody,status:'closed',revision:(await directory.accountModel(conn).findById(account._id)).revision}),error=>error.status===409&&/nonzero ledger balance/.test(error.message));
- assert.equal((await directory.accountModel(conn).findById(account._id)).status,'active');assert.equal(await models.auditEventModel(conn).countDocuments({action:'customer.account.created'}),2);
+ assert.equal((await directory.accountModel(conn).findById(account._id)).status,'active');assert.equal(await models.auditEventModel(conn).countDocuments({action:'customer.account.created'}),3);
  // The logbook links only entitled source records and exact recorded phones.
  const mobile=await models.mobileTransactionModel(conn).create({idempotencyKey:crypto.randomUUID(),operation:'cash_in',customer:'Recorded customer',customerPhone:customer.phone,network:'MTN',networkReference:'DIRECTORY-'+nonce,currency:'USD',amountMinor:'500',feeMinor:'0',operatorId:owner.id,branchId:branch._id});
  const logbook=await service.logbook(conn,tenant,owner,{customerId:String(customer._id)});assert(logbook.items.some(x=>String(x._id)===String(mobile._id)));assert(logbook.items.some(x=>x.label==='Account credit'));assert.equal((await service.logbook(conn,tenant,manager)).items.length,0);

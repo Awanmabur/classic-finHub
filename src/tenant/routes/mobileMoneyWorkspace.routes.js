@@ -12,7 +12,10 @@ module.exports=function routes({renderTenant}){
   try{
    if(report&&!workspace.canReport(req.user))return res.status(403).send('Mobile money report permission is required.');
    const [data,branches]=await Promise.all([workspace.workspace(req.tenantDb,req.user,req.query,{operation}),branchService.list(req.tenant)]);
+   const branchCurrency=require('../services/branchCurrency.service');
    renderTenant(req,res,`mobile-money/${view}`,title,subtitle,{...data,operation,idempotencyKey:randomUUID(),
+    entryCurrency:req.operationBranch&&operation?branchCurrency.resolve(req.operationBranch,req.query.currency):null,
+    entryCurrencies:req.operationBranch?branchCurrency.options(req.operationBranch):[],
     branches:branches.filter(branch=>branch.status==='active'&&(req.user.role==='Tenant Owner'||String(branch._id)===String(req.user.branchId))),
     selectedBranchId:req.operationBranch?String(req.operationBranch._id):null,
     funds:req.operationBranch&&hasPermission(req.user,'treasury.view')?await require('../services/mobileMoneyFunds.service').context(req.tenantDb,req.tenant,req.user,req.operationBranch):null,

@@ -11,6 +11,7 @@ const {tenantDbNameFromSlug}=require('../../config/tenantDatabaseName');
 const {hasPermission,hasModuleForUser}=require('./moduleAccess.service');
 const mobile=require('./mobileMoney.service');
 const cash=require('./cashDrawer.service');
+const branchCurrency=require('./branchCurrency.service');
 const OID=/^[a-f0-9]{24}$/i,UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const supervisors=['Tenant Owner','Branch Manager','Reconciliation Officer','Auditor','Reports Analyst'];
 function fail(message,status=400){const error=new Error(message);error.status=status;return error;}
@@ -45,7 +46,7 @@ function scopeFor(actor){
 function values(input,currency){return {expenseType:text(input.expenseType,'expense type',2,100),amountMinor:mobile.toMinor(input.amount,currency),
  vendor:text(input.vendor??'','vendor',0,120),reference:text(input.reference??'','reference',0,120),description:text(input.description??'','description',0,400)};}
 function snapshot(record){return {expenseType:record.expenseType,amountMinor:String(record.amountMinor),vendor:record.vendor||'',reference:record.reference||'',description:record.description||''};}
-function same(existing,actor,branchId,value,method,treasuryAccountId=null){return String(existing.operatorId)===String(actor.id)&&String(existing.branchId)===String(branchId)&&
+function same(existing,actor,branchId,value,method,treasuryAccountId=null,currency=null){return (!currency||existing.currency===currency)&&String(existing.operatorId)===String(actor.id)&&String(existing.branchId)===String(branchId)&&
  existing.paymentMethod===method&&String(existing.treasuryAccountId||'')===String(treasuryAccountId||'')&&Object.keys(value).every(key=>String(existing.original[key])===String(value[key]));}
 function fundId(value){if(value===undefined||value===null||value==='')return null;if(typeof value!=='string')throw fail('Choose a valid funds account');return id(value);}
 function fundKind(method){return {Cash:'cash','Mobile Money':'wallet',Bank:'bank'}[method]||null;}
@@ -53,9 +54,9 @@ async function hasFunds(conn,tenant,branchId,currency,method,session=null){
  const query=require('../treasury/models').models(conn).account.exists({tenantId:tenant._id,branchId,currency,kind:fundKind(method),status:{$ne:'archived'}});
  if(session)query.session(session);return !!await query;
 }
-async function validateRequestedFund(conn,session,tenant,actor,branch,paymentMethod,accountId){
+async function validateRequestedFund(conn,session,tenant,actor,branch,currency,paymentMethod,accountId){
  if(!accountId)return;
- const account=await require('../treasury/models').models(conn).account.findOne({_id:accountId,tenantId:tenant._id,branchId:branch._id,currency:branch.currency,
+ const account=await require('../treasury/models').models(conn).account.findOne({_id:accountId,tenantId:tenant._id,branchId:branch._id,currency,
   kind:fundKind(paymentMethod),status:{$ne:'archived'},$or:[{operatorId:null},{operatorId:id(actor.id)}]}).session(session).lean();
  if(!account||!visibleFund(account,tenant,actor,actor.id)||paymentMethod==='Cash'&&String(account.operatorId)!==String(actor.id))throw fail('Choose your actual funds account in this branch, currency and payment method',403);
 }
@@ -66,7 +67,7 @@ function visibleFund(account,tenant,actor,operatorId){
 }
 // Selection is informational until review. A fund without a reviewed opening,
 // or a held/mismatching fund, is never presented as spendable money.
-async function fundChoices(conn,tenant,actor,{expenseId=null}={}){
+async function fundChoices(conn,tenant,actor,{expenseId=null,currency:selectedCurrency=null}={}){
  ({actor,tenant}=await access(conn,tenant,actor,'expenses.view'));
  let branchId,currency,operatorId=actor.id;
  if(expenseId){
@@ -77,7 +78,7 @@ async function fundChoices(conn,tenant,actor,{expenseId=null}={}){
  }else{
   if(!hasPermission(actor,'expenses.create'))return [];
   let branch;try{branch=await require('./transactionBranch.service').resolveTransactionBranch(conn,actor,{});}catch(error){if([403,409].includes(error.status))return [];throw error;}
-  branchId=branch._id;currency=branch.currency;
+  branchId=branch._id;currency=selectedCurrency?branchCurrency.resolve(branch,selectedCurrency):{$in:branchCurrency.supported(branch)};
  }
  const rows=await require('../treasury/models').models(conn).account.find({tenantId:tenant._id,branchId,currency,
   kind:{$in:['cash','wallet','bank']},status:'active',openingBalanceMinor:{$ne:null},
@@ -133,7 +134,7 @@ async function audit(conn,session,actor,record,action){await auditEventModel(con
   reversalBatchId:record.lastReversalBatchId?String(record.lastReversalBatchId):null}}],{session});}
 async function shiftFence(conn,session,record,offset=0n,{bookManaged=false}={}){
  if(record.paymentMethod!=='Cash')return;
- const branch=await branchModel(conn).findOneAndUpdate({_id:record.branchId,status:'active',currency:record.currency},{$inc:{revision:1}},{new:true,session});
+ const branch=await branchModel(conn).findOneAndUpdate({_id:record.branchId,status:'active'},{$inc:{revision:1}},{new:true,session});
  if(!branch)throw fail('The linked cash branch is inactive or unavailable',409);
  const prior=await cashSessionModel(conn).findOne({_id:record.cashSessionId,branchId:record.branchId,operatorId:record.operatorId}).session(session).lean();
  if(!bookManaged&&offset!==0n&&prior?.treasuryAccountId)throw fail('This historical expense has no funds-book posting. Reconcile its original evidence before changing the managed cash drawer.',409);
@@ -146,38 +147,38 @@ async function shiftFence(conn,session,record,offset=0n,{bookManaged=false}={}){
 }
 async function create(conn,tenant,actor,input={},options={}){
  ({actor,tenant}=await access(conn,tenant,actor,'expenses.create'));id(actor.id);
- const branch=await require('./transactionBranch.service').resolveTransactionBranch(conn,actor,input),value=values(input,branch.currency);
- if(input.currency&&input.currency!==branch.currency)throw fail('Expense currency must match your operating branch',409);
+ const branch=await require('./transactionBranch.service').resolveTransactionBranch(conn,actor,input),currency=branchCurrency.resolve(branch,input.currency),value=values(input,currency);
  const paymentMethod=text(input.paymentMethod,'payment method',4,20),requestedFundId=fundId(input.treasuryAccountId);
- const sourcePolicy=options.requireFunds===true||requestedFundId||await hasFunds(conn,tenant,branch._id,branch.currency,paymentMethod)?'funded_required':'legacy_untracked';
+ const sourcePolicy=options.requireFunds===true||requestedFundId||await hasFunds(conn,tenant,branch._id,currency,paymentMethod)?'funded_required':'legacy_untracked';
  if(!['Cash','Mobile Money','Bank'].includes(paymentMethod))throw fail('Invalid expense payment method');
  if(!UUID.test(String(input.idempotencyKey||'')))throw fail('Reload the form to generate a valid form reference');
  await ready(conn);if(sourcePolicy==='funded_required')await require('../treasury/models').ensure(conn);const Model=expenseModel(conn),branchId=branch._id;
  const existing=await Model.findOne({idempotencyKey:input.idempotencyKey}).lean();
- if(existing){if(!same(existing,actor,branchId,value,paymentMethod,requestedFundId))throw fail('Form reference already used with different details',409);return {record:existing,duplicate:true};}
+ if(existing){if(!same(existing,actor,branchId,value,paymentMethod,requestedFundId,currency))throw fail('Form reference already used with different details',409);return {record:existing,duplicate:true};}
  const session=await conn.startSession();let record;
  try{await session.withTransaction(async()=>{
   ({actor,tenant}=await access(conn,tenant,actor,'expenses.create',session));
   const verifiedBranch=await require('./transactionBranch.service').resolveTransactionBranch(conn,actor,input);
-  if(String(verifiedBranch._id)!==String(branchId)||verifiedBranch.currency!==branch.currency)throw fail('Operating branch changed. Refresh and retry.',409);
-  const active=await branchModel(conn).findOneAndUpdate({_id:branchId,status:'active',currency:branch.currency},{$inc:{revision:1}},{new:true,session});
+  if(String(verifiedBranch._id)!==String(branchId)||branchCurrency.resolve(verifiedBranch,currency)!==currency)throw fail('Operating branch changed. Refresh and retry.',409);
+  const active=await branchModel(conn).findOneAndUpdate({_id:branchId,status:'active'},{$inc:{revision:1}},{new:true,session});
   if(!active)throw fail('Operating branch is unavailable',409);
-  await validateRequestedFund(conn,session,tenant,actor,branch,paymentMethod,requestedFundId);
+  branchCurrency.resolve(active,currency);
+  await validateRequestedFund(conn,session,tenant,actor,active,currency,paymentMethod,requestedFundId);
   let cashSessionId=null;
   if(paymentMethod==='Cash'){
-   const shift=await cashSessionModel(conn).findOneAndUpdate({activeKey:cash.key(branchId,actor.id),currency:branch.currency,status:'open',openingVerifiedAt:{$ne:null}},
+   const shift=await cashSessionModel(conn).findOneAndUpdate({...cash.activeFilter(branchId,actor.id,currency),status:'open',openingVerifiedAt:{$ne:null}},
     {$inc:{revision:1}},{new:true,session});
    if(!shift)throw fail('Cash expenses require your independently verified open cash shift. Pending expenses do not reduce cash.',409);
    cashSessionId=shift._id;
   }
   await require('../../platform/services/commercial.service').reserveUsage(tenant,'expenses',session);
-  [record]=await Model.create([{...value,branchId,operatorId:actor.id,currency:branch.currency,paymentMethod,cashSessionId,treasuryAccountId:requestedFundId,sourcePolicy,
+  [record]=await Model.create([{...value,branchId,operatorId:actor.id,currency,paymentMethod,cashSessionId,treasuryAccountId:requestedFundId,sourcePolicy,
    original:value,idempotencyKey:input.idempotencyKey,recordReference:`EXP-${crypto.randomBytes(10).toString('hex').toUpperCase()}`,
    history:[{action:'created',actorId:actor.id,at:new Date(),after:value,note:'Submitted for independent review'}]}],{session});
   await audit(conn,session,actor,record,'created');
  });return {record,duplicate:false};}
  catch(error){if(error.code===11000){const found=await Model.findOne({idempotencyKey:input.idempotencyKey}).lean();
-  if(found&&same(found,actor,branchId,value,paymentMethod,requestedFundId))return {record:found,duplicate:true};throw fail('Expense form reference already used',409);}throw error;}
+  if(found&&same(found,actor,branchId,value,paymentMethod,requestedFundId,currency))return {record:found,duplicate:true};throw fail('Expense form reference already used',409);}throw error;}
  finally{await session.endSession();}
 }
 async function review(conn,tenant,actor,expenseId,input={}){

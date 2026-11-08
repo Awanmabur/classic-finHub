@@ -24,7 +24,7 @@ module.exports=function routes({renderTenant}){
     fx.reviewer(req.user)&&hasPermission(req.user,'forex.rate_review')?fx.rateReviewQueue(req.tenantDb,req.tenant,req.user):[],
     fx.reviewer(req.user)&&hasPermission(req.user,'forex.quotes.review')?fx.quoteReviewQueue(req.tenantDb,req.tenant,req.user):[]]);
    renderTenant(req,res,'forex/index','Forex Rates & Quotes','Approved rates, customer quotations and independently reviewed manual exchanges.',{
-    branches:branchList,formRates,rates,records,rateQueue,quoteQueue,selectedBranchId:selected?selectedId:null,
+    branches:branchList,formRates:formRates.filter(rate=>fx.enabledRate(selected,rate)),rates,records,rateQueue,quoteQueue,selectedBranchId:selected?selectedId:null,
     canPropose:fx.operator(req.user)&&hasPermission(req.user,'forex.rate_manage'),
     canQuote:fx.operator(req.user)&&hasPermission(req.user,'forex.quotes.create'),
     canRateReview:fx.reviewer(req.user)&&hasPermission(req.user,'forex.rate_review'),

@@ -5,10 +5,10 @@
 // its sender. Unrecognised or changed provider wording stays in the review inbox.
 // Supported fixture:
 // MTN Cash In: UGX 1,000; Fee: UGX 10; Customer: Jane Doe; Ref: ABC12345
-const NETWORKS = Object.freeze(['MTN', 'Airtel', 'M-Pesa']);
+const {smsNetworks:NETWORKS}=require('../../config/mobileNetworks');
 const AMOUNT = '(?:0|[1-9]\\d{0,10}|[1-9]\\d{0,2}(?:,\\d{3}){1,3})(?:\\.\\d{1,2})?';
 const confirmation = new RegExp(
-  `^(MTN|Airtel|M-Pesa) Cash (In|Out): (UGX|KES) (${AMOUNT}); Fee: (UGX|KES) (${AMOUNT}); Customer: ([^;\\r\\n]{2,120}); Ref: ([A-Za-z0-9._:/-]{5,100})(?:; Agent Balance: (UGX|KES) (${AMOUNT}))?$`,
+  `^(MTN SSD|MTN|Airtel|M-Pesa) Cash (In|Out): (UGX|USD|SSP|KES) (${AMOUNT}); Fee: (UGX|USD|SSP|KES) (${AMOUNT}); Customer: ([^;\\r\\n]{2,120}); Ref: ([A-Za-z0-9._:/-]{5,100})(?:; Agent Balance: (UGX|USD|SSP|KES) (${AMOUNT}))?$`,
   'i'
 );
 const review = reasonCode => ({state:'needs_review', fields:null, reasonCode});

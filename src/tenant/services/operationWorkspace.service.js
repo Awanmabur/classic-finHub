@@ -7,6 +7,7 @@ const mobile=require('./mobileMoney.service');
 const {hasPermission,hasModuleForUser}=require('./moduleAccess.service');
 const models=require('../models');
 const {currencyCodes,forexCurrencyCodes}=require('../../config/currencies');
+const branchCurrency=require('./branchCurrency.service');
 const definitions=Object.freeze({
  money_transfer:{label:'Money Transfer',path:'money-transfer',model:models.transferOrderModel,
   creator:'Money Transfer Operator',statuses:['requested','approved_pending_provider','rejected','cancelled','expired','collected_manual','paid_out_manual'],
@@ -104,13 +105,14 @@ function csv(report){
  return '\uFEFF'+[headers,...report.rows.map(row=>[row.day,row.kind,row.status,row.currency,row.count,row.volume,row.fees,row.targetCurrency,row.target])]
   .map(row=>row.map(mobile.csvCell).join(',')).join('\r\n')+'\r\n';
 }
-async function formContext(conn,tenant,actor,key,operationBranch){
+async function formContext(conn,tenant,actor,key,operationBranch,input={}){
  authorize(tenant,actor,key);
  const branches=(await require('./branch.service').list(tenant)).filter(branch=>branch.status==='active'&&
   (require('./branchView.service').canViewBranches(actor)||String(branch._id)===String(actor.branchId)));
  const selectedId=String(operationBranch?._id||''),selected=branches.find(branch=>String(branch._id)===selectedId);
  const operatingActor=require('./branchView.service').withoutReadView(actor);
- const common={branches,selectedBranchId:selected?selectedId:null,idempotencyKey:crypto.randomUUID(),formatMoneyMinor:mobile.formatMoneyMinor};
+ const common={branches,selectedBranchId:selected?selectedId:null,idempotencyKey:crypto.randomUUID(),formatMoneyMinor:mobile.formatMoneyMinor,
+  currencyChoices:branchCurrency.options(operationBranch),selectedCurrency:operationBranch?branchCurrency.resolve(operationBranch,input.currency):null};
  if(key==='money_transfer'){
   const service=require('./moneyTransfer.service');
   const [list,queue]=await Promise.all([
@@ -128,9 +130,10 @@ async function formContext(conn,tenant,actor,key,operationBranch){
    canReview:service.reviewer(actor)&&hasPermission(actor,'banking.review')};
  }
  const service=require('./forex.service');
- const [rates,list,rateQueue,quoteQueue]=await Promise.all([service.listRates(conn,tenant,operatingActor,{status:'active',...(selected?{branchId:selectedId}:{})}),service.listQuotes(conn,tenant,actor),
+ const [listedRates,list,rateQueue,quoteQueue]=await Promise.all([service.listRates(conn,tenant,operatingActor,{status:'active',...(selected?{branchId:selectedId}:{})}),service.listQuotes(conn,tenant,actor),
   service.reviewer(actor)&&hasPermission(actor,'forex.rate_review')?service.rateReviewQueue(conn,tenant,actor):[],
   service.reviewer(actor)&&hasPermission(actor,'forex.quotes.review')?service.quoteReviewQueue(conn,tenant,actor):[]]);
+ const rates=selected?listedRates.filter(rate=>service.enabledRate(selected,rate)):listedRates;
  return {...common,rates,records:list,rateQueue,quoteQueue,amountLabel:service.amountLabel,
   canPropose:service.operator(actor)&&hasPermission(actor,'forex.rate_manage'),canQuote:service.operator(actor)&&hasPermission(actor,'forex.quotes.create'),
   canRateReview:service.reviewer(actor)&&hasPermission(actor,'forex.rate_review'),canQuoteReview:service.reviewer(actor)&&hasPermission(actor,'forex.quotes.review')};

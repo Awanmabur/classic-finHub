@@ -5,7 +5,7 @@ const {Types}=require('mongoose');
 const {mobileTransactionModel,ensureTenantIndexes}=require('../models');
 const mobile=require('./mobileMoney.service');
 const {hasPermission}=require('./moduleAccess.service');
-const networks=Object.freeze(['MTN','Airtel','Africell','M-Pesa']);
+const {networks}=require('../../config/mobileNetworks');
 function fail(message,status=400){const error=new Error(message);error.status=status;return error;}
 function objectId(value){if(!/^[a-f0-9]{24}$/i.test(String(value||'')))throw fail('An authorized record scope is required',403);return new Types.ObjectId(String(value));}
 function readScope(actor){

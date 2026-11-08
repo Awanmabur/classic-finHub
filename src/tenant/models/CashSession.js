@@ -17,5 +17,9 @@ const schema=new Schema({
  closeHistory:{type:[closeHistory],default:[]},revision:{type:Number,default:0,min:0}
 },{timestamps:true,strict:'throw'});
 schema.index({activeKey:1},{unique:true,partialFilterExpression:{activeKey:{$type:'string'}}});
+// Protect mixed-version deployments too: an older writer may still create the
+// unsuffixed key while a new writer uses the currency-qualified key.
+schema.index({branchId:1,operatorId:1,currency:1},{unique:true,partialFilterExpression:{activeKey:{$type:'string'}}});
+schema.index({branchId:1,operatorId:1,currency:1,createdAt:-1});
 schema.index({branchId:1,createdAt:-1});schema.index({operatorId:1,createdAt:-1});schema.index({status:1,createdAt:1});
 module.exports=schema;

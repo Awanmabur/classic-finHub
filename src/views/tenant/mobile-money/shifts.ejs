@@ -5,14 +5,14 @@
 <section class="view show">
  <%- include('../../partials/operation-branch', {currentBranch, branchProblem, user}) %>
   <section class="card">
-    <div class="cardHead"><b>Physical cash reconciliation</b><span>Per operator · assigned branch currency</span></div>
+    <div class="cardHead"><b>Physical cash reconciliation</b><span>Per operator · branch · currency</span></div>
     <div class="cardBody">
       <p class="tiny">An independent supervisor verifies the opening count. The expected drawer includes posted cash movements from mobile money, banking, forex, transfers and expenses, including explicitly collected cash fees. Compare it with the physical count before closing.</p>
       <% if(data.canOpen && currentBranch){ %>
       <form method="post" action="/tenant/day/open" data-cash-open-form>
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
-        <div class="formSection"><div class="formSectionTitle">Opening drawer by currency</div><div class="row2"><label class="field">Opening <%= typeof currencyLabel==='function'?currencyLabel(currentBranch.currency):currentBranch.currency %><input class="control" name="openingCash" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" required placeholder="0"></label></div></div>
+        <div class="formSection"><div class="formSectionTitle">Opening drawer by currency</div><div class="row2"><label class="field">Currency<select class="control" name="currency" required><% (data.currencyOptions||((typeof currencyOptions!=='undefined'?currencyOptions:[{code:'UGX',label:'UGX'},{code:'USD',label:'USD'},{code:'SSP',label:'SSP'},{code:'KES',label:'KSH'}]).filter(option=>(currentBranch.currencies||['UGX','USD','SSP','KES']).includes(option.code)))).forEach(option=>{ %><option value="<%= option.code %>" <%= option.code===(data.selectedCurrency||currentBranch.currency)?'selected':'' %>><%= option.label %></option><% }) %></select></label><label class="field">Counted opening cash<input class="control" name="openingCash" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" required placeholder="0"></label></div></div>
         <div class="rowBtns"><button class="btn btnPrimary" type="submit">Open day with these balances</button></div>
       </form>
       <% } %>

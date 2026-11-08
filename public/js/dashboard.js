@@ -124,15 +124,18 @@
     if (!form?.matches('[data-mobile-money-form]')) return;
     const amount = form.elements.namedItem('amount');
     const fee = form.elements.namedItem('fee');
-    const currency = form.dataset.currency;
-    const decimals = currency === 'UGX' ? 0 : 2;
-    const toMinor = value => {
+    const currencyControl = form.elements.namedItem('currency');
+    const selectedCurrency = () => currencyControl?.value || form.dataset.currency;
+    const toMinor = (value,decimals) => {
       const match = String(value || '').match(/^(\d+)(?:\.(\d{1,2}))?$/);
       if (!match || (match[2] || '').length > decimals) return null;
       return BigInt(match[1]) * (10n ** BigInt(decimals)) + BigInt((match[2] || '').padEnd(decimals, '0') || '0');
     };
     const updateTotal = () => {
-      const amountMinor = toMinor(amount.value), feeMinor = toMinor(fee.value);
+      const currency=selectedCurrency(),decimals=currency==='UGX'?0:2;
+      form.dataset.currency=currency;form.dataset.currencyLabel=currency==='KES'?'KSH':currency;
+      const pattern=decimals?'[0-9]{1,11}([.][0-9]{1,2})?':'[0-9]{1,11}';amount.pattern=pattern;fee.pattern=pattern;
+      const amountMinor = toMinor(amount.value,decimals), feeMinor = toMinor(fee.value,decimals);
       fee.setCustomValidity(amountMinor !== null && feeMinor !== null && feeMinor > amountMinor ? 'Fee / commission cannot exceed the amount.' : '');
       const total = form.querySelector('[data-mobile-total]');
       if (!total) return;
@@ -145,6 +148,8 @@
     };
     amount.addEventListener('input', updateTotal);
     fee.addEventListener('input', updateTotal);
+    currencyControl?.addEventListener('change',updateTotal);
+    form.addEventListener('reset',()=>queueMicrotask(updateTotal));
     form.querySelectorAll('[data-mobile-operation]').forEach(tab => tab.addEventListener('click', event => {
       if (!onOperationChange) return; // Real page links remain usable without a dialog.
       event.preventDefault();
@@ -179,22 +184,26 @@
     if(!form?.matches('[data-mobile-money-form]')||mobileFundsBindings.has(form))return;
     const wallet=form.querySelector('[data-wallet-account]'),customer=form.querySelector('[data-customer-wallet]');
     if(!wallet||!customer)return;mobileFundsBindings.add(form);
-    const network=form.elements.namedItem('network'),method=form.elements.namedItem('paymentMethod'),amount=form.elements.namedItem('amount'),fee=form.elements.namedItem('fee');
-    const scale=form.dataset.currency==='UGX'?0:2,currency=form.dataset.currency;
+    const network=form.elements.namedItem('network'),method=form.elements.namedItem('paymentMethod'),amount=form.elements.namedItem('amount'),fee=form.elements.namedItem('fee'),currencyControl=form.elements.namedItem('currency');
+    const selectedCurrency=()=>currencyControl?.value||form.dataset.currency;
     const parse=value=>{
+      const scale=selectedCurrency()==='UGX'?0:2;
       const match=String(value||'').match(/^(\d{1,11})(?:\.(\d{1,2}))?$/);if(!match||(match[2]||'').length>scale)return null;
       return BigInt(match[1])*10n**BigInt(scale)+BigInt((match[2]||'').padEnd(scale,'0')||'0');
     };
     const refresh=()=>{
-      const current=wallet.value,available=[];
+      const currency=selectedCurrency(),current=wallet.value,available=[];
       for(const option of wallet.options){if(!option.value)continue;const visible=option.dataset.network===network.value&&option.dataset.currency===currency;option.hidden=!visible;option.disabled=!visible||option.dataset.state!=='active'||!/^\d{1,34}$/.test(option.dataset.expectedMinor||'');if(!option.disabled)available.push(option);}
       if(!available.some(option=>option.value===current)){
         const own=available.filter(option=>option.dataset.assigned==='true'),eligible=own.length?own:available,defaults=eligible.filter(option=>option.dataset.default==='true');
         wallet.value=defaults.length===1?defaults[0].value:eligible.length===1?eligible[0].value:'';
       }
+      for(const option of customer.options){if(!option.value)continue;const visible=option.dataset.currency===currency;option.hidden=!visible;option.disabled=!visible;}
+      if(customer.selectedOptions[0]?.disabled)customer.value='';
       const internal=method.value==='Wallet Balance';form.querySelector('[data-customer-wallet-field]').hidden=!internal;customer.disabled=!internal;customer.required=internal;
     };
     const update=()=>{
+      const currency=selectedCurrency();
       const option=wallet.selectedOptions[0],value=parse(amount.value),charge=parse(fee.value||'0'),treatment=option?.dataset.feeTreatment||'record_only';
       const policy=form.querySelector('[data-wallet-fee-policy]');if(policy){policy.value=treatment;policy.disabled=!option?.value;}
       const before=option?.value&&/^\d{1,34}$/.test(option.dataset.expectedMinor||'')?BigInt(option.dataset.expectedMinor):null;
@@ -204,21 +213,29 @@
       const total=form.querySelector('[data-mobile-total]');if(total)total.textContent=value!==null&&value>0n&&charge!==null&&charge<=value?operationAmount(value+(treatment==='payment_collected'?(form.dataset.operation==='cash_in'?charge:-charge):0n),currency):'—';
     };
     network.addEventListener('change',()=>{refresh();update();});method.addEventListener('change',()=>{refresh();update();});
+    currencyControl?.addEventListener('change',()=>{refresh();update();});
     form.addEventListener('input',update);form.addEventListener('change',update);form.addEventListener('reset',()=>queueMicrotask(()=>{refresh();update();}));
     refresh();update();
   };
   document.querySelectorAll('[data-mobile-money-form]').forEach(initialiseMobileFunds);
 
   const initialiseOperationForm = form => {
-    if(!form?.matches('[data-transfer-form],[data-forex-form]')||operationBindings.has(form))return;
+    if(!form?.matches('[data-transfer-form],[data-forex-form],form:has([data-account-currency])')||operationBindings.has(form))return;
     operationBindings.add(form);
     if(form.matches('[data-transfer-form]')){
       const update=()=>{
-        const scale=form.dataset.currency==='UGX'?0:2;
+        const currency=form.elements.namedItem('currency')?.value||form.dataset.currency;
+        form.dataset.currency=currency;
+        const scale=currency==='UGX'?0:2;
         const amount=operationMinor(form.elements.namedItem('amount').value,scale),fee=operationMinor(form.elements.namedItem('fee').value,scale);
         form.querySelector('[data-transfer-total]').textContent=amount!==null&&amount>0n&&fee!==null?operationAmount(amount+fee,form.dataset.currency):'—';
       };
-      form.addEventListener('input',update);update();
+      form.addEventListener('input',update);form.addEventListener('change',update);update();
+    }
+    if(form.querySelector('[data-account-currency]')){
+      const currency=form.elements.namedItem('currency');
+      const update=()=>{form.querySelectorAll('select:has([data-account-currency])').forEach(select=>{for(const option of select.options){if(!option.value)continue;option.hidden=option.dataset.accountCurrency!==currency.value;option.disabled=option.hidden;}if(select.selectedOptions[0]?.disabled)select.value='';});};
+      currency?.addEventListener('change',update);if(currency)update();
     }
     if(form.matches('[data-forex-form]')){
       const rate=form.elements.namedItem('rateId');
@@ -241,7 +258,7 @@
       }));update();
     }
   };
-  document.querySelectorAll('[data-transfer-form],[data-forex-form]').forEach(initialiseOperationForm);
+  document.querySelectorAll('[data-transfer-form],[data-forex-form],form:has([data-account-currency])').forEach(initialiseOperationForm);
 
   // The launcher loads the existing, permission-checked server form. It never
   // recreates financial rules, CSRF tokens or idempotency keys in the browser.
@@ -329,7 +346,9 @@
       const version=++requestVersion,operation=operations[kind];
       selectKind(kind);formHost.replaceChildren();message('Loading operation details…');
       try {
-        const response=await fetch(operation.page,{credentials:'same-origin',headers:{Accept:'text/html'},signal:activeRequest.signal});
+        const requestUrl=new URL(operation.page,location.origin),selectedCurrency=document.getElementById('currencySelect')?.value;
+        if(selectedCurrency)requestUrl.searchParams.set('currency',selectedCurrency);
+        const response=await fetch(requestUrl,{credentials:'same-origin',headers:{Accept:'text/html'},signal:activeRequest.signal});
         if(version!==requestVersion)return;
         if(!response.ok)throw new Error(await responseMessage(response));
         if(new URL(response.url).pathname!==operation.page)throw new Error('Your session or access has changed. Open the module page to continue.');

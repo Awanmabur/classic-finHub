@@ -1,0 +1,13 @@
+{
+  "user": "node",
+  "webSecretsAbsent": true,
+  "dotEnvAbsent": true,
+  "imageId": "sha256:2d5af0122e8c814b1812ba6d15677e5c618d2e8acd74c7786c58810cfd75ff94",
+  "workerHeartbeat": true,
+  "transferSmsEnabledConfiguration": true,
+  "realMessagesSent": 0,
+  "readOnlyFilesystem": true,
+  "capabilitiesDropped": true,
+  "noPublicPorts": true,
+  "scope": "Actual notification-worker image startup on empty local scratch storage; no live provider, production database-role or handset validation."
+}

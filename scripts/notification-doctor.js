@@ -31,8 +31,7 @@ async function inspect({connect=true}={}){
  if(connect){
   const uri=process.env.MONGO_NOTIFICATION_WORKER_URI;
   if(!uri)throw Error('MONGO_NOTIFICATION_WORKER_URI required');
-  const parsed=new URL(uri);
-  if(!['mongodb:','mongodb+srv:'].includes(parsed.protocol)||parsed.pathname.length<2)throw Error('Invalid worker database URI');
+  require('../src/config/mongoUris').parseMongoUri(uri,'Notification worker MongoDB URI');
   await mongoose.connect(uri,{serverSelectionTimeoutMS:7000,maxPoolSize:10,autoIndex:false});
  }
  const now=new Date(),stale=new Date(now.getTime()-15*60*1000),live=new Date(now.getTime()-90*1000);

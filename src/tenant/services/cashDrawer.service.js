@@ -9,7 +9,8 @@ function id(v){if(!/^[a-f0-9]{24}$/i.test(String(v||'')))throw fail('Invalid ide
 function decimal(v){return Types.Decimal128.fromString(String(v));}
 function minor(v){return BigInt(String(v));}
 function note(v,required=true){if(typeof v!=='string'||v.trim().length>(400)||(required&&v.trim().length<12))throw fail('A 12–400 character explanation is required');return v.trim();}
-function key(branchId,operatorId){return `${id(branchId)}:${id(operatorId)}`;}
+function key(branchId,operatorId,currency){const legacy=`${id(branchId)}:${id(operatorId)}`;if(currency===undefined)return legacy;if(!Object.hasOwn(mobile.currencies,currency))throw fail('Choose a supported cash currency');return `${legacy}:${currency}`;}
+function activeFilter(branchId,operatorId,currency){return {branchId:id(branchId),operatorId:id(operatorId),currency,activeKey:{$in:[key(branchId,operatorId,currency),key(branchId,operatorId)]}};}
 function scope(actor){return ['Tenant Owner','Auditor'].includes(actor?.role)?require('./branchView.service').readScope(actor):{branchId:id(actor?.branchId)};}
 function visibleScope(actor){return {...scope(actor),...(['Mobile Money Operator','Money Transfer Operator','Banking Operator','Forex Operator'].includes(actor.role)?{operatorId:id(actor.id)}:{})};}
 function allowed(tenant,actor){
@@ -24,28 +25,31 @@ async function open(conn,tenant,actor,input={}){
  await ensureTenantIndexes(conn);
  const branch=await branchModel(conn).findOne({_id:branchId,status:'active'}).lean();
  if(!branch)throw fail('Active branch required',409);
- const opening=mobile.toMinor(input.openingCash,branch.currency,true);
+ const currency=require('./branchCurrency.service').resolve(branch,input.currency);
+ const opening=mobile.toMinor(input.openingCash,currency,true);
  const tx=await conn.startSession();let created;
  try{await tx.withTransaction(async()=>{
    const touched=await branchModel(conn).findOneAndUpdate({_id:branchId,status:'active'},{$inc:{revision:1}},{new:true,session:tx});
    if(!touched)throw fail('Branch unavailable',409);
-   const funds=require('../treasury/service'),fund=await funds.findAccount(conn,tx,{branchId,kind:'cash',currency:branch.currency,operatorId:actor.id});
+   require('./branchCurrency.service').resolve(touched,currency);
+   if(await cashSessionModel(conn).exists({...activeFilter(branchId,operatorId,currency),status:{$in:['pending_open','open','submitted','disputed']}}).session(tx))throw fail('An unfinished cash shift already exists for this operator, branch and currency',409);
+   const funds=require('../treasury/service'),fund=await funds.findAccount(conn,tx,{branchId,kind:'cash',currency,operatorId:actor.id});
    if(fund&&fund.openingBalanceMinor!==null){
     if(fund.status!=='active'||fund.reconciliationState!=='matched')throw fail('Reconcile the actual cash account before opening another day',409);
     await funds.assertBookIntegrity(conn,tx,fund);
     if(minor(fund.bookBalanceMinor)!==BigInt(opening))throw fail('The counted opening cash differs from the funds book. Record and reconcile the difference before opening.',409);
    }
-   [created]=await cashSessionModel(conn).create([{branchId,operatorId,currency:branch.currency,activeKey:key(branchId,operatorId),openingMinor:decimal(opening),provisionalMovementMinor:decimal(0),status:'pending_open',
+   [created]=await cashSessionModel(conn).create([{branchId,operatorId,currency,activeKey:key(branchId,operatorId,currency),openingMinor:decimal(opening),provisionalMovementMinor:decimal(0),status:'pending_open',
     ...(fund&&fund.openingBalanceMinor!==null?{treasuryAccountId:fund._id,treasuryBoundAt:new Date(),treasuryBaselineMinor:decimal(opening)}:{})}],{session:tx});
    if(created.treasuryAccountId){
     const authorization=await funds.access(conn,tenant,actor,{permission:'treasury.observe',session:tx,fence:true});
-    const scale=mobile.currencies[branch.currency],factor=10n**BigInt(scale),amount=BigInt(opening),actualBalance=String(amount/factor)+(scale?'.'+String(amount%factor).padStart(scale,'0'):'');
+    const scale=mobile.currencies[currency],factor=10n**BigInt(scale),amount=BigInt(opening),actualBalance=String(amount/factor)+(scale?'.'+String(amount%factor).padStart(scale,'0'):'');
     const observed=await funds.requestObservationInSession(conn,tx,authorization,fund._id,{kind:'checkpoint',actualBalance,observedAt:new Date().toISOString(),evidenceType:'cash_count',evidenceReference:`OPEN-SHIFT:${created._id}`,note:'Physical cash counted at the start of the operating day; independent verification required.',idempotencyKey:require('node:crypto').randomUUID()});
     created=await cashSessionModel(conn).findByIdAndUpdate(created._id,{$set:{treasuryOpeningObservationId:observed.observation._id}},{new:true,session:tx});
    }
-   await auditEventModel(conn).create([{action:'mobile_money.shift.opened',actorId:operatorId,targetId:created._id,metadata:{branchId:String(branchId),currency:branch.currency}}],{session:tx});
+   await auditEventModel(conn).create([{action:'mobile_money.shift.opened',actorId:operatorId,targetId:created._id,metadata:{branchId:String(branchId),currency}}],{session:tx});
  });return created;
- }catch(e){if(e.code===11000)throw fail('An unfinished shift already exists for this operator and branch',409);throw e;}
+ }catch(e){if(e.code===11000)throw fail('An unfinished shift already exists for this operator, branch and currency',409);throw e;}
  finally{await tx.endSession();}
 }
 // Dual control of the opening cash count. Rejected requests cannot be reused.
@@ -98,7 +102,7 @@ async function refreshFundBalance(conn,session,account,balanceAfterMinor,options
 }
 // Atomic with the original network record, not with external provider settlement.
 async function attachRecord(conn,tx,operator,branchId,currency,operation,amountMinor,smsContext=null){
- const shift=await cashSessionModel(conn).findOneAndUpdate({activeKey:key(branchId,operator.id),status:'open',currency},
+ const shift=await cashSessionModel(conn).findOneAndUpdate({...activeFilter(branchId,operator.id,currency),status:'open'},
   {$inc:{revision:1,recordCount:1,...(smsContext?.bookManaged?{}:{provisionalMovementMinor:decimal(operation==='cash_in'?amountMinor:-amountMinor)})}},{new:true,session:tx});
  if(!shift)throw fail('Open a cash shift before recording operations',409);
  if(smsContext?.receivedAt&&(!smsContext.receivedAt||!shift.openingVerifiedAt||
@@ -223,4 +227,4 @@ async function reportRows({conn,filters,scope:filter}){
  return rows.map(r=>({module:'Mobile Money',activity:'Physical cash shifts',status:r._id.status,currency:r._id.currency,
  count:r.count,volume:mobile.formatMoneyMinor(r.expected||0,r._id.currency),fees:'N/A'}));
 }
-module.exports={allowed,bindFundAccount,refreshFundBalance,open,decideOpening,attachRecord,fenceRecordChange,submit,decide,list,detail,reportRows,key,minor,decimal,visibleScope,opener,reviewer};
+module.exports={allowed,bindFundAccount,refreshFundBalance,open,decideOpening,attachRecord,fenceRecordChange,submit,decide,list,detail,reportRows,key,activeFilter,minor,decimal,visibleScope,opener,reviewer};

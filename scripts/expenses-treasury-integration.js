@@ -22,13 +22,13 @@ async function main(){
  const snapshot=commerce.planSnapshot({...commerce.asPlanVersion(terms),status:'published'});
  tenant=await Tenant.create({name:'Expense funds test',slug,dbName:conn.name,owner:'Owner',email:`${nonce}@example.invalid`,plan:terms.code,status:'active',setupStatus:'complete',enabledModules:modules,
   seatsReserved:4,branchCount:1,subscription:{...snapshot,generation:1,status:'granted',source:'manual_admin_grant',periodStart:new Date(Date.now()-60000),periodEnd:new Date(Date.now()+86400000)}});
- const branch=await core.branchModel(conn).create({name:'Verified expense branch',code:'verified-expense',currency:'KES',createdBy:new mongoose.Types.ObjectId(),updatedBy:new mongoose.Types.ObjectId()});
+ const branch=await core.branchModel(conn).create({name:'Verified expense branch',code:'verified-expense',currency:'UGX',createdBy:new mongoose.Types.ObjectId(),updatedBy:new mongoose.Types.ObjectId()});
  const person=async(role)=>{
   const row=await core.tenantUserModel(conn).create({name:role,email:`${crypto.randomBytes(8).toString('hex')}@example.invalid`,passwordHash:'Scratch-only-unused-login',role,branchId:String(branch._id),allowedModules:modules,status:'active',mfaEnabledAt:new Date()});
   return {id:String(row._id),name:role,role,branchId:String(branch._id),allowedModules:modules,authVersion:0,permissions:permissionsFor(role)};
  };
  const owner=await person('Tenant Owner'),maker=await person('Mobile Money Operator'),reviewer=await person('Reconciliation Officer'),other=await person('Mobile Money Operator');
- const shift=await cash.open(conn,tenant,maker,{openingCash:'1000.00'});await cash.decideOpening(conn,tenant,reviewer,shift._id,{decision:'approve',note});
+ const shift=await cash.open(conn,tenant,maker,{currency:'KES',openingCash:'1000.00'});await cash.decideOpening(conn,tenant,reviewer,shift._id,{decision:'approve',note});
  const unconfigured=(await expenses.create(conn,tenant,maker,{expenseType:'Unconfigured bank expense',currency:'KES',amount:'5.00',paymentMethod:'Bank',reference:'PENDING-SOURCE',
   idempotencyKey:crypto.randomUUID(),sourcePolicy:'legacy_untracked',requireFunds:false},{requireFunds:true})).record;
  assert.equal(unconfigured.sourcePolicy,'funded_required','request fields cannot disable the HTTP funds requirement');
@@ -86,6 +86,17 @@ async function main(){
  const sourceChoices=await expenses.fundChoices(conn,tenant,maker);assert(sourceChoices.some(row=>row._id===String(cashFund._id)));assert(!sourceChoices.some(row=>row._id===String(walletFund._id)));
  const wrongConn=getTenantConnection(`foreign-expense-${nonce}`);await assert.rejects(expenses.review(wrongConn,tenant,reviewer,bank._id,{decision:'approve',note}),{status:403});
  await assert.rejects(models(conn).batch.updateOne({_id:batch._id},{$set:{description:'tampered'}}),/append-only/);
+ // A second currency in the same branch/operator has its own real cash book.
+ const usdFund=await treasury.createAccount(conn,tenant,owner,{code:'USD_CASH',name:'Verified USD cash',kind:'cash',currency:'USD',operatorId:maker.id,isDefault:true});
+ const usdOpening=await treasury.requestObservation(conn,tenant,maker,usdFund._id,{kind:'opening',actualBalance:'100.00',observedAt:new Date(Date.now()-1000).toISOString(),evidenceType:'cash_count',evidenceReference:'USD-COUNT-'+nonce,note,idempotencyKey:crypto.randomUUID()});
+ await treasury.reviewObservation(conn,tenant,reviewer,usdOpening.observation._id,{decision:'approve',note});
+ const usdShift=await cash.open(conn,tenant,maker,{currency:'USD',openingCash:'100.00'});await cash.decideOpening(conn,tenant,reviewer,usdShift._id,{decision:'approve',note});
+ const usdInput=body({currency:'USD',amount:'12.34',treasuryAccountId:String(usdFund._id)}),usdExpense=(await expenses.create(conn,tenant,maker,usdInput,{requireFunds:true})).record;
+ await assert.rejects(expenses.create(conn,tenant,maker,{...usdInput,currency:'SSP'},{requireFunds:true}),{status:409},'a form retry cannot change currency even when minor amounts coincide');
+ await assert.rejects(expenses.create(conn,tenant,maker,body({currency:'USD',amount:'1.00',treasuryAccountId:String(cashFund._id)}),{requireFunds:true}),{status:403},'a KES fund cannot pay a USD expense');
+ await expenses.review(conn,tenant,reviewer,usdExpense._id,{decision:'approve',note});
+ assert.equal(await balance(usdFund),'8766');assert.equal(await balance(cashFund),'100000');
+ assert.equal(String((await core.cashSessionModel(conn).findById(usdShift._id)).provisionalMovementMinor),'-1234');assert.equal(String((await readShift()).provisionalMovementMinor),'0');
  console.log('PASS: independently approved expenses post balanced funds-book journals once, Cash updates its physical drawer once, Bank/wallet expense sources remain separate, corrections and voids append reversals, and mismatches/insufficient or foreign sources cannot spend.');
 }
 async function cleanup(){if(mongoose.connection.readyState===1&&mongoose.connection.name===scratch&&/^cfh_expense_funds_[a-f0-9]{16}$/.test(scratch)){if(conn)await conn.db.dropDatabase();await mongoose.connection.db.dropDatabase();}await mongoose.disconnect();}

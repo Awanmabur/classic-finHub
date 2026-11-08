@@ -9,11 +9,11 @@ function fixture(){
  const terms=commerce.planSnapshot({...commerce.asPlanVersion({...require('../src/data/store').plans.find(plan=>plan.code==='enterprise'),code:'workspace_test',modules}),status:'published'});
  const tenant={status:'active',plan:terms.planCode,enabledModules:modules,subscription:{...terms,status:'granted',generation:1,periodStart:new Date(Date.now()-60000),periodEnd:new Date(Date.now()+86400000)}};
  const actor={id:id(1),role:'Tenant Owner',permissions:['*'],viewBranchId:id(10)};
- const allBranches=[{_id:id(10),name:'Main',currency:'UGX'},{_id:id(11),name:'East',currency:'UGX'}];
+ const allBranches=[{_id:id(10),name:'Main',currency:'UGX',currencies:['UGX']},{_id:id(11),name:'East',currency:'UGX',currencies:['UGX']}];
  const people=[{_id:actor.id,role:'Tenant Owner',branchId:id(10),mfaEnabledAt:new Date()},{_id:id(2),role:'Money Transfer Operator',branchId:id(10),allowedModules:modules},{_id:id(3),role:'Branch Manager',branchId:id(10),allowedModules:modules,mfaEnabledAt:new Date()}];
  const account=(n,kind,operatorId=null)=>({_id:id(n),branchId:id(10),kind,moduleKey:kind==='transfer_clearing'?'money_transfer':'shared',currency:'UGX',operatorId,status:'active',openingBalanceMinor:'1000',openingApprovedAt:new Date(),reconciliationState:'matched'});
  const accounts=[account(20,'cash',id(2)),account(21,'transfer_clearing'),account(22,'bank')];
- const shifts=[{branchId:id(10),operatorId:id(2),status:'open',openingVerifiedAt:new Date(),treasuryAccountId:id(20)}];
+ const shifts=[{branchId:id(10),operatorId:id(2),currency:'UGX',status:'open',openingVerifiedAt:new Date(),treasuryAccountId:id(20)}];
  return {tenant,actor,allBranches,people,accounts,shifts};
 }
 test('a new workspace reports missing real setup rather than manufactured readiness',()=>{
@@ -49,4 +49,12 @@ test('banking setup needs a real internal customer liability account and access,
  const input=fixture();input.tenant.enabledModules.push('banking','accounts');input.tenant.subscription.modules.push('banking','accounts');input.people[1]={...input.people[1],role:'Banking Operator',allowedModules:['banking','accounts']};input.people[2].allowedModules.push('banking','accounts');input.actor.permissions=permissionsFor('Tenant Owner');
  const noAccount=operations.build(input).modules.find(row=>row.key==='banking');assert.equal(noAccount.state,'blocked');assert(noAccount.problems.some(problem=>problem.includes('internal customer account')));
  const configured=operations.build({...input,customerAccounts:[{branchId:id(10),currency:'UGX'}]}).modules.find(row=>row.key==='banking');assert.equal(configured.state,'ready');
+});
+
+test('every enabled branch currency has its own setup result and an unrelated shift cannot complete it',()=>{
+ const input=fixture();input.allBranches[0].currencies=['UGX','USD'];
+ let report=operations.build(input);assert.equal(report.modules.length,2);assert.equal(report.modules.find(row=>row.currency==='UGX').state,'ready');assert.equal(report.modules.find(row=>row.currency==='USD').state,'blocked');assert.equal(report.state,'blocked');
+ const usd=input.accounts.map(account=>({...account,_id:id(Number.parseInt(account._id,16)+100),currency:'USD'}));input.accounts.push(...usd);
+ report=operations.build(input);assert.equal(report.modules.find(row=>row.currency==='USD').preparedOperators,0,'UGX shift cannot verify USD cash');
+ input.shifts.push({...input.shifts[0],currency:'USD',treasuryAccountId:usd.find(row=>row.kind==='cash')._id});report=operations.build(input);assert.equal(report.state,'ready');assert.equal(report.cash.verified,2);assert.equal(report.cash.eligible,2);
 });

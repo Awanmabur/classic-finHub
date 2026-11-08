@@ -15,6 +15,7 @@ module.exports=function expensesRoutes({renderTenant}){
   const records=await expenses.list(req.tenantDb,req.tenant,req.user,req.query);
   renderTenant(req,res,'expenses/index','Expenses','Daily expenses with vendor, method, reference, and amount.',{
    records,permissions:permissions(req.user),idempotencyKey:crypto.randomUUID(),format:mobile.formatMoneyMinor,openModal:req.path.endsWith('/new'),
+   currencyChoices:require('../services/branchCurrency.service').options(req.operationBranch),selectedCurrency:req.operationBranch?require('../services/branchCurrency.service').resolve(req.operationBranch,req.query.currency):null,
    fundChoices:await expenses.fundChoices(req.tenantDb,req.tenant,req.user)});
  }catch(error){next(error);}}
  router.get('/expenses',page);router.get('/expenses/new',requirePermission('expenses.create'),page);

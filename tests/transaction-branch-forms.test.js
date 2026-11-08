@@ -3,8 +3,8 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const ejs=require('ejs');
 const path=require('node:path');
-const branch={_id:'507f1f77bcf86cd799439011',name:'Nairobi Main',currency:'KES',status:'active'};
-const data={branches:[branch],selectedBranchId:String(branch._id),canRecord:true,canOpen:true,canCreate:true,
+const branch={_id:'507f1f77bcf86cd799439011',name:'Nairobi Main',currency:'KES',currencies:['KES'],status:'active'};
+const data={currencyChoices:require('../src/tenant/services/branchCurrency.service').options(branch),branches:[branch],selectedBranchId:String(branch._id),canRecord:true,canOpen:true,canCreate:true,
  canManage:true,canPropose:true,canQuote:true,canSubmit:true,canReview:false,canRateReview:false,
  canQuoteReview:false,canDecide:()=>false,summary:{total:0,recent:[],summaries:[]},records:{items:[]},
  shifts:{items:[]},contacts:[],references:[],institutions:[],policies:[],reviewQueue:[],voidQueue:[],
@@ -27,8 +27,9 @@ test('operational forms show the account branch and never submit a branch select
    assert.match(currency[1],/>KSH<\/option>/);
   }
   if(['money-transfer/index','banking/index','banking/accounts'].includes(file)){
-   assert.match(html,/<input type="hidden" name="currency" value="KES">/,file);
-   assert.doesNotMatch(html,/<select\b[^>]*name="currency"/,file);
+   const currency=html.match(/<select\b[^>]*name="currency"[^>]*>([\s\S]*?)<\/select>/);assert(currency,file);
+   assert.deepEqual([...currency[1].matchAll(/<option\b[^>]*value="([^"]+)"/g)].map(match=>match[1]),['KES']);
+   assert.doesNotMatch(html,/<input type="hidden" name="currency"/,file);
   }
  }
 });
@@ -48,5 +49,17 @@ test('ambiguous owner branch context cannot be replaced by a selected branch fro
    const escaped=action.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
    assert.doesNotMatch(html,new RegExp('<form\\b[^>]*action="'+escaped+'"'),file+' '+action);
   }
+ }
+});
+
+test('a branch default does not hide its other enabled transaction currencies',async()=>{
+ const all={...branch,currencies:['UGX','USD','SSP','KES']};
+ const choices=require('../src/tenant/services/branchCurrency.service').options(all);
+ for(const file of ['money-transfer/index','banking/index','banking/accounts']){
+  const html=await render(file,{operationBranch:all,data:{...data,branches:[all],currencyChoices:choices,selectedCurrency:'USD'}});
+  const currency=html.match(/<select\b[^>]*name="currency"[^>]*>([\s\S]*?)<\/select>/);assert(currency,file);
+  assert.deepEqual([...currency[1].matchAll(/<option\b[^>]*value="([^"]+)"/g)].map(match=>match[1]),['UGX','USD','SSP','KES']);
+  assert.match(currency[1],/value="USD" selected/);
+  assert.match(html,/Operating at <strong>Nairobi Main<\/strong> · USD/);
  }
 });

@@ -76,6 +76,7 @@ Owners, Branch Managers, Reconciliation Officers, Auditors, Reports Analysts, An
 - An owner setting up a funds account must select a specific viewing branch. All branches is a reporting view, not a place to create an account.
 - Financial reports, observed-at fields and appointment scheduling use UTC. Enter UTC when a field says UTC, even if the tenant profile holds a local timezone. Check device time synchronization, especially for SMS forwarding and MFA.
 - Supported stored currency codes are UGX, USD, SSP and KES. The UI labels KES as KSH. Do not add different currencies into a single total or treat an indicative exchange-rate field as a currency conversion.
+- Each branch can operate in all its enabled currencies. New branches and older branches without an explicit list support all four; the stored default currency only supplies the initial selection. Owners configure **Operating currencies** in Branches. Accounts, transaction records and cash shifts each retain one immutable currency. Set up and independently verify a separate drawer for every currency a teller handles.
 
 ## 2. Platform installation and administrator access
 
@@ -142,7 +143,7 @@ Published plan versions and granted subscription terms are retained as snapshots
 
 1. Open **Tenant profile** at `/tenant/workspace/profile`. Check legal/display name, contact details, country, timezone and supported operating currency. Save and confirm the saved revision. A configured owner contact email is not a transfer of login ownership.
 2. Open **Branches & locations** at `/tenant/branches`. Retain and verify Main; add only genuine operating locations within the active allowance.
-3. Give each branch a unique code, clear name, correct currency and address. Treat currency selection as permanent for the branch's existing financial records.
+3. Give each branch a unique code, clear name, default currency and address. Select its **Operating currencies**; all four supported currencies are initially enabled. The default remains immutable and enabled. You can enable another operating currency later. Disabling is blocked while that currency has live fund/customer accounts or unfinished operations; historical records retain their original currency.
 4. Select Main or the intended branch when reviewing its setup and balances. Staff transactions will follow their persisted assignment, not the owner's viewing selector.
 5. Before archiving a branch, resolve its pending reviews and invitations and reassign active staff as required. Keep the historical branch and records; archiving is not deletion.
 
@@ -222,12 +223,12 @@ See [manual funds and UI controls](MANUAL_FUNDS_AND_UI.md) for the detailed acco
 
 1. Confirm you are signed in as yourself at the correct operating branch, with the needed subscriptions and module assignments.
 2. Check **Wallets & balances**. Your drawer and required accounts must have reviewed openings, adequate funds and no unresolved hold. Compare real wallet/bank balances and count the drawer before accepting work.
-3. Enter the physical **Opening** count and choose **Open day with these balances**. This submits `pending_open`; it does not yet authorize cash posting.
+3. Select the drawer's **Currency**, enter its physical **Opening** count and choose **Open day with these balances**. This submits `pending_open`; it does not yet authorize cash posting. Repeat separately for each handled currency.
 4. An independent reviewer opens the shift, records **Opening verification evidence**, recounts/checks the evidence and chooses **Verify and open shift**. If wrong, use **Reject opening count** and correct the opening process.
 5. Confirm the shift is `open` before starting cash transactions. The actual drawer book must agree with the opening; the shift does not reinitialize the account.
 6. Open **New transaction** to choose an available service. Keep the correct originating form/reference for each real event.
 
-Only one unfinished drawer session is allowed for the applicable operator/branch. Resolve yesterday's open, submitted or disputed work instead of creating another opening to bypass it. Noncash activity still needs its actual bank/wallet funds and the relevant source workflow.
+Only one unfinished drawer session is allowed for each operator, branch and currency. Resolve yesterday's open, submitted or disputed work in that currency instead of creating another opening to bypass it. **Close day** follows the selected currency and leaves the other currency drawers open. Noncash activity still needs its actual bank/wallet funds and the relevant source workflow.
 
 ## 8. Mobile Money: manual entry and Android SMS
 
@@ -236,7 +237,7 @@ Only one unfinished drawer session is allowed for the applicable operator/branch
 ### Manual cash-in and cash-out
 
 1. Open `/tenant/mobile-money/cash-in` or `/tenant/mobile-money/cash-out` for the real operation.
-2. Select the correct network, wallet if more than one eligible wallet exists, customer details, actual amount, fee, payment method and provider/reference information shown on the form. Verify the auto-selected account and currency summary.
+2. Select the operating currency, correct network, wallet if more than one eligible wallet exists, customer details, actual amount, fee, payment method and provider/reference information shown on the form. Verify the auto-selected account and currency summary. **MTN SSD (South Sudan)** is separate from the existing MTN network; its wallet and provider reference must match that network. A USD account or drawer cannot fund an SSP movement.
 3. Use a unique real provider reference. A duplicate real event is not a new transaction simply because the first browser response was lost.
 4. Verify the external event through the provider's permitted procedure, record it once and retain the resulting reference/acknowledgement. Check its actual status before telling the customer it is complete.
 5. The independent reviewer checks the source evidence, amounts, fee policy and funds movement before accepting the record. Resolve pending verification, corrections or voids before drawer close.
@@ -260,7 +261,7 @@ Cash-in reduces provider e-float and increases the selected payment asset; cash-
 6. During operations, monitor accepted, duplicate, unsupported, queued and failed items. Manual entry remains available. Before manually recording an event, search the provider reference so a queued SMS cannot cause a duplicate business event.
 7. Revoke a lost/replaced device promptly and enroll its replacement with a new secret. Disabling the user, changing their branch/role/assignment or removing entitlement can block queued capture and final posting.
 
-The conservative supported profile includes messages such as `MTN Cash In: UGX 1,000; Fee: UGX 10; Customer: Jane Doe; Ref: ABC12345`. A supported explicit `Agent Balance` can supply a dated balance observation. Do not assume every native MTN/Airtel/bank SMS wording is supported, or confuse a customer balance with the agent wallet balance.
+The conservative supported profile includes messages such as `MTN Cash In: UGX 1,000; Fee: UGX 10; Customer: Jane Doe; Ref: ABC12345` and `MTN SSD Cash In: SSP 1,000.25; Fee: SSP 10.05; Customer: Jane Doe; Ref: SSD12345`. The explicit currency must match the amount, fee, configured funds and verified drawer. A supported explicit `Agent Balance` can supply a dated balance observation. Do not assume every native MTN/Airtel/bank SMS wording is supported, or confuse a customer balance with the agent wallet balance.
 
 Gateway delivery uses signed messages, stable IDs, sender checks, replay limits and quotas. A queued old message cannot be attached to a later cash shift. Raw SMS is encrypted with the configured retention policy; treat phone access and private retry queues as sensitive. See [SMS and plan configuration](SMS_AND_PLAN_CONFIGURATION.md) for the enrollment and pricing contract.
 
@@ -329,7 +330,7 @@ An expired or cancelled quote must not be treated as an executed exchange. Obtai
 1. Open **Send money / Generate PIN**, `/tenant/money-transfer/send`.
 2. Type **Sender name**, **Sender phone**, choose **Sender country**, and enter **Sender ID/document no.** where available/required by your operating procedure.
 3. Type **Receiver name**, **Receiver phone**, choose **Receiver country**, and enter **Receiver ID/document no.** where available/required by your procedure.
-4. Enter the remaining transfer details: actual payment method, purpose, amount, fee and **Request validity**. That validity limits how long the uncollected request can be used for collection; it is not a payout-PIN expiry promise. Check the branch currency and total the sender pays. Any displayed indicative exchange-rate field does not itself perform a Forex conversion.
+4. Enter the remaining transfer details: operating currency, actual payment method, purpose, amount, fee and **Request validity**. That validity limits how long the uncollected request can be used for collection; it is not a payout-PIN expiry promise. Check the selected currency and total the sender pays. Collection, payable and payout accounts must match that currency. Any displayed indicative exchange-rate field does not itself perform a Forex conversion.
 5. Names are required, 2–120 characters. Phones are required international numbers beginning with `+` and country code, with 8–15 digits after normalization; the first digit must not be zero. Formatting spaces, dashes and parentheses are normalized. Choose a valid country from the supplied list. Identification-document fields are optional in the application and accept up to 80 characters; follow your actual identification procedure. Check the receiver's phone with the sender before saving.
 6. Choose **Save transfer & continue**. You do not need to select or create a saved contact. The transfer saves immutable sender/receiver snapshots; typing a transfer does not automatically create reusable contact records.
 
@@ -369,7 +370,7 @@ Wrong, already-consumed or wrong-branch PIN lookups must not be bypassed by crea
 
 **Responsible:** permitted operator creates; a different expense reviewer decides; correction/void authority depends on the role. **Page:** **Add expense**, `/tenant/expenses/new`.
 
-1. Enter **Expense type**, amount, actual **Payment method**, **Paid to / vendor**, reference and description. The branch and currency follow your operating branch.
+1. Enter **Expense type**, operating currency, amount, actual **Payment method**, **Paid to / vendor**, reference and description. The branch follows your assigned operating branch; the payment account and any cash drawer must match the selected enabled currency.
 2. Choose **Add expense**. It begins `pending_review`; pending requests do not reduce funds. A cash expense binds to the originator's verified open shift.
 3. The reviewer opens the record, chooses the actual eligible funds account if not already determined, checks the real voucher and adds a meaningful **Review note**.
 4. Choose **Approve expense** or **Reject expense**. Approval posts the balanced book movement and reduces the real source exactly once. Bank/Mobile Money expense recording does not send the external payment through a provider API.
@@ -564,7 +565,7 @@ For each incident record the start/end UTC times, affected tenants/accounts, las
 - [ ] Platform administrator MFA and recovery custody are complete.
 - [ ] Correct manual/SMS-assisted plans are published with valid dependencies, capacities and premium pricing.
 - [ ] Tenant owner invitation is accepted; entitlement term/status and owner MFA are correct.
-- [ ] Main and other genuine branches have the intended immutable currencies and limits.
+- [ ] Main and other genuine branches have the intended default, enabled operating currencies and limits; each handled currency has its own reviewed accounts and drawer.
 - [ ] Real operators and independent reviewers are active, individually assigned, MFA-ready and able to sign in.
 - [ ] Each teller has the correct drawer; shared wallet/bank/stock/payable accounts are configured where needed.
 - [ ] Each real opening, including a genuine zero, has actual evidence and independent approval.

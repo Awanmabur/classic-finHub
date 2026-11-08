@@ -37,7 +37,7 @@ test('record attachment requires an open shift, correct operator and currency, w
  const session={};
  assert.equal(String(await cash.attachRecord(conn,session,operator(),branchId,'UGX','cash_out',5000n)),shiftId);
  assert.equal(changes[0][0].status,'open');
- assert.equal(changes[0][0].activeKey,`${branchId}:${operatorId}`);
+ assert.deepEqual(changes[0][0].activeKey,{$in:[`${branchId}:${operatorId}:UGX`,`${branchId}:${operatorId}`]});assert.equal(changes[0][0].currency,'UGX');
  assert.equal(String(changes[0][1].$inc.provisionalMovementMinor),'-5000');
  assert.equal(changes[0][2].session,session);
  await assert.rejects(cash.attachRecord(conn,session,operator(),branchId,'UGX','cash_out',30000n),{status:409});

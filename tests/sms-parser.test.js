@@ -34,6 +34,18 @@ test('device network must match the confirmation network', () => {
   assert.equal(needsReview(sample, {}), 'unsupported_network');
 });
 
+test('MTN South Sudan is distinct from MTN and SSP confirmations retain exact cents',()=>{
+ const text='MTN SSD Cash In: SSP 1,000.25; Fee: SSP 10.05; Customer: Jane Doe; Ref: SSD12345; Agent Balance: SSP 5,000.75';
+ const parsed=parseSms(text,{network:'MTN SSD'});
+ assert.equal(parsed.state,'parsed');assert.equal(parsed.fields.network,'MTN SSD');assert.equal(parsed.fields.currency,'SSP');
+ assert.equal(parsed.fields.amount,'1000.25');assert.equal(parsed.fields.fee,'10.05');assert.equal(parsed.fields.observedWalletBalance,'5000.75');
+ assert.equal(needsReview(text,{network:'MTN'}),'network_mismatch');
+ assert.equal(needsReview(sample,{network:'MTN SSD'}),'network_mismatch');
+ assert.equal(needsReview(text.replace('Fee: SSP','Fee: USD'),{network:'MTN SSD'}),'currency_mismatch');
+ assert.equal(needsReview(text.replace('1,000.25','1,000.255'),{network:'MTN SSD'}),'unsupported_format');
+ assert.equal(needsReview('MTN SSD received money, amount unknown, Ref SSD12345',{network:'MTN SSD'}),'unsupported_format');
+});
+
 test('ambiguous wallet messages and incomplete confirmations stay for review', () => {
   for (const body of [
     'You have received UGX 1,000 from Jane Doe. ID ABC12345.',

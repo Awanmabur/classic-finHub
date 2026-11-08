@@ -142,7 +142,8 @@ async function createRequest(conn,tenant,actor,input){
  try{await tx.withTransaction(async()=>{
   const authorization=await financialAuth.fenceAction(conn,tx,actor,tenant,'money_transfer','money_transfer.create',{branchId});
   const branch=await branchModel(conn).findOneAndUpdate({_id:branchId,status:'active'},{$inc:{revision:1}},{session:tx,new:true});
-  if(!branch||branch.currency!==v.currency)throw fail('Branch is inactive or has a different currency',409);
+  if(!branch)throw fail('Branch is inactive or unavailable',409);
+  require('./branchCurrency.service').resolve(branch,v.currency);
   let sender=v.sender,beneficiary=v.beneficiary;
   if(v.partyEntryMode==='saved_contact'){
    const contacts=await transferContactModel(conn).find({_id:{$in:[v.senderId,v.beneficiaryId]},branchId,active:true}).session(tx).lean();

@@ -76,7 +76,7 @@ async function checkBranch(conn, branchId, currency, session, allowArchived = fa
   const branch = await branchModel(conn).findOneAndUpdate(
     { _id: branchId, ...(allowArchived ? {} : {status:'active'}) },
     {$inc:{revision:1}}, {session,new:true}).lean();
-  if (!branch || (!treasury && branch.currency !== currency)) throw error('Inactive branch or currency mismatch', 409);
+  if (!branch || (!allowArchived && !treasury && !require('./branchCurrency.service').supports(branch,currency))) throw error('Inactive branch or currency mismatch', 409);
   return branch;
 }
 async function checkActor(conn, actorId, branchId, roles, session, operationalTreasury = false) {

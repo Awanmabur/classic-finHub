@@ -17,6 +17,8 @@ function fail(message,status=400){const e=new Error(message);e.status=status;ret
 function id(value){if(!OID.test(String(value||'')))throw fail('Invalid identifier');return String(value);}
 function text(value,label,min=1,max=120){if(typeof value!=='string'||value.trim().length<min||value.trim().length>max)throw fail(`Invalid ${label}`);return value.trim();}
 function currency(value){if(typeof value!=='string'||!Object.hasOwn(DECIMALS,value))throw fail('Unsupported exchange currency');return value;}
+function enabledPair(branch,from,to){for(const code of [from,to])if(require('../../config/currencies').currencyCodes.includes(code))require('./branchCurrency.service').resolve(branch,code);}
+function enabledRate(branch,rate){return [rate.fromCurrency,rate.toCurrency].every(code=>code==='EUR'||require('./branchCurrency.service').supports(branch,code));}
 function rateScaled(value){
  const valueText=text(value,'exchange rate',1,24);
  if(!/^(?:0|[1-9]\d{0,9})(?:\.\d{1,8})?$/.test(valueText))throw fail('Use a positive rate with no more than eight decimals');
@@ -86,6 +88,7 @@ async function proposeRate(conn,tenant,actor,input){
   const authorization=await financialAuth.fenceAction(conn,session,actor,tenant,'forex','forex.rate_manage',{branchId});
   const branch=await branchModel(conn).findOneAndUpdate({_id:branchId,status:'active'},{$inc:{revision:1}},{session,new:true});
   if(!branch)throw fail('The assigned branch must be active',409);
+  enabledPair(branch,v.fromCurrency,v.toCurrency);
   [rate]=await forexRateModel(conn).create([{branchId,fromCurrency:v.fromCurrency,toCurrency:v.toCurrency,
    rateDecimal:v.rateDecimal,expiresAt:new Date(Date.now()+v.validHours*3600000),note:v.note,proposedBy:actor.id}],{session});
   await auditEventModel(conn).create([{action:'forex.rate.proposed',actorId:actor.id,targetId:rate._id,
@@ -103,6 +106,9 @@ async function decideRate(conn,tenant,actor,rateId,input){
   const current=await Rate.findOne({_id:id(rateId),status:'pending_review',proposedBy:{$ne:id(actor.id)},expiresAt:{$gt:new Date()},...branchScope(actor)}).session(session);
   if(!current)throw fail('Rate expired, already reviewed, outside your branch, or proposed by you',409);
   if(decision==='approve'){
+   const branch=await branchModel(conn).findOneAndUpdate({_id:current.branchId,status:'active'},{$inc:{revision:1}},{session,new:true});
+   if(!branch)throw fail('The assigned branch must be active',409);
+   enabledPair(branch,current.fromCurrency,current.toCurrency);
    const newer=await Rate.exists({branchId:current.branchId,fromCurrency:current.fromCurrency,toCurrency:current.toCurrency,
     status:'active',createdAt:{$gt:current.createdAt}}).session(session);
    if(newer)throw fail('A newer indicative rate is already active; review the latest proposal instead',409);
@@ -148,6 +154,7 @@ async function createQuote(conn,tenant,actor,input){
   if(proposedFee>targetMinor)throw fail('Commission / fee cannot exceed the quoted settlement amount');
   const branch=await branchModel(conn).findOneAndUpdate({_id:branchId,status:'active'},{$inc:{revision:1}},{session,new:true});
   if(!branch)throw fail('Assigned branch is unavailable',409);
+  enabledPair(branch,rate.fromCurrency,rate.toCurrency);
   await reserveUsage(authorization.tenant,'forex_quotes',session);
   [quote]=await Quote.create([{reference:`FX-${crypto.randomBytes(12).toString('hex').toUpperCase()}`,
    idempotencyKey:v.idempotencyKey,branchId,createdBy:actor.id,customerLabel:v.customerLabel,operation:v.operation,capture:v.capture,rateId:rate._id,
@@ -248,5 +255,5 @@ async function reportRows({conn,filters,scope}){
 }
 const unavailable=require('../../utils/unavailableOperation');
 const buy=()=>unavailable('forex currency purchase');const sell=()=>unavailable('forex currency sale');
-module.exports={fail,id,text,currency,rateScaled,minor,converted,amountLabel,moduleAccess,operator,reviewer,branchScope,quoteScope,branchFor,
+module.exports={fail,id,text,currency,rateScaled,minor,converted,amountLabel,enabledRate,moduleAccess,operator,reviewer,branchScope,quoteScope,branchFor,
  rateInput,quoteInput,proposeRate,decideRate,createQuote,decideQuote,cancelQuote,listRates,rateReviewQueue,listQuotes,detail,quoteReviewQueue,expireDue,reportRows,buy,sell};

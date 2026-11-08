@@ -16,6 +16,8 @@ function configured(value){return typeof value==='string'&&value.trim().length>0
 function publicOrigin(value){try{const url=new URL(value);if(require('node:net').isIP(url.hostname.replace(/^\[|\]$/g,''))||!url.hostname.includes('.')||/^(?:[^.]+\.)*example\.(?:com|org|net)$/i.test(url.hostname)||url.protocol!=='https:'||url.username||url.password||url.search||url.hash||url.pathname!=='/'||/^(?:localhost|127\.|\[?::1\]?$)/i.test(url.hostname)||/\.(?:example|invalid|localhost|test)$/i.test(url.hostname))return null;return url.origin;}catch{return null;}}
 function configurationChecks(input){
  const entries=[],origin=publicOrigin(input.APP_URL);
+ let mongoConfiguration=null;
+ try{mongoConfiguration=require('../../config/mongoUris').resolveMongoConfiguration(input);}catch{}
  entries.push(check('production_mode',input.NODE_ENV==='production','NODE_ENV must be production.'));
  entries.push(check('public_https_origin',Boolean(origin),'APP_URL must be the actual HTTPS origin, not a placeholder or localhost.'));
  entries.push(check('session_secret',configured(input.SESSION_SECRET)&&input.SESSION_SECRET.length>=32,'A unique SESSION_SECRET of at least 32 characters is required.'));
@@ -32,7 +34,8 @@ function configurationChecks(input){
   const smsKey=String(input.TRANSFER_SMS_ENCRYPTION_KEY).toLowerCase();
   entries.push(check('separate_transfer_sms_key',/^[a-f0-9]{64}$/.test(smsKey)&&!/^([a-f0-9])\1{63}$/.test(smsKey)&&smsKey!==String(input.MFA_ENCRYPTION_KEY||'').toLowerCase()&&smsKey!==String(input.SESSION_SECRET||'').toLowerCase(),'Use a separate random 32-byte hexadecimal transfer SMS encryption key; do not reuse session or MFA keys.'));
  }
- const keys=['MONGO_PLATFORM_URI','MONGO_WORKER_URI','MONGO_NOTIFICATION_WORKER_URI'],uris=keys.map(key=>parseMongo(input[key]));
+ entries.push(check('mongo_alias_and_base_configuration',Boolean(mongoConfiguration),'Use MONGO_PLATFORM_URI or PLATFORM_DB_URI consistently; an optional MONGO_URI_BASE must share deployment, credentials, explicit authSource and connection options.'));
+ const keys=['MONGO_PLATFORM_URI','MONGO_WORKER_URI','MONGO_NOTIFICATION_WORKER_URI'],uris=keys.map(key=>parseMongo(key==='MONGO_PLATFORM_URI'?mongoConfiguration?.mongoPlatformUri:input[key]));
  keys.forEach((key,index)=>{
   const uri=uris[index];entries.push(check(key.toLowerCase()+'_configured',Boolean(uri),key+' must explicitly name its platform database.'));
   entries.push(check(key.toLowerCase()+'_tls',mongoTls(uri),key+' must use TLS, including TLS over a private production network.'));
@@ -86,7 +89,7 @@ async function inspectPublic(origin,{fetchImpl=fetch}={}){
 async function inspect(input,{live=true,connect,fetchImpl}={}){
  const config=configurationChecks(input),checks=[...config.checks],configurationValid=checks.every(entry=>entry.passed);
  if(live&&configurationValid){
-  const dbs=await Promise.all([inspectMongo(input.MONGO_PLATFORM_URI,{kind:'web',connect}),inspectMongo(input.MONGO_WORKER_URI,{kind:'outbox',connect}),inspectMongo(input.MONGO_NOTIFICATION_WORKER_URI,{kind:'notification',connect})]);
+  const dbs=await Promise.all([inspectMongo(require('../../config/mongoUris').platformUri(input),{kind:'web',connect}),inspectMongo(input.MONGO_WORKER_URI,{kind:'outbox',connect}),inspectMongo(input.MONGO_NOTIFICATION_WORKER_URI,{kind:'notification',connect})]);
   checks.push(...dbs.flatMap(result=>result.checks),check('same_live_replica_set',dbs.every(result=>result.topologyFingerprint)&&new Set(dbs.map(result=>result.topologyFingerprint)).size===1,'Web and both workers must connect to the same actual replica set.'),check('distinct_authenticated_service_principals',dbs.every(result=>result.principalFingerprint)&&new Set(dbs.map(result=>result.principalFingerprint)).size===3,'The live database connections must authenticate as three distinct service principals.'),...await inspectPublic(config.origin,{fetchImpl}));
  }
  const manualVerificationRequired=[...MANUAL_EVIDENCE];

@@ -15,6 +15,7 @@ const auth=require('./financialAuthorization.service');
 const {resolveTransactionBranch}=require('./transactionBranch.service');
 const directory=require('../customerAccounts/models');
 const {currencyCodes}=require('../../config/currencies');
+const branchCurrency=require('./branchCurrency.service');
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 const OID=/^[a-f0-9]{24}$/i;
 const definitions=Object.freeze({
@@ -29,6 +30,7 @@ function text(value,label,min=0,max=120){if(typeof value!=='string'||value.trim(
 function hash(value){return crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');}
 function minor(value,allowZero=false){const s=String(value??'');if(!/^(?:0|[1-9]\d{0,17})$/.test(s)||(!allowZero&&BigInt(s)===0n))throw fail('Stored financial amount is invalid',409);return s;}
 function definition(type){if(!Object.hasOwn(definitions,type))throw fail('Unsupported manual financial module');return definitions[type];}
+function assertBranchCurrencies(branch,snapshot){for(const currency of snapshot.sourceType==='forex'?[snapshot.fromCurrency,snapshot.toCurrency]:[snapshot.currency])branchCurrency.resolve(branch,currency);}
 function permission(type,review=false,action=null){if(action==='transfer_payout')return review?'money_transfer.review':'money_transfer.payout';return definition(type)[review?'review':'create'];}
 function sourceSnapshot(type,source){
  const base={sourceType:type,sourceId:id(source._id),reference:String(source.reference),branchId:id(source.branchId),createdBy:id(source.createdBy)};
@@ -129,7 +131,8 @@ async function prepare(conn,tenant,actor,type,sourceId){
  if(current.actor.role!=='Tenant Owner'&&String(source.createdBy)!==current.actor.id)throw fail('Only the originator may request this manual posting',403);
  assertSourceAvailable(source,type,definition(type).action);
  const branch=await resolveTransactionBranch(conn,current.actor);if(String(branch._id)!==String(source.branchId))throw fail('The instruction belongs to a different operating branch',403);
- const snapshot=sourceSnapshot(type,source),accounts=await availableAccounts(conn,current.tenant,current.actor,source.branchId,type);
+ const snapshot=sourceSnapshot(type,source);assertBranchCurrencies(branch,snapshot);
+ const accounts=await availableAccounts(conn,current.tenant,current.actor,source.branchId,type);
  return {source,snapshot,accounts,type,actor:current.actor,action:definition(type).action,idempotencyKey:crypto.randomUUID()};
 }
 async function request(conn,tenant,actor,type,sourceId,input={}){
@@ -138,13 +141,16 @@ async function request(conn,tenant,actor,type,sourceId,input={}){
  const source=await definition(type).model(conn).findOne({_id:id(sourceId),branchId:branch._id}).lean();
  if(!source)throw fail('Financial instruction not found in your operating branch',404);
  if(current.actor.role!=='Tenant Owner'&&String(source.createdBy)!==current.actor.id)throw fail('Only the originator may request this manual posting',403);
- const snapshot=sourceSnapshot(type,source),accounts=await selectedAccounts(conn,current,snapshot,input,action);
+ const snapshot=sourceSnapshot(type,source);assertBranchCurrencies(branch,snapshot);
+ const accounts=await selectedAccounts(conn,current,snapshot,input,action);
  const canonical={sourceType:type,sourceId:id(sourceId),action,branchId:String(branch._id),createdBy:current.actor.id,accounts,...v};
  const fingerprint=hash(canonical),Execution=fundedModels(conn).execution;
  const prior=await Execution.findOne({idempotencyKey:v.idempotencyKey}).lean();
  if(prior){if(prior.fingerprint!==fingerprint)throw fail('Request reference reused with different financial details',409);return {execution:prior,duplicate:true};}
  try{return await transaction(conn,async session=>{
   const authorization=await auth.fenceAction(conn,session,actor,current.tenant,type,permission(type),{branchId:String(branch._id)});
+  const activeBranch=await models.branchModel(conn).findOneAndUpdate({_id:branch._id,status:'active'},{$inc:{revision:1}},{new:true,session}).lean();
+  if(!activeBranch)throw fail('The operating branch is unavailable',409);assertBranchCurrencies(activeBranch,snapshot);
   const fresh=await definition(type).model(conn).findOne({_id:source._id,branchId:branch._id}).session(session).lean();
   assertSourceAvailable(fresh,type,action);if(hash(sourceSnapshot(type,fresh))!==hash(snapshot))throw fail('Instruction economics changed. Reload before recording.',409);
   const [execution]=await Execution.create([{...canonical,sourceReference:fresh.reference,fingerprint,sourceFingerprint:hash(snapshot),sourceSnapshot:snapshot,

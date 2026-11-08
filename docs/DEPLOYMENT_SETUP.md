@@ -92,6 +92,36 @@ do not add `tls=false`, certificate-validation bypasses or `directConnection=tru
 For a self-managed replica set, use its real replica-set hostname list, named
 platform database, `replicaSet` and `tls=true`; configure trusted certificates.
 
+### Academy-style variable names and tenant connection links
+
+`PLATFORM_DB_URI` is supported as an alternative to `MONGO_PLATFORM_URI`. Set
+one of them; if both are supplied they must describe the same platform database,
+deployment, credentials and connection settings. An old local default must not
+remain beside a different production alias.
+
+`MONGO_URI_BASE` is optional. When supplied, its database path must be empty and
+its deployment, web user/password, explicit `authSource`, TLS and other driver
+options must match the platform connection. Only `appName` may differ. Copy the
+same web connection privately, clear its database path and keep the same
+explicit authentication source, such as `authSource=admin` for the intended
+Atlas user. Different platform and base users are rejected rather than silently
+splitting financial transactions across incompatible clients.
+
+Each trusted tenant slug derives its own database name and server-side
+connection link. For example, `kampala-money` uses
+`classicfin_tenant_kampala_money_db` and `juba-money` uses
+`classicfin_tenant_juba_money_db`. Runtime connections reuse one bounded
+MongoClient through `useDb`, so a platform authorization fence and tenant ledger
+write can commit or roll back in the same transaction. This is separate logical
+databases on one deployment, not a separate cluster or database principal per
+tenant. Credential-bearing connection links are never shown to tenant users,
+returned by public APIs or included in exports.
+
+Workers retain their own service URIs and database principals. They do not need
+the web base URI. `REDIS_URL` has no runtime consumer in this application;
+persistent sessions and rate limits use MongoDB, so no Redis service is needed
+for these workflows.
+
 The deployment host must resolve the Atlas SRV/TXT records and reach the actual
 cluster hosts on their configured MongoDB TLS port. Permit HTTPS egress to
 `api.resend.com` and, when transfer SMS is enabled, `api.twilio.com`. Keep time

@@ -7,7 +7,7 @@ const accountSchema=new Schema({
  code:{type:String,required:true,immutable:true,match:/^[A-Z][A-Z0-9_]{2,39}$/},name:{type:String,required:true,maxlength:120},
  kind:{type:String,enum:['wallet','cash','bank','forex_stock','transfer_clearing'],required:true,immutable:true},
  moduleKey:{type:String,enum:['shared','mobile_money','forex','money_transfer'],required:true,immutable:true},
- network:{type:String,enum:['','MTN','Airtel','Africell','M-Pesa'],default:'',immutable:true},
+ network:{type:String,enum:['',...require('../../config/mobileNetworks').networks],default:'',immutable:true},
  currency:{type:String,enum:currencyCodes,required:true,immutable:true},operatorId:{type:O,default:null,immutable:true},
  accountReference:{type:String,maxlength:80,default:'',immutable:true},selectionKey:{type:String,default:undefined},
  feeTreatment:{type:String,enum:['record_only','payment_collected','wallet_commission'],default:'record_only'},

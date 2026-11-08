@@ -30,7 +30,7 @@ test('approved mobile money entry preserves the protected server contract and as
   assert.match(html,/<option value="Bank">Bank<\/option>/);
   const currency = html.match(/<select\b[^>]*name="currency"[^>]*>([\s\S]*?)<\/select>/);
   assert(currency,'Approved currency control must be present');
-  assert.deepEqual([...currency[1].matchAll(/<option\b[^>]*value="([^"]+)"/g)].map(match=>match[1]),['UGX']);
+  assert.deepEqual([...currency[1].matchAll(/<option\b[^>]*value="([^"]+)"/g)].map(match=>match[1]),['UGX','USD','SSP','KES']);
   assert.match(html,/Assigned branch/);
   const transactionForm = html.match(/<form[^>]+data-mobile-money-form[\s\S]*?<\/form>/)[0];
   assert.doesNotMatch(transactionForm,/<(?:select|input)[^>]+name="branchId"/);
@@ -39,6 +39,15 @@ test('approved mobile money entry preserves the protected server contract and as
   assert.match(html,/pending verification/);
   assert.match(html,/Customer &lt;script&gt;/);
   assert.doesNotMatch(html,/Customer <script>/);
+});
+
+test('entry offers only the saved branch currencies and selects SSP with exact cent precision',async()=>{
+ const locals=options();locals.operationBranch.currencies=['USD','SSP'];locals.operationBranch.currency='USD';
+ locals.data.entryCurrency='SSP';locals.data.networksAvailable=[...require('../src/config/mobileNetworks').networks];
+ const html=await render('entry',locals),currency=html.match(/<select\b[^>]*name="currency"[^>]*>([\s\S]*?)<\/select>/);
+ assert.deepEqual([...currency[1].matchAll(/<option\b[^>]*value="([^"]+)"/g)].map(match=>match[1]),['USD','SSP']);
+ assert.match(currency[1],/value="SSP" selected/);assert.match(html,/data-currency="SSP"/);
+ assert.match(html,/value="MTN SSD">MTN SSD<\/option>/);assert.match(html,/pattern="\[0-9\]\{1,11\}\(\[\.\]\[0-9\]\{1,2\}\)\?"/);
 });
 
 test('cash-out has its own protected action and tabs respect exact operation permissions',async()=>{

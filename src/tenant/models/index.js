@@ -39,7 +39,7 @@ const moneySchema = new mongoose.Schema({
   customerPhone:{type:String,default:'',maxlength:16,immutable:true},
   customerNote:{type:String,default:'',maxlength:400,immutable:true},
   paymentMethod:{type:String,enum:['Cash','Wallet Balance','Bank'],default:'Cash',immutable:true},
-  network: { type: String, enum: ['MTN','Airtel','Africell','M-Pesa'], required: true, immutable: true },
+  network: { type: String, enum: require('../../config/mobileNetworks').networks, required: true, immutable: true },
   networkReference: { type: String, required: true, maxlength: 100, immutable: true },
   amountMinor: { type: mongoose.Schema.Types.Decimal128, required: true, immutable: true },
   feeMinor: { type: mongoose.Schema.Types.Decimal128, required: true, immutable: true },

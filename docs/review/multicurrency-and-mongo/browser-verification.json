@@ -1,0 +1,215 @@
+{
+  "browserErrors": [],
+  "resourceErrors": [],
+  "layouts": [
+    {
+      "name": "transfer-USD",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "transfer-USD",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "transfer-USD",
+      "width": 320,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "transfer-SSP",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "transfer-SSP",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "transfer-SSP",
+      "width": 320,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "momo-USD",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "momo-USD",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "momo-USD",
+      "width": 320,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "momo-SSP",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "momo-SSP",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "momo-SSP",
+      "width": 320,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "launcher-SSP",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "launcher-SSP",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "launcher-SSP",
+      "width": 320,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "expense-SSP",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "expense-SSP",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "expense-SSP",
+      "width": 320,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "momo-report-SSP",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "momo-report-SSP",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "momo-report-SSP",
+      "width": 320,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "cash-shifts",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "cash-shifts",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "cash-shifts",
+      "width": 320,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "branch-currencies",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "branch-currencies",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "branch-currencies",
+      "width": 320,
+      "overflow": false,
+      "duplicateIds": []
+    }
+  ],
+  "currencies": {
+    "transferAndBankingHonorSelected": true,
+    "reviewedUsdSspForex": true,
+    "launcherInheritsSelected": true
+  },
+  "momo": {
+    "usdAndSspSeparatePosting": true,
+    "mtnSsdAvailableAndRecorded": true
+  },
+  "transfers": {
+    "usdAndSspReviewedCollectionPayout": true
+  },
+  "cash": {
+    "independentCurrencyShifts": true,
+    "closeDayHonorsSelectedCurrency": true,
+    "separateLedgersBalanced": true
+  },
+  "directory": {
+    "separateCustomerAccountCurrencies": true,
+    "usdAndSspReviewedBanking": true
+  },
+  "expenses": {
+    "selectedCurrency": true
+  },
+  "books": [
+    {
+      "code": "USD_CASH",
+      "currency": "USD",
+      "minor": "1001050"
+    },
+    {
+      "code": "USD_WALLET_MTN",
+      "currency": "USD",
+      "minor": "4998975"
+    },
+    {
+      "code": "SSP_CASH",
+      "currency": "SSP",
+      "minor": "1010150"
+    },
+    {
+      "code": "SSP_WALLET_MTNSSD",
+      "currency": "SSP",
+      "minor": "4989975"
+    }
+  ],
+  "passed": true
+}

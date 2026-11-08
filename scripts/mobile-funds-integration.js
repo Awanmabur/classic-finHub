@@ -16,8 +16,8 @@ async function main(){
  const tenant=await Tenant.create({name:'Mobile funds proof',slug,dbName:conn.name,owner:'Owner',email:`${nonce}@example.invalid`,plan:'mobile_funds_probe',status:'active',setupStatus:'complete',enabledModules:modules,seatsReserved:3,branchCount:1,subscription:{...terms,status:'granted',source:'manual_admin_grant',generation:1,periodStart:new Date(Date.now()-60000),periodEnd:new Date(Date.now()+86400000)}});
  const branch=await core.branchModel(conn).create({code:'main',name:'Actual branch',currency:'UGX',createdBy:owner.id,updatedBy:owner.id});
  for(const actor of [owner,operator,reviewer]){actor.branchId=String(branch._id);await core.tenantUserModel(conn).create({_id:actor.id,name:actor.name,email:`${actor.id}@example.invalid`,passwordHash:'isolated-only',role:actor.role,branchId:actor.branchId,allowedModules:actor.allowedModules||modules,authVersion:0,...(actor===operator?{}:{mfaEnabledAt:new Date()})});}
- async function open(kind,code,balance,network=''){
-  const account=await treasury.createAccount(conn,tenant,owner,{kind,code,name:'Actual '+code,currency:'UGX',operatorId:operator.id,network});
+ async function open(kind,code,balance,network='',currency='UGX'){
+  const account=await treasury.createAccount(conn,tenant,owner,{kind,code,name:'Actual '+code,currency,operatorId:operator.id,network});
   const request=await treasury.requestObservation(conn,tenant,operator,account._id,{kind:'opening',actualBalance:String(balance),observedAt:new Date(Date.now()-1000).toISOString(),evidenceType:kind==='cash'?'cash_count':kind==='wallet'?'provider_statement':'bank_statement',evidenceReference:'ACTUAL-'+code+'-STATEMENT',note:'Actual balance inspected directly before opening the funds book',idempotencyKey:crypto.randomUUID()});
   await treasury.reviewObservation(conn,tenant,reviewer,request.observation._id,{decision:'approve',note:'Independent opening source and exact balance inspected'});return account;
  }
@@ -66,7 +66,40 @@ async function main(){
  await assert.rejects(record({...changedPolicy,idempotencyKey:crypto.randomUUID(),networkReference:'FORGED-'+crypto.randomBytes(8).toString('hex'),walletFeePolicy:'record_only',feeTreatment:'payment_collected'}),error=>error.status===409&&/configured.*Wallets/i.test(error.message),'ordinary daily posts cannot override the configured wallet policy');
  assert.equal(await core.mobileTransactionModel(conn).countDocuments(),dailyCount);assert.equal(await balance(bank),'302100');
  assert.equal((await require('../src/tenant/services/ledger.service').trialBalance(conn,{branchId:branch._id,currency:'UGX'})).balanced,true);
+ // One branch/operator keeps independent exact cash and network books in
+ // multiple selected currencies. MTN SSD never shares MTN's reference space.
+ const usdWallet=await open('wallet','USD_MTN_FLOAT','1000.25','MTN','USD'),usdCash=await open('cash','USD_PHYSICAL_CASH','500.00','','USD');
+ const sspWallet=await open('wallet','SSP_MTN_SSD_FLOAT','2000.50','MTN SSD','SSP'),sspCash=await open('cash','SSP_PHYSICAL_CASH','700.00','','SSP');
+ const multiShifts={};
+ for(const [currency,openingCash] of [['USD','500.00'],['SSP','700.00']]){
+  const opened=await cash.open(conn,tenant,operator,{currency,openingCash});
+  await cash.decideOpening(conn,tenant,reviewer,opened._id,{decision:'approve',note:'Independent physical currency-specific opening count agrees with its recorded funds book'});multiShifts[currency]=opened;
+ }
+ assert.notEqual(multiShifts.USD.activeKey,multiShifts.SSP.activeKey);
+ const beforeUgx=await balance(wallet),beforeUgxCash=await balance(drawer),sameReference='MULTI-NETWORK-'+nonce;
+ const usdInput={...base,currency:'USD',network:'MTN',walletAccountId:String(usdWallet._id),paymentAccountId:String(usdCash._id),operation:'cash_in',amount:'10.25',fee:'0',networkReference:sameReference,idempotencyKey:crypto.randomUUID()};
+ const usd=await record(usdInput);await accept(usd);
+ const sspInput={...base,currency:'SSP',network:'MTN SSD',walletAccountId:String(sspWallet._id),paymentAccountId:String(sspCash._id),operation:'cash_in',amount:'20.05',fee:'0',networkReference:sameReference,idempotencyKey:crypto.randomUUID()};
+ const ssp=await record(sspInput);await accept(ssp);
+ assert.equal(String(usd.created.cashSessionId),String(multiShifts.USD._id));assert.equal(String(ssp.created.cashSessionId),String(multiShifts.SSP._id));
+ assert.equal(await balance(usdWallet),'99000');assert.equal(await balance(usdCash),'51025');assert.equal(await balance(sspWallet),'198045');assert.equal(await balance(sspCash),'72005');
+ assert.equal(await balance(wallet),beforeUgx);assert.equal(await balance(drawer),beforeUgxCash);
+ assert.equal((await record(sspInput)).duplicate,true);
+ await assert.rejects(record({...sspInput,idempotencyKey:crypto.randomUUID(),networkReference:'CROSS-CURRENCY-'+nonce,paymentAccountId:String(usdCash._id)}),{status:409});
+ await assert.rejects(record({...sspInput,idempotencyKey:crypto.randomUUID(),networkReference:'CROSS-NETWORK-'+nonce,walletAccountId:String(usdWallet._id)}),{status:409});
+ const allFunds=await require('../src/tenant/services/mobileMoneyFunds.service').context(conn,tenant,operator,branch);
+ assert(allFunds.wallets.some(row=>row.network==='MTN SSD'&&row.currency==='SSP'));assert(allFunds.wallets.some(row=>row.network==='MTN'&&row.currency==='USD'));
+ const scoped=await require('../src/tenant/services/mobileMoneyWorkspace.service').workspace(conn,operator,{network:'MTN SSD',currency:'SSP'});
+ assert.equal(scoped.summary.activeCount,1);assert.equal(scoped.summary.byCurrency[0].currency,'SSP');assert.equal(scoped.networks[0].network,'MTN SSD');
+ await mobile.requestVoid(conn,operator,ssp.created._id,'The SSP cash-in was entered against the wrong physical instruction');
+ await mobile.decideVoid(conn,reviewer,ssp.created._id,'approve','Independent SSP receipt and drawer evidence authorizes the exact SSP-only reversal');
+ assert.equal(await balance(sspWallet),'200050');assert.equal(await balance(sspCash),'70000');assert.equal(await balance(usdCash),'51025');
+ for(const currency of ['USD','SSP'])assert.equal((await require('../src/tenant/services/ledger.service').trialBalance(conn,{branchId:branch._id,currency})).balanced,true);
+ await core.branchModel(conn).updateOne({_id:branch._id},{$set:{currencies:['UGX','USD']}});
+ await assert.rejects(record({...sspInput,idempotencyKey:crypto.randomUUID(),networkReference:'DISABLED-CURRENCY-'+nonce}),{status:409});
+ await assert.rejects(open('bank','DISABLED_SSP_BANK','1.00','','SSP'),{status:409});
  console.log('PASS: Configured wallet/payment defaults, daily entries without repeated balance setup, configured fee policy and idempotency, exact funds and balanced journals, optional actual evidence, mismatch holds/adjustments, insufficient-float rollback, inverse corrections, cash close and privacy.');
+ console.log('PASS: One branch/operator posts USD and SSP independently; MTN SSD preserves its own network references, wallets, verified shifts, exact cents, scoped reports and reversal. Wrong currency/network accounts and disabled currencies are rejected without changing other books.');
 }
 async function cleanup(){if(mongoose.connection.readyState===1&&mongoose.connection.name===platformName&&/^cfh_mobile_funds_[a-f0-9]{14}$/.test(platformName)){if(conn)await conn.db.dropDatabase();await mongoose.connection.db.dropDatabase();}await mongoose.disconnect();}
 main().catch(error=>{console.error('MOBILE FUNDS INTEGRATION FAILED:',error.stack||error.message);process.exitCode=1;}).finally(()=>cleanup().catch(error=>{console.error('Mobile funds cleanup failed:',error.message);process.exitCode=1;}));

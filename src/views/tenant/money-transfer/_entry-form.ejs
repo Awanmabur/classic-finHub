@@ -14,7 +14,7 @@
 <div class="formSection"><div class="formSectionTitle">Transfer details</div><div class="row2">
 <label class="field">Transfer method<select class="control" name="transferMethod"><% ['Cash','Bank','Mobile Money','Online'].forEach(method=>{ %><option><%= method %></option><% }) %></select></label>
 <label class="field">Purpose / narration<input class="control" name="purpose" maxlength="400" placeholder="Family support, trade, school fees..."></label>
-<label class="field">Currency<input type="hidden" name="currency" value="<%= currentBranch.currency %>"><input class="control" value="<%= typeof currencyLabel==='function'?currencyLabel(currentBranch.currency):currentBranch.currency %>" readonly></label>
+<label class="field">Currency<select class="control" name="currency" required><% (data.currencyChoices||(typeof currencyOptions==='undefined'?[]:currencyOptions).filter(option=>!currentBranch.currencies||currentBranch.currencies.includes(option.code))).forEach(option=>{ %><option value="<%= option.code %>" <%= option.code===(data.selectedCurrency||currentBranch.currency)?'selected':'' %>><%= option.label %></option><% }) %></select></label>
 <label class="field">Amount<input class="control" name="amount" inputmode="decimal" required pattern="[0-9]+([.][0-9]{1,2})?" placeholder="0"></label>
 <label class="field">Exchange rate<input class="control" name="exchangeRate" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,8})?" placeholder="Optional indicative rate"><span class="tiny">Reference only; the request does not perform a currency conversion.</span></label>
 <label class="field">Transfer fee<input class="control" name="fee" inputmode="decimal" required pattern="[0-9]+([.][0-9]{1,2})?" value="0"></label>

@@ -15,14 +15,15 @@ function summary(account){return {id:String(account._id),name:account.name,kind:
 async function context(conn,tenant,actor,branch){
  const trusted=await treasury.access(conn,tenant,actor,{sourceType:'mobile_money'});
  await fundsModels.ensure(conn);
- const query={tenantId:tenant._id,branchId:branch._id,currency:branch.currency,status:{$ne:'archived'},$or:[{operatorId:actor.id},{operatorId:null}]};
+ const currencies=require('./branchCurrency.service').supported(branch);
+ const query={tenantId:tenant._id,branchId:branch._id,currency:{$in:currencies},status:{$ne:'archived'},$or:[{operatorId:actor.id},{operatorId:null}]};
  const accounts=await fundsModels.models(conn).account.find(query).sort({name:1}).limit(200).lean();
  let customerAccounts=[];
  if(hasModuleForUser(trusted.tenant,trusted.actor,'accounts')&&hasPermission(trusted.actor,'accounts.view')){
   await directory.ensureIndexes(conn);
-  const rows=await directory.accountModel(conn).aggregate([{$match:{branchId:branch._id,currency:branch.currency,status:'active'}},
+  const rows=await directory.accountModel(conn).aggregate([{$match:{branchId:branch._id,currency:{$in:currencies},status:'active'}},
    {$lookup:{from:directory.customerModel(conn).collection.name,localField:'customerId',foreignField:'_id',as:'customer'}},{$unwind:'$customer'},{$match:{'customer.status':'active'}},{$sort:{accountNumber:1}},{$limit:100}]);
-  const postings=rows.length?await core.ledgerPostingModel(conn).aggregate([{$match:{accountId:{$in:rows.map(row=>row.ledgerAccountId)},branchId:branch._id,currency:branch.currency}},{$group:{_id:'$accountId',amount:{$sum:{$cond:[{$eq:['$side','credit']},'$amountMinor',{$multiply:['$amountMinor',-1]}]}}}}]):[];
+  const postings=rows.length?await core.ledgerPostingModel(conn).aggregate([{$match:{accountId:{$in:rows.map(row=>row.ledgerAccountId)},branchId:branch._id,currency:{$in:currencies}}},{$group:{_id:'$accountId',amount:{$sum:{$cond:[{$eq:['$side','credit']},'$amountMinor',{$multiply:['$amountMinor',-1]}]}}}}]):[];
   const balances=new Map(postings.map(row=>[String(row._id),String(row.amount)]));
   customerAccounts=rows.map(row=>({id:String(row._id),name:row.customer.name,last4:row.accountNumber.slice(-4),currency:row.currency,balance:money(balances.get(String(row.ledgerAccountId))||'0',row.currency)}));
  }

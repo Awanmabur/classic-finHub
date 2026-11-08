@@ -2,8 +2,8 @@
 
 Transaction and cash-shift forms no longer ask for a branch. The server resolves
 the location from the authenticated account and validates it against the tenant's
-active branch records. The displayed currency for branch-based operations comes
-from that same branch. Submitted branch overrides are rejected, including those
+active branch records. The initial currency comes from that branch's default;
+transactions may select any of its enabled operating currencies. Submitted branch overrides are rejected, including those
 submitted by a tenant owner.
 
 - Staff use their assigned active branch. Missing or archived assignments block

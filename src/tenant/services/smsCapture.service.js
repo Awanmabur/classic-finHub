@@ -53,7 +53,7 @@ async function enroll(conn,tenant,owner,input){
   const actor=operatorFrom(account);assertOperator(actor);entitlement(tenant,actor);
   const branch=await resolveTransactionBranch(conn,actor);
   const name=String(input.name||'').trim();
-  if(name.length<3||name.length>80||!['MTN','Airtel','M-Pesa'].includes(input.network))throw secure.fail('Enter a device name and supported network.');
+  if(name.length<3||name.length>80||!require('../../config/mobileNetworks').smsNetworks.includes(input.network))throw secure.fail('Enter a device name and supported network.');
   const allowedSenders=senders(input.allowedSenders),deviceId=crypto.randomBytes(16).toString('hex');
   const secret=crypto.randomBytes(32).toString('hex'),secretEncrypted=secure.encrypt(secret,`device:${deviceId}`);
   await ensurePlatformIndexes();await ensureTenantIndexes(conn);

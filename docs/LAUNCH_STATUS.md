@@ -4,7 +4,8 @@ Version 1.24.0 is the prepared launch candidate. The repository contains immutab
 
 | Area | Evidence state |
 | --- | --- |
-| Repository unit, isolated database and browser checks | Passed: 414 JavaScript tests, 13 Android relay tests, 484 JS/EJS syntax/template checks, all registered isolated Mongo integrations, and zero dependency vulnerabilities. [Latest responsive UI/SMS evidence](review/predeployment-ui-sms/README.md); [earlier launch evidence](review/launch-1.24.0/README.md). |
+| Repository unit, isolated database and browser checks | Passed: 432 JavaScript tests, 13 Android relay tests, 493 JS/EJS syntax/template checks, all registered isolated Mongo integrations, and zero dependency vulnerabilities. [Latest branch-currency/MongoDB evidence](review/multicurrency-and-mongo/README.md); [earlier launch evidence](review/launch-1.24.0/README.md). |
+| Reported GitHub secret alerts 1–3 | The three flagged documentation lines contain placeholder password/host examples. Removed in commit `1a1231c`; a targeted CI/release check rejects credential-shaped Atlas examples. GitHub API egress is blocked in this environment, so the alerts were not remotely closed. Their verified resolution is False positive. |
 | Production configuration probe | Implemented and regression-tested; configuration-only mode cannot claim live readiness. |
 | Outbox/notification health | Correct worker classes are checked separately. Receiver SMS has a redacted queue health check for overdue, failed, unconfigured and uncertain submissions. |
 | Immutable release and rollback | Tested with controlled deployment doubles, including failed readiness and failed pull. No actual public deployment was performed. |

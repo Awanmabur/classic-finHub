@@ -39,6 +39,7 @@ const steps=[
   [process.execPath,['scripts/sms-authorization-integration.js']],
   ['python3',['-m','unittest','discover','-s','tools/android-sms-relay','-p','test_*.py']],
   [process.execPath,['scripts/auth-integration.js']],
+  [process.execPath,['scripts/login-render-integration.js']],
   [process.execPath,['scripts/admin-integration.js']],
   [process.execPath,['scripts/appointments-integration.js']],
   [process.execPath,['scripts/review-integration.js']],

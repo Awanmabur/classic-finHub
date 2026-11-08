@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const { randomUUID } = require('crypto');
 const { tenantMenu,tenantNavigationPath } = require('../../services/menu.service');
-const { consumeFlash, flash, money } = require('../../utils/view');
+const { consumeFlash, flash, money, formatUtcDate } = require('../../utils/view');
 const requirePermission = require('../../middleware/requirePermission');
 const requireModule = require('../../middleware/requireModule');
 const mobile = require('../services/mobileMoney.service');
@@ -10,10 +10,11 @@ const {planForTenant,effectiveSubscription}=require('../../platform/services/com
 const UsageCounter=require('../../platform/models/UsageCounter');
 const { hasPermission,hasModuleForUser } = require('../services/moduleAccess.service');
 const branchService=require('../services/branch.service');
+const phoneCountry=require('../../utils/phoneCountry');
 const staffService=require('../services/staff.service');
 const staffPolicy=require('../services/staffPolicy');
 router.use(require('../services/transactionBranch.service').requestContext);
-router.use((req,res,next)=>{const phone=require('../../utils/phoneCountry');res.locals.phoneDefaults=phone.defaults(req);if(req.method==='POST')for(const field of ['phone','senderPhone','receiverPhone','customerPhone','supportPhone','nextOfKinPhone','legacyReceiverPhone'])if(typeof req.body?.[field]==='string'&&req.body[field])req.body[field]=phone.normalize(req.body[field],field==='senderPhone'&&req.body.senderCountry?req.body.senderCountry:field==='receiverPhone'&&req.body.receiverCountry?req.body.receiverCountry:req.get('x-classicfin-phone-country')||res.locals.phoneDefaults.country);next();});
+router.use((req,res,next)=>{const phone=phoneCountry;res.locals.phoneDefaults=phone.defaults(req);if(req.method==='POST')for(const field of ['phone','senderPhone','receiverPhone','customerPhone','supportPhone','nextOfKinPhone','legacyReceiverPhone'])if(typeof req.body?.[field]==='string'&&req.body[field])req.body[field]=phone.normalize(req.body[field],field==='senderPhone'&&req.body.senderCountry?req.body.senderCountry:field==='receiverPhone'&&req.body.receiverCountry?req.body.receiverCountry:req.get('x-classicfin-phone-country')||res.locals.phoneDefaults.country);next();});
 router.post('/view-branch',require('../services/branchView.service').change);
 router.use(async(req,res,next)=>{
   try{req.workspaceIdentity=await require('../workspace/service').receiptIdentity(req.tenantDb,req.tenant);next();}catch(error){next(error);}
@@ -30,7 +31,7 @@ function renderTenant(req, res, view, pageTitle, pageSub, data) {
   res.render('layouts/dashboard', {
     context:'tenant', currentPath:tenantNavigationPath(req.baseUrl + req.path), pageTitle, pageSub,
     tenant:{...req.tenant,name:req.workspaceIdentity?.name||req.tenant.name}, user:req.user, menu:tenantMenu(req.tenant,req.user),
-    view:`../tenant/${view}`, data, flash:consumeFlash(req), money, amountFromMinor:mobile.fromMinor
+    view:`../tenant/${view}`, data, flash:consumeFlash(req), money, formatUtcDate, amountFromMinor:mobile.fromMinor
   });
 }
 router.use(require('./offline.routes'));

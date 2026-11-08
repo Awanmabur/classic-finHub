@@ -13,7 +13,9 @@ function normalize(value,country='SS'){
  if(typeof value!=='string')return value;
  const clean=value.trim().replace(/[ ().-]/g,'');
  if(clean.startsWith('+'))return clean;
- const parsed=parsePhoneNumberFromString(clean,isSupportedCountry(country)?country:'SS');
+ const candidate=typeof country==='string'?country.trim().toUpperCase():'SS';
+ const region=isSupportedCountry(candidate)?candidate:'SS';
+ const parsed=parsePhoneNumberFromString(clean,region);
  return parsed?.isPossible()?parsed.number:clean;
 }
 module.exports={countryForRequest,defaults,normalize};

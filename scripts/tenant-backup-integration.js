@@ -49,6 +49,9 @@ async function main(){
  const decoded=backup.verify(downloaded.body,tenant,policy,archives[0].digest),text=JSON.stringify(decoded);
  for(const forbidden of ['passwordHash','mfaSecretEncrypted','pinEncrypted','pinHash','refreshEncrypted','verificationDigest'])assert(!text.includes('"'+forbidden+'"'),forbidden);
  assert.equal(decoded.data.tables.fundAccounts.length,2);assert(decoded.data.tables.ledgerPostings.length>0);
+ const localFile=backupDir+'/'+tenant._id+'/'+archives[0].filename,temporarilyMoved=localFile+'.probe';
+ await fs.rename(localFile,temporarilyMoved);try{await assert.rejects(backup.readArchive(conn,tenant,owner,String(archives[0]._id)),error=>error.status===503&&error.code==='BACKUP_ARCHIVE_UNAVAILABLE');}finally{await fs.rename(temporarilyMoved,localFile);}
+ const damaged=Buffer.from(downloaded.body);damaged[damaged.length-1]^=1;await fs.writeFile(localFile,damaged);try{await assert.rejects(backup.readArchive(conn,tenant,owner,String(archives[0]._id)),error=>error.status===503&&error.code==='BACKUP_VERIFICATION_FAILED');}finally{await fs.writeFile(localFile,downloaded.body);}
  const snapshot1=await archiveSnapshot.capture(conn,tenant,policy);await backup.requestBackup(conn,tenant,owner);assert.equal((await backup.processPolicy(conn,tenant,policy._id)).state,'no_changes');assert.equal(await backupModels.models(conn).archive.countDocuments(),1);
  const snapshot2=await archiveSnapshot.capture(conn,tenant,policy);assert.equal(snapshot1.digest,snapshot2.digest,'backup metadata and audit writes do not manufacture business changes');
  const tampered=Buffer.from(downloaded.body);tampered[tampered.length-1]^=1;assert.throws(()=>backup.verify(tampered,tenant,policy,archives[0].digest));assert.throws(()=>backup.verify(downloaded.body,tenant,{...policy,scopeKey:'branch_'+branch._id},archives[0].digest));

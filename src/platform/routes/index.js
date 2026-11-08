@@ -7,14 +7,14 @@ const planBuilder=require('../services/planBuilder.service');
 const outbox=require('../services/outbox.service');
 const appointmentService=require('../services/appointment.service');
 const { platformMenu } = require('../../services/menu.service');
-const { consumeFlash, flash, money } = require('../../utils/view');
+const { consumeFlash, flash, money, formatUtcDate } = require('../../utils/view');
 const { provisionTenant } = require('../services/tenantProvisioning.service');
 const { changeStatus, updateProfile }=require('../services/tenantAdmin.service');
 const {list: platformAudit}=require('../services/platformAudit.service');
 function renderPlatform(req,res,view,pageTitle,pageSub,data={}){
   res.render('layouts/dashboard', {
     context:'platform',currentPath:req.baseUrl + req.path,pageTitle,pageSub,tenant:null,user:req.platformUser,menu:platformMenu(req.platformUser),
-    view:`../platform/${view}`,data,flash:consumeFlash(req),money
+    view:`../platform/${view}`,data,flash:consumeFlash(req),money,formatUtcDate
   });
 }
 router.use((req,res,next)=>req.platformUser.permissions.includes('*')?next():res.status(403).send('Insufficient permissions'));

@@ -4,7 +4,11 @@ const createApp = require('./app');
 const env = require('./config/env');
 const { connectPlatformMongo } = require('./config/mongo');
 const { verifyReplicaPrimary } = require('./config/mongoTopology');
+const { loadDevelopmentMfaKey } = require('./config/developmentMfaKey');
 async function boot() {
+  // dotenv has already populated explicit configuration through config/env.
+  // Reuse a retained local key without creating or replacing encryption keys.
+  loadDevelopmentMfaKey();
   // Fail closed: never serve financial dashboards when storage is unavailable.
   await connectPlatformMongo();
   const hello = await mongoose.connection.db.admin().command({ hello: 1 });

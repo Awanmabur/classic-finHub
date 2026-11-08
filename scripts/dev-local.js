@@ -1,6 +1,9 @@
 'use strict';
 // Local Windows / Linux development with an isolated Mongo replica set and
 // persisted development-only MFA encryption key, never checked into Git.
+// Match normal startup: explicit environment wins over .env, then the retained
+// local key is used only when neither supplies one.
+require('dotenv').config();
 const { run } = require('./db-local');
 const { spawnSync } = require('child_process');
 const fs = require('fs');

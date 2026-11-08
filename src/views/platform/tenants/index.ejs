@@ -6,8 +6,8 @@
       <td><b><%= t.name %></b><br><span class="tiny"><%= t.slug %></span></td>
       <td><%= t.owner %><br><span class="tiny"><%= t.email %></span></td>
       <td><%= data.plans.find(p=>p.code===t.plan)?.name || t.plan %></td>
-      <td><span class="tag"><%= t.status.replaceAll('_',' ') %></span></td>
-      <td><%= t.enabledModules.length %> assigned</td>
+      <td><span class="tag"><%= typeof t.status==='string'?t.status.replaceAll('_',' '):'Unknown status' %></span></td>
+      <td><%= Array.isArray(t.enabledModules)?t.enabledModules.length:0 %> assigned</td>
       <td><a class="btn" href="/platform/tenants/<%= t.id %>">Manage</a></td>
     </tr><% }) %>
   </tbody></table></div>

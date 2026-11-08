@@ -1,0 +1,40 @@
+'use strict';
+require('dotenv').config();
+const req=require('node:module').createRequire(require('node:path').resolve(__dirname,'../package.json'));
+const configured=new URL(req('./src/config/mongoUris').resolveMongoConfiguration(process.env).mongoPlatformUri);
+if(process.env.NODE_ENV==='production'||configured.protocol!=='mongodb:'||!['127.0.0.1','localhost','[::1]'].includes(configured.hostname)||configured.host.includes(',')||configured.username||configured.password)throw Error('Login integration requires an isolated unauthenticated loopback replica set');
+const crypto=require('node:crypto'),assert=require('node:assert/strict');
+const nonce=crypto.randomBytes(8).toString('hex'),scratch='cfh_login_render_'+nonce,slug='login-render-'+nonce;
+configured.pathname='/'+scratch;process.env.NODE_ENV='test';process.env.MONGO_PLATFORM_URI=configured.toString();delete process.env.PLATFORM_DB_URI;delete process.env.MONGO_URI_BASE;
+process.env.APP_URL='http://localhost:3000';const originalKey=crypto.randomBytes(32).toString('hex'),changedKey=crypto.randomBytes(32).toString('hex');process.env.MFA_ENCRYPTION_KEY=originalKey;process.env.TRANSFER_SMS_PROVIDER='none';process.env.TENANT_BACKUPS_ENABLED='false';
+const mongoose=req('mongoose'),bcrypt=req('bcryptjs'),mfa=req('./src/platform/services/mfa.service'),core=req('./src/tenant/models'),Tenant=req('./src/platform/models/Tenant'),Identity=req('./src/platform/models/AccountIdentity'),Admin=req('./src/platform/models/PlatformAdmin'),commerce=req('./src/platform/services/commercial.service');
+const rows=[],secrets=new Map();let conn,server;
+const csrf=html=>{const match=html.match(/name="_csrf" value="([a-f0-9]{64})"/);assert(match,'CSRF available');return match[1];};
+async function main(){
+ await req('./src/config/mongo').connectPlatformMongo();await Promise.all([Tenant.createIndexes(),Identity.createIndexes(),Admin.createIndexes()]);
+ const modules=['mobile_money','money_transfer','banking','forex','customers','accounts','expenses','reports'];const version={...commerce.asPlanVersion({...req('./src/data/store').plans.find(p=>p.code==='enterprise'),code:'mfa_review',modules}),status:'published'},terms=commerce.planSnapshot(version);
+ const tenant=await Tenant.create({name:'MFA Key Review Workspace',slug,dbName:req('./src/config/tenantDatabaseName').tenantDbNameFromSlug(slug),owner:'Owner',email:'tenant-fresh-'+nonce+'@example.invalid',plan:'mfa_review',status:'active',setupStatus:'complete',enabledModules:modules,seatsReserved:3,branchCount:0,subscription:{...terms,status:'granted',source:'manual_admin_grant',generation:1,periodStart:new Date(Date.now()-10000),periodEnd:new Date(Date.now()+86400000)}});
+ conn=req('./src/config/mongo').getTenantConnection(slug);await core.ensureTenantIndexes(conn);const password='MFA-Key-Review-'+nonce+'#9a',passwordHash=await bcrypt.hash(password,10);
+ for(const kind of ['platform','tenant'])for(const enrolled of [false,true]){const email=kind+'-'+(enrolled?'enrolled':'fresh')+'-'+nonce+'@example.invalid',secret=enrolled?mfa.generateSecret():null,Model=kind==='platform'?Admin:core.tenantUserModel(conn),account=await Model.create({name:'MFA Key Review',email,passwordHash,role:kind==='platform'?'Super Admin':'Tenant Owner',status:'active',...(kind==='tenant'?{allowedModules:modules}:{}),...(enrolled?{mfaSecretEncrypted:mfa.encryptSecret(secret),mfaEnabledAt:new Date(),mfaLastCounter:-1}:{})});await Identity.create({email,kind,accountId:account._id,...(kind==='tenant'?{tenantId:tenant._id}:{})});rows.push({kind,enrolled,email,id:account._id,Model});if(secret)secrets.set(email,secret);}
+ const Audit=req('./src/platform/models/PlatformAuditLog');const platformAccount=rows.find(row=>row.kind==='platform'&&row.enrolled);
+ await Audit.collection.insertMany([null,undefined,'legacy-invalid-date'].map((createdAt,index)=>({actorId:platformAccount.id,action:'integration.legacy_audit_'+index,recordId:String(tenant._id),metadata:{},...(createdAt===undefined?{}:{createdAt})})));
+ server=await new Promise(resolve=>{const s=req('./src/app')().listen(0,()=>resolve(s));});const base='http://127.0.0.1:'+server.address().port;
+ const results=[];
+ for(const condition of ['absent key','mismatched key','original key']){
+  if(condition==='absent key')delete process.env.MFA_ENCRYPTION_KEY;else process.env.MFA_ENCRYPTION_KEY=condition==='original key'?originalKey:changedKey;
+  for(const row of rows.filter(row=>condition==='absent key'||row.enrolled)){
+   const signin=await fetch(base+'/signin'),cookie0=signin.headers.get('set-cookie').split(';')[0],token=csrf(await signin.text());
+   const login=await fetch(base+'/signin',{method:'POST',redirect:'manual',headers:{cookie:cookie0,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({_csrf:token,email:row.email,password}).toString()});const cookie=login.headers.get('set-cookie')?.split(';')[0]||cookie0,location=login.headers.get('location');
+   const target=await fetch(base+location,{headers:{cookie},redirect:'manual'}),html=await target.text();const result={condition,kind:row.kind,enrolled:row.enrolled,loginStatus:login.status,loginRedirect:location,mfaPageStatus:target.status};
+   assert.equal(login.status,303);assert.equal(location,row.enrolled?'/mfa/challenge':'/mfa/setup');
+   if(row.enrolled){const answer=await fetch(base+'/mfa/challenge',{method:'POST',redirect:'manual',headers:{cookie,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({_csrf:csrf(html),code:mfa.counterCode(secrets.get(row.email),Math.floor(Date.now()/30000))}).toString()});result.mfaPostStatus=answer.status;result.mfaPostRedirect=answer.headers.get('location');if(condition==='original key'){assert.equal(answer.status,303);assert.equal(answer.headers.get('location'),row.kind==='platform'?'/platform/dashboard':'/tenant/dashboard');const fullCookie=answer.headers.get('set-cookie')?.split(';')[0]||cookie,headers={cookie:fullCookie};const dashboard=await fetch(base+answer.headers.get('location'),{headers,redirect:'manual'});assert.equal(dashboard.status,200,'real post-MFA dashboard');const dashboardHtml=await dashboard.text();
+ if(row.kind==='platform'){assert.match(dashboardHtml,/Unknown date/);const audit=await fetch(base+'/platform/audit',{headers});assert.equal(audit.status,200);assert.match(await audit.text(),/Unknown date/);}
+ else{const original=tenant.toObject().subscription;await Tenant.collection.updateOne({_id:tenant._id},{$set:{'subscription.periodEnd':'legacy-invalid-date'}});try{const redirect=await fetch(base+'/tenant/dashboard',{headers,redirect:'manual'});assert.equal(redirect.status,303);assert.equal(redirect.headers.get('location'),'/tenant/billing');const billing=await fetch(base+'/tenant/billing',{headers});assert.equal(billing.status,200);const billingHtml=await billing.text();assert.match(billingHtml,/Unknown date/);const denied=await fetch(base+'/tenant/money-transfer/requests',{method:'POST',redirect:'manual',headers:{...headers,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({_csrf:csrf(billingHtml)}).toString()});assert.equal(denied.status,403);}finally{await Tenant.collection.updateOne({_id:tenant._id},{$set:{subscription:original}});}}
+}else assert.equal(answer.status,503);}
+   else assert.equal(target.status,503);
+   results.push(result);
+  }
+ }
+ console.log('PASS: real password/MFA redirects and dashboard responses for platform + tenant; missing/wrong keys remain denied with controlled 503; restored key unlocks unchanged enrollment; legacy audit dates stay readable; invalid subscription redirects to readable billing and blocks financial POST. Disposable local storage only.');
+}
+main().catch(error=>{console.error(error.stack);process.exitCode=1;}).finally(async()=>{if(server)await new Promise(resolve=>server.close(resolve));if(conn&&mongoose.connection.name===scratch&&/^cfh_login_render_[a-f0-9]{16}$/.test(scratch)){await conn.db.dropDatabase();await mongoose.connection.db.dropDatabase();}await mongoose.disconnect();});

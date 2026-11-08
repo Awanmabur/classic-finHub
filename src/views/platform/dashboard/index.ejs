@@ -17,6 +17,6 @@
   </div>
   <section class="card" style="margin-top:14px"><div class="cardHead"><b>Recent activity</b><span>Administration changes</span><a class="btn" href="/platform/audit">View all</a></div><div class="cardBody tableWrap"><table><thead><tr><th>Time (UTC)</th><th>Action</th><th>Record</th></tr></thead><tbody>
     <% if(!data.recentAudits.length){ %><tr><td colspan="3">No activity to show yet.</td></tr><% } %>
-    <% data.recentAudits.forEach(a=>{ %><tr data-search-row><td><%= new Date(a.createdAt).toISOString() %></td><td><%= a.action %></td><td><%= a.recordId||'—' %></td></tr><% }) %>
+    <% data.recentAudits.forEach(a=>{ %><tr data-search-row><td><%= formatUtcDate(a.createdAt) %></td><td><%= a.action %></td><td><%= a.recordId||'—' %></td></tr><% }) %>
   </tbody></table></div></section>
 </section>

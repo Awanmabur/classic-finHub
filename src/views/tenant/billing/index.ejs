@@ -6,7 +6,7 @@
 <% if(data.subscription.modules?.includes('sms_capture')){ %><div class="sumRow"><span>Monthly SMS allowance</span><b><%= data.subscription.limits.smsPerMonth %></b></div><% } %><% } %>
 <div class="sumRow"><span>Version</span><b><%= data.subscription?.planVersion||'—' %></b></div>
 <div class="sumRow"><span>Access</span><b><%= data.subscription?.status||'Not assigned' %></b></div>
-<div class="sumRow"><span>Term ends</span><b><%= data.subscription?.periodEnd ? new Date(data.subscription.periodEnd).toISOString().slice(0,10) : 'No active term' %></b></div>
+<div class="sumRow"><span>Term ends</span><b><%= data.subscription ? formatUtcDate(data.subscription.periodEnd).split('T')[0] : 'No active term' %></b></div>
 <div class="sumRow"><span>Active modules</span><b><%= data.plan?.modules?.length||0 %></b></div>
 <div class="sumRow"><span>Branch limit</span><b><%= data.subscription?.limits?.branches??'—' %></b></div>
 <div class="sumRow"><span>Staff seats</span><b><%= tenant.seatsReserved %> / <%= data.subscription?.limits?.users??'—' %></b></div>
@@ -21,5 +21,5 @@
 </div></section></div>
 <section class="card" style="margin-top:14px"><div class="cardHead"><b>Independent module subscriptions</b><span>Separate terms · no payment assumed</span></div><div class="cardBody summary">
 <% if(!(data.grants||[]).length){ %><p class="tiny">No standalone module grants are active.</p><% } %>
-<% (data.grants||[]).forEach(g=>{ %><div class="sumRow"><span><%= g.moduleKey.replaceAll('_',' ') %></span><b>Until <%= new Date(g.periodEnd).toISOString().slice(0,10) %> · USD <%= (g.priceMonthlyMinor/100).toFixed(2) %>/mo</b></div><% }) %>
+<% (data.grants||[]).forEach(g=>{ %><div class="sumRow"><span><%= g.moduleKey.replaceAll('_',' ') %></span><b>Until <%= formatUtcDate(g.periodEnd).split('T')[0] %> · USD <%= (g.priceMonthlyMinor/100).toFixed(2) %>/mo</b></div><% }) %>
 <p class="tiny">A module grant is an access entitlement, not a payment receipt. Payment status is managed separately.</p></div></section></section>

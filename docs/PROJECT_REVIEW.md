@@ -1,6 +1,8 @@
 # Project review — updated 8 November 2026
 
-The current launch candidate is 1.25.0. Use [launch status](LAUNCH_STATUS.md) and the [production runbook](LAUNCH_RUNBOOK.md) for the current deployment decision. Earlier verification counts and file references below are historical where superseded by the current launch evidence and cleanup manifest.
+The current launch candidate is 1.25.1. Use [launch status](LAUNCH_STATUS.md) and the [production runbook](LAUNCH_RUNBOOK.md) for the current deployment decision. Earlier verification counts and file references below are historical where superseded by the current launch evidence and cleanup manifest.
+
+Post-login key-selection and legacy date rendering fixes are verified in [login recovery evidence](review/login-recovery/README.md). Existing credentials and financial access rules remain intact.
 
 Current branch-delivery, offline-draft and scoped archive configuration/evidence are documented in [Tenant backups and offline operations](TENANT_BACKUPS_AND_OFFLINE.md). Live Atlas/Google/Yoola activation remains dependent on actual private settings.
 

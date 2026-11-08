@@ -72,29 +72,20 @@ Run `npm run db:doctor`, `npm run db:integration`, then `npm run dev`. The integ
 
 After configuring `.env`, run `npm run indexes`, `npm run auth:migrate` to inspect all existing account emails, and `npm run auth:migrate -- --apply` to create the global identity directory. Duplicate emails are deliberately blocked. Only one email/password pair is required at `/signin`, and the backend chooses the platform or tenant dashboard. See [the dedicated migration guide](UNIFIED_AUTH_RELEASE.md). Test full login and password-rotation flows with `npm run auth:integration` on localhost; do not run it against a production cluster.
 
-## Dependency vulnerabilities
+## Dependencies after an update
 
-Your source archive's lockfile contains older dependencies. Your terminal reported **12 advisories (7 moderate, 4 high, 1 critical)** on November 3, 2026, but the names and exact fixes were not included in that short summary. This environment could not access the npm security registry, so **the 12 advisories have not been verified as cleared and the original lockfile is retained** rather than creating an invalid or untested lockfile.
+Run `npm ci` from the updated checkout before restarting. This installs the reviewed lockfile, including new required libraries. A running old server must be restarted; reloading the browser does not reload its server modules.
 
-With internet access from your Windows computer, run:
+`npm run deps:repair` now performs a frozen `npm ci --ignore-scripts --strict-ssl=true` followed by `npm audit --audit-level=moderate`. It does not update Morgan, change the package files, run `npm audit fix`, or choose new dependency versions. The current release gate verifies the dependency advisory status. If an advisory appears later, review an intentional upgrade and test it before changing the lockfile.
 
-```bash
-npm run deps:repair
-```
+## Sign-in after an update
 
-The script runs a reviewed, same-major `morgan` update, then `npm audit fix` without `--force`; it regenerates the real npm lockfile, rechecks advisories and exits unsuccessfully if any remain. It intentionally leaves updates requiring manual breaking-change review unresolved. `npm audit fix --force` may change major versions and break EJS or other parts of the application. Do not use it blindly.
-
-After remediation:
-
-```bash
-npm audit
-npm ci
-npm run check
-npm test
-npm run db:doctor
-```
-
-If `deps:repair` still reports issues, inspect them individually with `npm audit` and capture the output of `npm audit --json` for case-by-case upgrades and vulnerability triage. Commit **both** updated package files after checking the changes. The included GitHub Actions security workflow intentionally rejects high/critical advisory counts; **it is not proof that the current lockfile passes that gate**.
+- Keep the existing authenticator encryption key. A changed or missing key cannot unlock enrolled MFA accounts; do not reset accounts or regenerate a key to bypass this.
+- `npm run dev:local` loads `.env` before choosing its key. An explicit process value has priority, then `.env`, then its retained private development key. Preserve `.classicfin-dev-mfa.key` if that was the key used for enrollment.
+- Plain `npm start` / `npm run dev` in development reuses an existing private retained key only when no key is configured. It never creates or overwrites one. Production never uses this fallback.
+- Missing or mismatched MFA keys now produce a specific sign-in setup/recovery message. Restore the original configured key and restart. If it is irretrievably lost, follow the separately authorized MFA recovery procedure; an application update does not authorize a reset.
+- Imported audit/subscription records with missing or invalid dates display **Unknown date**. Invalid entitlements remain blocked and lead to the billing explanation; they are not extended by this display fix.
+- Unexpected failures show a request reference. Find that reference in the server log to see the safe error code/type and application source location. Do not post complete environment files, keys, database URIs or customer records when reporting an error.
 
 ## Important verification boundaries
 

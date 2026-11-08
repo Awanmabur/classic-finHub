@@ -1,4 +1,4 @@
-# ClassicFin Hub 1.25.0
+# ClassicFin Hub 1.25.1
 
 A multi-tenant platform for reviewed manual financial operations, configurable subscriptions, branch-based administration and separately licensed Android SMS capture.
 
@@ -10,7 +10,7 @@ The tenant workspace follows the approved `index.html` design. Its navigation di
 - Mobile money cash-in/out uses configured wallet and payment-account defaults. Wallets provides account setup, reviewed opening evidence, funding transfers, fee policy and reconciliation.
 - Each branch supports its selected UGX, USD, SSP and KES currencies with separate accounts, verified cash shifts and ledger totals. MTN SSD (South Sudan) is available separately from MTN in manual entry and supported Android SMS capture.
 - Banking, forex, money transfers and expenses use independently reviewed manual postings, exact currency amounts, balanced journals, immutable source records and controlled corrections.
-- Money transfer tellers type sender and receiver details directly. Reviewed collection generates a PIN and queues receiver SMS when configured; new payouts match the PIN and sender phone in the same branch. Saved contacts are optional.
+- Money transfer tellers type sender and receiver details directly. Reviewed collection generates a PIN and queues receiver SMS when configured; new payouts match the PIN and sender phone in the selected receiving branch. Saved contacts are optional.
 - Tenant Workspace checks actual branch assignments, independent reviewers, funds accounts, verified cash shifts and subscribed operation prerequisites, and links to current review queues.
 - Customers, accounts, branches, staff, notifications, reports, analytics and audit views follow subscription, role and branch permissions. Reporting filters and controlled exports remain available.
 - Onboarding appointments support scheduling, rescheduling, cancellation and completion with an audited decision history.
@@ -50,7 +50,7 @@ cp .env.example .env
 npm run dev:local
 ```
 
-`dev:local` starts the development database on loopback port 27018 and persists a private, Git-ignored development MFA key. It must not run with production data or settings. See [cloud setup](docs/CLOUD_SETUP.md) and the [Windows startup guide](docs/WINDOWS_STARTUP_AND_SECURITY.md) for platform-specific details.
+`dev:local` loads `.env` before selecting the authenticator key and starts the development database on loopback port 27018 and persists a private, Git-ignored development MFA key. It must not run with production data or settings. See [cloud setup](docs/CLOUD_SETUP.md) and the [Windows startup guide](docs/WINDOWS_STARTUP_AND_SECURITY.md) for platform-specific details.
 
 There are no seeded administrator credentials. Follow the protected password-file bootstrap procedure in the production runbook or `scripts/bootstrap.js`, then enroll MFA through sign-in.
 
@@ -85,3 +85,5 @@ Use protected environment files and distinct service identities; never commit ke
 The active entrypoints are `src/server.js`, `src/app.js`, the mounted public/platform/tenant routers and the separately supervised workers. The root `index.html` is retained as the approved design reference and stylesheet-generation fixture.
 
 Branch delivery, offline pending drafts, Google Drive archives and their deployment/recovery procedures: [Tenant backups and offline operations](docs/TENANT_BACKUPS_AND_OFFLINE.md).
+
+If sign-in fails after an update, run `npm ci` before restarting. Keep the original `MFA_ENCRYPTION_KEY`; do not generate a replacement for existing enrollments. Plain development startup can reuse an existing private `.classicfin-dev-mfa.key`, while production requires its explicit key. See [sign-in troubleshooting](docs/WINDOWS_STARTUP_AND_SECURITY.md#sign-in-after-an-update).

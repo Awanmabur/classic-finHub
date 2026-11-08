@@ -9,6 +9,7 @@ const branch=require('../src/tenant/services/branch.service');
 const tenantAdmin=require('../src/platform/services/tenantAdmin.service');
 const requireModule=require('../src/middleware/requireModule');
 const {tenantMenu,platformMenu}=require('../src/services/menu.service');
+const {formatUtcDate}=require('../src/utils/view');
 const {tenantUserModel,branchModel,staffInviteModel,mobileTransactionModel}=require('../src/tenant/models');
 const mongoose=require('mongoose');
 const {entitledTenant}=require('./helpers/entitlement');
@@ -79,7 +80,7 @@ function page(view,data,user,context='tenant'){
   const u=user||owner;
   return ejs.renderFile(layout,{ context,pageTitle:'Admin test',pageSub:'Role access',currentPath:context==='tenant'?'/tenant/'+view:'/platform/'+view,
     tenant:t,user:u,menu:context==='tenant'?tenantMenu(t,u):platformMenu(u),view:`../${context}/${view}`,data,flash:null,
-    assetVersion:'test',csrfToken:'abcd',money:()=>'',amountFromMinor:()=>'' });
+    assetVersion:'test',csrfToken:'abcd',money:()=>'',amountFromMinor:()=>'',formatUtcDate });
 }
 test('branch page renders actual create/edit/archive actions only for Tenant Owner',async()=>{
   const details={_id:new mongoose.Types.ObjectId(id),name:'Main Branch',code:'main-branch',status:'active',currency:'UGX',address:'Kitende'};

@@ -9,9 +9,12 @@ const PENDING_MS = 5 * 60 * 1000;
 function bad(message = 'Invalid verification code.', status = 400) {
   const error = new Error(message); error.status = status; return error;
 }
+function unavailable(code, message = 'Authenticator secret is unavailable.') {
+  return Object.assign(bad(message, 503), { code });
+}
 function key() {
   const input = process.env.MFA_ENCRYPTION_KEY || '';
-  if (!/^[a-f0-9]{64}$/i.test(input)) throw bad('Authenticator encryption key is not configured.', 503);
+  if (!/^[a-f0-9]{64}$/i.test(input)) throw unavailable('MFA_KEY_MISSING', 'Authenticator encryption key is not configured.');
   return Buffer.from(input, 'hex');
 }
 function toBase32(bytes) {
@@ -41,16 +44,23 @@ function encryptSecret(secret) {
   return [iv,cipher.getAuthTag(),ciphertext].map(b => b.toString('base64url')).join('.');
 }
 function decryptSecret(value) {
-  if (typeof value !== 'string') throw bad('Authenticator secret is unavailable', 503);
+  if (typeof value !== 'string') throw unavailable('MFA_SECRET_UNAVAILABLE');
   const parts = value.split('.');
-  if (parts.length !== 3) throw bad('Authenticator secret is unavailable', 503);
+  if (parts.length !== 3) throw unavailable('MFA_SECRET_UNAVAILABLE');
   const [iv,tag,ciphertext] = parts.map(p => Buffer.from(p,'base64url'));
-  if (iv.length !== 12 || tag.length !== 16) throw bad('Authenticator secret is invalid', 503);
-  const decipher = crypto.createDecipheriv('aes-256-gcm', key(), iv);
-  decipher.setAuthTag(tag);
-  const secret = Buffer.concat([decipher.update(ciphertext),decipher.final()]).toString('utf8');
-  fromBase32(secret);
-  return secret;
+  if (iv.length !== 12 || tag.length !== 16) throw unavailable('MFA_SECRET_UNAVAILABLE');
+  const encryptionKey = key();
+  try {
+    const decipher = crypto.createDecipheriv('aes-256-gcm', encryptionKey, iv);
+    decipher.setAuthTag(tag);
+    const secret = Buffer.concat([decipher.update(ciphertext),decipher.final()]).toString('utf8');
+    fromBase32(secret);
+    return secret;
+  } catch {
+    // A changed key or damaged record must never become an unhandled crypto
+    // error, enroll a replacement authenticator, or grant a full session.
+    throw unavailable('MFA_SECRET_UNAVAILABLE');
+  }
 }
 function counterCode(secret, counter) {
   if (!Number.isSafeInteger(counter) || counter < 0) throw bad('Invalid authenticator counter');

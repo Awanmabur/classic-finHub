@@ -41,6 +41,7 @@ function tenantMenu(tenant,user) {
     item('Send money / Generate PIN','money-transfer/send','fa-money-bill-transfer',{transactionKind:can('money_transfer.create')?'transfer':null}),
     ...(can('money_transfer.payout')?[item('Payout by PIN','money-transfer/payout','fa-key',{transactionKind:'payout'})]:[]),
     item('Pending payout queue','money-transfer/pending-payouts','fa-clock'),
+    ...(['Tenant Owner','Branch Manager','Reconciliation Officer','Auditor'].includes(user.role)?[item('Branch transfer balances','money-transfer/branch-balances','fa-scale-balanced')]:[]),
     item('Money transfer record','money-transfer/records','fa-list'),
     item('Transfer fee summary','money-transfer/fees','fa-coins'),
     item('Transfer report summary','money-transfer/report','fa-file-lines')

@@ -30,6 +30,10 @@ function recordScope(actor){
  if(actor?.role==='Money Transfer Operator')scope.createdBy=id(actor.id);
  return scope;
 }
+function orderReadScope(actor){
+ const origin=recordScope(actor),branch=branchScope(actor).branchId;
+ return branch?{$or:[origin,{destinationBranchId:branch,status:{$in:['collected_manual','paid_out_manual']}}]}:origin;
+}
 function selectedBranch(actor,input){return require('./transactionBranch.service').assignedBranchId(actor,input);}
 function validateContact(input){
  const fullName=text(input?.fullName,'contact name',2,120);
@@ -45,8 +49,8 @@ function typedParty(name,phone,country,label){
  const cleanName=text(name,label+' name',2,120);
  if(typeof phone==='string'&&/[\u0000-\u001f\u007f]/.test(phone))throw fail('Enter a valid '+label+' international phone');
  const enteredPhone=text(phone,label+' international phone',8,40);
- const rawPhone=enteredPhone.replace(/[ ().-]/g,'');
- const code=text(country,label+' country code',2,2).toUpperCase();
+ const rawPhone=require('../../utils/phoneCountry').normalize(enteredPhone,country||'SS');
+ const code=text(country||'SS',label+' country code',2,2).toUpperCase();
  if(!/^\+[1-9]\d{7,14}$/.test(rawPhone)||!require('../../utils/selectionOptions').isCountryCode(code))throw fail('Use an international phone beginning with + and select a valid '+label+' country');
  return {contactId:null,name:cleanName,phone:rawPhone,country:code};
 }
@@ -65,7 +69,7 @@ function validateOrder(input){
  if(!UUID.test(idempotencyKey))throw fail('Invalid form reference. Reload the page.');
  const validDays=Number(input?.validDays??7);
  if(!Number.isSafeInteger(validDays)||validDays<1||validDays>30)throw fail('Validity must be 1–30 days');
- return {partyEntryMode:hasTyped?'typed':'saved_contact',senderId,beneficiaryId,sender,beneficiary,currency,amountMinor,feeMinor,idempotencyKey,validDays,capture:require('./operationCapture.service').parse('money_transfer',input)};
+ return {partyEntryMode:hasTyped?'typed':'saved_contact',senderId,beneficiaryId,sender,beneficiary,currency,amountMinor,feeMinor,idempotencyKey,validDays,destinationBranchId:input.destinationBranchId?id(input.destinationBranchId):null,capture:require('./operationCapture.service').parse('money_transfer',input)};
 }
 function snapshot(contact){return {contactId:contact._id,name:contact.fullName,phone:contact.phone,country:contact.country};}
 function maskPhone(phone){return String(phone).replace(/.(?=.{4})/g,'•');}
@@ -74,7 +78,7 @@ function equivalent(existing,actor,branchId,v){
  const parties=mode==='typed'?['sender','beneficiary'].every(key=>['name','phone','country'].every(field=>existing[key]?.[field]===v[key]?.[field])):
   String(existing.sender.contactId)===v.senderId&&String(existing.beneficiary.contactId)===v.beneficiaryId;
  return String(existing.createdBy)===String(actor.id)&&String(existing.branchId)===branchId&&
-   mode===storedMode&&parties&&
+   String(existing.destinationBranchId||existing.branchId)===String(v.destinationBranchId||branchId)&&mode===storedMode&&parties&&
    require('./operationCapture.service').equivalent('money_transfer',existing.capture,v.capture)&&existing.currency===v.currency&&String(existing.amountMinor)===String(v.amountMinor)&&
    String(existing.feeMinor)===String(v.feeMinor)&&existing.validDays===v.validDays;
 }
@@ -134,6 +138,7 @@ async function listContacts(conn,tenant,actor,{kind=null,branchId=null}={}){
 async function createRequest(conn,tenant,actor,input){
  requireModuleAccess(tenant,actor,'money_transfer.create');if(!writeActor(actor))throw fail('Only transfer operators can request transfers',403);
  const v=validateOrder(input),branchId=String((await require('./transactionBranch.service').resolveTransactionBranch(conn,actor,input))._id);
+ if(input.fromBranchId&&String(input.fromBranchId)!==branchId)throw fail('From branch must match your assigned operating branch',403);
  await ensureTenantIndexes(conn);
  const Model=transferOrderModel(conn);
  const existing=await Model.findOne({idempotencyKey:v.idempotencyKey}).lean();
@@ -144,6 +149,10 @@ async function createRequest(conn,tenant,actor,input){
   const branch=await branchModel(conn).findOneAndUpdate({_id:branchId,status:'active'},{$inc:{revision:1}},{session:tx,new:true});
   if(!branch)throw fail('Branch is inactive or unavailable',409);
   require('./branchCurrency.service').resolve(branch,v.currency);
+  const destinationBranchId=v.destinationBranchId||branchId;
+  const destination=destinationBranchId===branchId?branch:await branchModel(conn).findOneAndUpdate({_id:destinationBranchId,status:'active'},{$inc:{revision:1}},{session:tx,new:true});
+  if(!destination)throw fail('Choose an active receiving branch in this tenant',409);
+  require('./branchCurrency.service').resolve(destination,v.currency);
   let sender=v.sender,beneficiary=v.beneficiary;
   if(v.partyEntryMode==='saved_contact'){
    const contacts=await transferContactModel(conn).find({_id:{$in:[v.senderId,v.beneficiaryId]},branchId,active:true}).session(tx).lean();
@@ -153,7 +162,7 @@ async function createRequest(conn,tenant,actor,input){
   }
   await reserveUsage(authorization.tenant,'money_transfer_requests',tx);
   [created]=await Model.create([{reference:`TR-${crypto.randomBytes(12).toString('hex').toUpperCase()}`,
-   idempotencyKey:v.idempotencyKey,branchId,createdBy:actor.id,partyEntryMode:v.partyEntryMode,sender,beneficiary,
+   idempotencyKey:v.idempotencyKey,branchId,destinationBranchId,originBranchName:branch.name,destinationBranchName:destination.name,createdBy:actor.id,partyEntryMode:v.partyEntryMode,sender,beneficiary,
    capture:v.capture,currency:v.currency,amountMinor:String(v.amountMinor),feeMinor:String(v.feeMinor),validDays:v.validDays,
    expiresAt:new Date(Date.now()+v.validDays*86400000),status:'requested'}],{session:tx});
   await auditEventModel(conn).create([{action:'money_transfer.request.created',actorId:actor.id,targetId:created._id,
@@ -216,14 +225,14 @@ async function expireDue(conn,now=new Date(),limit=100){
 async function list(conn,tenant,actor,{cursor=null,status=null}={}){
  requireModuleAccess(tenant,actor,'money_transfer.view');
  if(status&&!['requested','approved_pending_provider','collected_manual','paid_out_manual','rejected','cancelled','expired'].includes(status))throw fail('Invalid transfer status');
- const position=mobile.decodeCursor(cursor),query={...recordScope(actor),...(status?{status}:{})};
+ const position=mobile.decodeCursor(cursor),query={$and:[orderReadScope(actor)],...(status?{status}:{})};
  if(position)query.$or=[{createdAt:{$lt:position.at}},{createdAt:position.at,_id:{$lt:id(position.id)}}];
  const found=await transferOrderModel(conn).find(query).sort({createdAt:-1,_id:-1}).limit(41).lean();
  const items=found.slice(0,40);return {items,nextCursor:found.length>40?mobile.encodeCursor(items.at(-1)):null};
 }
 async function detail(conn,tenant,actor,orderId){
  requireModuleAccess(tenant,actor,'money_transfer.view');
- const order=await transferOrderModel(conn).findOne({_id:id(orderId),...recordScope(actor)}).lean();
+ const order=await transferOrderModel(conn).findOne({_id:id(orderId),...orderReadScope(actor)}).lean();
  if(!order)throw fail('Transfer request not found in your authorized scope',404);
  return order;
 }
@@ -243,8 +252,16 @@ async function reportRows({conn,filters,scope}){
   volume:mobile.formatMoneyMinor(r.amount?.toString()||'0',r._id.currency),fees:mobile.formatMoneyMinor(r.fees?.toString()||'0',r._id.currency)}));
 }
 const unavailable=require('../../utils/unavailableOperation');
+async function branchBalances(conn,tenant,actor){
+ requireModuleAccess(tenant,actor,'money_transfer.view');if(!['Tenant Owner','Branch Manager','Reconciliation Officer','Auditor'].includes(actor.role))throw fail('Branch balance supervision required',403);
+ const counters=await require('../treasury/models').models(conn).counter.find({...branchScope(actor),tenantId:tenant._id,purpose:{$in:['interbranch_payable','interbranch_receivable']}}).lean();
+ const branches=await branchModel(conn).find(branchScope(actor).branchId?{_id:branchScope(actor).branchId}:{}).select('name').lean(),names=new Map(branches.map(row=>[String(row._id),row.name])),rows=new Map();
+ const totals=await require('../models').ledgerPostingModel(conn).aggregate([{$match:{accountId:{$in:counters.map(row=>row.ledgerAccountId)}}},{$group:{_id:{accountId:'$accountId',side:'$side'},amount:{$sum:'$amountMinor'}}}]);
+ for(const counter of counters){const key=String(counter.branchId)+':'+counter.currency,row=rows.get(key)||{branch:names.get(String(counter.branchId))||'Branch',currency:counter.currency,payable:0n,receivable:0n};let net=0n;for(const total of totals.filter(total=>String(total._id.accountId)===String(counter.ledgerAccountId)))net+=BigInt(String(total.amount))*(total._id.side==='debit'?1n:-1n);if(counter.purpose==='interbranch_payable')row.payable=-net;else row.receivable=net;rows.set(key,row);}
+ return {rows:[...rows.values()].map(row=>({...row,payable:mobile.formatMoneyMinor(String(row.payable),row.currency),receivable:mobile.formatMoneyMinor(String(row.receivable),row.currency)}))};
+}
 // Old direct payout entrypoints must remain explicitly blocked.
 const sendMoney=()=>unavailable('moneyTransfer sendMoney');
 const payoutByPin=()=>unavailable('moneyTransfer payoutByPin');
-module.exports={sendMoney,payoutByPin,fail,id,selectedBranch,validateContact,validateOrder,branchScope,recordScope,maskPhone,equivalent,
+module.exports={branchBalances,sendMoney,payoutByPin,fail,id,selectedBranch,validateContact,validateOrder,branchScope,recordScope,maskPhone,equivalent,
  addContact,updateContact,archiveContact,listContacts,createRequest,decide,cancel,expireDue,list,detail,reviewQueue,reportRows};

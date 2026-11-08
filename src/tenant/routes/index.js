@@ -13,6 +13,7 @@ const branchService=require('../services/branch.service');
 const staffService=require('../services/staff.service');
 const staffPolicy=require('../services/staffPolicy');
 router.use(require('../services/transactionBranch.service').requestContext);
+router.use((req,res,next)=>{const phone=require('../../utils/phoneCountry');res.locals.phoneDefaults=phone.defaults(req);if(req.method==='POST')for(const field of ['phone','senderPhone','receiverPhone','customerPhone','supportPhone','nextOfKinPhone','legacyReceiverPhone'])if(typeof req.body?.[field]==='string'&&req.body[field])req.body[field]=phone.normalize(req.body[field],field==='senderPhone'&&req.body.senderCountry?req.body.senderCountry:field==='receiverPhone'&&req.body.receiverCountry?req.body.receiverCountry:req.get('x-classicfin-phone-country')||res.locals.phoneDefaults.country);next();});
 router.post('/view-branch',require('../services/branchView.service').change);
 router.use(async(req,res,next)=>{
   try{req.workspaceIdentity=await require('../workspace/service').receiptIdentity(req.tenantDb,req.tenant);next();}catch(error){next(error);}
@@ -32,6 +33,8 @@ function renderTenant(req, res, view, pageTitle, pageSub, data) {
     view:`../tenant/${view}`, data, flash:consumeFlash(req), money, amountFromMinor:mobile.fromMinor
   });
 }
+router.use(require('./offline.routes'));
+router.use('/backups',require('../backups/routes')({renderTenant}));
 router.use('/treasury',require('../treasury/routes')({renderTenant}));
 router.use('/funded',require('./fundedOperations.routes')({renderTenant}));
 router.use(require('./cashControl.routes')({renderTenant}));

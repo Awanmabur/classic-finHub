@@ -32,10 +32,14 @@ function createApp({ sessionStore } = {}) {
   app.use(express.static(path.join(__dirname, '..', 'public'), {
     index: false, dotfiles: 'deny', maxAge: '1d', immutable: false, fallthrough: true,
     setHeaders(res, filename) {
-      if (/\.(png|jpe?g|webp|svg|ico)$/i.test(filename)) res.setHeader('Cache-Control','public, max-age=604800');
+      if (/[\/]offline-sw\.js$/.test(filename)) {res.setHeader('Cache-Control','no-cache');res.setHeader('Service-Worker-Allowed','/');}
+      else if (/\.(png|jpe?g|webp|svg|ico)$/i.test(filename)) res.setHeader('Cache-Control','public, max-age=604800');
       else res.setHeader('Cache-Control','public, max-age=86400');
     }
   }));
+  // A content-addressed service-worker script updates the fixed public shell
+  // when deployed assets change; no private response is part of this cache.
+  app.get('/offline-runtime.js',(req,res)=>{res.setHeader('Cache-Control','no-cache');res.setHeader('Service-Worker-Allowed','/');res.type('application/javascript').send("self.CLASSICFIN_ASSET_VERSION="+JSON.stringify(require('./config/assetVersion'))+";\n"+require('fs').readFileSync(path.join(__dirname,'..','public','offline-sw.js'),'utf8'));});
   // Structured, newline-safe access logs. Never log request query values, bodies,
   // Authorization headers, cookies or user-controlled referrers.
   app.use((req,res,next)=>{

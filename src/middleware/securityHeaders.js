@@ -12,7 +12,7 @@ module.exports = [
       styleSrc: ["'self'", "'unsafe-inline'"],
       fontSrc: ["'self'"],
       imgSrc: ["'self'", 'data:', 'https:'], connectSrc: ["'self'"], objectSrc: ["'none'"],
-      formAction: ["'self'"], frameAncestors: ["'none'"], baseUri: ["'self'"], frameSrc: ["'none'"], upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null
+      formAction: ["'self'",(req)=>req.path==='/tenant/backups/action'?'https://accounts.google.com':"'self'"], frameAncestors: ["'none'"], baseUri: ["'self'"], frameSrc: ["'none'"], upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null
     } },
     hsts: process.env.NODE_ENV === 'production' ? undefined : false
   }),

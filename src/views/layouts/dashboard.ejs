@@ -12,7 +12,7 @@
   <% if(context==='tenant'){ %><link rel="stylesheet" href="/tenant/workspace/theme.css?v=<%= assetVersion %>" /><link rel="stylesheet" href="/css/approved-tenant.css?v=<%= assetVersion %>" /><% } else { %><link rel="stylesheet" href="/css/dashboard.css?v=<%= assetVersion %>" /><% } %>
   <link rel="stylesheet" href="/css/dashboard-layout.css?v=<%= assetVersion %>" />
 </head>
-<body>
+<body<% if(context==='tenant'){ %> data-phone-prefix="<%= typeof phoneDefaults==='undefined'?'+211':phoneDefaults.dialCode %>"<% } %>>
   <% const visiblePaths = new Set(menu.flatMap(group => [...group.items.map(item => item.href),...(group.paths||[])]));
      const can = permission => user.permissions.includes('*') || user.permissions.includes(permission);
      const quickActions = context === 'tenant' ? [
@@ -62,6 +62,7 @@
             <div class="headerButtons">
               <% if(visiblePaths.has('/tenant/notifications')){ %><a class="btn headerNotice" id="phase2NotifyBtn" href="/tenant/notifications">Notifications <span class="phase2Badge" id="phase2NotifyCount"><%= data.workspaceSnapshot?.notificationUnread??'—' %></span></a><% } %>
               <div class="headerPrimaryActions">
+                <% if(['Tenant Owner','Branch Manager'].includes(user.role)){ %><form method="post" action="/tenant/backups/action" class="headerDriveForm"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btnIcon" type="submit" title="Google Drive backups" aria-label="Google Drive backups"><i class="fa-brands fa-google-drive" aria-hidden="true"></i></button></form><% } %>
                 <% if(visiblePaths.has('/tenant/last-receipt')){ %><a class="btn" id="lastReceiptBtn" href="<%= data.workspaceSnapshot?.latestAcknowledgement?.href||'/tenant/last-receipt' %>">Last receipt</a><% } %>
                 <% if(transactionOptions.length){ %><button class="btn btnPrimary" id="newTransactionBtn" type="button" data-open-transaction>New transaction</button><% } %>
               </div>
@@ -79,7 +80,7 @@
   </div></div>
   <div class="menuOverlay" id="menuOverlay"></div>
   <% if(transactionOptions.length){ %><%- include('../partials/transaction-modal', {transactionOptions,visiblePaths}) %><% } %>
-  <% if(context === 'tenant'){ %><script src="/js/customer-accounts.js?v=<%= assetVersion %>" defer></script><% } %>
+  <% if(context === 'tenant'){ %><script src="/js/offline.js?v=<%= assetVersion %>" defer></script><script src="/js/customer-accounts.js?v=<%= assetVersion %>" defer></script><% } %>
   <script src="/js/dashboard.js?v=<%= assetVersion %>" defer></script>
 </body>
 </html>

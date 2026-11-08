@@ -1,0 +1,38 @@
+# Add to compose.prod.yml when tenant business archives are enabled.
+# A dedicated private persistent host directory is shared read-only with web.
+services:
+  classicfin:
+    volumes:
+      - ${CLASSICFIN_TENANT_BACKUP_DIR:?Set a private persistent host directory}:/var/lib/classicfin/tenant-backups:ro
+  classicfin-tenant-backups:
+    image: ${CLASSICFIN_IMAGE:?Provide the tested immutable image digest}
+    command: ["node", "src/tenant/workers/backup.worker.js"]
+    restart: unless-stopped
+    env_file:
+      - ${CLASSICFIN_TENANT_BACKUP_ENV_FILE:?Set a private backup-worker environment file}
+    environment:
+      NODE_ENV: production
+      TENANT_BACKUP_DIR: /var/lib/classicfin/tenant-backups
+      NODE_OPTIONS: --max-old-space-size=384
+    volumes:
+      - ${CLASSICFIN_TENANT_BACKUP_DIR:?Set a private persistent host directory}:/var/lib/classicfin/tenant-backups
+    healthcheck:
+      test: ["CMD", "node", "scripts/tenant-backup-heartbeat.js"]
+      interval: 30s
+      timeout: 8s
+      retries: 3
+      start_period: 30s
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 96
+    mem_limit: 512m
+    cpus: 0.5
+    stop_grace_period: 45s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

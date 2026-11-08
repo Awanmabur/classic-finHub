@@ -1,0 +1,13 @@
+{
+  "user": "node",
+  "webSecretsAbsent": true,
+  "dotEnvAbsent": true,
+  "imageId": "sha256:9ae54483bda9881c8dbaa55b6bc2ac9daa067f4566540d9900680d3f40c6fcd6",
+  "workerHeartbeat": true,
+  "tenantBackupsEnabledConfiguration": true,
+  "realGoogleRequests": 0,
+  "readOnlyFilesystem": true,
+  "capabilitiesDropped": true,
+  "noPublicPorts": true,
+  "scope": "Actual backup-worker image startup on empty local scratch storage; no live provider, production database-role or handset validation."
+}

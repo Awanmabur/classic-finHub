@@ -36,6 +36,7 @@ async function main() {
     await require('../src/tenant/treasury/funding.models').ensureIndexes(conn);
     await require('../src/tenant/funded/models').ensureIndexes(conn);
     await require('../src/tenant/transferSms/models').ensureIndexes(conn);
+    await require('../src/tenant/backups/models').ensure(conn);
   }
   console.log('Indexes verified for platform and',tenants.length,'tenants');
 }

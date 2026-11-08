@@ -1,18 +1,19 @@
 # Launch candidate status — 8 November 2026
 
-Version 1.24.0 is the prepared launch candidate. The repository contains immutable-image deployment/rollback, a TLS proxy template, separate workers, protected environment templates, backup/offsite/restore tooling, timers and a read-only `production:check` command. Follow [LAUNCH_RUNBOOK.md](LAUNCH_RUNBOOK.md) in order.
+Version 1.25.0 is the prepared launch candidate. The repository contains immutable-image deployment/rollback, a TLS proxy template, separate workers, protected environment templates, backup/offsite/restore tooling, timers and a read-only `production:check` command. Follow [LAUNCH_RUNBOOK.md](LAUNCH_RUNBOOK.md) in order.
 
 | Area | Evidence state |
 | --- | --- |
-| Repository unit, isolated database and browser checks | Passed: 432 JavaScript tests, 13 Android relay tests, 493 JS/EJS syntax/template checks, all registered isolated Mongo integrations, and zero dependency vulnerabilities. [Latest branch-currency/MongoDB evidence](review/multicurrency-and-mongo/README.md); [earlier launch evidence](review/launch-1.24.0/README.md). |
+| Repository unit, isolated database and browser checks | Passed: 438 JavaScript tests, 13 Android relay tests, 512 JS/EJS syntax/template checks, all registered isolated Mongo integrations, and zero dependency vulnerabilities. [Latest branch/offline/archive evidence](review/branch-offline-backups/README.md); [branch-currency/MongoDB evidence](review/multicurrency-and-mongo/README.md); [earlier launch evidence](review/launch-1.24.0/README.md). |
 | Reported GitHub secret alerts 1–3 | The three flagged documentation lines contain placeholder password/host examples. Removed in commit `1a1231c`; a targeted CI/release check rejects credential-shaped Atlas examples. GitHub API egress is blocked in this environment, so the alerts were not remotely closed. Their verified resolution is False positive. |
 | Production configuration probe | Implemented and regression-tested; configuration-only mode cannot claim live readiness. |
 | Outbox/notification health | Correct worker classes are checked separately. Receiver SMS has a redacted queue health check for overdue, failed, unconfigured and uncertain submissions. |
 | Immutable release and rollback | Tested with controlled deployment doubles, including failed readiness and failed pull. No actual public deployment was performed. |
 | Production image build and isolated startup | Fresh Dockerfile/lockfile image built; Node 22.23.4, non-root, read-only rootfs, dropped capabilities, ready/home 200 and private 303/no-store/noindex passed. The actual notification-worker image also starts with enabled SMS configuration and no web session/MFA keys. It used empty local storage and fake provider credentials, sending no messages. Publish an immutable digest from the final source commit before deployment. |
+| Branch delivery, offline and tenant archives | Branch-to-branch accounting/PIN guards, encrypted pending-draft sync, scoped Google app-data archive flow, durable local fallback and closing-time worker passed local/injected-provider tests. See [setup and limits](TENANT_BACKUPS_AND_OFFLINE.md). Live Google consent and Yoola delivery are pending real service configuration. |
 | Actual production hostname, DNS, TLS, proxy and cookies | Not supplied/validated in this cloud session. |
 | Authenticated production replica set, service roles and firewall | Not supplied/validated; local replica-set tests do not prove deployment permissions. |
-| Live recovery email, Android capture and receiver PIN SMS delivery | Not demonstrated on production bindings. Receiver SMS uses Twilio after approved collection; provider acceptance is distinct from confirmed handset receipt. |
+| Live recovery email, Android capture and receiver PIN SMS delivery | Not demonstrated on production bindings. The verified outbound transport contract is Twilio; requested Yoola API documentation/credentials are still missing; provider acceptance is distinct from confirmed handset receipt. |
 | Encrypted offsite backup, independent alert reception, real restore/PITR and measured RPO/RTO | Not demonstrated on the production environment. |
 | Production capacity, third-party penetration testing and business/financial operating acceptance | Not established by local tests. |
 

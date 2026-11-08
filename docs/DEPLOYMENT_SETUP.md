@@ -294,3 +294,8 @@ read-only probes, check worker-class heartbeats, perform controlled real email
 and receiver-SMS tests, complete role/branch/MFA and responsive browser smoke,
 and verify recovery evidence before opening normal operations. These steps
 establish the actual deployment evidence that repository tests cannot supply.
+
+
+## Tenant Drive archives and offline devices
+
+Version 1.25 adds a separately supervised tenant backup worker, private persistent archive mount, Google OAuth callback and offline draft capture. Follow [Tenant backups and offline operations](TENANT_BACKUPS_AND_OFFLINE.md) for its exact keys, least-privilege role requirements, optional Compose overlay, schedule, recovery and limits. Google/Yoola are not activated by a successful local test.

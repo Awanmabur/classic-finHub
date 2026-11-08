@@ -35,14 +35,19 @@ function configurationChecks(input){
   entries.push(check('separate_transfer_sms_key',/^[a-f0-9]{64}$/.test(smsKey)&&!/^([a-f0-9])\1{63}$/.test(smsKey)&&smsKey!==String(input.MFA_ENCRYPTION_KEY||'').toLowerCase()&&smsKey!==String(input.SESSION_SECRET||'').toLowerCase(),'Use a separate random 32-byte hexadecimal transfer SMS encryption key; do not reuse session or MFA keys.'));
  }
  entries.push(check('mongo_alias_and_base_configuration',Boolean(mongoConfiguration),'Use MONGO_PLATFORM_URI or PLATFORM_DB_URI consistently; an optional MONGO_URI_BASE must share deployment, credentials, explicit authSource and connection options.'));
- const keys=['MONGO_PLATFORM_URI','MONGO_WORKER_URI','MONGO_NOTIFICATION_WORKER_URI'],uris=keys.map(key=>parseMongo(key==='MONGO_PLATFORM_URI'?mongoConfiguration?.mongoPlatformUri:input[key]));
+ if(input.TENANT_BACKUPS_ENABLED==='true'){
+  let backup=null;try{backup=require('../../tenant/backups/config').settings(input);}catch{}
+  entries.push(check('tenant_backup_configuration',Boolean(backup?.enabled),'Tenant backups require a dedicated encryption key and absolute persistent directory.'));
+  entries.push(check('tenant_backup_google_configuration',Boolean(backup?.google),'Configure the Google OAuth client and exact callback URL for the requested Drive feature.'));
+ }
+ const keys=['MONGO_PLATFORM_URI','MONGO_WORKER_URI','MONGO_NOTIFICATION_WORKER_URI',...(input.TENANT_BACKUPS_ENABLED==='true'?['MONGO_BACKUP_WORKER_URI']:[])],uris=keys.map(key=>parseMongo(key==='MONGO_PLATFORM_URI'?mongoConfiguration?.mongoPlatformUri:input[key]));
  keys.forEach((key,index)=>{
   const uri=uris[index];entries.push(check(key.toLowerCase()+'_configured',Boolean(uri),key+' must explicitly name its platform database.'));
   entries.push(check(key.toLowerCase()+'_tls',mongoTls(uri),key+' must use TLS, including TLS over a private production network.'));
  });
- entries.push(check('same_platform_database',uris.every(Boolean)&&new Set(uris.map(uri=>uri&&uri.database)).size===1,'All three service URIs must identify the same platform database.'));
+ entries.push(check('same_platform_database',uris.every(Boolean)&&new Set(uris.map(uri=>uri&&uri.database)).size===1,'All service URIs must identify the same platform database.'));
  if(uris.every(uri=>uri?.username)){
-  entries.push(check('separate_service_principals',new Set(uris.map(uri=>uri.username)).size===3,'Web, outbox and notification services need distinct database principals.'));
+  entries.push(check('separate_service_principals',new Set(uris.map(uri=>uri.username)).size===keys.length,'Each service needs a distinct database principal.'));
  }
  return {origin,checks:entries.map(entry=>entry.passed?{name:entry.name,passed:true}:entry)};
 }
@@ -57,7 +62,7 @@ async function inspectMongo(uri,{kind='web',connect,now=new Date()}={}){
   const excessive=(info.authenticatedUserRoles||[]).some(role=>FORBIDDEN_ROLES.has(role.role));
   const checks=[check(kind+'_replica_primary',primary,'A writable MongoDB replica-set primary is required.'),check(kind+'_authenticated',authenticated,'Unauthenticated database access is not accepted for launch.'),check(kind+'_non_administrative_principal',!excessive,'An administrative database role is configured; review service privileges.')];
   if(kind!=='web'){
-   const prefix=kind==='outbox'?/^outbox-/:/^notification-/;
+   const prefix=kind==='outbox'?/^outbox-/:kind==='backup'?/^tenant-backup-/:/^notification-/;
    const active=await connection.db.collection('workerheartbeats').countDocuments({workerId:prefix,seenAt:{$gte:new Date(now.valueOf()-45000)}},{maxTimeMS:2000});
    checks.push(check(kind+'_worker_heartbeat',active>0,'No recent heartbeat from the correct worker class.'));
   }
@@ -89,10 +94,11 @@ async function inspectPublic(origin,{fetchImpl=fetch}={}){
 async function inspect(input,{live=true,connect,fetchImpl}={}){
  const config=configurationChecks(input),checks=[...config.checks],configurationValid=checks.every(entry=>entry.passed);
  if(live&&configurationValid){
-  const dbs=await Promise.all([inspectMongo(require('../../config/mongoUris').platformUri(input),{kind:'web',connect}),inspectMongo(input.MONGO_WORKER_URI,{kind:'outbox',connect}),inspectMongo(input.MONGO_NOTIFICATION_WORKER_URI,{kind:'notification',connect})]);
-  checks.push(...dbs.flatMap(result=>result.checks),check('same_live_replica_set',dbs.every(result=>result.topologyFingerprint)&&new Set(dbs.map(result=>result.topologyFingerprint)).size===1,'Web and both workers must connect to the same actual replica set.'),check('distinct_authenticated_service_principals',dbs.every(result=>result.principalFingerprint)&&new Set(dbs.map(result=>result.principalFingerprint)).size===3,'The live database connections must authenticate as three distinct service principals.'),...await inspectPublic(config.origin,{fetchImpl}));
+  const dbs=await Promise.all([inspectMongo(require('../../config/mongoUris').platformUri(input),{kind:'web',connect}),inspectMongo(input.MONGO_WORKER_URI,{kind:'outbox',connect}),inspectMongo(input.MONGO_NOTIFICATION_WORKER_URI,{kind:'notification',connect}),...(input.TENANT_BACKUPS_ENABLED==='true'?[inspectMongo(input.MONGO_BACKUP_WORKER_URI,{kind:'backup',connect})]:[])]);
+  checks.push(...dbs.flatMap(result=>result.checks),check('same_live_replica_set',dbs.every(result=>result.topologyFingerprint)&&new Set(dbs.map(result=>result.topologyFingerprint)).size===1,'Web and both workers must connect to the same actual replica set.'),check('distinct_authenticated_service_principals',dbs.every(result=>result.principalFingerprint)&&new Set(dbs.map(result=>result.principalFingerprint)).size===dbs.length,'The live database connections must authenticate as distinct service principals.'),...await inspectPublic(config.origin,{fetchImpl}));
  }
  const manualVerificationRequired=[...MANUAL_EVIDENCE];
+ if(input.TENANT_BACKUPS_ENABLED==='true')manualVerificationRequired.push('Connect a real tenant Google Drive, verify quota-failure fallback and archive decryption, confirm the persistent volume and independent monitoring, and observe closing-time scheduling on the actual deployment.');
  if(input.TRANSFER_SMS_PROVIDER==='twilio')manualVerificationRequired.push('Confirm receiver SMS reaches a controlled real handset, then verify the sender-phone/PIN payout and inspect provider acceptance separately from receipt.');
  return {event:'production.readiness',mode:live?'live-read-only':'configuration-only',configurationValid,automatedChecksPassed:configurationValid&&(!live||checks.every(entry=>entry.passed)),liveChecksCompleted:live&&configurationValid,checks,manualVerificationRequired,productionCertification:false};
 }

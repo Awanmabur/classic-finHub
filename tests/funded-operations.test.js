@@ -73,3 +73,5 @@ test('legacy manual transfer fingerprints remain valid without rewriting their i
  assert.equal(service.sourceMatches(execution,source),true);assert.equal(service.sourceMatches(execution,{...source,amountMinor:'20000'}),false);
  const fresh={sourceType:'money_transfer',sourceSnapshot:current,sourceFingerprint:crypto.createHash('sha256').update(JSON.stringify(current)).digest('hex')};assert.equal(service.sourceMatches(fresh,source),true);assert.equal(service.sourceMatches(fresh,{...source,sender:{...source.sender,phone:'+256700999999'}}),false);
 });
+
+test('receiver SMS always names the selected destination, including a reconstructed retry',()=>{const message=service.transferMessage({reference:'TR-TEST',currency:'UGX',amountMinor:'10000',sender:{name:'Sender',phone:'+211921234567'},destinationBranchName:'Receiving Office'},{name:'Sending Office'},'123456');assert.match(message,/Collect at Receiving Office/);assert.doesNotMatch(message,/Collect at Sending Office/);});

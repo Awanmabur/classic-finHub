@@ -9,7 +9,7 @@ const {asPlanVersion,planSnapshot}=require('../src/platform/services/commercial.
 const {permissionsFor}=require('../src/config/roles');
 const approved={
  Overview:['Today snapshot','New transaction','Last receipt','Remote owner dashboard'],
- 'Money Transfer':['Send money / Generate PIN','Payout by PIN','Pending payout queue','Money transfer record','Transfer fee summary','Transfer report summary'],
+ 'Money Transfer':['Send money / Generate PIN','Payout by PIN','Pending payout queue','Branch transfer balances','Money transfer record','Transfer fee summary','Transfer report summary'],
  'Mobile Money':['Cash-in','Cash-out','Network activity','Cash impact','Mobile money report'],
  'Forex Operations':['Buy forex from customer','Sell forex to customer','Active rate board','Forex cash impact','Forex operation records','Forex report summary'],
  'Banking Operations':['Customers directory','New customer','Customer logbook','Accounts directory','New account','Deposit','Withdraw','Account transfer','Account balances','Account movements','Banking report summary'],
@@ -29,7 +29,7 @@ function paths(menu){return menu.flatMap(group=>group.items.map(item=>item.href)
 test('fully entitled owner retains approved groups with wallet controls and no disabled portal',()=>{
  const menu=tenantMenu(subscribed(),owner);
  assert.deepEqual(Object.fromEntries(menu.map(group=>[group.label,group.items.map(item=>item.label)])),approved);
- assert.equal(menu.length,7);assert.equal(menu.reduce((sum,group)=>sum+group.items.length,0),68);
+ assert.equal(menu.length,7);assert.equal(menu.reduce((sum,group)=>sum+group.items.length,0),69);
  assert(!menu.some(group=>/Phase 2/i.test(group.label)));
  for(const href of ['/tenant/users','/tenant/audit','/tenant/workspace/roles'])assert.equal(paths(menu).filter(path=>path===href).length,1,href+' is not duplicated');
  for(const item of menu.flatMap(group=>group.items)){

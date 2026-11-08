@@ -53,7 +53,9 @@ function filtersFor(key,query={}){
  return {from,to,status,currency,kind,dateBounds:mobile.dateBounds({from,to})};
 }
 function queryFor(actor,key,filters){
- return {...scopeFor(actor,key),createdAt:filters.dateBounds,
+ const scope=scopeFor(actor,key);
+ const permitted=key==='money_transfer'&&scope.branchId?{$and:[{$or:[scope,{destinationBranchId:scope.branchId,status:{$in:['collected_manual','paid_out_manual']}}]}]}:scope;
+ return {...permitted,createdAt:filters.dateBounds,
   ...(filters.status?{status:filters.status}:{}),
   ...(filters.currency?{[key==='forex'?'fromCurrency':'currency']:filters.currency}:{}),
   ...(filters.kind?key==='forex'?{operation:filters.kind==='quote'?{$in:['quote',null]}:filters.kind}:{kind:filters.kind}:{})};
@@ -63,7 +65,7 @@ function describe(key,row){
  const spec=definition(key);
  return {...row,
   activity:key==='forex'?`${(row.operation||'quote').replaceAll('_',' ')} · ${row.fromCurrency} → ${row.toCurrency}`:
-   key==='banking'?row.kind.replaceAll('_',' '):'Transfer request',
+   key==='banking'?row.kind.replaceAll('_',' '):(row.originBranchName&&row.destinationBranchName?`${row.originBranchName} → ${row.destinationBranchName}`:'Transfer request'),
   party:key==='forex'?row.customerLabel:key==='banking'?`${row.source.customerName} · ${row.source.institutionName} · ****${row.source.last4}`:`${row.sender.name} → ${row.beneficiary.name}`,
   volume:formatAmount(row[spec.amount]?.toString()||'0',key==='forex'?row.fromCurrency:row.currency),
   fee:key==='money_transfer'?formatAmount(row.feeMinor?.toString()||'0',row.currency):null,
@@ -118,7 +120,7 @@ async function formContext(conn,tenant,actor,key,operationBranch,input={}){
   const [list,queue]=await Promise.all([
    service.list(conn,tenant,actor),
    ['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(actor.role)&&hasPermission(actor,'money_transfer.review')?service.reviewQueue(conn,tenant,actor):[]]);
-  return {...common,countryOptions:require('../../utils/selectionOptions').countryOptions(),records:list,queue,canCreate:['Tenant Owner','Money Transfer Operator'].includes(actor.role)&&hasPermission(actor,'money_transfer.create'),
+  return {...common,destinationBranches:(await require('./branch.service').list(tenant)).filter(branch=>branch.status==='active'),countryOptions:require('../../utils/selectionOptions').countryOptions(),records:list,queue,canCreate:['Tenant Owner','Money Transfer Operator'].includes(actor.role)&&hasPermission(actor,'money_transfer.create'),
    canReview:['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(actor.role)&&hasPermission(actor,'money_transfer.review')};
  }
  if(key==='banking'){

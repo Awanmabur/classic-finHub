@@ -125,7 +125,7 @@ async function writeJournal(conn, validated, session, extras = {}) {
   const Account = ledgerAccountModel(conn), Journal = ledgerJournalModel(conn), Posting = ledgerPostingModel(conn);
   if(extras.operationalTreasury && (validated.sourceType!=='treasury'||!session?.inTransaction()))throw error('Treasury posting requires its active business transaction',403);
   await checkBranch(conn, validated.branchId, validated.currency, session, Boolean(extras.reverses), validated.sourceType==='treasury');
-  await checkActor(conn, validated.actorId, validated.branchId, extras.operationalTreasury?['Tenant Owner','Branch Manager','Mobile Money Operator','Money Transfer Operator','Banking Operator','Forex Operator','Reconciliation Officer']:['Tenant Owner','Reconciliation Officer'], session,Boolean(extras.operationalTreasury));
+  await checkActor(conn, validated.actorId, extras.branchTransferDestination||validated.branchId, extras.operationalTreasury?['Tenant Owner','Branch Manager','Mobile Money Operator','Money Transfer Operator','Banking Operator','Forex Operator','Reconciliation Officer']:['Tenant Owner','Reconciliation Officer'], session,Boolean(extras.operationalTreasury));
   const codes = validated.lines.map(p=>p.accountCode);
   const accounts = await Account.find({branchId:validated.branchId, currency:validated.currency, code:{$in:codes}}).session(session).lean();
   if (accounts.length !== codes.length) throw error('Ledger account missing or belongs to another branch/currency', 409);
@@ -293,6 +293,16 @@ async function inspectJournal(conn, journalId) {
 const unavailable=require('../../utils/unavailableOperation');
 module.exports={createAccount,postJournal,reverseJournal,trialBalance,inspectJournal,
   writeJournalInSession:writeJournal,
+  writeBranchTransferJournalInSession:async(conn,input,session,payoutId,tenant,actor)=>{
+    const {execution,source,collection}=await require('../funded/branchTransfer').validate(conn,session,tenant,actor,payoutId);
+    const treasury=require('../treasury/models').models(conn);
+    const clearing=await treasury.account.findOne({_id:collection.accounts.clearingAccountId,tenantId:tenant._id,branchId:source.branchId,kind:'transfer_clearing',currency:source.currency}).session(session).lean();
+    const payable=await treasury.counter.findOne({tenantId:tenant._id,branchId:source.branchId,currency:source.currency,purpose:'interbranch_payable'}).session(session).lean();
+    if(!clearing||!payable)throw error('Branch transfer ledger mappings are unavailable',409);
+    const expected=validateJournal({branchId:String(source.branchId),currency:source.currency,sourceRef:`BRANCH:${execution._id}:ORIGIN`,actorId:actor.id,sourceType:'treasury',lines:[{accountCode:clearing.ledgerCode,side:'debit',amountMinor:String(source.amountMinor)},{accountCode:payable.ledgerCode,side:'credit',amountMinor:String(source.amountMinor)}]});
+    const request=validateJournal(input);if(request.fingerprint!==expected.fingerprint)throw error('Branch transfer journal must exactly reclassify its collected payable',403);
+    return writeJournal(conn,request,session,{operationalTreasury:true,branchTransferDestination:String(execution.branchId)});
+  },
   writeOperationalJournalInSession:async(conn,input,session)=>{
     if(input?.sourceType!=='treasury')throw error('Only treasury journals use operational posting',403);
     return writeJournal(conn,validateJournal(input),session,{operationalTreasury:true});

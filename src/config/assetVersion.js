@@ -16,4 +16,5 @@ function fingerprint(dir) {
   }
 }
 for (const dir of ['css','js','images','vendor']) fingerprint(dir);
+for(const file of ['offline.html','offline-sw.js'])hash.update(fs.readFileSync(path.join(root,file)));
 module.exports = hash.digest('hex').slice(0,12);

@@ -1,4 +1,4 @@
-# ClassicFin Hub 1.24.0
+# ClassicFin Hub 1.25.0
 
 A multi-tenant platform for reviewed manual financial operations, configurable subscriptions, branch-based administration and separately licensed Android SMS capture.
 
@@ -83,3 +83,5 @@ Use protected environment files and distinct service identities; never commit ke
 - [Current review register](docs/PROJECT_REVIEW.md)
 
 The active entrypoints are `src/server.js`, `src/app.js`, the mounted public/platform/tenant routers and the separately supervised workers. The root `index.html` is retained as the approved design reference and stylesheet-generation fixture.
+
+Branch delivery, offline pending drafts, Google Drive archives and their deployment/recovery procedures: [Tenant backups and offline operations](docs/TENANT_BACKUPS_AND_OFFLINE.md).

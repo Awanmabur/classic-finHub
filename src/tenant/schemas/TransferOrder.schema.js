@@ -7,7 +7,7 @@ const schema=new mongoose.Schema({
  partyEntryMode:{type:String,enum:['typed','saved_contact'],default:'saved_contact',required:true,immutable:true},
  capture:{type:require('../services/operationCapture.service').schema('money_transfer'),default:()=>({}),immutable:true},
   reference:{type:String,required:true,immutable:true},idempotencyKey:{type:String,required:true,immutable:true},
-  branchId:{type:O,required:true,immutable:true},createdBy:{type:O,required:true,immutable:true},
+  branchId:{type:O,required:true,immutable:true},destinationBranchId:{type:O,default:null,immutable:true},originBranchName:{type:String,maxlength:120,immutable:true},destinationBranchName:{type:String,maxlength:120,immutable:true},createdBy:{type:O,required:true,immutable:true},
   sender:{type:party,required:true,immutable:true},beneficiary:{type:party,required:true,immutable:true},
   currency:{type:String,enum:currencyCodes,required:true,immutable:true},
   amountMinor:{type:mongoose.Schema.Types.Decimal128,required:true,immutable:true},feeMinor:{type:mongoose.Schema.Types.Decimal128,required:true,immutable:true},
@@ -22,6 +22,7 @@ schema.index({reference:1},{unique:true});
 schema.index({idempotencyKey:1},{unique:true});
 schema.index({branchId:1,createdAt:-1,_id:-1});
 schema.index({branchId:1,status:1,createdAt:-1});
+schema.index({destinationBranchId:1,status:1,createdAt:-1});
 schema.index({createdBy:1,createdAt:-1,_id:-1});
 schema.index({status:1,expiresAt:1});
 module.exports=schema;

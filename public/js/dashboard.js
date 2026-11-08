@@ -4,6 +4,15 @@
   const overlay = document.getElementById('menuOverlay');
   const menuBtn = document.getElementById('menuBtn');
   const mobile = window.matchMedia('(max-width:1120px)');
+  const scheduleNavigation=handler=>typeof requestAnimationFrame==='function'?requestAnimationFrame(handler):handler();
+  const navigation=document.getElementById('nav');
+  const activeNavigation=()=>navigation?.querySelector('[aria-current="page"]');
+  const keepActiveNavigationVisible=()=>{
+    const active=activeNavigation();if(!active||!navigation||mobile.matches&&!side?.classList.contains('show'))return;
+    const bounds=navigation.getBoundingClientRect(),item=active.getBoundingClientRect(),gap=10;
+    if(item.top<bounds.top+gap)navigation.scrollTop+=item.top-bounds.top-gap;
+    else if(item.bottom>bounds.bottom-gap)navigation.scrollTop+=item.bottom-bounds.bottom+gap;
+  };
   const focusable = () => [...(side?.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex="0"]') || [])];
   const setMenu = (open, restoreFocus = false) => {
     const visible = mobile.matches && open;
@@ -13,7 +22,7 @@
     menuBtn?.setAttribute('aria-expanded', String(visible));
     menuBtn?.setAttribute('aria-label', visible ? 'Close menu' : 'Open menu');
     if (side) side.inert = mobile.matches && !visible;
-    if (visible) focusable()[0]?.focus();
+    if (visible) { (activeNavigation()||focusable()[0])?.focus({preventScroll:true});scheduleNavigation(keepActiveNavigationVisible); }
     else if (restoreFocus) menuBtn?.focus();
   };
   menuBtn?.addEventListener('click', () => setMenu(!side?.classList.contains('show')));
@@ -32,6 +41,10 @@
     }
   });
   setMenu(false);
+  scheduleNavigation(keepActiveNavigationVisible);
+  document.fonts?.ready.then(keepActiveNavigationVisible);
+  window.addEventListener?.('pageshow',keepActiveNavigationVisible);
+  if(navigation&&typeof ResizeObserver!=='undefined')new ResizeObserver(()=>scheduleNavigation(keepActiveNavigationVisible)).observe(navigation);
 
   const search = document.getElementById('search');
   search?.addEventListener('input', () => {
@@ -226,6 +239,7 @@
       const update=()=>{
         const currency=form.elements.namedItem('currency')?.value||form.dataset.currency;
         form.dataset.currency=currency;
+        const destination=form.elements.namedItem('destinationBranchId');if(destination){for(const option of destination.options){if(!option.value)continue;option.disabled=Boolean(option.dataset.currencies)&&!option.dataset.currencies.split(',').includes(currency);}if(destination.selectedOptions[0]?.disabled)destination.value='';}
         const scale=currency==='UGX'?0:2;
         const amount=operationMinor(form.elements.namedItem('amount').value,scale),fee=operationMinor(form.elements.namedItem('fee').value,scale);
         form.querySelector('[data-transfer-total]').textContent=amount!==null&&amount>0n&&fee!==null?operationAmount(amount+fee,form.dataset.currency):'—';
@@ -417,4 +431,29 @@
 
   const toast = document.querySelector('.toast');
   if (toast) setTimeout(() => toast.remove(), 5200);
+})();
+
+// Suggest the trusted edge country without changing existing international numbers.
+(function(){
+ const preparePhones=()=>document.querySelectorAll('input[type="tel"]').forEach(input=>{
+  if(input.dataset.phonePrepared)return;input.dataset.phonePrepared='true';const prefix=input.dataset.phonePrefix||document.body.dataset?.phonePrefix;if(!prefix)return;
+  input.placeholder=prefix+'…';
+ });preparePhones();if(typeof MutationObserver!=='undefined')new MutationObserver(preparePhones).observe(document.body,{childList:true,subtree:true});
+})();
+
+// A queued backup reports completion without requiring another button click.
+(function(){
+ const panel=document.querySelector('[data-backup-pending="true"]');if(!panel)return;let attempts=0;
+ const poll=async()=>{
+  if(++attempts>45)return;
+  try{const response=await fetch('/tenant/backups/status',{cache:'no-store',headers:{Accept:'application/json'},redirect:'error',signal:AbortSignal.timeout(8000)});if(!response.ok)return;const state=await response.json();
+   if(state.result!=='queued'){
+    panel.querySelector('[data-backup-result-label]').textContent=({never:'No backup yet',complete:'Backup complete',no_changes:'No unbacked data',error:'Needs attention'})[state.result]||'Check backup status';
+    panel.querySelector('[data-backup-target]').textContent=state.target==='drive'?'Google Drive + platform':state.target==='fallback'?'Encrypted platform backup':'—';
+    panel.querySelector('[data-backup-saved]').textContent=state.lastBackupAt?new Date(state.lastBackupAt).toLocaleString():'—';
+    const notice=document.createElement('p');notice.className='tiny';notice.setAttribute('role','status');notice.textContent=(state.result==='no_changes'?'No unbacked data.':state.result==='complete'?'Backup complete.':'Backup needs attention.')+' Refresh status to view the latest archive history and any service details.';panel.prepend(notice);return;
+   }
+  }catch{}
+  setTimeout(poll,2500);
+ };setTimeout(poll,1500);
 })();

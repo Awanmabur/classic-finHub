@@ -30,13 +30,14 @@ function routes({renderTenant}){
    const selected=availableBranches.find(b=>String(b._id)===branchId);
    renderTenant(req,res,'money-transfer/index','Money Transfer','Transfer instructions, reviewed manual collections and secure PIN payouts.',{
     currencyChoices:require('../services/branchCurrency.service').options(req.operationBranch),selectedCurrency:req.operationBranch?require('../services/branchCurrency.service').resolve(req.operationBranch,req.query.currency):null,
-    records,queue,branches:availableBranches,selectedBranchId:selected?branchId:null,countryOptions:require('../../utils/selectionOptions').countryOptions(),
+    records,queue,destinationBranches:(await branchService.list(req.tenant)).filter(branch=>branch.status==='active'),branches:availableBranches,selectedBranchId:selected?branchId:null,countryOptions:require('../../utils/selectionOptions').countryOptions(),
     canCreate:writeRoles.has(req.user.role)&&hasPermission(req.user,'money_transfer.create'),
     canReview:reviewerRoles.has(req.user.role)&&hasPermission(req.user,'money_transfer.review'),
     idempotencyKey:crypto.randomUUID(),formatMoneyMinor
    });
   }catch(e){next(e);}
  });
+ router.get('/branch-balances',requirePermission('money_transfer.view'),async(req,res,next)=>{try{renderTenant(req,res,'money-transfer/branch-balances','Branch transfer balances','Outstanding dues from independently reviewed branch payouts.',await transfer.branchBalances(req.tenantDb,req.tenant,req.user));}catch(error){next(error);}});
  router.get('/contacts',requirePermission('money_transfer.view'),async(req,res,next)=>{
   try{const available=await branches(req),requested=req.viewBranchId?String(req.viewBranchId):String(req.operationBranch?._id || '');
    const selected=available.find(b=>String(b._id)===requested);

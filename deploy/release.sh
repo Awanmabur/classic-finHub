@@ -32,12 +32,19 @@ elif [[ "${CLASSICFIN_INITIAL_DEPLOY:-}" != "I_ACCEPT_NO_AUTOMATIC_ROLLBACK" ]];
   fail 'No saved previous image: first deployment needs CLASSICFIN_INITIAL_DEPLOY=I_ACCEPT_NO_AUTOMATIC_ROLLBACK'
 fi
 
-compose() { docker compose --project-name classicfin -f "$COMPOSE_FILE" "$@"; }
+BACKUP_COMPOSE="${CLASSICFIN_TENANT_BACKUP_COMPOSE_FILE:-}"
+if [[ -n "$BACKUP_COMPOSE" ]]; then
+  [[ -f "$BACKUP_COMPOSE" ]] || fail 'Tenant backup Compose overlay missing'
+  [[ -f "${CLASSICFIN_TENANT_BACKUP_ENV_FILE:-}" ]] || fail 'Tenant backup worker env file missing'
+  [[ -d "${CLASSICFIN_TENANT_BACKUP_DIR:-}" ]] || fail 'Persistent tenant backup directory missing'
+fi
+compose() { local files=(-f "$COMPOSE_FILE"); if [[ -n "$BACKUP_COMPOSE" ]]; then files+=(-f "$BACKUP_COMPOSE"); fi; docker compose --project-name classicfin "${files[@]}" "$@"; }
+backup_health() { [[ -z "$BACKUP_COMPOSE" ]] || compose exec -T classicfin-tenant-backups node scripts/tenant-backup-heartbeat.js >/dev/null 2>&1; }
 health() {
   for _ in {1..20}; do
     if curl --silent --show-error --fail --max-time 4 "http://127.0.0.1:${HOST_PORT}/health/ready" >/dev/null 2>&1 &&
        compose exec -T classicfin-worker node scripts/worker-heartbeat.js >/dev/null 2>&1 &&
-       compose exec -T classicfin-notifications node scripts/notification-worker-heartbeat.js >/dev/null 2>&1; then
+       compose exec -T classicfin-notifications node scripts/notification-worker-heartbeat.js >/dev/null 2>&1 && backup_health; then
       return 0
     fi
     sleep 3

@@ -68,7 +68,7 @@ async function update(tenant,actor,branchId,input){
         const currency={$in:removed},checks=await Promise.all([
           require('../treasury/models').models(conn).account.exists({branchId,currency,status:{$ne:'archived'}}).session(session),
           require('../models').cashSessionModel(conn).exists({branchId,currency,status:{$in:['pending_open','open','submitted','disputed']}}).session(session),
-          require('../models').transferOrderModel(conn).exists({branchId,currency,status:{$in:['requested','approved_pending_provider','collected_manual']}}).session(session),
+          require('../models').transferOrderModel(conn).exists({$or:[{branchId},{destinationBranchId:branchId}],currency,status:{$in:['requested','approved_pending_provider','collected_manual']}}).session(session),
           require('../models').bankingRequestModel(conn).exists({branchId,currency,status:{$in:['requested','approved_pending_bank']}}).session(session),
           require('../models').forexQuoteModel(conn).exists({branchId,status:{$in:['quoted','approved_pending_execution']},$or:[{fromCurrency:currency},{toCurrency:currency}]}).session(session),
           require('../customerAccounts/models').accountModel(conn).exists({branchId,currency,status:{$ne:'closed'}}).session(session),
@@ -100,7 +100,7 @@ async function archive(tenant,actor,branchId){
     // history it must stay identifiable and addressable, even when reversed.
     const ledgerHistory=await ledgerJournalModel(conn).exists({branchId:branch._id}).session(session);
     const financialHistory=await financialOperationModel(conn).exists({branchId:branch._id}).session(session);
-    const transferHistory=await require('../models').transferOrderModel(conn).exists({branchId:branch._id}).session(session);
+    const transferHistory=await require('../models').transferOrderModel(conn).exists({$or:[{branchId:branch._id},{destinationBranchId:branch._id}]}).session(session);
     const bankingHistory=await require('../models').bankingRequestModel(conn).exists({branchId:branch._id}).session(session);
     const forexRateHistory=await require('../models').forexRateModel(conn).exists({branchId:branch._id}).session(session);
     const approvalPending=await require('../models').approvalRequestModel(conn).exists({branchId:branch._id,status:'pending'}).session(session);

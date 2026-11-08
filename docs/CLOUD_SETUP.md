@@ -108,3 +108,8 @@ authorization-race and Python relay checks. Python 3 is needed for those relay
 checks (it is available in the prepared cloud instance). Live Android installation
 happens on the phone, following the relay guide; the cloud snapshot does not grant
 SMS permissions to an Android device.
+
+
+## Local archive worker
+
+The private retained environment helper now enables local tenant business archives, loads a distinct retained backup key, selects `/workspace/.classicfin-local/tenant-backups` and sets the local backup-worker MongoDB URI. After sourcing `/workspace/.classicfin-local/environment.sh`, start `npm run worker:tenant-backups` alongside web, outbox and notification workers; validate `npm run worker:tenant-backups:ready`. Preserve the private helper/key/directory; never print or commit their contents. This enables local encrypted fallback storage, not live Google consent or Atlas/Yoola activation. The revised reusable install/start instructions and Google/Atlas domain/settings requirements are saved as a draft; review/save/publish in environment settings to activate the reusable configuration. For real HTTPS provider probes in this managed runtime, retain its proxy/CA settings and use the supported Node environment proxy option; the production host uses its own network settings.

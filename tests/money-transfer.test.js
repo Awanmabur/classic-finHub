@@ -53,9 +53,10 @@ test('Tellers type complete sender and receiver identities without saved contact
  assert.deepEqual(parsed.sender,{contactId:null,name:'Ada Sender',phone:'+256700123456',country:'UG'});
  assert.deepEqual(parsed.beneficiary,{contactId:null,name:'Grace Receiver',phone:'+254712345678',country:'KE'});
  assert.equal(parsed.senderId,null);assert.equal(parsed.beneficiaryId,null);
+ assert.equal(service.validateOrder({...input,senderPhone:'0700123456'}).sender.phone,'+256700123456');
  const legacy=service.validateOrder(validOrder());assert.equal(legacy.partyEntryMode,'saved_contact');
  for(const invalid of [{senderId:id()},{beneficiaryId:id()},{senderName:'A'},{receiverName:'<script>'},
-  {senderName:'\nAda Sender'},{receiverName:'Grace\u0000 Receiver'},{senderPhone:'0700123456'},
+  {senderName:'\nAda Sender'},{receiverName:'Grace\u0000 Receiver'},
   {receiverPhone:'+256123'},{senderPhone:'+256\n700123456'},{senderPhone:'+01234567890'},
   {senderCountry:'ZZ'},{receiverCountry:'Uganda'},{receiverPhone:['+254712345678']},{receiverName:undefined}])
   assert.throws(()=>service.validateOrder({...input,...invalid}),e=>e.status===400);
@@ -123,7 +124,7 @@ test('Transfer dashboard allows typed names with no saved contacts and escapes i
  assert.match(html,/name="idempotencyKey"/);assert.match(html,/name="_csrf" value="token"/);
  assert.match(html,/Save transfer &amp; continue/);assert.doesNotMatch(html,/name="decision" value="approve"/);
  for(const name of ['senderName','senderPhone','senderCountry','receiverName','receiverPhone','receiverCountry'])assert.match(html,new RegExp('name="'+name+'"'));
- assert.match(html,/<option value="UG">Uganda<\/option>/);
+ assert.match(html,/name="destinationBranchId"/);assert.match(html,/data-phone-prefix="\+211"/);assert.doesNotMatch(html,/<select[^>]+name="(?:senderCountry|receiverCountry)"/);
  assert.doesNotMatch(html,/name="(?:senderId|beneficiaryId)"|Select sender|Select beneficiary|before submitting a request|type="submit" disabled/);
  assert.doesNotMatch(html,/<script>alert/);assert.match(html,/&lt;script&gt;/);
  assert.match(html,/action="\/tenant\/money-transfer\/requests"/);

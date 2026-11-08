@@ -1,0 +1,5 @@
+'use strict';
+const crypto=require('node:crypto'),{settings,failure}=require('./config');
+function seal(value,binding,input=process.env){const config=settings(input);if(!config.enabled)throw failure('BACKUP_DISABLED');const iv=crypto.randomBytes(12),cipher=crypto.createCipheriv('aes-256-gcm',config.key,iv);cipher.setAAD(Buffer.from(binding));const body=Buffer.concat([cipher.update(Buffer.from(value)),cipher.final()]);return Buffer.concat([Buffer.from('CFHBK001'),iv,cipher.getAuthTag(),body]);}
+function unseal(value,binding,input=process.env){if(!Buffer.isBuffer(value)||value.length<36||value.subarray(0,8).toString()!=='CFHBK001')throw failure('BACKUP_ARCHIVE_INVALID');const config=settings(input);if(!config.enabled)throw failure('BACKUP_DISABLED');const decipher=crypto.createDecipheriv('aes-256-gcm',config.key,value.subarray(8,20));decipher.setAAD(Buffer.from(binding));decipher.setAuthTag(value.subarray(20,36));return Buffer.concat([decipher.update(value.subarray(36)),decipher.final()]);}
+module.exports={seal,unseal};

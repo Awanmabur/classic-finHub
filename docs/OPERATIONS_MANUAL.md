@@ -71,7 +71,7 @@ Owners, Branch Managers, Reconciliation Officers, Auditors, Reports Analysts, An
 
 ### Branches, dates and currencies
 
-- Transactions use the signed-in person's assigned operating branch. There is no transaction branch picker.
+- Transactions use the signed-in person's assigned operating branch. The transaction source branch is fixed. Money Transfer also lets you select the receiving branch.
 - The Tenant Owner and Auditor can switch the viewing control between Main, another active branch and All branches. Viewing another branch does not move a transaction there. Read the operating-branch indication before creating anything.
 - An owner setting up a funds account must select a specific viewing branch. All branches is a reporting view, not a place to create an account.
 - Financial reports, observed-at fields and appointment scheduling use UTC. Enter UTC when a field says UTC, even if the tenant profile holds a local timezone. Check device time synchronization, especially for SMS forwarding and MFA.
@@ -328,10 +328,10 @@ An expired or cancelled quote must not be treated as an executed exchange. Obtai
 ### A. Enter sender and receiver directly
 
 1. Open **Send money / Generate PIN**, `/tenant/money-transfer/send`.
-2. Type **Sender name**, **Sender phone**, choose **Sender country**, and enter **Sender ID/document no.** where available/required by your operating procedure.
-3. Type **Receiver name**, **Receiver phone**, choose **Receiver country**, and enter **Receiver ID/document no.** where available/required by your procedure.
+2. Type **Sender name**, **Sender phone**, confirm your fixed **From branch**, and enter **Sender ID/document no.** where available/required by your operating procedure.
+3. Type **Receiver name**, **Receiver phone**, choose **To branch**, and enter **Receiver ID/document no.** where available/required by your procedure.
 4. Enter the remaining transfer details: operating currency, actual payment method, purpose, amount, fee and **Request validity**. That validity limits how long the uncollected request can be used for collection; it is not a payout-PIN expiry promise. Check the selected currency and total the sender pays. Collection, payable and payout accounts must match that currency. Any displayed indicative exchange-rate field does not itself perform a Forex conversion.
-5. Names are required, 2–120 characters. Phones are required international numbers beginning with `+` and country code, with 8–15 digits after normalization; the first digit must not be zero. Formatting spaces, dashes and parentheses are normalized. Choose a valid country from the supplied list. Identification-document fields are optional in the application and accept up to 80 characters; follow your actual identification procedure. Check the receiver's phone with the sender before saving.
+5. Names are required, 2–120 characters. Phones are required international numbers beginning with `+` and country code, with 8–15 digits after normalization; the first digit must not be zero. Formatting spaces, dashes and parentheses are normalized. The calling-code default comes from a trusted edge country signal, otherwise South Sudan. National numbers are normalized using that country context; verify the resulting international number before confirming. Identification-document fields are optional in the application and accept up to 80 characters; follow your actual identification procedure. Check the receiver's phone with the sender before saving.
 6. Choose **Save transfer & continue**. You do not need to select or create a saved contact. The transfer saves immutable sender/receiver snapshots; typing a transfer does not automatically create reusable contact records.
 
 The retained legacy contact-ID API is for compatibility with existing integrations/history. It is not a teller prerequisite. A request must not mix typed parties with contact IDs.
@@ -649,3 +649,14 @@ For each incident record the start/end UTC times, affected tenants/accounts, las
 8. Record the final sign-off: cutoff, reconciled positions, unresolved obligations, export/backup custody, access revocations, responsible people and escalation contact.
 
 The completed operation is supported by actual balances, append-only movements, independent decisions and retained evidence. Keep those records connected from onboarding through the last transaction and final handover.
+
+
+## 22. Branch delivery, offline capture and Google Drive archives
+
+For the complete configuration and recovery procedure, see [Tenant backups and offline operations](TENANT_BACKUPS_AND_OFFLINE.md).
+
+Select the receiving tenant branch when sending money; the From branch stays bound to the teller. After independently reviewed collection, the new PIN is valid only at that receiving branch. Its teller verifies the sender number, PIN and receiver, chooses the actual payout drawer, and requests a separate review. Both branches post together; interbranch dues remain visible in the ledger until actual settlement is separately reconciled. Historical same-branch PINs still work under their original verification rules.
+
+While disconnected, supported operation forms save encrypted pending drafts on the device. Visit forms while connected to prepare their offline templates. Open **Offline drafts** in the sidebar footer to capture/review them; reconnect and sign in to sync. A pending draft never authorizes cash payout, a final receipt or a PIN. After sync, perform the usual independent verification/review. Resolve **Needs attention** entries against actual server records before re-entering them. Keep the device and its unsynced data intact.
+
+Owners and Branch Managers use the Drive icon beside **Last receipt**. First connect Google Drive; later clicks check and back up changed business data. Refresh **Backups** to confirm **Backup complete** or **No unbacked data**. Owners cover the tenant; Managers cover their assigned branch. Configure the local closing time/time zone there; the independent worker checks daily 30 minutes after closing, and keeps an encrypted platform copy if Drive cannot accept the upload. Provider credentials, the private persistent directory, backup-worker monitoring, key custody and an actual recovery rehearsal must be configured before relying on this. These scoped business archives supplement full replica-set disaster recovery.

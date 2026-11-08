@@ -1,0 +1,12 @@
+# Branch transfers, offline drafts and tenant archives — 1.25.0
+
+Verified locally on 8 November 2026 with disposable MongoDB 8 replica-set databases. Browser identities and transactions in screenshots are synthetic. No real SMS was sent and no Google account was connected.
+
+- Full release gate: **438 passing JavaScript tests**, 13 relay tests, all registered isolated Mongo integrations (including branch transfer, tenant backup and header-only recovery verification), 512 static/template checks and npm audit (zero advisories). No test was skipped.
+- Branch transfer integration: destination-bound PIN, wrong-branch rejection, receiving cash, two balanced branch journals, source-teller revocation, transaction rollback, simultaneous payout attempts, book integrity, incoming-transfer currency/archive guards and supervisor branch-dues access.
+- Tenant archive integration: consistent projections, encryption/authentication, safe CLI verification, role/branch isolation, digest dedup/change detection, OAuth PKCE/state, encrypted refresh token, mocked Drive quota/recovery, worker lease and closing-time schedule.
+- Real Chromium: desktop/mobile active navigation visibility and focus; From/To fields; encrypted offline draft and fresh capture in the offline shell, prepared currency/network consistency, no premature server record, network-off navigation fallback, reconnect exactly once, repeat sync, logout locking; automatic backup completion/no-changes feedback and encrypted download; 12 layout cases at 1440/390/320 px, no overflow, duplicate IDs, browser exceptions or failed assets. See [results.json](results.json).
+- Node 22 production image: actual web, notification and backup worker startup, non-root user, read-only rootfs, dropped capabilities, no public container ports, worker heartbeats, absent web secrets in workers. Image metadata is recorded in the three JSON files. The two new integrations also passed inside the production image on Node 22 using isolated fixture networking and private tmpfs storage.
+- Local development app is running with the local MongoDB replica primary, private archive key/directory and three separate worker processes; functional HTTP and all worker-health probes pass.
+
+These results do not establish public TLS, Atlas service roles, live Google consent/uploads, Yoola delivery, external penetration/load acceptance or offsite recovery on the final host. See [configuration and recovery](../../TENANT_BACKUPS_AND_OFFLINE.md) and [launch status](../../LAUNCH_STATUS.md).

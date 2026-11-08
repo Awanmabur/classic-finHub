@@ -1,0 +1,132 @@
+{
+  "browserErrors": [],
+  "resourceErrors": [],
+  "layouts": [
+    {
+      "name": "branch-transfer",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "branch-transfer",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "branch-transfer",
+      "width": 320,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "offline-pending",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "offline-pending",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "offline-pending",
+      "width": 320,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "offline-synced",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "offline-synced",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "offline-synced",
+      "width": 320,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "tenant-backups",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "tenant-backups",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "tenant-backups",
+      "width": 320,
+      "overflow": false,
+      "duplicateIds": []
+    }
+  ],
+  "currencies": {},
+  "momo": {},
+  "transfers": {},
+  "cash": {
+    "independentCurrencyShifts": true
+  },
+  "directory": {},
+  "expenses": {},
+  "navigation": {
+    "desktop": {
+      "top": 509,
+      "bottom": 543,
+      "navTop": 92,
+      "navBottom": 595,
+      "scrollTop": 1288,
+      "label": "Open day"
+    },
+    "mobile": {
+      "top": 492,
+      "bottom": 526,
+      "navTop": 86,
+      "navBottom": 601,
+      "focused": true
+    }
+  },
+  "offline": {
+    "cachedPaths": {
+      "classicfin-offline-55a5a794b9ec": [
+        "/offline.html",
+        "/js/offline.js",
+        "/css/offline.css",
+        "/images/classicfinhub-logo.png",
+        "/vendor/inter/files/inter-latin-wght-normal.woff2",
+        "/vendor/inter/inter.css",
+        "/vendor/inter/files/inter-latin-ext-wght-normal.woff2",
+        "/vendor/inter/files/inter-cyrillic-wght-normal.woff2",
+        "/vendor/inter/files/inter-cyrillic-ext-wght-normal.woff2",
+        "/vendor/inter/files/inter-vietnamese-wght-normal.woff2",
+        "/vendor/inter/files/inter-greek-wght-normal.woff2",
+        "/vendor/inter/files/inter-greek-ext-wght-normal.woff2"
+      ]
+    },
+    "pendingOnly": true,
+    "encryptedLocalEntries": true,
+    "captureInOfflineShell": true,
+    "exactlyOneServerRecord": true,
+    "logoutLocksLocalData": true
+  },
+  "backups": {
+    "automaticCompletionFeedback": true,
+    "fallbackConfirmed": true,
+    "noChangesConfirmed": true,
+    "download": true
+  }
+}

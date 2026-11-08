@@ -28,3 +28,7 @@ __pycache__/
 *.pyc
 tools/android-sms-relay/config.json
 tools/android-sms-relay/*.sqlite*
+
+# Encrypted tenant business archives and partial writes
+*.cfhbackup
+*.cfhbackup.*.tmp

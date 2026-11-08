@@ -45,13 +45,14 @@ function sourceSnapshot(type,source){
   if(source.source?.referenceType!=='customer_account'||(source.kind==='transfer_request'&&source.destination?.referenceType!=='customer_account'))throw fail('Manual banking posting requires real internal customer accounts. External bank references remain instructions until independently verified.',409);
   return {...base,kind:source.kind,currency:source.currency,amountMinor:minor(source.amountMinor),customerAccountId:id(source.source.referenceId),destinationAccountId:source.destination?id(source.destination.referenceId):null,paymentChannel:source.capture?.paymentChannel||'Cash'};
  }
- return {...base,currency:source.currency,amountMinor:minor(source.amountMinor),feeMinor:minor(source.feeMinor,true),method:source.capture?.method||'Cash',receiverPhone:pin.normalPhone(source.beneficiary.phone),receiverName:String(source.beneficiary.name),senderPhone:pin.normalPhone(source.sender.phone),senderName:String(source.sender.name)};
+ return {...base,destinationBranchId:id(source.destinationBranchId||source.branchId),currency:source.currency,amountMinor:minor(source.amountMinor),feeMinor:minor(source.feeMinor,true),method:source.capture?.method||'Cash',receiverPhone:pin.normalPhone(source.beneficiary.phone),receiverName:String(source.beneficiary.name),senderPhone:pin.normalPhone(source.sender.phone),senderName:String(source.sender.name)};
 }
 // Old pending and collected executions retain the snapshot fingerprint they
 // were created with. Never rewrite those immutable snapshots during an upgrade.
 function sourceMatches(execution,source){
  const candidate=sourceSnapshot(execution.sourceType,source);
  if(execution.sourceType==='money_transfer'&&!Object.hasOwn(execution.sourceSnapshot||{},'senderPhone')){delete candidate.senderPhone;delete candidate.senderName;}
+ if(execution.sourceType==='money_transfer'&&!Object.hasOwn(execution.sourceSnapshot||{},'destinationBranchId'))delete candidate.destinationBranchId;
  return hash(candidate)===execution.sourceFingerprint;
 }
 function payoutLookup(input={}){
@@ -62,7 +63,7 @@ function payoutLookup(input={}){
 function transferMessage(source,branch,payoutPin){
  const amount=require('./mobileMoney.service').formatMoneyMinor(source.amountMinor,source.currency);
  // This immutable message is encrypted in its own outbox, never audit metadata.
- return `ClassicFin Hub transfer ${source.reference}. Amount ${amount}. Sender ${source.sender.name}, ${source.sender.phone}. Payout PIN ${payoutPin}. Collect at ${branch.name} with this PIN, sender phone and your ID. Keep the PIN private. Cash payout requires teller verification.`;
+ return `ClassicFin Hub transfer ${source.reference}. Amount ${amount}. Sender ${source.sender.name}, ${source.sender.phone}. Payout PIN ${payoutPin}. Collect at ${source.destinationBranchName||branch.name} with this PIN, sender phone and your ID. Keep the PIN private. Cash payout requires teller verification.`;
 }
 async function context(conn,tenant,actor,type,requiredPermission=null,session=null){
  definition(type);
@@ -230,18 +231,18 @@ async function review(conn,tenant,actor,executionId,input={}){
    if(snapshot.kind!=='deposit_request'&&await customerBalance(conn,session,original.ledger._id,execution.branchId,snapshot.currency)<BigInt(snapshot.amountMinor))throw fail('Insufficient posted customer account balance',409);
    plan=economicPlan(snapshot,execution.accounts,{sourceLiabilityId:String(original.ledger._id),destinationLiabilityId:destination?String(destination.ledger._id):null});
   }else plan=economicPlan(snapshot,execution.accounts,{feeIncomeId:await feeAccount(conn,session,authorization,snapshot,execution)});
-  const posting=await treasury().applyMovements(conn,session,authorization,{sourceType:execution.sourceType,sourceRef:`FUNDED:${execution._id}`,branchId:String(execution.branchId),operatingActorId:String(execution.createdBy),...plan,evidenceRef:execution.evidenceReference,description:execution.note});
+  const posting=execution.action==='transfer_payout'&&String(source.destinationBranchId||source.branchId)!==String(source.branchId)?await treasury().postBranchTransferPayout(conn,session,authorization,execution._id):await treasury().applyMovements(conn,session,authorization,{sourceType:execution.sourceType,sourceRef:`FUNDED:${execution._id}`,branchId:String(execution.branchId),operatingActorId:String(execution.createdBy),...plan,evidenceRef:execution.evidenceReference,description:execution.note});
   const changes={status:'posted_manual',reviewedBy:actor.id,reviewedAt:new Date(),reviewNote:note,journalIds:posting.journalIds||[]};
   if(execution.action==='transfer_collect'){
    let generated;
    for(let attempt=0;attempt<8;attempt++){
-    generated=pin.generate();changes.pinHash=pin.hash(generated,{tenantId:String(authorization.tenant._id),branchId:String(execution.branchId),phone:source.sender.phone,version:'sender_v2'});
+    generated=pin.generate();changes.pinHash=pin.hash(generated,{tenantId:String(authorization.tenant._id),branchId:String(source.destinationBranchId||execution.branchId),phone:source.sender.phone,version:source.destinationBranchId?'sender_destination_v3':'sender_v2'});
     if(!await Execution.exists({pinHash:changes.pinHash}).session(session))break;
     if(attempt===7)throw fail('Unable to allocate a payout PIN. Retry the independent review.',409);
    }
-   changes.pinLookupVersion='sender_v2';
+   changes.pinLookupVersion=source.destinationBranchId?'sender_destination_v3':'sender_v2';
    changes.pinEncrypted=pin.encrypt(generated,`${conn.name}:${execution._id}:${execution.sourceId}`);
-   await transferSms().enqueue(conn,{tenantId:authorization.tenant._id,branchId:execution.branchId,executionId:execution._id,sourceId:execution.sourceId,to:source.beneficiary.phone,body:transferMessage(source,branch,generated)},session);
+   await transferSms().enqueue(conn,{tenantId:authorization.tenant._id,branchId:execution.branchId,executionId:execution._id,sourceId:execution.sourceId,to:source.beneficiary.phone,body:transferMessage(source,{name:source.destinationBranchName||branch.name},generated)},session);
   }
   const posted=await Execution.findOneAndUpdate({_id:execution._id,status:'pending_review'},{$set:changes},{new:true,session}).lean();
   const sourceChanges=execution.action==='transfer_collect'?{status:'collected_manual',manualCollectionExecutionId:execution._id,manualPostedAt:new Date()}:
@@ -338,17 +339,18 @@ async function checkPayout(conn,tenant,actor,input={}){
  const branch=await resolveTransactionBranch(conn,current.actor,input);
  const lookup=payoutLookup(input),phone=lookup.phone;
  const failureBudget=await reservePinCheck(current,branch,phone);
- const value=text(input.pin,'six-digit payout PIN',6,6),pinHash=pin.hash(value,{tenantId:String(current.tenant._id),branchId:String(branch._id),phone,version:lookup.version});
- const versionFilter=lookup.version==='sender_v2'?{pinLookupVersion:'sender_v2'}:{$or:[{pinLookupVersion:'receiver_v1'},{pinLookupVersion:{$exists:false}}]};
- const collection=await fundedModels(conn).execution.findOne({action:'transfer_collect',status:'posted_manual',branchId:branch._id,pinHash,...versionFilter}).lean();
+ const value=text(input.pin,'six-digit payout PIN',6,6),binding={tenantId:String(current.tenant._id),branchId:String(branch._id),phone};
+ const matches=lookup.version==='sender_v2'?[{pinLookupVersion:'sender_destination_v3',pinHash:pin.hash(value,{...binding,version:'sender_destination_v3'})},{branchId:branch._id,pinLookupVersion:'sender_v2',pinHash:pin.hash(value,{...binding,version:'sender_v2'})}]:[{branchId:branch._id,pinHash:pin.hash(value,{...binding,version:'receiver_v1'}),$or:[{pinLookupVersion:'receiver_v1'},{pinLookupVersion:{$exists:false}}]}];
+ const collection=await fundedModels(conn).execution.findOne({action:'transfer_collect',status:'posted_manual',$or:matches}).lean();
  const source=collection?await models.transferOrderModel(conn).findOne({_id:collection.sourceId,status:'collected_manual',manualCollectionExecutionId:collection._id}).lean():null;
+ if(source&&String(source.destinationBranchId||source.branchId)!==String(branch._id))throw fail('PIN and receiver details could not be matched',404);
  const nameCheck=text(input.receiverNameCheck||'','receiver name check',0,120),identityDocument=text(input.identityDocument||'','ID / Passport presented',0,80);
  if(!collection||!source||(nameCheck&&normalizedName(nameCheck)!==normalizedName(source.beneficiary.name)))throw fail('PIN and receiver details could not be matched',404);
  const token=crypto.randomBytes(32).toString('hex');
  const verification=await transaction(conn,async session=>{
   const authorization=await auth.fenceAction(conn,session,actor,current.tenant,'money_transfer','money_transfer.payout',{branchId:String(branch._id)});
   const fresh=await models.transferOrderModel(conn).findOne({_id:source._id,status:'collected_manual',manualCollectionExecutionId:collection._id}).session(session).lean();if(!fresh)throw fail('PIN and receiver details could not be matched',404);
-  const [verified]=await fundedModels(conn).verification.create([{collectionExecutionId:collection._id,branchId:branch._id,createdBy:actor.id,tokenHash:pin.tokenHash(token),expiresAt:new Date(Date.now()+5*60000),lookupVersion:lookup.version,lookupPhone:phone,receiverName:source.beneficiary.name,receiverPhone:source.beneficiary.phone,receiverNameCheck:nameCheck,identityDocument}],{session});
+  const [verified]=await fundedModels(conn).verification.create([{collectionExecutionId:collection._id,branchId:branch._id,createdBy:actor.id,tokenHash:pin.tokenHash(token),expiresAt:new Date(Date.now()+5*60000),lookupVersion:collection.pinLookupVersion||'receiver_v1',lookupPhone:phone,receiverName:source.beneficiary.name,receiverPhone:source.beneficiary.phone,receiverNameCheck:nameCheck,identityDocument}],{session});
   await audit(conn,session,authorization.actor,collection,'transfer.pin_checked');return verified;
  });
  await refundPinCheck(failureBudget);
@@ -361,7 +363,7 @@ async function payoutContext(conn,tenant,actor,state){
  if(!verification||String(verification.branchId)!==String((await resolveTransactionBranch(conn,current.actor))._id))return {verification:null,idempotencyKey:crypto.randomUUID()};
  const collection=await fundedModels(conn).execution.findOne({_id:verification.collectionExecutionId,status:'posted_manual'}).lean();
  const source=collection?await models.transferOrderModel(conn).findOne({_id:collection.sourceId,status:'collected_manual'}).lean():null;
- return source?{verification,collection,source,verificationToken:state.token,idempotencyKey:crypto.randomUUID()}:{verification:null,idempotencyKey:crypto.randomUUID()};
+ return source?{verification,collection,source,payoutAccounts:(await availableAccounts(conn,current.tenant,current.actor,verification.branchId,'money_transfer')).filter(account=>account.kind==='cash'&&account.currency===source.currency&&String(account.operatorId)===String(actor.id)),verificationToken:state.token,idempotencyKey:crypto.randomUUID()}:{verification:null,idempotencyKey:crypto.randomUUID()};
 }
 async function requestPayout(conn,tenant,actor,input={}){
  const v=formInput(input),current=await context(conn,tenant,actor,'money_transfer','money_transfer.payout');await prepareIndexes(conn);
@@ -373,10 +375,11 @@ async function requestPayout(conn,tenant,actor,input={}){
   const verification=await fundedModels(conn).verification.findOneAndUpdate({tokenHash,createdBy:actor.id,consumedAt:null,expiresAt:{$gt:new Date()}},{$set:{consumedAt:new Date()}},{session,new:true}).lean();
   if(!verification)throw fail('Payout verification expired or was already used. Check the PIN again.',409);
   const branch=await resolveTransactionBranch(conn,authorization.actor,input);if(String(branch._id)!==String(verification.branchId))throw fail('Payout belongs to a different operating branch',403);
-  const collection=await Execution.findOne({_id:verification.collectionExecutionId,action:'transfer_collect',status:'posted_manual',branchId:branch._id}).session(session).lean();
+  const collection=await Execution.findOne({_id:verification.collectionExecutionId,action:'transfer_collect',status:'posted_manual'}).session(session).lean();
   const source=collection?await models.transferOrderModel(conn).findOne({_id:collection.sourceId,status:'collected_manual',manualCollectionExecutionId:collection._id}).session(session).lean():null;
-  if(!source)throw fail('This transfer was paid, changed or is no longer available',409);
-  const snapshot=sourceSnapshot('money_transfer',source),available=await availableAccounts(conn,authorization.tenant,authorization.actor,source.branchId,'money_transfer');
+  if(!source||String(source.destinationBranchId||source.branchId)!==String(branch._id))throw fail('This transfer was paid, changed or belongs to another receiving branch',409);
+  assertBranchCurrencies(branch,sourceSnapshot('money_transfer',source));
+  const snapshot=sourceSnapshot('money_transfer',source),available=await availableAccounts(conn,authorization.tenant,authorization.actor,branch._id,'money_transfer');
   const accounts={clearingAccountId:String(collection.accounts.clearingAccountId),payoutAccountId:choose(available,input.payoutAccountId,{kind:'cash',currency:snapshot.currency,actorId:actor.id,label:'the verified payout cash drawer'})};
   const canonical={sourceType:'money_transfer',sourceId:String(source._id),sourceReference:source.reference,action:'transfer_payout',branchId:String(branch._id),createdBy:actor.id,accounts,collectionExecutionId:String(collection._id),...v};
   const [execution]=await Execution.create([{...canonical,fingerprint:hash(canonical),sourceFingerprint:hash(snapshot),sourceSnapshot:snapshot,verificationDigest:tokenHash,verificationInfo:{receiverNameCheck:verification.receiverNameCheck,identityDocument:verification.identityDocument},activeKey:`money_transfer:${source._id}:transfer_payout`}],{session});

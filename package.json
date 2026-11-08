@@ -1,6 +1,6 @@
 {
   "name": "classicfin-hub",
-  "version": "1.26.0",
+  "version": "1.26.1",
   "private": true,
   "description": "ClassicFin Hub modular multi-tenant financial operations platform",
   "engines": {

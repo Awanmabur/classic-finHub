@@ -26,7 +26,7 @@ test('base URI cannot silently redirect tenant writes or weaken platform securit
  for(const base of [authenticated('tenant'),authenticated('').replace('web-unit','other-user'),authenticated('').replace('unit-only-password','different-password'),authenticated('').replace('cluster.example','elsewhere.example'),authenticated('','tls=false'),authenticated('').replace('authSource=admin','authSource=other'),authenticated('').replace('?authSource=admin','')]){
   assert.throws(()=>resolveMongoConfiguration({...input,MONGO_URI_BASE:base}),error=>!error.message.includes('unit-only-password')&&!error.message.includes(base));
  }
- assert.throws(()=>resolveMongoConfiguration({PLATFORM_DB_URI:authenticated('platform').replace('?authSource=admin',''),MONGO_URI_BASE:authenticated('')}),/explicit authSource/);
+ assert.throws(()=>resolveMongoConfiguration({PLATFORM_DB_URI:authenticated('platform').replace('?authSource=admin',''),MONGO_URI_BASE:authenticated('')}),/same authSource/);
  for(const option of ['tlsAllowInvalidHostnames','tlsAllowInvalidCertificates','tlsInsecure'])assert.throws(()=>resolveMongoConfiguration({PLATFORM_DB_URI:local('platform','tls=true'),MONGO_URI_BASE:local('','tls=true&'+option+'=true')}),/must match/);
 });
 test('database names, production storage and malformed driver settings fail without credential disclosure',()=>{
@@ -34,5 +34,33 @@ test('database names, production storage and malformed driver settings fail with
   assert.throws(()=>resolveMongoConfiguration(input),error=>!error.message.includes('DO-NOT-LEAK'));
  }
  assert.equal(resolveMongoConfiguration({}).mongoUriBase,null);
- assert.throws(()=>tenantUriFromSlug('tenant-one',{PLATFORM_DB_URI:authenticated('platform').replace('?authSource=admin','')}),/explicit authSource/);
+ assert.throws(()=>tenantUriFromSlug('tenant-one',{PLATFORM_DB_URI:authenticated('platform').replace('?authSource=admin','')}),/Connect to platform MongoDB/);
+});
+
+test('standard SRV platform/base pairs accept DNS authentication defaults without weakening identity checks',()=>{
+ const platform=authenticated('platform').replace('?authSource=admin','?appName=platform');
+ const base=authenticated('').replace('?authSource=admin','?appName=tenant');
+ const input={PLATFORM_DB_URI:platform,MONGO_URI_BASE:base};
+ assert.equal(resolveMongoConfiguration(input).mongoPlatformUri,platform);
+ assert.equal(resolveMongoConfiguration(input).mongoUriBase,base);
+ for(const candidate of [base.replace('web-unit','other-user'),base.replace('unit-only-password','other-password'),base.replace('cluster.example','elsewhere.example'),base+'&tls=false',base+'&retryWrites=false']){
+  assert.throws(()=>resolveMongoConfiguration({...input,MONGO_URI_BASE:candidate}),/must match/);
+ }
+ assert.throws(()=>resolveMongoConfiguration({...input,MONGO_URI_BASE:base+'&authSource=admin'}),/same authSource/);
+ assert.throws(()=>resolveMongoConfiguration({PLATFORM_DB_URI:platform+'&authSource=admin',MONGO_URI_BASE:base}),/same authSource/);
+ assert.throws(()=>resolveMongoConfiguration({PLATFORM_DB_URI:platform.replace('mongodb+srv','mongodb'),MONGO_URI_BASE:base.replace('mongodb+srv','mongodb')}),/same authSource/);
+});
+
+test('derived tenant links pin resolved SRV authSource, including non-admin TXT and no-TXT fallback',()=>{
+ const platform=authenticated('platform').replace('?authSource=admin','?appName=platform');
+ const base=authenticated('').replace('?authSource=admin','?appName=tenant');
+ for(const input of [{PLATFORM_DB_URI:platform,MONGO_URI_BASE:base},{PLATFORM_DB_URI:platform}]){
+  assert.throws(()=>tenantUriFromSlug('tenant-one',input),/Connect to platform MongoDB/);
+  for(const source of ['admin','custom_auth','platform']){
+   const link=tenantUriFromSlug('tenant-one',input,{resolvedAuthSource:source}),query=new URLSearchParams(link.split('?')[1]);
+   assert.equal(query.get('authSource'),source);assert.match(link,/\/classicfin_tenant_tenant_one_db\?/);
+  }
+ }
+ const direct=platform.replace('mongodb+srv','mongodb');
+ assert.equal(new URLSearchParams(tenantUriFromSlug('tenant-one',{PLATFORM_DB_URI:direct}).split('?')[1]).get('authSource'),'platform');
 });

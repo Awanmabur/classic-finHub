@@ -20,5 +20,8 @@ function getTenantConnection(slug) {
 }
 // Server-side connection-link derivation only. Never send this credential-bearing
 // value to tenant pages, exports, logs or API responses. Runtime uses useDb above.
-function getTenantUri(slug){return tenantUriFromSlug(slug,{MONGO_PLATFORM_URI:env.mongoPlatformUri,MONGO_URI_BASE:env.mongoUriBase});}
+function getTenantUri(slug){
+ const resolvedAuthSource=mongoose.connection.readyState===1?mongoose.connection.getClient().options.credentials?.source:undefined;
+ return tenantUriFromSlug(slug,{MONGO_PLATFORM_URI:env.mongoPlatformUri,MONGO_URI_BASE:env.mongoUriBase},{resolvedAuthSource});
+}
 module.exports = { connectPlatformMongo, getTenantConnection, getTenantUri, tenantDbNameFromSlug, NAME };

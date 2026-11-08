@@ -34,11 +34,12 @@ function stable(value){
  if(value instanceof Map)return stable(Object.fromEntries(value));
  return Object.fromEntries(Object.keys(value).sort().map(key=>[key,stable(value[key])]).filter(([,entry])=>entry!==undefined));
 }
-function identity(parsed){
+function identity(parsed,{inferSrvAuthSource=false}={}){
  const options={};
  for(const [key,entry] of Object.entries(parsed.options)){
   if(IGNORE_OPTIONS.has(key))continue;
-  options[key]=key==='hosts'?entry.map(host=>host.toString().toLowerCase()).sort():key==='srvHost'?String(entry).toLowerCase():entry;
+  options[key]=key==='hosts'?entry.map(host=>host.toString().toLowerCase()).sort():key==='srvHost'?String(entry).toLowerCase():
+   key==='credentials'&&entry&&inferSrvAuthSource?{...entry,source:'[resolved by platform SRV]'}:entry;
  }
  return JSON.stringify(stable({scheme:parsed.scheme,options}));
 }
@@ -54,17 +55,28 @@ function resolveMongoConfiguration(input=process.env){
  const base=value(input,'MONGO_URI_BASE');
  if(base){
   const parsedBase=parseMongoUri(base,'MONGO_URI_BASE',{requireDatabase:false,emptyDatabase:true});
-  if((platform.options.credentials||parsedBase.options.credentials)&&(!platform.explicitAuthSource||!parsedBase.explicitAuthSource))throw fail('Authenticated platform/base URIs require the same explicit authSource');
-  if(identity(platform)!==identity(parsedBase))throw fail('MONGO_URI_BASE must match platform deployment, credentials, authSource, TLS and connection options; only appName may differ');
+  // SRV DNS TXT may supply authSource only when the client connects. Comparing
+  // constructor defaults here would compare the platform DB with "admin".
+  // Both omitted SRV sources inherit the connected platform client's resolution;
+  // mixed explicit/implicit settings and ordinary authenticated pairs stay strict.
+  const inferSrvAuthSource=platform.scheme==='mongodb+srv'&&parsedBase.scheme==='mongodb+srv'&&!platform.explicitAuthSource&&!parsedBase.explicitAuthSource;
+  if((platform.options.credentials||parsedBase.options.credentials)&&(!platform.explicitAuthSource||!parsedBase.explicitAuthSource)&&!inferSrvAuthSource)throw fail('Set the same authSource in both platform/base URIs, or omit it from both when using SRV');
+  if(identity(platform,{inferSrvAuthSource})!==identity(parsedBase,{inferSrvAuthSource}))throw fail('MONGO_URI_BASE must match platform deployment, credentials, authSource, TLS and connection options; only appName may differ');
  }
  return {mongoPlatformUri:selected,mongoUriBase:base};
 }
 function platformUri(input=process.env){return resolveMongoConfiguration(input).mongoPlatformUri;}
-function tenantUriFromSlug(slug,input=process.env){
+function tenantUriFromSlug(slug,input=process.env,{resolvedAuthSource}={}){
  const database=tenantDbNameFromSlug(slug),config=resolveMongoConfiguration(input);
  if(database.toLowerCase()===parseMongoUri(config.mongoPlatformUri,'Platform MongoDB URI').options.dbName.toLowerCase())throw fail('Tenant and platform database names must be distinct');
  const selected=parseMongoUri(config.mongoUriBase||config.mongoPlatformUri,config.mongoUriBase?'MONGO_URI_BASE':'MONGO_PLATFORM_URI',{requireDatabase:!config.mongoUriBase,emptyDatabase:!!config.mongoUriBase});
- if(selected.options.credentials&&!selected.explicitAuthSource)throw fail('Server-side tenant connection links with credentials require an explicit authSource');
+ if(selected.options.credentials&&!selected.explicitAuthSource){
+  // A new DB path must not become a new authentication DB. For SRV, use the
+  // real client result (TXT or original platform-DB fallback), never guess admin.
+  const source=selected.scheme==='mongodb+srv'?resolvedAuthSource:parseMongoUri(config.mongoPlatformUri,'Platform MongoDB URI').options.credentials?.source;
+  if(typeof source!=='string'||!source)throw fail('Connect to platform MongoDB before deriving tenant links with an implicit SRV authSource, or set authSource explicitly');
+  selected.query.set('authSource',source);
+ }
  const query=selected.query.toString();
  return `${selected.scheme}://${selected.authority}/${database}${query?'?'+query:''}`;
 }

@@ -100,12 +100,21 @@ deployment, credentials and connection settings. An old local default must not
 remain beside a different production alias.
 
 `MONGO_URI_BASE` is optional. When supplied, its database path must be empty and
-its deployment, web user/password, explicit `authSource`, TLS and other driver
+its deployment, web user/password, authentication settings, TLS and other driver
 options must match the platform connection. Only `appName` may differ. Copy the
-same web connection privately, clear its database path and keep the same
-explicit authentication source, such as `authSource=admin` for the intended
-Atlas user. Different platform and base users are rejected rather than silently
-splitting financial transactions across incompatible clients.
+same web connection privately and clear its database path. Standard Atlas
+`mongodb+srv` pairs may omit `authSource` from both URLs: the connected platform
+client resolves the cluster's DNS TXT setting, and derived tenant links explicitly
+retain that resolved authentication database. If TXT supplies no authentication
+database, links retain the platform client's original authentication database.
+The app does not assume `admin` or authenticate separately against each tenant DB.
+
+If you set `authSource` explicitly, set the same value in both URLs (for example,
+the `admin` authentication database when correct for your Atlas user). Mixing an
+explicit source with an omitted source is rejected. Ordinary authenticated
+`mongodb://` platform/base pairs also require the same explicit source. Different
+platform and base users remain rejected. `MONGO_URI_BASE` may be left empty;
+runtime tenant connections always share the platform client's bounded pool.
 
 Each trusted tenant slug derives its own database name and server-side
 connection link. For example, `kampala-money` uses

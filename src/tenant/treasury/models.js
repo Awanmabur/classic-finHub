@@ -1,4 +1,5 @@
 'use strict';
+const {ensureModelIndexes}=require('../../config/ensureModelIndexes');
 const {Schema}=require('mongoose');
 const {currencyCodes}=require('../../config/currencies');
 const O=Schema.Types.ObjectId,D=Schema.Types.Decimal128;
@@ -66,5 +67,5 @@ const adjustmentSchema=new Schema({
 },{strict:'throw',versionKey:false});adjustmentSchema.index({idempotencyKey:1},{unique:true});adjustmentSchema.index({observationId:1},{unique:true});adjustmentSchema.index({branchId:1,status:1,createdAt:1});
 const model=(conn,name,schema)=>conn.models[name]||conn.model(name,schema);
 function models(conn){return {account:model(conn,'TreasuryAccountV1',accountSchema),observation:model(conn,'TreasuryObservationV1',observationSchema),batch:model(conn,'TreasuryBatchV1',batchSchema),movement:model(conn,'TreasuryMovementV1',movementSchema),counter:model(conn,'TreasuryCounterV1',counterSchema),adjustment:model(conn,'TreasuryAdjustmentV1',adjustmentSchema)};}
-const pending=new WeakMap();function ensure(conn){if(!pending.has(conn))pending.set(conn,Promise.all(Object.values(models(conn)).map(m=>m.createIndexes())).catch(error=>{pending.delete(conn);throw error;}));return pending.get(conn);}
+const pending=new WeakMap();function ensure(conn){if(!pending.has(conn))pending.set(conn,Promise.all(Object.values(models(conn)).map(ensureModelIndexes)).catch(error=>{pending.delete(conn);throw error;}));return pending.get(conn);}
 module.exports={models,ensure,accountSchema,observationSchema,batchSchema,movementSchema,counterSchema,adjustmentSchema};

@@ -55,7 +55,38 @@ the switch does not delete enrollment, and other encrypted features use that key
 When ready, set `MFA_ENABLED=true`, restart, and sign in again. Existing enrolled
 accounts require their authenticator; unenrolled privileged accounts enter setup.
 Sessions created without MFA cannot satisfy the re-enabled requirement. If the
-variable is absent, MFA enforcement defaults to enabled.
+variable is absent or blank, development/test startup disables enforcement and
+`NODE_ENV=production` enables it. Explicit `true` and `false` accept surrounding
+spaces and mixed case; an invalid nonempty value enables enforcement.
+
+On startup, look for `app.ready` with `version: "1.28.0"` and `mfa: "disabled"`
+when deferring setup. Its `mfaSource` identifies explicit configuration or the
+environment default. A variable already exported in Git Bash takes precedence
+over `.env`. If you previously exported `MFA_ENABLED=true`, run this in that
+terminal and restart so `.env` can supply the value:
+
+```bash
+unset MFA_ENABLED
+npm run dev
+```
+
+Do not regenerate keys or clear browser storage to resolve this setting. Unsynced
+offline entries live on the device and are not present in server backups.
+
+### Slow or interrupted storage requests
+
+Startup waits for the session expiry index before accepting requests. The web
+MongoDB client limits server selection/connection to 7 seconds and pool checkout
+to 5 seconds; its inactive-socket limit is 30 seconds. These are separate storage
+wait bounds, not a promise that every operation finishes within 7 seconds. Known
+storage outages return a recoverable 503 response without terminating the web
+process. Check the error/reference, the terminal and `npm run db:doctor`; confirm
+whether the original transaction saved before retrying an interrupted write.
+
+Visited workspace pages save quietly for offline use. Wider preparation runs
+only when selected under **Pending sync → Offline availability → Save workspace
+pages**, and stops on foreground interaction. Updating does not require deleting
+saved drafts or clearing site data.
 
 ### Tenant creation feedback and interrupted responses
 

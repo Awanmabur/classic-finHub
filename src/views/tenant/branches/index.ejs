@@ -1,34 +1,84 @@
-<section class="view show">
+<% const branchCurrencyOptions=typeof currencyOptions!=='undefined'?currencyOptions:[{code:'UGX',label:'UGX'},{code:'USD',label:'USD'},{code:'SSP',label:'SSP'},{code:'KES',label:'KSH'}];
+   const labelCurrency=code=>typeof currencyLabel==='function'?currencyLabel(code):(code==='KES'?'KSH':code);
+   const activeBranches=data.branches.filter(branch=>branch.status==='active');
+   const branchAssetVersion=typeof assetVersion==='undefined'?'1':assetVersion; %>
+<link rel="stylesheet" href="/css/branches.css?v=<%= branchAssetVersion %>">
+<section class="view show branchWorkspace">
   <div class="grid3">
-    <div class="stat"><div class="k">Active branches</div><div class="v"><%= data.branches.filter(b=>b.status==='active').length %></div><div class="s"><span class="dot"></span>Within your workspace</div></div>
+    <div class="stat"><div class="k">Active branches</div><div class="v"><%= activeBranches.length %></div><div class="s"><span class="dot"></span>Within your workspace</div></div>
     <div class="stat"><div class="k">Plan branch limit</div><div class="v"><%= data.plan?.limits.branches||0 %></div><div class="s">Platform-enforced</div></div>
-    <div class="stat"><div class="k">Operations</div><div class="v">Controlled</div><div class="s">Historical records are not deleted</div></div>
+    <div class="stat"><div class="k">Operations</div><div class="v">Controlled</div><div class="s">Historical records are retained</div></div>
   </div>
-  <% if(data.canManage){ %>
-  <% const activeBranches=data.branches.filter(b=>b.status==='active'); if(activeBranches.length){ %>
-  <section class="card" style="margin-top:14px"><div class="cardHead"><b>Your operating branch</b><span>Account assignment</span></div><div class="cardBody">
-    <p class="tiny">Transactions use your account’s operating branch automatically. This setting does not change your access to reports across the workspace.</p>
-    <form method="post" action="/tenant/branches/operating" class="row2"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <label class="field">Assigned location<select class="control" name="branchId" required><option value="">Choose your account location</option><% activeBranches.forEach(b=>{ %><option value="<%= b._id %>" <%= String(user.transactionBranchId||user.branchId||'')===String(b._id)?'selected':'' %>><%= b.name %> · <%= typeof currencyLabel==='function'?currencyLabel(b.currency):(b.currency==='KES'?'KSH':b.currency) %></option><% }) %></select></label>
-      <div class="rowBtns"><button class="btn" type="submit">Save account location</button></div>
-    </form>
-  </div></section><% } %>
-  <section class="card" style="margin-top:14px"><div class="cardHead"><b>Create branch</b><span>Only tenant owners</span></div><div class="cardBody">
-    <form action="/tenant/branches" method="post"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <div class="row3"><label class="field">Name<input class="control" name="name" required minlength="2" maxlength="100" placeholder="Kampala Main"></label>
-      <label class="field">Unique code<input class="control" name="code" required maxlength="32" pattern="[a-z0-9][a-z0-9\-]{1,30}" placeholder="kampala-main"></label>
-      <label class="field">Default currency<select class="control" name="currency"><% (typeof currencyOptions!=='undefined'?currencyOptions:[{code:'UGX',label:'UGX'},{code:'USD',label:'USD'},{code:'SSP',label:'SSP'},{code:'KES',label:'KSH'}]).forEach(option=>{ %><option value="<%= option.code %>"><%= option.label %></option><% }) %></select></label></div>
-      <input type="hidden" name="currenciesConfigured" value="1"><fieldset class="formSection"><legend class="formSectionTitle">Operating currencies</legend><div class="row2"><% (typeof currencyOptions!=='undefined'?currencyOptions:[{code:'UGX',label:'UGX'},{code:'USD',label:'USD'},{code:'SSP',label:'SSP'},{code:'KES',label:'KSH'}]).forEach(option=>{ %><label class="field"><span><input type="checkbox" name="currencies" value="<%= option.code %>" checked> <%= option.label %></span></label><% }) %></div><p class="tiny">Keep separate accounts and independently verified cash shifts for each operating currency. The default only sets initial display and form selection. Currencies used by accounts or unfinished work must stay enabled.</p></fieldset><label class="field">Business location / address<input class="control" name="address" maxlength="240"></label>
-      <button class="btn btnPrimary" type="submit">Create branch</button>
-    </form>
-  </div></section><% } %>
-  <section class="card" style="margin-top:14px"><div class="cardHead"><b>Branches</b><span>Configure operating currencies; default currency and historical amounts remain unchanged</span></div><div class="cardBody tableWrap"><table><thead><tr><th>Branch</th><th>Operating currencies</th><th>Status</th><th>Details</th><% if(data.canManage){ %><th>Management</th><% } %></tr></thead><tbody>
-  <% if(!data.branches.length){ %><tr><td colspan="5">No branches yet. Create the first branch before inviting operational staff or recording transactions.</td></tr><% } %>
-  <% data.branches.forEach(b=>{ %><tr data-search-row><td><b><%= b.name %></b><br><span class="tiny"><%= b.code %></span></td><td><%= (b.currencies||['UGX','USD','SSP','KES']).map(code=>typeof currencyLabel==='function'?currencyLabel(code):(code==='KES'?'KSH':code)).join(' · ') %><br><span class="tiny">Default: <%= b.currency==='KES'?'KSH':b.currency %></span></td><td><span class="tag"><%= b.status %></span></td><td><%= b.address||'—' %></td>
-  <% if(data.canManage){ %><td>
-    <% if(b.status==='active'){ %><form method="post" action="/tenant/branches/<%= b._id %>/update"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><label class="field">Name<input class="control" name="name" maxlength="100" required value="<%= b.name %>"></label><label class="field">Address<input class="control" name="address" maxlength="240" value="<%= b.address||'' %>"></label><input type="hidden" name="currenciesConfigured" value="1"><fieldset class="formSection"><legend class="formSectionTitle">Operating currencies</legend><div class="row2"><% (typeof currencyOptions!=='undefined'?currencyOptions:[{code:'UGX',label:'UGX'},{code:'USD',label:'USD'},{code:'SSP',label:'SSP'},{code:'KES',label:'KSH'}]).forEach(option=>{ %><label class="field"><span><input type="checkbox" name="currencies" value="<%= option.code %>" <%= (b.currencies||['UGX','USD','SSP','KES']).includes(option.code)?'checked':'' %>> <%= option.label %></span></label><% }) %></div></fieldset><button class="btn">Save changes</button></form>
-    <form method="post" action="/tenant/branches/<%= b._id %>/archive" style="margin-top:8px"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btnDanger">Archive</button></form><% }else{ %>
-    <form method="post" action="/tenant/branches/<%= b._id %>/restore"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn">Restore</button></form><% } %>
-  </td><% } %></tr><% }) %></tbody></table></div></section>
-  <p class="tiny" style="margin-top:12px">Archiving requires no active assigned staff, no pending invitations and no unverified operations. Complete an audit-reviewed correction instead of editing historical transactions.</p>
+  <section class="card branchDirectory">
+    <div class="cardHead branchDirectoryHead"><div><b>Branches</b><br><span>Branch locations and operating currencies</span></div><% if(data.canManage){ %><button class="btn btnPrimary" type="button" data-branch-open="branchCreateDialog" aria-controls="branchCreateDialog"><i class="fa-solid fa-plus" aria-hidden="true"></i> Create branch</button><% } %></div>
+    <div class="cardBody">
+      <% if(data.canManage&&activeBranches.length){ %>
+      <form method="post" action="/tenant/branches/operating" class="branchAssignment" data-branch-write>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <label class="field">Your operating branch<select class="control" name="branchId" required><option value="">Choose your account location</option><% activeBranches.forEach(branch=>{ %><option value="<%= branch._id %>" <%= String(user.transactionBranchId||user.branchId||'')===String(branch._id)?'selected':'' %>><%= branch.name %></option><% }) %></select></label>
+        <button class="btn" type="submit">Save account location</button>
+        <p class="tiny branchAssignmentHint">Transactions use this branch automatically. Your reporting view is separate.</p>
+        <p class="tiny branchFormStatus" role="status" aria-live="polite" data-branch-form-status hidden></p>
+      </form>
+      <% } %>
+      <div class="branchList" role="list" aria-label="Branches">
+        <% if(!data.branches.length){ %><p class="tiny branchEmpty">No branches yet. Create the first branch before inviting operational staff or recording transactions.</p><% } %>
+        <% data.branches.forEach(branch=>{ const supported=branch.currencies||['UGX','USD','SSP','KES'];const currencyText=supported.map(labelCurrency).join(' · '); %>
+        <article class="branchRow" role="listitem" data-search-row data-branch-row data-branch-id="<%= branch._id %>" data-branch-name="<%= branch.name %>" data-branch-code="<%= branch.code %>" data-branch-address="<%= branch.address||'' %>" data-branch-currency="<%= branch.currency %>" data-branch-currencies="<%= supported.join(',') %>" data-branch-status="<%= branch.status %>">
+          <div class="branchIdentity"><b class="branchName" title="<%= branch.name %>"><%= branch.name %></b><span class="tiny branchCode" title="Branch code: <%= branch.code %>"><%= branch.code %></span></div>
+          <span class="tiny branchAddress" title="<%= branch.address||'No address added' %>"><%= branch.address||'No address added' %></span>
+          <span class="tiny branchCurrencies" title="Operating currencies: <%= currencyText %>. Default: <%= labelCurrency(branch.currency) %>"><%= currencyText %></span>
+          <span class="tag branchStatus <%= branch.status==='archived'?'branchStatusArchived':'' %>"><%= branch.status %></span>
+          <div class="branchActions">
+            <% if(data.canManage&&branch.status==='active'){ %>
+            <button class="btn btnIcon branchAction" type="button" data-branch-edit aria-controls="branchEditDialog" aria-label="Edit <%= branch.name %>" title="Edit branch"><i class="fa-solid fa-pen" aria-hidden="true"></i><span class="branchActionLabel">Edit</span></button>
+            <form method="post" action="/tenant/branches/<%= branch._id %>/archive" data-branch-write><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btnIcon btnDanger branchAction" type="submit" aria-label="Archive <%= branch.name %>" title="Archive branch"><i class="fa-solid fa-box-archive" aria-hidden="true"></i><span class="branchActionLabel">Archive</span></button></form>
+            <% }else{ %>
+            <button class="btn btnIcon branchAction" type="button" data-branch-details aria-controls="branchDetailsDialog" aria-label="View <%= branch.name %> details" title="Branch details"><i class="fa-solid fa-circle-info" aria-hidden="true"></i><span class="branchActionLabel">Details</span></button>
+            <% if(data.canManage){ %><form method="post" action="/tenant/branches/<%= branch._id %>/restore" data-branch-write><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btnIcon branchAction" type="submit" aria-label="Restore <%= branch.name %>" title="Restore branch"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i><span class="branchActionLabel">Restore</span></button></form><% } %>
+            <% } %>
+          </div>
+          <p class="tiny branchFormStatus" role="status" aria-live="polite" data-branch-row-status hidden></p>
+        </article>
+        <% }) %>
+      </div>
+      <p class="tiny branchDirectoryHint">Archiving requires no active assigned staff, pending invitations or unverified operations. Branches with financial history stay available for reporting.</p>
+    </div>
+  </section>
 </section>
+<% if(data.canManage){ %>
+<dialog id="branchCreateDialog" class="transactionDialog branchDialog" data-operation-dialog aria-labelledby="branchCreateTitle">
+  <div class="sheet"><header class="sheetHead"><div><b id="branchCreateTitle">Create branch</b><br><span>Branch location and operating currencies</span></div><button class="btn btnIcon" type="button" data-branch-close aria-label="Close create branch">×</button></header>
+    <div class="sheetBody"><form action="/tenant/branches" method="post" id="branchCreateForm" data-branch-write>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <div class="row2"><label class="field">Name<input class="control" name="name" required minlength="2" maxlength="100" placeholder="Kampala Main"></label><label class="field">Unique code<input class="control" name="code" required maxlength="32" pattern="[a-z0-9][a-z0-9\-]{1,30}" placeholder="kampala-main"></label></div>
+      <label class="field">Default currency<select class="control" name="currency"><% branchCurrencyOptions.forEach(option=>{ %><option value="<%= option.code %>"><%= option.label %></option><% }) %></select></label>
+      <label class="field">Business location / address<input class="control" name="address" maxlength="240"></label>
+      <input type="hidden" name="currenciesConfigured" value="1"><fieldset class="formSection"><legend class="formSectionTitle">Operating currencies</legend><div class="branchCurrencyChoices"><% branchCurrencyOptions.forEach(option=>{ %><label class="branchCurrencyChoice"><input type="checkbox" name="currencies" value="<%= option.code %>" checked><span><%= option.label %></span></label><% }) %></div></fieldset>
+      <p class="tiny">Keep separate accounts and verified cash shifts for each operating currency. The default only sets initial display and form selection.</p>
+      <p class="tiny branchFormStatus" role="status" aria-live="polite" data-branch-form-status hidden></p>
+    </form></div>
+    <footer class="sheetFoot"><button class="btn" type="button" data-branch-close>Cancel</button><button class="btn btnPrimary" type="submit" form="branchCreateForm">Create branch</button></footer>
+  </div>
+</dialog>
+<dialog id="branchEditDialog" class="transactionDialog branchDialog" data-operation-dialog aria-labelledby="branchEditTitle">
+  <div class="sheet"><header class="sheetHead"><div><b id="branchEditTitle">Edit branch</b><br><span data-branch-edit-code></span></div><button class="btn btnIcon" type="button" data-branch-close aria-label="Close edit branch">×</button></header>
+    <div class="sheetBody"><form method="post" id="branchEditForm" data-branch-write>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <div class="row2"><label class="field">Name<input class="control" name="name" required minlength="2" maxlength="100"></label><label class="field">Default currency<input class="control" data-branch-edit-default readonly aria-readonly="true"></label></div>
+      <label class="field">Business location / address<input class="control" name="address" maxlength="240"></label>
+      <input type="hidden" name="currenciesConfigured" value="1"><fieldset class="formSection"><legend class="formSectionTitle">Operating currencies</legend><div class="branchCurrencyChoices"><% branchCurrencyOptions.forEach(option=>{ %><label class="branchCurrencyChoice"><input type="checkbox" name="currencies" value="<%= option.code %>"><span><%= option.label %></span></label><% }) %></div></fieldset>
+      <p class="tiny">Keep the default currency enabled. Currencies used by accounts or unfinished work must stay enabled.</p>
+      <p class="tiny branchFormStatus" role="status" aria-live="polite" data-branch-form-status hidden></p>
+    </form></div>
+    <footer class="sheetFoot"><button class="btn" type="button" data-branch-close>Cancel</button><button class="btn btnPrimary" type="submit" form="branchEditForm">Save changes</button></footer>
+  </div>
+</dialog>
+<% } %>
+<dialog id="branchDetailsDialog" class="transactionDialog branchDialog" data-operation-dialog aria-labelledby="branchDetailsTitle">
+  <div class="sheet"><header class="sheetHead"><div><b id="branchDetailsTitle">Branch details</b><br><span data-branch-detail="name"></span></div><button class="btn btnIcon" type="button" data-branch-close aria-label="Close branch details">×</button></header>
+    <div class="sheetBody"><dl class="branchDetails"><dt>Branch code</dt><dd data-branch-detail="code"></dd><dt>Address</dt><dd data-branch-detail="address"></dd><dt>Operating currencies</dt><dd data-branch-detail="currencies"></dd><dt>Default currency</dt><dd data-branch-detail="currency"></dd><dt>Status</dt><dd data-branch-detail="status"></dd></dl></div>
+    <footer class="sheetFoot"><button class="btn" type="button" data-branch-close>Close</button></footer>
+  </div>
+</dialog>
+<script src="/js/branches.js?v=<%= branchAssetVersion %>" defer></script>

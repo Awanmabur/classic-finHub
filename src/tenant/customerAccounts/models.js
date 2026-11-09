@@ -1,4 +1,5 @@
 'use strict';
+const {ensureModelIndexes}=require('../../config/ensureModelIndexes');
 const {Schema}=require('mongoose');
 const {currencyCodes}=require('../../config/currencies');
 const O=Schema.Types.ObjectId;
@@ -25,5 +26,5 @@ accountSchema.index({branchId:1,createdAt:-1,_id:-1});accountSchema.index({branc
 const model=(conn,name,schema)=>conn.models[name]||conn.model(name,schema);
 const customerModel=conn=>model(conn,'CustomerDirectoryV1',customerSchema),accountModel=conn=>model(conn,'CustomerAccountV1',accountSchema);
 const ready=new WeakMap();
-function ensureIndexes(conn){if(!ready.has(conn))ready.set(conn,Promise.all([customerModel(conn).createIndexes(),accountModel(conn).createIndexes()]).catch(e=>{ready.delete(conn);throw e;}));return ready.get(conn);}
+function ensureIndexes(conn){if(!ready.has(conn))ready.set(conn,Promise.all([ensureModelIndexes(customerModel(conn)),ensureModelIndexes(accountModel(conn))]).catch(e=>{ready.delete(conn);throw e;}));return ready.get(conn);}
 module.exports={customerModel,accountModel,ensureIndexes,customerSchema,accountSchema};

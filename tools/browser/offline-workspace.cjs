@@ -13,7 +13,10 @@ const treasury=req('./src/tenant/treasury/service'),fundModels=req('./src/tenant
 const {permissionsFor}=req('./src/config/roles'),directory=req('./src/tenant/customerAccounts/service');
 const out=require('node:path').resolve(process.env.BROWSER_REVIEW_DIR||'/tmp/classicfin-workspace-offline-browser');fs.mkdirSync(out,{recursive:true});
 const result={browserErrors:[],resourceErrors:[],layouts:[],cash:{}};
-let browser,server,conn,page;
+const backgroundRequests={contextRequests:0,preparationRequests:0};
+let browser,server,conn,page,serveLegacyWorker=true;
+// Simulate the previous fixed allowlist worker, which ignored version query strings.
+const legacyWorker="self.addEventListener('install',event=>event.waitUntil(caches.open('classicfin-offline-browser-legacy').then(cache=>cache.put('/js/offline.js',new Response('window.CLASSICFIN_LEGACY_RUNTIME=true;',{headers:{'Content-Type':'application/javascript'}}))).then(()=>self.skipWaiting())));self.addEventListener('activate',event=>event.waitUntil(self.clients.claim()));self.addEventListener('fetch',event=>{if(new URL(event.request.url).pathname==='/js/offline.js')event.respondWith(caches.open('classicfin-offline-browser-legacy').then(cache=>cache.match('/js/offline.js')));});";
 const decision={decision:'approve',note:'Independent original evidence and physical source funds checked'};
 const actor=row=>({id:String(row._id),role:row.role,name:row.name,branchId:String(row.branchId),authVersion:row.authVersion||0,permissions:permissionsFor(row.role),allowedModules:row.allowedModules});
 async function login(base,row,password,secret){await page.goto(base+'/signin');await page.locator('[name=email]').fill(row.email);await page.locator('[name=password]').fill(password);await Promise.all([page.waitForURL('**/mfa/challenge'),page.locator('form[action="/signin"] button[type=submit]').click()]);await page.locator('[name=code]').fill(mfa.counterCode(secret,Math.floor(Date.now()/30000)));await Promise.all([page.waitForURL('**/tenant/dashboard'),page.locator('button[type=submit]').click()]);}
@@ -37,19 +40,41 @@ async function main(){
  const customer=(await directory.customerCreate(conn,tenant.toObject(),ownerActor,{name:'Currency Customer',phone:'+211912345678',country:'South Sudan',idempotencyKey:crypto.randomUUID()})).record;
  const customerAccounts={};for(const currency of ['USD','SSP']){customerAccounts[currency]=(await directory.accountCreate(conn,tenant.toObject(),ownerActor,{customerId:String(customer._id),currency,type:'Current Account',status:'active',risk:'Low',idempotencyKey:crypto.randomUUID()})).record;assert.equal(customerAccounts[currency].currency,currency);}
 
- server=await new Promise(resolve=>{const s=req('./src/app')().listen(0,()=>resolve(s));});const base='http://127.0.0.1:'+server.address().port;
- browser=await chromium.launch({executablePath:'/usr/bin/chromium',headless:true,args:['--no-sandbox']});const context=await browser.newContext();page=await context.newPage();page.on('response',async response=>{if(response.request().method()==='POST'&&response.status()===400)console.error('SYNTHETIC FORM ERROR',await response.text().catch(()=>''));});page.on('pageerror',e=>result.browserErrors.push(e.message));page.on('response',r=>{if(r.status()>=400&&/\.(?:css|js|woff2?|png)(?:\?|$)/.test(r.url()))result.resourceErrors.push({path:new URL(r.url()).pathname,status:r.status()});});
+ const app=req('./src/app')();
+ server=await new Promise(resolve=>{const s=require('node:http').createServer((request,response)=>{if(serveLegacyWorker&&new URL(request.url,'http://loopback').pathname==='/offline-runtime.js'){response.writeHead(200,{'Content-Type':'application/javascript','Cache-Control':'no-store','Service-Worker-Allowed':'/'});response.end(legacyWorker);return;}app(request,response);}).listen(0,()=>resolve(s));});const base='http://127.0.0.1:'+server.address().port;
+ browser=await chromium.launch({executablePath:'/usr/bin/chromium',headless:true,args:['--no-sandbox']});const context=await browser.newContext();page=await context.newPage();page.setDefaultTimeout(30000);page.setDefaultNavigationTimeout(30000);page.on('request',request=>{if(new URL(request.url()).pathname==='/tenant/offline/context')backgroundRequests.contextRequests++;if(request.headers()['x-classicfin-prepare'])backgroundRequests.preparationRequests++;});page.on('response',async response=>{if(response.request().method()==='POST'&&response.status()===400)console.error('SYNTHETIC FORM ERROR',await response.text().catch(()=>''));});page.on('pageerror',e=>result.browserErrors.push(e.message));page.on('response',r=>{if(r.status()>=400&&/\.(?:css|js|woff2?|png)(?:\?|$)/.test(r.url()))result.resourceErrors.push({path:new URL(r.url()).pathname,status:r.status()});});
+ await page.goto(base+'/signin');
+ await page.evaluate(async()=>{await navigator.serviceWorker.register('/offline-runtime.js',{scope:'/'});await navigator.serviceWorker.ready;});
+ await page.waitForFunction(()=>navigator.serviceWorker.controller!==null);
  await login(base,owner,password,ownerSecret);
 
 
  await page.setViewportSize({width:1440,height:1000});
  await page.waitForFunction(()=>navigator.serviceWorker.controller!==null);
- await page.waitForFunction(()=>document.getElementById('offlineStatus')?.textContent==='Workspace pages are saved for offline access.',{timeout:120000});
+ await page.waitForFunction(()=>document.getElementById('offlineStatus')?.textContent==='This page is saved for offline access.');
  await navigate(base,'/tenant/money-transfer/send?currency=SSP');
  assert.equal(await page.locator('select[name=fromBranchId]').count(),0);
  assert.equal(await page.locator('[data-transfer-form] input[readonly]').count(),1);
  assert.equal(await page.locator('select[name=destinationBranchId] option[value="'+branch._id+'"]').count(),0);
- await page.waitForFunction(()=>document.getElementById('offlineStatus')?.textContent==='Workspace pages are saved for offline access.',{timeout:120000});
+ await page.waitForFunction(()=>document.getElementById('offlineStatus')?.textContent==='This page is saved for offline access.');
+ // Neither fresh page should perform authenticated background reads when no drafts exist.
+ await page.waitForTimeout(400);
+ assert.equal(backgroundRequests.contextRequests,0,'Fresh server-rendered context avoids an extra account request');
+ assert.equal(backgroundRequests.preparationRequests,0,'Navigation must not automatically fetch the workspace');
+ result.startup={...backgroundRequests,visitedPagesSaved:true};
+ assert.equal(await page.evaluate(()=>window.CLASSICFIN_LEGACY_RUNTIME),undefined,'First navigation must bypass the obsolete cached runtime');
+ assert.equal(await page.evaluate(async()=>!!await(await caches.open('classicfin-offline-browser-legacy')).match('/js/offline.js')),true,'Obsolete runtime really remains cached during the first navigation');
+ result.startup.staleWorkerFirstNavigationRecovered=true;
+ // Upgrade normally, without deleting encrypted drafts or asking the user to clear site data.
+ serveLegacyWorker=false;
+ await page.evaluate(async()=>{const changed=new Promise(resolve=>navigator.serviceWorker.addEventListener('controllerchange',resolve,{once:true}));const registration=await navigator.serviceWorker.getRegistration('/');await registration.update();await changed;});
+ await page.getByRole('button',{name:'Pending sync',exact:true}).click();
+ await page.locator('#offlineQueueDialog details summary').click();
+ await page.locator('#offlinePrepare').click();
+ await page.waitForFunction(()=>document.getElementById('offlineStatus')?.textContent==='Workspace pages are saved for offline access.',null,{timeout:120000});
+ assert(backgroundRequests.preparationRequests>0,'Explicit preparation saves additional pages');
+ result.startup.explicitPreparationRequests=backgroundRequests.preparationRequests;
+ await page.locator('#offlineQueueDialog [data-offline-close]').first().click();
  await capture('online-transfer');
  const signature=await page.evaluate(()=>({nav:document.querySelector('#nav').textContent,title:document.querySelector('#pageTitle').textContent,form:document.querySelector('[data-transfer-form]').className}));
  const form=page.locator('[data-transfer-form]'),draftKey=await form.locator('[name=idempotencyKey]').inputValue();
@@ -71,10 +96,21 @@ async function main(){
  await page.goto(base+'/tenant/money-transfer/send?currency=SSP');await page.locator('[data-offline-snapshot]').waitFor();
  const publicCaches=await page.evaluate(async()=>{const result={};for(const name of await caches.keys())result[name]=(await(await caches.open(name)).keys()).map(request=>new URL(request.url).pathname);return result;});assert(!Object.values(publicCaches).flat().some(path=>path.startsWith('/tenant/')));
  const stored=await page.evaluate(async()=>{const db=await new Promise(resolve=>{const r=indexedDB.open('classicfin-offline-v1');r.onsuccess=()=>resolve(r.result);});const rows=await new Promise(resolve=>{const r=db.transaction('entries').objectStore('entries').getAll();r.onsuccess=()=>resolve(r.result);});db.close();return rows.map(row=>JSON.stringify(row));});assert(stored.every(row=>!row.includes('Offline Sender')&&!row.includes('+211921234567')&&!row.includes('<html')));
- await context.setOffline(false);await page.getByRole('button',{name:'Pending sync',exact:true}).click();await page.locator('#offlineSync').click();await page.waitForFunction(()=>[...document.querySelectorAll('#offlineQueue strong')].filter(el=>el.textContent.includes('Synced')).length===3);assert.equal(await core.transferOrderModel(conn).countDocuments({idempotencyKey:draftKey}),1);assert.equal(await core.transferOrderModel(conn).countDocuments({idempotencyKey:modalKey}),1);assert.equal(await core.transferOrderModel(conn).countDocuments({idempotencyKey:thirdKey}),1);await page.locator('#offlineSync').click();await page.waitForTimeout(300);assert.equal(await core.transferOrderModel(conn).countDocuments({idempotencyKey:draftKey}),1);
- await page.locator('#offlineQueueDialog [data-offline-close]').first().click();
- await page.locator('#newTransactionBtn').click();await page.locator('#transactionDialog [data-transaction-kind=transfer]').click();await modal.waitFor();await fillTransfer(modal,'Connected Sender','3.00');const connectedKey=await modal.locator('[name=idempotencyKey]').inputValue();await modal.getByRole('button',{name:'Save transfer & continue'}).click();await page.waitForURL(/\/tenant\/money-transfer\/[a-f0-9]{24}(?:\/acknowledgement)?$/);assert.equal(await core.transferOrderModel(conn).countDocuments({idempotencyKey:connectedKey}),1);
- await navigate(base,'/tenant/money-transfer/send?currency=SSP');await page.getByRole('button',{name:'Pending sync',exact:true}).waitFor();
+ // Keep an older draft's request in flight. A separate online operation must still finish.
+ const backlogKeys=new Set([draftKey,modalKey,thirdKey]);let releaseBacklog,backlogObserved;
+ const heldBacklog=new Promise(resolve=>{releaseBacklog=resolve;}),backlogStarted=new Promise(resolve=>{backlogObserved=resolve;});
+ const holdOldRequest=async route=>{const request=route.request(),values=new URLSearchParams(request.postData()||'');if(request.method()==='POST'&&backlogKeys.has(values.get('idempotencyKey'))){backlogObserved();await heldBacklog;await route.fulfill({status:503,contentType:'text/plain',body:'Synthetic interrupted backlog'});}else await route.continue();};
+ await context.route('**/tenant/money-transfer/requests',holdOldRequest);
+ await context.setOffline(false);await Promise.race([backlogStarted,new Promise((_,reject)=>setTimeout(()=>reject(Error('Background sync did not start')),10000))]);
+ await page.locator('#newTransactionBtn').click();await page.locator('#transactionDialog [data-transaction-kind=transfer]').click();await modal.waitFor();await fillTransfer(modal,'Connected Sender','3.00');const connectedKey=await modal.locator('[name=idempotencyKey]').inputValue();await modal.getByRole('button',{name:'Save transfer & continue'}).click();
+ await page.waitForURL(/\/tenant\/money-transfer\/[a-f0-9]{24}(?:\/acknowledgement)?$/,{timeout:10000});
+ assert.equal(await core.transferOrderModel(conn).countDocuments({idempotencyKey:connectedKey}),1);
+ for(const idempotencyKey of backlogKeys)assert.equal(await core.transferOrderModel(conn).countDocuments({idempotencyKey}),0,'Older blocked entries must remain pending');
+ result.offlineForegroundIndependent=true;
+ releaseBacklog();await page.waitForTimeout(200);await context.unroute('**/tenant/money-transfer/requests',holdOldRequest);
+ await navigate(base,'/tenant/money-transfer/send?currency=SSP');await page.getByRole('button',{name:'Pending sync',exact:true}).click();await page.locator('#offlineSync').click();await page.waitForFunction(()=>[...document.querySelectorAll('#offlineQueue strong')].filter(el=>el.textContent.includes('Synced')).length===4);
+ for(const idempotencyKey of backlogKeys)assert.equal(await core.transferOrderModel(conn).countDocuments({idempotencyKey}),1);
+ await page.locator('#offlineSync').click();await page.waitForTimeout(300);assert.equal(await core.transferOrderModel(conn).countDocuments({idempotencyKey:draftKey}),1);await page.locator('#offlineQueueDialog [data-offline-close]').first().click();
  await page.locator('#newTransactionBtn').click();await page.locator('#transactionDialog [data-transaction-kind=transfer]').click();await modal.waitFor();await fillTransfer(modal,'Online network outage','4.00');const outageKey=await modal.locator('[name=idempotencyKey]').inputValue();
  await context.route('**/tenant/offline/context',route=>route.abort());assert.equal(await page.evaluate(()=>navigator.onLine),true);await modal.getByRole('button',{name:'Save transfer & continue'}).click();await page.waitForFunction(()=>document.getElementById('offlineStatus')?.textContent.includes('Connection interrupted. Your entry is saved'));assert.equal(await core.transferOrderModel(conn).countDocuments({idempotencyKey:outageKey}),0);await context.unroute('**/tenant/offline/context');await page.locator('#transactionDialog [data-close-transaction]').first().click();await page.getByRole('button',{name:'Pending sync',exact:true}).click();await page.locator('#offlineSync').click();await page.waitForFunction(()=>[...document.querySelectorAll('#offlineQueue strong')].filter(el=>el.textContent.includes('Synced')).length===5);assert.equal(await core.transferOrderModel(conn).countDocuments({idempotencyKey:outageKey}),1);await page.locator('#offlineQueueDialog [data-offline-close]').first().click();
  const priorScope=await page.evaluate(()=>sessionStorage.getItem('classicfin.offline.scope'));const otherTab=await context.newPage();await otherTab.goto(base+'/tenant/dashboard');await otherTab.waitForFunction(()=>sessionStorage.getItem('classicfin.offline.scope')!==null);

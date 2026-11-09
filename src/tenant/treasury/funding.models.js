@@ -1,4 +1,5 @@
 'use strict';
+const {ensureModelIndexes}=require('../../config/ensureModelIndexes');
 const {Schema}=require('mongoose');
 const {currencyCodes}=require('../../config/currencies');
 const O=Schema.Types.ObjectId;
@@ -20,5 +21,5 @@ schema.index({tenantId:1,branchId:1,status:1,createdAt:-1});
 schema.index({sourceAccountId:1,createdAt:-1});schema.index({destinationAccountId:1,createdAt:-1});
 const model=conn=>conn.models.TreasuryFundingV1||conn.model('TreasuryFundingV1',schema);
 const ready=new WeakMap();
-function ensureIndexes(conn){if(!ready.has(conn))ready.set(conn,model(conn).createIndexes().catch(error=>{ready.delete(conn);throw error;}));return ready.get(conn);}
+function ensureIndexes(conn){if(!ready.has(conn))ready.set(conn,ensureModelIndexes(model(conn)).catch(error=>{ready.delete(conn);throw error;}));return ready.get(conn);}
 module.exports={model,ensureIndexes,schema};

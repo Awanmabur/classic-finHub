@@ -1,0 +1,83 @@
+{
+  "recordedAt": "2026-11-09T18:34:00.076Z",
+  "timezone": "Africa/Kampala",
+  "browserErrors": [],
+  "resourceErrors": [],
+  "layouts": [
+    {
+      "name": "empty-plans",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "empty-plans",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "create-form",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "create-form",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "tenant-created",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "tenant-created",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "tenant-profile",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "tenant-profile",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "replacement-link",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "replacement-link",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": []
+    }
+  ],
+  "mfa": {
+    "enabled": false,
+    "keyAbsent": true,
+    "passwordLogin": true,
+    "tenantOwnerPasswordLogin": true
+  },
+  "tenant": {
+    "createMs": 968,
+    "subscriptionRenewed": true,
+    "replacementInvite": true
+  },
+  "server": {
+    "boots": 1,
+    "alive": true
+  }
+}

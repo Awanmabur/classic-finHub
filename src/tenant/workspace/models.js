@@ -1,4 +1,5 @@
 'use strict';
+const {ensureModelIndexes}=require('../../config/ensureModelIndexes');
 const mongoose=require('mongoose');
 const nested=definition=>new mongoose.Schema(definition,{_id:false,strict:'throw'});
 const configSchema=new mongoose.Schema({
@@ -34,7 +35,7 @@ const indexes=new WeakMap();
 async function ensure(conn){
  if(!indexes.has(conn)){
   const {config,entry}=models(conn);
-  const task=Promise.all([config.createIndexes(),entry.createIndexes(),require('../models').auditEventModel(conn).createIndexes()])
+  const task=Promise.all([ensureModelIndexes(config),ensureModelIndexes(entry),ensureModelIndexes(require('../models').auditEventModel(conn))])
    .catch(error=>{indexes.delete(conn);throw error;});
   indexes.set(conn,task);
  }

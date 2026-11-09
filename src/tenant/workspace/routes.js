@@ -54,12 +54,12 @@ function entryForm(spec,item={}){
  return {title:item._id?spec.modal.replace(/^Create/,'Edit'):spec.modal,subtitle:spec.subtitle,section:spec.section,fields,
   action:`/tenant/workspace/entries/${spec.kind}${item._id?'/'+item._id:''}`,revision:item.revision||0};
 }
-function factory({renderTenant}){
- const router=Router();
- router.get('/theme.css',async(req,res,next)=>{try{
+async function theme(req,res,next){try{
   const identity=await service.receiptIdentity(req.tenantDb,req.tenant);
   res.set({'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}).type('text/css').send(`:root,html[data-theme="light"],html[data-theme="dark"]{--primary:${identity.primary};--primary2:${identity.secondary}}`);
- }catch(error){next(error);}});
+ }catch(error){next(error);}}
+function factory({renderTenant}){
+ const router=Router();
  router.use(requirePermission('workspace.view'));
  router.use((req,res,next)=>{res.setHeader('Cache-Control','private, no-store');next();});
  async function render(req,res,page,extra={}){
@@ -127,4 +127,5 @@ function factory({renderTenant}){
  return router;
 }
 factory.entryForm=entryForm;factory.configForm=configForm;factory.entryPages=entryPages;factory.pageNames=pageNames;
+factory.theme=theme;
 module.exports=factory;

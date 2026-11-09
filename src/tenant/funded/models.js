@@ -1,4 +1,5 @@
 'use strict';
+const {ensureModelIndexes}=require('../../config/ensureModelIndexes');
 const {Schema}=require('mongoose');
 const O=Schema.Types.ObjectId;
 const executionSchema=new Schema({
@@ -37,5 +38,5 @@ const verificationSchema=new Schema({
 verificationSchema.index({tokenHash:1},{unique:true});verificationSchema.index({expiresAt:1},{expireAfterSeconds:0});
 function models(conn){return {execution:conn.models.FundedExecutionV1||conn.model('FundedExecutionV1',executionSchema),verification:conn.models.ManualPayoutVerificationV1||conn.model('ManualPayoutVerificationV1',verificationSchema)};}
 const ready=new WeakMap();
-function ensureIndexes(conn){if(!ready.has(conn))ready.set(conn,Promise.all(Object.values(models(conn)).map(Model=>Model.createIndexes())).catch(error=>{ready.delete(conn);throw error;}));return ready.get(conn);}
+function ensureIndexes(conn){if(!ready.has(conn))ready.set(conn,Promise.all(Object.values(models(conn)).map(ensureModelIndexes)).catch(error=>{ready.delete(conn);throw error;}));return ready.get(conn);}
 module.exports={models,ensureIndexes,executionSchema,verificationSchema};

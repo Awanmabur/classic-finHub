@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 'use strict';
+// This fixture exercises the authenticated MFA challenge flow explicitly.
+process.env.MFA_ENABLED='true';
 // Destructive checks are confined to random scratch databases on one loopback
 // replica set. Never run against production or a remote MongoDB deployment.
 require('dotenv').config();

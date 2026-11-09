@@ -1,4 +1,5 @@
 'use strict';
+const {ensureModelIndexes}=require('../../config/ensureModelIndexes');
 const {Schema}=require('mongoose');
 const O=Schema.Types.ObjectId;
 const schema=new Schema({
@@ -10,5 +11,5 @@ const schema=new Schema({
 },{strict:'throw',timestamps:true});
 schema.index({executionId:1},{unique:true});schema.index({state:1,availableAt:1});schema.index({state:1,leaseUntil:1});schema.index({branchId:1,createdAt:-1});
 function model(conn){return conn.models.TransferSmsDeliveryV1||conn.model('TransferSmsDeliveryV1',schema);}
-const ready=new WeakMap();function ensureIndexes(conn){if(!ready.has(conn))ready.set(conn,model(conn).createIndexes().catch(error=>{ready.delete(conn);throw error;}));return ready.get(conn);}
+const ready=new WeakMap();function ensureIndexes(conn){if(!ready.has(conn))ready.set(conn,ensureModelIndexes(model(conn)).catch(error=>{ready.delete(conn);throw error;}));return ready.get(conn);}
 module.exports={model,ensureIndexes,schema};

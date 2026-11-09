@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 'use strict';
+// This fixture exercises the authenticated MFA challenge flow explicitly.
+process.env.MFA_ENABLED='true';
 // Disposable authenticated HTTP + replica-set plan administration probe.
 require('dotenv').config();
 const assert=require('node:assert/strict'),crypto=require('node:crypto');

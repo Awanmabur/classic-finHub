@@ -9,9 +9,16 @@ const ids=['507f1f77bcf86cd799439011','507f1f77bcf86cd799439012','507f1f77bcf86c
 function restorePolicy(t){const previous=process.env.MFA_ENABLED;t.after(()=>{if(previous===undefined)delete process.env.MFA_ENABLED;else process.env.MFA_ENABLED=previous;});}
 function response(){return{code:null,status(code){this.code=code;return this;},send(message){this.message=message;return this;},redirect(code,path){this.code=code;this.path=path;return this;}};}
 
-test('MFA enforcement defaults on and only the explicit false setting disables it',()=>{
- for(const MFA_ENABLED of [undefined,'','true','FALSE','0','invalid'])assert.equal(policy.enabled({MFA_ENABLED}),true);
- assert.equal(policy.enabled({MFA_ENABLED:'false'}),false);
+test('MFA defaults defer development enrollment and preserve production enforcement',()=>{
+ for(const NODE_ENV of [undefined,'development','test'])for(const MFA_ENABLED of [undefined,'','  ']){
+  assert.deepEqual(policy.status({NODE_ENV,MFA_ENABLED}),{enabled:false,mode:'disabled',source:'development_default'});
+ }
+ for(const MFA_ENABLED of [undefined,'','  '])assert.deepEqual(policy.status({NODE_ENV:'production',MFA_ENABLED}),{enabled:true,mode:'enabled',source:'production_default'});
+ for(const NODE_ENV of [undefined,'development','production']){
+  for(const MFA_ENABLED of ['false','FALSE',' False '])assert.deepEqual(policy.status({NODE_ENV,MFA_ENABLED}),{enabled:false,mode:'disabled',source:'explicit'});
+  for(const MFA_ENABLED of ['true','TRUE',' True '])assert.deepEqual(policy.status({NODE_ENV,MFA_ENABLED}),{enabled:true,mode:'enabled',source:'explicit'});
+  for(const MFA_ENABLED of ['0','invalid'])assert.deepEqual(policy.status({NODE_ENV,MFA_ENABLED}),{enabled:true,mode:'enabled',source:'invalid_value'});
+ }
 });
 
 test('optional MFA retains correct passwords and enrollment while changing only the login requirement',async t=>{

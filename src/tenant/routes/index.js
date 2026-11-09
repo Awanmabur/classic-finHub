@@ -13,12 +13,17 @@ const branchService=require('../services/branch.service');
 const phoneCountry=require('../../utils/phoneCountry');
 const staffService=require('../services/staff.service');
 const staffPolicy=require('../services/staffPolicy');
-router.use(require('../services/transactionBranch.service').requestContext);
+router.use(require('./offline.routes'));
+router.get('/workspace/theme.css',require('../workspace/routes').theme);
+router.use(async(req,res,next)=>{try{
+ await Promise.all([
+  new Promise((resolve,reject)=>require('../services/transactionBranch.service').requestContext(req,res,error=>error?reject(error):resolve())),
+  require('../workspace/service').receiptIdentity(req.tenantDb,req.tenant).then(identity=>{req.workspaceIdentity=identity;})
+ ]);
+ next();
+}catch(error){next(error);}});
 router.use((req,res,next)=>{const phone=phoneCountry;res.locals.phoneDefaults=phone.defaults(req);if(req.method==='POST')for(const field of ['phone','senderPhone','receiverPhone','customerPhone','supportPhone','nextOfKinPhone','legacyReceiverPhone'])if(typeof req.body?.[field]==='string'&&req.body[field])req.body[field]=phone.normalize(req.body[field],field==='senderPhone'&&req.body.senderCountry?req.body.senderCountry:field==='receiverPhone'&&req.body.receiverCountry?req.body.receiverCountry:req.get('x-classicfin-phone-country')||res.locals.phoneDefaults.country);next();});
 router.post('/view-branch',require('../services/branchView.service').change);
-router.use(async(req,res,next)=>{
-  try{req.workspaceIdentity=await require('../workspace/service').receiptIdentity(req.tenantDb,req.tenant);next();}catch(error){next(error);}
-});
 // Only owners and auditors have tenant-wide visibility. Other users are branch scoped;
 // legacy unassigned users have no implicit access to other branches.
 function recordScope(req){
@@ -29,12 +34,11 @@ function recordScope(req){
 
 function renderTenant(req, res, view, pageTitle, pageSub, data) {
   res.render('layouts/dashboard', {
-    context:'tenant', offlineIdentity:require('../services/offlineIdentity')(req), offlineCacheable:req.method==='GET', currentPath:tenantNavigationPath(req.baseUrl + req.path), pageTitle, pageSub,
+    context:'tenant', offlineIdentity:require('../services/offlineIdentity')(req), offlineContext:require('../services/offlineIdentity').context(req,res.locals.phoneDefaults), offlineCacheable:req.method==='GET', currentPath:tenantNavigationPath(req.baseUrl + req.path), pageTitle, pageSub,
     tenant:{...req.tenant,name:req.workspaceIdentity?.name||req.tenant.name}, user:req.user, menu:tenantMenu(req.tenant,req.user),
     view:`../tenant/${view}`, data, flash:consumeFlash(req), money, formatUtcDate, amountFromMinor:mobile.fromMinor
   });
 }
-router.use(require('./offline.routes'));
 router.use('/backups',require('../backups/routes')({renderTenant}));
 router.use('/treasury',require('../treasury/routes')({renderTenant}));
 router.use('/funded',require('./fundedOperations.routes')({renderTenant}));

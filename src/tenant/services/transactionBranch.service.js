@@ -20,11 +20,11 @@ async function resolveTransactionBranch(conn,actor,input={},options={}){
   let branch;
   if(branchId){
     assignedBranchId(actor,input);
-    branch=await Branch.findOne({_id:branchId,status:'active'}).lean();
+    branch=options.activeBranches?options.activeBranches.find(item=>String(item._id).toLowerCase()===branchId.toLowerCase()):await Branch.findOne({_id:branchId,status:'active'}).lean();
     if(!branch)throw fail('Your operating branch is inactive or unavailable. Update your account assignment before recording transactions.',403);
   }else{
     if(actor?.role!=='Tenant Owner')throw fail('An active branch assignment is required. Contact your tenant owner.',403);
-    const available=await Branch.find({status:'active'}).sort({_id:1}).limit(2).lean();
+    const available=options.activeBranches?options.activeBranches.slice(0,2):await Branch.find({status:'active'}).sort({_id:1}).limit(2).lean();
     if(!available.length)throw fail('Create an active branch in Branch Management before recording transactions.');
     if(available.length!==1)throw fail('Your account needs an operating branch. Set it in Branch Management; transaction forms do not choose a branch.');
     branch=available[0];branchId=String(branch._id);
@@ -35,8 +35,12 @@ async function resolveTransactionBranch(conn,actor,input={},options={}){
 async function requestContext(req,res,next){
   try{
     req.operationBranch=null;req.operationBranchError=null;
+    const branchView=require('./branchView.service');
+    // A fresh request-scoped snapshot serves both branch controls. It is never
+    // reused by mutation services or across requests.
+    const activeBranches=branchView.canViewBranches(req.user)?await require('../models').branchModel(req.tenantDb).find({status:'active'}).sort({_id:1}).lean():req.authenticatedBranch?[req.authenticatedBranch]:null;
     try{
-      req.operationBranch=await resolveTransactionBranch(req.tenantDb,req.user);
+      req.operationBranch=await resolveTransactionBranch(req.tenantDb,req.user,{},activeBranches?{activeBranches}:{});
       req.user.transactionBranchId=String(req.operationBranch._id);
     }catch(error){
       if(![403,409].includes(error.status))throw error;
@@ -46,7 +50,7 @@ async function requestContext(req,res,next){
     }
     res.locals.operationBranch=req.operationBranch;
     res.locals.operationBranchError=req.operationBranchError;
-    await require('./branchView.service').context(req,res);
+    await branchView.context(req,res,{branches:activeBranches});
     next();
   }catch(error){next(error);}
 }

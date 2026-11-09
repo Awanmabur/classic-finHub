@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const MongoStore = require('connect-mongo');
+const { createSessionStore } = require('./config/sessionStore');
 const createApp = require('./app');
 const env = require('./config/env');
 const { connectPlatformMongo } = require('./config/mongo');
@@ -15,9 +15,13 @@ async function boot() {
   verifyReplicaPrimary(hello);
   // Unique global email identity index is a prerequisite for safe auto-routing.
   for (const Model of [require('./platform/models/AccountIdentity'),require('./platform/models/LoginThrottle'),require('./platform/models/SecurityEvent'),require('./platform/models/PasswordReset'),require('./platform/models/PlanVersion'),require('./platform/models/PlanDraft'),require('./platform/models/PlanPublicationLock'),require('./platform/models/SmsDevice'),require('./platform/models/SmsUsage'),require('./platform/models/UsageCounter'),require('./platform/models/OutboxEvent'),require('./platform/models/WorkerHeartbeat')]) await Model.createIndexes();
-  const store = MongoStore.create({ client: mongoose.connection.getClient(), dbName: mongoose.connection.name, collectionName: 'sessions', ttl: 8 * 3600 });
+  const store = await createSessionStore({ client: mongoose.connection.getClient(), dbName: mongoose.connection.name });
   const app = createApp({ sessionStore: store });
-  const server = app.listen(env.port, () => console.log(`ClassicFin Hub listening on ${env.port} (MongoDB replica set: ${hello.setName})`));
+  const server = app.listen(env.port, () => {
+    console.log(`ClassicFin Hub listening on ${env.port} (MongoDB replica set: ${hello.setName})`);
+    const policy=require('./config/mfaPolicy').status();
+    console.log(JSON.stringify({event:'app.ready',version:require('../package.json').version,mfa:policy.mode,mfaSource:policy.source}));
+  });
   server.headersTimeout = 15000;
   server.requestTimeout = 30000;
   server.keepAliveTimeout = 5000;

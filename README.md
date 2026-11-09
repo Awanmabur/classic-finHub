@@ -1,4 +1,4 @@
-# ClassicFin Hub 1.27.0
+# ClassicFin Hub 1.28.0
 
 A multi-tenant platform for reviewed manual financial operations, configurable subscriptions, branch-based administration and separately licensed Android SMS capture.
 
@@ -58,9 +58,11 @@ npm run dev:local
 
 `dev:local` loads `.env` before selecting the authenticator key and starts the development database on loopback port 27018 and persists a private, Git-ignored development MFA key. It must not run with production data or settings. See [cloud setup](docs/CLOUD_SETUP.md) and the [Windows startup guide](docs/WINDOWS_STARTUP_AND_SECURITY.md) for platform-specific details.
 
-There are no seeded administrator credentials. Follow the protected password-file bootstrap procedure in the production runbook or `scripts/bootstrap.js`, then enroll MFA through sign-in.
+There are no seeded administrator credentials. Follow the protected password-file bootstrap procedure in the production runbook or `scripts/bootstrap.js`. When MFA is enabled, sign-in guides privileged accounts through enrollment.
 
-To defer authenticator setup, set `MFA_ENABLED=false` in `.env` and restart. Email/password login and existing role restrictions continue to apply. Set it to `true` and restart when ready to enforce MFA; password-only sessions then require fresh verification. Existing enrollment and encryption keys are preserved. Without this variable, MFA remains enabled.
+To defer authenticator setup, set `MFA_ENABLED=false` in `.env` and restart. Email/password login and existing role restrictions continue to apply. Set it to `true` and restart when ready to enforce MFA; password-only sessions then require fresh verification. Existing enrollment and encryption keys are preserved. An absent or blank flag disables MFA outside production and enables it with `NODE_ENV=production`; an invalid nonempty value enables enforcement. The startup `app.ready` event reports the effective version, MFA mode and configuration source. An exported process variable takes precedence over `.env`; see the [Windows guide](docs/WINDOWS_STARTUP_AND_SECURITY.md#defer-authenticator-setup-while-configuring-the-application).
+
+The workspace quietly saves visited pages for offline use. To prepare more authorized pages, choose **Pending sync → Offline availability → Save workspace pages** while connected. Preparation stops when you interact with the workspace. Keep unsynced device entries intact during updates; never clear site data to repair a cache issue. [Offline procedures](docs/TENANT_BACKUPS_AND_OFFLINE.md#offline-operation) explain sync, scope and recovery limits.
 
 ## Verification
 
@@ -73,9 +75,11 @@ npm run release:gate
 
 Run the release gate against isolated staging/local infrastructure. Its integration scripts enforce loopback scratch databases and must never run on production. Browser and repository evidence is recorded under [docs/review](docs/review), with the latest launch results in the launch status document.
 
+Storage probes also cover bounded connection/pool waits, session-write throttling and exact index equivalence after batching. Run `npm run branches:browser` separately for the compact branch rows and their create/edit/archive modals at desktop and phone widths. See [workspace performance evidence](docs/review/workspace-performance/README.md) for measured scope and reproduction.
+
 ## Security and public discovery
 
-Financial and administrative routes require authentication, scoped permissions and privileged MFA. Private responses are no-store/noindex. Public marketing pages provide canonical metadata, structured data, a public-only sitemap, robots policy and `llms.txt` guidance. Crawler permission does not guarantee search indexing or AI inclusion. Staging disables indexing.
+Financial and administrative routes require authentication, scoped permissions and privileged MFA when enabled. Private responses are no-store/noindex. Public marketing pages provide canonical metadata, structured data, a public-only sitemap, robots policy and `llms.txt` guidance. Crawler permission does not guarantee search indexing or AI inclusion. Staging disables indexing.
 
 Use protected environment files and distinct service identities; never commit keys, passwords, backup material or tenant data. Live HTTPS, delivery and recovery must be verified on the actual deployment.
 

@@ -82,17 +82,36 @@ function page(view,data,user,context='tenant'){
     tenant:t,user:u,menu:context==='tenant'?tenantMenu(t,u):platformMenu(u),view:`../${context}/${view}`,data,flash:null,
     assetVersion:'test',csrfToken:'abcd',money:()=>'',amountFromMinor:()=>'',formatUtcDate });
 }
-test('branch page renders actual create/edit/archive actions only for Tenant Owner',async()=>{
+test('branch directory uses one compact row per branch and shared owner edit dialogs',async()=>{
   const details={_id:new mongoose.Types.ObjectId(id),name:'Main Branch',code:'main-branch',status:'active',currency:'UGX',address:'Kitende'};
   const data={branches:[details],plan:{limits:{branches:3}},canManage:true};
   const html=await page('branches/index',data,owner);
   assert.match(html,/action="\/tenant\/branches"/);
-  assert.match(html,/action="\/tenant\/branches\/[a-f0-9]{24}\/update"/);
-  assert.match(html,/Archive/);
+  assert.match(html,new RegExp('data-branch-id="'+id+'"'));
+  assert.match(html,/data-branch-edit aria-controls="branchEditDialog"/);
+  assert.equal((html.match(/id="branchEditDialog"/g)||[]).length,1);
+  assert.equal((html.match(/id="branchCreateDialog"/g)||[]).length,1);
+  assert.match(html,/type="submit" form="branchEditForm">Save changes/);
+  assert.match(html,new RegExp('action="/tenant/branches/'+id+'/archive"'));
+  assert.match(html,/name="_csrf" value="abcd"/);
+  assert.match(html,/name="currenciesConfigured" value="1"/);
+  const row=html.match(/<article class="branchRow"[\s\S]*?<\/article>/)[0];
+  assert.doesNotMatch(row,/name="(?:name|address|currencies)"/);
   const manager={...operator,role:'Branch Manager',permissions:permissionsFor('Branch Manager')};
   const readOnly=await page('branches/index',{...data,canManage:false},manager);
   assert.doesNotMatch(readOnly,/action="\/tenant\/branches"/);
   assert.doesNotMatch(readOnly,/\/archive"/);
+  assert.doesNotMatch(readOnly,/id="branch(?:Create|Edit)Dialog"/);
+  assert.match(readOnly,/data-branch-details aria-controls="branchDetailsDialog"/);
+});
+test('branch directory escapes row metadata and retains archived branch details and restore',async()=>{
+  const details={_id:new mongoose.Types.ObjectId(id),name:'Market "West" <Office>',code:'west',status:'archived',currency:'KES',currencies:['USD','KES'],address:'Road <1>'};
+  const html=await page('branches/index',{branches:[details],plan:{limits:{branches:3}},canManage:true},owner);
+  assert.match(html,/data-branch-name="Market &#34;West&#34; &lt;Office&gt;"/);
+  assert.match(html,/data-branch-currencies="USD,KES"/);
+  assert.match(html,/USD · KSH/);
+  assert.match(html,new RegExp('action="/tenant/branches/'+id+'/restore"'));
+  assert.doesNotMatch(html,new RegExp('action="/tenant/branches/'+id+'/archive"'));
 });
 test('staff page renders scoped invitations, audited edits and invitation revocation',async()=>{
   const data={users:[{_id:id,name:'Operator',email:'operator@example.invalid',role:'Mobile Money Operator',status:'active',branchId:id,allowedModules:['mobile_money']}],

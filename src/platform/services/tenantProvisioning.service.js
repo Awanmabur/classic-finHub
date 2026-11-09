@@ -44,13 +44,17 @@ async function prepareTenantStorage(connection){
   // automatic development build of every newly compiled tenant model.
   connection.config.autoIndex=false;
   try{
-    await require('../../tenant/models').ensureTenantIndexes(connection);
-    await require('../../tenant/customerAccounts/models').ensureIndexes(connection);
-    await require('../../tenant/models/expenses').ensureExpenseIndexes(connection);
-    await require('../../tenant/workspace/models').ensure(connection);
-    await require('../../tenant/treasury/models').ensure(connection);
-    await require('../../tenant/treasury/funding.models').ensureIndexes(connection);
-    await require('../../tenant/funded/models').ensureIndexes(connection);
+    // These independent schema groups share the same awaited preflight barrier.
+    // No tenant or invitation is published until every group has succeeded.
+    await Promise.all([
+      require('../../tenant/models').ensureTenantIndexes(connection),
+      require('../../tenant/customerAccounts/models').ensureIndexes(connection),
+      require('../../tenant/models/expenses').ensureExpenseIndexes(connection),
+      require('../../tenant/workspace/models').ensure(connection),
+      require('../../tenant/treasury/models').ensure(connection),
+      require('../../tenant/treasury/funding.models').ensureIndexes(connection),
+      require('../../tenant/funded/models').ensureIndexes(connection)
+    ]);
   }catch(error){throw storageFailure(error);}
 }
 function checkPayload(payload = {}) {

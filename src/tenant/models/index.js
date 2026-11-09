@@ -1,3 +1,4 @@
+const {ensureModelIndexes}=require('../../config/ensureModelIndexes');
 const mongoose = require('mongoose');
 const {currencyCodes}=require('../../config/currencies');
 const userSchema = new mongoose.Schema({
@@ -118,30 +119,30 @@ function ensureTenantIndexes(conn) {
   if (!initialized.has(conn)) {
     const job = Promise.all([
       require('../transferSms/models').ensureIndexes(conn),
-      model(conn, 'SecureTenantUser',userSchema).createIndexes(),
-      model(conn, 'SecureMobileTransaction',moneySchema).createIndexes(),
-      model(conn, 'SecureAuditEvent',auditSchema).createIndexes(),
-      model(conn, 'SecureStaffInvite', staffInviteSchema).createIndexes(),
-      model(conn, 'SecureBranch', branchSchema).createIndexes(),
-      model(conn, 'SecureCashSession', cashSessionSchema).createIndexes(),
-      model(conn,'TransferContactV1',transferContactSchema).createIndexes(),
-      model(conn,'TransferOrderV1',transferOrderSchema).createIndexes(),
-      model(conn,'BankReferenceV1',bankReferenceSchema).createIndexes(),
-      model(conn,'BankingRequestV1',bankingRequestSchema).createIndexes(),
-      model(conn,'ForexRateV1',forexRateSchema).createIndexes(),
-      model(conn,'ForexQuoteV1',forexQuoteSchema).createIndexes(),
-      model(conn,'ApprovalPolicyV1',approvalPolicySchema).createIndexes(),
-      model(conn,'ApprovalRequestV1',approvalRequestSchema).createIndexes(),
-      model(conn,'NotificationTemplateV1',notificationTemplateSchema).createIndexes(),
-      model(conn,'NotificationMessageV1',notificationMessageSchema).createIndexes(),
-      model(conn,'NotificationPreferenceV1',notificationPreferenceSchema).createIndexes(),
-      model(conn,'SmsInboxV1',smsInboxSchema).createIndexes(),
-      model(conn, 'LedgerAccountV2', ledgerSchemas.account).createIndexes(),
-      model(conn, 'LedgerJournalV2', ledgerSchemas.journal).createIndexes(),
-      model(conn, 'LedgerPostingV2', ledgerSchemas.posting).createIndexes(),
-      model(conn, 'FinancialOperationV1', financialSchemas.operation).createIndexes(),
-      model(conn, 'VerifiedFinancialEvidenceV1', financialSchemas.evidence).createIndexes(),
-      model(conn, 'FinancialExceptionV1', financialSchemas.exception).createIndexes()
+      ensureModelIndexes(model(conn, 'SecureTenantUser',userSchema)),
+      ensureModelIndexes(model(conn, 'SecureMobileTransaction',moneySchema)),
+      ensureModelIndexes(model(conn, 'SecureAuditEvent',auditSchema)),
+      ensureModelIndexes(model(conn, 'SecureStaffInvite', staffInviteSchema)),
+      ensureModelIndexes(model(conn, 'SecureBranch', branchSchema)),
+      ensureModelIndexes(model(conn, 'SecureCashSession', cashSessionSchema)),
+      ensureModelIndexes(model(conn,'TransferContactV1',transferContactSchema)),
+      ensureModelIndexes(model(conn,'TransferOrderV1',transferOrderSchema)),
+      ensureModelIndexes(model(conn,'BankReferenceV1',bankReferenceSchema)),
+      ensureModelIndexes(model(conn,'BankingRequestV1',bankingRequestSchema)),
+      ensureModelIndexes(model(conn,'ForexRateV1',forexRateSchema)),
+      ensureModelIndexes(model(conn,'ForexQuoteV1',forexQuoteSchema)),
+      ensureModelIndexes(model(conn,'ApprovalPolicyV1',approvalPolicySchema)),
+      ensureModelIndexes(model(conn,'ApprovalRequestV1',approvalRequestSchema)),
+      ensureModelIndexes(model(conn,'NotificationTemplateV1',notificationTemplateSchema)),
+      ensureModelIndexes(model(conn,'NotificationMessageV1',notificationMessageSchema)),
+      ensureModelIndexes(model(conn,'NotificationPreferenceV1',notificationPreferenceSchema)),
+      ensureModelIndexes(model(conn,'SmsInboxV1',smsInboxSchema)),
+      ensureModelIndexes(model(conn, 'LedgerAccountV2', ledgerSchemas.account)),
+      ensureModelIndexes(model(conn, 'LedgerJournalV2', ledgerSchemas.journal)),
+      ensureModelIndexes(model(conn, 'LedgerPostingV2', ledgerSchemas.posting)),
+      ensureModelIndexes(model(conn, 'FinancialOperationV1', financialSchemas.operation)),
+      ensureModelIndexes(model(conn, 'VerifiedFinancialEvidenceV1', financialSchemas.evidence)),
+      ensureModelIndexes(model(conn, 'FinancialExceptionV1', financialSchemas.exception))
     ]).catch(err => { initialized.delete(conn); throw err; });
     initialized.set(conn, job);
   }

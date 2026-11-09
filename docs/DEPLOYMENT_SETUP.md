@@ -288,11 +288,30 @@ password in the command line or commit the file. Remove the file after successfu
 bootstrap, sign in, enroll MFA, publish plans and test the owner's invitation.
 An upgrade does not require bootstrap and must not reset existing accounts.
 
-Authenticator enforcement is controlled by `MFA_ENABLED`. It defaults to enabled;
-an explicit `false` permits password-only setup. Set it to `true` and restart when
-ready to require enrollment/challenges. Keep `MFA_ENCRYPTION_KEY` unchanged in both
-modes: it also protects Android capture and existing transfer-PIN data. Enabling
-the requirement rejects sessions established without genuine MFA verification.
+Authenticator enforcement is controlled by `MFA_ENABLED`. An explicit `false`
+permits password-only setup. An absent or blank value disables enforcement
+outside production and enables it with `NODE_ENV=production`; an invalid nonempty
+value enables enforcement. Set it to `true` and restart when ready to require
+enrollment/challenges. The startup `app.ready` event reports the effective version,
+MFA mode and configuration source. Exported process settings take precedence over
+`.env`. Keep `MFA_ENCRYPTION_KEY` unchanged in both modes: it also protects Android
+capture and existing transfer-PIN data. Enabling the requirement rejects sessions
+established without genuine MFA verification.
+
+The web MongoDB pool defaults to 30 connections (`MONGO_POOL_MAX`, integer 1–200).
+Server selection and connection each have a 7-second bound, pool checkout a
+5-second bound and inactive sockets a 30-second bound. These individual limits
+do not impose a whole-operation deadline or replay an application write. Known
+storage availability failures return 503 with `Retry-After`; investigate ambiguous
+write outcomes by reference before retrying. The session expiry index is awaited
+before HTTP startup, and unchanged session expiry touches are coalesced for up to
+60 seconds. Session saves, authorization changes and logout are not deferred.
+
+Tenant setup batches declared indexes by collection while retaining their options
+and uniqueness enforcement. Tenant read handles disable implicit index creation;
+the explicit provisioning/index procedure remains required. Test actual Atlas
+latency and capacity with the intended region, roles and workload before launch;
+local probe timings do not measure the remote deployment.
 
 Start all three supervised services from the same immutable image:
 

@@ -36,14 +36,14 @@ function safeReturnTo(value){
  target.searchParams.delete('cursor');target.searchParams.delete('page');
  return target.pathname+target.search;
 }
-async function context(req,res){
+async function context(req,res,{branches:providedBranches}={}){
  delete req.user.viewBranchId;
  req.viewBranch=null;req.viewBranchId=null;
  const wide=canViewBranches(req.user);
  res.locals.canViewBranches=wide;res.locals.viewBranches=[];res.locals.viewBranch=null;res.locals.viewBranchId=null;
  res.locals.branchViewReturnTo=safeReturnTo(req.originalUrl||'/tenant/dashboard');
  if(!wide||!req.session)return;
- const branches=await require('../models').branchModel(req.tenantDb).find({status:'active'}).sort({_id:1}).select('_id name code currency currencies').lean();
+ const branches=providedBranches||await require('../models').branchModel(req.tenantDb).find({status:'active'}).sort({_id:1}).select('_id name code currency currencies').lean();
  const selected=req.session?.viewBranchId;
  const view=selected==='all'?null:branches.find(branch=>String(branch._id)===String(selected))||mainBranch(branches);
  const id=selected==='all'?'all':view?String(view._id):'all';

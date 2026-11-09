@@ -12,7 +12,7 @@
   <% if(context==='tenant'){ %><link rel="stylesheet" href="/tenant/workspace/theme.css?v=<%= assetVersion %>" /><link rel="stylesheet" href="/css/approved-tenant.css?v=<%= assetVersion %>" /><% } else { %><link rel="stylesheet" href="/css/dashboard.css?v=<%= assetVersion %>" /><% } %>
   <link rel="stylesheet" href="/css/dashboard-layout.css?v=<%= assetVersion %>" />
 </head>
-<body<% if(context==='tenant'){ %> data-workspace="tenant" data-offline-scope="<%= typeof offlineIdentity!=='undefined'?offlineIdentity.scope:'' %>" data-offline-branch="<%= typeof offlineIdentity!=='undefined'?offlineIdentity.branchId:'' %>" data-offline-view="<%= typeof offlineIdentity!=='undefined'?offlineIdentity.viewBranchId:'' %>" data-offline-cacheable="<%= typeof offlineCacheable!=='undefined'&&offlineCacheable?'true':'false' %>" data-phone-prefix="<%= typeof phoneDefaults==='undefined'?'+211':phoneDefaults.dialCode %>"<% } %>>
+<body<% if(context==='tenant'){ %> data-workspace="tenant" data-offline-context="<%= typeof offlineContext==='undefined'?'':JSON.stringify(offlineContext) %>" data-offline-scope="<%= typeof offlineIdentity!=='undefined'?offlineIdentity.scope:'' %>" data-offline-branch="<%= typeof offlineIdentity!=='undefined'?offlineIdentity.branchId:'' %>" data-offline-view="<%= typeof offlineIdentity!=='undefined'?offlineIdentity.viewBranchId:'' %>" data-offline-cacheable="<%= typeof offlineCacheable!=='undefined'&&offlineCacheable?'true':'false' %>" data-phone-prefix="<%= typeof phoneDefaults==='undefined'?'+211':phoneDefaults.dialCode %>"<% } %>>
   <% const visiblePaths = new Set(menu.flatMap(group => [...group.items.map(item => item.href),...(group.paths||[])]));
      const can = permission => user.permissions.includes('*') || user.permissions.includes(permission);
      const quickActions = context === 'tenant' ? [
@@ -82,7 +82,7 @@
   </div></div>
   <div class="menuOverlay" id="menuOverlay"></div>
   <% if(transactionOptions.length){ %><%- include('../partials/transaction-modal', {transactionOptions,visiblePaths}) %><% } %>
-  <% if(context === 'tenant'){ %><%- include('../partials/offline-queue') %><script src="/js/offline.js?v=<%= assetVersion %>" defer></script><script src="/js/customer-accounts.js?v=<%= assetVersion %>" defer></script><% } %>
+  <% if(context === 'tenant'){ %><%- include('../partials/offline-queue') %><script src="/js/offline-workspace.js?v=<%= assetVersion %>" defer></script><script src="/js/customer-accounts.js?v=<%= assetVersion %>" defer></script><% } %>
   <script src="/js/dashboard.js?v=<%= assetVersion %>" defer></script>
 </body>
 </html>

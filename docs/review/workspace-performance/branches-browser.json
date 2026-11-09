@@ -1,0 +1,235 @@
+{
+  "browserErrors": [],
+  "resourceErrors": [],
+  "layouts": [
+    {
+      "name": "branch-directory",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": [],
+      "mobileDrawerClosed": true,
+      "rowHeights": [
+        60,
+        60,
+        60,
+        60,
+        60,
+        60
+      ],
+      "dialogInside": true,
+      "formOverflow": false,
+      "approvedDialogFrame": true
+    },
+    {
+      "name": "branch-directory",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": [],
+      "mobileDrawerClosed": true,
+      "rowHeights": [
+        56,
+        56,
+        56,
+        56,
+        56,
+        56
+      ],
+      "dialogInside": true,
+      "formOverflow": false,
+      "approvedDialogFrame": true
+    },
+    {
+      "name": "branch-directory",
+      "width": 320,
+      "overflow": false,
+      "duplicateIds": [],
+      "mobileDrawerClosed": true,
+      "rowHeights": [
+        56,
+        56,
+        56,
+        56,
+        56,
+        56
+      ],
+      "dialogInside": true,
+      "formOverflow": false,
+      "approvedDialogFrame": true
+    },
+    {
+      "name": "edit-branch",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": [],
+      "mobileDrawerClosed": true,
+      "rowHeights": [
+        60,
+        60,
+        60,
+        60,
+        60,
+        60
+      ],
+      "dialogInside": true,
+      "formOverflow": false,
+      "approvedDialogFrame": true
+    },
+    {
+      "name": "edit-branch",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": [],
+      "mobileDrawerClosed": true,
+      "rowHeights": [
+        56,
+        56,
+        56,
+        56,
+        56,
+        56
+      ],
+      "dialogInside": true,
+      "formOverflow": false,
+      "approvedDialogFrame": true
+    },
+    {
+      "name": "edit-branch",
+      "width": 320,
+      "overflow": false,
+      "duplicateIds": [],
+      "mobileDrawerClosed": true,
+      "rowHeights": [
+        56,
+        56,
+        56,
+        56,
+        56,
+        56
+      ],
+      "dialogInside": true,
+      "formOverflow": false,
+      "approvedDialogFrame": true
+    },
+    {
+      "name": "create-branch",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": [],
+      "mobileDrawerClosed": true,
+      "rowHeights": [
+        60,
+        60,
+        60,
+        60,
+        60,
+        60
+      ],
+      "dialogInside": true,
+      "formOverflow": false,
+      "approvedDialogFrame": true
+    },
+    {
+      "name": "create-branch",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": [],
+      "mobileDrawerClosed": true,
+      "rowHeights": [
+        56,
+        56,
+        56,
+        56,
+        56,
+        56
+      ],
+      "dialogInside": true,
+      "formOverflow": false,
+      "approvedDialogFrame": true
+    },
+    {
+      "name": "create-branch",
+      "width": 320,
+      "overflow": false,
+      "duplicateIds": [],
+      "mobileDrawerClosed": true,
+      "rowHeights": [
+        56,
+        56,
+        56,
+        56,
+        56,
+        56
+      ],
+      "dialogInside": true,
+      "formOverflow": false,
+      "approvedDialogFrame": true
+    },
+    {
+      "name": "branch-details",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": [],
+      "mobileDrawerClosed": true,
+      "rowHeights": [
+        60,
+        60,
+        60,
+        60,
+        60,
+        60,
+        60
+      ],
+      "dialogInside": true,
+      "formOverflow": false,
+      "approvedDialogFrame": true
+    },
+    {
+      "name": "branch-details",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": [],
+      "mobileDrawerClosed": true,
+      "rowHeights": [
+        56,
+        56,
+        56,
+        56,
+        56,
+        56,
+        56
+      ],
+      "dialogInside": true,
+      "formOverflow": false,
+      "approvedDialogFrame": true
+    },
+    {
+      "name": "branch-details",
+      "width": 320,
+      "overflow": false,
+      "duplicateIds": [],
+      "mobileDrawerClosed": true,
+      "rowHeights": [
+        56,
+        56,
+        56,
+        56,
+        56,
+        56,
+        56
+      ],
+      "dialogInside": true,
+      "formOverflow": false,
+      "approvedDialogFrame": true
+    }
+  ],
+  "operations": {
+    "currencyGuardRetainsDraft": true,
+    "edit": true,
+    "interruptedWriteRetainsDraft": true,
+    "assignedStaffArchiveGuard": true,
+    "archiveRestore": true,
+    "create": true,
+    "operatingBranch": true,
+    "branchManagerReadOnly": true
+  }
+}

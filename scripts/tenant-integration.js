@@ -101,13 +101,13 @@ async function main(){
   assert.equal(invalid.response.status,400);assert.match(invalid.html,/role="alert"/);assert.match(invalid.html,/value="Provision Probe Tenant"/);
   assert.equal(await Tenant.countDocuments(),0,'invalid input creates no tenant');
   // Actual Mongoose index traversal against a real tenant connection; only
-  // its native user's createIndex command is faulted to emulate Atlas denial.
+  // its native user's createIndexes command is faulted to emulate Atlas denial.
   const tenantConnection=getTenantConnection(slug),parentAutoIndex=mongoose.connection.config.autoIndex;
   tenantConnection.config.autoIndex=false;
   const User=require('../src/tenant/models').tenantUserModel(tenantConnection);
-  const native=User.collection.collection,originalIndex=native.createIndex;
+  const native=User.collection.collection,originalIndex=native.createIndexes;
   let failure='permission',failedIndexes=0;
-  native.createIndex=async function(...args){
+  native.createIndexes=async function(...args){
     if(failure){failedIndexes++;throw failure==='permission'?new mongoose.mongo.MongoServerError({message:'DO-NOT-ECHO private database command',code:13,codeName:'Unauthorized'}):new mongoose.mongo.MongoNetworkError('DO-NOT-ECHO private network details');}
     return originalIndex.apply(this,args);
   };
@@ -121,7 +121,7 @@ async function main(){
     assert.equal(transient.response.status,503);assert.equal(transient.response.headers.get('retry-after'),'5');assert.match(transient.html,/MongoDB became unavailable/);assert.match(transient.html,/value="Provision Probe Tenant"/);assert.doesNotMatch(transient.html,/DO-NOT-ECHO/);
     assert.equal(await Tenant.countDocuments(),0);assert.equal(await Invite.countDocuments(),0);
     assert.equal((await request('/health/ready')).response.status,200,'a failed index command must leave HTTP ready for a retry');
-  }finally{failure='';native.createIndex=originalIndex;}
+  }finally{failure='';native.createIndexes=originalIndex;}
   assert(failedIndexes>0,'the native index failure was actually exercised');
   // Revocation while the final DDL stage completes cannot publish a workspace.
   const revokedSlug='revoked-'+nonce;extraSlugs.add(revokedSlug);

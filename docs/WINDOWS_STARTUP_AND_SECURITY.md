@@ -39,6 +39,37 @@ selects the separate loopback development database instead.
 
 ## Choose one MongoDB setup
 
+### Defer authenticator setup while configuring the application
+
+Set this in the web `.env` and restart `npm run dev`:
+
+```dotenv
+MFA_ENABLED=false
+```
+
+Platform Super Admin and tenant accounts can then sign in using email and
+password. Role, account status, tenant/branch restrictions and CSRF protections
+still apply. Keep the existing `MFA_ENCRYPTION_KEY` and retained development key:
+the switch does not delete enrollment, and other encrypted features use that key.
+
+When ready, set `MFA_ENABLED=true`, restart, and sign in again. Existing enrolled
+accounts require their authenticator; unenrolled privileged accounts enter setup.
+Sessions created without MFA cannot satisfy the re-enabled requirement. If the
+variable is absent, MFA enforcement defaults to enabled.
+
+### Tenant creation feedback and interrupted responses
+
+The platform creates each tenant database's indexes before publishing its tenant
+record and owner invitation. If Atlas denies this setup, the form now preserves
+your entries and explains the required tenant-database permission. Connectivity
+and index conflicts also stay visible on the form, with a retry path after the
+underlying problem is corrected.
+
+If the response was interrupted, check **Tenants** before submitting again. Open
+the existing tenant profile and, while its owner is still pending, use **Create
+replacement owner activation link** with a reason. Earlier unused links expire;
+the existing tenant is retained. Activated accounts use normal account recovery.
+
 ### A. Recommended: isolated development database (Docker Desktop)
 
 Install Docker Desktop for Windows and start it. This workflow neither alters nor deletes the existing Windows MongoDB service. Docker maps the new development database on **127.0.0.1:27018** only and retains its local volume when stopped.

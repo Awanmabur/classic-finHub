@@ -1,0 +1,17 @@
+{
+  "node": "v22.23.4",
+  "user": "node",
+  "ready": 200,
+  "home": 200,
+  "homeH1": 1,
+  "privateStatus": 303,
+  "privateNoStore": true,
+  "privateNoIndex": true,
+  "developmentKeyAbsent": true,
+  "dotEnvAbsent": true,
+  "imageId": "sha256:4bfc647f5b1126bc5492be7ba5ee6258872de59c2aa452c3988b0ce746f56966",
+  "readOnlyFilesystem": true,
+  "capabilitiesDropped": true,
+  "noPublicPorts": true,
+  "scope": "Isolated local image smoke; not live TLS, authenticated production Mongo, provider delivery or recovery verification."
+}

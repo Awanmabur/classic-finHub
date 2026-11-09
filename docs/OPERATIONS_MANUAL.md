@@ -54,7 +54,7 @@ Every action also requires an active tenant entitlement, an active user, the rel
 
 | Role | Primary work | Main limits |
 | --- | --- | --- |
-| Platform Super Admin | Publish plans; create tenants; grant or revoke entitlements; manage tenant status; review platform appointments, audit and background operations | Platform access is separate from tenant operating accounts; MFA is mandatory |
+| Platform Super Admin | Publish plans; create tenants; grant or revoke entitlements; manage tenant status; review platform appointments, audit and background operations | Platform access is separate from tenant operating accounts; MFA applies when enforcement is enabled |
 | Tenant Owner | Configure tenant, branches, staff, funds, defaults and policies; oversee tenant-wide activity; perform permitted operations and independent reviews | Cannot approve their own request, own opening evidence or assigned drawer evidence where independence is required |
 | Branch Manager | Manage permitted staff in their branch; inspect branch activity; review permitted Banking, Forex, Transfer, expense and cash cases | Cannot publish tenant approval policies or grant owner/platform powers; cash variance approval needs Owner or Reconciliation Officer; not a Mobile Money transaction reviewer |
 | Mobile Money Operator | Record cash-in and cash-out; inspect their transactions and Mobile Money reports; open and close their own drawer | Cannot independently approve their own records or reset wallet balances on the transaction form |
@@ -67,7 +67,9 @@ Every action also requires an active tenant entitlement, an active user, the rel
 | Approval Requester / Approval Officer | Submit internal business requests / decide configured approval stages | Internal approval does not execute a payment or replace financial review |
 | Viewer | Limited Mobile Money viewing and their notifications | No financial posting or review |
 
-Owners, Branch Managers, Reconciliation Officers, Auditors, Reports Analysts, Analytics Analysts and Approval Officers must complete MFA. Use individual accounts, not shared teller or reviewer credentials. Assign at least two independent people before trying to make the first reviewed posting.
+Owners, Branch Managers, Reconciliation Officers, Auditors, Reports Analysts, Analytics Analysts and Approval Officers must complete MFA when authenticator enforcement is enabled. Use individual accounts, not shared teller or reviewer credentials. Assign at least two independent people before trying to make the first reviewed posting.
+
+For initial setup, `MFA_ENABLED=false` permits password-only access while retaining all role and tenant/branch boundaries. Set `MFA_ENABLED=true` and restart when ready to enforce authenticator enrollment/challenges. The default is enabled when the variable is absent. Keep existing MFA encryption keys and enrollment records unchanged; other encrypted features still use those keys. Sessions established without MFA cannot satisfy the re-enabled requirement.
 
 ### Branches, dates and currencies
 
@@ -130,10 +132,18 @@ Published plan versions and granted subscription terms are retained as snapshots
 3. Open the new tenant profile in **Tenants**. Check its plan version, entitlement end, branch allowance, reserved seats and status. Confirm provisioning completed rather than assuming a saved form is an operational tenant.
 4. If no operating term exists, use the tenant profile's **Grant / renew subscription**, choose a published plan, enter the authorized duration of 1–366 days and a 20–600 character justification.
 5. Deliver any private invitation only through the intended approved channel. The owner opens the single-use invitation, sets a strong password and signs in. Expired or used invitations need the permitted replacement/recovery workflow; copying a used link does not reactivate it.
-6. The owner enrolls and completes MFA, opens **Tenant Workspace → Tenant profile**, and verifies the business details and Main branch.
+6. The owner completes MFA when enforcement is enabled, opens **Tenant Workspace → Tenant profile**, and verifies the business details and Main branch.
 7. Create the independent operating and reviewing accounts described in the next section. Finish funds setup before the first transaction.
 
 **Expected result:** a platform tenant mapping and subscription, a tenant database with provisioned indexes, a Main branch and owner identity, invitation/audit evidence and an activated owner account. This creates the organization, not its cash or wallet balances.
+
+If creation returns a database setup error, the form preserves its fields and
+shows the specific permission, connectivity or index problem. Correct that issue
+before retrying. If a response was interrupted after creation, open **Tenants**
+and the existing tenant profile. For a pending owner, enter a reason and choose
+**Create replacement owner activation link**. This issues a new 48-hour link and
+expires earlier unused links, with an audit record; it does not create a second
+tenant or reset an activated owner's account.
 
 ## 5. Tenant profile, branches and staff
 

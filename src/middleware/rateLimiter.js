@@ -3,11 +3,12 @@ const rateLimit = require('express-rate-limit');
 const {createHmac}=require('node:crypto');
 const {sessionSecret}=require('../config/env');
 const {validAuthAge}=require('./authSessionExpiry');
+const mfaPolicy=require('../config/mfaPolicy');
 const OID=/^[a-f0-9]{24}$/i;
 function sessionScope(req){
  const session=req.session;
  if(!session||!validAuthAge(session.authenticatedAt)||!OID.test(String(session.identityId||'')))return null;
- if(OID.test(String(session.platformId||''))&&validAuthAge(session.mfaVerifiedAt))return `platform:${session.platformId}:${session.identityId}`;
+ if(OID.test(String(session.platformId||''))&&(!mfaPolicy.enabled()||validAuthAge(session.mfaVerifiedAt)))return `platform:${session.platformId}:${session.identityId}`;
  if(OID.test(String(session.tenantId||''))&&OID.test(String(session.tenantUserId||'')))return `tenant:${session.tenantId}:${session.tenantUserId}:${session.identityId}`;
  return null;
 }

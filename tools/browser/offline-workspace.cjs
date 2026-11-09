@@ -3,7 +3,7 @@
 const req=require('node:module').createRequire(require('node:path').resolve(process.cwd(),'package.json'));
 const crypto=require('node:crypto'),assert=require('node:assert/strict'),fs=require('node:fs');
 const nonce=crypto.randomBytes(7).toString('hex'),scratch='cfh_currency_browser_'+nonce,slug='currency-browser-'+nonce;
-process.env.NODE_ENV='test';process.env.MONGO_PLATFORM_URI='mongodb://127.0.0.1:27018/'+scratch+'?replicaSet=rs0&directConnection=true';
+process.env.NODE_ENV='test';process.env.MFA_ENABLED='true';process.env.MONGO_PLATFORM_URI='mongodb://127.0.0.1:27018/'+scratch+'?replicaSet=rs0&directConnection=true';
 delete process.env.PLATFORM_DB_URI;delete process.env.MONGO_URI_BASE;
 process.env.APP_URL='http://localhost:3000';process.env.MFA_ENCRYPTION_KEY=crypto.randomBytes(32).toString('hex');process.env.TRANSFER_SMS_ENCRYPTION_KEY=crypto.randomBytes(32).toString('hex');process.env.TRANSFER_SMS_PROVIDER='none';
 process.env.TENANT_BACKUPS_ENABLED='true';process.env.TENANT_BACKUP_ENCRYPTION_KEY=crypto.randomBytes(32).toString('hex');process.env.TENANT_BACKUP_DIR='/tmp/cfh-browser-backups-'+nonce;

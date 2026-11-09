@@ -39,7 +39,7 @@ function normalizeIntent(x){
 async function authorized(conn,userId,branchId,roles,session){
   const u=await tenantUserModel(conn).findOne({_id:userId,status:'active'}).select('role branchId mfaEnabledAt').session(session).lean();
   if(!u||!roles.includes(u.role)||(u.role!=='Tenant Owner'&&String(u.branchId)!==branchId))throw fail('Financial role or branch permission denied',403);
-  if(['Tenant Owner','Reconciliation Officer'].includes(u.role)&&!u.mfaEnabledAt)throw fail('Authenticator enrollment required for financial authorization',403);
+  if(require('../../config/mfaPolicy').enabled()&&['Tenant Owner','Reconciliation Officer'].includes(u.role)&&!u.mfaEnabledAt)throw fail('Authenticator enrollment required for financial authorization',403);
   return u;
 }
 async function registerIntent(conn,input){

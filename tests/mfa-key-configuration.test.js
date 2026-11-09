@@ -136,6 +136,8 @@ test('MFA decrypt classifies missing, mismatched and damaged secrets without dis
 });
 
 test('MFA challenge rejects a wrong or missing key without replacing enrollment or granting a session', async t => {
+  const previousPolicy=process.env.MFA_ENABLED;process.env.MFA_ENABLED='true';
+  t.after(()=>{if(previousPolicy===undefined)delete process.env.MFA_ENABLED;else process.env.MFA_ENABLED=previousPolicy;});
   const express = require('express');
   const Admin = require('../src/platform/models/PlatformAdmin');
   const Identity = require('../src/platform/models/AccountIdentity');

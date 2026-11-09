@@ -17,7 +17,7 @@ const SPECS=Object.freeze({
 const key=value=>String(value||'');
 function staffActor(person){return {id:key(person._id),role:person.role,branchId:person.branchId,allowedModules:person.allowedModules||[],permissions:permissionsFor(person.role)};}
 function usable(account){return account.status==='active'&&account.openingBalanceMinor!=null&&!!account.openingApprovedAt&&account.reconciliationState==='matched'&&!account.lastObservationStale;}
-function permitted(person){return !requiresTenantMfa(person.role)||!!person.mfaEnabledAt;}
+function permitted(person){return !require('../../config/mfaPolicy').enabled()||!requiresTenantMfa(person.role)||!!person.mfaEnabledAt;}
 function operationBranch(person,allBranches){return person.branchId?key(person.branchId):person.role==='Tenant Owner'&&allBranches.length===1?key(allBranches[0]._id):null;}
 function eligible(account,person,tenant){const actor=staffActor(person);return (!account.operatorId||key(account.operatorId)===actor.id)&&(account.moduleKey==='shared'||hasModuleForUser(tenant,actor,account.moduleKey));}
 // Match the automatic choice rules: an operator's own accounts take precedence
@@ -56,8 +56,8 @@ function build({tenant,actor,allBranches,people,accounts=[],shifts=[],rates=[],c
  const unassigned=operators.filter(person=>!operationBranch(person,allBranches)||!activeBranchIds.has(operationBranch(person,allBranches)));
  const relevantUnassigned=unassigned.filter(person=>allView||key(person._id)===actor.id||branchIds.has(key(person.branchId)));
  checks.push(check('assignments','Staff operating assignments',relevantUnassigned.length?'blocked':'ready',relevantUnassigned.length?`${relevantUnassigned.length} active operating ${relevantUnassigned.length===1?'account needs':'accounts need'} an active branch assignment.`:'Active operating accounts in this view have a resolvable branch.','/tenant/users','Assign staff'));
- const mfaMissing=staff.filter(person=>requiresTenantMfa(person.role)&&!person.mfaEnabledAt);
- checks.push(check('mfa','Privileged account protection',mfaMissing.length?'blocked':'ready',mfaMissing.length?`${mfaMissing.length} active privileged ${mfaMissing.length===1?'account has':'accounts have'} not enrolled an authenticator.`:'Active privileged accounts in this view have authenticator enrollment.','/tenant/users','Review staff access'));
+ const mfaEnforced=require('../../config/mfaPolicy').enabled(),mfaMissing=mfaEnforced?staff.filter(person=>requiresTenantMfa(person.role)&&!person.mfaEnabledAt):[];
+ checks.push(check('mfa','Privileged account protection',mfaMissing.length?'blocked':'ready',!mfaEnforced?'Authenticator enforcement is disabled for this platform.':mfaMissing.length?`${mfaMissing.length} active privileged ${mfaMissing.length===1?'account has':'accounts have'} not enrolled an authenticator.`:'Active privileged accounts in this view have authenticator enrollment.','/tenant/users','Review staff access'));
  if(!modules.length)checks.push(check('modules','Subscribed operations','blocked','No financial operation is currently subscribed and assigned.','/tenant/modules','Review modules'));
  for(const [module,spec] of modules){
   for(const branch of branches){

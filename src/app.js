@@ -75,7 +75,7 @@ function createApp({ sessionStore } = {}) {
   app.use(express.json({ limit: '32kb' }));
   app.use(csrfProtection);
   const assetVersion = require('./config/assetVersion');
-  app.use((req,res,next) => { res.locals.appUrl = env.appUrl; res.locals.assetVersion = assetVersion; next(); });
+  app.use((req,res,next) => { res.locals.appUrl = env.appUrl; res.locals.assetVersion = assetVersion; res.locals.mfaEnabled = require('./config/mfaPolicy').enabled(); next(); });
   app.use('/', publicRoutes);
   app.use('/mfa', mfaRoutes);
   app.use('/platform', requirePlatformAuth, platformRoutes);

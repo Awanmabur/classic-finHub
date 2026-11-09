@@ -44,7 +44,7 @@ async function access(conn,tenant,actor,{permission='treasury.view',session=null
  const person=await uq.lean();if(!person)throw fail('Funds account staff access was revoked',403);
  const current=fence?trusted(person):require('../services/branchView.service').withReadView(trusted(person),actor);
  if(!hasPermission(current,permission))throw fail('Funds account permission required',403);
- if(requiresTenantMfa(current.role)&&!person.mfaEnabledAt)throw fail('Authenticator enrollment is required for privileged funds controls',403);
+ if(require('../../config/mfaPolicy').enabled()&&requiresTenantMfa(current.role)&&!person.mfaEnabledAt)throw fail('Authenticator enrollment is required for privileged funds controls',403);
  if(fence&&current.role!=='Tenant Owner'&&String(current.branchId||'')!==String(actor.branchId||''))throw fail('Your branch assignment changed. Reload before saving.',409);
  const modules=availableModules(currentTenant,current);if(!modules.length||(sourceType&&!modules.includes(sourceType)))throw fail('The relevant financial module is not assigned to this account',403);
  if(!['Tenant Owner','Auditor'].includes(current.role)){

@@ -84,9 +84,9 @@ async function checkActor(conn, actorId, branchId, roles, session, operationalTr
     .select('role branchId mfaEnabledAt').session(session).lean();
   if (!person || !roles.includes(person.role)) throw error('Ledger action requires an authorized active user', 403);
   if (person.role !== 'Tenant Owner' && String(person.branchId) !== String(branchId)) throw error('Cross-branch ledger access prohibited', 403);
-  // The platform requires TOTP enrollment for privileged tenant roles. This is
-  // independent of the HTTP authentication middleware's session MFA check.
-  if (!person.mfaEnabledAt && (!operationalTreasury || require('../../config/roles').requiresTenantMfa(person.role))) throw error('Privileged ledger actor must have MFA enrolled', 403);
+  // When MFA is enforced, persisted enrollment is also required independently
+  // of the HTTP authentication middleware's session verification check.
+  if (require('../../config/mfaPolicy').enabled() && !person.mfaEnabledAt && (!operationalTreasury || require('../../config/roles').requiresTenantMfa(person.role))) throw error('Privileged ledger actor must have MFA enrolled', 403);
   return person;
 }
 async function createAccount(conn, input) {

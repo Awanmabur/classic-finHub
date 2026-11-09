@@ -33,7 +33,7 @@ async function decide(appointmentId,actor,input,{now=new Date()}={}){
  if(!actor?.permissions?.includes('*')||!actor.id)throw fail('Platform administrator required',403);
  const appointment=id(appointmentId),value=normalize(input,now),session=await mongoose.startSession();let result;
  try{await session.withTransaction(async()=>{
-  const admin=await Admin.findOneAndUpdate({_id:id(String(actor.id)),status:'active',role:'Super Admin',authVersion:actor.authVersion||0,mfaEnabledAt:{$ne:null}},{$inc:{__v:1}},{new:true,session}).lean();
+  const admin=await Admin.findOneAndUpdate({_id:id(String(actor.id)),status:'active',role:'Super Admin',authVersion:actor.authVersion||0,...(require('../../config/mfaPolicy').enabled()?{mfaEnabledAt:{$ne:null}}:{})},{$inc:{__v:1}},{new:true,session}).lean();
   if(!admin)throw fail('Administrator access changed. Sign in again before saving.',403);
   const prior=await Appointment.findById(appointment).session(session).lean();if(!prior)throw fail('Appointment not found',404);
   const status=prior.status||'pending';if(['completed','cancelled'].includes(status))throw fail('This appointment is already closed',409);

@@ -40,7 +40,7 @@ async function access(conn,tenant,actor,{manage=false,session=null,fence=false}=
  const query=fence?people.findOneAndUpdate({...filter,role:'Tenant Owner'},{$inc:{__v:1}},{session,new:true}):people.findOne(filter).session(session);
  const person=await query.lean();
  if(!person)throw fail('Workspace account access has been revoked.',403);
- if(manage&&!person.mfaEnabledAt)throw fail('Authenticator enrollment is required to configure the workspace.',403);
+ if(require('../../config/mfaPolicy').enabled()&&manage&&!person.mfaEnabledAt)throw fail('Authenticator enrollment is required to configure the workspace.',403);
  let trusted={id:String(person._id),name:person.name,role:person.role,permissions:permissionsFor(person.role),branchId:person.branchId||null,allowedModules:Array.isArray(person.allowedModules)?person.allowedModules:[],authVersion:person.authVersion||0};
  if(!fence&&!session)trusted=require('../services/branchView.service').withReadView(trusted,actor);
  authorize(trusted,manage);

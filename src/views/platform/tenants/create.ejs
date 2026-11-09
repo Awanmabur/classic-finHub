@@ -40,13 +40,14 @@
     <p class="tiny">The selected plan controls module access. Plans without a trial stay inactive until you grant a subscription from the tenant profile. You can copy the owner’s activation link after creating the tenant.</p>
     <p class="tiny" role="status" aria-live="polite" data-tenant-form-status hidden></p>
     <button class="btn btnPrimary" type="submit">Create tenant and private invitation</button>
+    <p class="tiny">Keep this page open until the private activation link appears. If a connection is interrupted, check the tenant list before creating another workspace.</p>
   </div>
 </form>
 <% } %>
 <section class="card"><div class="cardHead"><b>What happens next</b><span>Owner activation</span></div><div class="cardBody"><ol class="setupSteps">
   <li><strong>Create the workspace</strong><p>The selected plan sets its modules and limits.</p></li>
   <li><strong>Share the activation link</strong><p>Copy the one-time link and send it privately to the owner. No email is sent automatically.</p></li>
-  <li><strong>Owner activates the account</strong><p>The owner creates a password and sets up an authenticator to sign in.</p></li>
+  <li><strong>Owner activates the account</strong><p>The owner creates a password<%= typeof mfaEnabled==='undefined'||mfaEnabled?' and sets up an authenticator':'' %> to sign in.</p></li>
 </ol>
 </div></section>
 </div></section>

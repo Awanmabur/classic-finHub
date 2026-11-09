@@ -1,5 +1,6 @@
 const { validAuthAge } = require('./authSessionExpiry');
 const { requiresTenantMfa } = require('../config/roles');
+const mfaPolicy = require('../config/mfaPolicy');
 const { getTenantConnection } = require('../config/mongo');
 const AccountIdentity = require('../platform/models/AccountIdentity');
 const { tenantUserModel } = require('../tenant/models');
@@ -12,7 +13,7 @@ return async function requireAuth(req, res, next) {
     const User = getUserModel(req.tenantDb);
     const account = await User.findOne({ _id: req.session.tenantUserId, status: 'active' }).lean();
     if (!account || (account.authVersion || 0) !== req.session.authVersion) return res.status(401).send('Access revoked. Sign in again.');
-    if (requiresTenantMfa(account.role) && (!account.mfaEnabledAt || !validAuthAge(req.session.mfaVerifiedAt))) return res.status(401).send('Privileged access requires authenticator verification. Sign in again.');
+    if (mfaPolicy.enabled() && requiresTenantMfa(account.role) && (!account.mfaEnabledAt || !validAuthAge(req.session.mfaVerifiedAt))) return res.status(401).send('Privileged access requires authenticator verification. Sign in again.');
     const identity = await identityExists({ _id: req.session.identityId, kind: 'tenant', tenantId: req.tenant._id, accountId: account._id, email: account.email });
     if (!identity) return res.status(401).send('Access revoked. Sign in again.');
     // Existing staff retain only their previous role-derived live module access until reassigned.

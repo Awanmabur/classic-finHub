@@ -7,7 +7,7 @@ const fail=(message,status=409)=>Object.assign(new Error(message),{status});
 async function validate(conn,session,tenant,actor,payoutId){
  if(!session?.inTransaction())throw fail('Branch transfers require one database transaction');
  const authorization=await require('../services/financialAuthorization.service').fenceAction(conn,session,actor,tenant,'money_transfer','money_transfer.review');
- const reviewer=await core.tenantUserModel(conn).findOne({_id:actor.id,status:'active',mfaEnabledAt:{$ne:null}}).session(session).lean();
+ const reviewer=await core.tenantUserModel(conn).findOne({_id:actor.id,status:'active',...(require('../../config/mfaPolicy').enabled()?{mfaEnabledAt:{$ne:null}}:{})}).session(session).lean();
  if(!reviewer||!['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(reviewer.role))throw fail('Independent branch transfer reviewer required',403);
  const execution=await funded.models(conn).execution.findOne({_id:payoutId,action:'transfer_payout',sourceType:'money_transfer',status:'pending_review',createdBy:{$ne:actor.id}}).session(session).lean();
  if(!execution||(reviewer.role!=='Tenant Owner'&&String(reviewer.branchId)!==String(execution.branchId)))throw fail('Payout is outside the reviewer branch',403);

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 'use strict';
+process.env.MFA_ENABLED='true';
 /**
  * Real HTTP + MongoDB integration test for the unified account lifecycle.
  * Writes only random probe accounts, one random tenant DB and disposable sessions.

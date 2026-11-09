@@ -8,7 +8,7 @@ const outbox=require('../services/outbox.service');
 const appointmentService=require('../services/appointment.service');
 const { platformMenu } = require('../../services/menu.service');
 const { consumeFlash, flash, money, formatUtcDate } = require('../../utils/view');
-const { provisionTenant } = require('../services/tenantProvisioning.service');
+const { provisionTenant,regenerateOwnerInvite } = require('../services/tenantProvisioning.service');
 const { changeStatus, updateProfile }=require('../services/tenantAdmin.service');
 const {list: platformAudit}=require('../services/platformAudit.service');
 function renderPlatform(req,res,view,pageTitle,pageSub,data={}){
@@ -44,17 +44,28 @@ router.get('/tenants/create',async(req,res,next)=>{
   try{await renderTenantCreate(req,res);}catch(e){next(e);}
 });
 router.post('/tenants',async(req,res,next)=>{
+  res.setHeader('Cache-Control','no-store');
   try{
-    const { tenant, inviteUrl }=await provisionTenant(req.body,req.platformUser.id);
-    res.setHeader('Cache-Control','no-store');
+    const { tenant, inviteUrl }=await provisionTenant(req.body,req.platformUser);
     renderPlatform(req,res,'tenants/invite','Tenant created','Copy the one-time invitation link securely. It will not be displayed again.',{tenant,inviteUrl});
   }catch(e){
-    if([400,409].includes(e.status)){
+    if([400,409].includes(e.status)||e.provisioningError){
+      if(e.provisioningError){
+        console.error(JSON.stringify({event:'tenant.provisioning_failed',requestId:req.requestId,code:e.code,status:e.status}));
+        if(e.status===503)res.setHeader('Retry-After','5');
+      }
       const values=Object.fromEntries(['name','slug','owner','email','phone','plan'].map(key=>[key,typeof req.body[key]==='string'?req.body[key]:'']));
       try{return await renderTenantCreate(req,res.status(e.status),values,e.message);}catch(renderError){return next(renderError);}
     }
     next(e);
   }
+});
+router.post('/tenants/:id/owner-invitation',async(req,res,next)=>{
+  try{
+    const result=await regenerateOwnerInvite(req.params.id,req.platformUser,req.body);
+    res.setHeader('Cache-Control','no-store');
+    renderPlatform(req,res,'tenants/invite','Owner activation link','Copy the replacement link securely. Earlier unused links are expired.',result);
+  }catch(error){next(error);}
 });
 router.get('/tenants/:id',async(req,res,next)=>{
   try{

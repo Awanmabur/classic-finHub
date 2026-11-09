@@ -50,7 +50,7 @@ function createAuthenticator({ Identity = AccountIdentity, Admin = PlatformAdmin
   if (identity.kind === 'platform') return { platformId: String(account._id), identityId: String(identity._id), authVersion: account.authVersion || 0 };
   if (identity.kind === 'tenant' && tenant) return {
     tenantId: String(tenant._id), tenantUserId: String(account._id), identityId: String(identity._id), authVersion: account.authVersion || 0,
-    mfaRequired: require('../../config/roles').requiresTenantMfa(account.role), mfaEnrolled: Boolean(account.mfaEnabledAt)
+    mfaRequired: require('../../config/mfaPolicy').enabled()&&require('../../config/roles').requiresTenantMfa(account.role), mfaEnrolled: Boolean(account.mfaEnabledAt)
   };
   return null;
   };

@@ -206,7 +206,7 @@ async function review(conn,tenant,actor,executionId,input={}){
  if(String(initial.createdBy)===current.actor.id)throw fail('The originator cannot review their own manual movement',403);
  return transaction(conn,async session=>{
   const authorization=await auth.fenceAction(conn,session,actor,current.tenant,initial.sourceType,permission(initial.sourceType,true,initial.action));
-  if(!await models.tenantUserModel(conn).exists({_id:actor.id,status:'active',mfaEnabledAt:{$ne:null}}).session(session))throw fail('Authenticator enrollment is required for manual financial review',403);
+  if(!await models.tenantUserModel(conn).exists({_id:actor.id,status:'active',...(require('../../config/mfaPolicy').enabled()?{mfaEnabledAt:{$ne:null}}:{})}).session(session))throw fail('Authenticator enrollment is required for manual financial review',403);
   const execution=await Execution.findOneAndUpdate({_id:initial._id,status:'pending_review',createdBy:{$ne:actor.id},...scope(authorization.actor)},{$inc:{revision:1}},{new:true,session}).lean();
   if(!execution)throw fail('Manual movement already reviewed or outside your branch',409);
   const sourceModel=definition(execution.sourceType).model(conn),source=await sourceModel.findById(execution.sourceId).session(session).lean();
@@ -301,7 +301,7 @@ async function retrySms(conn,tenant,actor,executionId,input={}){
  await prepareIndexes(conn);
  return transaction(conn,async session=>{
   const authorization=await auth.fenceAction(conn,session,actor,current.tenant,'money_transfer','money_transfer.create');
-  if(!await models.tenantUserModel(conn).exists({_id:actor.id,status:'active',mfaEnabledAt:{$ne:null}}).session(session))throw fail('Authenticator enrollment is required for SMS retry',403);
+  if(!await models.tenantUserModel(conn).exists({_id:actor.id,status:'active',...(require('../../config/mfaPolicy').enabled()?{mfaEnabledAt:{$ne:null}}:{})}).session(session))throw fail('Authenticator enrollment is required for SMS retry',403);
   const execution=await fundedModels(conn).execution.findOneAndUpdate({_id:id(executionId),action:'transfer_collect',status:'posted_manual',...scope(authorization.actor)},{$inc:{revision:1}},{session,new:true}).select('+pinEncrypted').lean();
   const source=execution?await models.transferOrderModel(conn).findOne({_id:execution.sourceId,status:'collected_manual',manualCollectionExecutionId:execution._id}).session(session).lean():null;
   if(!source)throw fail('Only an unclaimed collected transfer may retry receiver SMS',409);

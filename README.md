@@ -1,4 +1,4 @@
-# ClassicFin Hub 1.26.2
+# ClassicFin Hub 1.27.0
 
 A multi-tenant platform for reviewed manual financial operations, configurable subscriptions, branch-based administration and separately licensed Android SMS capture.
 
@@ -59,6 +59,8 @@ npm run dev:local
 `dev:local` loads `.env` before selecting the authenticator key and starts the development database on loopback port 27018 and persists a private, Git-ignored development MFA key. It must not run with production data or settings. See [cloud setup](docs/CLOUD_SETUP.md) and the [Windows startup guide](docs/WINDOWS_STARTUP_AND_SECURITY.md) for platform-specific details.
 
 There are no seeded administrator credentials. Follow the protected password-file bootstrap procedure in the production runbook or `scripts/bootstrap.js`, then enroll MFA through sign-in.
+
+To defer authenticator setup, set `MFA_ENABLED=false` in `.env` and restart. Email/password login and existing role restrictions continue to apply. Set it to `true` and restart when ready to enforce MFA; password-only sessions then require fresh verification. Existing enrollment and encryption keys are preserved. Without this variable, MFA remains enabled.
 
 ## Verification
 

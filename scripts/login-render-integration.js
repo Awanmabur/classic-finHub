@@ -1,5 +1,6 @@
 'use strict';
 require('dotenv').config();
+process.env.MFA_ENABLED='true';
 const req=require('node:module').createRequire(require('node:path').resolve(__dirname,'../package.json'));
 const configured=new URL(req('./src/config/mongoUris').resolveMongoConfiguration(process.env).mongoPlatformUri);
 if(process.env.NODE_ENV==='production'||configured.protocol!=='mongodb:'||!['127.0.0.1','localhost','[::1]'].includes(configured.hostname)||configured.host.includes(',')||configured.username||configured.password)throw Error('Login integration requires an isolated unauthenticated loopback replica set');

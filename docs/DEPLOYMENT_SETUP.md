@@ -288,6 +288,12 @@ password in the command line or commit the file. Remove the file after successfu
 bootstrap, sign in, enroll MFA, publish plans and test the owner's invitation.
 An upgrade does not require bootstrap and must not reset existing accounts.
 
+Authenticator enforcement is controlled by `MFA_ENABLED`. It defaults to enabled;
+an explicit `false` permits password-only setup. Set it to `true` and restart when
+ready to require enrollment/challenges. Keep `MFA_ENCRYPTION_KEY` unchanged in both
+modes: it also protects Android capture and existing transfer-PIN data. Enabling
+the requirement rejects sessions established without genuine MFA verification.
+
 Start all three supervised services from the same immutable image:
 
 - Web application: `npm start`.

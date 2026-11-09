@@ -63,10 +63,11 @@ router.post('/signin', login, async (req, res, next) => {
   try {
     await consumeAttempt(req.body.email, req.ip);
     const result = await authenticate(req.body);
-    await recordSecurityEvent(result ? ((result.platformId || result.mfaRequired) ? 'auth.login.password_validated' : 'auth.login.success') : 'auth.login.failed', { email: req.body.email, ip: req.ip, identityId: result?.identityId });
+    const mfaEnabled=require('./config/mfaPolicy').enabled();
+    await recordSecurityEvent(result ? ((mfaEnabled && (result.platformId || result.mfaRequired)) ? 'auth.login.password_validated' : 'auth.login.success') : 'auth.login.failed', { email: req.body.email, ip: req.ip, identityId: result?.identityId });
     if (!result) { flash(req, 'bad', 'Invalid email or password.'); return res.redirect(303, '/signin'); }
-    if (result.platformId) {
-      // Password-only sessions have NO administrator permissions. They must complete MFA.
+    if (result.platformId && mfaEnabled) {
+      // With enforcement enabled, only genuine MFA creates administrator access.
       const Admin = require('./platform/models/PlatformAdmin');
       const account = await Admin.findById(result.platformId).select('mfaEnabledAt').lean();
       if (!account) return res.status(401).send('Sign in again.');
@@ -77,7 +78,7 @@ router.post('/signin', login, async (req, res, next) => {
       });
       return;
     }
-    if (result.mfaRequired) {
+    if (result.mfaRequired && mfaEnabled) {
       req.session.regenerate(err => {
         if (err) return next(err);
         req.session.pendingMfa = { kind: 'tenant', tenantId: result.tenantId, tenantUserId: result.tenantUserId,
@@ -89,9 +90,9 @@ router.post('/signin', login, async (req, res, next) => {
     }
     req.session.regenerate(err => {
       if (err) return next(err);
-      const { tenantId, tenantUserId, identityId, authVersion } = result;
-      Object.assign(req.session, { tenantId, tenantUserId, identityId, authVersion, authenticatedAt: Date.now() });
-      req.session.save(err2 => err2 ? next(err2) : res.redirect(303, '/tenant/dashboard'));
+      const { platformId, tenantId, tenantUserId, identityId, authVersion } = result;
+      Object.assign(req.session, { ...(platformId?{platformId}:{tenantId,tenantUserId}), identityId, authVersion, authenticatedAt: Date.now() });
+      req.session.save(err2 => err2 ? next(err2) : res.redirect(303, platformId?'/platform/dashboard':'/tenant/dashboard'));
     });
   } catch (e) { next(e); }
 });

@@ -7,7 +7,7 @@ function scopeFor(actor){if(actor.role==='Tenant Owner')return {scopeKey:'tenant
 async function access(conn,tenant,actor){
  if(!tenant?.slug||conn.name!==tenantDbNameFromSlug(tenant.slug))throw failure('BACKUP_TENANT_INVALID',403);
  const current=await Tenant.findOne({_id:tenant._id,slug:tenant.slug,dbName:conn.name,status:{$in:['active','trial']}}).lean();
- const user=await core.tenantUserModel(conn).findOne({_id:actor.id,status:'active',role:{$in:roles},mfaEnabledAt:{$ne:null}}).lean();
+ const user=await core.tenantUserModel(conn).findOne({_id:actor.id,status:'active',role:{$in:roles},...(require('../../config/mfaPolicy').enabled()?{mfaEnabledAt:{$ne:null}}:{})}).lean();
  if(!current||!user||user.role!==actor.role||(user.authVersion||0)!==(actor.authVersion||0)||String(user.branchId||'')!==String(actor.branchId||''))throw failure('BACKUP_ACCESS_CHANGED',403);
  const scope=scopeFor({...user,id:String(user._id)});
  if(scope.branchId&&!await core.branchModel(conn).exists({_id:scope.branchId,status:'active'}))throw failure('BACKUP_BRANCH_UNAVAILABLE',403);
@@ -41,7 +41,7 @@ function archiveMetadata(body){
  return {...metadata,payloadOffset:end+1};
 }
 function verify(body,tenant,policy,digest,input=process.env){const metadata=archiveMetadata(body);if(metadata&&(metadata.tenantId!==String(tenant._id)||metadata.scopeKey!==policy.scopeKey||metadata.digest!==digest))throw failure('BACKUP_ARCHIVE_BINDING_INVALID');const payload=metadata?body.subarray(metadata.payloadOffset):body;const value=JSON.parse(encryption.unseal(payload,binding(tenant,policy,digest),input).toString('utf8'));if(value.manifest?.digest!==digest||crypto.createHash('sha256').update(JSON.stringify(snapshot.canonical(value.data))).digest('hex')!==digest||value.data?.tenantId!==String(tenant._id)||value.data?.scopeKey!==policy.scopeKey)throw failure('BACKUP_VERIFICATION_FAILED');return value;}
-async function connectedRefresh(conn,tenant,policy){if(!policy.refreshEncrypted||!settings().google)return null;const person=await core.tenantUserModel(conn).findOne({_id:policy.connectedBy,status:'active',role:policy.branchId?'Branch Manager':'Tenant Owner',mfaEnabledAt:{$ne:null}}).lean();if(!person||(person.authVersion||0)!==policy.connectedAuthVersion||policy.branchId&&String(person.branchId)!==String(policy.branchId))throw failure('BACKUP_GOOGLE_RECONNECT');return encryption.unseal(Buffer.from(policy.refreshEncrypted,'base64url'),`google:${tenant._id}:${policy._id}`).toString('utf8');}
+async function connectedRefresh(conn,tenant,policy){if(!policy.refreshEncrypted||!settings().google)return null;const person=await core.tenantUserModel(conn).findOne({_id:policy.connectedBy,status:'active',role:policy.branchId?'Branch Manager':'Tenant Owner',...(require('../../config/mfaPolicy').enabled()?{mfaEnabledAt:{$ne:null}}:{})}).lean();if(!person||(person.authVersion||0)!==policy.connectedAuthVersion||policy.branchId&&String(person.branchId)!==String(policy.branchId))throw failure('BACKUP_GOOGLE_RECONNECT');return encryption.unseal(Buffer.from(policy.refreshEncrypted,'base64url'),`google:${tenant._id}:${policy._id}`).toString('utf8');}
 async function readArchive(conn,tenant,actor,id){
  if(!/^[a-f0-9]{24}$/i.test(String(id)))throw failure('BACKUP_ARCHIVE_NOT_FOUND',404);
  const authorization=await access(conn,tenant,actor),policy=await policyFor(conn,authorization),archive=await models(conn).archive.findOne({_id:id,policyId:policy._id}).lean();
@@ -79,7 +79,7 @@ async function processPolicy(conn,tenant,policyId,{now=new Date(),upload=google.
  }catch(error){await Policy.updateOne(lease,{$set:{lastResult:'error',lastCheckedAt:new Date(),failureCode:/^BACKUP_[A-Z_]+$/.test(error.code||'')?error.code:'BACKUP_FAILED',nextAttemptAt:new Date(Date.now()+15*60000),leaseToken:null,leaseUntil:null},$inc:{revision:1}});return {state:'error'};}
 }
 async function schedule(conn,tenant,now=new Date()){
- await ensure(conn);const activeOwner=await core.tenantUserModel(conn).findOne({role:'Tenant Owner',status:'active',mfaEnabledAt:{$ne:null}}).select('_id role branchId authVersion').lean();if(activeOwner)await policyFor(conn,{tenant,actor:{id:String(activeOwner._id)},scopeKey:'tenant',branchId:null});
+ await ensure(conn);const activeOwner=await core.tenantUserModel(conn).findOne({role:'Tenant Owner',status:'active',...(require('../../config/mfaPolicy').enabled()?{mfaEnabledAt:{$ne:null}}:{})}).select('_id role branchId authVersion').lean();if(activeOwner)await policyFor(conn,{tenant,actor:{id:String(activeOwner._id)},scopeKey:'tenant',branchId:null});
  let queued=0;for(const policy of await models(conn).policy.find({}).lean()){
   const day=policy.autoEnabled?scheduledDay(policy,now):null;
   const retry=policy.failureCode&&policy.nextAttemptAt&&new Date(policy.nextAttemptAt)<=now;

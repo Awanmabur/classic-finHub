@@ -75,7 +75,9 @@ test('identity schema refuses platform-tenant mapping confusion',async()=>{
   await new Model({email:'x@example.com',kind:'platform',accountId:id}).validate();
 });
 
-test('privileged tenant accounts require MFA, while ordinary operators retain two-field login', async()=>{
+test('privileged tenant accounts require MFA, while ordinary operators retain two-field login', async t=>{
+  const previousPolicy=process.env.MFA_ENABLED;process.env.MFA_ENABLED='true';
+  t.after(()=>{if(previousPolicy===undefined)delete process.env.MFA_ENABLED;else process.env.MFA_ENABLED=previousPolicy;});
   const passwordHash=await bcrypt.hash(pwd,4);
   for(const [role,requires] of [['Tenant Owner',true],['Reconciliation Officer',true],['Auditor',true],['Mobile Money Operator',false]]) {
     const authenticate=create({identity:{_id:'id',kind:'tenant',accountId:'u',tenantId:'t'},tenant:{_id:'t',slug:'real-tenant',status:'active'},

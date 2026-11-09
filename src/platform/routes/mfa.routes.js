@@ -14,6 +14,10 @@ const { record: recordSecurityEvent } = require('../services/securityEvent.servi
 const { login } = require('../../middleware/rateLimiter');
 
 function requirePending(req, res, next) {
+  if (!require('../../config/mfaPolicy').enabled()) {
+    delete req.session.pendingMfa;
+    return res.redirect(303, '/signin');
+  }
   const pending = mfa.pendingSession(req);
   if (!pending) return res.redirect(303, '/signin');
   if ((pending.attempts || 0) >= mfa.MAX_ATTEMPTS) {

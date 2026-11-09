@@ -25,7 +25,9 @@ try {
   run('up');
   const localUri = 'mongodb://127.0.0.1:27018/classicfin_platform_db?replicaSet=rs0&directConnection=true';
   const result = spawnSync(process.execPath, ['--watch', 'src/server.js'], {
-    env: { ...process.env, NODE_ENV:'development', MONGO_PLATFORM_URI:localUri, MFA_ENCRYPTION_KEY:mfaKey },
+    // Keep this Docker-only launcher isolated from Atlas settings in .env.
+    // Empty inherited keys also prevent dotenv from restoring remote aliases.
+    env: { ...process.env, NODE_ENV:'development', PLATFORM_DB_URI:localUri, MONGO_PLATFORM_URI:'', MONGO_URI_BASE:'', MFA_ENCRYPTION_KEY:mfaKey },
     stdio:'inherit', windowsHide:false
   });
   process.exitCode = result.status === null ? 1 : result.status;

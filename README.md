@@ -1,4 +1,4 @@
-# ClassicFin Hub 1.25.1
+# ClassicFin Hub 1.26.2
 
 A multi-tenant platform for reviewed manual financial operations, configurable subscriptions, branch-based administration and separately licensed Android SMS capture.
 
@@ -25,11 +25,17 @@ Start with the [launch status](docs/LAUNCH_STATUS.md) and follow the [production
 
 For first setup, use the [MongoDB Atlas and service-key checklist](docs/DEPLOYMENT_SETUP.md). It explains which credentials to create, where they belong, and which optional keys can stay blank.
 
-`PLATFORM_DB_URI` is supported as an alias for `MONGO_PLATFORM_URI`.
-Optional `MONGO_URI_BASE` derives private tenant links using the same deployment
+Use `PLATFORM_DB_URI` for the named platform database. Optional `MONGO_URI_BASE`
+has an empty database path and derives private tenant links using the same deployment
 and web credential. Each tenant keeps its own logical database while sharing one
 bounded MongoClient for atomic authorization and financial writes. Redis is not
 required by the current runtime.
+
+These are the only web MongoDB settings needed. The older `MONGO_PLATFORM_URI`
+name remains compatible; remove it from your `.env` when using `PLATFORM_DB_URI`
+so an old local URI cannot conflict with your Atlas setting. Matching Atlas SRV
+pairs can omit `authSource` from both URLs. See the [Windows update recovery steps](docs/WINDOWS_STARTUP_AND_SECURITY.md#recover-an-update-blocked-by-local-files)
+if `git pull` aborts before updating the running code.
 
 The application includes a read-only production probe:
 

@@ -79,7 +79,7 @@ database path to `classicfin_platform_db`. The repository templates deliberately
 leave these secret values blank:
 
 ```dotenv
-MONGO_PLATFORM_URI=
+PLATFORM_DB_URI=
 MONGO_WORKER_URI=
 MONGO_NOTIFICATION_WORKER_URI=
 ```
@@ -94,10 +94,12 @@ platform database, `replicaSet` and `tls=true`; configure trusted certificates.
 
 ### Academy-style variable names and tenant connection links
 
-`PLATFORM_DB_URI` is supported as an alternative to `MONGO_PLATFORM_URI`. Set
-one of them; if both are supplied they must describe the same platform database,
-deployment, credentials and connection settings. An old local default must not
-remain beside a different production alias.
+Use `PLATFORM_DB_URI` for the named platform database and `MONGO_URI_BASE` for
+the optional empty-database tenant base. No third web MongoDB variable is needed.
+The older `MONGO_PLATFORM_URI` name is still compatible; remove it when using
+`PLATFORM_DB_URI` so an old local default cannot conflict with Atlas. If both
+platform names are intentionally supplied, they must describe the same database,
+deployment, credentials and connection settings.
 
 `MONGO_URI_BASE` is optional. When supplied, its database path must be empty and
 its deployment, web user/password, authentication settings, TLS and other driver
@@ -232,7 +234,7 @@ repository and web directory:
 
 | Template | Private file | Main values |
 | --- | --- | --- |
-| `deploy/web.env.example` | `/etc/classicfin/web.env` | Actual `APP_URL`, `SESSION_SECRET`, `MFA_ENCRYPTION_KEY`, `MONGO_PLATFORM_URI`, email, transfer-SMS provider and encryption key |
+| `deploy/web.env.example` | `/etc/classicfin/web.env` | Actual `APP_URL`, `SESSION_SECRET`, `MFA_ENCRYPTION_KEY`, `PLATFORM_DB_URI`, email, transfer-SMS provider and encryption key |
 | `deploy/worker.env.example` | `/etc/classicfin/worker.env` | Actual `APP_URL`, dedicated `MONGO_WORKER_URI`, email credentials, `OUTBOX_POLL_MS=2000` |
 | `deploy/notification-worker.env.example` | `/etc/classicfin/notifications.env` | Actual `APP_URL`, dedicated `MONGO_NOTIFICATION_WORKER_URI`, email, transfer-SMS configuration and Twilio credentials, `NOTIFICATION_POLL_MS=5000` |
 

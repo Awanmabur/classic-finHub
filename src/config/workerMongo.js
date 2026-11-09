@@ -1,4 +1,7 @@
 'use strict';
+// Standalone outbox commands load their own environment without requiring the
+// web server's session/MFA configuration. Explicit process values still win.
+require('dotenv').config();
 const mongoose=require('mongoose');
 const {platformUri,parseMongoUri}=require('./mongoUris');
 function workerUri(env=process.env){

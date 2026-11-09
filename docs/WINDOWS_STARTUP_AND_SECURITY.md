@@ -1,6 +1,41 @@
 # ClassicFin Hub — Windows startup and dependency security
 
-**November 3, 2026.** This project deliberately requires MongoDB replica-set transactions. Do not remove that check or set `REAL_MONEY_ENABLED=true`.
+**9 November 2026.** This project deliberately requires MongoDB replica-set transactions. Do not remove that check or set `REAL_MONEY_ENABLED=true`.
+
+## Recover an update blocked by local files
+
+If `git pull` reports **Your local changes would be overwritten** or **untracked
+working tree files would be overwritten**, Git aborts the update. A later
+`npm run dev` still starts the old files, even when the download from GitHub
+succeeded. This commonly occurs in older copies that tracked `.env` and
+`node_modules`, or when updated source files were copied over an old Git checkout.
+
+Stop the watcher with **Ctrl+C**. From the existing `classic-finHub` folder in Git
+Bash, create a fresh checkout beside it and carry over the existing private
+configuration and retained development MFA key:
+
+```bash
+cd ..
+updated_dir="classic-finHub-current-$(date +%Y%m%d-%H%M%S)"
+git clone --branch master https://github.com/Awanmabur/classic-finHub.git "$updated_dir" &&
+cp "classic-finHub/.env" "$updated_dir/.env" &&
+{ if [ -f "classic-finHub/.classicfin-dev-mfa.key" ]; then cp "classic-finHub/.classicfin-dev-mfa.key" "$updated_dir/.classicfin-dev-mfa.key"; fi; } &&
+cd "$updated_dir" &&
+npm ci &&
+npm run dev
+```
+
+The original folder retains every local change, ignored file and dependency.
+Use the new checkout for subsequent work. Existing MongoDB settings and MFA keys
+are preserved; compare any separate application changes with the original folder
+before bringing them into the updated source. Keep private configuration and keys
+outside commits. The current repository ignores `.env` and `node_modules`.
+
+For Atlas, use only `PLATFORM_DB_URI` (with the platform database path) and optional
+`MONGO_URI_BASE` (empty database path) in the web `.env`. Remove the older
+`MONGO_PLATFORM_URI` entry. Matching SRV pairs can omit `authSource` from both
+URLs. `npm run dev` uses these Atlas settings. `npm run dev:local` deliberately
+selects the separate loopback development database instead.
 
 ## Choose one MongoDB setup
 
@@ -17,7 +52,7 @@ npm run dev:local
 ```
 
 - `db:dev:up` starts MongoDB 8.0 and safely initializes `rs0` once; running it again is idempotent.
-- `dev:local` starts it if needed and launches your existing nodemon server with the correct database URI. It overrides `MONGO_PLATFORM_URI` for this development process only.
+- `dev:local` starts it if needed and launches Node's watcher with the local database URI. It selects `PLATFORM_DB_URI` and clears inherited remote/base aliases for this development child process only; the `.env` file is preserved.
 - `db:dev:status` displays the container's status.
 - `db:dev:down` stops the database, **without removing your data volume**.
 - Do not use this unauthenticated development database for real accounts, real customer information or internet-accessible production.
@@ -28,7 +63,7 @@ For `npm run dev` (without automatic Docker setup), configure `.env` as follows:
 ```dotenv
 NODE_ENV=development
 APP_URL=http://localhost:3000
-MONGO_PLATFORM_URI=mongodb://127.0.0.1:27018/classicfin_platform_db?replicaSet=rs0&directConnection=true
+PLATFORM_DB_URI=mongodb://127.0.0.1:27018/classicfin_platform_db?replicaSet=rs0&directConnection=true
 ```
 
 Then run `npm run db:doctor`, `npm run db:integration`, and `npm run dev`. The integration probe uses disposable, random scratch databases and refuses remote MongoDB hosts or production mode.
@@ -63,7 +98,7 @@ mongosh "mongodb://127.0.0.1:27017/admin?directConnection=true" --eval 'rs.initi
 If it is already initialized, do not call `rs.initiate` again. Inspect `rs.status()` instead. Set your project `.env` to:
 
 ```dotenv
-MONGO_PLATFORM_URI=mongodb://127.0.0.1:27017/classicfin_platform_db?replicaSet=rs0&directConnection=true
+PLATFORM_DB_URI=mongodb://127.0.0.1:27017/classicfin_platform_db?replicaSet=rs0&directConnection=true
 ```
 
 Run `npm run db:doctor`, `npm run db:integration`, then `npm run dev`. The integration probe uses disposable, random scratch databases and refuses remote MongoDB hosts or production mode. For a native deployment with authentication, keep your existing credentials, roles, TLS and related settings; the example URI above is for local development only. Official conversion steps: https://www.mongodb.com/docs/manual/tutorial/convert-standalone-to-replica-set/.

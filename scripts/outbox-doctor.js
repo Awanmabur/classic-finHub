@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 'use strict';
+require('dotenv').config();
 // Read-only operational probe for scheduled monitoring. A failing exit code must trigger an external alert.
 const mongoose=require('mongoose');
 // The worker environment must not require a web SESSION_SECRET or MFA encryption key.

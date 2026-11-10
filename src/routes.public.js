@@ -116,7 +116,7 @@ router.post('/accept-invite', login, async (req, res, next) => {
 router.get('/accept-staff-invite',(req,res)=>{
   res.setHeader('Referrer-Policy','no-referrer');res.setHeader('Cache-Control','no-store');
   const slug=typeof req.query.tenant==='string' ? req.query.tenant : '';
-  res.render('auth/accept-staff-invite',{slug});
+  res.render('auth/accept-staff-invite',{slug,flash:consumeFlash(req)});
 });
 router.post('/accept-staff-invite',login,async(req,res,next)=>{
   try{

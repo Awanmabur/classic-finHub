@@ -183,6 +183,10 @@ async function list(conn,tenant,actor,{status=null,cursor=null}={}){
  const items=found.slice(0,40);
  return {items,nextCursor:found.length>40?mobile.encodeCursor(items.at(-1)):null};
 }
+async function recent(conn,tenant,actor){
+ moduleAccess(tenant,actor,'banking.view');
+ return bankingRequestModel(conn).find(requestScope(actor)).select('kind source.customerName amountMinor currency reference createdAt status').sort({createdAt:-1,_id:-1}).limit(14).lean();
+}
 async function detail(conn,tenant,actor,requestId){
  moduleAccess(tenant,actor,'banking.view');
  const found=await bankingRequestModel(conn).findOne({_id:id(requestId),...requestScope(actor)}).lean();
@@ -226,4 +230,4 @@ const unavailable=require('../../utils/unavailableOperation');
 const deposit=()=>unavailable('banking deposit');
 const withdraw=()=>unavailable('banking withdraw');
 module.exports={fail,id,text,moduleAccess,operator,reviewer,branchScope,requestScope,branchFor,validateReference,validateRequest,
- sameRequest,createReference,updateReference,archiveReference,listReferences,createRequest,decide,cancel,expireDue,list,detail,reviewQueue,reportRows,deposit,withdraw};
+ sameRequest,createReference,updateReference,archiveReference,listReferences,createRequest,decide,cancel,expireDue,list,recent,detail,reviewQueue,reportRows,deposit,withdraw};

@@ -4,6 +4,7 @@
 const crypto = require('crypto');
 const LoginThrottle = require('../models/LoginThrottle');
 const { sessionSecret } = require('../../config/env');
+const awaitAll=require('../../utils/awaitAll');
 function throttleKey(category, scope, windowMs, now = Date.now()) {
   const bucket=Math.floor(now/windowMs);
   const hash=crypto.createHmac('sha256',sessionSecret).update(`${category}:${scope}`).digest('hex');
@@ -24,8 +25,10 @@ async function financial(req,res,next) {
   try {
     if (!req.tenant?.id || !req.user?.id) return res.status(403).send('Forbidden');
     // Both budgets apply; tenants cannot exhaust another tenant's allowance.
-    await consume({category:'money-user',scope:`${req.tenant.id}:${req.user.id}`,limit:120,windowMs:60000});
-    await consume({category:'money-tenant',scope:req.tenant.id,limit:600,windowMs:60000});
+    await awaitAll([
+      consume({category:'money-user',scope:`${req.tenant.id}:${req.user.id}`,limit:120,windowMs:60000}),
+      consume({category:'money-tenant',scope:req.tenant.id,limit:600,windowMs:60000})
+    ]);
     next();
   } catch(err){if(err.retryAfter)res.setHeader('Retry-After',String(err.retryAfter));next(err);}
 }
@@ -42,8 +45,10 @@ async function analytics(req,res,next) {
     const tenantId=String(req.tenant?._id||req.tenant?.id||'');
     const userId=String(req.user?.id||'');
     if(!/^[a-f0-9]{24}$/i.test(tenantId)||!/^[a-f0-9]{24}$/i.test(userId))return res.status(403).send('Forbidden');
-    await consume({category:'analytics-user',scope:`${tenantId}:${userId}`,limit:20,windowMs:60000});
-    await consume({category:'analytics-tenant',scope:tenantId,limit:120,windowMs:60000});
+    await awaitAll([
+      consume({category:'analytics-user',scope:`${tenantId}:${userId}`,limit:20,windowMs:60000}),
+      consume({category:'analytics-tenant',scope:tenantId,limit:120,windowMs:60000})
+    ]);
     next();
   }catch(err){if(err.retryAfter)res.setHeader('Retry-After',String(err.retryAfter));next(err);}
 }
@@ -54,8 +59,10 @@ async function notifications(req,res,next){
  try{
   const tenantId=String(req.tenant?._id||req.tenant?.id||''),userId=String(req.user?.id||'');
   if(!/^[a-f0-9]{24}$/i.test(tenantId)||!/^[a-f0-9]{24}$/i.test(userId))return res.status(403).send('Forbidden');
-  await consume({category:'notification-user',scope:`${tenantId}:${userId}`,limit:12,windowMs:60000});
-  await consume({category:'notification-tenant',scope:tenantId,limit:90,windowMs:60000});
+  await awaitAll([
+    consume({category:'notification-user',scope:`${tenantId}:${userId}`,limit:12,windowMs:60000}),
+    consume({category:'notification-tenant',scope:tenantId,limit:90,windowMs:60000})
+  ]);
   next();
  }catch(err){if(err.retryAfter)res.setHeader('Retry-After',String(err.retryAfter));next(err);}
 }

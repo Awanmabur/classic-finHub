@@ -1,0 +1,123 @@
+{
+  "browserErrors": [],
+  "resourceErrors": [],
+  "layouts": [
+    {
+      "name": "online-transfer",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "online-transfer",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "online-transfer",
+      "width": 320,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "offline-same-transfer",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "offline-same-transfer",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "offline-same-transfer",
+      "width": 320,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "offline-dashboard",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "offline-dashboard",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "offline-dashboard",
+      "width": 320,
+      "overflow": false,
+      "duplicateIds": []
+    }
+  ],
+  "cash": {
+    "independentCurrencyShifts": true
+  },
+  "startup": {
+    "contextRequests": 0,
+    "preparationRequests": 0,
+    "visitedPagesSaved": true,
+    "staleWorkerFirstNavigationRecovered": true,
+    "explicitPreparationRequests": 99
+  },
+  "foregroundRequests": {
+    "contextGets": 0,
+    "acceptedPageGets": 1,
+    "jsonRedirect": true,
+    "liveScopeAndBranchHeaders": true,
+    "successMessageVisible": true
+  },
+  "offlineForegroundIndependent": true,
+  "staleBranchRejectedBeforeWrite": true,
+  "offline": {
+    "sameWorkspaceDOM": true,
+    "sameTransactionModal": true,
+    "encryptedSnapshotsAndDrafts": true,
+    "publicAssetsOnly": {
+      "classicfin-offline-e5a01f64e440": [
+        "/offline.html",
+        "/js/offline.js",
+        "/js/offline-workspace.js",
+        "/js/feedback.js",
+        "/js/dashboard.js",
+        "/js/customer-accounts.js",
+        "/js/expenses.js",
+        "/css/approved-tenant.css",
+        "/js/workspace.js",
+        "/js/branches.js",
+        "/css/dashboard-layout.css",
+        "/css/workspace.css",
+        "/css/branches.css",
+        "/images/classicfinhub-logo.png",
+        "/css/feedback.css",
+        "/vendor/fontawesome/css/all.min.css",
+        "/vendor/fontawesome/webfonts/fa-brands-400.woff2",
+        "/vendor/inter/inter.css",
+        "/vendor/fontawesome/webfonts/fa-regular-400.woff2",
+        "/vendor/fontawesome/webfonts/fa-solid-900.woff2",
+        "/vendor/fontawesome/webfonts/fa-v4compatibility.woff2",
+        "/vendor/inter/files/inter-latin-wght-normal.woff2",
+        "/vendor/inter/files/inter-latin-ext-wght-normal.woff2",
+        "/vendor/inter/files/inter-cyrillic-wght-normal.woff2",
+        "/vendor/inter/files/inter-cyrillic-ext-wght-normal.woff2",
+        "/vendor/inter/files/inter-greek-wght-normal.woff2",
+        "/vendor/inter/files/inter-greek-ext-wght-normal.woff2",
+        "/vendor/inter/files/inter-vietnamese-wght-normal.woff2"
+      ]
+    },
+    "exactlyOneRecordPerKey": true,
+    "clearKeepsSeparateReferences": true,
+    "onlineSubmission": true,
+    "networkOutageWithOnlineFlag": true,
+    "crossTabLogoutLocks": true,
+    "serverDenialLocks": true,
+    "logoutLocks": true
+  }
+}

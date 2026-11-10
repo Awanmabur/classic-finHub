@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const LoginThrottle = require('../models/LoginThrottle');
 const { normalizeEmail } = require('./authentication.service');
 const { sessionSecret } = require('../../config/env');
+const awaitAll=require('../../utils/awaitAll');
 const WINDOW_MS = 15 * 60 * 1000;
 function bucketId(category, value, now = Date.now()) {
   const bucket = Math.floor(now / WINDOW_MS);
@@ -21,8 +22,10 @@ async function consumeAttempt(email, ip, now = Date.now()) {
   const expiresAt = new Date((Math.floor(now / WINDOW_MS) + 2) * WINDOW_MS);
   const update = { $inc: { count: 1 }, $setOnInsert: { expiresAt } };
   const opts = { upsert: true, new: true, setDefaultsOnInsert: true };
-  const ipResult = await LoginThrottle.findOneAndUpdate({ _id: ipKey }, update, opts).lean();
-  const emailResult = await LoginThrottle.findOneAndUpdate({ _id: emailKey }, update, opts).lean();
+  const [ipResult,emailResult] = await awaitAll([
+    LoginThrottle.findOneAndUpdate({ _id: ipKey }, update, opts).lean(),
+    LoginThrottle.findOneAndUpdate({ _id: emailKey }, update, opts).lean()
+  ]);
   if (ipResult.count > 100 || emailResult.count > 8) throw tooMany();
 }
 
@@ -31,8 +34,7 @@ async function consumeRecoveryAttempt(email, ip, now = Date.now()) {
   const expiresAt = new Date((Math.floor(now / WINDOW_MS) + 2) * WINDOW_MS);
   const update = { $inc: { count: 1 }, $setOnInsert: { expiresAt } };
   const opts = { upsert: true, new: true, setDefaultsOnInsert: true };
-  const counts = [];
-  for (const _id of ids) counts.push((await LoginThrottle.findOneAndUpdate({ _id }, update, opts).lean()).count);
+  const counts = (await awaitAll(ids.map(_id=>LoginThrottle.findOneAndUpdate({ _id }, update, opts).lean()))).map(result=>result.count);
   if (counts[0] > 3 || counts[1] > 30) throw tooMany();
 }
 module.exports = { consumeAttempt, consumeRecoveryAttempt, bucketId, tooMany, WINDOW_MS };

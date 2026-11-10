@@ -22,6 +22,7 @@ router.use(async(req,res,next)=>{try{
  ]);
  next();
 }catch(error){next(error);}});
+router.use(require('../../middleware/requireOfflineContext'));
 router.use((req,res,next)=>{const phone=phoneCountry;res.locals.phoneDefaults=phone.defaults(req);if(req.method==='POST')for(const field of ['phone','senderPhone','receiverPhone','customerPhone','supportPhone','nextOfKinPhone','legacyReceiverPhone'])if(typeof req.body?.[field]==='string'&&req.body[field])req.body[field]=phone.normalize(req.body[field],field==='senderPhone'&&req.body.senderCountry?req.body.senderCountry:field==='receiverPhone'&&req.body.receiverCountry?req.body.receiverCountry:req.get('x-classicfin-phone-country')||res.locals.phoneDefaults.country);next();});
 router.post('/view-branch',require('../services/branchView.service').change);
 // Only owners and auditors have tenant-wide visibility. Other users are branch scoped;
@@ -52,39 +53,27 @@ router.use(require('./approvedReports.routes')({renderTenant}));
 router.get('/', (req,res)=>res.redirect(303,'/tenant/dashboard'));
 router.get('/dashboard', requirePermission('dashboard.view'), async (req,res,next)=>{
   try {
-    await require('../models').ensureTenantIndexes(req.tenantDb);
-    const hasMobileMoney=hasModuleForUser(req.tenant,req.user,'mobile_money')&&hasPermission(req.user,'mobile_money.view');
-    const hasTransfer=hasModuleForUser(req.tenant,req.user,'money_transfer')&&hasPermission(req.user,'money_transfer.view');
-    const hasBanking=hasModuleForUser(req.tenant,req.user,'banking')&&hasPermission(req.user,'banking.view');
-    const hasForex=hasModuleForUser(req.tenant,req.user,'forex')&&hasPermission(req.user,'forex.view');
-    const hasApprovals=hasModuleForUser(req.tenant,req.user,'approval_workflows')&&hasPermission(req.user,'approvals.view');
-    const reportsActive=hasModuleForUser(req.tenant,req.user,'reports')&&hasPermission(req.user,'reports.view');
-    // Read-only, independent module summaries can execute concurrently after
-    // indexes are ready. No access checks or branch filters are bypassed.
-    const [summary,bankingRecords,forexRecords,transferRecords,approvalRecords,reportingSummary]=await Promise.all([
-      hasMobileMoney?mobile.getSummary(req.tenantDb,recordScope(req)):{total:0,pending:0,awaitingReview:0,summaries:[],recent:[]},
-      hasBanking?require('../services/banking.service').list(req.tenantDb,req.tenant,req.user):null,
-      hasForex?require('../services/forex.service').listQuotes(req.tenantDb,req.tenant,req.user):null,
-      hasTransfer?require('../services/moneyTransfer.service').list(req.tenantDb,req.tenant,req.user):null,
-      hasApprovals?require('../services/approvals.service').list(req.tenantDb,req.tenant,req.user):null,
-      reportsActive?require('../services/operationsReports.service').generate(req.tenantDb,req.tenant,req.user,{source:'workspace'}):null
-    ]);
-    const overview={summary,plan:planForTenant(req.tenant),reportingSummary,hasMobileMoney,
-      hasTransfer,transferRecords,hasBanking,bankingRecords,hasForex,forexRecords,hasApprovals,approvalRecords,moduleGrants:require('../../platform/services/moduleSubscriptions.service').activeGrants(req.tenant)};
-    overview.workspaceSnapshot=await require('../services/workspaceSnapshot.service').snapshot(req.tenantDb,req.tenant,req.user,overview,req.operationBranch,{currency:req.query.currency,viewBranch:req.viewBranch,viewBranchId:req.viewBranchId});
+    // Indexes are prepared by provisioning and awaited by mutation services.
+    // Reading an overview must not start collection/index DDL after a restart.
+    const overview=await require('../services/dashboardOverview.service').overview(req.tenantDb,req.tenant,req.user,{operationBranch:req.operationBranch,currency:req.query.currency,viewBranch:req.viewBranch,viewBranchId:req.viewBranchId});
     renderTenant(req,res,'dashboard/index','Overview','Money transfer, mobile money, banking, forex, tenants, roles, reports, analytics, and daily controls.',overview);
   } catch(e) { next(e); }
 });
 router.get('/mobile-money', requireModule('mobile_money'), requirePermission('mobile_money.view'), async (req,res,next)=>{
   try {
-    await require('../models').ensureTenantIndexes(req.tenantDb);
-    const summary = await mobile.getSummary(req.tenantDb, recordScope(req));
+    const canReview=hasPermission(req.user,'mobile_money.review')&&(req.user.role==='Tenant Owner'||req.user.branchId);
+    const reviewBranch=req.user.role==='Tenant Owner'?(require('../services/branchView.service').readScope(req.user).branchId||null):req.user.branchId;
+    const [summary,branches,reviewQueue,voidQueue,funds]=await Promise.all([
+      mobile.getSummary(req.tenantDb,recordScope(req)),
+      branchService.list(req.tenant),
+      canReview?mobile.getReviewQueue(req.tenantDb,req.user.id,25,reviewBranch):[],
+      canReview?mobile.getVoidQueue(req.tenantDb,req.user.id,25,reviewBranch):[],
+      req.operationBranch&&hasPermission(req.user,'treasury.view')?require('../services/mobileMoneyFunds.service').context(req.tenantDb,req.tenant,req.user,req.operationBranch):null
+    ]);
     renderTenant(req,res,'mobile-money/index','Mobile Money','Record agent transactions. Provider settlement remains unverified until reconciled.',{
       entryCurrency:req.operationBranch?require('../services/branchCurrency.service').resolve(req.operationBranch,req.query.currency):null,
       entryCurrencies:req.operationBranch?require('../services/branchCurrency.service').options(req.operationBranch):[],
-      summary, branches: (await branchService.list(req.tenant)).filter(b=>b.status==='active' && (req.user.role==='Tenant Owner' || String(b._id)===String(req.user.branchId))), reviewQueue: hasPermission(req.user,'mobile_money.review') && (req.user.role==='Tenant Owner'||req.user.branchId) ? await mobile.getReviewQueue(req.tenantDb,req.user.id,25,req.user.role==='Tenant Owner'?(require('../services/branchView.service').readScope(req.user).branchId||null):req.user.branchId) : [],
-      voidQueue: hasPermission(req.user,'mobile_money.review') && (req.user.role==='Tenant Owner'||req.user.branchId) ? await mobile.getVoidQueue(req.tenantDb,req.user.id,25,req.user.role==='Tenant Owner'?(require('../services/branchView.service').readScope(req.user).branchId||null):req.user.branchId) : [],
-      funds:req.operationBranch&&hasPermission(req.user,'treasury.view')?await require('../services/mobileMoneyFunds.service').context(req.tenantDb,req.tenant,req.user,req.operationBranch):null,
+      summary,branches:branches.filter(b=>b.status==='active' && (req.user.role==='Tenant Owner' || String(b._id)===String(req.user.branchId))),reviewQueue,voidQueue,funds,
       canReview: hasPermission(req.user,'mobile_money.review'), idempotencyKey:randomUUID(),
       canRecord: hasPermission(req.user,'mobile_money.cash_in') || hasPermission(req.user,'mobile_money.cash_out')
     });
@@ -173,7 +162,7 @@ router.get('/mobile-money/:id/acknowledgement',requireModule('mobile_money'),req
   try{
     const record=await mobile.getRecordDetails(req.tenantDb,req.params.id,recordScope(req));
     res.set('Cache-Control','private, no-store');res.set('X-Robots-Tag','noindex, nofollow');
-    res.render('tenant/mobile-money/acknowledgement',{...require('../services/receipt.service').acknowledgement(mobile.visibleRecordForRole(record,req.user.role)),identity:req.workspaceIdentity});
+    res.render('tenant/mobile-money/acknowledgement',{...require('../services/receipt.service').acknowledgement(mobile.visibleRecordForRole(record,req.user.role)),identity:req.workspaceIdentity,flash:consumeFlash(req)});
   }catch(e){next(e);}
 });
 router.get('/mobile-money/history', requireModule('mobile_money'),requirePermission('mobile_money.view'),async(req,res,next)=>{

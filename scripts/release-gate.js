@@ -16,6 +16,7 @@ const steps=[
   [process.execPath,['scripts/mongo-config-integration.js']],
   [process.execPath,['scripts/storage-latency-integration.js']],
   [process.execPath,['scripts/index-batching-integration.js']],
+  [process.execPath,['scripts/workspace-latency-integration.js']],
   [process.execPath,['scripts/mfa-startup-integration.js']],
   [process.execPath,['scripts/catalog-integration.js']],
   [process.execPath,['scripts/tenant-integration.js']],

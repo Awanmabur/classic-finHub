@@ -27,6 +27,7 @@
       {'@type':'WebSite','@id':appUrl+'/#website','name':'ClassicFin Hub','url':appUrl,'publisher':{'@id':appUrl+'/#organization'}}
     ]
   }).replace(/</g,'\\u003c') %></script>
+<link rel="stylesheet" href="/css/feedback.css?v=<%= typeof assetVersion==='undefined'?'1':assetVersion %>">
 </head>
 <body>
   <div class="cursor-glow" aria-hidden="true"></div>
@@ -70,6 +71,7 @@
   </nav>
 
   <main class="page smooth-page">
+    <%- include('../partials/flash', {flash:typeof flash==='undefined'?null:flash}) %>
     <section class="hero" id="home">
       <div class="hero-copy reveal">
         <p class="kicker">Classic Technologies • Finance SaaS platform</p>
@@ -415,5 +417,6 @@
   </main>
 
   <script src="/js/script.js?v=<%= assetVersion %>"></script>
+<script src="/js/feedback.js?v=<%= typeof assetVersion==='undefined'?'1':assetVersion %>" defer></script>
 </body>
 </html>

@@ -7,7 +7,7 @@
   if(!lookup||!choices||!status)return;
   let timer,controller;
   lookup.addEventListener('input',()=>{clearTimeout(timer);controller?.abort();timer=setTimeout(async()=>{
-   controller=new AbortController();const request=controller;status.textContent='Searching customers…';
+   controller=new AbortController();const request=controller;let timedOut=false;const timeout=setTimeout(()=>{timedOut=true;request.abort();},10000);status.textContent='Searching customers…';
    try{
     const response=await fetch('/tenant/accounts/customer-options?q='+encodeURIComponent(lookup.value),{signal:request.signal,credentials:'same-origin',headers:{Accept:'application/json'}});
     if(!response.ok)throw Error('Search unavailable');
@@ -15,7 +15,7 @@
     choices.replaceChildren(new Option('Select customer',''));
     data.items.forEach(c=>choices.add(new Option(`${c.name} · ${c.phone} · ${c.reference}`,c._id)));
     status.textContent=data.items.length?`${data.items.length} customer(s) found.`:'No active customers match this search in your operating branch.';
-   }catch(error){if(error.name!=='AbortError')status.textContent='Customer search is unavailable. Reload the page and try again.';}
+   }catch(error){if(request===controller&&(timedOut||error.name!=='AbortError'))status.textContent='Customer search is unavailable. Try again when connected.';}finally{clearTimeout(timeout);}
   },250);});
  }
  window.ClassicFinDirectory=Object.freeze({initialiseForm});

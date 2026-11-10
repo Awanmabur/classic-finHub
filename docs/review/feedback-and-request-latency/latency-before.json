@@ -1,0 +1,55 @@
+{
+  "queryDelayMs": 50,
+  "scope": "disposable-loopback-only",
+  "requests": [
+    {
+      "path": "/signin",
+      "method": "POST",
+      "status": 303,
+      "durationMs": 354,
+      "commandCount": 10
+    },
+    {
+      "path": "/tenant/dashboard",
+      "method": "GET",
+      "status": 200,
+      "durationMs": 328,
+      "commandCount": 23
+    },
+    {
+      "path": "/tenant/branches",
+      "method": "GET",
+      "status": 200,
+      "durationMs": 267,
+      "commandCount": 7
+    },
+    {
+      "path": "/tenant/money-transfer/send?currency=UGX",
+      "method": "GET",
+      "status": 200,
+      "durationMs": 371,
+      "commandCount": 10
+    },
+    {
+      "path": "/tenant/mobile-money",
+      "method": "GET",
+      "status": 200,
+      "durationMs": 632,
+      "commandCount": 18
+    },
+    {
+      "path": "/signin",
+      "method": "POST",
+      "status": 303,
+      "durationMs": 278,
+      "commandCount": 9
+    },
+    {
+      "path": "/platform/dashboard",
+      "method": "GET",
+      "status": 200,
+      "durationMs": 163,
+      "commandCount": 9
+    }
+  ]
+}

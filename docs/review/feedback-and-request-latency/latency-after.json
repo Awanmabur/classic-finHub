@@ -1,0 +1,73 @@
+{
+  "queryDelayMs": 50,
+  "scope": "disposable-loopback-only",
+  "requests": [
+    {
+      "path": "/signin",
+      "method": "POST",
+      "status": 303,
+      "durationMs": 301,
+      "commandCount": 10
+    },
+    {
+      "path": "/tenant/dashboard",
+      "method": "GET",
+      "status": 200,
+      "durationMs": 286,
+      "commandCount": 17
+    },
+    {
+      "path": "/tenant/branches",
+      "method": "GET",
+      "status": 200,
+      "durationMs": 272,
+      "commandCount": 7
+    },
+    {
+      "path": "/tenant/money-transfer/send?currency=UGX",
+      "method": "GET",
+      "status": 200,
+      "durationMs": 320,
+      "commandCount": 9
+    },
+    {
+      "path": "/tenant/mobile-money",
+      "method": "GET",
+      "status": 200,
+      "durationMs": 434,
+      "commandCount": 18
+    },
+    {
+      "path": "/tenant/money-transfer/requests",
+      "method": "POST",
+      "status": 303,
+      "durationMs": 700,
+      "commandCount": 20
+    },
+    {
+      "path": "/tenant/money-transfer/requests",
+      "method": "POST",
+      "status": 303,
+      "durationMs": 373,
+      "commandCount": 11
+    },
+    {
+      "path": "/signin",
+      "method": "POST",
+      "status": 303,
+      "durationMs": 229,
+      "commandCount": 9
+    },
+    {
+      "path": "/platform/dashboard",
+      "method": "GET",
+      "status": 200,
+      "durationMs": 162,
+      "commandCount": 9
+    }
+  ],
+  "transferRequest": {
+    "acceptedOnce": true,
+    "pendingWithoutLedgerMovement": true
+  }
+}

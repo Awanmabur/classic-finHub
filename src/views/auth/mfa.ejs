@@ -7,13 +7,14 @@
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title><%= mode === 'setup' ? 'Set up authenticator' : 'Verify authenticator' %> | ClassicFin Hub</title>
   <link rel="stylesheet" href="/css/style.css?v=<%= assetVersion %>">
+<link rel="stylesheet" href="/css/feedback.css?v=<%= typeof assetVersion==='undefined'?'1':assetVersion %>">
 </head>
 <body class="legal-body">
 <main class="page auth-main"><div class="auth-shell"><section class="auth-card">
   <a href="/signin" class="auth-back">Back to sign in</a>
   <h1><%= mode === 'setup' ? 'Secure your financial workspace' : 'Account verification' %></h1>
   <p>Privileged financial access requires an authenticator code after your email-and-password sign-in.</p>
-  <% if (flash) { %><p role="alert"><%= flash.message %></p><% } %>
+  <%- include('../partials/flash', {flash:typeof flash==='undefined'?null:flash}) %>
   <% if (mode === 'setup') { %>
     <p>In an authenticator application, select manual setup and enter this secret. The account name is <strong><%= accountEmail %></strong>. Keep it confidential.</p>
     <p class="mono" style="overflow-wrap:anywhere;font-size:1.15rem"><strong><%= secret %></strong></p>
@@ -27,5 +28,6 @@
     <button class="btn btn-dark" type="submit"><%= mode === 'setup' ? 'Enable and continue' : 'Verify and continue' %></button>
   </form>
 </section></div></main>
+<script src="/js/feedback.js?v=<%= typeof assetVersion==='undefined'?'1':assetVersion %>" defer></script>
 </body>
 </html>

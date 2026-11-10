@@ -222,6 +222,10 @@ async function listQuotes(conn,tenant,actor,{status=null,cursor=null}={}){
  const found=await forexQuoteModel(conn).find(query).sort({createdAt:-1,_id:-1}).limit(41).lean();
  const items=found.slice(0,40);return {items,nextCursor:found.length>40?mobile.encodeCursor(items.at(-1)):null};
 }
+async function recent(conn,tenant,actor){
+ moduleAccess(tenant,actor,'forex.view');
+ return forexQuoteModel(conn).find(quoteScope(actor)).select('operation customerLabel sourceMinor fromCurrency reference createdAt status').sort({createdAt:-1,_id:-1}).limit(14).lean();
+}
 async function detail(conn,tenant,actor,quoteId){
  moduleAccess(tenant,actor,'forex.view');const quote=await forexQuoteModel(conn).findOne({_id:id(quoteId),...quoteScope(actor)}).lean();
  if(!quote)throw fail('Forex quote not found in authorized scope',404);return quote;
@@ -262,4 +266,4 @@ async function reportRows({conn,filters,scope}){
 const unavailable=require('../../utils/unavailableOperation');
 const buy=()=>unavailable('forex currency purchase');const sell=()=>unavailable('forex currency sale');
 module.exports={fail,id,text,currency,rateScaled,minor,converted,amountLabel,enabledRate,moduleAccess,operator,reviewer,branchScope,quoteScope,branchFor,
- rateInput,quoteInput,quoteEconomics,proposeRate,decideRate,createQuote,decideQuote,cancelQuote,listRates,rateReviewQueue,listQuotes,detail,quoteReviewQueue,expireDue,reportRows,buy,sell};
+ rateInput,quoteInput,quoteEconomics,proposeRate,decideRate,createQuote,decideQuote,cancelQuote,listRates,rateReviewQueue,listQuotes,recent,detail,quoteReviewQueue,expireDue,reportRows,buy,sell};

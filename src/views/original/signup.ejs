@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css?v=<%= assetVersion %>" />
   <link rel="stylesheet" href="/css/style.css?v=<%= assetVersion %>" />
   <meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="/css/feedback.css?v=<%= typeof assetVersion==='undefined'?'1':assetVersion %>">
 </head>
 <body class="legal-body auth-body" id="top">
   <div class="cursor-glow" aria-hidden="true"></div>
@@ -69,6 +70,7 @@
         <p class="kicker">Tenant onboarding</p>
         <h2>Request setup</h2>
         <p class="auth-helper">Tell us about the business, modules, branches, and trial needs. The team will follow up before tenant creation.</p>
+        <%- include('../partials/flash', {flash:typeof flash==='undefined'?null:flash}) %>
         <form autocomplete="off" method="post" action="/signup"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <div class="auth-row"><label><span>Owner name</span><input name="Owner name" type="text" placeholder="Full name" required /></label><label><span>Business name</span><input name="Business name" type="text" placeholder="Business or tenant name" required /></label></div>
           <div class="auth-row"><label><span>Email</span><input name="Email" type="email" placeholder="owner@example.com" required /></label><label><span>Phone</span><input name="Phone" type="tel" placeholder="+211..." required /></label></div>
@@ -127,5 +129,6 @@
     </footer>
   </main>
   <script src="/js/script.js?v=<%= assetVersion %>"></script>
+<script src="/js/feedback.js?v=<%= typeof assetVersion==='undefined'?'1':assetVersion %>" defer></script>
 </body>
 </html>

@@ -23,6 +23,7 @@
   <link rel="stylesheet" href="/vendor/inter/inter.css?v=<%= assetVersion %>" />
   <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css?v=<%= assetVersion %>" />
   <link rel="stylesheet" href="/css/style.css?v=<%= assetVersion %>" />
+<link rel="stylesheet" href="/css/feedback.css?v=<%= typeof assetVersion==='undefined'?'1':assetVersion %>">
 </head>
 <body>
   <div class="cursor-glow" aria-hidden="true"></div>
@@ -60,5 +61,6 @@
     <p>© <span id="year"></span> Classic Technologies. All rights reserved.</p>
   </footer>
   <script src="/js/script.js?v=<%= assetVersion %>"></script>
+<script src="/js/feedback.js?v=<%= typeof assetVersion==='undefined'?'1':assetVersion %>" defer></script>
 </body>
 </html>

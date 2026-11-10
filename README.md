@@ -1,4 +1,4 @@
-# ClassicFin Hub 1.28.0
+# ClassicFin Hub 1.29.0
 
 A multi-tenant platform for reviewed manual financial operations, configurable subscriptions, branch-based administration and separately licensed Android SMS capture.
 
@@ -75,7 +75,7 @@ npm run release:gate
 
 Run the release gate against isolated staging/local infrastructure. Its integration scripts enforce loopback scratch databases and must never run on production. Browser and repository evidence is recorded under [docs/review](docs/review), with the latest launch results in the launch status document.
 
-Storage probes also cover bounded connection/pool waits, session-write throttling and exact index equivalence after batching. Run `npm run branches:browser` separately for the compact branch rows and their create/edit/archive modals at desktop and phone widths. See [workspace performance evidence](docs/review/workspace-performance/README.md) for measured scope and reproduction.
+Storage probes also cover bounded connection/pool waits, session-write throttling and exact index equivalence after batching. `npm run workspace-latency:integration` counts real commands in isolated authenticated requests; `npm run db:doctor` also measures five read-only database round trips from the machine running it. `npm run feedback:browser` checks visible login/action errors, retained fields and success messages without duplicate page loads. Run `npm run branches:browser` separately for the compact branch rows and their create/edit/archive modals at desktop and phone widths. See [workspace performance evidence](docs/review/workspace-performance/README.md) for measured scope and reproduction.
 
 ## Security and public discovery
 

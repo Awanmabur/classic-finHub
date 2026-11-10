@@ -1,3 +1,5 @@
-<% if (flash) { %>
-  <div class="reportBlock" data-session-flash role="<%= flash.type === 'bad' ? 'alert' : 'status' %>" style="margin-bottom:14px;border-color:<%= flash.type === 'bad' ? 'rgba(239,68,68,.22)' : 'rgba(22,163,74,.22)' %>"><%= flash.message %></div>
+<% if (typeof flash!=='undefined'&&flash&&flash.message) { const feedbackType=flash.type==='bad'?'bad':flash.type==='good'?'good':'info'; %>
+  <div class="sessionFeedback feedback-<%= feedbackType %>" data-session-flash data-feedback-message role="<%= feedbackType === 'bad' ? 'alert' : 'status' %>" tabindex="-1">
+    <span class="feedbackIcon" aria-hidden="true"><%= feedbackType==='bad'?'!':feedbackType==='good'?'✓':'i' %></span><div class="feedbackContent"><strong><%= feedbackType==='bad'?'Please check':feedbackType==='good'?'Done':'Information' %></strong><p><%= flash.message %></p></div><button class="feedbackDismiss" type="button" data-feedback-dismiss aria-label="Dismiss message">×</button>
+  </div>
 <% } %>

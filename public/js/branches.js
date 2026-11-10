@@ -57,7 +57,12 @@
     submitting.add(form); buttons.forEach(button => { button.disabled = true; });
     if (status) { status.hidden = false; status.textContent = 'Saving branch…'; }
     try {
-      const response = await fetch(target, {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: fields, signal: controller.signal});
+      const response = await fetch(target, {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/x-www-form-urlencoded','X-ClassicFin-Redirect':'json','X-ClassicFin-Background':'true'}, body: fields, signal: controller.signal});
+      if(response.headers.get('content-type')?.includes('application/json')){
+        const result=await window.ClassicFinFeedback.response(response);
+        if(response.ok&&result.redirect){if(result.flash?.type==='bad'){if(status)status.textContent=result.flash.message;return;}location.assign(result.redirect);return;}
+        if(status)status.textContent=result.message||'The branch could not be saved.';return;
+      }
       const destination = new URL(response.url);
       if (response.ok && response.redirected && destination.origin === location.origin && destination.pathname === '/tenant/branches') { location.assign(destination.href); return; }
       if (response.redirected && destination.origin === location.origin && destination.pathname === '/signin') { location.assign(destination.href); return; }

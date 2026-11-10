@@ -17,6 +17,15 @@ function recentRow(route,row){
  return {kind:route,label,subtitle:row.reference||'',amountLabel:amount!=null&&currency?formatMoneyMinor(amount,currency):'',
   href:`/tenant/${route}/${row._id}${route==='money-transfer'?'/acknowledgement':''}`,createdAt:row.createdAt,status:String(row.status||'').replaceAll('_',' '),acknowledgement:route==='money-transfer'};
 }
+function activity(data){
+ const recentActivity=[];
+ if(data.hasMobileMoney)for(const row of data.summary?.recent||[])recentActivity.push(recentRow('mobile-money',row));
+ const sources=[['hasTransfer','transferRecords','money-transfer'],['hasBanking','bankingRecords','banking'],['hasForex','forexRecords','forex']];
+ for(const [allowed,key,route] of sources)if(data[allowed])for(const row of data[key]?.items||[])recentActivity.push(recentRow(route,row));
+ recentActivity.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+ const latest=recentActivity.find(row=>row.acknowledgement);
+ return {recentActivity:recentActivity.slice(0,14),latestAcknowledgement:latest?{href:latest.href,label:'Last receipt'}:null};
+}
 async function snapshot(conn,tenant,user,data,operationBranch,options={}){
  const cash=[];let currentCashShift=null,dayStatus=null,notificationUnread=null;
  const viewing=require('./branchView.service').canViewBranches(user)&&user.viewBranchId!==undefined;
@@ -45,14 +54,7 @@ async function snapshot(conn,tenant,user,data,operationBranch,options={}){
    if(['open','disputed'].includes(ownShift.status)&&ownShift.openingVerifiedAt)currentCashShift={id:String(ownShift._id),status:ownShift.status,currency:ownShift.currency,href:`/tenant/cash/shifts/${ownShift._id}`,submitAction:`/tenant/cash/shifts/${ownShift._id}/submit`};
   }
  }
- const recentActivity=[];
- if(data.hasMobileMoney)for(const row of data.summary?.recent||[])recentActivity.push(recentRow('mobile-money',row));
- const sources=[['hasTransfer','transferRecords','money-transfer'],['hasBanking','bankingRecords','banking'],['hasForex','forexRecords','forex']];
- for(const [allowed,key,route] of sources)if(data[allowed])for(const row of data[key]?.items||[])recentActivity.push(recentRow(route,row));
- recentActivity.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
- const latest=recentActivity.find(row=>row.acknowledgement);
  return {...volumeData,cash,currentCashShift,dayStatus,notificationUnread,terminalCode:viewedBranch?.code||(viewing?'ALL':null),
-  cashBranchName:viewedBranch?.name||(viewing?'All branches':null),recentActivity:recentActivity.slice(0,14),
-  latestAcknowledgement:latest?{href:latest.href,label:'Last receipt'}:null};
+  cashBranchName:viewedBranch?.name||(viewing?'All branches':null),...activity(data)};
 }
-module.exports={snapshot,recentRow,cashRoles};
+module.exports={snapshot,activity,recentRow,cashRoles};

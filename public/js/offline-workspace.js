@@ -7,7 +7,7 @@
   const routes = new Set(['/tenant/mobile-money/cash-in', '/tenant/mobile-money/cash-out', '/tenant/money-transfer/requests', '/tenant/banking/requests', '/tenant/forex/quotes', '/tenant/expenses']);
   const operationPages = Object.freeze({cash_in: '/tenant/mobile-money/cash-in', cash_out: '/tenant/mobile-money/cash-out', transfer: '/tenant/money-transfer/send', payout: '/tenant/funded/payout', banking_deposit: '/tenant/banking/deposit', banking_withdrawal: '/tenant/banking/withdraw', banking_transfer: '/tenant/banking/transfer', forex_buy: '/tenant/forex/buy', forex_sell: '/tenant/forex/sell', expense: '/tenant/expenses/new', customer: '/tenant/customers/new', account: '/tenant/accounts/new', approval: '/tenant/approvals', cash_shift_open: '/tenant/cash/shifts', cash_shift_close: '/tenant/day/close'});
   const scopeKey = 'classicfin.offline.scope', viewKey = 'classicfin.offline.view', authKey = 'classicfin.offline.auth', currencyKey = 'classicfin.offline.currency';
-  const scripts = ['/js/offline-workspace.js', '/js/offline.js', '/js/dashboard.js', '/js/customer-accounts.js', '/js/expenses.js', '/js/workspace.js', '/js/branches.js'];
+  const scripts = ['/js/offline-workspace.js', '/js/offline.js', '/js/feedback.js', '/js/dashboard.js', '/js/customer-accounts.js', '/js/expenses.js', '/js/workspace.js', '/js/branches.js'];
   const nativeFetch = window.fetch.bind(window);
   let context, key, scope, db, initializing, locked = false, preparing = false, ready = false, lastMessage = '';
   const submitting = new WeakSet();
@@ -16,7 +16,8 @@
     const controller = new AbortController(), cancel = () => controller.abort(options.signal?.reason);
     if (options.signal?.aborted) cancel(); else options.signal?.addEventListener('abort', cancel, {once: true});
     const timer = setTimeout(() => controller.abort(new DOMException('Request timed out', 'TimeoutError')), milliseconds);
-    try { return await nativeFetch(value, {...options, signal: controller.signal}); }
+    const headers = new Headers(options.headers); headers.set('X-ClassicFin-Background', 'true');
+    try { return await nativeFetch(value, {...options, headers, signal: controller.signal}); }
     finally { clearTimeout(timer); options.signal?.removeEventListener('abort', cancel); }
   }
   const node = (tag, text, className) => { const el = document.createElement(tag); if (text !== undefined) el.textContent = text; if (className) el.className = className; return el; };
@@ -136,6 +137,8 @@
       const url = new URL(el.src, location.origin);
       if (url.origin === location.origin && url.pathname === '/js/offline.js') { url.pathname = '/js/offline-workspace.js'; el.src = url.pathname + url.search; }
     });
+    if (!dom.querySelector('script[src^="/js/feedback.js"]')) { const script = dom.createElement('script'); script.src = '/js/feedback.js'; script.defer = true; const first = dom.querySelector('script'); if (first) first.before(script); else dom.head.append(script); }
+    if (!dom.querySelector('link[href^="/css/feedback.css"]')) { const link = dom.createElement('link'); link.rel = 'stylesheet'; link.href = '/css/feedback.css'; dom.head.append(link); }
     dom.body.dataset.offlineSnapshot = String(page.savedAt);
     dom.querySelectorAll('input[name="idempotencyKey"]').forEach(el => el.setAttribute('value', crypto.randomUUID()));
     dom.querySelectorAll('input[name="_csrf"]').forEach(el => el.setAttribute('value', context.csrfToken || ''));
@@ -194,7 +197,7 @@
     if (reset) resetForm(form);
     let notice = form.querySelector('[data-offline-saved]');
     if (!notice) { notice = node('p', undefined, 'tiny'); notice.dataset.offlineSaved = ''; notice.setAttribute('role', 'status'); form.prepend(notice); }
-    notice.textContent = 'Saved offline — pending sync. Open Pending sync to review.';
+    notice.textContent = navigator.onLine ? 'Submitting your saved entry…' : 'Saved offline — pending sync. Open Pending sync to review.';
     status('Saved on this device. Pending sync; no final receipt has been issued.'); await renderQueue(); await updateBar(); return id;
   }
   async function syncWork(onlyId) {
@@ -203,7 +206,12 @@
     if (!drafts.length) { await updateBar(); return; }
     status('Checking your account and syncing pending entries…');
     let fresh;
-    try { fresh = await serverContext(); } catch { status('Reconnect and sign in to sync. Your entries remain on this device.'); return; }
+    try {
+      // A new instruction can use this tab's transient server-issued CSRF token.
+      // The POST revalidates live identity, scope and branch before any mutation.
+      // Older backlog entries still require an explicit fresh account check.
+      fresh = onlyId && context.csrfToken ? context : await serverContext();
+    } catch { status('Reconnect and sign in to sync. Your entries remain on this device.'); return; }
     if (fresh.scope !== scope || fresh.branchId !== context.branchId) { status('Account or operating branch changed. Sign in with the original account and branch to review these entries.'); return; }
     context.csrfToken = fresh.csrfToken;
     let paused = false;
@@ -214,10 +222,21 @@
         const draft = await decrypt(row); if (draft.state !== 'pending') return;
         if (draft.branchId !== fresh.branchId) { draft.state = 'needs_attention'; draft.problem = 'Operating branch changed. Review before entering this operation again.'; await save(candidate.id, draft); return; }
         let response;
-        try { response = await network(draft.action, {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'x-csrf-token': fresh.csrfToken, 'x-classicfin-phone-country': draft.phoneCountry || context.phoneCountry || 'SS'}, body: new URLSearchParams({...draft.values, _csrf: fresh.csrfToken}), cache: 'no-store'}, 20000); }
+        try { response = await network(draft.action, {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-ClassicFin-Redirect': 'json', 'X-ClassicFin-Offline-Scope': scope, 'X-ClassicFin-Offline-Branch': draft.branchId, 'x-csrf-token': fresh.csrfToken, 'x-classicfin-phone-country': draft.phoneCountry || context.phoneCountry || 'SS'}, body: new URLSearchParams({...draft.values, _csrf: fresh.csrfToken}), cache: 'no-store'}, 20000); }
         catch { status('Connection interrupted. Pending entries will retry with the same reference.'); return 'pause'; }
         if (!new URL(response.url).pathname.startsWith('/tenant/') || [401, 403].includes(response.status)) { status('Sign in again or ask your administrator to review access. Entries remain pending.'); return 'pause'; }
-        if (response.ok) { await response.body?.cancel(); draft.state = 'synced'; draft.resultUrl = new URL(response.url).pathname; draft.syncedAt = Date.now(); delete draft.values; delete draft.display; }
+        if (response.ok) {
+          let result;
+          try {
+            if (response.headers.get('content-type')?.includes('application/json')) result = await response.json();
+            else if (response.redirected) { await response.body?.cancel(); result = {redirect: response.url}; }
+            else throw Error('Unconfirmed response');
+            const destination = new URL(result.redirect, location.origin);
+            if (!result.redirect || destination.origin !== location.origin || !destination.pathname.startsWith('/tenant/')) { status('Sign in again before syncing. Your entries remain stored.'); return 'pause'; }
+            if (result.flash?.type === 'bad') { draft.state = 'needs_attention'; draft.problem = result.flash.message || 'Review this entry before trying again.'; }
+            else { draft.state = 'synced'; draft.resultUrl = destination.pathname + destination.search + destination.hash; draft.syncedAt = Date.now(); delete draft.values; delete draft.display; }
+          } catch { status('The server response could not be confirmed. Check history before retrying; the saved reference is unchanged.'); return 'pause'; }
+        }
         else if (response.status === 429 || response.status >= 500) { status('The server is busy. Pending entries will retry later.'); return 'pause'; }
         else { const detail = response.headers.get('content-type')?.includes('text/plain') ? (await response.text()).slice(0, 400) : ''; draft.state = 'needs_attention'; draft.problem = `Server rejected this entry (HTTP ${response.status}). ${detail || 'Review balances, rates, references and required fields.'}`; }
         await save(candidate.id, draft);
@@ -321,9 +340,9 @@
       await sync({id});
       const row = await read(id), draft = row && await decrypt(row);
       if (draft?.state === 'synced') { location.assign(draft.resultUrl); return; }
-      if (draft?.state === 'needs_attention') { rotateReference(form); alert(draft.problem); }
-      else { resetForm(form); status('Connection interrupted. Your entry is saved and pending sync.'); }
-    } catch (error) { status(error.message); alert(error.message); }
+      if (draft?.state === 'needs_attention') { rotateReference(form); status(draft.problem); window.ClassicFinFeedback?.show(draft.problem, 'bad', {form}); }
+      else { const message = 'Connection interrupted. Your entry is saved and pending sync. Retrying keeps the same reference.'; status(message); window.ClassicFinFeedback?.show(message, 'info', {form}); }
+    } catch (error) { status(error.message); window.ClassicFinFeedback?.show(error.message, 'bad', {form}); }
     finally { submitting.delete(form); buttons.forEach((button, index) => { button.disabled = disabled[index]; }); }
   }
   function installUI() {

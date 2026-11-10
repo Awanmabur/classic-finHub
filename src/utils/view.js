@@ -4,6 +4,10 @@ function flash(req, type, message) {
 }
 
 function consumeFlash(req) {
+  // A modal, prefetch or followed fetch redirect must not consume a message
+  // intended for the user's next document navigation.
+  const header=name=>req.get?.(name)||req.headers?.[name.toLowerCase()];
+  if(header('X-ClassicFin-Background')==='true'||header('X-ClassicFin-Prepare')==='true')return null;
   const value = req.session.flash;
   delete req.session.flash;
   return value;

@@ -11,6 +11,8 @@
   <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css?v=<%= assetVersion %>" />
   <% if(context==='tenant'){ %><link rel="stylesheet" href="/tenant/workspace/theme.css?v=<%= assetVersion %>" /><link rel="stylesheet" href="/css/approved-tenant.css?v=<%= assetVersion %>" /><% } else { %><link rel="stylesheet" href="/css/dashboard.css?v=<%= assetVersion %>" /><% } %>
   <link rel="stylesheet" href="/css/dashboard-layout.css?v=<%= assetVersion %>" />
+<link rel="stylesheet" href="/css/feedback.css?v=<%= typeof assetVersion==='undefined'?'1':assetVersion %>">
+<script src="/js/feedback.js?v=<%= typeof assetVersion==='undefined'?'1':assetVersion %>" defer></script>
 </head>
 <body<% if(context==='tenant'){ %> data-workspace="tenant" data-offline-context="<%= typeof offlineContext==='undefined'?'':JSON.stringify(offlineContext) %>" data-offline-scope="<%= typeof offlineIdentity!=='undefined'?offlineIdentity.scope:'' %>" data-offline-branch="<%= typeof offlineIdentity!=='undefined'?offlineIdentity.branchId:'' %>" data-offline-view="<%= typeof offlineIdentity!=='undefined'?offlineIdentity.viewBranchId:'' %>" data-offline-cacheable="<%= typeof offlineCacheable!=='undefined'&&offlineCacheable?'true':'false' %>" data-phone-prefix="<%= typeof phoneDefaults==='undefined'?'+211':phoneDefaults.dialCode %>"<% } %>>
   <% const visiblePaths = new Set(menu.flatMap(group => [...group.items.map(item => item.href),...(group.paths||[])]));
@@ -52,6 +54,7 @@
   <div class="wrap"><div class="shell">
     <%- include('../partials/dashboard-sidebar', { context, menu, currentPath, tenant, user }) %>
     <main class="panel main" id="workspaceContent" tabindex="-1">
+      <%- include('../partials/flash', { flash }) %>
       <div class="topbar">
         <div class="topActions">
           <button class="btn btnIcon mobileOnly headerMenu" id="menuBtn" type="button" aria-label="Open menu" aria-controls="sidePanel" aria-expanded="false">☰</button>
@@ -76,7 +79,6 @@
         </div>
         <div class="title"><h2 id="pageTitle"><%= pageTitle %></h2><p id="pageSub"><%= pageSub %></p></div>
       </div>
-      <%- include('../partials/flash', { flash }) %>
       <%- pageContent %>
     </main>
   </div></div>

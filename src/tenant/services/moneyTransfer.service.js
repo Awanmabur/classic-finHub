@@ -233,6 +233,10 @@ async function list(conn,tenant,actor,{cursor=null,status=null}={}){
  const found=await transferOrderModel(conn).find(query).sort({createdAt:-1,_id:-1}).limit(41).lean();
  const items=found.slice(0,40);return {items,nextCursor:found.length>40?mobile.encodeCursor(items.at(-1)):null};
 }
+async function recent(conn,tenant,actor){
+ requireModuleAccess(tenant,actor,'money_transfer.view');
+ return transferOrderModel(conn).find(orderReadScope(actor)).select('beneficiary.name amountMinor currency reference createdAt status').sort({createdAt:-1,_id:-1}).limit(14).lean();
+}
 async function detail(conn,tenant,actor,orderId){
  requireModuleAccess(tenant,actor,'money_transfer.view');
  const order=await transferOrderModel(conn).findOne({_id:id(orderId),...orderReadScope(actor)}).lean();
@@ -267,4 +271,4 @@ async function branchBalances(conn,tenant,actor){
 const sendMoney=()=>unavailable('moneyTransfer sendMoney');
 const payoutByPin=()=>unavailable('moneyTransfer payoutByPin');
 module.exports={branchBalances,sendMoney,payoutByPin,fail,id,selectedBranch,validateContact,validateOrder,branchScope,recordScope,maskPhone,equivalent,
- addContact,updateContact,archiveContact,listContacts,createRequest,decide,cancel,expireDue,list,detail,reviewQueue,reportRows};
+ addContact,updateContact,archiveContact,listContacts,createRequest,decide,cancel,expireDue,list,recent,detail,reviewQueue,reportRows};

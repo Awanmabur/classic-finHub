@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css?v=<%= assetVersion %>" />
   <link rel="stylesheet" href="/css/style.css?v=<%= assetVersion %>" />
   <meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="/css/feedback.css?v=<%= typeof assetVersion==='undefined'?'1':assetVersion %>">
 </head>
 <body class="legal-body auth-body" id="top">
   <div class="cursor-glow" aria-hidden="true"></div>
@@ -68,7 +69,7 @@
       <div>
         <p class="kicker">Account access</p>
         <h2>Sign in</h2>
-        <p class="auth-helper">Enter your email address and password. Your dashboard is selected automatically based on your account.</p><% if (flash) { %><p role="alert"><%= flash.message %></p><% } %>
+        <p class="auth-helper">Enter your email address and password. Your dashboard is selected automatically based on your account.</p><%- include('../partials/flash', {flash:typeof flash==='undefined'?null:flash}) %>
         <form autocomplete="on" method="post" action="/signin"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <label><span>Email address</span><input type="email" name="email" placeholder="Email address" autocomplete="username" required /></label>
           <label><span>Password</span><input type="password" name="password" placeholder="Password" autocomplete="current-password" required /></label>
@@ -127,5 +128,6 @@
     </footer>
   </main>
   <script src="/js/script.js?v=<%= assetVersion %>"></script>
+<script src="/js/feedback.js?v=<%= typeof assetVersion==='undefined'?'1':assetVersion %>" defer></script>
 </body>
 </html>

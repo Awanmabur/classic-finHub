@@ -27,6 +27,7 @@
       {'@type':'ListItem','position':2,'name':'Price Compare','item':appUrl+'/price-compare'}
     ]
   }).replace(/</g,'\\u003c') %></script>
+<link rel="stylesheet" href="/css/feedback.css?v=<%= typeof assetVersion==='undefined'?'1':assetVersion %>">
 </head>
 <body class="legal-body" id="top">
   <div class="cursor-glow" aria-hidden="true"></div>
@@ -69,6 +70,7 @@
   </nav>
 
   <main class="page legal-shell smooth-page">
+    <%- include('../partials/flash', {flash:typeof flash==='undefined'?null:flash}) %>
     <header class="legal-hero pricing-hero reveal">
       <p class="kicker">Price compare</p>
       <h1>Compare ClassicFin Hub prices, modules, and limits.</h1>
@@ -164,5 +166,6 @@
   </main>
 
   <script src="/js/script.js?v=<%= assetVersion %>"></script>
+<script src="/js/feedback.js?v=<%= typeof assetVersion==='undefined'?'1':assetVersion %>" defer></script>
 </body>
 </html>

@@ -1,0 +1,114 @@
+{
+  "browserErrors": [],
+  "resourceErrors": [],
+  "checks": {
+    "wrongPasswordVisible": true,
+    "processingStatePreventsDuplicateSubmission": true,
+    "correctPasswordNavigates": true,
+    "platformFailureRetainsInput": true,
+    "platformSuccessFlashOnce": true,
+    "flashConsumedOnce": true,
+    "tenantSuccessFlash": true,
+    "tenantInterruptedWriteRetainsInput": true,
+    "emailUnavailableVisible": true,
+    "activationRetainsPrivateToken": true
+  },
+  "layouts": [
+    {
+      "name": "wrong-password",
+      "width": 1440,
+      "overflow": false,
+      "visible": true,
+      "role": "alert",
+      "background": "rgb(255, 242, 242)"
+    },
+    {
+      "name": "wrong-password",
+      "width": 390,
+      "overflow": false,
+      "visible": true,
+      "role": "alert",
+      "background": "rgb(255, 242, 242)"
+    },
+    {
+      "name": "platform-validation",
+      "width": 1440,
+      "overflow": false,
+      "visible": true,
+      "role": "alert",
+      "background": "rgb(255, 242, 242)"
+    },
+    {
+      "name": "platform-validation",
+      "width": 390,
+      "overflow": false,
+      "visible": true,
+      "role": "alert",
+      "background": "rgb(255, 242, 242)"
+    },
+    {
+      "name": "platform-success",
+      "width": 1440,
+      "overflow": false,
+      "visible": true,
+      "role": "status",
+      "background": "rgb(239, 249, 243)"
+    },
+    {
+      "name": "platform-success",
+      "width": 390,
+      "overflow": false,
+      "visible": true,
+      "role": "status",
+      "background": "rgb(239, 249, 243)"
+    },
+    {
+      "name": "tenant-success",
+      "width": 1440,
+      "overflow": false,
+      "visible": true,
+      "role": "status",
+      "background": "rgb(239, 249, 243)"
+    },
+    {
+      "name": "tenant-success",
+      "width": 390,
+      "overflow": false,
+      "visible": true,
+      "role": "status",
+      "background": "rgb(239, 249, 243)"
+    },
+    {
+      "name": "recovery-unavailable",
+      "width": 1440,
+      "overflow": false,
+      "visible": true,
+      "role": "alert",
+      "background": "rgb(255, 242, 242)"
+    },
+    {
+      "name": "recovery-unavailable",
+      "width": 390,
+      "overflow": false,
+      "visible": true,
+      "role": "alert",
+      "background": "rgb(255, 242, 242)"
+    },
+    {
+      "name": "activation-validation",
+      "width": 1440,
+      "overflow": false,
+      "visible": true,
+      "role": "alert",
+      "background": "rgb(255, 242, 242)"
+    },
+    {
+      "name": "activation-validation",
+      "width": 390,
+      "overflow": false,
+      "visible": true,
+      "role": "alert",
+      "background": "rgb(255, 242, 242)"
+    }
+  ]
+}

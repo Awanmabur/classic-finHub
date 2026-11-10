@@ -424,12 +424,13 @@
         present.elements.namedItem('amount')?.dispatchEvent(new Event('input',{bubbles:true}));message('');return;
       }
       activeRequest?.abort();activeRequest=new AbortController();
-      const version=++requestVersion,operation=operations[kind];
+      const version=++requestVersion,operation=operations[kind],request=activeRequest;
+      let timedOut=false;const loadTimeout=setTimeout(()=>{timedOut=true;request.abort();},12000);
       selectKind(kind);formHost.replaceChildren();message('Loading operation details…');
       try {
         const requestUrl=new URL(operation.page,location.origin),selectedCurrency=document.getElementById('currencySelect')?.value;
         if(selectedCurrency)requestUrl.searchParams.set('currency',selectedCurrency);
-        const response=await (window.ClassicFinOffline?.pageResponse||fetch)(requestUrl,{credentials:'same-origin',headers:{Accept:'text/html'},signal:activeRequest.signal});
+        const response=await (window.ClassicFinOffline?.pageResponse||fetch)(requestUrl,{credentials:'same-origin',headers:{Accept:'text/html','X-ClassicFin-Background':'true'},signal:request.signal});
         if(version!==requestVersion)return;
         if(!response.ok)throw new Error(await responseMessage(response));
         if(new URL(response.url).pathname!==operation.page)throw new Error('Your session or access has changed. Open the module page to continue.');
@@ -457,23 +458,33 @@
           const disabled=submitButtons.map(button=>button.disabled),data=new FormData(form);
           if(event.submitter?.name)data.set(event.submitter.name,event.submitter.value);
           const fields=new URLSearchParams(data);
+          const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),20000);
           saving=true;submitButtons.forEach(button=>{button.disabled=true;});
           transactionDialog.querySelectorAll('[data-close-transaction],[data-transaction-clear],[data-transaction-service],[data-transaction-kind]').forEach(button=>{button.disabled=true;});
           message('Saving the operation…');
           try{
             const action=operations[currentKind]?.action;if(!action)throw new Error('Operation selection changed. Reload the form.');
-            const result=await fetch(action,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:fields});
+            const result=await fetch(action,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded','X-ClassicFin-Redirect':'json','X-ClassicFin-Background':'true'},body:fields,signal:controller.signal});
+            if(result.headers.get('content-type')?.includes('application/json')){
+              const outcome=await window.ClassicFinFeedback.response(result);
+              if(result.ok&&outcome.redirect){
+                if(outcome.flash?.type==='bad'){message(outcome.flash.message,true);return;}
+                if(operations[currentKind]?.keepOpenAfterPost&&new URL(outcome.redirect).pathname===operations[currentKind].page){saving=false;await load(currentKind,{refresh:true});message(outcome.flash?.message||'Request completed.');return;}
+                location.assign(outcome.redirect);return;
+              }
+              message(outcome.message||'The operation could not be completed.',true);return;
+            }
             if(result.ok&&result.redirected&&new URL(result.url).origin===location.origin){
               if(operations[currentKind]?.keepOpenAfterPost&&new URL(result.url).pathname===operations[currentKind].page){saving=false;await load(currentKind,{refresh:true});return;}
               location.assign(result.url);return;
             }
             message(await responseMessage(result),true);
           }catch{message('The connection was interrupted. Check the module history before retrying; your request may already have been recorded.',true);}
-          finally{saving=false;submitButtons.forEach((button,index)=>{button.disabled=disabled[index];});transactionDialog.querySelectorAll('[data-close-transaction],[data-transaction-clear],[data-transaction-service],[data-transaction-kind]').forEach(button=>{button.disabled=false;});}
+          finally{clearTimeout(timeout);saving=false;submitButtons.forEach((button,index)=>{button.disabled=disabled[index];});transactionDialog.querySelectorAll('[data-close-transaction],[data-transaction-clear],[data-transaction-service],[data-transaction-kind]').forEach(button=>{button.disabled=false;});}
         });
         if(version!==requestVersion)return;formHost.append(form);window.ClassicFinDirectory?.initialiseForm(form);initialiseOperationForm(form);initialiseMobileFunds(form);message('');
         form.querySelector('input:not([type="hidden"]):not([readonly]),select,textarea')?.focus();
-      }catch(error){if(version!==requestVersion||error.name==='AbortError')return;message(error.message||'This operation is unavailable. Open the module to continue.',true);const fallback=document.createElement('a');fallback.className='btn';fallback.href=operation.page;fallback.textContent='Open module';formHost.append(fallback);}
+      }catch(error){if(version!==requestVersion||error.name==='AbortError'&&!timedOut)return;message(timedOut?'Operation details took too long to load. Try again when connected, or open the module.':error.message||'This operation is unavailable. Open the module to continue.',true);const fallback=document.createElement('a');fallback.className='btn';fallback.href=operation.page;fallback.textContent='Open module';formHost.append(fallback);}finally{clearTimeout(loadTimeout);}
     };
     const firstKind=group=>group?[...enabledKinds].find(kind=>groups[kind]===group):['transfer','banking','mobile','forex','daily'].map(service=>[...enabledKinds].find(kind=>groups[kind]===service)).find(Boolean);
     const open=group=>load(lastKinds.get(group)||firstKind(group==='mobile_money'?'mobile':group));

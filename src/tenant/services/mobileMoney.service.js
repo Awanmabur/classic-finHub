@@ -342,6 +342,10 @@ async function getSummary(conn, { from, to, operatorId, branchId } = {}) {
   ]);
   return { total, pending, awaitingReview, summaries: summaries.map(s=>({ ...s, volumeFormatted: formatMoneyMinor(s.volumeMinor,s._id.currency), feesFormatted: formatMoneyMinor(s.feesMinor,s._id.currency) })), recent };
 }
+async function recent(conn,{operatorId,branchId}={}){
+ const {Types}=require('mongoose'),scope={...(operatorId?{operatorId:new Types.ObjectId(operatorId)}:{}),...(branchId?{branchId:new Types.ObjectId(branchId)}:{})};
+ return mobileTransactionModel(conn).find({createdAt:dateBounds(),...scope}).select('operation customer networkReference customerPhone network amountMinor currency createdAt status').sort({createdAt:-1,_id:-1}).limit(14).lean();
+}
 // CSV content is escaped so spreadsheet apps cannot evaluate attacker-supplied formulae.
 function csvCell(value) {
   let s = String(value ?? '');
@@ -357,4 +361,4 @@ function toCsv(items) {
   ]);
   return rows.map(row=>row.map(csvCell).join(',')).join('\r\n')+'\r\n';
 }
-module.exports = { currencies, toMinor, fromMinor, formatMoneyMinor, validate, dateBounds, recordMobileMoney, reviewMobileMoney, getReviewQueue, requestVoid, decideVoid, getVoidQueue, getTransactions, getTransactionPage, getRecordDetails, visibleRecordForRole, encodeCursor, decodeCursor, getSummary, toCsv, csvCell };
+module.exports = { currencies, toMinor, fromMinor, formatMoneyMinor, validate, dateBounds, recordMobileMoney, reviewMobileMoney, getReviewQueue, requestVoid, decideVoid, getVoidQueue, getTransactions, getTransactionPage, getRecordDetails, visibleRecordForRole, encodeCursor, decodeCursor, getSummary, recent, toCsv, csvCell };

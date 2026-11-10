@@ -27,6 +27,7 @@
       {'@type':'ListItem','position':2,'name':'Faq','item':appUrl+'/faq'}
     ]
   }).replace(/</g,'\\u003c') %></script>
+<link rel="stylesheet" href="/css/feedback.css?v=<%= typeof assetVersion==='undefined'?'1':assetVersion %>">
 </head>
 <body class="legal-body" id="top">
   <div class="cursor-glow" aria-hidden="true"></div>
@@ -68,6 +69,7 @@
     <button id="themeToggleMobile"><i class="fa-solid fa-moon"></i> Change theme</button>
   </nav>
   <main class="page legal-shell smooth-page">
+    <%- include('../partials/flash', {flash:typeof flash==='undefined'?null:flash}) %>
     <header class="legal-hero reveal">
       <p class="kicker">ClassicFin Hub FAQ</p>
       <h1>Frequently asked questions</h1>
@@ -142,5 +144,6 @@
     </footer>
   </main>
   <script src="/js/script.js?v=<%= assetVersion %>"></script>
+<script src="/js/feedback.js?v=<%= typeof assetVersion==='undefined'?'1':assetVersion %>" defer></script>
 </body>
 </html>

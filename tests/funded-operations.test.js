@@ -16,6 +16,18 @@ test('manual FX stock and settlement movements use exact minor units with explic
  const sell=service.economicPlan({...base,operation:'sell'},accounts,{feeIncomeId:ids[2]});assert.deepEqual(sell.legs,[{accountId:ids[0],deltaMinor:'-1000'},{accountId:ids[1],deltaMinor:'37100'}]);
  assert.throws(()=>service.economicPlan({...base,feeMinor:'37000'},accounts,{feeIncomeId:ids[2]}),{status:409});
 });
+test('configured banking fees are collected once with exact customer liabilities and separate income',()=>{
+ const base={sourceType:'banking',currency:'USD',amountMinor:'10000',feeMinor:'125'},accounts={cashAccountId:ids[0]},counter={sourceLiabilityId:ids[1],destinationLiabilityId:ids[2],feeIncomeId:ids[3]};
+ const deposit=service.economicPlan({...base,kind:'deposit_request'},accounts,counter);assert.deepEqual(deposit.legs,[{accountId:ids[0],deltaMinor:'10125'}]);assert.deepEqual(rows(deposit),[['USD',ids[1],'credit','10000'],['USD',ids[3],'credit','125']]);
+ const withdrawal=service.economicPlan({...base,kind:'withdrawal_request'},accounts,counter);assert.deepEqual(withdrawal.legs,[{accountId:ids[0],deltaMinor:'-10000'}]);assert.deepEqual(rows(withdrawal),[['USD',ids[1],'debit','10125'],['USD',ids[3],'credit','125']]);
+ const transfer=service.economicPlan({...base,kind:'transfer_request'},accounts,counter);assert.deepEqual(transfer.legs,[]);assert.deepEqual(rows(transfer),[['USD',ids[1],'debit','10125'],['USD',ids[2],'credit','10000'],['USD',ids[3],'credit','125']]);
+});
+test('older pending banking executions keep their original zero-fee source fingerprint',()=>{
+ const source={_id:ids[0],branchId:ids[1],createdBy:ids[2],reference:'BK-LEGACY',kind:'deposit_request',currency:'UGX',amountMinor:'1000',source:{referenceType:'customer_account',referenceId:ids[3]},capture:{paymentChannel:'Cash'}};
+ const snapshot=service.sourceSnapshot('banking',source);delete snapshot.feeMinor;
+ const execution={sourceType:'banking',sourceSnapshot:snapshot,sourceFingerprint:crypto.createHash('sha256').update(JSON.stringify(snapshot)).digest('hex')};
+ assert.equal(service.sourceMatches(execution,source),true);assert.equal(service.sourceMatches(execution,{...source,feeMinor:'100'}),false);
+});
 test('manual remittance collection records transfer payable and explicit fee income separately',()=>{
  const value=service.economicPlan({sourceType:'money_transfer',currency:'USD',amountMinor:'25000',feeMinor:'125'},{collectionAccountId:ids[0],clearingAccountId:ids[1]},{feeIncomeId:ids[2]});
  assert.deepEqual(value.legs,[{accountId:ids[0],deltaMinor:'25125'},{accountId:ids[1],deltaMinor:'25000'}]);assert.equal(value.ledgerLines[0].amountMinor,'125');

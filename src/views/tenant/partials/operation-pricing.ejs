@@ -1,0 +1,13 @@
+<% const pricingRules=Array.isArray(data.pricingContext)?data.pricingContext:[];
+   const pricingBranchId=String(typeof currentBranch!=='undefined'?currentBranch?._id:typeof currentBranchId!=='undefined'?currentBranchId:'');
+   const pricingCurrency=(typeof pricingCurrencyOverride==='string'?pricingCurrencyOverride:'')||data.entryCurrency||data.selectedCurrency||(typeof currentBranch!=='undefined'?currentBranch?.currency:'')||'UGX';
+   const pricingNetwork=pricingOperation.startsWith('mobile_money.')?(data.networksAvailable?.[0]||'MTN'):'';
+   const pricingInitial=pricingRules.filter(rule=>rule.enabled!==false&&rule.operation===pricingOperation&&rule.currency===pricingCurrency&&(!rule.branchId||String(rule.branchId)===pricingBranchId)&&(!rule.network||rule.network===pricingNetwork)).sort((a,b)=>(Number(Boolean(b.branchId))*2+Number(Boolean(b.network)))-(Number(Boolean(a.branchId))*2+Number(Boolean(a.network))))[0];
+   const pricingToken=pricingInitial?String(pricingInitial._id)+':'+pricingInitial.revision:'default'; %>
+<input type="hidden" name="pricingMode" value="configured"><input type="hidden" name="pricingPolicy" value="<%= pricingToken %>">
+<% if(pricingOperation.startsWith('banking.')){ %><input type="hidden" name="fee" value="0"><% } %>
+<div class="summary" data-pricing-context="<%= JSON.stringify({rules:pricingRules,branchId:pricingBranchId,operation:pricingOperation,field:pricingField}) %>" aria-live="polite">
+ <div class="sumRow"><span>Fee / commission</span><b data-pricing-fee>Calculated automatically</b></div>
+ <div class="sumRow"><span>Estimated operating cost</span><b data-pricing-cost>Calculated automatically</b></div>
+ <p class="tiny" data-pricing-label>Saved charges apply automatically. Operating cost is an estimate, not an additional customer charge.</p>
+</div>

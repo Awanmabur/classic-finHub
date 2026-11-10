@@ -83,8 +83,9 @@
     </main>
   </div></div>
   <div class="menuOverlay" id="menuOverlay"></div>
-  <% if(transactionOptions.length){ %><%- include('../partials/transaction-modal', {transactionOptions,visiblePaths}) %><% } %>
+  <% if(transactionOptions.length){ %><%- include('../partials/transaction-modal', {transactionOptions,visiblePaths,seedDisplayCurrency:selectedDisplayCurrency}) %><% } %>
   <% if(context === 'tenant'){ %><%- include('../partials/offline-queue') %><script src="/js/offline-workspace.js?v=<%= assetVersion %>" defer></script><script src="/js/customer-accounts.js?v=<%= assetVersion %>" defer></script><% } %>
+  <script src="/js/operation-pricing.js?v=<%= assetVersion %>" defer></script>
   <script src="/js/dashboard.js?v=<%= assetVersion %>" defer></script>
 </body>
 </html>

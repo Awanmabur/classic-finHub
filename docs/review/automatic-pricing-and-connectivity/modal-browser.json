@@ -1,0 +1,51 @@
+{
+  "browserErrors": [],
+  "resourceErrors": [],
+  "layouts": [
+    {
+      "width": 1440,
+      "overflow": false,
+      "dialogOverflow": false
+    },
+    {
+      "width": 390,
+      "overflow": false,
+      "dialogOverflow": false
+    }
+  ],
+  "automationWaitMs": 123,
+  "firstInputsMs": 19,
+  "fragmentCommands": [
+    {
+      "command": "find",
+      "collection": "tenants"
+    },
+    {
+      "command": "find",
+      "collection": "securetenantusers"
+    },
+    {
+      "command": "find",
+      "collection": "accountidentities"
+    },
+    {
+      "command": "find",
+      "collection": "securebranches"
+    },
+    {
+      "command": "find",
+      "collection": "operationpricingpolicyv1"
+    }
+  ],
+  "hydrationKeepsFocusAndCaret": true,
+  "loadingFailureRetryKeepsFields": true,
+  "samePageReuse": true,
+  "warmReuse": true,
+  "typedFieldsPreserved": true,
+  "submitWaitsForCurrentContext": true,
+  "moduleRevocationEnforced": true,
+  "toolbarCurrencySeed": true,
+  "expiredEditsRetained": true,
+  "explicitClearRefreshes": true,
+  "expiredPristineFormRefreshes": true
+}

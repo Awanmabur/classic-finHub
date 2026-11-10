@@ -9,6 +9,25 @@ const throttle=require('../../platform/services/actionThrottle.service').financi
 const field=(name,label,value='',extra={})=>({name,label,value,...extra});
 const select=(name,label,value,options)=>field(name,label,value,{type:'select',options:options.map(v=>typeof v==='string'?{value:v,label:v}:{value:v[0],label:v[1]})});
 const states=['draft','enabled','disabled'];
+function pricingForm(context,rule=null){
+ const operations=context.operations||[],branches=context.branches||[],editing=Boolean(rule);
+ const amount=(value,currency)=>{const scale=currency==='UGX'?0:2,number=BigInt(value||'0'),unit=10n**BigInt(scale);return String(number/unit)+(scale?'.'+String(number%unit).padStart(scale,'0'):'');};
+ const money=rule||{currency:'UGX',fixedFeeMinor:'0',feeBps:0,fixedCostMinor:'0',costBps:0,enabled:true};
+ const scopeFields=editing?[
+  field('operationLabel','Operation',operations.find(item=>item.key===rule.operation)?.label||rule.operation,{displayOnly:true}),
+  field('branchLabel','Branch',rule.branchId?branches.find(item=>String(item._id)===String(rule.branchId))?.name||'Inactive branch':'All branches',{displayOnly:true}),
+  field('currencyLabel','Currency',rule.currency==='KES'?'KSH':rule.currency,{displayOnly:true}),field('networkLabel','Network',rule.network||'All networks',{displayOnly:true})
+ ]:[
+  select('operation','Operation',operations[0]?.key||'',operations.map(item=>[item.key,item.label])),
+  {...select('branchId','Branch','',[['','All branches'],...branches.map(branch=>[String(branch._id),branch.name])]),required:false},
+  select('currency','Currency','UGX',require('../../config/currencies').forexCurrencyCodes.map(code=>[code,code==='KES'?'KSH':code])),
+  {...select('network','Network','',[['','All networks'],...require('../../config/mobileNetworks').networks.map(network=>[network,network])]),required:false,hint:'Use a specific network only for Mobile Money.'}
+ ];
+ return {title:editing?'Edit automatic charges':'Add automatic charges',subtitle:'Saved charges apply automatically to daily operations.',section:'Operation pricing',action:'/tenant/workspace/pricing'+(editing?'/'+rule._id:''),revision:rule?.revision||0,
+  hidden:editing?['branchId','operation','currency','network'].map(name=>({name,value:String(rule[name]||'')})).concat({name:'id',value:String(rule._id)}):[],
+  fields:[...scopeFields,field('feeFixed','Fixed customer fee',amount(money.fixedFeeMinor,money.currency),{required:true,pattern:'[0-9]+([.][0-9]{1,2})?',max:24}),field('feePercent','Customer fee (%)',String(money.feeBps/100),{required:true,pattern:'[0-9]+([.][0-9]{1,2})?',max:6}),field('costFixed','Fixed operating cost estimate',amount(money.fixedCostMinor,money.currency),{required:true,pattern:'[0-9]+([.][0-9]{1,2})?',max:24}),field('costPercent','Operating cost estimate (%)',String(money.costBps/100),{required:true,pattern:'[0-9]+([.][0-9]{1,2})?',max:6}),select('enabled','Status',money.enabled?'true':'false',[['true','Enabled'],['false','Disabled']])]
+ };
+}
 const entryPages={
  landing:{kind:'landing_section',title:'Landing page setup',subtitle:'Public tenant landing page content and published sections.',create:'Add section',modal:'Create landing section',section:'Landing section'},
  kyc:{kind:'kyc_field',title:'Customer/KYC setup',subtitle:'Customer verification field definitions and existing customer records.',create:'Add KYC field',modal:'Create KYC field',section:'KYC field'},
@@ -75,6 +94,26 @@ function factory({renderTenant}){
   renderTenant(req,res,'workspace/index',names[0],names[1],data);
  }
  router.get('/',async(req,res,next)=>{try{await render(req,res,'overview',{summary:await service.overview(req.tenantDb,req.tenant,req.user)});}catch(error){next(error);}});
+ router.get('/pricing',requirePermission('workspace.manage'),async(req,res,next)=>{try{
+  const pricing=await require('../pricing/service').read(req.tenantDb,req.tenant,req.user);
+  renderTenant(req,res,'workspace/pricing','Automatic charges','Configure fees, commissions and operating cost estimates once.',{...pricing,form:pricingForm(pricing)});
+ }catch(error){next(error);}});
+ router.get('/pricing/new',requirePermission('workspace.manage'),async(req,res,next)=>{try{
+  const pricing=await require('../pricing/service').read(req.tenantDb,req.tenant,req.user);
+  if(!pricing.operations.length)throw service.fail('Subscribe to an operational module before configuring its charges.',403);
+  const form=pricingForm(pricing);renderTenant(req,res,'workspace/edit',form.title,form.subtitle,{form,back:'/tenant/workspace/pricing'});
+ }catch(error){next(error);}});
+ router.get('/pricing/:id/edit',requirePermission('workspace.manage'),async(req,res,next)=>{try{
+  const pricing=await require('../pricing/service').read(req.tenantDb,req.tenant,req.user),rule=pricing.rules.find(item=>String(item._id)===req.params.id);
+  if(!rule)throw service.fail('Pricing rule not found.',404);
+  const form=pricingForm(pricing,rule);renderTenant(req,res,'workspace/edit',form.title,form.subtitle,{form,back:'/tenant/workspace/pricing'});
+ }catch(error){next(error);}});
+ const savePricing=async(req,res,next)=>{try{
+  if(req.params.id&&req.body.id&&req.params.id!==req.body.id)throw service.fail('Pricing rule context changed. Reload the form.',409);
+  await require('../pricing/service').save(req.tenantDb,req.tenant,req.user,req.params.id?{...req.body,id:req.params.id}:req.body);flash(req,'good','Automatic charges saved. New operations use the updated settings.');res.redirect(303,'/tenant/workspace/pricing');
+ }catch(error){next(error);}};
+ router.post('/pricing',requirePermission('workspace.manage'),throttle,savePricing);
+ router.post('/pricing/:id',requirePermission('workspace.manage'),throttle,savePricing);
  for(const page of ['profile','branding',...Object.keys(entryPages),'landing-preview','receipt-preview','customer-portal-preview']){
   router.get('/'+page,async(req,res,next)=>{try{
   const extra=page==='landing-preview'?{sections:await service.entries(req.tenantDb,req.tenant,req.user,'landing_section')}:page==='profile'?{summary:await service.overview(req.tenantDb,req.tenant,req.user)}:{};
@@ -126,6 +165,6 @@ function factory({renderTenant}){
  }catch(error){next(error);}});
  return router;
 }
-factory.entryForm=entryForm;factory.configForm=configForm;factory.entryPages=entryPages;factory.pageNames=pageNames;
+factory.entryForm=entryForm;factory.configForm=configForm;factory.pricingForm=pricingForm;factory.entryPages=entryPages;factory.pageNames=pageNames;
 factory.theme=theme;
 module.exports=factory;

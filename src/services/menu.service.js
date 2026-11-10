@@ -87,6 +87,7 @@ function tenantMenu(tenant,user) {
   group('Tenant Workspace',[
     ...(workspace?[item('Tenant profile','workspace/profile','fa-building')]:[]),
     ...(sharedCash?[item('Wallets & balances','treasury','fa-wallet')]:[]),
+    ...(workspace&&can('workspace.manage')&&user.role==='Tenant Owner'&&['mobile_money','money_transfer','banking','forex'].some(module)?[item('Fees & commissions','workspace/pricing','fa-coins')]:[]),
     ...(workspace?[item('Landing page setup','workspace/landing','fa-window-maximize'),item('Branding & receipts','workspace/branding','fa-palette')]:[]),
     ...(can('branches.view')?[item('Branches & locations','branches','fa-location-dot')]:[]),
     ...(staff?[item('Admins, tellers & users','users','fa-users')]:[]),

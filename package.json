@@ -1,6 +1,6 @@
 {
   "name": "classicfin-hub",
-  "version": "1.29.0",
+  "version": "1.30.0",
   "private": true,
   "description": "ClassicFin Hub modular multi-tenant financial operations platform",
   "engines": {
@@ -110,7 +110,11 @@
     "index-batching:integration": "node scripts/index-batching-integration.js",
     "branches:browser": "node tools/browser/branches.cjs",
     "feedback:browser": "node tools/browser/feedback.cjs",
-    "workspace-latency:integration": "node scripts/workspace-latency-integration.js"
+    "workspace-latency:integration": "node scripts/workspace-latency-integration.js",
+    "pricing-rules:integration": "node scripts/pricing-rules-integration.js",
+    "automatic-pricing:integration": "node scripts/automatic-pricing-integration.js",
+    "pricing:browser": "node tools/browser/pricing.cjs",
+    "operation-modal:browser": "node tools/browser/operation-modal.cjs"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

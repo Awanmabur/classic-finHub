@@ -65,7 +65,7 @@ function validateOrder(input){
  else{senderId=id(input?.senderId);beneficiaryId=id(input?.beneficiaryId);if(senderId===beneficiaryId)throw fail('Sender and beneficiary must be different contacts');}
  const currency=text(input?.currency,'currency',3,3);
  const amountMinor=mobile.toMinor(input?.amount,currency);
- const feeMinor=mobile.toMinor(input?.fee??'0',currency,true);
+ const feeMinor=require('../pricing/apply').mode(input)?0n:mobile.toMinor(input?.fee??'0',currency,true);
  if(feeMinor>amountMinor)throw fail('Transfer fee cannot exceed the requested amount');
  const idempotencyKey=text(input?.idempotencyKey,'form reference',36,36);
  if(!UUID.test(idempotencyKey))throw fail('Invalid form reference. Reload the page.');
@@ -145,13 +145,15 @@ async function createRequest(conn,tenant,actor,input){
  await ensureTenantIndexes(conn);
  const Model=transferOrderModel(conn);
  const existing=await Model.findOne({idempotencyKey:v.idempotencyKey}).lean();
- if(existing){if(!equivalent(existing,actor,branchId,v))throw fail('Form reference reused with different details',409);return {order:existing,duplicate:true};}
+ if(existing){const pricing=await require('../pricing/apply').resolve(conn,tenant,branchId,input,{operation:'money_transfer.send',currency:v.currency,amountMinor:v.amountMinor,existing,providedMinor:v.feeMinor});if(pricing)v.feeMinor=BigInt(pricing.feeMinor);if(!equivalent(existing,actor,branchId,v))throw fail('Form reference reused with different details',409);return {order:existing,duplicate:true};}
  const tx=await conn.startSession();let created;
  try{await tx.withTransaction(async()=>{
   const authorization=await financialAuth.fenceAction(conn,tx,actor,tenant,'money_transfer','money_transfer.create',{branchId});
   const branch=await branchModel(conn).findOneAndUpdate({_id:branchId,status:'active'},{$inc:{revision:1}},{session:tx,new:true});
   if(!branch)throw fail('Branch is inactive or unavailable',409);
   require('./branchCurrency.service').resolve(branch,v.currency);
+  const pricing=await require('../pricing/apply').resolve(conn,authorization.tenant,branch,input,{operation:'money_transfer.send',currency:v.currency,amountMinor:v.amountMinor,providedMinor:v.feeMinor,session:tx});
+  if(pricing){v.pricing=pricing;v.feeMinor=BigInt(pricing.feeMinor);if(v.feeMinor>v.amountMinor)throw fail('Configured transfer fee cannot exceed the requested amount',409);}
   const destinationBranchId=v.destinationBranchId;
   const destination=await branchModel(conn).findOneAndUpdate({_id:destinationBranchId,status:'active'},{$inc:{revision:1}},{session:tx,new:true});
   if(!destination)throw fail('Choose an active receiving branch in this tenant',409);
@@ -166,7 +168,7 @@ async function createRequest(conn,tenant,actor,input){
   await reserveUsage(authorization.tenant,'money_transfer_requests',tx);
   [created]=await Model.create([{reference:`TR-${crypto.randomBytes(12).toString('hex').toUpperCase()}`,
    idempotencyKey:v.idempotencyKey,branchId,destinationBranchId,originBranchName:branch.name,destinationBranchName:destination.name,createdBy:actor.id,partyEntryMode:v.partyEntryMode,sender,beneficiary,
-   capture:v.capture,currency:v.currency,amountMinor:String(v.amountMinor),feeMinor:String(v.feeMinor),validDays:v.validDays,
+   capture:v.capture,pricing:v.pricing,currency:v.currency,amountMinor:String(v.amountMinor),feeMinor:String(v.feeMinor),validDays:v.validDays,
    expiresAt:new Date(Date.now()+v.validDays*86400000),status:'requested'}],{session:tx});
   await auditEventModel(conn).create([{action:'money_transfer.request.created',actorId:actor.id,targetId:created._id,
    metadata:{branchId,currency:v.currency,reference:created.reference,amountMinor:v.amountMinor}}],{session:tx});

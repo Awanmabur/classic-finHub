@@ -50,7 +50,7 @@ function validate(input, operation) {
   if (!/^[A-Za-z0-9._:/-]{5,100}$/.test(networkReference)) throw bad('Provide the valid network transaction reference (5–100 characters)');
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idempotencyKey)) throw bad('Expired form reference. Reload the page and retry.');
   const amountMinor = toMinor(input.amount, currency);
-  const feeMinor = toMinor(input.fee ?? '0', currency, true);
+  const feeMinor = require('../pricing/apply').mode(input)?0n:toMinor(input.fee ?? '0', currency, true);
   if (feeMinor > amountMinor) throw bad('Fee cannot exceed amount');
   const selected={};
   for(const key of ['walletAccountId','paymentAccountId','customerAccountId']){
@@ -88,6 +88,8 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
   // allowance was subsequently exhausted. It must never consume another unit.
   const prior=await Model.findOne({idempotencyKey:values.idempotencyKey}).lean();
   if(prior){
+    const pricing=await require('../pricing/apply').resolve(conn,tenant,operatingBranch,input,{operation:'mobile_money.'+operation,currency:values.currency,amountMinor:values.amountMinor,network:values.network,existing:prior,providedMinor:values.feeMinor,source:sourceContext?'sms':'manual'});
+    if(pricing)values.feeMinor=BigInt(pricing.feeMinor);
     if((sourceContext && String(prior.smsInboxId)!==source.smsInboxId) || String(prior.operatorId)!==String(operator.id)||prior.operation!==operation||
       String(prior.branchId)!==requestedBranchId||
       !sameDetails(prior,values,{feeTreatmentSpecified}))throw bad('This operation reference was already used for different details.',409);
@@ -103,6 +105,8 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
       const branch=await branchModel(conn).findOneAndUpdate({_id:requestedBranchId,status:'active'},{$inc:{revision:1}},{session,new:true});
       if(!branch)throw bad('Assigned branch is inactive or unavailable',409);
       require('./branchCurrency.service').resolve(branch,values.currency);
+      const pricing=await require('../pricing/apply').resolve(conn,authorization.tenant,branch,input,{operation:'mobile_money.'+operation,currency:values.currency,amountMinor:values.amountMinor,network:values.network,providedMinor:values.feeMinor,session,source:sourceContext?'sms':'manual'});
+      if(pricing){values.pricing=pricing;values.feeMinor=BigInt(pricing.feeMinor);if(values.feeMinor>values.amountMinor)throw bad('Configured fee cannot exceed the amount',409);}
       await require('../../platform/services/commercial.service').reserveUsage(authorization.tenant,'mobile_money_records',session);
       // Wallet and bank are declared receipt methods, not verified integrations.
       // Only physical Cash records may change a verified drawer or join a shift.

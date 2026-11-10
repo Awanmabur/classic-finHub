@@ -97,17 +97,25 @@ test('public pages list individual modules and preserve the approved login field
   assert.doesNotMatch(signin,/name="(tenant|role|workspaceId)"/);
 });
 
-test('bounded business validity periods are selectable and continue to obey backend range checks',()=>{
+test('routine validity periods are automatic while administrative presets remain selectable and bounded',()=>{
   const f=require('node:fs');
   for(const [file,field] of [
-    ['tenant/money-transfer/_entry-form.ejs','validDays'],['tenant/banking/_entry-form.ejs','validDays'],
-    ['tenant/forex/index.ejs','validHours'],['tenant/forex/_entry-form.ejs','validMinutes'],
+    ['tenant/forex/index.ejs','validHours'],
     ['tenant/approvals/index.ejs','expiresHours']
   ]){
     const template=f.readFileSync(path.join(views,file),'utf8');
     assert.match(template,new RegExp(`<select[^>]*name="${field}"`));
     assert.doesNotMatch(template,new RegExp(`<input[^>]*name="${field}"`));
   }
+  for(const file of ['tenant/money-transfer/_entry-form.ejs','tenant/banking/_entry-form.ejs']){
+    const template=f.readFileSync(path.join(views,file),'utf8');
+    assert.match(template,/<input type="hidden" name="validDays" value="7">/);
+    assert.doesNotMatch(template,/<select[^>]*name="validDays"/);
+  }
+  const forex=f.readFileSync(path.join(views,'tenant/forex/_entry-form.ejs'),'utf8');
+  assert.match(forex,/<input type="hidden" name="validMinutes" value="<%= initialValidity %>">/);
+  assert.match(forex,/Math\.min\(15,initialMaxValidity\)/);
+  assert.doesNotMatch(forex,/<select[^>]*name="validMinutes"/);
   assert.equal(transfer.validateOrder({destinationBranchId:'507f1f77bcf86cd799439013',senderId:'507f1f77bcf86cd799439011',beneficiaryId:'507f1f77bcf86cd799439012',amount:'100',fee:'0',currency:'UGX',idempotencyKey:crypto.randomUUID(),validDays:'30'}).validDays,30);
   assert.throws(()=>transfer.validateOrder({destinationBranchId:'507f1f77bcf86cd799439013',senderId:'507f1f77bcf86cd799439011',beneficiaryId:'507f1f77bcf86cd799439012',amount:'100',fee:'0',currency:'UGX',idempotencyKey:crypto.randomUUID(),validDays:'31'}),{status:400});
 });
@@ -122,10 +130,8 @@ test('transaction forms offer enabled account-branch currencies without client b
       {_id:'507f1f77bcf86cd799439014',kind:'beneficiary',fullName:'Receiver',country:'KE'}],
     canCreate:true,canReview:false,idempotencyKey:crypto.randomUUID(),formatMoneyMinor:(amount,currency)=>currency+amount};
   const transferHtml=await render('tenant/money-transfer/index.ejs',{data:transferData,user,csrfToken:'csrf'});
-  const validity=transferHtml.match(/<select[^>]*name="validDays"[^>]*>([\s\S]*?)<\/select>/);
-  assert(validity,'The extracted entry partial must still render the bounded validity selector');
-  assert.equal((validity[1].match(/<option /g)||[]).length,30);
-  assert.match(validity[1],/value="30"/);assert.doesNotMatch(validity[1],/value="31"/);
+  assert.match(transferHtml,/<input type="hidden" name="validDays" value="7">/);
+  assert.doesNotMatch(transferHtml,/<select[^>]*name="validDays"/);
   assert.match(transferHtml,/<select[^>]+name="currency"[^>]*>[\s\S]*value="KES" selected/);
   assert.doesNotMatch(transferHtml,/<(?:select|input)[^>]+name="branchId"/);
   assert.doesNotMatch(transferHtml,/<select[^>]+name="currency"[^>]*>\s*<option value="UGX">UGX<\/option>/);

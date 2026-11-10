@@ -1,0 +1,8 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title><%= spec.title %></title></head>
+<body data-workspace="tenant" data-operation-fragment="<%= kind %>" data-operation-page="<%= spec.page %>" data-offline-cacheable="true" data-offline-scope="<%= offlineIdentity.scope %>" data-offline-branch="<%= offlineIdentity.branchId %>" data-offline-view="<%= offlineIdentity.viewBranchId %>">
+<% if(spec.module==='mobile_money'){ %><%- include('mobile-money/_entry-form',{operation:spec.operation}) %><% }else{ %>
+<form method="post" action="<%= spec.action %>" class="card" autocomplete="off" <% if(spec.module==='money_transfer'){ %>data-transfer-form data-currency="<%= data.selectedCurrency %>"<% } %><% if(spec.module==='forex'){ %> data-forex-form<% } %>>
+<input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
+<% if(spec.module==='forex'){ %><input type="hidden" name="operation" value="<%= spec.operation %>"><% } %>
+<div class="cardBody" style="display:grid;gap:12px"><%- include(spec.module==='money_transfer'?'money-transfer/_entry-form':spec.module==='banking'?'banking/_entry-form':'forex/_entry-form') %></div>
+</form><% } %></body></html>

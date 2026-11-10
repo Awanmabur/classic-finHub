@@ -1,4 +1,4 @@
-# ClassicFin Hub 1.29.0
+# ClassicFin Hub 1.30.0
 
 A multi-tenant platform for reviewed manual financial operations, configurable subscriptions, branch-based administration and separately licensed Android SMS capture.
 
@@ -10,6 +10,7 @@ The tenant workspace follows the approved `index.html` design. Its navigation di
 - Mobile money cash-in/out uses configured wallet and payment-account defaults. Wallets provides account setup, reviewed opening evidence, funding transfers, fee policy and reconciliation.
 - Each branch supports its selected UGX, USD, SSP and KES currencies with separate accounts, verified cash shifts and ledger totals. MTN SSD (South Sudan) is available separately from MTN in manual entry and supported Android SMS capture.
 - Banking, forex, money transfers and expenses use independently reviewed manual postings, exact currency amounts, balanced journals, immutable source records and controlled corrections.
+- Tenant Owners configure customer fees, commissions and separate operating-cost estimates once in **Fees & commissions**. Daily entry applies the matching branch, currency, operation and Mobile Money network rule automatically; tellers review the calculated summary instead of entering charges.
 - Money transfer tellers type sender and receiver details directly. Reviewed collection generates a PIN and queues receiver SMS when configured; new payouts match the PIN and sender phone in the selected receiving branch. Saved contacts are optional.
 - Tenant Workspace checks actual branch assignments, independent reviewers, funds accounts, verified cash shifts and subscribed operation prerequisites, and links to current review queues.
 - Customers, accounts, branches, staff, notifications, reports, analytics and audit views follow subscription, role and branch permissions. Reporting filters and controlled exports remain available.
@@ -62,7 +63,7 @@ There are no seeded administrator credentials. Follow the protected password-fil
 
 To defer authenticator setup, set `MFA_ENABLED=false` in `.env` and restart. Email/password login and existing role restrictions continue to apply. Set it to `true` and restart when ready to enforce MFA; password-only sessions then require fresh verification. Existing enrollment and encryption keys are preserved. An absent or blank flag disables MFA outside production and enables it with `NODE_ENV=production`; an invalid nonempty value enables enforcement. The startup `app.ready` event reports the effective version, MFA mode and configuration source. An exported process variable takes precedence over `.env`; see the [Windows guide](docs/WINDOWS_STARTUP_AND_SECURITY.md#defer-authenticator-setup-while-configuring-the-application).
 
-The workspace quietly saves visited pages for offline use. To prepare more authorized pages, choose **Pending sync → Offline availability → Save workspace pages** while connected. Preparation stops when you interact with the workspace. Keep unsynced device entries intact during updates; never clear site data to repair a cache issue. [Offline procedures](docs/TENANT_BACKUPS_AND_OFFLINE.md#offline-operation) explain sync, scope and recovery limits.
+The same workspace switches to local storage automatically when the network or service becomes unavailable, including internet failure while Wi-Fi remains connected. It saves visited pages and entry forms in encrypted device storage and submits pending entries automatically when the connection returns. Open editors retain their fields and request references during recovery. To prepare additional authorized pages before disconnecting, choose **Pending sync → Offline availability → Save workspace pages**; navigation does not start a bulk download. Unvisited views still need their first connected load. Final payout, approval and funds/configuration changes require current server validation. Changed charges, rates, assignments or insufficient funds can leave an entry in **Needs attention** for review. Never clear site data while unsynced entries remain. [Offline procedures](docs/TENANT_BACKUPS_AND_OFFLINE.md#offline-operation) explain the limits and recovery steps.
 
 ## Verification
 

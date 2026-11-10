@@ -11,9 +11,12 @@ module.exports=function routes({renderTenant}){
  async function render(req,res,next,{view,title,subtitle,operation,report=false}){
   try{
    if(report&&!workspace.canReport(req.user))return res.status(403).send('Mobile money report permission is required.');
-   const [data,branches]=await Promise.all([workspace.workspace(req.tenantDb,req.user,req.query,{operation}),branchService.list(req.tenant)]);
+   const [data,branches,pricingContext]=await Promise.all([
+    workspace.workspace(req.tenantDb,req.user,req.query,{operation}),branchService.list(req.tenant),
+    operation?require('../pricing/presentation').context(req.tenantDb,req.tenant,req.operationBranch,'mobile_money'):[]
+   ]);
    const branchCurrency=require('../services/branchCurrency.service');
-   renderTenant(req,res,`mobile-money/${view}`,title,subtitle,{...data,operation,idempotencyKey:randomUUID(),
+   renderTenant(req,res,`mobile-money/${view}`,title,subtitle,{...data,operation,pricingContext,idempotencyKey:randomUUID(),
     entryCurrency:req.operationBranch&&operation?branchCurrency.resolve(req.operationBranch,req.query.currency):null,
     entryCurrencies:req.operationBranch?branchCurrency.options(req.operationBranch):[],
     branches:branches.filter(branch=>branch.status==='active'&&(req.user.role==='Tenant Owner'||String(branch._id)===String(req.user.branchId))),

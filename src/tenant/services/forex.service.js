@@ -73,12 +73,12 @@ function quoteInput(input){
  if(!['buy','sell','quote'].includes(operation))throw fail('Invalid exchange operation');
  const rateId=id(input?.rateId);const customerLabel=text(input?.customerLabel,'customer reference',2,120);
  const amount=text(input?.amount,'source amount',1,32);
- const note=text(input?.note,'quote purpose',12,400);
+ const note=text(input?.note===undefined||typeof input.note==='string'&&!input.note.trim()?`Forex ${operation} request`:input.note,'quote purpose',1,400);
  const validMinutes=Number(input?.validMinutes??15);
  if(!Number.isSafeInteger(validMinutes)||validMinutes<5||validMinutes>60)throw fail('Quote validity must be 5–60 minutes');
  const idempotencyKey=text(input?.idempotencyKey,'form reference',36,36);
  if(!UUID.test(idempotencyKey))throw fail('Reload the form to obtain a valid request identifier');
- return {rateId,customerLabel,amount,note,validMinutes,idempotencyKey,operation,capture:require('./operationCapture.service').parse('forex',input)};
+ return {rateId,customerLabel,amount,note,validMinutes,idempotencyKey,operation,capture:require('./operationCapture.service').parse('forex',{...input,commission:require('../pricing/apply').mode(input)?'0':input?.commission})};
 }
 async function proposeRate(conn,tenant,actor,input){
  moduleAccess(tenant,actor,'forex.rate_manage');if(!operator(actor))throw fail('Only assigned Forex staff may propose rates',403);
@@ -148,6 +148,8 @@ async function createQuote(conn,tenant,actor,input){
  const v=quoteInput(input),branchId=String((await require('./transactionBranch.service').resolveTransactionBranch(conn,actor,input))._id);await ensureTenantIndexes(conn);
  const Quote=forexQuoteModel(conn),existing=await Quote.findOne({idempotencyKey:v.idempotencyKey}).lean();
  if(existing){const base=minor(v.amount,existing.fromCurrency);
+  const pricing=await require('../pricing/apply').resolve(conn,tenant,branchId,input,{operation:'forex.'+v.operation,currency:existing.toCurrency,amountMinor:existing.targetMinor,existing,providedMinor:require('./operationCapture.service').commissionMinor(v.capture,existing.toCurrency),field:'commission'});
+  if(pricing)v.capture.commission=require('../pricing/apply').decimal(pricing.feeMinor,existing.toCurrency);
   if(!equivalent(existing,actor,branchId,{...v,sourceMinor:base}))throw fail('Request reference reused with different quote details',409);
   return {quote:existing,duplicate:true};}
  const session=await conn.startSession();let quote;
@@ -158,12 +160,14 @@ async function createQuote(conn,tenant,actor,input){
    {$inc:{revision:1}},{session,new:true});
   if(!rate)throw fail('The approved rate is unavailable or expires before this quote',409);
   const {sourceMinor,targetMinor}=quoteEconomics(v,rate);
+  const pricing=await require('../pricing/apply').resolve(conn,authorization.tenant,branchId,input,{operation:'forex.'+v.operation,currency:rate.toCurrency,amountMinor:targetMinor,providedMinor:require('./operationCapture.service').commissionMinor(v.capture,rate.toCurrency),field:'commission',session});
+  if(pricing){v.pricing=pricing;v.capture.commission=require('../pricing/apply').decimal(pricing.feeMinor,rate.toCurrency);quoteEconomics(v,rate);}
   const branch=await branchModel(conn).findOneAndUpdate({_id:branchId,status:'active'},{$inc:{revision:1}},{session,new:true});
   if(!branch)throw fail('Assigned branch is unavailable',409);
   enabledPair(branch,rate.fromCurrency,rate.toCurrency);
   await reserveUsage(authorization.tenant,'forex_quotes',session);
   [quote]=await Quote.create([{reference:`FX-${crypto.randomBytes(12).toString('hex').toUpperCase()}`,
-   idempotencyKey:v.idempotencyKey,branchId,createdBy:actor.id,customerLabel:v.customerLabel,operation:v.operation,capture:v.capture,rateId:rate._id,
+   idempotencyKey:v.idempotencyKey,branchId,createdBy:actor.id,customerLabel:v.customerLabel,operation:v.operation,capture:v.capture,pricing:v.pricing,rateId:rate._id,
    fromCurrency:rate.fromCurrency,toCurrency:rate.toCurrency,rateDecimal:rate.rateDecimal,
    sourceMinor:String(sourceMinor),targetMinor:String(targetMinor),note:v.note,validMinutes:v.validMinutes,
    expiresAt:new Date(now.getTime()+v.validMinutes*60000)}],{session});

@@ -12,6 +12,8 @@ const account=new mongoose.Schema({
   last4:{type:String,required:true,immutable:true}
 },{_id:false,strict:'throw'});
 const schema=new mongoose.Schema({
+ pricing:{type:require('../pricing/snapshot').schema,default:undefined,immutable:true},
+ feeMinor:{type:mongoose.Schema.Types.Decimal128,default:'0',immutable:true},
  capture:{type:require('../services/operationCapture.service').schema('banking'),default:()=>({}),immutable:true},
   reference:{type:String,required:true,immutable:true},
   idempotencyKey:{type:String,required:true,immutable:true},

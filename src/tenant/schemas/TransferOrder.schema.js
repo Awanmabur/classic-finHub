@@ -4,6 +4,7 @@ const {currencyCodes}=require('../../config/currencies');
 const O=mongoose.Schema.Types.ObjectId;
 const party=new mongoose.Schema({contactId:{type:O,default:null,immutable:true},name:{type:String,required:true,maxlength:120,immutable:true},phone:{type:String,required:true,maxlength:16,immutable:true},country:{type:String,required:true,minlength:2,maxlength:2,immutable:true}}, {_id:false,strict:'throw'});
 const schema=new mongoose.Schema({
+ pricing:{type:require('../pricing/snapshot').schema,default:undefined,immutable:true},
  partyEntryMode:{type:String,enum:['typed','saved_contact'],default:'saved_contact',required:true,immutable:true},
  capture:{type:require('../services/operationCapture.service').schema('money_transfer'),default:()=>({}),immutable:true},
   reference:{type:String,required:true,immutable:true},idempotencyKey:{type:String,required:true,immutable:true},

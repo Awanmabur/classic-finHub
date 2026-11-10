@@ -7,22 +7,63 @@
   const routes = new Set(['/tenant/mobile-money/cash-in', '/tenant/mobile-money/cash-out', '/tenant/money-transfer/requests', '/tenant/banking/requests', '/tenant/forex/quotes', '/tenant/expenses']);
   const operationPages = Object.freeze({cash_in: '/tenant/mobile-money/cash-in', cash_out: '/tenant/mobile-money/cash-out', transfer: '/tenant/money-transfer/send', payout: '/tenant/funded/payout', banking_deposit: '/tenant/banking/deposit', banking_withdrawal: '/tenant/banking/withdraw', banking_transfer: '/tenant/banking/transfer', forex_buy: '/tenant/forex/buy', forex_sell: '/tenant/forex/sell', expense: '/tenant/expenses/new', customer: '/tenant/customers/new', account: '/tenant/accounts/new', approval: '/tenant/approvals', cash_shift_open: '/tenant/cash/shifts', cash_shift_close: '/tenant/day/close'});
   const scopeKey = 'classicfin.offline.scope', viewKey = 'classicfin.offline.view', authKey = 'classicfin.offline.auth', currencyKey = 'classicfin.offline.currency';
-  const scripts = ['/js/offline-workspace.js', '/js/offline.js', '/js/feedback.js', '/js/dashboard.js', '/js/customer-accounts.js', '/js/expenses.js', '/js/workspace.js', '/js/branches.js'];
+  const scripts = ['/js/offline-workspace.js', '/js/offline.js', '/js/feedback.js', '/js/operation-pricing.js', '/js/dashboard.js', '/js/customer-accounts.js', '/js/expenses.js', '/js/workspace.js', '/js/branches.js'];
   const nativeFetch = window.fetch.bind(window);
   let context, key, scope, db, initializing, locked = false, preparing = false, ready = false, lastMessage = '';
   const submitting = new WeakSet();
   let preparation = null, backgroundSync = false;
+  let mode = navigator.onLine ? 'online' : 'offline', recoveryTimer = null, recoveryWork = null, retryDelay = 2000, dirty = false, syncBlocked = false;
+  const connected = () => navigator.onLine && mode === 'online';
+  function setMode(value) {
+    const changed = mode !== value; mode = value; document.body.dataset.connectionMode = value;
+    if (changed) document.dispatchEvent(new CustomEvent('classicfin:connection', {detail: {mode: value}}));
+    updateBar().catch(() => {});
+    if (value === 'offline' && !recoveryWork) scheduleRecovery();
+  }
+  function scheduleRecovery(delay = retryDelay) {
+    if (recoveryTimer || locked || !ready || document.hidden) return;
+    recoveryTimer = setTimeout(() => { recoveryTimer = null; recover().catch(() => {}); }, delay);
+  }
+  async function recover() {
+    if (recoveryWork || locked || !ready || document.hidden) return recoveryWork;
+    clearTimeout(recoveryTimer); recoveryTimer = null;
+    if (!navigator.onLine) { setMode('offline'); retryDelay = Math.min(retryDelay * 2, 30000); return; }
+    recoveryWork = (async () => {
+      setMode('checking');
+      try {
+        const response = await nativeFetch('/health/ready', {cache: 'no-store', credentials: 'same-origin', signal: AbortSignal.timeout(2000)});
+        if (!response.ok) throw Error('Unavailable');
+        setMode('online');
+        if (!syncBlocked) await sync({background: true});
+        const pending = !locked && (await all('draft')).some(row => row.state === 'pending');
+        if (!pending) retryDelay = 2000;
+        else if (retryDelay <= 30000) retryDelay = Math.min(retryDelay * 2, 30000);
+        // Keep an open editor and its values intact. An idle saved document can
+        // resume its normal server-rendered page once its pending writes settle.
+        if (connected() && !locked && !dirty && !document.querySelector('dialog[open]') && document.body.hasAttribute('data-offline-snapshot') && !(await all('draft')).some(row => row.state === 'pending')) location.reload();
+      } catch { setMode('offline'); retryDelay = Math.min(retryDelay * 2, 30000); }
+      finally {
+        recoveryWork = null;
+        if (!locked && (mode !== 'online' || !syncBlocked && (await all('draft')).some(row => row.state === 'pending'))) scheduleRecovery();
+      }
+    })();
+    return recoveryWork;
+  }
   async function network(value, options = {}, milliseconds = 12000) {
     const controller = new AbortController(), cancel = () => controller.abort(options.signal?.reason);
     if (options.signal?.aborted) cancel(); else options.signal?.addEventListener('abort', cancel, {once: true});
     const timer = setTimeout(() => controller.abort(new DOMException('Request timed out', 'TimeoutError')), milliseconds);
     const headers = new Headers(options.headers); headers.set('X-ClassicFin-Background', 'true');
-    try { return await nativeFetch(value, {...options, headers, signal: controller.signal}); }
+    try {
+      const response = await nativeFetch(value, {...options, headers, signal: controller.signal});
+      if (response.status >= 500) setMode('offline');
+      return response;
+    } catch (error) { if (!options.signal?.aborted) setMode('offline'); throw error; }
     finally { clearTimeout(timer); options.signal?.removeEventListener('abort', cancel); }
   }
   const node = (tag, text, className) => { const el = document.createElement(tag); if (text !== undefined) el.textContent = text; if (className) el.className = className; return el; };
   function status(message) { lastMessage = message; const target = document.getElementById('offlineStatus'); if (target) target.textContent = message; }
-  function lock() { locked = true; sessionStorage.removeItem(scopeKey); sessionStorage.removeItem(viewKey); context = null; scope = null; key = null; }
+  function lock() { locked = true; clearTimeout(recoveryTimer); recoveryTimer = null; sessionStorage.removeItem(scopeKey); sessionStorage.removeItem(viewKey); context = null; scope = null; key = null; }
   function announce(value) { try { localStorage.setItem(authKey, JSON.stringify({scope: value, nonce: crypto.randomUUID()})); } catch { /* Private-browser storage can be unavailable. */ } }
   function open() {
     return new Promise((resolve, reject) => {
@@ -57,7 +98,7 @@
     return result;
   }
   async function serverContext() {
-    const response = await network('/tenant/offline/context', {cache: 'no-store', credentials: 'same-origin', headers: {Accept: 'application/json'}, redirect: 'manual'});
+    const response = await network('/tenant/offline/context', {cache: 'no-store', credentials: 'same-origin', headers: {Accept: 'application/json'}, redirect: 'manual'}, bootstrap ? 2500 : 10000);
     if (response.status === 429 || response.status >= 500) throw Error('The server is temporarily unavailable.');
     if (locked || !response.ok || !response.headers.get('content-type')?.includes('application/json')) throw Object.assign(Error('Sign in again to sync.'), {code: 'AUTH_DENIED'});
     const value = await response.json(); if (!/^[a-f0-9]{64}$/.test(value.scope) || !value.csrfToken) throw Object.assign(Error('Sign in again to sync.'), {code: 'AUTH_DENIED'}); return value;
@@ -101,16 +142,23 @@
     const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(view + '\n' + url));
     return scope + ':page:' + [...new Uint8Array(digest)].map(value => value.toString(16).padStart(2, '0')).join('');
   }
+  function contentRoots(document) {
+    const roots = [document];
+    for (let index = 0; index < roots.length; index++) for (const template of roots[index].querySelectorAll('template')) roots.push(template.content);
+    return roots;
+  }
   function cleanPage(html) {
     if (html.length > 1000000) return null;
     const page = new DOMParser().parseFromString(html, 'text/html');
     if (page.body.dataset.workspace !== 'tenant' || page.body.dataset.offlineCacheable !== 'true' || page.body.dataset.offlineScope !== scope || page.body.dataset.offlineBranch !== context.branchId) return null;
     // Never persist transient credentials, CSRF tokens, one-time handoffs or live modal input.
-    page.querySelectorAll('[data-session-flash],[data-private-once],[data-offline-runtime],iframe,object,embed').forEach(el => el.remove());
     page.body.removeAttribute('data-offline-context');
-    page.querySelectorAll('input[name="_csrf"],input[name="idempotencyKey"],input[type="password"]').forEach(el => el.setAttribute('value', ''));
-    page.querySelectorAll('script').forEach(el => { const path = new URL(el.src || '/', location.origin); if (path.origin !== location.origin || !scripts.includes(path.pathname)) el.remove(); });
-    page.querySelectorAll('[onload],[onclick],[onerror]').forEach(el => { for (const attr of [...el.attributes]) if (/^on/i.test(attr.name)) el.removeAttribute(attr.name); });
+    for (const root of contentRoots(page)) {
+      root.querySelectorAll('[data-session-flash],[data-private-once],[data-offline-runtime],iframe,object,embed').forEach(el => el.remove());
+      root.querySelectorAll('input[name="_csrf"],input[name="idempotencyKey"],input[type="password"]').forEach(el => el.setAttribute('value', ''));
+      root.querySelectorAll('script').forEach(el => { const path = new URL(el.src || '/', location.origin); if (path.origin !== location.origin || !scripts.includes(path.pathname)) el.remove(); });
+      root.querySelectorAll('[onload],[onclick],[onerror]').forEach(el => { for (const attr of [...el.attributes]) if (/^on/i.test(attr.name)) el.removeAttribute(attr.name); });
+    }
     page.querySelector('[data-transaction-form]')?.replaceChildren();
     page.querySelectorAll('dialog[open]').forEach(el => el.removeAttribute('open'));
     page.body.classList.remove('transactionOpen');
@@ -139,9 +187,12 @@
     });
     if (!dom.querySelector('script[src^="/js/feedback.js"]')) { const script = dom.createElement('script'); script.src = '/js/feedback.js'; script.defer = true; const first = dom.querySelector('script'); if (first) first.before(script); else dom.head.append(script); }
     if (!dom.querySelector('link[href^="/css/feedback.css"]')) { const link = dom.createElement('link'); link.rel = 'stylesheet'; link.href = '/css/feedback.css'; dom.head.append(link); }
+    if (!dom.querySelector('script[src^="/js/operation-pricing.js"]')) { const script = dom.createElement('script'); script.src = '/js/operation-pricing.js'; script.defer = true; const dashboard = dom.querySelector('script[src^="/js/dashboard.js"]'); if (dashboard) dashboard.before(script); else dom.head.append(script); }
     dom.body.dataset.offlineSnapshot = String(page.savedAt);
-    dom.querySelectorAll('input[name="idempotencyKey"]').forEach(el => el.setAttribute('value', crypto.randomUUID()));
-    dom.querySelectorAll('input[name="_csrf"]').forEach(el => el.setAttribute('value', context.csrfToken || ''));
+    for (const root of contentRoots(dom)) {
+      root.querySelectorAll('input[name="idempotencyKey"]').forEach(el => el.setAttribute('value', crypto.randomUUID()));
+      root.querySelectorAll('input[name="_csrf"]').forEach(el => el.setAttribute('value', context.csrfToken || ''));
+    }
     dom.querySelectorAll('link[href^="/tenant/workspace/theme.css"]').forEach(el => el.remove());
     const theme = await read(scope + ':theme');
     if (theme) { const style = dom.createElement('style'); style.textContent = (await decrypt(theme)).css; dom.head.append(style); }
@@ -165,11 +216,12 @@
   async function pageResponse(value, options) {
     stopPreparation();
     if (!await initialize()) return nativeFetch(value, options);
-    if (navigator.onLine) {
-      try { const response = await network(value, options); if (response.ok && response.headers.get('content-type')?.includes('text/html')) { const html = await response.clone().text(), body = new DOMParser().parseFromString(html, 'text/html').body; if (body.dataset.workspace === 'tenant' && (body.dataset.offlineScope !== scope || body.dataset.offlineBranch !== context.branchId)) { lock(); announce(null); throw Object.assign(Error('Your account changed. Reload the workspace.'), {code: 'AUTH_DENIED'}); } await rememberPage(response.url, html); } return response; }
-      catch (error) { if (error.name === 'AbortError' || error.code === 'AUTH_DENIED') throw error; }
+    const cached = await savedPage(value);
+    if (connected()) {
+      try { const response = await network(value, options, cached ? 2500 : 10000); if (response.ok && response.headers.get('content-type')?.includes('text/html')) { const html = await response.clone().text(), body = new DOMParser().parseFromString(html, 'text/html').body; if (body.dataset.workspace === 'tenant' && (body.dataset.offlineScope !== scope || body.dataset.offlineBranch !== context.branchId)) { lock(); announce(null); throw Object.assign(Error('Your account changed. Reload the workspace.'), {code: 'AUTH_DENIED'}); } await rememberPage(response.url, html); } if (response.status >= 500 && cached) throw Error('Unavailable'); return response; }
+      catch (error) { if (options?.signal?.aborted || error.code === 'AUTH_DENIED') throw error; }
     }
-    const page = await savedPage(value); if (!page) throw Error('This page is not available on this device yet. Reconnect to load it.');
+    const page = cached; if (!page) throw Error('This page is not available on this device yet. Reconnect to load it.');
     const response = new Response(await freshPageHTML(page), {headers: {'Content-Type': 'text/html', 'X-ClassicFin-Offline': 'true'}});
     Object.defineProperty(response, 'url', {value: new URL(page.url, location.origin).href}); return response;
   }
@@ -197,7 +249,7 @@
     if (reset) resetForm(form);
     let notice = form.querySelector('[data-offline-saved]');
     if (!notice) { notice = node('p', undefined, 'tiny'); notice.dataset.offlineSaved = ''; notice.setAttribute('role', 'status'); form.prepend(notice); }
-    notice.textContent = navigator.onLine ? 'Submitting your saved entry…' : 'Saved offline — pending sync. Open Pending sync to review.';
+    notice.textContent = connected() ? 'Submitting your saved entry…' : 'Saved offline — pending sync. Open Pending sync to review.';
     status('Saved on this device. Pending sync; no final receipt has been issued.'); await renderQueue(); await updateBar(); return id;
   }
   async function syncWork(onlyId) {
@@ -211,8 +263,8 @@
       // The POST revalidates live identity, scope and branch before any mutation.
       // Older backlog entries still require an explicit fresh account check.
       fresh = onlyId && context.csrfToken ? context : await serverContext();
-    } catch { status('Reconnect and sign in to sync. Your entries remain on this device.'); return; }
-    if (fresh.scope !== scope || fresh.branchId !== context.branchId) { status('Account or operating branch changed. Sign in with the original account and branch to review these entries.'); return; }
+    } catch (error) { if (error.code === 'AUTH_DENIED') { lock(); announce(null); location.replace('/signin'); } else scheduleRecovery(); status('Reconnect and sign in to sync. Your entries remain on this device.'); return; }
+    if (fresh.scope !== scope || fresh.branchId !== context.branchId) { syncBlocked = true; status('Account or operating branch changed. Sign in with the original account and branch to review these entries.'); return; }
     context.csrfToken = fresh.csrfToken;
     let paused = false;
     for (const candidate of drafts) {
@@ -224,7 +276,7 @@
         let response;
         try { response = await network(draft.action, {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-ClassicFin-Redirect': 'json', 'X-ClassicFin-Offline-Scope': scope, 'X-ClassicFin-Offline-Branch': draft.branchId, 'x-csrf-token': fresh.csrfToken, 'x-classicfin-phone-country': draft.phoneCountry || context.phoneCountry || 'SS'}, body: new URLSearchParams({...draft.values, _csrf: fresh.csrfToken}), cache: 'no-store'}, 20000); }
         catch { status('Connection interrupted. Pending entries will retry with the same reference.'); return 'pause'; }
-        if (!new URL(response.url).pathname.startsWith('/tenant/') || [401, 403].includes(response.status)) { status('Sign in again or ask your administrator to review access. Entries remain pending.'); return 'pause'; }
+        if (!new URL(response.url).pathname.startsWith('/tenant/') || [401, 403].includes(response.status)) { syncBlocked = true; status('Sign in again or ask your administrator to review access. Entries remain pending.'); return 'pause'; }
         if (response.ok) {
           let result;
           try {
@@ -237,7 +289,7 @@
             else { draft.state = 'synced'; draft.resultUrl = destination.pathname + destination.search + destination.hash; draft.syncedAt = Date.now(); delete draft.values; delete draft.display; }
           } catch { status('The server response could not be confirmed. Check history before retrying; the saved reference is unchanged.'); return 'pause'; }
         }
-        else if (response.status === 429 || response.status >= 500) { status('The server is busy. Pending entries will retry later.'); return 'pause'; }
+        else if (response.status === 429 || response.status >= 500) { const retry = Number(response.headers.get('Retry-After')); if (response.status === 429 || Number.isFinite(retry) && retry > 0) retryDelay = Math.min(Math.max(retryDelay, (retry > 0 ? retry : 30) * 1000), 300000); scheduleRecovery(); status('The server is busy. Pending entries will retry later.'); return 'pause'; }
         else { const detail = response.headers.get('content-type')?.includes('text/plain') ? (await response.text()).slice(0, 400) : ''; draft.state = 'needs_attention'; draft.problem = `Server rejected this entry (HTTP ${response.status}). ${detail || 'Review balances, rates, references and required fields.'}`; }
         await save(candidate.id, draft);
       };
@@ -250,10 +302,10 @@
     await renderQueue(); await updateBar();
   }
   async function sync({id, background = false} = {}) {
-    if (!navigator.onLine) { status('Reconnect to sync. Your entries remain on this device.'); return; }
+    if (!connected()) { status('Saved on this device. Sync resumes automatically when the connection returns.'); scheduleRecovery(); return; }
     if (background && backgroundSync) return;
     if (background) backgroundSync = true;
-    try { return await syncWork(id); } finally { if (background) backgroundSync = false; }
+    try { return await syncWork(id); } finally { if (background) backgroundSync = false; if (!recoveryWork && !locked && !syncBlocked && (await all('draft')).some(row => row.state === 'pending')) scheduleRecovery(); }
   }
   async function renderQueue() {
     const list = document.getElementById('offlineQueue'); if (!list || !context) return;
@@ -274,7 +326,9 @@
   async function updateBar() {
     const target = document.querySelector('[data-offline-message]'); if (!target || !context) return;
     const pending = (await all('draft')).filter(row => row.state !== 'synced').length;
-    target.textContent = (navigator.onLine ? 'Connected' : 'Offline') + (pending ? ' · ' + pending + ' pending' : '') + (preparing ? ' · Preparing pages…' : '');
+    target.textContent = ({online: 'Connected', offline: 'Offline', checking: 'Reconnecting…'}[mode]) + (pending ? ' · ' + pending + ' pending' : '') + (preparing ? ' · Preparing pages…' : '');
+    const indicator = document.querySelector('[data-connection-indicator]');
+    if (indicator) { indicator.textContent = target.textContent; indicator.hidden = mode === 'online' && !pending; }
   }
   async function rememberTheme() {
     const theme = [...document.styleSheets].find(sheet => sheet.href && new URL(sheet.href, location.origin).pathname === '/tenant/workspace/theme.css');
@@ -291,7 +345,7 @@
   }
   function stopPreparation() { preparation?.abort(); }
   async function preparePages() {
-    if (!navigator.onLine || locked || preparing || document.body.hasAttribute('data-offline-snapshot')) return;
+    if (!connected() || locked || preparing || document.body.hasAttribute('data-offline-snapshot')) return;
     const run = async () => {
       preparing = true; preparation = new AbortController();
       const stop = document.getElementById('offlinePrepareStop'); if (stop) stop.hidden = false;
@@ -305,7 +359,7 @@
         for (const path of operations) for (const choice of document.querySelectorAll('#currencySelect option')) candidates.push(pageURL(path + '?currency=' + encodeURIComponent(choice.value)));
         const paths = [...new Set(candidates.filter(Boolean))].slice(0, 100); let completed = 0;
         for (const path of paths) {
-          if (!navigator.onLine || locked || preparation.signal.aborted) break;
+          if (!connected() || locked || preparation.signal.aborted) break;
           const old = await savedPage(path);
           if (!old || Date.now() - old.savedAt >= 300000) {
             const response = await network(path, {credentials: 'same-origin', headers: {Accept: 'text/html', 'X-ClassicFin-Prepare': 'true'}, signal: preparation.signal});
@@ -333,8 +387,8 @@
     const buttons = [...form.querySelectorAll('button[type="submit"],button:not([type])')], disabled = buttons.map(button => button.disabled);
     buttons.forEach(button => { button.disabled = true; });
     try {
-      const id = await queue(form, !navigator.onLine);
-      if (!navigator.onLine) return;
+      const online = connected(), id = await queue(form, !online);
+      if (!online) { scheduleRecovery(); return; }
       // Persist before attempting the POST. A broken WAN can leave onLine=true;
       // retaining the same UUID also covers a lost response after server commit.
       await sync({id});
@@ -353,7 +407,8 @@
     document.getElementById('offlinePrepare')?.addEventListener('click', () => preparePages());
     document.getElementById('offlinePrepareStop')?.addEventListener('click', stopPreparation);
     document.getElementById('offlineQueueDialog')?.addEventListener('close', stopPreparation);
-    document.getElementById('offlineSync')?.addEventListener('click', () => sync().catch(() => status('Sync interrupted. Your entries remain stored.')));
+    document.getElementById('offlineSync')?.addEventListener('click', () => (connected() ? sync() : recover()).catch(() => status('Sync interrupted. Your entries remain stored.')));
+    const indicator = node('span', undefined, 'tiny'); indicator.dataset.connectionIndicator = ''; indicator.setAttribute('role', 'status'); document.querySelector('.topbar .title')?.append(indicator);
     const savedAt = document.body.dataset.offlineSnapshot;
     if (savedAt) {
       const notice = node('div', undefined, 'reportBlock offlineSnapshot'); notice.dataset.offlineRuntime = ''; notice.setAttribute('role', 'status');
@@ -362,14 +417,15 @@
     }
   }
   if (bootstrap) { restore().catch(() => status('The saved workspace could not open. Reconnect and sign in.')); return; }
-  window.ClassicFinOffline = Object.freeze({pageResponse, openQueue: showQueue});
+  window.ClassicFinOffline = Object.freeze({pageResponse, openQueue: showQueue, get mode() { return mode; }, refreshConnection: recover});
   document.addEventListener('submit', event => {
     const form = event.target, url = new URL(form.action, location.origin);
     if (url.pathname === '/logout') { lock(); announce(null); return; }
-    if (allowed(form) && (!navigator.onLine || ready)) {
+    if (form.dataset.operationLoading === 'true') { event.preventDefault(); event.stopImmediatePropagation(); window.ClassicFinFeedback?.show('The fields are ready for entry. Wait for the current branch settings before saving.', 'info', {form}); return; }
+    if (allowed(form) && (!connected() || ready)) {
       event.preventDefault(); event.stopImmediatePropagation(); if (form.reportValidity()) submitOperation(form); return;
     }
-    if (navigator.onLine) return;
+    if (connected()) return;
     if (form.hasAttribute('data-branch-view-form')) {
       event.preventDefault(); event.stopImmediatePropagation();
       (async () => { const view = form.elements.namedItem('viewBranchId').value; if (await savedPage(location.href, view)) { sessionStorage.setItem(viewKey, view); location.reload(); } else { alert('This branch view has not been saved on this device. Reconnect to load it.'); form.elements.namedItem('viewBranchId').value = currentView(); } })().catch(() => status('Reconnect to change the viewing branch.')); return;
@@ -378,12 +434,12 @@
     event.preventDefault(); event.stopImmediatePropagation();
     const message = 'This action needs a connection to verify current balances, permissions or approval. Your page remains available offline.'; status(message); alert(message);
   }, true);
-  window.addEventListener('online', () => { sync({background: true}).catch(() => status('Sync interrupted. Entries remain pending.')); updateBar(); });
-  window.addEventListener('offline', () => { stopPreparation(); updateBar(); });
-  window.addEventListener('pagehide', stopPreparation);
-  document.addEventListener('visibilitychange', () => { if (document.hidden) stopPreparation(); });
-  document.addEventListener('input', () => { if (preparing) stopPreparation(); }, {passive: true});
+  window.addEventListener('online', () => { retryDelay = 2000; recover().catch(() => status('Sync interrupted. Entries remain pending.')); });
+  window.addEventListener('offline', () => { stopPreparation(); setMode('offline'); });
+  window.addEventListener('pagehide', () => { stopPreparation(); clearTimeout(recoveryTimer); recoveryTimer = null; });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { stopPreparation(); clearTimeout(recoveryTimer); recoveryTimer = null; } else if (mode !== 'online') scheduleRecovery(0); });
+  document.addEventListener('input', event => { if (preparing) stopPreparation(); if (event.target.closest('form') && event.target.type !== 'hidden') dirty = true; }, {passive: true});
   window.addEventListener('storage', event => { if (event.key !== authKey) return; const activeScope = scope || document.body.dataset.offlineScope || sessionStorage.getItem(scopeKey); if (!activeScope) return; try { if (JSON.parse(event.newValue).scope !== activeScope) { lock(); if (navigator.onLine) location.replace('/signin'); else location.reload(); } } catch { /* Ignore malformed storage events. */ } });
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/offline-runtime.js', {scope: '/'}).catch(() => status('Offline navigation is unavailable in this browser.'));
-  (async () => { if (!await initialize()) return; ready = true; installUI(); await renderQueue(); await updateBar(); if (navigator.onLine && !document.body.hasAttribute('data-offline-snapshot')) { await rememberPage(location.href, initialHTML); await rememberTheme(); status('This page is saved for offline access.'); if ((await all('draft')).some(row => row.state === 'pending')) sync({background: true}).catch(() => status('Sync interrupted. Entries remain pending.')); const idle = window.requestIdleCallback || (callback => setTimeout(callback, 1000)); idle(() => prunePages().catch(() => {})); } if (lastMessage) status(lastMessage); })().catch(() => status('Offline storage could not open. Reconnect before submitting.'));
+  (async () => { if (!await initialize()) return; ready = true; installUI(); setMode(navigator.onLine ? mode : 'offline'); await renderQueue(); await updateBar(); if (connected() && !document.body.hasAttribute('data-offline-snapshot')) { await rememberPage(location.href, initialHTML); await rememberTheme(); status('This page is saved for offline access.'); if ((await all('draft')).some(row => row.state === 'pending')) sync({background: true}).catch(() => status('Sync interrupted. Entries remain pending.')); const idle = window.requestIdleCallback || (callback => setTimeout(callback, 1000)); idle(() => prunePages().catch(() => {})); } else scheduleRecovery(); if (lastMessage) status(lastMessage); })().catch(() => status('Offline storage could not open. Reconnect before submitting.'));
 })();

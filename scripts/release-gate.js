@@ -17,6 +17,8 @@ const steps=[
   [process.execPath,['scripts/storage-latency-integration.js']],
   [process.execPath,['scripts/index-batching-integration.js']],
   [process.execPath,['scripts/workspace-latency-integration.js']],
+  [process.execPath,['scripts/pricing-rules-integration.js']],
+  [process.execPath,['scripts/automatic-pricing-integration.js']],
   [process.execPath,['scripts/mfa-startup-integration.js']],
   [process.execPath,['scripts/catalog-integration.js']],
   [process.execPath,['scripts/tenant-integration.js']],

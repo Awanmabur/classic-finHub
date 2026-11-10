@@ -195,19 +195,32 @@ Bank funds accounts can support payment/funding even without a Banking operation
 
 Creating a customer account is different from establishing real assets. Do not create matching fake cash, wallet or bank openings just to make a customer balance appear affordable.
 
-### Set defaults and fee policy here
+### Set account defaults and wallet fee treatment here
 
 Open **Account settings** to name the account, mark the default for matching future operations and configure wallet **Fee / commission treatment**:
 
 | Choice | How it affects the internal books |
 | --- | --- |
-| Record fee only | Keeps the entered fee as information; does not move cash/wallet funds for that fee |
+| Record fee only | Keeps the applicable fee as information; does not move cash/wallet funds for that fee |
 | Fee collected from customer | Cash-in customer pays amount plus fee; cash-out customer receives amount less fee; actual collected fee is posted |
 | Commission credited to wallet | Records an explicit commission actually credited to the provider wallet |
 
 Choose the treatment that matches the actual contract and evidence. It applies to future entries; prior transactions retain their original policy. Daily Mobile Money entry selects the wallet and uses configured matching payment-account defaults. Do not re-enter the wallet's opening or actual balance for every transaction.
 
 If a form was opened before the owner changed a wallet policy, refresh it and check its summary before submitting. Do not compensate for a stale policy by changing the amount or inventing another transaction.
+
+### Configure automatic charges once
+
+As Tenant Owner, open **Tenant Workspace → Fees & commissions** (`/tenant/workspace/pricing`) before staff start using the new charge schedule.
+
+1. Choose **Add charges**, a subscribed operation and its currency. Use a tenant-wide default or a specific active branch. Mobile Money can also use a specific supported network.
+2. Enter **Fixed customer fee** and **Customer fee (%)**. The charge is the fixed amount plus the percentage of the transaction amount. Forex uses the converted settlement amount. Amounts use the selected currency's supported precision; percentages support two decimal places.
+3. Enter **Fixed operating cost estimate** and **Operating cost estimate (%)** only for the business estimate. These are separate from the customer charge; saving or displaying them does not deduct funds or create an expense.
+4. Save the rule and test its amount/currency/network combinations. A branch rule overrides the tenant default; within that scope the network rule overrides the general rule. A missing enabled rule means zero customer charge.
+5. Have the teller open a fresh form. Essential customer/account/branch/amount fields remain visible, optional metadata is under **Additional details**, and **Fee / commission** and **Estimated operating cost** are calculated automatically. The server derives the persisted charge from configuration, not an edited browser preview.
+6. Existing accepted operations keep their original charge snapshot and request reference. If a rule changes while an unsubmitted/offline form is open, refresh and review the new charge when requested. Do not enter another instruction merely to bypass **Needs attention** or an uncertain result.
+
+Wallet fee treatment is a separate account setting: it determines the actual Mobile Money funds/fee posting, not the charge formula. SMS-captured provider fees remain the observed external evidence. Apply the agreed real-world fee and review its receipt and books; an internal posting does not prove a provider settled it.
 
 ### Add funds from an existing account
 
@@ -247,7 +260,7 @@ Only one unfinished drawer session is allowed for each operator, branch and curr
 ### Manual cash-in and cash-out
 
 1. Open `/tenant/mobile-money/cash-in` or `/tenant/mobile-money/cash-out` for the real operation.
-2. Select the operating currency, correct network, wallet if more than one eligible wallet exists, customer details, actual amount, fee, payment method and provider/reference information shown on the form. Verify the auto-selected account and currency summary. **MTN SSD (South Sudan)** is separate from the existing MTN network; its wallet and provider reference must match that network. A USD account or drawer cannot fund an SSP movement.
+2. Select the operating currency, correct network, wallet if more than one eligible wallet exists, customer phone, actual amount, payment method and provider reference. Review the automatically calculated fee and auto-selected account/currency summary. Add optional customer name or notes under **Additional details**. **MTN SSD (South Sudan)** is separate from the existing MTN network; its wallet and provider reference must match that network. A USD account or drawer cannot fund an SSP movement.
 3. Use a unique real provider reference. A duplicate real event is not a new transaction simply because the first browser response was lost.
 4. Verify the external event through the provider's permitted procedure, record it once and retain the resulting reference/acknowledgement. Check its actual status before telling the customer it is complete.
 5. The independent reviewer checks the source evidence, amounts, fee policy and funds movement before accepting the record. Resolve pending verification, corrections or voids before drawer close.
@@ -290,21 +303,21 @@ For Banking deposit, withdrawal or internal customer transfer, both the tenant a
 
 ### Deposit or withdrawal
 
-1. Open **Deposit** (`/tenant/banking/deposit`) or **Withdraw** (`/tenant/banking/withdraw`). Choose the real customer account, amount/currency, payment channel and evidence fields on the form. Save the instruction and retain its reference.
+1. Open **Deposit** (`/tenant/banking/deposit`) or **Withdraw** (`/tenant/banking/withdraw`). Choose the real customer account, amount/currency and payment channel; review the configured fee summary. Optional narration/reference fields are under **Additional details**. Save the instruction and retain its reference.
 2. Check and complete the instruction's independent review where required. An approved instruction awaiting execution is still not a posted account movement.
 3. From its detail, choose the available manual movement action. Select the actual **Counted cash / settlement account** matching the channel and currency. For cash, it must be the originator's verified drawer.
 4. Enter **Counted cash / statement reference** and **Manual movement explanation**, then **Record for independent review**.
 5. The independent reviewer opens **Manual movement review** (`/tenant/funded`), checks the actual customer-account instruction, count/statement evidence and funds, and chooses **Approve and post manual movement** or **Reject**.
 6. Confirm the posted manual movement, customer account movement and Treasury balance. The app has recorded the internal manual operation; any external bank processing must be checked with the bank separately.
 
-**Balanced example:** depositing UGX 50,000 cash increases the real cash asset by UGX 50,000 and increases the customer's deposit liability by UGX 50,000. Withdrawing UGX 20,000 decreases both by UGX 20,000. A customer balance alone does not prove there is enough physical cash to pay a withdrawal.
+**Balanced example without a fee:** depositing UGX 50,000 cash increases the real cash asset and the customer's deposit liability by UGX 50,000. Withdrawing UGX 20,000 decreases both by UGX 20,000. A configured deposit fee is collected in addition to the credited deposit; a withdrawal fee is debited in addition to the cash paid. Fee income is posted separately. A customer balance alone does not prove there is enough physical cash for a withdrawal.
 
 ### Transfer between internal customer accounts
 
-1. Open **Account transfer** (`/tenant/banking/transfer`). Choose the actual eligible source and destination customer accounts and enter the amount and explanation.
+1. Open **Account transfer** (`/tenant/banking/transfer`). Choose the actual eligible source and destination customer accounts and enter the amount. Review the configured fee; add optional explanation under **Additional details**.
 2. Keep the accounts in the supported branch/currency context. Do not use this as an undocumented cross-branch or currency conversion mechanism.
 3. Complete the instruction review and separately record/review its manual movement.
-4. Confirm source customer liability decreases and destination customer liability increases by the same amount. No drawer or bank asset moves merely because one customer's liability was reassigned to another.
+4. Confirm the destination customer liability increases by the transfer amount. The source liability decreases by that amount plus any configured fee, with fee income recorded separately. No drawer or bank asset moves merely because the customer liability was reassigned.
 
 Use **Account movements** and **Banking report summary** to distinguish requested, approved-but-awaiting-posting, rejected/cancelled and posted manual operations. Do not add an external bank transaction a second time just because its internal instruction is still pending review.
 
@@ -315,7 +328,7 @@ Use **Account movements** and **Banking report summary** to distinguish requeste
 1. At **Active rate board** (`/tenant/forex/rates`), propose the currency pair and rate with its intended validity/evidence. A different authorized reviewer approves or rejects it. The rate is indicative and internally approved; verify any market source through your own procedure.
 2. Ensure the real **Foreign currency stock** and the local **Settlement account** have reviewed openings and enough funds for the chosen direction.
 3. Open **Buy forex from customer** (`/tenant/forex/buy`) when receiving foreign currency, or **Sell forex to customer** (`/tenant/forex/sell`) when paying foreign currency to the customer.
-4. Select the approved rate, enter the customer, amount, settlement method and actual fee. Check the displayed foreign and settlement amounts and the quote expiry. The quote retains the rate snapshot; a later rate change does not rewrite it.
+4. Enter the customer and foreign amount, then review the approved currency pair/rate, automatic fee/commission and settlement total. The approved rate and bounded quote window are applied automatically; use **Additional details** for an optional settlement method, document, source reference or note. The quote retains its rate and charge snapshots; later settings do not rewrite an accepted instruction.
 5. Complete the required independent quotation decision. Before expiry, record its manual movement with the correct foreign stock, settlement account and count/statement reference.
 6. A different reviewer checks both currencies, cash/stock counts, locked rate, fee and direction, then chooses **Approve and post manual movement** or rejects it.
 7. Inspect both balances and the quote/movement record. Review **Forex cash impact**, **Forex operation records** and **Forex report summary** using the required filters.
@@ -340,7 +353,7 @@ An expired or cancelled quote must not be treated as an executed exchange. Obtai
 1. Open **Send money / Generate PIN**, `/tenant/money-transfer/send`.
 2. Type **Sender name**, **Sender phone**, confirm your fixed **From branch**, and enter **Sender ID/document no.** where available/required by your operating procedure.
 3. Type **Receiver name**, **Receiver phone**, choose a different active **To branch** in the same tenant, and enter **Receiver ID/document no.** where available/required by your procedure.
-4. Enter the remaining transfer details: operating currency, actual payment method, purpose, amount, fee and **Request validity**. That validity limits how long the uncollected request can be used for collection; it is not a payout-PIN expiry promise. Check the selected currency and total the sender pays. Collection, payable and payout accounts must match that currency. Any displayed indicative exchange-rate field does not itself perform a Forex conversion.
+4. Enter the operating currency and amount, then review the automatic charge and **Total sender pays**. The current branch, request reference and seven-day request validity are applied automatically; optional documents, payment method and purpose are under **Additional details**. Request validity limits collection of an uncollected instruction; it is not a payout-PIN expiry promise. Collection, payable and payout accounts must match the currency. An indicative exchange-rate field does not itself perform a Forex conversion.
 5. Names are required, 2–120 characters. Phones are required international numbers beginning with `+` and country code, with 8–15 digits after normalization; the first digit must not be zero. Formatting spaces, dashes and parentheses are normalized. The calling-code default comes from a trusted edge country signal, otherwise South Sudan. National numbers are normalized using that country context; verify the resulting international number before confirming. Identification-document fields are optional in the application and accept up to 80 characters; follow your actual identification procedure. Check the receiver's phone with the sender before saving.
 6. Choose **Save transfer & continue**. You do not need to select or create a saved contact. The transfer saves immutable sender/receiver snapshots; typing a transfer does not automatically create reusable contact records.
 
@@ -479,7 +492,8 @@ The **Tenant profile** page includes the same operational hub, the business-iden
 | Workspace area | Real work to perform | Boundary to remember |
 | --- | --- | --- |
 | Tenant profile | Business/contact/currency/timezone details; understand wallet-operation guidance | Contact metadata does not change the owner's login credentials |
-| Wallets & balances | Actual account setup, defaults, fee policy, reviewed openings, funding and reconciliation | Transactions do not reset wallet balances |
+| Wallets & balances | Actual account setup, defaults, wallet fee treatment, reviewed openings, funding and reconciliation | Transactions do not reset wallet balances |
+| Fees & commissions | Set customer charges and separate operating cost estimates for subscribed operations | Owner manages branch/currency/network rules; tellers review calculated charges |
 | Branches & locations | Maintain actual locations and permitted status changes | Viewing a branch does not change the originating transaction branch |
 | Admins, tellers & users | Invite, assign, disable and restore permitted people | Roles are fixed; modules restrict rather than extend role authority |
 | Roles & permissions | Check what each fixed role can do | Not an arbitrary permission editor |
@@ -580,6 +594,7 @@ For each incident record the start/end UTC times, affected tenants/accounts, las
 - [ ] Each teller has the correct drawer; shared wallet/bank/stock/payable accounts are configured where needed.
 - [ ] Each real opening, including a genuine zero, has actual evidence and independent approval.
 - [ ] Defaults and wallet fee treatment match actual business practice.
+- [ ] Automatic charge rules are configured and tested for each used operation, currency, branch and network; cost estimates are separate from actual expenses.
 - [ ] A verified open shift and a controlled end-to-end transaction, independent review, report and close have been accepted for every subscribed operating module.
 - [ ] If licensed, the real Android device/profile, sender allowlist, duplicate behavior and revoke procedure have been accepted; manual entry also works.
 - [ ] Public landing, receipt wording, owner oversight, filters and exports are reviewed without exposing private information.
@@ -627,7 +642,8 @@ For each incident record the start/end UTC times, affected tenants/accounts, las
 | Branch has accounts but a teller is blocked | Teller's own drawer/default/verified shift | Configure that teller's actual drawer and access; a different teller's account is not a substitute |
 | Cash operation blocked | Shift `pending_open`, submitted/disputed state, funds or unresolved work | Obtain proper opening verification or resolve the actual unfinished shift/reviews |
 | Wallet balance differs from the phone | Observation time, missing/duplicate events, fee policy, account selection | Record dated real evidence, investigate, then correct/reconcile visibly; do not reset wallet balance |
-| Wallet fee policy changed since form opened | Stale form or old account defaults | Refresh the form, recheck summary and original transaction status, then submit the correct event once |
+| Wallet or charge policy changed since form opened | Stale form, charge version or old account defaults | Review the saved entry and actual server history; refresh the current policy and submit the correct instruction once |
+| Offline entry shows Needs attention after recovery | Changed charges, expired rate, permissions, branch or insufficient funds | Keep the original reference, review the reason and server records, then resolve the business exception; do not discard and replay blindly |
 | SMS rejected/unsupported | Device secret/status, sender allowlist, actual profile, timestamp, quota and user entitlement | Correct supported configuration privately; review inbox; use manual entry after duplicate check if needed |
 | SMS event is already in the system | Stable message/provider reference and existing source record | Use the original event; do not alter the reference to force a second transaction |
 | Banking manual post unavailable | Internal customer account and Customer Accounts access | Use an eligible real internal account with the required module assignment; external masked references alone cannot post |
@@ -667,6 +683,10 @@ For the complete configuration and recovery procedure, see [Tenant backups and o
 
 Select the receiving tenant branch when sending money; the From branch stays bound to the teller. After independently reviewed collection, the new PIN is valid only at that receiving branch. Its teller verifies the sender number, PIN and receiver, chooses the actual payout drawer, and requests a separate review. Both branches post together; interbranch dues remain visible in the ledger until actual settlement is separately reconciled. Historical same-branch PINs still work under their original verification rules.
 
-While disconnected, the same tenant workspace opens its encrypted saved pages, sidebar and existing operation modals. Sign in online first; each visited page saves quietly. To prepare more authorized pages and forms, open **Pending sync → Offline availability → Save workspace pages** while connected. Preparation stops on foreground interaction and can be stopped from that dialog. Visit additional detail/filter views to save them. Saved balances and reports show their last refresh time. Supported entry forms persist pending entries before attempting submission, including internet failure while Wi-Fi remains connected. Open **Pending sync** in the sidebar footer to review them in the workspace. Reconnect and sign in to sync with the original reference; repeat sync cannot duplicate the operation. Payout, independent approval, fund setup and configuration changes require a connection. A pending entry never authorizes cash payout, a final receipt or a PIN. Resolve **Needs attention** against actual server records before re-entering. Keep the device and its unsynced data intact; never clear site data while entries remain unsynced. See the linked procedure for page limits and account locking.
+The same workspace automatically uses encrypted local storage when the network/service fails, including lost internet while Wi-Fi appears connected. Its approved pages, sidebar and operation modals remain the interface. Sign in online first; visited pages and forms save quietly. Prepare additional authorized views explicitly through **Pending sync → Offline availability → Save workspace pages**; unvisited/filter-specific pages still need their first connected load. Saved balances and reports show their last refresh time.
+
+Supported forms save each instruction before attempting submission and retain its fields/reference through uncertainty. While offline or work remains pending, visible tabs check service readiness automatically with bounded backoff and honor retry guidance. Healthy idle pages do not poll. When service returns, the server checks current identity, branch, rates, charge policy and funds before accepting the original UUID. Open editors keep their fields and URL; an idle saved page can refresh after syncing. Repeated recovery, including a lost response after commit, cannot duplicate the accepted operation. **Pending sync** remains available for inspection.
+
+Payout, independent approval, fund setup and configuration changes require current server validation. A pending instruction never authorizes payout, a final receipt or a PIN. Changed charges and other business exceptions remain **Needs attention** instead of being silently repriced or forced through. Keep the original device data and check actual server records before replacement; never clear site data with unsynced entries. See the linked procedure for retry timing, page limits and account locking.
 
 Owners and Branch Managers use the Drive icon beside **Last receipt**. First connect Google Drive; later clicks check and back up changed business data. Refresh **Backups** to confirm **Backup complete** or **No unbacked data**. Owners cover the tenant; Managers cover their assigned branch. Configure the local closing time/time zone there; the independent worker checks daily 30 minutes after closing, and keeps an encrypted platform copy if Drive cannot accept the upload. Provider credentials, the private persistent directory, backup-worker monitoring, key custody and an actual recovery rehearsal must be configured before relying on this. These scoped business archives supplement full replica-set disaster recovery.

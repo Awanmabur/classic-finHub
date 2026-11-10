@@ -43,7 +43,7 @@ function sourceSnapshot(type,source){
  if(!currencyCodes.includes(source.currency))throw fail('Unsupported manual financial currency',409);
  if(type==='banking'){
   if(source.source?.referenceType!=='customer_account'||(source.kind==='transfer_request'&&source.destination?.referenceType!=='customer_account'))throw fail('Manual banking posting requires real internal customer accounts. External bank references remain instructions until independently verified.',409);
-  return {...base,kind:source.kind,currency:source.currency,amountMinor:minor(source.amountMinor),customerAccountId:id(source.source.referenceId),destinationAccountId:source.destination?id(source.destination.referenceId):null,paymentChannel:source.capture?.paymentChannel||'Cash'};
+  return {...base,kind:source.kind,currency:source.currency,amountMinor:minor(source.amountMinor),feeMinor:minor(source.feeMinor||'0',true),customerAccountId:id(source.source.referenceId),destinationAccountId:source.destination?id(source.destination.referenceId):null,paymentChannel:source.capture?.paymentChannel||'Cash'};
  }
  return {...base,destinationBranchId:id(source.destinationBranchId||source.branchId),currency:source.currency,amountMinor:minor(source.amountMinor),feeMinor:minor(source.feeMinor,true),method:source.capture?.method||'Cash',receiverPhone:pin.normalPhone(source.beneficiary.phone),receiverName:String(source.beneficiary.name),senderPhone:pin.normalPhone(source.sender.phone),senderName:String(source.sender.name)};
 }
@@ -51,6 +51,7 @@ function sourceSnapshot(type,source){
 // were created with. Never rewrite those immutable snapshots during an upgrade.
 function sourceMatches(execution,source){
  const candidate=sourceSnapshot(execution.sourceType,source);
+ if(execution.sourceType==='banking'&&!Object.hasOwn(execution.sourceSnapshot||{},'feeMinor')&&candidate.feeMinor==='0')delete candidate.feeMinor;
  if(execution.sourceType==='money_transfer'&&!Object.hasOwn(execution.sourceSnapshot||{},'senderPhone')){delete candidate.senderPhone;delete candidate.senderName;}
  if(execution.sourceType==='money_transfer'&&!Object.hasOwn(execution.sourceSnapshot||{},'destinationBranchId'))delete candidate.destinationBranchId;
  return hash(candidate)===execution.sourceFingerprint;
@@ -184,9 +185,10 @@ function economicPlan(snapshot,accounts,{sourceLiabilityId=null,destinationLiabi
   else{leg(accounts.foreignAccountId,-foreign);leg(accounts.settlementAccountId,settlement+fee);}
   if(fee>0n)line(snapshot.toCurrency,feeIncomeId,'credit',fee);
  }else if(snapshot.sourceType==='banking'){
-  if(snapshot.kind==='deposit_request'){leg(accounts.cashAccountId,amount);line(snapshot.currency,sourceLiabilityId,'credit',amount);}
-  else if(snapshot.kind==='withdrawal_request'){leg(accounts.cashAccountId,-amount);line(snapshot.currency,sourceLiabilityId,'debit',amount);}
-  else{line(snapshot.currency,sourceLiabilityId,'debit',amount);line(snapshot.currency,destinationLiabilityId,'credit',amount);}
+  if(snapshot.kind==='deposit_request'){leg(accounts.cashAccountId,amount+fee);line(snapshot.currency,sourceLiabilityId,'credit',amount);}
+  else if(snapshot.kind==='withdrawal_request'){leg(accounts.cashAccountId,-amount);line(snapshot.currency,sourceLiabilityId,'debit',amount+fee);}
+  else{line(snapshot.currency,sourceLiabilityId,'debit',amount+fee);line(snapshot.currency,destinationLiabilityId,'credit',amount);}
+  if(fee>0n)line(snapshot.currency,feeIncomeId,'credit',fee);
  }else{
   leg(accounts.collectionAccountId,amount+fee);leg(accounts.clearingAccountId,amount);if(fee>0n)line(snapshot.currency,feeIncomeId,'credit',fee);
  }
@@ -228,8 +230,8 @@ async function review(conn,tenant,actor,executionId,input={}){
   }else if(execution.sourceType==='banking'){
    const original=await lockCustomerAccount(conn,session,authorization,snapshot.customerAccountId,execution.branchId,snapshot.currency);
    const destination=snapshot.destinationAccountId?await lockCustomerAccount(conn,session,authorization,snapshot.destinationAccountId,execution.branchId,snapshot.currency):null;
-   if(snapshot.kind!=='deposit_request'&&await customerBalance(conn,session,original.ledger._id,execution.branchId,snapshot.currency)<BigInt(snapshot.amountMinor))throw fail('Insufficient posted customer account balance',409);
-   plan=economicPlan(snapshot,execution.accounts,{sourceLiabilityId:String(original.ledger._id),destinationLiabilityId:destination?String(destination.ledger._id):null});
+   if(snapshot.kind!=='deposit_request'&&await customerBalance(conn,session,original.ledger._id,execution.branchId,snapshot.currency)<BigInt(snapshot.amountMinor)+BigInt(snapshot.feeMinor||'0'))throw fail('Insufficient posted customer account balance including charges',409);
+   plan=economicPlan(snapshot,execution.accounts,{sourceLiabilityId:String(original.ledger._id),destinationLiabilityId:destination?String(destination.ledger._id):null,feeIncomeId:await feeAccount(conn,session,authorization,snapshot,execution)});
   }else plan=economicPlan(snapshot,execution.accounts,{feeIncomeId:await feeAccount(conn,session,authorization,snapshot,execution)});
   const posting=execution.action==='transfer_payout'&&String(source.destinationBranchId||source.branchId)!==String(source.branchId)?await treasury().postBranchTransferPayout(conn,session,authorization,execution._id):await treasury().applyMovements(conn,session,authorization,{sourceType:execution.sourceType,sourceRef:`FUNDED:${execution._id}`,branchId:String(execution.branchId),operatingActorId:String(execution.createdBy),...plan,evidenceRef:execution.evidenceReference,description:execution.note});
   const changes={status:'posted_manual',reviewedBy:actor.id,reviewedAt:new Date(),reviewNote:note,journalIds:posting.journalIds||[]};

@@ -15,6 +15,7 @@ const staffService=require('../services/staff.service');
 const staffPolicy=require('../services/staffPolicy');
 router.use(require('./offline.routes'));
 router.get('/workspace/theme.css',require('../workspace/routes').theme);
+router.use(require('./operationForm.routes'));
 router.use(async(req,res,next)=>{try{
  await Promise.all([
   new Promise((resolve,reject)=>require('../services/transactionBranch.service').requestContext(req,res,error=>error?reject(error):resolve())),
@@ -63,17 +64,18 @@ router.get('/mobile-money', requireModule('mobile_money'), requirePermission('mo
   try {
     const canReview=hasPermission(req.user,'mobile_money.review')&&(req.user.role==='Tenant Owner'||req.user.branchId);
     const reviewBranch=req.user.role==='Tenant Owner'?(require('../services/branchView.service').readScope(req.user).branchId||null):req.user.branchId;
-    const [summary,branches,reviewQueue,voidQueue,funds]=await Promise.all([
+    const [summary,branches,reviewQueue,voidQueue,funds,pricingContext]=await Promise.all([
       mobile.getSummary(req.tenantDb,recordScope(req)),
       branchService.list(req.tenant),
       canReview?mobile.getReviewQueue(req.tenantDb,req.user.id,25,reviewBranch):[],
       canReview?mobile.getVoidQueue(req.tenantDb,req.user.id,25,reviewBranch):[],
-      req.operationBranch&&hasPermission(req.user,'treasury.view')?require('../services/mobileMoneyFunds.service').context(req.tenantDb,req.tenant,req.user,req.operationBranch):null
+      req.operationBranch&&hasPermission(req.user,'treasury.view')?require('../services/mobileMoneyFunds.service').context(req.tenantDb,req.tenant,req.user,req.operationBranch):null,
+      require('../pricing/presentation').context(req.tenantDb,req.tenant,req.operationBranch,'mobile_money')
     ]);
     renderTenant(req,res,'mobile-money/index','Mobile Money','Record agent transactions. Provider settlement remains unverified until reconciled.',{
       entryCurrency:req.operationBranch?require('../services/branchCurrency.service').resolve(req.operationBranch,req.query.currency):null,
       entryCurrencies:req.operationBranch?require('../services/branchCurrency.service').options(req.operationBranch):[],
-      summary,branches:branches.filter(b=>b.status==='active' && (req.user.role==='Tenant Owner' || String(b._id)===String(req.user.branchId))),reviewQueue,voidQueue,funds,
+      summary,branches:branches.filter(b=>b.status==='active' && (req.user.role==='Tenant Owner' || String(b._id)===String(req.user.branchId))),reviewQueue,voidQueue,funds,pricingContext,
       canReview: hasPermission(req.user,'mobile_money.review'), idempotencyKey:randomUUID(),
       canRecord: hasPermission(req.user,'mobile_money.cash_in') || hasPermission(req.user,'mobile_money.cash_out')
     });

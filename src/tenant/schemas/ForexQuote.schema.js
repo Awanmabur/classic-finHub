@@ -4,6 +4,7 @@ const mongoose=require('mongoose');
 const {forexCurrencyCodes}=require('../../config/currencies');
 const O=mongoose.Schema.Types.ObjectId;
 const schema=new mongoose.Schema({
+ pricing:{type:require('../pricing/snapshot').schema,default:undefined,immutable:true},
  capture:{type:require('../services/operationCapture.service').schema('forex'),default:()=>({}),immutable:true},
  reference:{type:String,required:true,immutable:true},
  idempotencyKey:{type:String,required:true,immutable:true},

@@ -1,0 +1,90 @@
+{
+  "browserErrors": [],
+  "resourceErrors": [],
+  "layouts": [
+    {
+      "name": "pricing-create",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "pricing-create",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "pricing-edit",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "pricing-edit",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "transfer-minimal",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "transfer-minimal",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "forex-minimal",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "forex-minimal",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "mobile-minimal",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "mobile-minimal",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "banking-minimal",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "banking-minimal",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": []
+    }
+  ],
+  "checks": {
+    "ownerCreatesTenantDefault": true,
+    "ownerEditsRevisionAndFrozenScope": true,
+    "staleEditRetainsFields": true,
+    "transferConfiguredFeeIgnoresTampering": true,
+    "costEstimateDoesNotPostLedger": true,
+    "noPerKeystrokeRequests": true,
+    "forexCommissionUsesSettlementBasis": true,
+    "mobileFeeAutomatic": true,
+    "bankingFeeAutomatic": true,
+    "tellerCannotConfigurePrices": true
+  }
+}

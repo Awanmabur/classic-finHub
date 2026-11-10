@@ -81,10 +81,9 @@ test('executable forex forms offer eligible approved pairs and a validity the se
  assert.doesNotMatch(html,/value="(?:EUR|KES)"/);
  assert.doesNotMatch(html,new RegExp(rates[0]._id+'|'+rates[2]._id));
  assert.match(html,/data-expires-at="[^"]+"/);
- const validity=html.match(/<select name="validMinutes"[^>]*>([\s\S]*?)<\/select>/)[1];
- const selected=Number(validity.match(/<option value="(\d+)" selected/)[1]);
+ const selected=Number(html.match(/<input type="hidden" name="validMinutes" value="(\d+)"/)[1]);
  assert(selected>=5&&selected<10);
- assert.match(validity,/<option value="15"\s+disabled/);
+ assert.doesNotMatch(html,/<select name="validMinutes"/,'the approved quotation window is automatic');
  const indicative=await ejs.renderFile(template,{...locals,data:{...locals.data,workspaceOperation:'quote'}});
  assert.match(indicative,/value="EUR"/);
  assert.match(indicative,/Indicative quotation/);

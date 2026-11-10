@@ -45,9 +45,13 @@ test('Banking request validates operation, branch-independent exact amounts, dis
  const transfer={...v,kind:'transfer_request',destinationId:oid()};
  assert.equal(bank.validateRequest(transfer).kind,'transfer_request');
  for(const change of [{kind:'settled'},{kind:'deposit'},{currency:'JPY'},{amount:'3.55'},{amount:'0'},{amount:'1000000000000'},
-  {idempotencyKey:'invalid'},{sourceId:'not-id'},{note:'x'},{kind:'transfer_request',destinationId:v.sourceId},
+  {idempotencyKey:'invalid'},{sourceId:'not-id'},{note:'x'.repeat(401)},{kind:'transfer_request',destinationId:v.sourceId},
   {kind:'withdrawal_request',destinationId:oid()},{validDays:0},{validDays:31}])assert.throws(()=>bank.validateRequest({...v,...change}),e=>e.status===400);
  assert.throws(()=>bank.validateRequest({...v,kind:'transfer_request'}),e=>e.status===400);
+ assert.equal(bank.validateRequest({...v,kind:'deposit_request',note:''}).note,'Banking deposit request');
+ assert.equal(bank.validateRequest({...v,kind:'withdrawal_request',note:'   '}).note,'Banking withdrawal request');
+ assert.equal(bank.validateRequest({...transfer,note:undefined}).note,'Banking account transfer request');
+ assert.equal(bank.validateRequest({...v,note:'Rent'}).note,'Rent');
 });
 test('banking channels follow the actual customer-account or settlement movement',()=>{
  const value=request();

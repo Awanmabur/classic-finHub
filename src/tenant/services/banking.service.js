@@ -48,7 +48,7 @@ function validateRequest(input){
  if(kind!=='transfer_request'&&input?.destinationId)throw fail('Destination only applies to transfers');
  const currency=text(input?.currency,'currency',3,3);
  const amountMinor=mobile.toMinor(input?.amount,currency);
- const note=text(input?.note,'request reason',12,400);
+ const note=text(input?.note===undefined||typeof input.note==='string'&&!input.note.trim()?({deposit_request:'Banking deposit request',withdrawal_request:'Banking withdrawal request',transfer_request:'Banking account transfer request'}[kind]):input.note,'request reason',1,400);
  const validDays=Number(input?.validDays??7);
  if(!Number.isSafeInteger(validDays)||validDays<1||validDays>30)throw fail('Request expiry must be 1–30 days');
  const idempotencyKey=text(input?.idempotencyKey,'form reference',36,36);
@@ -57,7 +57,8 @@ function validateRequest(input){
   paymentChannel:input?.paymentChannel===undefined||input.paymentChannel===''?(kind==='transfer_request'?'Internal transfer':'Cash'):input.paymentChannel});
  if(kind==='transfer_request'&&capture.paymentChannel!=='Internal transfer')throw fail('Account transfers use the Internal transfer payment channel');
  if(kind!=='transfer_request'&&capture.paymentChannel==='Internal transfer')throw fail('Choose Cash, Bank settlement or Mobile money for a deposit or withdrawal');
- return {kind,sourceId,destinationId,currency,amountMinor,note,idempotencyKey,validDays,capture};
+ const feeMinor=require('../pricing/apply').mode(input)?0n:mobile.toMinor(input?.fee??'0',currency,true);
+ return {kind,sourceId,destinationId,currency,amountMinor,feeMinor,note,idempotencyKey,validDays,capture};
 }
 function snapshot(reference){return {referenceId:reference._id,referenceType:reference.referenceType||'bank_reference',customerName:reference.customerName,institutionName:reference.institutionName,last4:reference.last4};}
 function sameRequest(existing,actor,branchId,v){return String(existing.createdBy)===String(actor.id)&&String(existing.branchId)===branchId&&
@@ -66,7 +67,7 @@ function sameRequest(existing,actor,branchId,v){return String(existing.createdBy
  // Historical transfer instructions could retain a cash/bank channel even
  // though account transfers only move customer liabilities. Preserve that
  // snapshot while allowing an otherwise identical retry to return its record.
- require('./operationCapture.service').equivalent('banking',existing.kind==='transfer_request'?{...existing.capture,paymentChannel:'Internal transfer'}:existing.capture,v.capture)&&existing.currency===v.currency&&String(existing.amountMinor)===String(v.amountMinor)&&existing.note===v.note&&existing.validDays===v.validDays;}
+ require('./operationCapture.service').equivalent('banking',existing.kind==='transfer_request'?{...existing.capture,paymentChannel:'Internal transfer'}:existing.capture,v.capture)&&existing.currency===v.currency&&String(existing.amountMinor)===String(v.amountMinor)&&String(existing.feeMinor||'0')===String(v.feeMinor||'0')&&existing.note===v.note&&existing.validDays===v.validDays;}
 async function createReference(conn,tenant,actor,input){
  moduleAccess(tenant,actor,'banking.accounts.manage');if(!operator(actor))throw fail('Bank references may only be maintained by banking staff',403);
  const value=validateReference(input),branchId=String((await require('./transactionBranch.service').resolveTransactionBranch(conn,actor,input))._id);
@@ -121,13 +122,15 @@ async function createRequest(conn,tenant,actor,input){
  const value=validateRequest(input),branchId=String((await require('./transactionBranch.service').resolveTransactionBranch(conn,actor,input))._id);
  await ensureTenantIndexes(conn);const Model=bankingRequestModel(conn);
  const existing=await Model.findOne({idempotencyKey:value.idempotencyKey}).lean();
- if(existing){if(!sameRequest(existing,actor,branchId,value))throw fail('Form reference reused with different details',409);return {order:existing,duplicate:true};}
+ if(existing){const pricing=await require('../pricing/apply').resolve(conn,tenant,branchId,input,{operation:'banking.'+({deposit_request:'deposit',withdrawal_request:'withdrawal',transfer_request:'transfer'}[value.kind]),currency:value.currency,amountMinor:value.amountMinor,existing,providedMinor:value.feeMinor});if(pricing)value.feeMinor=BigInt(pricing.feeMinor);if(!sameRequest(existing,actor,branchId,value))throw fail('Form reference reused with different details',409);return {order:existing,duplicate:true};}
  const session=await conn.startSession();let order;
  try{await session.withTransaction(async()=>{
   const authorization=await financialAuth.fenceAction(conn,session,actor,tenant,'banking','banking.requests.create',{branchId});
   const branch=await branchModel(conn).findOneAndUpdate({_id:branchId,status:'active'},{$inc:{revision:1}},{session,new:true});
   if(!branch)throw fail('Branch unavailable',409);
   require('./branchCurrency.service').resolve(branch,value.currency);
+  const pricing=await require('../pricing/apply').resolve(conn,authorization.tenant,branch,input,{operation:'banking.'+({deposit_request:'deposit',withdrawal_request:'withdrawal',transfer_request:'transfer'}[value.kind]),currency:value.currency,amountMinor:value.amountMinor,providedMinor:value.feeMinor,session});
+  if(pricing){value.pricing=pricing;value.feeMinor=BigInt(pricing.feeMinor);}
   // Snapshot and fence either a masked bank reference or an entitled internal
   // customer account. Neither selection posts funds or changes ledger balances.
   const bridge=require('../customerAccounts/bankingBridge');
@@ -136,7 +139,7 @@ async function createRequest(conn,tenant,actor,input){
   await reserveUsage(authorization.tenant,'banking_requests',session);
   [order]=await Model.create([{reference:`BK-${crypto.randomBytes(12).toString('hex').toUpperCase()}`,
    idempotencyKey:value.idempotencyKey,branchId,createdBy:actor.id,kind:value.kind,source:snapshot(source),
-   destination:dest?snapshot(dest):null,capture:value.capture,currency:value.currency,amountMinor:String(value.amountMinor),note:value.note,validDays:value.validDays,
+   destination:dest?snapshot(dest):null,capture:value.capture,pricing:value.pricing,currency:value.currency,amountMinor:String(value.amountMinor),feeMinor:String(value.feeMinor),note:value.note,validDays:value.validDays,
    expiresAt:new Date(Date.now()+value.validDays*86400000),status:'requested'}],{session});
   await auditEventModel(conn).create([{action:'banking.request.created',actorId:actor.id,targetId:order._id,
    metadata:{branchId,kind:value.kind,currency:value.currency,reference:order.reference,amountMinor:value.amountMinor}}],{session});

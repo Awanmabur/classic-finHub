@@ -24,7 +24,7 @@ test('approved mobile money entry preserves the protected server contract and as
   assert.match(html,/name="_csrf" value="protected-csrf"/);
   assert.match(html,new RegExp(`name="idempotencyKey" value="${requestKey}"`));
   for(const field of ['customer','customerPhone','network','networkReference','customerNote','amount','fee','currency','paymentMethod']) assert.match(html,new RegExp(`name="${field}"`));
-  for(const label of ['Customer and network','Customer phone','Customer name','Wallet / agent float reference','Customer ID / note','Amount details','Fee / commission','Payment method','Total customer pays','Process mobile money']) assert.ok(html.includes(label),label);
+  for(const label of ['Customer and network','Customer phone','Customer name','Network transaction reference','Customer ID / note','Amount details','Fee / commission','Payment method','Total customer pays','Process mobile money']) assert.ok(html.includes(label),label);
   assert.match(html,/<option value="Africell">Africell<\/option>/);
   assert.match(html,/<option value="Wallet Balance">Wallet Balance<\/option>/);
   assert.match(html,/<option value="Bank">Bank<\/option>/);

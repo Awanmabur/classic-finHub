@@ -53,7 +53,8 @@ async function prepareTenantStorage(connection){
       require('../../tenant/workspace/models').ensure(connection),
       require('../../tenant/treasury/models').ensure(connection),
       require('../../tenant/treasury/funding.models').ensureIndexes(connection),
-      require('../../tenant/funded/models').ensureIndexes(connection)
+      require('../../tenant/funded/models').ensureIndexes(connection),
+      require('../../tenant/pricing/models').ensure(connection)
     ]);
   }catch(error){throw storageFailure(error);}
 }

@@ -21,7 +21,7 @@ const decision={decision:'approve',note:'Independent original evidence and physi
 const actor=row=>({id:String(row._id),role:row.role,name:row.name,branchId:String(row.branchId),authVersion:row.authVersion||0,permissions:permissionsFor(row.role),allowedModules:row.allowedModules});
 async function login(base,row,password,secret){await page.goto(base+'/signin');await page.locator('[name=email]').fill(row.email);await page.locator('[name=password]').fill(password);await Promise.all([page.waitForURL('**/mfa/challenge'),page.locator('form[action="/signin"] button[type=submit]').click()]);await page.locator('[name=code]').fill(mfa.counterCode(secret,Math.floor(Date.now()/30000)));await Promise.all([page.waitForURL('**/tenant/dashboard'),page.locator('button[type=submit]').click()]);}
 async function navigate(base,route){const response=await page.goto(base+route);assert.equal(response.status(),200,route+' HTTP');await page.evaluate(()=>document.fonts.ready);}
-async function capture(name){for(const width of [1440,390,320]){await page.setViewportSize({width,height:1000});await page.waitForTimeout(100);const data=await page.evaluate(()=>{const ids=[...document.querySelectorAll('[id]')].map(e=>e.id);return {overflow:document.documentElement.scrollWidth>innerWidth,duplicateIds:ids.filter((id,i)=>ids.indexOf(id)!==i)};});assert.equal(data.overflow,false,name+' overflow '+width);assert.equal(data.duplicateIds.length,0,name+' duplicate ids');result.layouts.push({name,width,...data});await page.screenshot({path:out+'/'+name+'-'+width+'.png',fullPage:false});}await page.setViewportSize({width:1440,height:1000});}
+async function capture(name){for(const width of [1440,390,320]){await page.setViewportSize({width,height:1000});if(width<=1120)await page.waitForFunction(()=>{const side=document.querySelector('#sidePanel');return !side||side.classList.contains('show')||side.getBoundingClientRect().right<=0;});const data=await page.evaluate(()=>{const ids=[...document.querySelectorAll('[id]')].map(e=>e.id);return {overflow:document.documentElement.scrollWidth>innerWidth,duplicateIds:ids.filter((id,i)=>ids.indexOf(id)!==i)};});assert.equal(data.overflow,false,name+' overflow '+width);assert.equal(data.duplicateIds.length,0,name+' duplicate ids');result.layouts.push({name,width,...data});await page.screenshot({path:out+'/'+name+'-'+width+'.png',fullPage:false});}await page.setViewportSize({width:1440,height:1000});}
 async function main(){
  await req('./src/config/mongo').connectPlatformMongo();await Promise.all([Tenant.createIndexes(),Identity.createIndexes()]);
  const modules=['mobile_money','money_transfer','banking','forex','customers','accounts','expenses','reports'];
@@ -56,12 +56,17 @@ async function main(){
  assert.equal(await page.locator('select[name=fromBranchId]').count(),0);
  assert.equal(await page.locator('[data-transfer-form] input[readonly]').count(),1);
  assert.equal(await page.locator('select[name=destinationBranchId] option[value="'+branch._id+'"]').count(),0);
+ for(const name of ['fee','validDays','senderCountry','receiverCountry'])assert.equal(await page.locator('[data-transfer-form] [name="'+name+'"]').getAttribute('type'),'hidden',name+' is derived rather than entered by the teller');
+ assert.equal(await page.locator('[data-transfer-form] [name=pricingMode]').inputValue(),'configured');
+ assert.equal(await page.locator('[data-transfer-form] details').evaluate(details=>details.open),false,'Additional metadata stays out of the daily entry path');
+ result.minimalTransferForm={automaticCharges:true,automaticValidityAndCountry:true,optionalDetailsCollapsed:true,branchInferred:true};
  await page.waitForFunction(()=>document.getElementById('offlineStatus')?.textContent==='This page is saved for offline access.');
  // Neither fresh page should perform authenticated background reads when no drafts exist.
  await page.waitForTimeout(400);
  assert.equal(backgroundRequests.contextRequests,0,'Fresh server-rendered context avoids an extra account request');
  assert.equal(backgroundRequests.preparationRequests,0,'Navigation must not automatically fetch the workspace');
- result.startup={...backgroundRequests,visitedPagesSaved:true};
+ assert.equal(observedHttp.filter(request=>request.method==='GET'&&request.path==='/health/ready').length,0,'Healthy idle navigation must not poll readiness');
+ result.startup={...backgroundRequests,healthyReadinessPolls:0,visitedPagesSaved:true};
  assert.equal(await page.evaluate(()=>window.CLASSICFIN_LEGACY_RUNTIME),undefined,'First navigation must bypass the obsolete cached runtime');
  assert.equal(await page.evaluate(async()=>!!await(await caches.open('classicfin-offline-browser-legacy')).match('/js/offline.js')),true,'Obsolete runtime really remains cached during the first navigation');
  result.startup.staleWorkerFirstNavigationRecovered=true;
@@ -96,6 +101,7 @@ async function main(){
  await page.goto(base+'/tenant/money-transfer/send?currency=SSP');await page.locator('[data-offline-snapshot]').waitFor();
  const publicCaches=await page.evaluate(async()=>{const result={};for(const name of await caches.keys())result[name]=(await(await caches.open(name)).keys()).map(request=>new URL(request.url).pathname);return result;});assert(!Object.values(publicCaches).flat().some(path=>path.startsWith('/tenant/')));
  const stored=await page.evaluate(async()=>{const db=await new Promise(resolve=>{const r=indexedDB.open('classicfin-offline-v1');r.onsuccess=()=>resolve(r.result);});const rows=await new Promise(resolve=>{const r=db.transaction('entries').objectStore('entries').getAll();r.onsuccess=()=>resolve(r.result);});db.close();return rows.map(row=>JSON.stringify(row));});assert(stored.every(row=>!row.includes('Offline Sender')&&!row.includes('+211921234567')&&!row.includes('<html')));
+ const sanitizedSnapshots=await page.evaluate(async()=>{const database=await new Promise(resolve=>{const request=indexedDB.open('classicfin-offline-v1');request.onsuccess=()=>resolve(request.result);}),active=sessionStorage.getItem('classicfin.offline.scope');const get=(name,work)=>new Promise(resolve=>{const request=work(database.transaction(name).objectStore(name));request.onsuccess=()=>resolve(request.result);});const key=await get('keys',store=>store.get(active)),entries=await get('entries',store=>store.getAll());let checked=0;for(const entry of entries.filter(row=>row.id.startsWith(active+':page:'))){const record=JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:entry.iv,additionalData:new TextEncoder().encode(active)},key,entry.body))),dom=new DOMParser().parseFromString(record.html,'text/html'),roots=[dom];for(let i=0;i<roots.length;i++)for(const template of roots[i].querySelectorAll('template'))roots.push(template.content);for(const root of roots)if([...root.querySelectorAll('input[name="_csrf"],input[name="idempotencyKey"],input[type="password"]')].some(input=>input.getAttribute('value')))throw Error('A saved page retained a transient form credential');checked++;}database.close();return checked;});assert(sanitizedSnapshots>0);result.sanitizedTemplatesAndPages=true;
  // Keep an older draft's request in flight. A separate online operation must still finish.
  const backlogKeys=new Set([draftKey,modalKey,thirdKey]);let releaseBacklog,backlogObserved;
  const heldBacklog=new Promise(resolve=>{releaseBacklog=resolve;}),backlogStarted=new Promise(resolve=>{backlogObserved=resolve;});
@@ -120,7 +126,57 @@ async function main(){
  for(const idempotencyKey of backlogKeys)assert.equal(await core.transferOrderModel(conn).countDocuments({idempotencyKey}),1);
  await page.locator('#offlineSync').click();await page.waitForTimeout(300);assert.equal(await core.transferOrderModel(conn).countDocuments({idempotencyKey:draftKey}),1);await page.locator('#offlineQueueDialog [data-offline-close]').first().click();
  await page.locator('#newTransactionBtn').click();await page.locator('#transactionDialog [data-transaction-kind=transfer]').click();await modal.waitFor();await fillTransfer(modal,'Online network outage','4.00');const outageKey=await modal.locator('[name=idempotencyKey]').inputValue();
- await context.route('**/tenant/money-transfer/requests',route=>route.abort());assert.equal(await page.evaluate(()=>navigator.onLine),true);await modal.getByRole('button',{name:'Save transfer & continue'}).click();await page.waitForFunction(()=>document.getElementById('offlineStatus')?.textContent.includes('Connection interrupted. Your entry is saved'));assert.equal(await core.transferOrderModel(conn).countDocuments({idempotencyKey:outageKey}),0);await context.unroute('**/tenant/money-transfer/requests');await page.locator('#transactionDialog [data-close-transaction]').first().click();await page.getByRole('button',{name:'Pending sync',exact:true}).click();await page.locator('#offlineSync').click();await page.waitForFunction(()=>[...document.querySelectorAll('#offlineQueue strong')].filter(el=>el.textContent.includes('Synced')).length===5);assert.equal(await core.transferOrderModel(conn).countDocuments({idempotencyKey:outageKey}),1);await page.locator('#offlineQueueDialog [data-offline-close]').first().click();
+ const interruptedPost=route=>route.abort(),interruptedHealth=route=>route.abort();
+ await context.route('**/tenant/money-transfer/requests',interruptedPost);await context.route('**/health/ready',interruptedHealth);
+ assert.equal(await page.evaluate(()=>navigator.onLine),true);
+ await page.evaluate(()=>{window.offlineReviewOnlineEvents=0;window.addEventListener('online',()=>{window.offlineReviewOnlineEvents++;});});
+ const outagePage=page.url();await modal.getByRole('button',{name:'Save transfer & continue'}).click();
+ await page.waitForFunction(()=>document.body.dataset.connectionMode==='offline');
+ assert.equal(await core.transferOrderModel(conn).countDocuments({idempotencyKey:outageKey}),0);
+ assert.equal(await page.evaluate(()=>navigator.onLine),true,'The browser can report online while the application is unreachable');
+ assert.equal(await modal.locator('[name=senderName]').inputValue(),'Online network outage');
+ assert.equal(await modal.locator('[name=idempotencyKey]').inputValue(),outageKey,'An interrupted instruction retains its reference');
+ await context.unroute('**/tenant/money-transfer/requests',interruptedPost);await context.unroute('**/health/ready',interruptedHealth);
+ // Recovery must be discovered by the bounded connection monitor, without an
+ // online event, page navigation or an operator pressing Sync now.
+ await page.waitForFunction(()=>document.body.dataset.connectionMode==='online'&&[...document.querySelectorAll('#offlineQueue strong')].filter(el=>el.textContent.includes('Synced')).length===5,null,{timeout:25000});
+ assert.equal(await page.evaluate(()=>window.offlineReviewOnlineEvents),0,'Recovery did not rely on navigator online events');
+ assert.equal(await core.transferOrderModel(conn).countDocuments({idempotencyKey:outageKey}),1);
+ assert.equal(page.url(),outagePage,'Returning online must not navigate away from an open editor');
+ assert.equal(await page.locator('#transactionDialog').evaluate(dialog=>dialog.open),true);
+ assert.equal(await modal.locator('[name=senderName]').inputValue(),'Online network outage');
+ await page.evaluate(()=>{for(let index=0;index<3;index++)window.dispatchEvent(new Event('online'));});await page.waitForTimeout(350);
+ assert.equal(await core.transferOrderModel(conn).countDocuments({idempotencyKey:outageKey}),1,'Repeated resume signals cannot create another transfer');
+ result.automaticRecovery={networkFailureWhileBrowserOnline:true,offlineModeAutomatic:true,recoveryWithoutOnlineEvent:true,noManualSync:true,editorPreserved:true,oneRecordAfterRepeatedResume:true};
+ await page.locator('#transactionDialog [data-close-transaction]').first().click();
+ // The server may commit before a response disappears. Retry the persisted UUID
+ // rather than treating the missing response as permission to create a new row.
+ await page.locator('#newTransactionBtn').click();await page.locator('#transactionDialog [data-transaction-kind=transfer]').click();await modal.waitFor();await page.locator('#transactionDialog [data-transaction-clear]').click();
+ await fillTransfer(modal,'Committed response lost','2.00');const lostResponseKey=await modal.locator('[name=idempotencyKey]').inputValue();let committedResponseLost=false;
+ const dropCommittedResponse=async route=>{const values=new URLSearchParams(route.request().postData()||'');if(route.request().method()==='POST'&&values.get('idempotencyKey')===lostResponseKey){const response=await route.fetch();assert.equal(response.status(),200);committedResponseLost=true;await route.abort();}else await route.continue();};
+ await context.route('**/tenant/money-transfer/requests',dropCommittedResponse);await context.route('**/health/ready',interruptedHealth);
+ await modal.getByRole('button',{name:'Save transfer & continue'}).click();await page.waitForFunction(()=>document.body.dataset.connectionMode==='offline');
+ assert.equal(committedResponseLost,true);assert.equal(await core.transferOrderModel(conn).countDocuments({idempotencyKey:lostResponseKey}),1);
+ assert.equal(await modal.locator('[name=idempotencyKey]').inputValue(),lostResponseKey);
+ await context.unroute('**/tenant/money-transfer/requests',dropCommittedResponse);await context.unroute('**/health/ready',interruptedHealth);
+ await page.waitForFunction(()=>document.body.dataset.connectionMode==='online'&&[...document.querySelectorAll('#offlineQueue strong')].filter(el=>el.textContent.includes('Synced')).length===6,null,{timeout:25000});
+ assert.equal(await core.transferOrderModel(conn).countDocuments({idempotencyKey:lostResponseKey}),1,'Automatic retry of a committed operation must remain idempotent');
+ result.lostResponseRetry={sameReference:true,acceptedExactlyOnce:true,automaticRecovery:true};
+ await page.locator('#transactionDialog [data-close-transaction]').first().click();
+ // Changed business settings cannot silently reprice an already captured
+ // offline instruction. The operator must review it before any new request.
+ await navigate(base,'/tenant/money-transfer/send?currency=SSP');
+ const pricingForm=page.locator('[data-transfer-form]');await fillTransfer(pricingForm,'Stale Pricing Sender','8.00');
+ assert.equal(await pricingForm.locator('[name=pricingPolicy]').inputValue(),'default');
+ const stalePricingKey=await pricingForm.locator('[name=idempotencyKey]').inputValue();
+ await context.setOffline(true);await pricingForm.getByRole('button',{name:'Save transfer & continue'}).click();await page.getByText('Saved offline — pending sync.',{exact:false}).waitFor();
+ assert.equal(await core.transferOrderModel(conn).countDocuments({idempotencyKey:stalePricingKey}),0);
+ await req('./src/tenant/pricing/service').save(conn,tenant.toObject(),ownerActor,{operation:'money_transfer.send',currency:'SSP',branchId:'',network:'',feeFixed:'1.00',feePercent:'0',costFixed:'0',costPercent:'0',enabled:'true',revision:'0'});
+ await context.setOffline(false);
+ await page.waitForFunction(()=>[...document.querySelectorAll('#offlineQueue article')].some(row=>row.textContent.includes('Stale Pricing Sender')&&row.textContent.includes('Needs attention')&&row.textContent.includes('Charges changed since this form was prepared')),null,{timeout:25000});
+ assert.equal(await core.transferOrderModel(conn).countDocuments({idempotencyKey:stalePricingKey}),0,'A stale fee quote must not be silently updated and booked');
+ assert.equal(await page.evaluate(()=>document.body.dataset.connectionMode),'online','A pricing conflict is a business validation result, not a second offline mode');
+ result.stalePricingHeldForReview=true;
  // Moving the account after render must invalidate the old operating-branch header before any write.
  await navigate(base,'/tenant/money-transfer/send?currency=SSP');
  const staleForm=page.locator('[data-transfer-form]');await fillTransfer(staleForm,'Stale Branch Sender','1.00');

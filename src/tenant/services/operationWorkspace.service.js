@@ -109,12 +109,16 @@ function csv(report){
 }
 async function formContext(conn,tenant,actor,key,operationBranch,input={}){
  authorize(tenant,actor,key);
- const activeBranches=(await require('./branch.service').list(tenant)).filter(branch=>branch.status==='active');
+ const [foundBranches,pricingContext]=await Promise.all([
+  require('./branch.service').list(tenant),
+  require('../pricing/presentation').context(conn,tenant,operationBranch,key)
+ ]);
+ const activeBranches=foundBranches.filter(branch=>branch.status==='active');
  const branches=activeBranches.filter(branch=>
   (require('./branchView.service').canViewBranches(actor)||String(branch._id)===String(actor.branchId)));
  const selectedId=String(operationBranch?._id||''),selected=branches.find(branch=>String(branch._id)===selectedId);
  const operatingActor=require('./branchView.service').withoutReadView(actor);
- const common={branches,selectedBranchId:selected?selectedId:null,idempotencyKey:crypto.randomUUID(),formatMoneyMinor:mobile.formatMoneyMinor,
+ const common={branches,pricingContext,selectedBranchId:selected?selectedId:null,idempotencyKey:crypto.randomUUID(),formatMoneyMinor:mobile.formatMoneyMinor,
   currencyChoices:branchCurrency.options(operationBranch),selectedCurrency:operationBranch?branchCurrency.resolve(operationBranch,input.currency):null};
  if(key==='money_transfer'){
   const service=require('./moneyTransfer.service');

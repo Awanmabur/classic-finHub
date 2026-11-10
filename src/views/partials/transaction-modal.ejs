@@ -20,5 +20,10 @@
    <div class="transactionFormHost" data-transaction-form></div>
   </div>
   <footer class="sheetFoot"><button type="button" class="btn" data-transaction-clear>Clear</button><button type="button" class="btn" data-close-transaction>Close</button></footer>
+  <% if(transactionOptions.some(option=>option.kind==='transfer')&&typeof operationBranch!=='undefined'&&operationBranch){
+     const seedCurrency=(typeof seedDisplayCurrency==='string'?seedDisplayCurrency:'')||data.workspaceSnapshot?.selectedCurrency||data.filters?.currency||data.selectedCurrency||data.entryCurrency||operationBranch.currency;
+     const seedData={idempotencyKey:'',destinationBranches:typeof viewBranches==='undefined'?[]:viewBranches,selectedCurrency:seedCurrency,currencyChoices:(typeof currencyOptions==='undefined'?[]:currencyOptions).filter(option=>!operationBranch.currencies||operationBranch.currencies.includes(option.code)),pricingContext:[]}; %>
+  <template data-operation-seed="transfer" data-operation-currency="<%= seedCurrency %>"><form method="post" action="/tenant/money-transfer/requests" class="transactionForm svc" autocomplete="off" data-transfer-form data-operation-loading="true" data-currency="<%= seedCurrency %>"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="idempotencyKey" value=""><%- include('../tenant/money-transfer/_entry-form',{data:seedData,currentBranch:operationBranch}) %></form></template>
+  <% } %>
  </div>
 </dialog>

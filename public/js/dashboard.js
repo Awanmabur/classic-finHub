@@ -294,8 +294,10 @@
         filterDestinations();
         if(validity&&option?.dataset.expiresAt){
           const expiresAt=new Date(option.dataset.expiresAt).getTime(),previous=Number(validity.value)||15;
-          for(const minutes of validity.options){minutes.hidden=!Number.isFinite(expiresAt)||expiresAt<=now+Number(minutes.value)*60000+1000;minutes.disabled=minutes.hidden;}
-          if(!validity.value||validity.selectedOptions[0]?.disabled)validity.value=[...validity.options].filter(minutes=>!minutes.disabled&&Number(minutes.value)<=previous).at(-1)?.value||[...validity.options].find(minutes=>!minutes.disabled)?.value||'';
+          if(validity.tagName==='SELECT'){
+            for(const minutes of validity.options){minutes.hidden=!Number.isFinite(expiresAt)||expiresAt<=now+Number(minutes.value)*60000+1000;minutes.disabled=minutes.hidden;}
+            if(!validity.value||validity.selectedOptions[0]?.disabled)validity.value=[...validity.options].filter(minutes=>!minutes.disabled&&Number(minutes.value)<=previous).at(-1)?.value||[...validity.options].find(minutes=>!minutes.disabled)?.value||'';
+          }else{const maximum=Math.min(60,Math.floor((expiresAt-now-1000)/60000));validity.value=Number.isFinite(maximum)&&maximum>=5?String(Math.min(15,maximum)):'';}
         }
         rate.setCustomValidity(!rate.value||validity&&!validity.value?'Choose an approved rate with enough remaining validity.':'');
         const source=from?operationMinor(form.elements.namedItem('amount').value,from==='UGX'?0:2):null;
@@ -341,8 +343,8 @@
     source.addEventListener('change',update);destination.addEventListener('change',update);form.addEventListener('reset',()=>queueMicrotask(update));update();
   });
 
-  // The launcher loads the existing, permission-checked server form. It never
-  // recreates financial rules, CSRF tokens or idempotency keys in the browser.
+  // The launcher uses the same server partials as module pages. Cached entry
+  // choices never replace the POST's live authorization or financial checks.
   const transactionDialog = document.getElementById('transactionDialog');
   if (transactionDialog && typeof transactionDialog.showModal === 'function') {
     const operations = Object.freeze({
@@ -350,14 +352,14 @@
       cash_out: {page:'/tenant/mobile-money/cash-out',form:'/tenant/mobile-money/cash-out',action:'/tenant/mobile-money/cash-out',title:'Mobile Money - Cash-out',description:'Only mobile money fields are shown.'},
       transfer: {page:'/tenant/money-transfer/send',form:'/tenant/money-transfer/requests',action:'/tenant/money-transfer/requests',title:'New transaction'},
       payout: {page:'/tenant/funded/payout',form:'/tenant/funded/payout',action:'/tenant/funded/payout',title:'Payout by PIN',keepOpenAfterPost:true},
-      banking_deposit: {page:'/tenant/banking/deposit',form:'/tenant/banking/requests',action:'/tenant/banking/requests',title:'Banking - Deposit'},
-      banking_withdrawal: {page:'/tenant/banking/withdraw',form:'/tenant/banking/requests',action:'/tenant/banking/requests',title:'Banking - Withdraw'},
-      banking_transfer: {page:'/tenant/banking/transfer',form:'/tenant/banking/requests',action:'/tenant/banking/requests',title:'Banking - Account transfer'},
+      banking_deposit: {page:'/tenant/banking/deposit',form:'/tenant/banking/requests',action:'/tenant/banking/requests',entryKind:'deposit_request',title:'Banking - Deposit'},
+      banking_withdrawal: {page:'/tenant/banking/withdraw',form:'/tenant/banking/requests',action:'/tenant/banking/requests',entryKind:'withdrawal_request',title:'Banking - Withdraw'},
+      banking_transfer: {page:'/tenant/banking/transfer',form:'/tenant/banking/requests',action:'/tenant/banking/requests',entryKind:'transfer_request',title:'Banking - Account transfer'},
       customer: {page:'/tenant/customers/new',form:'/tenant/customers',action:'/tenant/customers',title:'New customer'},
       account: {page:'/tenant/accounts/new',form:'/tenant/accounts',action:'/tenant/accounts',title:'New account'},
       expense: {page:'/tenant/expenses/new',form:'/tenant/expenses',action:'/tenant/expenses',title:'Add expense'},
-      forex_buy: {page:'/tenant/forex/buy',form:'/tenant/forex/quotes',action:'/tenant/forex/quotes',title:'Forex Operations - Buy',description:'Buy or sell foreign currency with rate, commission, and drawer impact.'},
-      forex_sell: {page:'/tenant/forex/sell',form:'/tenant/forex/quotes',action:'/tenant/forex/quotes',title:'Forex Operations - Sell',description:'Buy or sell foreign currency with rate, commission, and drawer impact.'},
+      forex_buy: {page:'/tenant/forex/buy',form:'/tenant/forex/quotes',action:'/tenant/forex/quotes',operation:'buy',title:'Forex Operations - Buy',description:'Buy or sell foreign currency with rate, commission, and drawer impact.'},
+      forex_sell: {page:'/tenant/forex/sell',form:'/tenant/forex/quotes',action:'/tenant/forex/quotes',operation:'sell',title:'Forex Operations - Sell',description:'Buy or sell foreign currency with rate, commission, and drawer impact.'},
       banking: {page:'/tenant/banking',form:'/tenant/banking/requests',action:'/tenant/banking/requests',title:'New banking request'},
       forex: {page:'/tenant/forex',form:'/tenant/forex/quotes',action:'/tenant/forex/quotes',title:'New forex quotation'},
       approval: {page:'/tenant/approvals',form:'/tenant/approvals/requests',action:'/tenant/approvals/requests',title:'New approval request'},
@@ -372,6 +374,20 @@
     const enabledKinds = new Set([...choices.querySelectorAll('[data-transaction-kind]')].map(button=>button.dataset.transactionKind));
     const groups = Object.freeze({transfer:'transfer',payout:'transfer',banking:'banking',banking_deposit:'banking',banking_withdrawal:'banking',banking_transfer:'banking',customer:'banking',account:'banking',cash_in:'mobile',cash_out:'mobile',forex:'forex',forex_buy:'forex',forex_sell:'forex',expense:'daily',cash_shift_open:'daily',cash_shift_close:'daily',approval:'daily'});
     const lastKinds = new Map();
+    const quickKinds=new Set(['transfer','cash_in','cash_out','banking_deposit','banking_withdrawal','banking_transfer','forex_buy','forex_sell']);
+    const templates=new Map();
+    const selectedCurrency=()=>document.getElementById('currencySelect')?.value||document.body.dataset.operationCurrency||'';
+    const templateKey=kind=>[kind,selectedCurrency(),document.body.dataset.offlineScope||'',document.body.dataset.offlineBranch||''].join(':');
+    const sourceIn= (root,operation) => [...root.querySelectorAll('form[method="post"]')].find(form=>{
+      if(transactionDialog.contains(form))return false;
+      const url=new URL(form.getAttribute('action')||'',location.origin);if(url.pathname!==operation.form)return false;
+      if(operation.operation&&form.elements.namedItem('operation')?.value!==operation.operation)return false;
+      if(operation.entryKind&&form.elements.namedItem('kind')?.value!==operation.entryKind)return false;
+      const chosen=form.elements.namedItem('currency')?.value;
+      return !chosen||!selectedCurrency()||chosen===selectedCurrency();
+    });
+    const sourceFromHTML=html=>new DOMParser().parseFromString(html,'text/html').querySelector('form');
+    const keepTemplate=(key,source)=>{templates.delete(key);templates.set(key,{html:source.outerHTML,savedAt:Date.now()});while(templates.size>24)templates.delete(templates.keys().next().value);};
     let previousFocus = null, activeRequest = null, requestVersion = 0, saving = false, currentKind = null;
     const message = (text, failed = false) => {
       status.hidden = !text;
@@ -415,12 +431,21 @@
       if (!enabledKinds.has(kind) || !operations[kind] || saving) return;
       show();
       const present=formHost.querySelector('form');
-      if(!refresh&&currentKind===kind&&present){present.querySelector('input:not([type="hidden"]):not([readonly]),select,textarea')?.focus();return;}
+      const previousSeed=currentKind===kind&&present?.dataset.operationLoading?present:null;
+      if(previousSeed)refresh=true;
+      if(!refresh&&currentKind===kind&&present&&!present.dataset.operationLoading){
+        const age=Date.now()-Number(present.dataset.operationLoadedAt||Date.now()),hasEntry=present.dataset.operationDirty==='true'||present.querySelector('[data-offline-saved]');
+        if(age<60000||hasEntry){present.querySelector('input:not([type="hidden"]):not([readonly]),select,textarea')?.focus();return;}
+        // Reopening an untouched form can refresh old choices. An instruction
+        // being edited or waiting for sync keeps its fields and original key.
+        refresh=true;
+      }
       // Cash-in/out share one immutable server-issued request key. Switching the
       // approved child tabs preserves entered details until the operation saves.
       if(present?.matches('[data-mobile-money-form]')&&['cash_in','cash_out'].includes(kind)){
         selectKind(kind);present.action=operations[kind].action;present.dataset.operation=kind;
         const label=present.querySelector('[data-mobile-operation-label]');if(label)label.value=kind==='cash_in'?'Cash-in':'Cash-out';
+        window.ClassicFinPricing?.initialise(present);
         present.elements.namedItem('amount')?.dispatchEvent(new Event('input',{bubbles:true}));message('');return;
       }
       activeRequest?.abort();activeRequest=new AbortController();
@@ -428,16 +453,48 @@
       let timedOut=false;const loadTimeout=setTimeout(()=>{timedOut=true;request.abort();},12000);
       selectKind(kind);formHost.replaceChildren();message('Loading operation details…');
       try {
-        const requestUrl=new URL(operation.page,location.origin),selectedCurrency=document.getElementById('currencySelect')?.value;
-        if(selectedCurrency)requestUrl.searchParams.set('currency',selectedCurrency);
-        const response=await (window.ClassicFinOffline?.pageResponse||fetch)(requestUrl,{credentials:'same-origin',headers:{Accept:'text/html','X-ClassicFin-Background':'true'},signal:request.signal});
-        if(version!==requestVersion)return;
-        if(!response.ok)throw new Error(await responseMessage(response));
-        if(new URL(response.url).pathname!==operation.page)throw new Error('Your session or access has changed. Open the module page to continue.');
-        const page=new DOMParser().parseFromString(await response.text(),'text/html');
-        const source=[...page.querySelectorAll('form[method="post"]')].find(form=>form.getAttribute('action')===operation.form);
-        if(!source||source.querySelector('select[name="branchId"]'))throw new Error(page.querySelector('[data-operation-branch-error]')?.textContent?.trim()||'This operation needs an assigned operating branch and its required setup. Open the module to review what is needed.');
+        const key=templateKey(kind),cached=templates.get(key),currency=selectedCurrency();
+        let source=!refresh?sourceIn(document,operation):null,seed=null;
+        // Reading outerHTML, rather than live input properties, starts a separate
+        // instruction without copying another form's entered private values.
+        if(source)source=sourceFromHTML(source.outerHTML);
+        if(!source&&!refresh&&cached&&Date.now()-cached.savedAt<60000)source=sourceFromHTML(cached.html);
+        if(!source){
+          const prototype=transactionDialog.querySelector('template[data-operation-seed="'+kind+'"]');
+          if(previousSeed||prototype&&(!currency||prototype.dataset.operationCurrency===currency)){
+            seed=previousSeed||prototype.content.querySelector('form').cloneNode(true);seed.id='transactionOperationForm';seed.dataset.operationLoading='true';
+            seed.querySelectorAll('button[type="submit"],button:not([type])').forEach(button=>{button.disabled=true;});
+            const reference=seed.elements.namedItem('idempotencyKey');if(reference)reference.value=crypto.randomUUID();
+            seed.addEventListener('submit',event=>{event.preventDefault();event.stopImmediatePropagation();});
+            formHost.append(seed);initialiseApprovedFields(seed);const editSeed=event=>{if(event.target.matches('input:not([type="hidden"]):not([readonly]),select,textarea'))seed.dataset.operationDirty='true';};seed.addEventListener('input',editSeed);seed.addEventListener('change',editSeed);seed.querySelector('input:not([type="hidden"]):not([readonly])')?.focus();
+            message('Checking current branch choices and charges…');
+          }
+          const requestUrl=new URL(quickKinds.has(kind)?'/tenant/operation-form/'+kind:operation.page,location.origin);
+          if(currency)requestUrl.searchParams.set('currency',currency);
+          const requestOptions={credentials:'same-origin',headers:{Accept:'text/html','X-ClassicFin-Background':'true'},signal:request.signal};
+          let response;
+          try{response=await (window.ClassicFinOffline?.pageResponse||fetch)(requestUrl,requestOptions);}
+          catch(error){
+            if(!quickKinds.has(kind)||!window.ClassicFinOffline||error.code==='AUTH_DENIED')throw error;
+            // Existing encrypted full-page preparations remain usable after the
+            // lightweight endpoint is introduced; no second offline UI is built.
+            const legacy=new URL(operation.page,location.origin);if(currency)legacy.searchParams.set('currency',currency);
+            response=await window.ClassicFinOffline.pageResponse(legacy,requestOptions);
+          }
+          if(version!==requestVersion)return;
+          if(!response.ok)throw new Error(await responseMessage(response));
+          const responsePath=new URL(response.url).pathname;
+          if(responsePath!==requestUrl.pathname&&responsePath!==operation.page)throw new Error('Your session or access has changed. Open the module page to continue.');
+          const page=new DOMParser().parseFromString(await response.text(),'text/html');
+          source=[...page.querySelectorAll('form[method="post"]')].find(form=>new URL(form.getAttribute('action')||'',location.origin).pathname===operation.form);
+          if(!source)throw new Error(page.querySelector('[data-operation-branch-error]')?.textContent?.trim()||'This operation needs an assigned operating branch and its required setup. Open the module to review what is needed.');
+          keepTemplate(key,source);
+        }
+        if(source.querySelector('select[name="branchId"]'))throw new Error('Your operating branch must come from your account assignment.');
         const form=source.cloneNode(true);form.action=operation.action;form.classList.remove('card');form.classList.add('transactionForm','svc');form.id='transactionOperationForm';
+        delete form.dataset.operationLoading;
+        const reference=form.elements.namedItem('idempotencyKey');if(reference){const previous=reference.value;reference.value=reference.defaultValue=crypto.randomUUID();form.querySelectorAll('[data-mobile-reference],.summary .mono').forEach(label=>{if(label.hasAttribute('data-mobile-reference')||label.textContent.trim()===previous)label.textContent=reference.value;});}
+        if(seed){for(const [name,value]of new FormData(seed)){if(typeof value!=='string'||['_csrf','idempotencyKey','pricingMode','pricingPolicy','fee','commission'].includes(name))continue;const field=form.elements.namedItem(name);if(!field||field.type==='hidden'||field.readOnly)continue;if(field.tagName==='SELECT'&&![...field.options].some(option=>option.value===value&&!option.disabled))continue;field.value=value;}}
         form.querySelector('.cardHead')?.remove();
         form.querySelectorAll('[data-expense-close],[data-directory-close],.childActions').forEach(node=>node.remove());
         form.querySelectorAll('script,style,iframe,object,embed').forEach(node=>node.remove());
@@ -451,6 +508,7 @@
         const ids=new Map();form.querySelectorAll('[id]').forEach(node=>{ids.set(node.id,'operation-'+node.id);node.id='operation-'+node.id;});
         form.querySelectorAll('[for],[list],[aria-describedby]').forEach(node=>{for(const attribute of ['for','list','aria-describedby']){const value=node.getAttribute(attribute);if(value)node.setAttribute(attribute,value.split(' ').map(id=>ids.get(id)||id).join(' '));}});
         initialiseApprovedFields(form);
+        window.ClassicFinPricing?.initialise(form);
         initialiseMobileMoneyForm(form);
         form.addEventListener('invalid',event=>message(event.target.validationMessage||'Check the highlighted field.',true),true);
         form.addEventListener('submit',async event=>{
@@ -482,8 +540,15 @@
           }catch{message('The connection was interrupted. Check the module history before retrying; your request may already have been recorded.',true);}
           finally{clearTimeout(timeout);saving=false;submitButtons.forEach((button,index)=>{button.disabled=disabled[index];});transactionDialog.querySelectorAll('[data-close-transaction],[data-transaction-clear],[data-transaction-service],[data-transaction-kind]').forEach(button=>{button.disabled=false;});}
         });
-        if(version!==requestVersion)return;formHost.append(form);window.ClassicFinDirectory?.initialiseForm(form);initialiseOperationForm(form);initialiseMobileFunds(form);message('');
-        form.querySelector('input:not([type="hidden"]):not([readonly]),select,textarea')?.focus();
+        if(version!==requestVersion)return;
+        const activeSeed=seed?.contains(document.activeElement)?document.activeElement:null;
+        const seedFocus=activeSeed?.name?{name:activeSeed.name,start:activeSeed.selectionStart,end:activeSeed.selectionEnd,direction:activeSeed.selectionDirection}:null;
+        formHost.replaceChildren(form);window.ClassicFinDirectory?.initialiseForm(form);initialiseOperationForm(form);initialiseMobileFunds(form);message('');
+        form.dataset.operationLoadedAt=String(Date.now());form.dataset.operationDirty=seed?.dataset.operationDirty==='true'?'true':'false';
+        const markDirty=event=>{if(event.target.matches('input:not([type="hidden"]):not([readonly]),select,textarea'))form.dataset.operationDirty='true';};form.addEventListener('input',markDirty);form.addEventListener('change',markDirty);
+        const restoredFocus=seedFocus?form.elements.namedItem(seedFocus.name):null;
+        const focusTarget=restoredFocus?.tagName&&restoredFocus.type!=='hidden'?restoredFocus:form.querySelector('input:not([type="hidden"]):not([readonly]),select,textarea');focusTarget?.focus();
+        if(seedFocus&&Number.isInteger(seedFocus.start)&&Number.isInteger(seedFocus.end)&&typeof focusTarget?.setSelectionRange==='function'){try{focusTarget.setSelectionRange(seedFocus.start,seedFocus.end,seedFocus.direction);}catch{/* Non-text controls do not expose a caret. */}}
       }catch(error){if(version!==requestVersion||error.name==='AbortError'&&!timedOut)return;message(timedOut?'Operation details took too long to load. Try again when connected, or open the module.':error.message||'This operation is unavailable. Open the module to continue.',true);const fallback=document.createElement('a');fallback.className='btn';fallback.href=operation.page;fallback.textContent='Open module';formHost.append(fallback);}finally{clearTimeout(loadTimeout);}
     };
     const firstKind=group=>group?[...enabledKinds].find(kind=>groups[kind]===group):['transfer','banking','mobile','forex','daily'].map(service=>[...enabledKinds].find(kind=>groups[kind]===service)).find(Boolean);
@@ -494,9 +559,13 @@
     choices.querySelectorAll('[data-transaction-service]').forEach(button=>button.addEventListener('click',()=>open(button.dataset.transactionService)));
     transactionDialog.querySelectorAll('[data-close-transaction]').forEach(button=>button.addEventListener('click',close));
     transactionDialog.querySelector('[data-transaction-clear]')?.addEventListener('click',()=>{
-      if(saving)return;const form=formHost.querySelector('form');if(!form)return;form.reset();
+      if(saving)return;const form=formHost.querySelector('form');if(!form)return;
+      const reload=quickKinds.has(currentKind)&&(Date.now()-Number(form.dataset.operationLoadedAt||Date.now())>=60000||Boolean(form.querySelector('.feedback-bad,[role="alert"]')));
+      form.reset();form.dataset.operationDirty='false';form.querySelectorAll('[data-feedback-message],[data-offline-saved]').forEach(node=>node.remove());
+      const reference=form.elements.namedItem('idempotencyKey');if(reference){const previous=reference.value;reference.value=reference.defaultValue=crypto.randomUUID();form.querySelectorAll('[data-mobile-reference],.summary .mono').forEach(label=>{if(label.hasAttribute('data-mobile-reference')||label.textContent.trim()===previous)label.textContent=reference.value;});}
+      if(reload){load(currentKind,{refresh:true});return;}
       if(form.matches('[data-mobile-money-form]')){form.dataset.operation=currentKind;const label=form.querySelector('[data-mobile-operation-label]');if(label)label.value=currentKind==='cash_in'?'Cash-in':'Cash-out';}
-      form.dispatchEvent(new Event('input',{bubbles:true}));form.elements.namedItem('amount')?.dispatchEvent(new Event('input',{bubbles:true}));message('');
+      form.dispatchEvent(new Event('input',{bubbles:true}));form.elements.namedItem('amount')?.dispatchEvent(new Event('input',{bubbles:true}));form.dataset.operationDirty='false';message('');
     });
     transactionDialog.addEventListener('cancel',event=>{event.preventDefault();close();});
     transactionDialog.addEventListener('click',event=>{if(event.target===transactionDialog){const rect=transactionDialog.getBoundingClientRect();if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)close();}});

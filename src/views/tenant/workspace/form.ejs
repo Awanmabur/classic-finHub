@@ -6,7 +6,7 @@
    <% form.fields.forEach(f=>{ const fieldId='workspace-'+form.action.replace(/[^a-z0-9]/gi,'-')+'-'+f.name; %>
    <div class="tenantCleanField <%= f.full?'tenantCleanFull':'' %>"><label for="<%= fieldId %>"><%= f.label %></label><div class="control">
     <% if(f.type==='textarea'){ %><textarea id="<%= fieldId %>" name="<%= f.name %>" rows="4" maxlength="<%= f.max||2000 %>" <%= f.required?'required':'' %>><%= f.value||'' %></textarea>
-    <% }else if(f.type==='select'){ %><select id="<%= fieldId %>" name="<%= f.name %>" required><% f.options.forEach(option=>{ %><option value="<%= option.value %>" <%= String(f.value)===String(option.value)?'selected':'' %>><%= option.label %></option><% }) %></select>
+    <% }else if(f.type==='select'){ %><select id="<%= fieldId %>" name="<%= f.name %>" <%= f.required===false?'':'required' %>><% f.options.forEach(option=>{ %><option value="<%= option.value %>" <%= String(f.value)===String(option.value)?'selected':'' %>><%= option.label %></option><% }) %></select>
     <% }else{ %><input id="<%= fieldId %>" type="<%= f.type||'text' %>" <% if(!f.displayOnly){ %>name="<%= f.name %>"<% } %> value="<%= f.value??'' %>" maxlength="<%= f.max||150 %>" <%= f.required?'required':'' %> <%= f.displayOnly?'readonly':'' %> <% if(f.pattern){ %>pattern="<%= f.pattern %>"<% } %> <% if(f.min!==undefined){ %>min="<%= f.min %>"<% } %> <% if(f.type==='number'){ %>max="<%= f.max||1000 %>" step="1"<% } %>>
     <% } %></div><% if(f.hint){ %><small><%= f.hint %></small><% } %></div><% }) %>
   </div></div>

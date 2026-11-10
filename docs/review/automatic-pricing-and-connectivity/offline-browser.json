@@ -1,0 +1,146 @@
+{
+  "browserErrors": [],
+  "resourceErrors": [],
+  "layouts": [
+    {
+      "name": "online-transfer",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "online-transfer",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "online-transfer",
+      "width": 320,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "offline-same-transfer",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "offline-same-transfer",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "offline-same-transfer",
+      "width": 320,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "offline-dashboard",
+      "width": 1440,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "offline-dashboard",
+      "width": 390,
+      "overflow": false,
+      "duplicateIds": []
+    },
+    {
+      "name": "offline-dashboard",
+      "width": 320,
+      "overflow": false,
+      "duplicateIds": []
+    }
+  ],
+  "cash": {
+    "independentCurrencyShifts": true
+  },
+  "minimalTransferForm": {
+    "automaticCharges": true,
+    "automaticValidityAndCountry": true,
+    "optionalDetailsCollapsed": true,
+    "branchInferred": true
+  },
+  "startup": {
+    "contextRequests": 0,
+    "preparationRequests": 0,
+    "healthyReadinessPolls": 0,
+    "visitedPagesSaved": true,
+    "staleWorkerFirstNavigationRecovered": true,
+    "explicitPreparationRequests": 99
+  },
+  "sanitizedTemplatesAndPages": true,
+  "foregroundRequests": {
+    "contextGets": 0,
+    "acceptedPageGets": 1,
+    "jsonRedirect": true,
+    "liveScopeAndBranchHeaders": true,
+    "successMessageVisible": true
+  },
+  "offlineForegroundIndependent": true,
+  "automaticRecovery": {
+    "networkFailureWhileBrowserOnline": true,
+    "offlineModeAutomatic": true,
+    "recoveryWithoutOnlineEvent": true,
+    "noManualSync": true,
+    "editorPreserved": true,
+    "oneRecordAfterRepeatedResume": true
+  },
+  "lostResponseRetry": {
+    "sameReference": true,
+    "acceptedExactlyOnce": true,
+    "automaticRecovery": true
+  },
+  "stalePricingHeldForReview": true,
+  "staleBranchRejectedBeforeWrite": true,
+  "offline": {
+    "sameWorkspaceDOM": true,
+    "sameTransactionModal": true,
+    "encryptedSnapshotsAndDrafts": true,
+    "publicAssetsOnly": {
+      "classicfin-offline-6fb927f06447": [
+        "/offline.html",
+        "/js/offline.js",
+        "/js/offline-workspace.js",
+        "/js/feedback.js",
+        "/js/operation-pricing.js",
+        "/js/dashboard.js",
+        "/js/customer-accounts.js",
+        "/js/expenses.js",
+        "/js/workspace.js",
+        "/css/dashboard-layout.css",
+        "/css/approved-tenant.css",
+        "/js/branches.js",
+        "/css/branches.css",
+        "/css/feedback.css",
+        "/css/workspace.css",
+        "/images/classicfinhub-logo.png",
+        "/vendor/fontawesome/css/all.min.css",
+        "/vendor/inter/inter.css",
+        "/vendor/fontawesome/webfonts/fa-brands-400.woff2",
+        "/vendor/fontawesome/webfonts/fa-regular-400.woff2",
+        "/vendor/fontawesome/webfonts/fa-v4compatibility.woff2",
+        "/vendor/fontawesome/webfonts/fa-solid-900.woff2",
+        "/vendor/inter/files/inter-latin-wght-normal.woff2",
+        "/vendor/inter/files/inter-latin-ext-wght-normal.woff2",
+        "/vendor/inter/files/inter-cyrillic-wght-normal.woff2",
+        "/vendor/inter/files/inter-cyrillic-ext-wght-normal.woff2",
+        "/vendor/inter/files/inter-greek-wght-normal.woff2",
+        "/vendor/inter/files/inter-greek-ext-wght-normal.woff2",
+        "/vendor/inter/files/inter-vietnamese-wght-normal.woff2"
+      ]
+    },
+    "exactlyOneRecordPerKey": true,
+    "clearKeepsSeparateReferences": true,
+    "onlineSubmission": true,
+    "networkOutageWithOnlineFlag": true,
+    "crossTabLogoutLocks": true,
+    "serverDenialLocks": true,
+    "logoutLocks": true
+  }
+}

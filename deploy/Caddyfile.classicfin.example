@@ -1,11 +1,11 @@
 # TEMPLATE ONLY. Replace classicfin.example with the real, approved public domain.
-# Confirm that local port 3500 is available on your server before enabling.
+# Confirm that local port 3600 is available on your server before enabling.
 classicfin.example {
     encode zstd gzip
     request_body {
         max_size 64KB
     }
-    reverse_proxy 127.0.0.1:3500 {
+    reverse_proxy 127.0.0.1:3600 {
         health_uri /health/ready
         health_interval 30s
         health_timeout 5s

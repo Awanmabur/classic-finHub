@@ -97,6 +97,29 @@ test('backup-health requires a recent authenticated snapshot, never a partial fi
  await assert.rejects(()=>checkBackupHealth({directory:dir,key}));
 });
 
+test('isolated restore accepts an explicit validated nonstandard platform DB name',async t=>{
+ const validate=backup.validatedRestoredPlatformName;
+ assert.equal(validate('platform_DB'),'platform_DB');
+ assert.equal(validate(),'classicfin_platform_db');
+ for(const bad of ['', 'admin/a', '../platform_DB', 'platform.DB', '$admin','has space'])
+  assert.throws(()=>validate(bad),/BACKUP_PLATFORM_DB_NAME/);
+ const {dir,executable,key}=await fixture(t);
+ const created=await backup.createBackup({sourceUri:'mongodb://localhost:27018/',outputDir:dir,key,dumpBinary:executable});
+ const restoredOutput=path.join(dir,'restored.bin');
+ const restoreBin=path.join(dir,'fake-mongorestore.js');
+ await fsp.writeFile(restoreBin,`#!/usr/bin/env node\nconst fs=require('fs');const chunks=[];process.stdin.on('data',c=>chunks.push(c));process.stdin.on('end',()=>fs.writeFileSync(${JSON.stringify(restoredOutput)},Buffer.concat(chunks)));\n`,{mode:0o700});
+ await fsp.chmod(restoreBin,0o700);
+ const targetUri='mongodb://127.0.0.1:27019/admin?replicaSet=rs-restore';
+ let seen='';
+ await backup.rehearseBackup({filename:created.filename,key,targetUri,restoreBinary:restoreBin,checkTarget:async()=>{},
+   platformDatabaseName:'platform_DB',
+   inspectData:async (uri,config)=>{assert.equal(uri,targetUri);seen=config.platformDatabaseName;return{tenantDatabasesVerified:1};}});
+ assert.equal(seen,'platform_DB');
+ assert.deepEqual(await fsp.readFile(restoredOutput),payload);
+ await assert.rejects(()=>backup.rehearseBackup({filename:created.filename,key,targetUri,
+   platformDatabaseName:'../bad',checkTarget:async()=>{},inspectData:async()=>{}}),/BACKUP_PLATFORM_DB_NAME/);
+});
+
 test('restored application uniqueness checks reject missing, compound and nonunique indexes',()=>{
   const hasUnique=backup.hasUniqueSingleFieldIndex;
   assert.equal(hasUnique([{unique:true,key:{email:1}}],'email'),true);

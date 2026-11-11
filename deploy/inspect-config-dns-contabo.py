@@ -65,7 +65,7 @@ def mongo_status(raw, *, base=False):
             if db:
                 problems.append('BASE URI MUST NOT NAME DATABASE')
         elif db != EXPECTED_DB:
-            problems.append('DATABASE NAME MUST BE classicfin_platform_db')
+            problems.append('NONSTANDARD PLATFORM DB NAME — RUNTIME MAY ACCEPT; REVIEW BACKUP/RESTORE ASSUMPTIONS')
         user=parts.username
         password=parts.password
         if not user or not password:

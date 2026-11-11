@@ -26,9 +26,11 @@ done
 sudo docker run --rm --network none --entrypoint mongosh "$IMG" --version >/dev/null ||
   { echo 'Existing image lacks mongosh; no changes made.'; exit 2; }
 
-TMP="$(mktemp)"
-chmod 600 "$TMP"
-trap 'rm -f "$TMP"' EXIT
+# Root owns the temporary credential file. This avoids fs.protected_regular
+# refusing privileged O_CREAT writes into a non-root-owned /tmp file.
+TMP_DIR="$(sudo mktemp -d /tmp/classicfin-atlas-probe.XXXXXXXX)"
+TMP="$TMP_DIR/mongo.env"
+trap 'sudo rm -f -- "$TMP"; sudo rmdir -- "$TMP_DIR"' EXIT
 
 sudo python3 - "$TMP" <<'PY'
 import pathlib, re, sys
@@ -51,7 +53,13 @@ if not uri.startswith(('mongodb://','mongodb+srv://')):
 if '\r' in uri or '\n' in uri:
     raise SystemExit('Unsafe Mongo URI')
 # Single value only. Never transmit web mail, MFA or other secrets to test client.
-pathlib.Path(sys.argv[1]).write_text('MONGO_PROBE_URI='+uri+'\n')
+target=pathlib.Path(sys.argv[1])
+with target.open('x', encoding='utf-8') as output:
+    output.write('MONGO_PROBE_URI='+uri+'\n')
+    output.flush()
+    import os
+    os.fsync(output.fileno())
+target.chmod(0o600)
 PY
 
 echo '=== READ-ONLY ATLAS CONNECTION TEST ==='

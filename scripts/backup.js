@@ -13,7 +13,7 @@ async function main() {
     result = await require('../src/jobs/backup.job').run();
   } else {
     if (!filename || !path.isAbsolute(filename) || !filename.endsWith('.cfhb')) throw new Error('Provide an absolute .cfhb archive filename');
-    result = action === 'verify' ? await verifyBackup({filename, key}) : await rehearseBackup({filename, key, targetUri: process.env.BACKUP_RESTORE_URI});
+    result = action === 'verify' ? await verifyBackup({filename, key}) : await rehearseBackup({filename, key, targetUri: process.env.BACKUP_RESTORE_URI, platformDatabaseName: process.env.BACKUP_PLATFORM_DB_NAME || 'classicfin_platform_db'});
   }
   console.log(JSON.stringify({operation:`backup.${action}`, status:'passed',...result}));
 }

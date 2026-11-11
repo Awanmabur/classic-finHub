@@ -139,6 +139,9 @@ try {
   const roles=(auth.authInfo&&auth.authInfo.authenticatedUserRoles)||[];
   const bad=["root","dbOwner","userAdmin","userAdminAnyDatabase","clusterAdmin","clusterManager","hostManager","dbAdminAnyDatabase"];
   print("Administrative service role detected: "+(roles.some(r=>bad.includes(r.role))?"YES — REVIEW REQUIRED":"NO"));
+  const broad=["readWriteAnyDatabase","readAnyDatabase","dbAdminAnyDatabase"];
+  print("Broad cross-database roles: "+(roles.some(r=>broad.includes(r.role))?"YES — MANUAL LEAST-PRIVILEGE REVIEW REQUIRED":"NONE IN DIRECT AUTHENTICATED ROLES"));
+  print("Note: This does not prove inherited/custom roles are least-privilege.");
   if (!isAuth||!hello.setName||!hello.isWritablePrimary) quit(3);
 } catch (e) {
   print("Atlas probe: FAILED (connection, authentication, authorization, or TLS issue; details suppressed)");

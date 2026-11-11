@@ -31,7 +31,7 @@ else
   echo 'Docker unavailable'
 fi
 if command -v ss >/dev/null; then
-  sudo ss -lntp | grep -E '(:80 |:443 |:3500 )' || true
+  sudo ss -lntp | grep -E '(:80 |:443 |:3500 |:3600 )' || true
 fi
 if command -v systemctl >/dev/null; then
   printf 'Caddy systemd state: '
@@ -72,7 +72,7 @@ echo
 
 echo '=== 6. EXISTING SERVICE AND HTTPS ==='
 if command -v curl >/dev/null; then
-  for target in http://127.0.0.1:3500/health/ready https://classicfinhub.com/health/ready https://classicfinhub.com/; do
+  for target in http://127.0.0.1:3600/health/ready https://classicfinhub.com/health/ready https://classicfinhub.com/; do
     curl --silent --show-error --location --max-time 8 --output /dev/null --write-out "$target HTTP %{http_code} TLS %{ssl_verify_result}\n" "$target" || true
   done
 fi

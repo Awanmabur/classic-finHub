@@ -4,7 +4,7 @@ This is a launch candidate for the implemented manual financial books and separa
 
 ## 1. Establish the deployment boundary
 
-Enable reliable time synchronization on application, database and operator devices. Financial timestamps and appointment scheduling identify UTC explicitly. Use a patched Linux host, Docker with the Compose plugin, `curl`, `flock`, a TLS reverse proxy, and an authenticated TLS-protected MongoDB replica set. The shipped production Compose deliberately does not create a public database. Restrict database ingress to the application and approved backup hosts. Expose only HTTPS through the proxy; web port 3500 binds to loopback and workers have no inbound ports.
+Enable reliable time synchronization on application, database and operator devices. Financial timestamps and appointment scheduling identify UTC explicitly. Use a patched Linux host, Docker with the Compose plugin, `curl`, `flock`, a TLS reverse proxy, and an authenticated TLS-protected MongoDB replica set. The shipped production Compose deliberately does not create a public database. Restrict database ingress to the application and approved backup hosts. Expose only HTTPS through the proxy; web port 3600 binds to loopback and workers have no inbound ports.
 
 Use different database principals for web/provisioning, the outbox worker and the tenant notification worker. Give an enabled tenant-backup worker its own principal too. Review their actual roles. Do not use root, user administration or cluster administration roles for services. Web needs the application platform/tenant namespaces; notification worker needs its tenant notification namespaces; outbox worker needs the platform outbox and heartbeat collections. Provision backup/recovery credentials separately. Logical tenant databases share an application deployment and do not constitute separate clusters.
 
@@ -123,7 +123,7 @@ export CLASSICFIN_STATE_DIR=/srv/classic/compose/classicfin
 export CLASSICFIN_ENV_FILE=/etc/classicfin/web.env
 export CLASSICFIN_WORKER_ENV_FILE=/etc/classicfin/worker.env
 export CLASSICFIN_NOTIFICATION_ENV_FILE=/etc/classicfin/notifications.env
-export CLASSICFIN_HOST_PORT=3500
+export CLASSICFIN_HOST_PORT=3600
 export CLASSICFIN_RELEASE_IMAGE='YOUR_REAL_REGISTRY/classicfin@sha256:YOUR_REAL_64_HEX_DIGEST'
 ```
 

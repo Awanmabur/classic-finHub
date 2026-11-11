@@ -99,7 +99,7 @@ try {
     print("Platform email uniqueness index: "+(uniqueEmail?"PRESENT":"MISSING — REVIEW"));
   } catch (e) {print("Platform email uniqueness index: NOT VERIFIED");}
   try {
-    const tenants=conn.getDB(selected).getCollection("tenants").find({}, {projection:{slug:1,dbName:1,_id:0}}).limit(10).toArray();
+    const tenants=conn.getDB(selected).getCollection("tenants").find({}, {slug:1,dbName:1,_id:0}).limit(10).toArray();
     print("Tenant mappings inspected (maximum 10): "+tenants.length);
     for (let i=0;i<tenants.length;i++) {
       const t=tenants[i],valid=typeof t.slug==="string" && /^[a-z0-9][a-z0-9-]{1,40}[a-z0-9]$/.test(t.slug);

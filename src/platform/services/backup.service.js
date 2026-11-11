@@ -192,15 +192,22 @@ const RESTORED_UNIQUE_INDEXES = Object.freeze({
 function hasUniqueSingleFieldIndex(indexes, field) {
   return indexes.some(index => index.unique === true && Object.keys(index.key || {}).length === 1 && index.key[field] === 1);
 }
-async function inspectRestoredApplication(targetUri) {
+function validatedRestoredPlatformName(name = 'classicfin_platform_db') {
+  if (typeof name !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,62}$/.test(name)) {
+    throw new Error('BACKUP_PLATFORM_DB_NAME must be a valid single MongoDB database name');
+  }
+  return name;
+}
+async function inspectRestoredApplication(targetUri, {platformDatabaseName = 'classicfin_platform_db'} = {}) {
   assertSafeRestoreTarget(targetUri);
+  platformDatabaseName = validatedRestoredPlatformName(platformDatabaseName);
   const { MongoClient } = require('mongoose').mongo;
   const client = new MongoClient(targetUri, {serverSelectionTimeoutMS: 5000});
   try {
     await client.connect();
     const names = new Set((await client.db('admin').admin().listDatabases()).databases.map(entry => entry.name));
-    if (!names.has('classicfin_platform_db')) throw new Error('Restored platform database missing');
-    const platform = client.db('classicfin_platform_db');
+    if (!names.has(platformDatabaseName)) throw new Error('Restored platform database missing');
+    const platform = client.db(platformDatabaseName);
     const emailIndexes = await platform.collection('accountidentities').indexes();
     if (!hasUniqueSingleFieldIndex(emailIndexes, 'email')) throw new Error('Restored global email identity unique index missing');
     const tenants = await platform.collection('tenants').find({}, {projection: {slug: 1,dbName: 1}}).toArray();
@@ -221,8 +228,9 @@ async function inspectRestoredApplication(targetUri) {
     return {platformDatabasePresent: true, globalEmailIdentityIndex: true, tenantDatabasesVerified: verifiedTenants};
   } finally { await client.close(); }
 }
-async function rehearseBackup({filename, key, targetUri, restoreBinary = 'mongorestore', checkTarget = assertEmptyRestoreCluster, inspectData = inspectRestoredApplication} = {}) {
+async function rehearseBackup({filename, key, targetUri, restoreBinary = 'mongorestore', checkTarget = assertEmptyRestoreCluster, inspectData = inspectRestoredApplication, platformDatabaseName = 'classicfin_platform_db'} = {}) {
   assertSafeRestoreTarget(targetUri);
+  platformDatabaseName = validatedRestoredPlatformName(platformDatabaseName);
   await checkTarget(targetUri);
   await verifyBackup({filename, key}); // Authenticate before applying ANY data to scratch MongoDB.
   return withToolConfig(targetUri, async config => {
@@ -241,8 +249,8 @@ async function rehearseBackup({filename, key, targetUri, restoreBinary = 'mongor
     const status = await done;
     if (streamFailure) throw new Error('Restore rehearsal failed to decrypt or stream backup');
     if (status.code !== 0 || status.signal) throw new Error('mongorestore rehearsal failed');
-    const application = await inspectData(targetUri);
+    const application = await inspectData(targetUri, {platformDatabaseName});
     return {restoredTo: 'isolated loopback replica set', oplogReplayed: true, application};
   });
 }
-module.exports = {MAGIC, validateSourceUri, assertSafeRestoreTarget, loadEncryptionKey, createBackup, verifyBackup, rehearseBackup, assertEmptyRestoreCluster, inspectRestoredApplication, hasUniqueSingleFieldIndex, decryptBackup};
+module.exports = {MAGIC, validateSourceUri, assertSafeRestoreTarget, loadEncryptionKey, createBackup, verifyBackup, rehearseBackup, assertEmptyRestoreCluster, inspectRestoredApplication, hasUniqueSingleFieldIndex, validatedRestoredPlatformName, decryptBackup};

@@ -91,6 +91,20 @@ try {
   print("Configured platform DB convention: "+(selected==="classicfin_platform_db"?"MATCH":"NONSTANDARD"));
   const current=conn.getDB(selected).getCollectionNames();
   print("Configured database collections: "+current.length);
+  print("Configured database name: "+selected);
+  print("Collection names (schema inventory only): "+current.sort().join(", "));
+  for (const name of ["tenants","platformadmins","accountidentities","bootstrapmarkers","outboxevents"]) {
+    if (!current.includes(name)) {
+      print("Record presence "+name+": COLLECTION ABSENT");
+      continue;
+    }
+    try {
+      const count=conn.getDB(selected).getCollection(name).countDocuments({}, {limit:2,maxTimeMS:2000});
+      print("Record presence "+name+": "+(count===0?"EMPTY":count===1?"ONE":"TWO OR MORE"));
+    } catch (e) {
+      print("Record presence "+name+": CANNOT VERIFY WITH SERVICE ROLE");
+    }
+  }
   if (selected!=="classicfin_platform_db") {
     try {
       const canonical=conn.getDB("classicfin_platform_db").getCollectionNames();

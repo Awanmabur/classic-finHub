@@ -59,6 +59,7 @@ def run():
         D[n], L[n] = parse(f)
     stage, web, notifications = D['setup'], D['web'], D['notifications']
     keys = {}
+    reconciled_conflicts = []
     for k, length in {'SESSION_SECRET': 48,
                       'MFA_ENCRYPTION_KEY': 32,
                       'TRANSFER_SMS_ENCRYPTION_KEY': 32}.items():
@@ -71,7 +72,9 @@ def run():
         current = next(iter(existing), '')
         staged = val(stage.get(k, '')) if provided(stage.get(k, '')) else ''
         if current and staged and current != staged:
-            raise ValueError(f'{k}: staging conflicts with previously generated production key; no keys changed')
+            # Never rotate an installed key to match a staging paste.
+            # setup.env will be backed up and synchronized to the live key.
+            reconciled_conflicts.append(k)
         chosen = current or staged or secrets.token_hex(length)
         if k == 'SESSION_SECRET' and len(chosen) < 32:
             raise ValueError('SESSION_SECRET is too short')
@@ -84,7 +87,7 @@ def run():
         current = val(web.get(k, '')) if provided(web.get(k, '')) else ''
         staged = val(stage.get(k, '')) if provided(stage.get(k, '')) else ''
         if current and staged and current != staged:
-            raise ValueError(f'{k}: staging conflicts with a production signing key')
+            reconciled_conflicts.append(k)
         chosen = current or staged or secrets.token_hex(32)
         if not re.fullmatch('[a-fA-F0-9]{64,128}', chosen):
             raise ValueError(f'{k} must be 64–128 hexadecimal characters')
@@ -162,6 +165,8 @@ def run():
 
     print('=== CLASSIC FINHUB RECONCILIATION (SECRET VALUES HIDDEN) ===')
     print('Updated:', ', '.join(changes) if changes else 'none (already reconciled)')
+    for name in reconciled_conflicts:
+        print(f'PRESERVED existing production key; synchronized staging: {name}')
     active = {**D['web'], **D['worker'], **D['notifications']}
     active.update(selected['web'])
     active.update(selected['worker'])

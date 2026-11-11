@@ -6,7 +6,7 @@ COMPOSE_FILE="${CLASSICFIN_COMPOSE_FILE:-/srv/classic/apps/classicfin/deploy/com
 STATE_DIR="${CLASSICFIN_STATE_DIR:-/srv/classic/compose/classicfin}"
 STATE="$STATE_DIR/current-image"
 IMAGE="${CLASSICFIN_RELEASE_IMAGE:-}"
-HOST_PORT="${CLASSICFIN_HOST_PORT:-3500}"
+HOST_PORT="${CLASSICFIN_HOST_PORT:-3600}"
 
 fail() { printf 'RELEASE BLOCKED: %s\n' "$*" >&2; exit 1; }
 [[ "$IMAGE" =~ ^[a-zA-Z0-9._/:@-]+@sha256:[a-f0-9]{64}$ ]] || fail 'CLASSICFIN_RELEASE_IMAGE must be an immutable registry image digest'

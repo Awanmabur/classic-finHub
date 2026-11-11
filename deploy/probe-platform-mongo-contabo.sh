@@ -93,6 +93,29 @@ try {
   print("Configured database collections: "+current.length);
   print("Configured database name: "+selected);
   print("Collection names (schema inventory only): "+current.sort().join(", "));
+  try {
+    const identities=conn.getDB(selected).getCollection("accountidentities").getIndexes();
+    const uniqueEmail=identities.some(index=>index.unique===true && Object.keys(index.key||{}).length===1 && index.key.email===1);
+    print("Platform email uniqueness index: "+(uniqueEmail?"PRESENT":"MISSING — REVIEW"));
+  } catch (e) {print("Platform email uniqueness index: NOT VERIFIED");}
+  try {
+    const tenants=conn.getDB(selected).getCollection("tenants").find({}, {projection:{slug:1,dbName:1,_id:0}}).limit(10).toArray();
+    print("Tenant mappings inspected (maximum 10): "+tenants.length);
+    for (let i=0;i<tenants.length;i++) {
+      const t=tenants[i],valid=typeof t.slug==="string" && /^[a-z0-9][a-z0-9-]{1,40}[a-z0-9]$/.test(t.slug);
+      const expected=valid?"classicfin_tenant_"+t.slug.replace(/-/g,"_")+"_db":null;
+      print("Tenant "+(i+1)+" database mapping: "+(valid && t.dbName===expected?"MATCH":"MISMATCH — DO NOT PROVISION"));
+      if (valid && t.dbName===expected) {
+        try {
+          const names=conn.getDB(expected).getCollectionNames();
+          print("Tenant "+(i+1)+" database access: YES, collections "+names.length);
+          for (const field of ["securetenantusers","securebranches","securemobiletransactions"]) {
+            print("Tenant "+(i+1)+" "+field+": "+(names.includes(field)?"PRESENT":"ABSENT"));
+          }
+        } catch (e) { print("Tenant "+(i+1)+" database access: DENIED / FAILED — REVIEW SERVICE ROLES"); }
+      }
+    }
+  } catch (e) {print("Tenant mapping inspection: NOT AUTHORIZED / FAILED");}
   for (const name of ["tenants","platformadmins","accountidentities","bootstrapmarkers","outboxevents"]) {
     if (!current.includes(name)) {
       print("Record presence "+name+": COLLECTION ABSENT");

@@ -8,6 +8,12 @@ const configured=new URL(process.env.MONGO_PLATFORM_URI||'mongodb://127.0.0.1:27
 if(process.env.NODE_ENV==='production'||configured.protocol!=='mongodb:'||!['localhost','127.0.0.1','[::1]'].includes(configured.hostname)||configured.host.includes(',')||configured.username||configured.password)throw Error('Funded integration requires one unauthenticated loopback replica set');
 const nonce=crypto.randomBytes(8).toString('hex'),platformName=`cfh_funded_probe_${nonce}`,slugs=[`funded-a-${nonce}`,`funded-b-${nonce}`];
 configured.pathname='/'+platformName;process.env.MONGO_PLATFORM_URI=configured.toString();process.env.NODE_ENV='test';
+// Only after the strict loopback/no-credentials guard above: use unique,
+// disposable keys for this isolated financial integration. Never inherit or
+// persist real production encryption keys, and never send external SMS.
+process.env.MFA_ENCRYPTION_KEY=crypto.randomBytes(32).toString('hex');
+process.env.TRANSFER_SMS_ENCRYPTION_KEY=crypto.randomBytes(32).toString('hex');
+process.env.TRANSFER_SMS_PROVIDER='none';
 const mongoose=require('mongoose');
 const {connectPlatformMongo,getTenantConnection}=require('../src/config/mongo');
 const core=require('../src/tenant/models'),funded=require('../src/tenant/services/fundedOperations.service'),fundedModel=require('../src/tenant/funded/models');

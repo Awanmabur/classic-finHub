@@ -21,6 +21,8 @@ jobs:
       # Must pass: dependency advisories are not waived for a release.
       - run: npm audit --audit-level=moderate
       - run: npm run check
+      # Temporary targeted diagnosis; spec reporter handles Invalid Date assertion values.
+      - run: node --test --test-reporter=spec tests/legacy-subscription-views.test.js
       - run: npm test
       - run: npm run perf:assets
       - name: Start isolated MongoDB replica-set container

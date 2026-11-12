@@ -23,6 +23,23 @@ function render(context,view,tenant,data){
     view:`../${context}/${view}`,data,flash:null,csrfToken:'test',assetVersion:'test',money:()=>'',formatUtcDate
   });
 }
+// Node assert.deepStrictEqual treats two distinct Invalid Date instances as
+// unequal. Normalize only their representation when checking immutability;
+// retain exact object keys, array order, undefined fields and valid Date values.
+function comparable(value){
+  if(value instanceof Date){
+    return Number.isNaN(value.getTime()) ? {__invalidDate:true} : value;
+  }
+  if(Array.isArray(value)) return value.map(comparable);
+  if(value && typeof value==='object'){
+    return Object.fromEntries(Object.entries(value).map(([key,entry])=>[key,comparable(entry)]));
+  }
+  return value;
+}
+function assertUnchanged(actual,expected){
+  assert.deepEqual(comparable(actual),comparable(expected));
+}
+
 function billingData(tenant){
   return {subscription:tenant.subscription,plan:planForTenant(tenant),usage:0,transferUsage:0,bankUsage:0,forexUsage:0,period:'2026-11',grants:activeGrants(tenant)};
 }
@@ -39,7 +56,7 @@ test('billing and platform tenant profiles display unknown legacy subscription d
     assert.match(profile,/Expires<\/span><b>Unknown date<\/b>/);
     assert.doesNotMatch(billing,/1970-01-01/);
     assert.doesNotMatch(profile,/1970-01-01/);
-    assert.deepEqual(tenant,before);
+    assertUnchanged(tenant,before);
     assert.equal(effectiveSubscription(tenant),null);
   }
 });
@@ -56,7 +73,7 @@ test('platform profiles retain grants with missing or invalid dates while tenant
     const billing=await render('tenant','billing/index',tenant,billingData(tenant));
     assert.match(billing,/No standalone module grants are active/);
     assert.match(billing,/No active term/);
-    assert.deepEqual(tenant,before);
+    assertUnchanged(tenant,before);
     assert.deepEqual(activeGrants(tenant),[]);
   }
 });
@@ -93,5 +110,5 @@ test('invalid subscription dates still redirect reads to billing and block finan
   const billing=await request('GET','/billing');
   assert.equal(billing.next,true);
   assert.equal(billing.status,null);
-  assert.deepEqual(tenant,before);
+  assertUnchanged(tenant,before);
 });

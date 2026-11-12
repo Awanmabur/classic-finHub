@@ -4,6 +4,10 @@ const assert=require('node:assert/strict'),crypto=require('node:crypto');
 const uri=new URL(process.env.MONGO_PLATFORM_URI||'mongodb://127.0.0.1:27018/classicfin_platform_db?replicaSet=rs0&directConnection=true');
 if(process.env.NODE_ENV==='production'||uri.protocol!=='mongodb:'||!['localhost','127.0.0.1','[::1]'].includes(uri.hostname)||uri.username||uri.password||uri.host.includes(','))throw Error('Appointment integration requires isolated loopback Mongo');
 const dbName='cfh_appointments_'+crypto.randomBytes(7).toString('hex');uri.pathname='/'+dbName;process.env.MONGO_PLATFORM_URI=uri.toString();process.env.NODE_ENV='test';
+// This scratch test specifically proves MFA enrollment blocks privileged
+// appointment decisions. Test the enabled policy explicitly after the
+// local-only guard, regardless of the deployment's temporary MFA setting.
+process.env.MFA_ENABLED='true';
 const mongoose=require('mongoose'),{connectPlatformMongo}=require('../src/config/mongo');
 const Appointment=require('../src/platform/models/Appointment'),Admin=require('../src/platform/models/PlatformAdmin'),Audit=require('../src/platform/models/PlatformAuditLog'),service=require('../src/platform/services/appointment.service');
 async function main(){

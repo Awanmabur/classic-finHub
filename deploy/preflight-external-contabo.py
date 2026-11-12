@@ -91,10 +91,23 @@ def resend_status(token):
         else:
             print('Resend delivery status: DOMAIN REPORTED READY; NO EMAIL SENT')
     except urllib.error.HTTPError as e:
-        if e.code==403:
-            print('Resend domain API: PERMISSION RESTRICTED (normal for some sending-only keys); check Domains dashboard')
+        # The domain-list endpoint needs permissions not granted to sending-only
+        # keys. Resend can return 401/restricted_api_key for a valid send key.
+        # Inspect only a fixed allowlist of error type names, never response text.
+        try:
+            payload=json.loads(e.read(4096))
+            kind=payload.get('name','') if isinstance(payload,dict) else ''
+        except (ValueError,TypeError,OSError):
+            kind=''
+        if e.code==401 and kind=='restricted_api_key':
+            print('Resend domain API: SENDING-ONLY KEY; DOMAIN LISTING RESTRICTED')
+            print('Validate sending-domain status in Resend dashboard; test delivery to an authorized mailbox.')
+        elif e.code==401 and kind in ('invalid_api_key','missing_api_key','authentication_error'):
+            print('Resend domain API: AUTHENTICATION FAILED ('+kind+'); replace/review key privately')
         elif e.code==401:
-            print('Resend domain API: UNAUTHORIZED; check token and account')
+            print('Resend domain API: HTTP 401; cause not confirmed (restricted key or invalid key)')
+        elif e.code==403:
+            print('Resend domain API: HTTP 403; check account permissions and domain verification')
         else:
             print('Resend domain API: HTTP '+str(e.code)+'; not verified')
     except (urllib.error.URLError,TimeoutError,ValueError,TypeError) as exc:

@@ -35,7 +35,7 @@ function connection({user='web',kind='outbox',active=true,roles=[],dead=0}={}){
 }
 test('read-only live checks distinguish outbox from notification workers and reject unauthenticated/admin database access',async()=>{
  const wrong=await readiness.inspectMongo('unused',{kind:'outbox',connect:async()=>connection({kind:'notification'})});assert(wrong.checks.some(check=>check.name==='outbox_worker_heartbeat'&&!check.passed));
- for(const values of [{user:''},{roles:['root']},{dead:1}]){
+ for(const values of [{user:''},{roles:['root']},{roles:['atlasAdmin']},{roles:['readWriteAnyDatabase']},{roles:['readAnyDatabase']},{dead:1}]){
   const result=await readiness.inspectMongo('unused',{kind:'outbox',connect:async()=>connection(values)});assert(result.checks.some(check=>!check.passed));
  }
  const good=await readiness.inspectMongo('unused',{kind:'outbox',connect:async()=>connection()});assert(good.checks.every(check=>check.passed));

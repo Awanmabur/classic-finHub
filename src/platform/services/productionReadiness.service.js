@@ -2,7 +2,7 @@
 // Read-only launch probes. Passing these is not a substitute for a restore,
 // delivery, access review or external load test on the actual deployment.
 const crypto=require('node:crypto');
-const FORBIDDEN_ROLES=new Set(['root','dbOwner','userAdmin','userAdminAnyDatabase','clusterAdmin','clusterManager','hostManager','dbAdminAnyDatabase']);
+const FORBIDDEN_ROLES=new Set(['root','atlasAdmin','dbOwner','userAdmin','userAdminAnyDatabase','clusterAdmin','clusterManager','hostManager','dbAdminAnyDatabase','readWriteAnyDatabase','readAnyDatabase']);
 const MANUAL_EVIDENCE=Object.freeze([
  'Restore the latest offsite backup on an isolated host and record measured RPO/RTO.',
  'Verify least-privilege database/IAM roles, firewall rules, key escrow and independent alert reception.',

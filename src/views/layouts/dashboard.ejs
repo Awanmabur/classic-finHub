@@ -55,6 +55,13 @@
     <%- include('../partials/dashboard-sidebar', { context, menu, currentPath, tenant, user }) %>
     <main class="panel main" id="workspaceContent" tabindex="-1">
       <%- include('../partials/flash', { flash }) %>
+      <dialog id="dashboardSignoutDialog" class="dashboardSignoutDialog" aria-labelledby="dashboardSignoutTitle" aria-describedby="dashboardSignoutDescription">
+        <div class="dashboardSignoutDialogContent">
+          <div class="signoutProgressIcon" aria-hidden="true"></div>
+          <strong id="dashboardSignoutTitle">Signing out…</strong>
+          <p id="dashboardSignoutDescription">Ending your secure session.</p>
+        </div>
+      </dialog>
       <div class="topbar">
         <div class="topActions">
           <button class="btn btnIcon mobileOnly headerMenu" id="menuBtn" type="button" aria-label="Open menu" aria-controls="sidePanel" aria-expanded="false">☰</button>

@@ -14,7 +14,7 @@ test('approved tenant and platform styles keep the palette and use rectangular r
  for(const css of [tenant,platform]){
    assert.match(css,/textarea,textarea\.control,\.field textarea,\.tenantCleanField textarea\{border-radius:14px!important/);
    assert.match(css,/\.sideFoot \.accountActions\{padding:10px 0 0;flex-wrap:wrap/);
-   assert.match(css,/\.tenantAuditNote\{margin:14px 0 0/);
+   assert.match(css,/\.tenantAuditNote\{margin:0/);
    assert.match(css,/\.signoutProgress\{position:fixed;inset:0/);
  }
  assert.match(tenant,/\/\* END APPROVED INDEX\.HTML CASCADE \*\//);

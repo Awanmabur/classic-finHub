@@ -98,3 +98,20 @@ form[method="get"] .field>.control{min-width:0;width:100%}
  #workspaceContent .tableWrap .actionLine{gap:6px}
  #workspaceContent .tableWrap .actionLine .btn{padding-inline:10px}
 }
+
+
+/* 2026-11-13: final cascade for platform appointments and tenant management. */
+#workspaceContent form.appointmentFilters{display:grid;grid-template-columns:minmax(0,180px) minmax(0,1fr) auto;gap:12px;align-items:end}
+#workspaceContent form.appointmentFilters>.rowBtns{grid-column:auto;align-self:end;justify-content:flex-start;flex-wrap:wrap}
+#workspaceContent .appointmentList{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+#workspaceContent .appointmentList>.appointmentCard{min-width:0}
+#workspaceContent .appointmentCard .sumRow{white-space:normal}
+#workspaceContent .appointmentCard .sumRow>b{min-width:0;overflow-wrap:anywhere;text-align:right}
+#workspaceContent .appointmentDecision>.row2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+#workspaceContent .appointmentDecision>.rowBtns{gap:8px;justify-content:flex-start}
+#workspaceContent .platformTenantsPage .tableWrap .dataCellLine{min-width:0;max-width:270px;overflow:hidden}
+#workspaceContent .platformTenantsPage .tableWrap .dataCellLine :is(b,span){min-width:0;overflow:hidden;text-overflow:ellipsis}
+#workspaceContent .platformTenantsPage .denseDirectory td:last-child{padding-right:16px}
+@media(max-width:1100px){#workspaceContent .appointmentList{grid-template-columns:1fr}}
+@media(max-width:760px){#workspaceContent form.appointmentFilters{grid-template-columns:repeat(2,minmax(0,1fr))}#workspaceContent form.appointmentFilters>.rowBtns{grid-column:1/-1}}
+@media(max-width:520px){#workspaceContent .appointmentDecision>.row2{grid-template-columns:1fr}#workspaceContent .appointmentCard .sumRow{flex-wrap:wrap}#workspaceContent .appointmentCard .sumRow>span{flex-basis:100%}#workspaceContent .appointmentCard .sumRow>b{text-align:left}}

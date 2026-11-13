@@ -1,5 +1,28 @@
 
 (function(){
+  // A single centered, accessible progress state for both tenant and platform logout.
+  // The POST still uses the existing CSRF-protected server route; no artificial delay.
+  document.querySelectorAll('form[action="/logout"]').forEach(form => {
+    const indicator=document.createElement('div');
+    indicator.className='signoutProgress';
+    indicator.hidden=true;
+    indicator.setAttribute('role','status');
+    indicator.setAttribute('aria-live','polite');
+    indicator.setAttribute('aria-label','Signing out');
+    indicator.innerHTML='<div class="signoutProgressContent"><div class="signoutProgressIcon" aria-hidden="true"></div><strong>Signing out…</strong><p>Ending your secure session.</p></div>';
+    document.body.append(indicator);
+    form.addEventListener('submit', () => {
+      indicator.hidden=false;
+      const submit=form.querySelector('button[type="submit"]');
+      if(submit)submit.disabled=true;
+    });
+    window.addEventListener('pageshow', () => {
+      indicator.hidden=true;
+      const submit=form.querySelector('button[type="submit"]');
+      if(submit)submit.disabled=false;
+    });
+  });
+
   const side = document.getElementById('sidePanel');
   const overlay = document.getElementById('menuOverlay');
   const menuBtn = document.getElementById('menuBtn');

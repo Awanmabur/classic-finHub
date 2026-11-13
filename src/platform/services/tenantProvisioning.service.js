@@ -10,6 +10,8 @@ const { tenantDbNameFromSlug, getTenantConnection, NAME } = require('../../confi
 const { appUrl } = require('../../config/env');
 const { MAX_SLUG_LENGTH } = require('../../config/tenantDatabaseName');
 const { normalizeEmail } = require('./authentication.service');
+const outbox=require('./outbox.service');
+const inviteMail=require('../../config/inviteMail');
 
 function invalid(message) { return Object.assign(new Error(message), { status: 400 }); }
 function text(value) { return typeof value === 'string' ? value.trim() : ''; }
@@ -58,11 +60,25 @@ async function prepareTenantStorage(connection){
     ]);
   }catch(error){throw storageFailure(error);}
 }
+// Derive a stable, short database identifier from the first meaningful word.
+// A short first word can incorporate the next word to satisfy the 3-character floor.
+function firstNameSlug(name) {
+  const words=String(name||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().match(/[a-z0-9]+/g)||[];
+  if(!words.length)return 'tenant';
+  let candidate=words[0];
+  for(let i=1;candidate.length<3&&i<words.length;i++)candidate+='-'+words[i];
+  const slug=candidate.slice(0,MAX_SLUG_LENGTH).replace(/-+$/,'');
+  return NAME.test(slug)?slug:'tenant';
+}
+function candidateSlug(base,ordinal) {
+  if(ordinal===1)return base;
+  const suffix='-'+String(ordinal);
+  return base.slice(0,MAX_SLUG_LENGTH-suffix.length).replace(/-+$/,'')+suffix;
+}
 function checkPayload(payload = {}) {
   const name = text(payload.name);
   const requestedSlug = text(payload.slug).toLowerCase();
-  const slug = requestedSlug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '').slice(0, MAX_SLUG_LENGTH).replace(/-+$/g, '');
+  const slug = requestedSlug || firstNameSlug(name);
   const owner = text(payload.owner);
   const email = normalizeEmail(payload.email);
   const phone = text(payload.phone);
@@ -79,11 +95,28 @@ function checkPayload(payload = {}) {
 }
 async function provisionTenant(payload, actor) {
   const valid = checkPayload(payload);
+  const inviteQueued=inviteMail.configured();
   await authorizeAdmin(actor);
-  if (await Tenant.exists({slug: valid.slug})) {
-    throw Object.assign(new Error('This tenant slug is already in use. Open the existing tenant from the tenant list, or choose a different slug for a different workspace.'), {status:409});
+  // Web onboarding never accepts a user-entered slug. Generate a distinct
+  // database name if more than one business shares the same first word.
+  if (!text(payload.slug)) {
+    const base=valid.slug;
+    let available=false;
+    for(let ordinal=1;ordinal<=1000;ordinal++){
+      const candidate=candidateSlug(base,ordinal);
+      if(!await Tenant.exists({slug:candidate})){
+        valid.slug=candidate;
+        available=true;
+        break;
+      }
+    }
+    if(!available)throw rejected('Tenant name is already in use too many times. Contact platform support.',409);
+  } else if (await Tenant.exists({slug:valid.slug})) {
+    throw rejected('This tenant slug is already in use. Review the existing tenant before retrying.',409);
   }
   if(await AccountIdentity.exists({email:valid.email}))throw rejected('Owner email already has an account. Use a different address.',409);
+  if(await OwnerInvite.exists({email:valid.email,usedAt:null,expiresAt:{$gt:new Date()}}))
+    throw rejected('This owner email already has a pending invitation. Check the existing tenant before creating another.',409);
   const token = crypto.randomBytes(32).toString('hex');
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
   const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
@@ -110,12 +143,17 @@ async function provisionTenant(payload, actor) {
       if (await AccountIdentity.exists({ email: valid.email }).session(session)) {
         const err = new Error('Owner email already has an account. Use a different address.'); err.status = 409; throw err;
       }
+      if(await OwnerInvite.exists({email:valid.email,usedAt:null,expiresAt:{$gt:new Date()}}).session(session))
+        throw rejected('This owner email already has a pending invitation. Check the existing tenant before creating another.',409);
       [tenant] = await Tenant.create([{
         ...valid, enabledModules:hasTrial?snapshot.modules:[], dbName, status:hasTrial?'trial':'past_due', setupStatus:'invited',trialEndsAt:hasTrial?trialEndsAt:null,
         ...(hasTrial?{subscription:{...snapshot,status:'trial',source:'new_tenant_trial',periodStart:startedAt,periodEnd:trialEndsAt,generation:1}}:{})
       }], { session });
-      await OwnerInvite.create([{ tenantId: tenant._id, email: valid.email, name: valid.owner,
+      const [invite]=await OwnerInvite.create([{ tenantId: tenant._id, email: valid.email, name: valid.owner,
         tokenHash, expiresAt, createdBy: admin._id }], { session });
+      if(inviteQueued)await outbox.enqueue({key:`tenant.owner.invited:${invite._id}`,type:'tenant.owner.invited',tenantId:tenant._id,
+        payload:{to:valid.email,tenantName:valid.name,recipientName:valid.owner,inviteId:invite._id,expiresAt,
+          encryptedUrl:inviteMail.seal(`${appUrl}/accept-invite#token=${encodeURIComponent(token)}`)},session});
       await PlatformAuditLog.create([{actorId:String(admin._id),action:'tenant.created',moduleKey:'tenants',recordId:String(tenant._id),after:{name:valid.name,plan:valid.plan,enabledModules:snapshot.modules}}],{session});
     });
   } catch (error) {
@@ -124,13 +162,14 @@ async function provisionTenant(payload, actor) {
     }
     throw error;
   } finally { await session.endSession(); }
-  return { tenant, inviteUrl: `${appUrl}/accept-invite#token=${encodeURIComponent(token)}` };
+  return { tenant, inviteUrl: `${appUrl}/accept-invite#token=${encodeURIComponent(token)}`,inviteQueued };
 }
 async function regenerateOwnerInvite(tenantId,actor,input={}){
   if(!/^[a-f0-9]{24}$/i.test(String(tenantId||'')))throw rejected('Tenant not found',404);
   const revision=Number(input.revision),reason=text(input.reason);
   if(!/^(?:0|[1-9]\d{0,9})$/.test(String(input.revision??''))||!Number.isSafeInteger(revision)||reason.length<12||reason.length>400)throw invalid('Refresh the tenant profile and provide a reason of 12–400 characters.');
   const token=crypto.randomBytes(32).toString('hex'),tokenHash=crypto.createHash('sha256').update(token).digest('hex'),now=new Date(),expiresAt=new Date(now.getTime()+48*60*60*1000);
+  const inviteQueued=inviteMail.configured();
   const session=await mongoose.startSession();let tenant;
   try{await session.withTransaction(async()=>{
     const admin=await authorizeAdmin(actor,session);
@@ -143,9 +182,12 @@ async function regenerateOwnerInvite(tenantId,actor,input={}){
     tenant=await Tenant.findOneAndUpdate({_id:tenantId,setupStatus:'invited',__v:revision===0?{$in:[0,null]}:revision},{$inc:{__v:1}},{new:true,session});
     if(!tenant)throw rejected('The tenant changed. Refresh its profile before requesting another activation link.',409);
     await OwnerInvite.updateMany({tenantId:tenant._id,usedAt:null},{$set:{expiresAt:new Date(now.getTime()-1)}},{session});
-    await OwnerInvite.create([{tenantId:tenant._id,email:tenant.email,name:tenant.owner,tokenHash,expiresAt,createdBy:admin._id}],{session});
+    const [invite]=await OwnerInvite.create([{tenantId:tenant._id,email:tenant.email,name:tenant.owner,tokenHash,expiresAt,createdBy:admin._id}],{session});
+    if(inviteQueued)await outbox.enqueue({key:`tenant.owner.invited:${invite._id}`,type:'tenant.owner.invited',tenantId:tenant._id,
+      payload:{to:tenant.email,tenantName:tenant.name,recipientName:tenant.owner,inviteId:invite._id,expiresAt,
+        encryptedUrl:inviteMail.seal(`${appUrl}/accept-invite#token=${encodeURIComponent(token)}`)},session});
     await PlatformAuditLog.create([{actorId:String(admin._id),action:'tenant.invitation_regenerated',moduleKey:'tenants',recordId:String(tenant._id),after:{reason,expiresAt}}],{session});
   });}finally{await session.endSession();}
-  return {tenant,inviteUrl:`${appUrl}/accept-invite#token=${encodeURIComponent(token)}`,regenerated:true};
+  return {tenant,inviteUrl:`${appUrl}/accept-invite#token=${encodeURIComponent(token)}`,regenerated:true,inviteQueued};
 }
 module.exports = { provisionTenant, checkPayload, regenerateOwnerInvite };

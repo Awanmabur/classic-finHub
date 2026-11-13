@@ -10,6 +10,7 @@ const OutboxEvent=require('../src/platform/models/OutboxEvent');
 const WorkerHeartbeat=require('../src/platform/models/WorkerHeartbeat');
 const Audit=require('../src/platform/models/PlatformAuditLog');
 const outbox=require('../src/platform/services/outbox.service');
+const inviteMail=require('../src/config/inviteMail');
 async function main(){
   if(env.nodeEnv==='production')throw new Error('Outbox integration is prohibited in production');
   const uri=new URL(env.mongoPlatformUri);
@@ -81,6 +82,28 @@ async function main(){
     await OutboxEvent.updateOne({_id:b._id},{$set:{state:'processing',attempts:8,leaseUntil:new Date(Date.now()-1000)}});
     await outbox.expireExhausted();
     assert.equal((await OutboxEvent.findById(b._id)).state,'dead');
+    // Invitation bearer tokens are sealed in the same durable outbox and
+    // the Gmail acceptance path works without granting the worker tenant DB access.
+    process.env.INVITE_MAIL_ENCRYPTION_KEY_HEX=crypto.randomBytes(32).toString('hex');
+    const secret='f'.repeat(64);
+    const staffLink=env.appUrl+'/accept-staff-invite?tenant=classic#token='+secret;
+    const staffKey='tenant.staff.invited:probe-secure-001';
+    const inviteId=new mongoose.Types.ObjectId();
+    const session3=await mongoose.startSession();
+    try{await session3.withTransaction(()=>outbox.enqueue({key:staffKey,type:'tenant.staff.invited',tenantId,
+      payload:{to:'staff@example.invalid',tenantName:'Scratch Tenant',recipientName:'Staff Operator',
+        inviteId,expiresAt:new Date(Date.now()+24*3600000),encryptedUrl:inviteMail.seal(staffLink)},session:session3}));}
+    finally{await session3.endSession();}
+    const stored=await OutboxEvent.findOne({eventKey:staffKey}).lean();
+    assert(!JSON.stringify(stored).includes(secret),'bearer link cannot appear in persisted outbox document');
+    const gmailAccepted=await outbox.processOne({workerId:'worker-gmail',deliver:async message=>{
+      assert.equal(message.to,'staff@example.invalid');
+      assert(message.text.includes(staffLink),'worker decrypts only when sending');
+      return {provider:'gmail',messageId:'gmail-scratch-accepted-01'};
+    }});
+    assert.equal(gmailAccepted.state,'accepted');
+    assert.equal((await OutboxEvent.findOne({eventKey:staffKey})).providerAcceptance.provider,'gmail');
+    delete process.env.INVITE_MAIL_ENCRYPTION_KEY_HEX;
     console.log('PASS: transactional outbox commit/rollback, dedup index, competing workers, retry delay, provider acceptance, lease fencing, dead-letter and audited redrive (scratch database only)');
   }finally{
     if(!/^classicfin_probe_outbox_[a-f0-9]{16}$/.test(database))throw new Error('Refusing unsafe database cleanup');

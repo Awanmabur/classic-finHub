@@ -25,10 +25,7 @@
   <div class="cardHead"><b>Create tenant</b><span>Workspace and owner details</span></div>
   <div class="cardBody" style="display:grid;gap:12px">
     <% if(data.error){ %><p class="reportBlock" role="alert"><%= data.error %></p><% } %>
-    <div class="row2">
-      <label class="field">Tenant name<input class="control" name="name" required maxlength="150" placeholder="Acme Forex" value="<%= values.name || '' %>" /></label>
-      <label class="field">Slug<input class="control" name="slug" minlength="3" maxlength="17" pattern="[A-Za-z0-9][A-Za-z0-9\-]{1,15}[A-Za-z0-9]" placeholder="acme-forex" value="<%= values.slug || '' %>" /><span class="tiny">Optional, up to 17 characters on Atlas Free. Generated from the tenant name if left blank. Before creating a tenant, give the production web database user readWrite access to its exact tenant database in Atlas; existing tenant roles must remain.</span></label>
-    </div>
+    <label class="field">Tenant name<input class="control" name="name" required maxlength="150" placeholder="Acme Forex" autocomplete="organization" value="<%= values.name || '' %>" /><span class="tiny">The workspace database name is generated automatically from the first word. If another tenant uses that name, FinHub adds a unique number.</span></label>
     <div class="row2">
       <label class="field">Owner<input class="control" name="owner" required maxlength="120" value="<%= values.owner || '' %>" /></label>
       <label class="field">Owner email<input class="control" type="email" name="email" required maxlength="254" value="<%= values.email || '' %>" /></label>
@@ -37,16 +34,16 @@
       <label class="field">Phone<input class="control" name="phone" maxlength="40" type="tel" value="<%= values.phone || '' %>" /></label>
       <label class="field">Plan<select class="control" name="plan" required><option value="" <%= values.plan ? '' : 'selected' %> disabled>Choose a plan</option><% data.plans.forEach(p => { %><option value="<%= p.code %>" <%= values.plan === p.code ? 'selected' : '' %>><%= p.name %></option><% }) %></select></label>
     </div>
-    <p class="tiny">The selected plan controls module access. Plans without a trial stay inactive until you grant a subscription from the tenant profile. You can copy the owner’s activation link after creating the tenant.</p>
+    <p class="tiny">The selected plan controls module access. Plans without a trial stay inactive until you grant a subscription. <% if(data.inviteMailReady){ %>An owner activation email will be queued automatically. You will also receive a private fallback link.<% }else{ %>Automatic invitation email is not configured yet; the private activation link will be shown once.<% } %></p>
     <p class="tiny" role="status" aria-live="polite" data-tenant-form-status hidden></p>
-    <button class="btn btnPrimary" type="submit">Create tenant and private invitation</button>
+    <button class="btn btnPrimary" type="submit">Create tenant</button>
     <p class="tiny">Keep this page open until the private activation link appears. If a connection is interrupted, check the tenant list before creating another workspace.</p>
   </div>
 </form>
 <% } %>
 <section class="card"><div class="cardHead"><b>What happens next</b><span>Owner activation</span></div><div class="cardBody"><ol class="setupSteps">
   <li><strong>Create the workspace</strong><p>The selected plan sets its modules and limits.</p></li>
-  <li><strong>Share the activation link</strong><p>Copy the one-time link and send it privately to the owner. No email is sent automatically.</p></li>
+  <li><strong>Invite the owner</strong><p>FinHub queues a secure email when mail delivery is configured and shows an emergency manual fallback link.</p></li>
   <li><strong>Owner activates the account</strong><p>The owner creates a password<%= typeof mfaEnabled==='undefined'||mfaEnabled?' and sets up an authenticator':'' %> to sign in.</p></li>
 </ol>
 </div></section>

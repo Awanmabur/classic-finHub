@@ -4,18 +4,30 @@ const mongoose=require('mongoose');
 const OutboxEvent=require('../models/OutboxEvent');
 const WorkerHeartbeat=require('../models/WorkerHeartbeat');
 const PlatformAuditLog=require('../models/PlatformAuditLog');
+const OwnerInvite=require('../models/OwnerInvite');
+const inviteMail=require('../../config/inviteMail');
 const {sendMail}=require('../../config/mail');
 
-const TYPES=new Set(['subscription.granted','subscription.revoked']);
+const TYPES=new Set(['subscription.granted','subscription.revoked','tenant.owner.invited','tenant.staff.invited']);
+const INVITE_TYPES=new Set(['tenant.owner.invited','tenant.staff.invited']);
 const ADDRESS=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const WORKER_LEASE_MS=90000; // Longer than the 10s provider timeout; no unbounded handler allowed.
-function validPayload(input){
+function validPayload(input,type){
   const to=String(input?.to||'').trim().toLowerCase();
   const tenantName=String(input?.tenantName||'').trim();
   const planName=String(input?.planName||'').trim();
   const expiresAt=input?.expiresAt?new Date(input.expiresAt):undefined;
   if(!ADDRESS.test(to)||to.length>254||!tenantName||tenantName.length>150||planName.length>120||
     (expiresAt&&Number.isNaN(expiresAt.valueOf())))throw new Error('Outbox event requires valid notification metadata');
+  if(INVITE_TYPES.has(type)){
+    const recipientName=String(input?.recipientName||'').trim();
+    if(!expiresAt||recipientName.length<2||recipientName.length>120||
+      !mongoose.isValidObjectId(input?.inviteId)||typeof input?.encryptedUrl!=='string'||
+      input.encryptedUrl.length<40||input.encryptedUrl.length>4096)
+      throw new Error('Invitation outbox payload must include an encrypted link and valid expiry');
+    return {to,tenantName,recipientName,expiresAt,encryptedUrl:input.encryptedUrl,inviteId:input.inviteId};
+  }
+  if(input?.encryptedUrl||input?.inviteId)throw new Error('Subscription event cannot carry invitation credentials');
   return {to,tenantName,planName,...(expiresAt?{expiresAt}:{})};
 }
 // Must run in the same MongoDB transaction as the business change.
@@ -23,13 +35,20 @@ async function enqueue({key,type,tenantId,payload,session},Model=OutboxEvent){
   if(!session)throw new Error('Transactional session required for outbox enqueue');
   if(typeof key!=='string'||!/^[-a-zA-Z0-9_:/.]{8,160}$/.test(key)||!TYPES.has(type)||!mongoose.isValidObjectId(tenantId))
     throw new Error('Unsupported or invalid outbox event');
-  const [record]=await Model.create([{eventKey:key,type,tenantId,payload:validPayload(payload),state:'pending',availableAt:new Date()}],{session});
+  const [record]=await Model.create([{eventKey:key,type,tenantId,payload:validPayload(payload,type),state:'pending',availableAt:new Date()}],{session});
   return record;
 }
 function buildEmail(job){
   if(!TYPES.has(job?.type))throw new Error('Unsupported event type');
-  const p=validPayload(job.payload);
+  const p=validPayload(job.payload,job.type);
   const name=p.tenantName;
+  if(INVITE_TYPES.has(job.type)){
+    if(p.expiresAt<=new Date())throw Object.assign(new Error('Invitation expired before delivery'),{code:'INVITE_INACTIVE'});
+    const link=inviteMail.open(p.encryptedUrl);
+    const owner=job.type==='tenant.owner.invited';
+    return {to:p.to,subject:owner?'Activate your ClassicFin Hub workspace':'Activate your ClassicFin Hub staff account',text:
+      `Hello ${p.recipientName},\n\nYou have been invited to ${owner?'manage':'join'} the ClassicFin Hub workspace "${name}".\n\nActivate your account using this private, single-use link:\n${link}\n\nThis link expires ${p.expiresAt.toISOString()} (UTC). If you did not expect this invitation, ignore it and contact the sender using a trusted channel.\n\nClassicFin Hub`};
+  }
   if(job.type==='subscription.granted'){
     if(!p.expiresAt||!p.planName)throw Object.assign(new Error('Invalid subscription notification payload'),{code:'INVALID_OUTBOX_PAYLOAD'});
     const end=p.expiresAt.toISOString().slice(0,10);
@@ -46,6 +65,8 @@ function classifyFailure(error){
   const code=error?.providerStatus;
   if(error?.code==='MAIL_NOT_CONFIGURED')return {retryable:false,code:'mail_not_configured'};
   if(error?.code==='INVALID_OUTBOX_PAYLOAD')return {retryable:false,code:'invalid_payload'};
+  if(error?.code==='INVITE_INACTIVE')return {retryable:false,code:'invite_inactive'};
+  if(error?.code==='MAIL_INVITE_KEY_UNAVAILABLE')return {retryable:false,code:'invite_key_missing'};
   if(typeof code==='number' && code>=400 && code<500 && code!==408 && code!==429)
     return {retryable:false,code:'provider_permanent_rejection'};
   if(code===429)return {retryable:true,code:'provider_rate_limited'};
@@ -69,7 +90,7 @@ function owned(job,now=new Date()){
   return {_id:job._id,state:'processing',leaseToken:job.leaseToken,leaseUntil:{$gt:now}};
 }
 async function accept(job,result,{now=new Date(),Model=OutboxEvent}={}){
-  if(!result||result.provider!=='resend'||typeof result.messageId!=='string'||!result.messageId)
+  if(!result||!['resend','gmail'].includes(result.provider)||typeof result.messageId!=='string'||!result.messageId)
     throw new Error('Provider acceptance receipt required');
   const update=await Model.updateOne(owned(job,now),{$set:{state:'accepted',providerAcceptance:{provider:result.provider,messageId:result.messageId,acceptedAt:now},completedAt:now,purgeAt:new Date(now.getTime()+90*86400000),leaseUntil:null,leaseToken:null}});
   return update.modifiedCount===1;
@@ -86,6 +107,12 @@ async function processOne({workerId,Model=OutboxEvent,deliver=sendMail,now=()=>n
   const job=await claim({workerId,now:now()},Model);
   if(!job)return null;
   try{
+    // Never send already consumed, superseded or expired owner activation links.
+    if(job.type==='tenant.owner.invited'){
+      const active=await OwnerInvite.exists({_id:job.payload.inviteId,tenantId:job.tenantId,
+        email:job.payload.to,usedAt:null,expiresAt:{$gt:now()}});
+      if(!active)throw Object.assign(new Error('Owner invitation is no longer active'),{code:'INVITE_INACTIVE'});
+    }
     const message=buildEmail(job);
     // Provider idempotency key must be stable across worker crashes and retries.
     const result=await deliver({...message,idempotencyKey:`cfh:${job.eventKey}`});

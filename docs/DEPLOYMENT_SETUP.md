@@ -164,18 +164,51 @@ Do not rerun key generation during normal releases or rotate the MFA/SMS keys by
 simply replacing their values. Existing encrypted records need an explicit,
 tested migration/recovery plan.
 
-## 3. Configure recovery and account email
+## 3. Configure recovery, owner and staff invitation email
 
-1. Create the mail service account in Resend and verify the sending domain using
-   its DNS instructions. A Purelymail/SMTP mailbox password is not a Resend key.
-2. Create an API key restricted to the verified sender where supported.
-3. Set `RESEND_API_KEY` and `MAIL_FROM`, for example
-   `MAIL_FROM='ClassicFin Hub <no-reply@YOUR_REAL_DOMAIN>'`, in web, outbox and
-   tenant notification configuration. Use separate scoped API keys where your
-   provider/operating policy permits.
-4. During deployment acceptance, verify an invitation and password-recovery email
-   actually reaches a controlled inbox. Provider acceptance alone is not mailbox
-   delivery. Configure SPF/DKIM and the intended DMARC policy before launch.
+The code supports Gmail OAuth2 send-only API and the existing Resend transport.
+This is server-side mail delivery to **any valid recipient mailbox**, including Gmail
+addresses; do not ask administrators to paste a one-time link for normal onboarding.
+
+**Gmail option (requested):**
+1. In Google Cloud, enable Gmail API, configure the OAuth consent app and create
+   an OAuth client. Authorize a dedicated sender account with only
+   `https://www.googleapis.com/auth/gmail.send` and **offline** access.
+   Acquire a refresh token using the documented server authorization-code flow.
+   In external/testing consent mode, Google may expire refresh tokens; use the
+   appropriate approved production consent configuration.
+2. Set `MAIL_PROVIDER=gmail`, `MAIL_FROM` to the Gmail account address (or a
+   verified Gmail send-as alias), and protected `GMAIL_CLIENT_ID`,
+   `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`. If you retain the branded
+   Purelymail sender address, it must be configured as an authorized Gmail
+   send-as alias before using it in Gmail API; a Purelymail password is not an
+   OAuth refresh token. Do not put provider secrets in Git or share them in chat.
+3. Generate a unique `INVITE_MAIL_ENCRYPTION_KEY_HEX` with
+   `openssl rand -hex 32`; install the **same** protected key on the web and
+   outbox worker. Keep it stable across redeploys until all queued invitation
+   ciphertexts have completed; otherwise those invitations become undecryptable.
+4. Configure mail provider variables on the outbox worker and on the tenant
+   notification worker if the notifications module uses email. The web process
+   queues encrypted owner and staff activation URLs in the same MongoDB
+   transaction as the invitation. The outbox worker retries provider failures,
+   records acceptance and dead-letter states, and never needs read privileges
+   on tenant financial databases to deliver those links.
+5. Run a controlled real Gmail send to an inbox you own; check that the sender
+   identity matches, then create one test owner invite and one staff invite.
+   Confirm the inbox receives the one-use links, the outbox is accepted, and
+   expired/revoked URLs cannot activate an account. A provider-accepted message
+   is **not** proof of inbox delivery. Keep a private manual fallback link if
+   delivery is unconfigured or a message is lost. Use HTTPS and valid SPF/DKIM/
+   DMARC records.
+
+**Resend (legacy option):** set `MAIL_PROVIDER=resend`, `RESEND_API_KEY` and
+`MAIL_FROM` after verifying your sending domain. It accepts
+`MAIL_FROM='ClassicFin Hub <no-reply@YOUR_REAL_DOMAIN>'` where supported.
+
+If the provider or the separate invitation encryption key is missing, the
+application creates the tenant and shows a private manual fallback link,
+**not** a fake mail-sent notification. Do not call automatic invitation sending
+production-ready until the web and worker use the same confirmed settings.
 
 ## 4. Configure receiver transfer SMS
 

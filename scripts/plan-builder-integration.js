@@ -35,7 +35,7 @@ async function main(){
  const manual=await PlanVersion.findOne({code:'custom_manual',version:1}).lean();assert(manual);assert.equal(manual.priceMonthlyMinor,8000);assert.deepEqual(manual.modules,['mobile_money']);const originalSnapshot=commerce.planSnapshot(manual);
  const createForm=await request('/platform/tenants/create');assert.match(createForm.html,/value="custom_manual"/,'custom plan is selectable for tenant creation');
  const customSlug='pt-'+database.slice(-14);
- const customTenant=await request('/platform/tenants',{name:'Custom Plan Tenant',slug:customSlug,owner:'Custom Owner',email:'owner-'+database.slice(-16)+'@example.invalid',plan:'custom_manual',_csrf:csrf(createForm.html)});
+ const customTenant=await request('/platform/tenants',{name:customSlug+' Tenant',slug:customSlug,owner:'Custom Owner',email:'owner-'+database.slice(-16)+'@example.invalid',plan:'custom_manual',_csrf:csrf(createForm.html)});
  assert.equal(customTenant.response.status,200,customTenant.html);
  const createdTenant=await require('../src/platform/models/Tenant').findOne({slug:customSlug}).lean();assert(createdTenant);assert.equal(createdTenant.subscription.planCode,'custom_manual');assert.deepEqual(createdTenant.enabledModules,['mobile_money']);
  const livePricing=await request('/pricing');assert.equal(livePricing.response.status,200);assert.match(livePricing.html,/data-plan-code="custom_manual"/);assert.match(livePricing.html,/USD \$80\.00\/mo/);assert.doesNotMatch(livePricing.html,/data-plan-code="agent"/,'connected pricing never falls back to seeded plans');
@@ -60,7 +60,7 @@ async function main(){
  const paidPublished=await request('/platform/plans/custom_paid/publish',{revision:'1',reason,_csrf:csrf(paidEditor.html)});assert.equal(paidPublished.response.status,303,paidPublished.html);
  const paidCreate=await request('/platform/tenants/create');assert.match(paidCreate.html,/value="custom_paid"/);
  const paidSlug='pd-'+database.slice(-14);
- const paidTenant=await request('/platform/tenants',{name:'Paid Plan Tenant',slug:paidSlug,owner:'Paid Owner',email:'paid-'+database.slice(-16)+'@example.invalid',plan:'custom_paid',_csrf:csrf(paidCreate.html)});assert.equal(paidTenant.response.status,200,paidTenant.html);assert.match(paidTenant.html,/plan has no trial/);
+ const paidTenant=await request('/platform/tenants',{name:paidSlug+' Tenant',slug:paidSlug,owner:'Paid Owner',email:'paid-'+database.slice(-16)+'@example.invalid',plan:'custom_paid',_csrf:csrf(paidCreate.html)});assert.equal(paidTenant.response.status,200,paidTenant.html);assert.match(paidTenant.html,/plan has no trial/);
  const waiting=await require('../src/platform/models/Tenant').findOne({slug:paidSlug}).lean();assert.equal(waiting.status,'past_due');assert.equal(waiting.subscription,undefined);assert.deepEqual(waiting.enabledModules,[],'no paid access is silently granted');
  const paidAccess=await request('/platform/tenants/'+waiting._id+'/subscription/grant',{planCode:'custom_paid',days:'30',reason,_csrf:csrf(paidCreate.html)});assert.equal(paidAccess.response.status,303,paidAccess.html);
  const activated=await require('../src/platform/models/Tenant').findById(waiting._id).lean();assert.equal(activated.status,'active');assert.equal(activated.subscription.source,'manual_admin_grant');assert.deepEqual(activated.enabledModules,['mobile_money']);
@@ -111,7 +111,7 @@ async function main(){
 }
 async function cleanup(){if(server)await new Promise(resolve=>server.close(resolve));if(mongoose.connection.readyState===1&&mongoose.connection.name===database&&/^cfh_plan_builder_probe_[a-f0-9]{16}$/.test(database)){
  for(const tenant of await require('../src/platform/models/Tenant').find({}).lean()){
-  if(tenant.slug.endsWith(database.slice(-16)))await require('../src/config/mongo').getTenantConnection(tenant.slug).db.dropDatabase();
+  if(['pt-'+database.slice(-14),'pd-'+database.slice(-14)].includes(tenant.slug))await require('../src/config/mongo').getTenantConnection(tenant.slug).db.dropDatabase();
  }
  await mongoose.connection.db.dropDatabase();
  }await mongoose.disconnect();}

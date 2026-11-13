@@ -67,7 +67,7 @@ async function main(){
   assert.equal(await PlanVersion.countDocuments(),0,'MFA remains a prerequisite for publication');
   const verified=await request('/mfa/challenge',{_csrf:csrf(challenge.html),code:mfa.counterCode(secret,Math.floor(Date.now()/30000))});
   assert.equal(verified.response.headers.get('location'),'/platform/dashboard');
-  const values={name:'Provision Probe Tenant',slug:slug.toUpperCase(),owner:'Probe Owner',email:`owner-${nonce}@example.invalid`,phone:'+256 700 000 123',plan:'modular'};
+  const values={name:slug+' Finance',slug:slug.toUpperCase(),owner:'Probe Owner',email:`owner-${nonce}@example.invalid`,phone:'+256 700 000 123',plan:'modular'};
   const emptyForm=await request('/platform/tenants/create');
   assert.equal(emptyForm.response.status,200);
   assert.match(emptyForm.html,/action="\/platform\/plans\/publish-initial"/);
@@ -98,7 +98,7 @@ async function main(){
   assert.equal(await Audit.countDocuments({action:'catalog.initial_published'}),1,'repeated initialization does not create a false mutation audit');
   const form=await request('/platform/tenants/create');assert.equal(form.response.status,200);assert.match(form.html,/Modular Workspace/);
   const invalid=await request('/platform/tenants',{...values,owner:'x'.repeat(121),_csrf:csrf(form.html)});
-  assert.equal(invalid.response.status,400);assert.match(invalid.html,/role="alert"/);assert.match(invalid.html,/value="Provision Probe Tenant"/);
+  assert.equal(invalid.response.status,400);assert.match(invalid.html,/role="alert"/);assert.match(invalid.html,new RegExp('value="'+slug+' Finance"'));
   assert.equal(await Tenant.countDocuments(),0,'invalid input creates no tenant');
   // Actual Mongoose index traversal against a real tenant connection; only
   // its native user's createIndexes command is faulted to emulate Atlas denial.
@@ -113,12 +113,12 @@ async function main(){
   };
   try{
     const denied=await request('/platform/tenants',{...values,_csrf:csrf(invalid.html)});
-    assert.equal(denied.response.status,403);assert.match(denied.html,/Atlas Database Access/);assert.match(denied.html,/value="Provision Probe Tenant"/);assert.doesNotMatch(denied.html,/DO-NOT-ECHO/);assert.match(denied.response.headers.get('cache-control'),/no-store/);
+    assert.equal(denied.response.status,403);assert.match(denied.html,/Atlas Database Access/);assert.match(denied.html,new RegExp('value="'+slug+' Finance"'));assert.doesNotMatch(denied.html,/DO-NOT-ECHO/);assert.match(denied.response.headers.get('cache-control'),/no-store/);
     assert.equal(await Tenant.countDocuments(),0);assert.equal(await Invite.countDocuments(),0);assert.equal(await Audit.countDocuments({action:'tenant.created'}),0);
     assert.equal((await request('/health/ready')).response.status,200,'index permission denial must not disconnect the server');
     failure='network';
     const transient=await request('/platform/tenants',{...values,_csrf:csrf(denied.html)});
-    assert.equal(transient.response.status,503);assert.equal(transient.response.headers.get('retry-after'),'5');assert.match(transient.html,/MongoDB became unavailable/);assert.match(transient.html,/value="Provision Probe Tenant"/);assert.doesNotMatch(transient.html,/DO-NOT-ECHO/);
+    assert.equal(transient.response.status,503);assert.equal(transient.response.headers.get('retry-after'),'5');assert.match(transient.html,/MongoDB became unavailable/);assert.match(transient.html,new RegExp('value="'+slug+' Finance"'));assert.doesNotMatch(transient.html,/DO-NOT-ECHO/);
     assert.equal(await Tenant.countDocuments(),0);assert.equal(await Invite.countDocuments(),0);
     assert.equal((await request('/health/ready')).response.status,200,'a failed index command must leave HTTP ready for a retry');
   }finally{failure='';native.createIndexes=originalIndex;}
@@ -128,7 +128,7 @@ async function main(){
   const fundedModels=require('../src/tenant/funded/models'),originalEnsure=fundedModels.ensureIndexes;
   fundedModels.ensureIndexes=async function(connection){await originalEnsure(connection);if(connection.name===require('../src/config/tenantDatabaseName').tenantDbNameFromSlug(revokedSlug))await Admin.updateOne({_id:admin._id},{$set:{status:'disabled'}});};
   try{
-    const revoked=await request('/platform/tenants',{...values,slug:revokedSlug,email:'revoked-owner-'+nonce+'@example.invalid',_csrf:csrf(invalid.html)});
+    const revoked=await request('/platform/tenants',{...values,name:revokedSlug+' Finance',slug:revokedSlug,email:'revoked-owner-'+nonce+'@example.invalid',_csrf:csrf(invalid.html)});
     assert.equal(revoked.response.status,403);assert.match(revoked.html,/Active platform Super Admin/);assert.equal(await Tenant.countDocuments(),0);assert.equal(await Invite.countDocuments(),0);
   }finally{fundedModels.ensureIndexes=originalEnsure;await Admin.updateOne({_id:admin._id},{$set:{status:'active'}});}
   const created=await request('/platform/tenants',{...values,_csrf:csrf(invalid.html)});
@@ -145,7 +145,7 @@ async function main(){
   assert(await Audit.exists({action:'tenant.created',recordId:String(tenant._id)}));
   const againForm=await request('/platform/tenants/create');
   const duplicate=await request('/platform/tenants',{...values,_csrf:csrf(againForm.html)});
-  assert.equal(duplicate.response.status,409);assert.match(duplicate.html,/slug is already in use/);assert.equal(await Tenant.countDocuments(),1);
+  assert.equal(duplicate.response.status,409);assert.match(duplicate.html,/pending invitation/);assert.equal(await Tenant.countDocuments(),1);
   assert.equal(await Invite.countDocuments({tenantId:tenant._id}),1);assert.equal(await Audit.countDocuments({action:'tenant.created'}),1);
   const profile=await request('/platform/tenants/'+tenant._id);assert.equal(profile.response.status,200);assert.match(profile.html,/Create replacement owner activation link/);
   const renewalFields={revision:String(tenant.__v||0),reason:'Recover the interrupted original owner activation page'};
@@ -172,7 +172,7 @@ async function main(){
   const ownerForm=await request('/signin');
   const ownerLogin=await request('/signin',{_csrf:csrf(ownerForm.html),email:values.email,password});
   assert.equal(ownerLogin.response.headers.get('location'),'/mfa/setup','new owner can sign in and enroll MFA');
-  console.log('PASS: native index fault injection retains form and server readiness; retry publishes only after unique indexes; administrator revocation blocks late publication; audited owner-link recovery expires old links and rejects stale/activated requests; administrator/MFA/CSRF-protected in-app catalogue recovery, repeatability and audit attribution; HTTP tenant creation, contact persistence, 42-character slug, validation feedback, duplicate rejection, owner activation, single-use invitation and sign-in');
+  console.log('PASS: native index fault injection retains form and server readiness; retry publishes only after unique indexes; administrator revocation blocks late publication; audited owner-link recovery expires old links and rejects stale/activated requests; administrator/MFA/CSRF-protected in-app catalogue recovery, repeatability and audit attribution; HTTP tenant creation, contact persistence, 17-character generated database names, validation feedback, duplicate rejection, owner activation, single-use invitation and sign-in');
 }
 async function cleanup(){
   if(server)await new Promise(resolve=>server.close(resolve));

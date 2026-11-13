@@ -110,3 +110,22 @@ document.querySelectorAll('.legal-nav-links a').forEach((link) => {
   if (!href) return;
   link.classList.toggle('active', href === currentFile);
 });
+
+/* The visibility control does not submit the login form or persist passwords. */
+document.querySelectorAll('[data-password-toggle]').forEach(button=>{
+  const input=document.getElementById(button.getAttribute('aria-controls'));
+  if(!input)return;
+  button.addEventListener('click',()=>{
+    const visible=input.type==='password';
+    input.type=visible?'text':'password';
+    button.setAttribute('aria-pressed',String(visible));
+    button.setAttribute('aria-label',visible?'Hide password':'Show password');
+    const label=button.querySelector('span');
+    if(label)label.textContent=visible?'Hide':'Show';
+    const icon=button.querySelector('i');
+    if(icon){
+      icon.classList.toggle('fa-eye',!visible);
+      icon.classList.toggle('fa-eye-slash',visible);
+    }
+  });
+});

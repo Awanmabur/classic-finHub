@@ -114,6 +114,13 @@ async function processOne({workerId,Model=OutboxEvent,deliver=sendMail,now=()=>n
       if(!active)throw Object.assign(new Error('Owner invitation is no longer active'),{code:'INVITE_INACTIVE'});
     }
     const message=buildEmail(job);
+    // Staff revocation can cancel a *leased* outbox event. Recheck the lease
+    // immediately before handing a bearer link to the mail provider. This
+    // reduces (but cannot eliminate) cancellation vs network-send races.
+    if(INVITE_TYPES.has(job.type)){
+      const activeLease=await Model.exists(owned(job,now()));
+      if(!activeLease)throw Object.assign(new Error('Invitation delivery was cancelled'),{code:'INVITE_INACTIVE'});
+    }
     // Provider idempotency key must be stable across worker crashes and retries.
     const result=await deliver({...message,idempotencyKey:`cfh:${job.eventKey}`});
     const updated=await accept(job,result,{now:now(),Model});

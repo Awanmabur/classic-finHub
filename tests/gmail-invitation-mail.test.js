@@ -52,7 +52,9 @@ test('activation links are encrypted and authenticated in queued records',()=>{
    const ciphertext=invites.seal(url);
    assert.equal(invites.open(ciphertext),url);
    assert(!ciphertext.includes('a'.repeat(64)),'bearer token never stored in plaintext');
-   assert.throws(()=>invites.open(ciphertext.slice(0,-1)+'x'));
+   const pieces=ciphertext.split('.');
+   pieces[1]=(pieces[1][0]==='A'?'B':'A')+pieces[1].slice(1);
+   assert.throws(()=>invites.open(pieces.join('.')),'tampered auth tag must be rejected');
    assert.throws(()=>invites.seal('https://attacker.invalid/accept-invite#token='+'a'.repeat(64)));
  }finally{restore();}
 });

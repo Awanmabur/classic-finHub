@@ -3,8 +3,8 @@
   <div class="cardBody tableWrap"><table><thead><tr><th>Workspace</th><th>Owner</th><th>Plan</th><th>Status</th><th>Modules</th><th></th></tr></thead><tbody>
     <% if(!data.tenants.length){ %><tr><td colspan="6">No tenants yet. Use Create tenant to add your first workspace.</td></tr><% } %>
     <% data.tenants.forEach(t => { %><tr data-search-row>
-      <td><b><%= t.name %></b><br><span class="tiny"><%= t.slug %></span></td>
-      <td><%= t.owner %><br><span class="tiny"><%= t.email %></span></td>
+      <td><div class="dataCellLine" title="<%= t.name %> · <%= t.slug %>"><b><%= t.name %></b><span class="tiny"><%= t.slug %></span></div></td>
+      <td><div class="dataCellLine" title="<%= t.owner %> · <%= t.email %>"><span><%= t.owner %></span><span class="tiny"><%= t.email %></span></div></td>
       <td><%= data.plans.find(p=>p.code===t.plan)?.name || t.plan %></td>
       <td><span class="tag"><%= typeof t.status==='string'?t.status.replaceAll('_',' '):'Unknown status' %></span></td>
       <td><%= Array.isArray(t.enabledModules)?t.enabledModules.length:0 %> assigned</td>

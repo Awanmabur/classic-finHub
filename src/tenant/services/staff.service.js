@@ -128,10 +128,15 @@ async function cancelInvite(tenant,actor,inviteId){
   try{await session.withTransaction(async()=>{
     const invite=await Invite.findOneAndUpdate({_id:inviteId,...policy.directoryFilter(actor),status:'pending'},{$set:{status:'cancelled'}},{new:true,session});
     if(!invite)throw invalid('Pending invitation not found',404);
-    // The platform mail worker never needs permission to read financial tenant DBs.
-    // Cancel a still-pending delivery atomically with the invitation revocation.
-    await require('../../platform/models/OutboxEvent').updateOne({eventKey:`tenant.staff.invited:${invite._id}`,state:'pending'},
-      {$set:{state:'dead',failureCode:'invite_revoked',completedAt:new Date()}},{session});
+    // Keep the mail worker isolated from tenant databases. Revoke queued AND
+    // leased invitations in the same transaction as the invite and seat change.
+    // A provider request already in flight can still arrive; activation itself
+    // remains protected by the cancelled invite's tenant-DB status.
+    await require('../../platform/models/OutboxEvent').updateOne({
+      eventKey:`tenant.staff.invited:${invite._id}`,
+      state:{$in:['pending','processing']}
+    },{$set:{state:'dead',failureCode:'invite_revoked',completedAt:new Date(),
+      leaseUntil:null,leaseToken:null}},{session});
     const seat=await Tenant.updateOne({_id:tenant._id,seatsReserved:{$gt:1}},{$inc:{seatsReserved:-1}},{session});
     if(seat.modifiedCount!==1)throw invalid('Seat counter conflict. Retry after checking subscription capacity',409);
     await Audit.create([{action:'staff.invitation_revoked',actorId:actor.id,targetId:invite._id,metadata:{role:invite.role,branchId:invite.branchId}}],{session});

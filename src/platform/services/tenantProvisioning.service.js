@@ -68,7 +68,7 @@ function checkPayload(payload = {}) {
   const phone = text(payload.phone);
   const plan = text(payload.plan);
   if (!name || name.length > 150) throw invalid('Enter a tenant name of 1–150 characters.');
-  if (!NAME.test(slug)) throw invalid('Enter a slug of 3–42 letters, numbers or hyphens, beginning and ending with a letter or number.');
+  if (!NAME.test(slug) || Buffer.byteLength(tenantDbNameFromSlug(slug))>38) throw invalid('Enter a tenant slug of 3–17 letters, numbers or hyphens. Atlas Free database names cannot exceed 38 bytes.');
   if (!owner || owner.length > 120) throw invalid('Enter an owner name of 1–120 characters.');
   if (!email) throw invalid('Enter a valid owner email of at most 254 characters.');
   if (phone.length > 40 || !/^[+0-9 ()-]*$/.test(phone)) throw invalid('Enter a valid phone number of at most 40 characters.');

@@ -203,9 +203,17 @@ router.get('/appointments',async(req,res,next)=>{
     renderPlatform(req,res,'appointments/index','Appointments','Review and schedule onboarding requests.',{appointments:page.items,...page,moduleLabels:Object.fromEntries(modules.map(m=>[m.key,m.name]))});
   }catch(e){next(e);}
 });
+router.get('/appointments/:id',async(req,res,next)=>{
+ try{
+  const appointment=await appointmentService.get(req.params.id);
+  renderPlatform(req,res,'appointments/show','Appointment preview','Review the complete request and record a decision.',{
+   appointment,moduleLabels:Object.fromEntries(modules.map(m=>[m.key,m.name]))
+  });
+ }catch(error){next(error);}
+});
 router.post('/appointments/:id/decision',async(req,res,next)=>{try{
  await appointmentService.decide(req.params.id,req.platformUser,req.body);
- flash(req,'good','Appointment decision saved and audited. Contact the requester through your configured communication channel.');res.redirect(303,'/platform/appointments');
+ flash(req,'good','Appointment decision saved and audited. Contact the requester through your configured communication channel.');res.redirect(303,'/platform/appointments/'+req.params.id);
 }catch(error){next(error);}});
 router.use((req,res)=>res.status(404).send('Page not found'));
 module.exports=router;

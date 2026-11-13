@@ -58,11 +58,24 @@ async function prepareTenantStorage(connection){
     ]);
   }catch(error){throw storageFailure(error);}
 }
+// Derive a stable, short database identifier from the first meaningful word.
+// A short first word can incorporate the next word to satisfy the 3-character floor.
+function firstNameSlug(name) {
+  const words=String(name||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().match(/[a-z0-9]+/g)||[];
+  if(!words.length)return 'tenant';
+  const candidate=words[0].length>=3?words[0]:words.slice(0,3).join('-');
+  const slug=candidate.slice(0,MAX_SLUG_LENGTH).replace(/-+$/,'');
+  return NAME.test(slug)?slug:'tenant';
+}
+function candidateSlug(base,ordinal) {
+  if(ordinal===1)return base;
+  const suffix='-'+String(ordinal);
+  return base.slice(0,MAX_SLUG_LENGTH-suffix.length).replace(/-+$/,'')+suffix;
+}
 function checkPayload(payload = {}) {
   const name = text(payload.name);
   const requestedSlug = text(payload.slug).toLowerCase();
-  const slug = requestedSlug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '').slice(0, MAX_SLUG_LENGTH).replace(/-+$/g, '');
+  const slug = requestedSlug || firstNameSlug(name);
   const owner = text(payload.owner);
   const email = normalizeEmail(payload.email);
   const phone = text(payload.phone);
@@ -80,8 +93,22 @@ function checkPayload(payload = {}) {
 async function provisionTenant(payload, actor) {
   const valid = checkPayload(payload);
   await authorizeAdmin(actor);
-  if (await Tenant.exists({slug: valid.slug})) {
-    throw Object.assign(new Error('This tenant slug is already in use. Open the existing tenant from the tenant list, or choose a different slug for a different workspace.'), {status:409});
+  // Web onboarding never accepts a user-entered slug. Generate a distinct
+  // database name if more than one business shares the same first word.
+  if (!text(payload.slug)) {
+    const base=valid.slug;
+    let available=false;
+    for(let ordinal=1;ordinal<=1000;ordinal++){
+      const candidate=candidateSlug(base,ordinal);
+      if(!await Tenant.exists({slug:candidate})){
+        valid.slug=candidate;
+        available=true;
+        break;
+      }
+    }
+    if(!available)throw rejected('Tenant name is already in use too many times. Contact platform support.',409);
+  } else if (await Tenant.exists({slug:valid.slug})) {
+    throw rejected('This tenant slug is already in use. Review the existing tenant before retrying.',409);
   }
   if(await AccountIdentity.exists({email:valid.email}))throw rejected('Owner email already has an account. Use a different address.',409);
   const token = crypto.randomBytes(32).toString('hex');

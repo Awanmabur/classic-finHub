@@ -34,7 +34,7 @@ async function main(){
  const manualEditor=await request('/platform/plans/custom_manual/edit');const published=await request('/platform/plans/custom_manual/publish',{revision:'1',reason,_csrf:csrf(manualEditor.html)});assert.equal(published.response.status,303,published.html);
  const manual=await PlanVersion.findOne({code:'custom_manual',version:1}).lean();assert(manual);assert.equal(manual.priceMonthlyMinor,8000);assert.deepEqual(manual.modules,['mobile_money']);const originalSnapshot=commerce.planSnapshot(manual);
  const createForm=await request('/platform/tenants/create');assert.match(createForm.html,/value="custom_manual"/,'custom plan is selectable for tenant creation');
- const customSlug='plan-trial-'+database.slice(-16);
+ const customSlug='pt-'+database.slice(-14);
  const customTenant=await request('/platform/tenants',{name:'Custom Plan Tenant',slug:customSlug,owner:'Custom Owner',email:'owner-'+database.slice(-16)+'@example.invalid',plan:'custom_manual',_csrf:csrf(createForm.html)});
  assert.equal(customTenant.response.status,200,customTenant.html);
  const createdTenant=await require('../src/platform/models/Tenant').findOne({slug:customSlug}).lean();assert(createdTenant);assert.equal(createdTenant.subscription.planCode,'custom_manual');assert.deepEqual(createdTenant.enabledModules,['mobile_money']);
@@ -59,7 +59,7 @@ async function main(){
  const paidEditor=await request('/platform/plans/custom_paid/edit');
  const paidPublished=await request('/platform/plans/custom_paid/publish',{revision:'1',reason,_csrf:csrf(paidEditor.html)});assert.equal(paidPublished.response.status,303,paidPublished.html);
  const paidCreate=await request('/platform/tenants/create');assert.match(paidCreate.html,/value="custom_paid"/);
- const paidSlug='plan-paid-'+database.slice(-16);
+ const paidSlug='pd-'+database.slice(-14);
  const paidTenant=await request('/platform/tenants',{name:'Paid Plan Tenant',slug:paidSlug,owner:'Paid Owner',email:'paid-'+database.slice(-16)+'@example.invalid',plan:'custom_paid',_csrf:csrf(paidCreate.html)});assert.equal(paidTenant.response.status,200,paidTenant.html);assert.match(paidTenant.html,/plan has no trial/);
  const waiting=await require('../src/platform/models/Tenant').findOne({slug:paidSlug}).lean();assert.equal(waiting.status,'past_due');assert.equal(waiting.subscription,undefined);assert.deepEqual(waiting.enabledModules,[],'no paid access is silently granted');
  const paidAccess=await request('/platform/tenants/'+waiting._id+'/subscription/grant',{planCode:'custom_paid',days:'30',reason,_csrf:csrf(paidCreate.html)});assert.equal(paidAccess.response.status,303,paidAccess.html);

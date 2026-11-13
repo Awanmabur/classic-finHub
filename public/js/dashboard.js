@@ -69,6 +69,24 @@
   window.addEventListener?.('pageshow',keepActiveNavigationVisible);
   if(navigation&&typeof ResizeObserver!=='undefined')new ResizeObserver(()=>scheduleNavigation(keepActiveNavigationVisible)).observe(navigation);
 
+  // Platform appointment records are compact table rows; open one review at a time.
+  document.querySelectorAll('[data-appointment-toggle]').forEach(button=>{
+    button.addEventListener('click',()=>{
+      const target=document.getElementById(button.getAttribute('aria-controls'));
+      if(!target)return;
+      const opening=target.hidden;
+      document.querySelectorAll('[data-appointment-toggle]').forEach(other=>{
+        const row=document.getElementById(other.getAttribute('aria-controls'));
+        if(row)row.hidden=true;
+        other.setAttribute('aria-expanded','false');
+        other.textContent='Review';
+      });
+      target.hidden=!opening;
+      button.setAttribute('aria-expanded',String(opening));
+      button.textContent=opening?'Close':'Review';
+    });
+  });
+
   const search = document.getElementById('search');
   search?.addEventListener('input', () => {
     const q = search.value.trim().toLowerCase();

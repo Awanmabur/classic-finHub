@@ -46,7 +46,7 @@ router.get('/tenants/create',async(req,res,next)=>{
 router.post('/tenants',async(req,res,next)=>{
   res.setHeader('Cache-Control','no-store');
   try{
-    const { tenant, inviteUrl }=await provisionTenant(req.body,req.platformUser);
+    const { tenant, inviteUrl }=await provisionTenant({...req.body,slug:''},req.platformUser);
     renderPlatform(req,res,'tenants/invite','Tenant created','Copy the one-time invitation link securely. It will not be displayed again.',{tenant,inviteUrl});
   }catch(e){
     if([400,409].includes(e.status)||e.provisioningError){
@@ -54,7 +54,7 @@ router.post('/tenants',async(req,res,next)=>{
         console.error(JSON.stringify({event:'tenant.provisioning_failed',requestId:req.requestId,code:e.code,status:e.status}));
         if(e.status===503)res.setHeader('Retry-After','5');
       }
-      const values=Object.fromEntries(['name','slug','owner','email','phone','plan'].map(key=>[key,typeof req.body[key]==='string'?req.body[key]:'']));
+      const values=Object.fromEntries(['name','owner','email','phone','plan'].map(key=>[key,typeof req.body[key]==='string'?req.body[key]:'']));
       try{return await renderTenantCreate(req,res.status(e.status),values,e.message);}catch(renderError){return next(renderError);}
     }
     next(e);

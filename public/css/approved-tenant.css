@@ -860,3 +860,54 @@ dialog.workspaceDialog .tenantCleanHead span{line-height:normal}
 @media(max-width:500px){.moduleChoiceGrid{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 @media print{dialog[data-operation-dialog],dialog.workspaceDialog{display:none!important}.main>.view.show{display:block!important}}
+
+
+/* 2026-11-13: dashboard geometry repairs; the approved visual system remains intact. */
+:where(.view,.card,.cardBody,.cardHead,.summary,.formSection,.rowBtns,.accountActions,.field){min-width:0}
+:where(.cardBody,.cardHead) > :where(.rowBtns,.richActions,.workspaceActions,.childActions){min-width:0}
+:where(.cardBody,.cardHead) > :where(.rowBtns,.richActions,.workspaceActions,.childActions) :where(.btn,button){max-width:100%;white-space:normal;text-align:center;overflow-wrap:anywhere}
+.cardBody > .rowBtns,.cardBody > .richActions,.cardBody > .workspaceActions{margin-block:12px 4px;gap:10px}
+.cardBody > .rowBtns:first-child,.cardBody > .richActions:first-child,.cardBody > .workspaceActions:first-child{margin-top:0}
+.cardBody > .rowBtns:last-child,.cardBody > .richActions:last-child,.cardBody > .workspaceActions:last-child{margin-bottom:0}
+.cardBody :where(.summary,.formSection,.reportBlock){max-width:100%}
+.cardBody :where(.row2,.row3){min-width:0}
+.cardBody .field,.cardBody .control{min-width:0}
+.cardBody :where(.row2,.row3) > *{min-width:0}
+.cardBody > form > .rowBtns{margin-top:14px;gap:10px}
+.cardBody > form > .field{margin-top:12px}
+.cardBody > form > .row2 + .field{margin-top:12px}
+textarea,textarea.control,.field textarea,.tenantCleanField textarea{border-radius:14px!important;min-height:90px;resize:vertical;line-height:1.5}
+.control:has(> textarea),.field .control:has(textarea){border-radius:16px!important;align-items:flex-start}
+.sideFoot .mini > div,.sidebarAccount > summary > div{flex:1 1 auto;min-width:0}
+.sideFoot .mini span,.sidebarAccount > summary span{display:block;overflow-wrap:anywhere;white-space:normal;line-height:1.45}
+.sideFoot .mini .tag{flex:0 0 auto;max-width:44%;white-space:normal;text-align:center;overflow-wrap:anywhere;font-size:10px;line-height:1.25}
+.sideFoot .sidebarAccount{min-width:0}
+.sideFoot .accountActions{padding:10px 0 0;flex-wrap:wrap;align-items:stretch;gap:8px}
+.sideFoot .accountActions > form,.sideFoot .accountActions > a{flex:1 1 105px;min-width:0}
+.sideFoot .accountActions .btn{white-space:normal;overflow-wrap:anywhere;min-height:38px}
+.appointmentFilters{align-items:end;gap:14px}
+.appointmentFilters .rowBtns{align-self:end;justify-content:flex-start;padding-bottom:2px;gap:8px}
+.appointmentList{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:14px}
+.appointmentList > .appointmentCard{margin:0!important;min-width:0}
+.appointmentCard .cardBody{display:grid;gap:14px}
+.appointmentCard .summary{min-width:0}
+.appointmentCard .sumRow{gap:12px;align-items:start;min-width:0}
+.appointmentCard .sumRow > span{flex:0 0 38%;min-width:0}
+.appointmentCard .sumRow > b{flex:1 1 0;min-width:0;text-align:right;white-space:normal;overflow-wrap:anywhere;line-height:1.5}
+.appointmentDecision{display:grid;gap:12px;margin:0!important}
+.appointmentDecision .rowBtns{margin:2px 0 0;gap:8px}
+.appointmentDecision .rowBtns .btn{white-space:normal;overflow-wrap:anywhere;max-width:100%}
+.denseDirectory td:last-child .btn{max-width:100%;white-space:normal;text-align:center}
+.denseDirectory td{vertical-align:middle}
+.denseDirectory .dataCellLine{min-width:0;max-width:280px;overflow-wrap:anywhere}
+.tenantAuditNote{margin:14px 0 0;line-height:1.6;overflow-wrap:anywhere}
+.signoutProgress{position:fixed;inset:0;z-index:120;display:grid;place-items:center;padding:20px;background:rgba(11,24,44,.58);backdrop-filter:blur(4px)}
+.signoutProgress[hidden]{display:none!important}
+.signoutProgressContent{width:min(360px,100%);padding:28px 22px;border-radius:22px;text-align:center;background:var(--card);color:var(--text);border:1px solid var(--border);box-shadow:var(--shadow)}
+.signoutProgressContent strong{display:block;font-size:16px;line-height:1.4}
+.signoutProgressContent p{margin:9px 0 0;color:var(--muted);font-size:13px;line-height:1.5}
+.signoutProgressIcon{width:36px;height:36px;margin:0 auto 14px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:signoutSpin .8s linear infinite}
+@keyframes signoutSpin{to{transform:rotate(360deg)}}
+@media(max-width:1050px){.appointmentList{grid-template-columns:1fr}}
+@media(max-width:700px){.appointmentFilters{grid-template-columns:1fr!important}.appointmentCard .sumRow{flex-wrap:wrap}.appointmentCard .sumRow > span{flex-basis:100%}.appointmentCard .sumRow > b{text-align:left}.appointmentDecision .row2{grid-template-columns:1fr!important}.sideFoot .accountActions > form,.sideFoot .accountActions > a{flex-basis:110px}}
+@media(prefers-reduced-motion:reduce){.signoutProgressIcon{animation-duration:2s}}

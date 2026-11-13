@@ -2,11 +2,12 @@
 const mongoose = require('mongoose');
 const schema = new mongoose.Schema({
   eventKey: { type:String,required:true,immutable:true,maxlength:160 },
-  type: {type:String,required:true,immutable:true,enum:['subscription.granted','subscription.revoked']},
+  type: {type:String,required:true,immutable:true,enum:['subscription.granted','subscription.revoked','tenant.owner.invited','tenant.staff.invited']},
   tenantId: {type:mongoose.Schema.Types.ObjectId,required:true,immutable:true,ref:'Tenant'},
-  // Contains notification addressing only, never credentials, invitation secrets or payment details.
+  // Invitation bearer URLs are AES-256-GCM ciphertext only, never plaintext.
   payload: {type:new mongoose.Schema({to:{type:String,required:true,maxlength:254},tenantName:{type:String,required:true,maxlength:150},
-    planName:{type:String,maxlength:120},expiresAt:{type:Date}},{_id:false,strict:'throw'}),required:true,immutable:true},
+    planName:{type:String,maxlength:120},expiresAt:{type:Date},recipientName:{type:String,maxlength:120},
+    encryptedUrl:{type:String,maxlength:4096},inviteId:{type:mongoose.Schema.Types.ObjectId}},{_id:false,strict:'throw'}),required:true,immutable:true},
   state: {type:String,enum:['pending','processing','accepted','dead'],default:'pending',required:true},
   availableAt: {type:Date,default:Date.now,required:true},
   leaseToken:{type:String,default:null},

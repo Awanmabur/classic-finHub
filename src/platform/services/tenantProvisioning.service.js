@@ -65,7 +65,8 @@ async function prepareTenantStorage(connection){
 function firstNameSlug(name) {
   const words=String(name||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().match(/[a-z0-9]+/g)||[];
   if(!words.length)return 'tenant';
-  const candidate=words[0].length>=3?words[0]:words.slice(0,3).join('-');
+  let candidate=words[0];
+  for(let i=1;candidate.length<3&&i<words.length;i++)candidate+='-'+words[i];
   const slug=candidate.slice(0,MAX_SLUG_LENGTH).replace(/-+$/,'');
   return NAME.test(slug)?slug:'tenant';
 }

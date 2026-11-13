@@ -1,0 +1,41 @@
+<section class="view show appointmentPreviewPage">
+  <div class="rowBtns appointmentPreviewBack"><a class="btn" href="/platform/appointments"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Back to appointments</a><span class="tag"><%= data.appointment.status %></span></div>
+  <section class="card">
+    <div class="cardHead"><div><b><%= data.appointment.businessName %></b><br><span>Appointment request · <%= String(data.appointment._id) %></span></div></div>
+    <div class="cardBody appointmentPreviewBody">
+      <div class="appointmentPreviewGrid">
+        <div class="appointmentPreviewField"><span>Business</span><b><%= data.appointment.businessName %></b></div>
+        <div class="appointmentPreviewField"><span>Contact</span><b><%= data.appointment.contactName %></b></div>
+        <div class="appointmentPreviewField"><span>Email</span><b><%= data.appointment.email||'Not provided' %></b></div>
+        <div class="appointmentPreviewField"><span>Phone</span><b><%= data.appointment.phone||'Not provided' %></b></div>
+        <div class="appointmentPreviewField"><span>Preferred date</span><b><%= data.appointment.preferredDate?new Date(data.appointment.preferredDate).toISOString().slice(0,10):'Flexible' %></b></div>
+        <div class="appointmentPreviewField"><span>Scheduled (UTC)</span><b><%= data.appointment.scheduledAt?new Date(data.appointment.scheduledAt).toISOString().replace('T',' ').slice(0,16):'Not scheduled' %></b></div>
+        <div class="appointmentPreviewField"><span>Requested modules</span><b><%= data.appointment.modules.map(key=>data.moduleLabels[key]||key).join(', ')||'Needs discovery' %></b></div>
+        <div class="appointmentPreviewField"><span>Meeting link</span><b><% if(data.appointment.meetingLink&&/^https:\/\//i.test(data.appointment.meetingLink)){ %><a href="<%= data.appointment.meetingLink %>" target="_blank" rel="noopener noreferrer">Open meeting link</a><% }else{ %>Not provided<% } %></b></div>
+      </div>
+      <div class="appointmentPreviewNotes"><div><b>Request notes</b><p><%= data.appointment.notes||'No notes supplied' %></p></div><div><b>Latest decision</b><p><%= data.appointment.reviewNote||'Not yet reviewed' %></p></div></div>
+    </div>
+  </section>
+  <% if(!['completed','cancelled'].includes(data.appointment.status)){ %>
+  <section class="card appointmentPreviewDecision"><div class="cardHead"><div><b>Review appointment</b><br><span>Record a decision in the existing audited workflow</span></div></div>
+    <form class="cardBody appointmentDecision" method="post" action="/platform/appointments/<%= data.appointment._id %>/decision">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="revision" value="<%= data.appointment.revision %>">
+      <div class="row2"><label class="field">Scheduled date and time (UTC)<input class="control" type="datetime-local" name="scheduledAt" value="<%= data.appointment.scheduledAt?new Date(data.appointment.scheduledAt).toISOString().slice(0,16):'' %>"></label>
+      <label class="field">Meeting link (optional)<input class="control" type="url" name="meetingLink" maxlength="500" placeholder="https://" value="<%= data.appointment.meetingLink||'' %>"></label></div>
+      <label class="field">Decision note<textarea class="control" name="note" minlength="12" maxlength="400" required rows="3"></textarea></label>
+      <div class="rowBtns"><button class="btn btnPrimary" name="action" value="confirm">Confirm / reschedule</button>
+      <% if(data.appointment.status==='confirmed'){ %><button class="btn" name="action" value="complete" <%= !data.appointment.scheduledAt||new Date(data.appointment.scheduledAt)>new Date()?'disabled':'' %>>Mark completed</button><% } %>
+      <button class="btn" name="action" value="cancel">Cancel request</button></div>
+      <% if(data.appointment.status==='confirmed'&&(!data.appointment.scheduledAt||new Date(data.appointment.scheduledAt)>new Date())){ %><p class="tiny">Completion is available after the scheduled start.</p><% } %>
+    </form>
+  </section>
+  <% }else if(data.appointment.status==='completed'){ %>
+  <div class="rowBtns appointmentPreviewBack"><a class="btn btnPrimary" href="/platform/tenants/create">Create tenant</a></div>
+  <% } %>
+  <% if(data.appointment.decisions&&data.appointment.decisions.length){ %>
+  <section class="card appointmentDecisionHistory"><div class="cardHead"><b>Decision history</b><span>Recorded administrative actions</span></div><div class="cardBody tableWrap"><table><thead><tr><th>When (UTC)</th><th>Action</th><th>From</th><th>To</th><th>Note</th></tr></thead><tbody>
+  <% data.appointment.decisions.forEach(d=>{ %><tr><td><%= d.at?new Date(d.at).toISOString().slice(0,16).replace('T',' '):'—' %></td><td><%= d.action %></td><td><%= d.from %></td><td><%= d.to %></td><td><%= d.note %></td></tr><% }) %>
+  </tbody></table></div></section>
+  <% } %>
+</section>

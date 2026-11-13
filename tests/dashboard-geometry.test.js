@@ -30,26 +30,30 @@ test('tenant audit note stays inside padded card body',async()=>{
  assert.match(html,/Database access must be restricted/);
 });
 
-test('platform appointments retain working decision controls and row layout',async()=>{
+test('compact appointment rows link to full preview, which retains decisions',async()=>{
  const item={
-   _id:'507f1f77bcf86cd799439011',businessName:'Example',status:'pending',
-   contactName:'Contact',email:'contact@example.test',phone:'',preferredDate:null,
-   modules:['mobile_money'],scheduledAt:null,meetingLink:'',notes:'',reviewNote:'',
-   revision:0
+  _id:'507f1f77bcf86cd799439011',businessName:'Example',status:'pending',
+  contactName:'Contact',email:'contact@example.test',phone:'',preferredDate:null,
+  modules:['mobile_money'],scheduledAt:null,meetingLink:'',notes:'Request notes',
+  reviewNote:'',revision:0,decisions:[]
  };
- const html=await ejs.renderFile(path.join(root,'src/views/platform/appointments/index.ejs'),{
-   data:{appointments:[item],filters:{status:'',q:''},moduleLabels:{mobile_money:'Mobile Money'},nextCursor:null},
-   csrfToken:'test-csrf'
+ const labels={mobile_money:'Mobile Money'};
+ const listing=await ejs.renderFile(path.join(root,'src/views/platform/appointments/index.ejs'),{
+  data:{appointments:[item],filters:{status:'',q:''},nextCursor:null},csrfToken:'csrf'
  });
- assert.match(html,/class="denseDirectory appointmentTable"/);
- assert.match(html,/data-appointment-toggle/);
- assert.match(html,/class="appointmentDetailRow"/);
- assert.match(html,/class="appointmentDecision appointmentRowDecision"/);
- assert.match(html,/name="_csrf" value="test-csrf"/);
- assert.match(html,/name="action" value="confirm"/);
- assert.match(html,/name="action" value="cancel"/);
+ assert.match(listing,/class="denseDirectory appointmentTable"/);
+ assert.match(listing,/href="\/platform\/appointments\/507f1f77bcf86cd799439011"/);
+ assert.doesNotMatch(listing,/name="action" value="confirm"/);
+ assert.doesNotMatch(listing,/appointmentDetailRow/);
+ const preview=await ejs.renderFile(path.join(root,'src/views/platform/appointments/show.ejs'),{
+  data:{appointment:item,moduleLabels:labels},csrfToken:'test-csrf'
+ });
+ for(const token of ['Request notes','Meeting link','Preferred date','Decision note'])assert(preview.includes(token),token);
+ assert.match(preview,/class="appointmentPreviewGrid"/);
+ assert.match(preview,/name="_csrf" value="test-csrf"/);
+ assert.match(preview,/name="action" value="confirm"/);
+ assert.match(preview,/name="action" value="cancel"/);
 });
-
 test('logout remains CSRF-protected POST and centered progress only affects presentation',()=>{
  const sidebar=read('src/views/partials/dashboard-sidebar.ejs');
  const script=read('public/js/dashboard.js');
@@ -65,7 +69,7 @@ test('platform audit note is padded, platform account is collapsible and auth ca
  const script=read('public/js/dashboard.js');
  const auth=read('public/css/style.css');
  assert.match(audit,/<div class="cardBody"><p class="tiny">Audit records use/);
- assert.match(sidebar,/class="sidebarAccount platformAccount"/);
- assert.match(script,/\[data-appointment-toggle\]/);
- assert.match(auth,/\.auth-body \.auth-main \.auth-shell\{display:grid;column-gap:/);
+ assert.doesNotMatch(sidebar,/class="sidebarAccount platformAccount"/);
+ assert.match(script,/form\[action="\/logout"\]/);
+ assert.match(auth,/\.auth-body \.auth-main \.auth-shell\{column-gap:0!important/);
 });

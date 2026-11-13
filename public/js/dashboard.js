@@ -1,25 +1,17 @@
 
 (function(){
-  // A single centered, accessible progress state for both tenant and platform logout.
-  // The POST still uses the existing CSRF-protected server route; no artificial delay.
-  document.querySelectorAll('form[action="/logout"]').forEach(form => {
-    const indicator=document.createElement('div');
-    indicator.className='signoutProgress';
-    indicator.hidden=true;
-    indicator.setAttribute('role','status');
-    indicator.setAttribute('aria-live','polite');
-    indicator.setAttribute('aria-label','Signing out');
-    indicator.innerHTML='<div class="signoutProgressContent"><div class="signoutProgressIcon" aria-hidden="true"></div><strong>Signing out…</strong><p>Ending your secure session.</p></div>';
-    document.body.append(indicator);
-    form.addEventListener('submit', () => {
-      indicator.hidden=false;
-      const submit=form.querySelector('button[type="submit"]');
-      if(submit)submit.disabled=true;
+  // Browser top-layer dialog prevents sidebar clipping/positioning.
+  const signoutDialog=document.getElementById('dashboardSignoutDialog');
+  document.querySelectorAll('form[action="/logout"]').forEach(form=>{
+    form.addEventListener('submit',()=>{
+      if(signoutDialog && !signoutDialog.open && typeof signoutDialog.showModal==='function')signoutDialog.showModal();
+      const button=form.querySelector('button[type="submit"]');
+      if(button)button.disabled=true;
     });
-    window.addEventListener('pageshow', () => {
-      indicator.hidden=true;
-      const submit=form.querySelector('button[type="submit"]');
-      if(submit)submit.disabled=false;
+    window.addEventListener('pageshow',()=>{
+      if(signoutDialog?.open && typeof signoutDialog.close==='function')signoutDialog.close();
+      const button=form.querySelector('button[type="submit"]');
+      if(button)button.disabled=false;
     });
   });
 

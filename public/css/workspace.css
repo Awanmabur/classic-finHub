@@ -42,3 +42,21 @@
 .workspaceSecondary[open]>summary{border-bottom:1px solid var(--border)}
 @media(max-width:1050px){.workspaceReadinessStats{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:720px){.workspaceNextAction{align-items:flex-start;flex-direction:column}.workspaceOperationRow{grid-template-columns:minmax(0,1fr) auto;gap:10px}.workspaceOperationRow>.btn{grid-column:1/-1;justify-self:start}.workspaceQueues{grid-template-columns:1fr}.workspaceSecondary>summary{padding:14px 16px}}
+
+/* All workspace previews share inset cards and breathing room between controls. */
+#workspaceContent [data-workspace-page$="-preview"]{display:grid!important;gap:18px;min-width:0}
+#workspaceContent [data-workspace-page$="-preview"]>.card{margin:0!important;min-width:0}
+#workspaceContent [data-workspace-page$="-preview"] .cardHead{padding:18px 20px;gap:12px}
+#workspaceContent [data-workspace-page$="-preview"] .cardBody{padding:20px;min-width:0}
+#workspaceContent [data-workspace-page$="-preview"] .cardBody>*+*{margin-top:14px}
+#workspaceContent [data-workspace-page$="-preview"] .cardBody>.workspaceNote{margin-top:16px}
+#workspaceContent [data-workspace-page$="-preview"] .cardBody>a.btn{margin-top:12px;max-width:100%;white-space:normal}
+#workspaceContent [data-workspace-page$="-preview"]>.workspaceActions{margin:0;gap:10px;min-width:0}
+#workspaceContent [data-workspace-page$="-preview"] .workspaceActions>.btn{margin:3px 0;max-width:100%;white-space:normal}
+#workspaceContent [data-workspace-page$="-preview"] .workspacePreviewReceipt{width:min(100%,540px);margin:0 auto;padding:28px;min-width:0}
+#workspaceContent [data-workspace-page$="-preview"] :is(.workspaceFacts,.workspaceText){min-width:0;overflow-wrap:anywhere}
+@media(max-width:720px){
+ #workspaceContent [data-workspace-page$="-preview"] .cardHead,
+ #workspaceContent [data-workspace-page$="-preview"] .cardBody{padding:15px}
+ #workspaceContent [data-workspace-page$="-preview"] .workspacePreviewReceipt{padding:18px}
+}

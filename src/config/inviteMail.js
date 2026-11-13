@@ -3,7 +3,7 @@
 // in the transactional outbox, never raw URLs or tokens in database records/logs.
 const crypto=require('node:crypto');
 const {configured:mailConfigured}=require('./mail');
-const {appUrl}=require('./env');
+const appUrl=String(process.env.APP_URL||'http://localhost:3000').replace(/\/$/,'');
 const KEY_NAME='INVITE_MAIL_ENCRYPTION_KEY_HEX';
 function key(){
   const value=process.env[KEY_NAME]||'';

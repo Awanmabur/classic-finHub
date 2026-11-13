@@ -81,6 +81,14 @@ form[method="get"] .field>.control{min-width:0;width:100%}
 #workspaceContent .tableWrap .actionLine>form{margin:0;display:inline-flex}
 #workspaceContent .tableWrap .actionLine .btn{white-space:nowrap}
 #workspaceContent .tableWrap .cellEllipsis{display:block;max-width:270px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Compact operational directories only: preserve the approved dashboard theme,
+   financial figure wrapping and each module's form/card layout. */
+#workspaceContent .tableWrap>table.denseDirectory :is(th,td){padding-block:10px;padding-inline:12px}
+#workspaceContent .tableWrap>table.denseDirectory th{white-space:nowrap}
+#workspaceContent .tableWrap>table.denseDirectory td .cellEllipsis{min-width:0;max-width:260px}
+#workspaceContent .tableWrap>table.denseDirectory .actionLine{min-width:max-content}
+#workspaceContent .tableWrap>table.denseDirectory .actionLine .btn{display:inline-flex;align-items:center;justify-content:center}
+#workspaceContent .tableWrap>table.denseDirectory :is(.dataCellLine,.actionLine)>:is(a,form,span,b){min-width:0}
 /* Financial totals must not be clipped or silently overflow on small screens. */
 #workspaceContent .rowBtns{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 #workspaceContent .rowBtns>form{margin:0}

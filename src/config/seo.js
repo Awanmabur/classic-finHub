@@ -33,7 +33,7 @@ function sitemapXml() {
 function publicMetadata(path,title) {
   const page=PUBLIC_PAGE_META[path]||{},canonical=appUrl+path;
   const description=page.description||'ClassicFin Hub is a modular financial operations workspace by Classic Technologies.';
-  return {title:page.title||title||'ClassicFin Hub',description,canonical,image:appUrl+'/images/classicfinhub-logo.png',indexable:indexingEnabled&&INDEXABLE_PATHS.includes(path),graph:{
+  return {title:page.title||title||'ClassicFin Hub',description,canonical,image:appUrl+'/images/classicfinhub-logo.png',indexable:INDEXABLE_PATHS.includes(path),crawlAllowed:indexingEnabled,graph:{
     '@context':'https://schema.org','@graph':[
       {'@type':'Organization','@id':appUrl+'/#organization',name:'Classic Technologies',url:'https://classictechgroup.com'},
       {'@type':'WebSite','@id':appUrl+'/#website',name:'ClassicFin Hub',url:appUrl,publisher:{'@id':appUrl+'/#organization'}},

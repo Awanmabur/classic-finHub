@@ -172,6 +172,24 @@ async function main(){
   const ownerForm=await request('/signin');
   const ownerLogin=await request('/signin',{_csrf:csrf(ownerForm.html),email:values.email,password});
   assert.equal(ownerLogin.response.headers.get('location'),'/mfa/setup','new owner can sign in and enroll MFA');
+  // Names sharing the same first word auto-allocate distinct short DB names;
+  // forged browser-supplied slug values are never accepted.
+  const expectedSecondSlug=slug.slice(0,15)+'-2';
+  extraSlugs.add(expectedSecondSlug); // Cleanup even if provisioning fails before commit.
+  cookie=administratorCookie;
+  const secondForm=await request('/platform/tenants/create');
+  assert.doesNotMatch(secondForm.html,/name="slug"/,'no editable slug field');
+  const secondEmail='second-owner-'+nonce+'@example.invalid';
+  const second=await request('/platform/tenants',{name:slug+' Transfers',slug:'evil-overwrite',
+    owner:'Second Owner',email:secondEmail,plan:'modular',_csrf:csrf(secondForm.html)});
+  assert.equal(second.response.status,200,second.html);
+  const secondTenant=await Tenant.findOne({email:secondEmail}).lean();
+  assert(secondTenant,'second tenant exists');
+  assert.equal(secondTenant.slug,expectedSecondSlug,'safe automatic suffix');
+  assert.notEqual(secondTenant.dbName,tenant.dbName);
+  assert.equal(Buffer.byteLength(secondTenant.dbName),38);
+  assert.equal(await Tenant.countDocuments(),2);
+  cookie=ownerCookie;
   console.log('PASS: native index fault injection retains form and server readiness; retry publishes only after unique indexes; administrator revocation blocks late publication; audited owner-link recovery expires old links and rejects stale/activated requests; administrator/MFA/CSRF-protected in-app catalogue recovery, repeatability and audit attribution; HTTP tenant creation, contact persistence, 17-character generated database names, validation feedback, duplicate rejection, owner activation, single-use invitation and sign-in');
 }
 async function cleanup(){

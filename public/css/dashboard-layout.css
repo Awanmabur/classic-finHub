@@ -115,3 +115,34 @@ form[method="get"] .field>.control{min-width:0;width:100%}
 @media(max-width:1100px){#workspaceContent .appointmentList{grid-template-columns:1fr}}
 @media(max-width:760px){#workspaceContent form.appointmentFilters{grid-template-columns:repeat(2,minmax(0,1fr))}#workspaceContent form.appointmentFilters>.rowBtns{grid-column:1/-1}}
 @media(max-width:520px){#workspaceContent .appointmentDecision>.row2{grid-template-columns:1fr}#workspaceContent .appointmentCard .sumRow{flex-wrap:wrap}#workspaceContent .appointmentCard .sumRow>span{flex-basis:100%}#workspaceContent .appointmentCard .sumRow>b{text-align:left}}
+
+
+/* Platform compact directories: one appointment per table row, review on demand. */
+#workspaceContent .platformAppointmentDirectory{margin-top:14px}
+#workspaceContent .platformAppointmentDirectory .cardBody{padding:14px}
+#workspaceContent .appointmentTable{min-width:940px;width:100%}
+#workspaceContent .appointmentTable th,#workspaceContent .appointmentTable td{padding:12px 14px;vertical-align:middle}
+#workspaceContent .appointmentTable td{white-space:normal;overflow-wrap:anywhere}
+#workspaceContent .appointmentTable tbody tr:not(.appointmentDetailRow):hover{background:rgba(8,44,82,.035)}
+#workspaceContent .appointmentTable td:last-child{text-align:right}
+#workspaceContent .appointmentTable .appointmentContact{display:block;max-width:240px;white-space:normal;overflow-wrap:anywhere;margin-top:4px}
+#workspaceContent .appointmentTable .appointmentExpand{min-height:34px;white-space:nowrap;padding:7px 13px}
+#workspaceContent .appointmentDetailRow[hidden]{display:none!important}
+#workspaceContent .appointmentDetailRow>td{padding:16px!important;text-align:left!important;background:rgba(8,44,82,.025)}
+#workspaceContent .appointmentDetails{display:grid;gap:16px;max-width:100%;min-width:0}
+#workspaceContent .appointmentDetailSummary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+#workspaceContent .appointmentDetailSummary>div{display:grid;gap:5px;min-width:0}
+#workspaceContent .appointmentDetailSummary b{font-size:12px;color:var(--muted)}
+#workspaceContent .appointmentDetailSummary span{overflow-wrap:anywhere;font-size:13px}
+#workspaceContent .appointmentRowDecision{display:grid;gap:12px;padding:16px;border:1px solid var(--border);border-radius:18px;min-width:0}
+#workspaceContent .appointmentRowDecision .row2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+#workspaceContent .appointmentRowDecision .rowBtns{margin:0;gap:9px}
+#workspaceContent .platformTenantsPage .tableWrap{padding:2px;max-width:100%}
+#workspaceContent .platformTenantsPage .denseDirectory{min-width:840px;border-spacing:0}
+#workspaceContent .platformTenantsPage .denseDirectory :is(th,td){padding:14px 16px;white-space:normal;text-align:left;vertical-align:middle}
+#workspaceContent .platformTenantsPage .denseDirectory td:last-child{text-align:right;min-width:120px}
+#workspaceContent .platformTenantsPage .denseDirectory .dataCellLine{display:grid;gap:4px;min-width:0;max-width:230px;white-space:normal}
+#workspaceContent .platformTenantsPage .denseDirectory .dataCellLine :is(span,b){min-width:0;max-width:100%;white-space:normal;overflow-wrap:anywhere;text-overflow:clip}
+#workspaceContent .platformTenantsPage .denseDirectory tbody tr:hover{background:rgba(8,44,82,.035)}
+#workspaceContent .platformTenantsPage .denseDirectory .btn{min-height:36px;padding:8px 12px}
+@media(max-width:650px){#workspaceContent .appointmentDetailSummary{grid-template-columns:1fr}#workspaceContent .appointmentRowDecision .row2{grid-template-columns:1fr}}

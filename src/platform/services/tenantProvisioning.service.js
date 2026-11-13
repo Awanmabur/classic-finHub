@@ -114,6 +114,8 @@ async function provisionTenant(payload, actor) {
     throw rejected('This tenant slug is already in use. Review the existing tenant before retrying.',409);
   }
   if(await AccountIdentity.exists({email:valid.email}))throw rejected('Owner email already has an account. Use a different address.',409);
+  if(await OwnerInvite.exists({email:valid.email,usedAt:null,expiresAt:{$gt:new Date()}}))
+    throw rejected('This owner email already has a pending invitation. Check the existing tenant before creating another.',409);
   const token = crypto.randomBytes(32).toString('hex');
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
   const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
@@ -140,6 +142,8 @@ async function provisionTenant(payload, actor) {
       if (await AccountIdentity.exists({ email: valid.email }).session(session)) {
         const err = new Error('Owner email already has an account. Use a different address.'); err.status = 409; throw err;
       }
+      if(await OwnerInvite.exists({email:valid.email,usedAt:null,expiresAt:{$gt:new Date()}}).session(session))
+        throw rejected('This owner email already has a pending invitation. Check the existing tenant before creating another.',409);
       [tenant] = await Tenant.create([{
         ...valid, enabledModules:hasTrial?snapshot.modules:[], dbName, status:hasTrial?'trial':'past_due', setupStatus:'invited',trialEndsAt:hasTrial?trialEndsAt:null,
         ...(hasTrial?{subscription:{...snapshot,status:'trial',source:'new_tenant_trial',periodStart:startedAt,periodEnd:trialEndsAt,generation:1}}:{})

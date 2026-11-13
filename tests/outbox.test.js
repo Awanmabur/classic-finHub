@@ -94,3 +94,37 @@ test('worker lease exhaustion is reaped, and counters cannot expose event payloa
   assert.equal(status.liveWorkers,1);
   assert.deepEqual(status.recent,[]);
 });
+
+
+test('revoked leased staff invitations cannot reach mail delivery',async()=>{
+  const crypto=require('node:crypto');
+  const inviteMail=require('../src/config/inviteMail');
+  const oldKey=process.env.INVITE_MAIL_ENCRYPTION_KEY_HEX;
+  process.env.INVITE_MAIL_ENCRYPTION_KEY_HEX=crypto.randomBytes(32).toString('hex');
+  try{
+    const appUrl=String(process.env.APP_URL||'http://localhost:3000').replace(/\\/$/,'');
+    const inviteJob={...job,type:'tenant.staff.invited',eventKey:'tenant.staff.invited:revocation-test',
+      payload:{to:'staff@example.org',tenantName:'Example Finance',recipientName:'Staff Person',
+        inviteId:new mongoose.Types.ObjectId(),expiresAt:new Date(Date.now()+3600000),
+        encryptedUrl:inviteMail.seal(appUrl+'/accept-staff-invite?tenant=example#token='+'f'.repeat(64))}};
+    let delivered=false,lookedUp=false;
+    const Model={
+      findOneAndUpdate:async()=>inviteJob,
+      exists:async filter=>{
+        lookedUp=true;
+        assert.equal(filter.leaseToken,inviteJob.leaseToken);
+        assert.equal(filter.state,'processing');
+        return null;
+      },
+      updateOne:async()=>({modifiedCount:0})
+    };
+    const result=await outbox.processOne({workerId:'worker-revoked',Model,
+      deliver:async()=>{delivered=true;return {provider:'gmail',messageId:'should-not-send'};}});
+    assert.equal(lookedUp,true);
+    assert.equal(delivered,false);
+    assert.equal(result.state,'lease_lost');
+  }finally{
+    if(oldKey===undefined)delete process.env.INVITE_MAIL_ENCRYPTION_KEY_HEX;
+    else process.env.INVITE_MAIL_ENCRYPTION_KEY_HEX=oldKey;
+  }
+});

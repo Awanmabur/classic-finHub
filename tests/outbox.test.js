@@ -47,7 +47,7 @@ test('atomic worker claim supports lease recovery with attempt limit',async()=>{
 
 test('a worker uses the SAME provider idempotency key after retry, and a lease token fences completion',async()=>{
   let lastFilter,lastUpdate;
-  const Model={findOneAndUpdate:async()=>job,updateOne:async(filter,update)=>{lastFilter=filter;lastUpdate=update;return {modifiedCount:1};}};
+  const Model={findOneAndUpdate:async()=>job,exists:async()=>({_id:job._id}),updateOne:async(filter,update)=>{lastFilter=filter;lastUpdate=update;return {modifiedCount:1};}};
   const sent=[];
   const now=()=>new Date('2026-11-03T12:00:00Z');
   const output=await outbox.processOne({workerId:'worker-a',Model,now,deliver:async args=>{

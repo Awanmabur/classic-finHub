@@ -181,3 +181,70 @@ form[method="get"] .field>.control{min-width:0;width:100%}
 #workspaceContent .appointmentPreviewPage .cardBody{padding:14px}
 #workspaceContent .platformAppointmentPage .appointmentTable{min-width:560px}
 }
+
+/* Structured preview pages: parent gaps and nested card/button insets. */
+#workspaceContent .platformTenantDetailPage,
+#workspaceContent .appointmentPreviewPage,
+#workspaceContent .platformAppointmentPage{display:grid!important;grid-template-columns:minmax(0,1fr);gap:18px!important;align-content:start;min-width:0}
+#workspaceContent .platformTenantDetailPage > *,
+#workspaceContent .appointmentPreviewPage > *,
+#workspaceContent .platformAppointmentPage > *{min-width:0;max-width:100%;margin:0!important}
+#workspaceContent .platformTenantDetailPage > .grid3{gap:14px}
+#workspaceContent .platformTenantDetailPage > .card,
+#workspaceContent .appointmentPreviewPage > .card,
+#workspaceContent .platformAppointmentPage > .card{overflow:hidden}
+#workspaceContent .platformTenantDetailPage .cardHead,
+#workspaceContent .appointmentPreviewPage .cardHead,
+#workspaceContent .platformAppointmentPage .cardHead{padding:18px 20px!important;gap:12px;align-items:center}
+#workspaceContent .platformTenantDetailPage .cardBody,
+#workspaceContent .appointmentPreviewPage .cardBody,
+#workspaceContent .platformAppointmentPage .cardBody{padding:20px!important;min-width:0}
+#workspaceContent .platformTenantDetailPage .cardBody > form,
+#workspaceContent .appointmentPreviewPage .cardBody > form{display:grid;gap:16px;min-width:0;margin:0}
+#workspaceContent .platformTenantDetailPage .cardBody > form + form{margin-top:18px!important;padding-top:18px;border-top:1px solid var(--border)}
+#workspaceContent .platformTenantDetailPage .cardBody > :is(p,.summary,.seg) + form{margin-top:18px}
+#workspaceContent .platformTenantDetailPage form > .row2,
+#workspaceContent .platformTenantDetailPage form > .row3,
+#workspaceContent .appointmentPreviewPage form > .row2{min-width:0;gap:14px;margin:0}
+#workspaceContent .platformTenantDetailPage form > .field,
+#workspaceContent .appointmentPreviewPage form > .field{min-width:0;margin:0}
+#workspaceContent .platformTenantDetailPage form > .btn,
+#workspaceContent .appointmentPreviewPage form > .btn{justify-self:start;width:auto;max-width:100%;margin:3px 0 0;white-space:normal;text-align:center;padding:11px 17px}
+#workspaceContent .platformTenantDetailPage form > .rowBtns,
+#workspaceContent .appointmentPreviewPage form > .rowBtns{margin-top:4px;justify-content:flex-start;align-items:center;gap:12px}
+#workspaceContent .platformTenantDetailPage .cardBody > p:last-child{margin:16px 0 0}
+#workspaceContent .appointmentPreviewPage .appointmentPreviewGrid{gap:14px}
+#workspaceContent .appointmentPreviewPage .appointmentPreviewField{padding:16px;gap:8px;background:var(--card2);border:1px solid var(--border);border-radius:16px}
+#workspaceContent .appointmentPreviewPage .appointmentPreviewField > span{font-weight:600;color:var(--muted);font-size:12px;line-height:1.45}
+#workspaceContent .appointmentPreviewPage .appointmentPreviewField > b{font-size:14px;color:var(--text);font-weight:700;line-height:1.55;overflow-wrap:anywhere}
+#workspaceContent .appointmentPreviewPage .appointmentPreviewNotes{gap:14px}
+#workspaceContent .appointmentPreviewPage .appointmentPreviewNotes > div{padding:17px;min-width:0;background:var(--card2)}
+#workspaceContent .appointmentPreviewPage .appointmentPreviewNotes p{margin:8px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
+#workspaceContent .appointmentPreviewPage .appointmentDecision{padding:20px!important;gap:16px}
+#workspaceContent .appointmentPreviewPage .appointmentDecision > .rowBtns .btn{white-space:normal;padding:10px 16px;max-width:100%}
+#workspaceContent .platformAppointmentPage .appointmentFilters{gap:14px;margin:0}
+#workspaceContent .platformAppointmentPage .appointmentFilters .rowBtns{gap:10px;align-items:center;padding:0}
+#workspaceContent .platformAppointmentPage .platformAppointmentDirectory .tableWrap{padding:0;overflow-x:auto}
+#workspaceContent .platformAppointmentPage .platformAppointmentDirectory .appointmentTable{margin:0}
+#workspaceContent .platformAppointmentPage .appointmentTable .btn{margin:3px 0;padding:9px 15px}
+#workspaceContent .appointmentPreviewBack{padding:2px 0;gap:12px;align-items:center}
+#workspaceContent .appointmentPagination{padding:0 2px}
+@media(max-width:760px){
+ #workspaceContent .platformTenantDetailPage .cardBody,
+ #workspaceContent .appointmentPreviewPage .cardBody,
+ #workspaceContent .platformAppointmentPage .cardBody{padding:15px!important}
+ #workspaceContent .platformTenantDetailPage .cardHead,
+ #workspaceContent .appointmentPreviewPage .cardHead,
+ #workspaceContent .platformAppointmentPage .cardHead{padding:15px!important}
+ #workspaceContent .appointmentPreviewPage .appointmentDecision{padding:15px!important}
+ #workspaceContent .platformTenantDetailPage form > .row2,
+ #workspaceContent .platformTenantDetailPage form > .row3{grid-template-columns:1fr}
+}
+/* A native modal always appears at the center of the dashboard viewport. */
+#dashboardSignoutDialog.dashboardSignoutDialog{position:fixed;inset:0;margin:auto;width:min(370px,calc(100vw - 36px));max-width:370px;max-height:calc(100dvh - 36px);padding:0;border:1px solid var(--border);border-radius:22px;background:var(--card);color:var(--text);box-shadow:0 28px 80px rgba(5,20,40,.26);overflow:hidden}
+#dashboardSignoutDialog.dashboardSignoutDialog:not([open]){display:none}
+#dashboardSignoutDialog::backdrop{background:rgba(11,24,44,.58);backdrop-filter:blur(4px)}
+#dashboardSignoutDialog .dashboardSignoutDialogContent{display:grid;justify-items:center;padding:30px 24px;text-align:center;gap:10px}
+#dashboardSignoutDialog strong{font-size:16px;line-height:1.4}
+#dashboardSignoutDialog p{font-size:13px;line-height:1.5;margin:0;color:var(--muted)}
+#dashboardSignoutDialog .signoutProgressIcon{margin:0 0 4px}

@@ -968,3 +968,14 @@ textarea,textarea.control,.field textarea,.tenantCleanField textarea{border-radi
 @media(max-width:1050px){.appointmentList{grid-template-columns:1fr}}
 @media(max-width:700px){.appointmentFilters{grid-template-columns:1fr!important}.appointmentCard .sumRow{flex-wrap:wrap}.appointmentCard .sumRow > span{flex-basis:100%}.appointmentCard .sumRow > b{text-align:left}.appointmentDecision .row2{grid-template-columns:1fr!important}.sideFoot .accountActions > form,.sideFoot .accountActions > a{flex-basis:110px}}
 @media(prefers-reduced-motion:reduce){.signoutProgressIcon{animation-duration:2s}}
+
+
+/* Platform account actions use the same collapsible behavior as tenant accounts. */
+.platformAccount>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px}
+.platformAccount>summary::-webkit-details-marker{display:none}
+.platformAccount>summary>div{min-width:0;flex:1}
+.platformAccount>summary>i{font-size:11px;color:var(--muted);transition:transform .15s ease}
+.platformAccount[open]>summary>i{transform:rotate(180deg)}
+.platformAccount .accountActions{display:grid;grid-template-columns:1fr;gap:8px;padding:12px 0 0}
+.platformAccount .accountActions>form,.platformAccount .accountActions>a{width:100%;min-width:0;margin:0}
+.platformAccount .accountActions .btn{width:100%;min-height:40px;white-space:normal}

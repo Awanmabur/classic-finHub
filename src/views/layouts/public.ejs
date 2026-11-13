@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title><%= pageMeta.title %></title>
   <meta name="description" content="<%= pageMeta.description %>" />
-  <% if(!pageMeta.indexable){ %><meta name="robots" content="noindex,nofollow,noarchive" /><% } %>
+  <% if(!pageMeta.indexable || !pageMeta.crawlAllowed){ %><meta name="robots" content="noindex,nofollow,noarchive" /><% } %>
   <link rel="canonical" href="<%= pageMeta.canonical %>" />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="ClassicFin Hub" />

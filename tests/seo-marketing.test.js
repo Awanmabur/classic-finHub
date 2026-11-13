@@ -32,13 +32,15 @@ test('sitewide crawling gate is respected by sitemap, HTML metadata and robots',
   if (!indexingEnabled) {
     assert.match(robots, /Disallow: \/\s*$/m);
     assert.doesNotMatch(robots, /Sitemap:/);
-    assert.equal(seo.publicMetadata('/', 'Home').indexable, false);
+    assert.equal(seo.publicMetadata('/', 'Home').indexable, true);
+    assert.equal(seo.publicMetadata('/', 'Home').crawlAllowed, false);
   } else {
     assert.match(robots, /^User-agent: \*$/m);
     assert.match(robots, /Sitemap:/);
     assert.match(robots, /Disallow: \/tenant/m);
     assert.match(robots, /Disallow: \/integrations/m);
     assert.equal(seo.publicMetadata('/', 'Home').indexable, true);
+    assert.equal(seo.publicMetadata('/', 'Home').crawlAllowed, true);
   }
 });
 
@@ -58,7 +60,6 @@ test('each indexable original marketing page has unique, aligned title and descr
     seenTitles.add(title); seenDescriptions.add(description);
     assert.ok(template.includes('content="' + title + '"'), name + ' Open Graph title');
     assert.ok(template.includes('content="' + description + '"'), name + ' Open Graph description');
-    const canonical = name === 'home' ? appUrl + '/' : appUrl + '/' + name;
     assert.ok(template.includes('rel="canonical" href="<%= appUrl %>/' + (name === 'home' ? '' : name) + '"'), name + ' canonical');
     assert.match(template, /<h1\b/, name + ' heading missing');
   }

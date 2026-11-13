@@ -72,7 +72,7 @@
         <p class="auth-helper">Enter your email address and password. Your dashboard is selected automatically based on your account.</p><%- include('../partials/flash', {flash:typeof flash==='undefined'?null:flash}) %>
         <form autocomplete="on" method="post" action="/signin"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <label><span>Email address</span><input type="email" name="email" placeholder="Email address" autocomplete="username" required /></label>
-          <label><span>Password</span><input type="password" name="password" placeholder="Password" autocomplete="current-password" required /></label>
+          <label><span>Password</span><span class="authPasswordField"><input id="signinPassword" type="password" name="password" placeholder="Password" autocomplete="current-password" required /><button class="authPasswordToggle" type="button" data-password-toggle aria-controls="signinPassword" aria-pressed="false" aria-label="Show password"><i class="fa-solid fa-eye" aria-hidden="true"></i><span>Show</span></button></span></label>
           <div class="auth-mini"><a href="/forgot-password">Forgot password?</a></div>
           <button class="btn btn-dark" type="submit">Sign in</button>
 

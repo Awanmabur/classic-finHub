@@ -10,8 +10,8 @@ const PRIVATE_PREFIXES = Object.freeze([
   '/health', '/integrations'
 ]);
 const PUBLIC_PAGE_META = Object.freeze({
-  '/marketplace':{title:'Module marketplace | ClassicFin Hub',description:'Explore separately subscribed ClassicFin Hub modules for reviewed manual financial operations, reports, analytics and supported Android SMS capture.'},
-  '/product-guide':{title:'Product and operating guide | ClassicFin Hub',description:'Understand ClassicFin Hub tenant workspaces, manual financial books, wallet funding, independent review, branch views, reports and supported SMS capture.'}
+  '/marketplace':{title:'Finance Operations Software Modules | ClassicFin Hub',description:'Explore mobile money agent management, money transfer, banking and forex recordkeeping, cash controls, reporting and optional Android SMS capture modules.'},
+  '/product-guide':{title:'Mobile Money & Finance Operations Software Guide | ClassicFin Hub',description:'See how ClassicFin Hub manages mobile money agent records, branch float, financial books, independent approvals, cash reconciliation and supported SMS capture.'}
 });
 const xml=value=>String(value).replace(/[&<>\"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&apos;'}[char]));
 function robotsTxt() {
@@ -33,12 +33,13 @@ function sitemapXml() {
 function publicMetadata(path,title) {
   const page=PUBLIC_PAGE_META[path]||{},canonical=appUrl+path;
   const description=page.description||'ClassicFin Hub is a modular financial operations workspace by Classic Technologies.';
-  return {title:page.title||title||'ClassicFin Hub',description,canonical,image:appUrl+'/images/classicfinhub-logo.png',indexable:INDEXABLE_PATHS.includes(path),graph:{
+  return {title:page.title||title||'ClassicFin Hub',description,canonical,image:appUrl+'/images/classicfinhub-logo.png',indexable:indexingEnabled&&INDEXABLE_PATHS.includes(path),graph:{
     '@context':'https://schema.org','@graph':[
-      {'@type':'Organization','@id':appUrl+'/#organization',name:'Classic Technologies',url:appUrl,logo:appUrl+'/images/classicfinhub-logo.png'},
+      {'@type':'Organization','@id':appUrl+'/#organization',name:'Classic Technologies',url:'https://classictechgroup.com'},
       {'@type':'WebSite','@id':appUrl+'/#website',name:'ClassicFin Hub',url:appUrl,publisher:{'@id':appUrl+'/#organization'}},
       {'@type':'WebPage','@id':canonical+'#webpage',url:canonical,name:page.title||title||'ClassicFin Hub',description,inLanguage:'en',isPartOf:{'@id':appUrl+'/#website'},publisher:{'@id':appUrl+'/#organization'}},
-      ...(path==='/product-guide'?[{'@type':'SoftwareApplication','@id':appUrl+'/#application',name:'ClassicFin Hub',applicationCategory:'FinanceApplication',operatingSystem:'Web browser',url:appUrl,softwareVersion:require('../../package.json').version,description,publisher:{'@id':appUrl+'/#organization'}}]:[])
+      ...((path==='/'||path==='/product-guide')?[{'@type':'SoftwareApplication','@id':appUrl+'/#application',name:'ClassicFin Hub',applicationCategory:'FinanceApplication',operatingSystem:'Web browser',url:appUrl,softwareVersion:require('../../package.json').version,description:'Multi-tenant financial operations software for manual mobile money, transfer, banking and forex records, branch cash controls and audited reporting.',provider:{'@id':appUrl+'/#organization'}}]:[]),
+      ...(path!=='/'&&INDEXABLE_PATHS.includes(path)?[{'@type':'BreadcrumbList',itemListElement:[{'@type':'ListItem',position:1,name:'Home',item:appUrl+'/'},{'@type':'ListItem',position:2,name:(page.title||title||path.slice(1)).split('|')[0].trim(),item:canonical}]}]:[])
     ]
   }};
 }

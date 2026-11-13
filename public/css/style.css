@@ -1134,3 +1134,11 @@ a:focus-visible,button:focus-visible,.compare-table-wrap:focus-visible{outline:3
 .product-guide .feature-card p{line-height:1.7;margin:0}
 .product-guide .hero-actions{margin-bottom:22px}
 @media(max-width:700px){.product-guide .feature-grid{grid-template-columns:1fr}.product-guide .feature-card{padding:20px}.product-guide .section{padding-top:20px;padding-bottom:20px}}
+
+
+/* Sign-in and tenant setup cards need visible separation at all viewports. */
+.auth-body .auth-main .auth-shell{display:grid;column-gap:clamp(18px,2.5vw,36px);row-gap:clamp(18px,2.5vw,30px);align-items:stretch}
+.auth-body .auth-main .auth-panel,.auth-body .auth-main .auth-card{min-width:0}
+.auth-body .auth-main .auth-card form{min-width:0}
+@media(max-width:1050px){.auth-body .auth-main .auth-shell{grid-template-columns:minmax(0,1fr);row-gap:22px}}
+@media(max-width:680px){.auth-body .auth-main .auth-shell{row-gap:16px}}

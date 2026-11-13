@@ -37,7 +37,8 @@ async function renderTenantCreate(req,res,values={},error=null){
   const latest=new Map();
   for(const plan of published) if(!latest.has(plan.code)) latest.set(plan.code,plan);
   renderPlatform(req,res,'tenants/create','Create Tenant','Add a workspace and invite its owner.',{
-    plans:[...latest.values()].filter(p=>p.availableForNewTenants!==false),catalogueEmpty:published.length===0,modules,values,error
+    plans:[...latest.values()].filter(p=>p.availableForNewTenants!==false),catalogueEmpty:published.length===0,modules,values,error,
+    inviteMailReady:require('../../config/inviteMail').configured()
   });
 }
 router.get('/tenants/create',async(req,res,next)=>{
@@ -46,8 +47,8 @@ router.get('/tenants/create',async(req,res,next)=>{
 router.post('/tenants',async(req,res,next)=>{
   res.setHeader('Cache-Control','no-store');
   try{
-    const { tenant, inviteUrl }=await provisionTenant({...req.body,slug:''},req.platformUser);
-    renderPlatform(req,res,'tenants/invite','Tenant created','Copy the one-time invitation link securely. It will not be displayed again.',{tenant,inviteUrl});
+    const result=await provisionTenant({...req.body,slug:''},req.platformUser);
+    renderPlatform(req,res,'tenants/invite','Tenant created',result.inviteQueued?'Activation email queued; delivery pending.':'Copy the private activation link; mail delivery is not configured.',result);
   }catch(e){
     if([400,409].includes(e.status)||e.provisioningError){
       if(e.provisioningError){

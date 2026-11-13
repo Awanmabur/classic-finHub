@@ -5,6 +5,12 @@ Source: current GitHub `master` plus onboarding/email/dashboard improvements in 
 
 This is a risk-based review, not a claim that every route, CSS declaration, API, tenant permission, production provider or operating procedure has been exhaustively certified.
 
+## Follow-up changes on master (13 November)
+- Staff invitation revocation now invalidates pending and leased outbox deliveries in the same MongoDB transaction as the tenant invite cancellation. The worker rechecks its current lease before requesting mail delivery. This narrows the revocation/send window but cannot retract messages already accepted by Gmail/Resend; activation remains guarded by tenant invitation status.
+- Added an isolated unit regression for a cancelled leased staff invitation; full CI, authenticated browser flows and real provider delivery have **not** been executed for these follow-up commits.
+- Directory-only spacing and staff invitation rows were polished without changing the approved dashboard layout or financial figure wrapping. Full cross-device UX acceptance is still open.
+- Production application/worker image equivalence and deployment of these commits are not verified. Do not merge a data migration or rotate keys as part of this UI/invitation pass.
+
 ## P0 — must not be marketed as finished or used for unsupported real settlement
 
 1. **Real money rails / external settlement — intentionally disabled.** `src/config/env.js` rejects `REAL_MONEY_ENABLED=true`. Ledger and reviewed manual cash/wallet/bank/forex records are *internal operations*, not proof of externally confirmed funds. Missing: scoped provider APIs, signature-verified webhooks, independently reconciled settlements, reversals/disputes, callbacks with safe idempotency/retry, compliance/KYC/AML and operations signoff. Do not fabricate a payment status.

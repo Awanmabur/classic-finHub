@@ -20,7 +20,7 @@ test('approved tenant and platform styles keep the palette and use rectangular r
  assert.match(tenant,/\/\* END APPROVED INDEX\.HTML CASCADE \*\//);
  const shared=read('public/css/dashboard-layout.css');
  assert.match(shared,/#workspaceContent form\.appointmentFilters\{display:grid/);
- assert.match(shared,/#workspaceContent \.appointmentList\{display:grid/);
+ assert.match(shared,/#workspaceContent \.appointmentTable\{min-width:940px/);
  assert.match(shared,/#workspaceContent \.platformTenantsPage/);
 });
 
@@ -41,10 +41,10 @@ test('platform appointments retain working decision controls and row layout',asy
    data:{appointments:[item],filters:{status:'',q:''},moduleLabels:{mobile_money:'Mobile Money'},nextCursor:null},
    csrfToken:'test-csrf'
  });
- assert.match(html,/class="appointmentList"/);
- assert.match(html,/class="card appointmentCard"/);
- assert.match(html,/class="summary appointmentSummary"/);
- assert.match(html,/class="appointmentDecision"/);
+ assert.match(html,/class="denseDirectory appointmentTable"/);
+ assert.match(html,/data-appointment-toggle/);
+ assert.match(html,/class="appointmentDetailRow"/);
+ assert.match(html,/class="appointmentDecision appointmentRowDecision"/);
  assert.match(html,/name="_csrf" value="test-csrf"/);
  assert.match(html,/name="action" value="confirm"/);
  assert.match(html,/name="action" value="cancel"/);
@@ -57,4 +57,15 @@ test('logout remains CSRF-protected POST and centered progress only affects pres
  assert.match(sidebar,/name="_csrf" value="<%= csrfToken %>"/);
  assert.match(script,/form\[action="\/logout"\]/);
  assert.match(script,/indicator\.hidden=false/);
+});
+
+test('platform audit note is padded, platform account is collapsible and auth cards are spaced',()=>{
+ const audit=read('src/views/platform/audit/index.ejs');
+ const sidebar=read('src/views/partials/dashboard-sidebar.ejs');
+ const script=read('public/js/dashboard.js');
+ const auth=read('public/css/style.css');
+ assert.match(audit,/<div class="cardBody"><p class="tiny">Audit records use/);
+ assert.match(sidebar,/class="sidebarAccount platformAccount"/);
+ assert.match(script,/\[data-appointment-toggle\]/);
+ assert.match(auth,/\.auth-body \.auth-main \.auth-shell\{display:grid;column-gap:/);
 });

@@ -2,7 +2,7 @@
  <section class="card"><div class="cardHead"><b>Appointment requests</b><span>Review, schedule and record the outcome</span></div><div class="cardBody">
   <form method="get" action="/platform/appointments" class="row3 appointmentFilters"><label class="field">Status<select class="control" name="status"><option value="">All statuses</option><% ['pending','confirmed','completed','cancelled'].forEach(status=>{ %><option value="<%= status %>" <%= data.filters.status===status?'selected':'' %>><%= status %></option><% }) %></select></label><label class="field">Business, contact or email<input class="control" name="q" value="<%= data.filters.q %>" maxlength="80" placeholder="Search by starting text"></label><div class="rowBtns"><button class="btn btnPrimary">Apply filters</button><a class="btn" href="/platform/appointments">Clear</a></div></form>
  </div></section>
- <section class="card platformAppointmentDirectory"><div class="cardHead"><b>Appointment requests</b><span><%= data.appointments.length %> shown · open any row to review</span></div>
+ <section class="card platformAppointmentDirectory"><div class="cardHead"><b>Results</b><span><%= data.appointments.length %> shown · open any row to review</span></div>
  <div class="cardBody"><div class="tableWrap"><table class="denseDirectory appointmentTable">
  <thead><tr><th>Business</th><th>Contact</th><th>Preferred date</th><th>Modules</th><th>Status</th><th>Scheduled (UTC)</th><th>Action</th></tr></thead>
  <tbody>

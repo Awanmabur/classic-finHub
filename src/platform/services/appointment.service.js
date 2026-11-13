@@ -29,6 +29,11 @@ async function list(input={}){
  const rows=await Appointment.find(filter).sort({_id:-1}).limit(51).maxTimeMS(5000).lean(),hasMore=rows.length>50,items=rows.slice(0,50);
  return {items:items.map(row=>({...row,modules:Array.isArray(row.modules)?row.modules.filter(key=>typeof key==='string'):[],status:row.status||'pending',revision:row.revision||0})),nextCursor:hasMore?String(items.at(-1)._id):null,filters:{status:input.status||'',q:input.q||''}};
 }
+async function get(appointmentId){
+ const row=await Appointment.findById(id(appointmentId)).maxTimeMS(5000).lean();
+ if(!row)throw fail('Appointment not found',404);
+ return {...row,modules:Array.isArray(row.modules)?row.modules.filter(key=>typeof key==='string'):[],status:row.status||'pending',revision:row.revision||0};
+}
 async function decide(appointmentId,actor,input,{now=new Date()}={}){
  if(!actor?.permissions?.includes('*')||!actor.id)throw fail('Platform administrator required',403);
  const appointment=id(appointmentId),value=normalize(input,now),session=await mongoose.startSession();let result;
@@ -45,4 +50,4 @@ async function decide(appointmentId,actor,input,{now=new Date()}={}){
   await Audit.create([{actorId:String(admin._id),actorName:admin.name,action:'appointment.'+value.action,moduleKey:'appointments',recordId:appointment,before:{status,scheduledAt:prior.scheduledAt||null},after:{...changes,note:value.note}}],{session});
  });return result;}finally{await session.endSession();}
 }
-module.exports={list,decide,normalize,STATUSES};
+module.exports={list,get,decide,normalize,STATUSES};

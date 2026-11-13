@@ -5,9 +5,9 @@
     <div class="stat"><div class="k">Onboarding appointments</div><div class="v"><%= data.appointmentCount %></div><div class="s"><span class="dot warn"></span><%= data.availableModuleCount %> available modules</div></div>
   </div></div></section>
   <div class="grid" style="margin-top:14px">
-    <section class="card"><div class="cardHead"><b>Recent tenants</b><a class="btn" href="/platform/tenants">View all tenants</a></div><div class="cardBody tableWrap"><table><thead><tr><th>Tenant</th><th>Plan</th><th>Status</th><th></th></tr></thead><tbody>
+    <section class="card"><div class="cardHead"><b>Recent tenants</b><a class="btn" href="/platform/tenants">View all tenants</a></div><div class="cardBody tableWrap"><table class="denseDirectory"><thead><tr><th>Tenant</th><th>Plan</th><th>Status</th><th></th></tr></thead><tbody>
       <% if (!data.tenants.length) { %><tr><td colspan="4">No tenants yet. Use Create tenant to add your first workspace.</td></tr><% } %>
-      <% data.tenants.forEach(t=>{ %><tr data-search-row><td><b><%= t.name %></b><br><span class="tiny"><%= t.slug %></span></td><td><%= t.plan %></td><td><span class="tag"><%= t.status %></span></td><td><a class="btn" href="/platform/tenants/<%= t.id %>">Manage</a></td></tr><% }) %>
+      <% data.tenants.forEach(t=>{ %><tr data-search-row><td><div class="dataCellLine" title="<%= t.name %> · <%= t.slug %>"><b><%= t.name %></b><span class="tiny"><%= t.slug %></span></div></td><td><%= t.plan %></td><td><span class="tag"><%= t.status %></span></td><td><a class="btn" href="/platform/tenants/<%= t.id %>">Manage</a></td></tr><% }) %>
     </tbody></table></div></section>
     <section class="card"><div class="cardHead"><b>Platform operations</b><span>Manage your platform</span></div><div class="cardBody txList">
       <a class="tx" href="/platform/appointments"><div class="txMeta"><b>Onboarding appointments</b><span>Review incoming requests</span></div><i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
@@ -15,7 +15,7 @@
       <a class="tx" href="/platform/modules"><div class="txMeta"><b>Module catalogue</b><span><%= data.availableModuleCount %> available modules</span></div><i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
     </div></section>
   </div>
-  <section class="card" style="margin-top:14px"><div class="cardHead"><b>Recent activity</b><span>Administration changes</span><a class="btn" href="/platform/audit">View all</a></div><div class="cardBody tableWrap"><table><thead><tr><th>Time (UTC)</th><th>Action</th><th>Record</th></tr></thead><tbody>
+  <section class="card" style="margin-top:14px"><div class="cardHead"><b>Recent activity</b><span>Administration changes</span><a class="btn" href="/platform/audit">View all</a></div><div class="cardBody tableWrap"><table class="denseDirectory"><thead><tr><th>Time (UTC)</th><th>Action</th><th>Record</th></tr></thead><tbody>
     <% if(!data.recentAudits.length){ %><tr><td colspan="3">No activity to show yet.</td></tr><% } %>
     <% data.recentAudits.forEach(a=>{ %><tr data-search-row><td><%= formatUtcDate(a.createdAt) %></td><td><%= a.action %></td><td><%= a.recordId||'—' %></td></tr><% }) %>
   </tbody></table></div></section>

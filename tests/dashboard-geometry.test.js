@@ -82,7 +82,7 @@ test('tenant detail preview encloses all management cards and has spacing rules'
  assert.match(template,/<section class="view show platformTenantDetailPage">/);
  assert.match(template,/<\/section>\s*$/);
  assert.doesNotMatch(template,/<\/div><\/section><\/section>\s*\n\s*<section class="card"/);
- assert.match(css,/#workspaceContent \.platformTenantDetailPage\{/);
+ assert.match(css,/#workspaceContent \.platformTenantDetailPage\s*,/);
  assert.match(css,/#workspaceContent \.appointmentPreviewPage \.appointmentPreviewField/);
  assert.match(read('public/css/workspace.css'),/data-workspace-page\$="-preview"/);
 });

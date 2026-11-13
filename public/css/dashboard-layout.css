@@ -71,9 +71,9 @@ form[method="get"] .field>.control{min-width:0;width:100%}
 /* Cross-dashboard data density. Preserve approved colors, effects and card geometry. */
 #workspaceContent .cardBody,#workspaceContent .view,#workspaceContent .grid{min-width:0}
 #workspaceContent .tableWrap{width:100%;max-width:100%;overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch}
-#workspaceContent .tableWrap>table{width:100%;min-width:680px;border-collapse:collapse}
-#workspaceContent .tableWrap :is(th,td){vertical-align:middle;white-space:nowrap}
-#workspaceContent .tableWrap :is(th,td):last-child{text-align:right}
+#workspaceContent .tableWrap>table.denseDirectory{width:100%;min-width:680px;border-collapse:collapse}
+#workspaceContent .tableWrap .denseDirectory :is(th,td){vertical-align:middle;white-space:nowrap}
+#workspaceContent .tableWrap .denseDirectory :is(th,td):last-child{text-align:right}
 #workspaceContent .tableWrap .dataCellLine{display:flex;align-items:center;gap:8px;min-width:0;white-space:nowrap}
 #workspaceContent .tableWrap .dataCellLine .tiny{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:245px}
 #workspaceContent .tableWrap .dataCellLine :is(.tag,b){flex-shrink:0}
@@ -81,11 +81,11 @@ form[method="get"] .field>.control{min-width:0;width:100%}
 #workspaceContent .tableWrap .actionLine>form{margin:0;display:inline-flex}
 #workspaceContent .tableWrap .actionLine .btn{white-space:nowrap}
 #workspaceContent .tableWrap .cellEllipsis{display:block;max-width:270px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#workspaceContent .stat .v{white-space:nowrap;overflow-x:auto;overflow-y:hidden;overflow-wrap:normal;text-overflow:clip;scrollbar-width:thin}
+/* Financial totals must not be clipped or silently overflow on small screens. */
 #workspaceContent .rowBtns{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 #workspaceContent .rowBtns>form{margin:0}
 @media(max-width:700px){
- #workspaceContent .tableWrap>table{min-width:720px}
+ #workspaceContent .tableWrap>table.denseDirectory{min-width:720px}
  #workspaceContent .tableWrap .dataCellLine .tiny{max-width:180px}
  #workspaceContent .tableWrap .actionLine{gap:6px}
  #workspaceContent .tableWrap .actionLine .btn{padding-inline:10px}

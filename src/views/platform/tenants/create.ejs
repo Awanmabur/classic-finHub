@@ -25,10 +25,7 @@
   <div class="cardHead"><b>Create tenant</b><span>Workspace and owner details</span></div>
   <div class="cardBody" style="display:grid;gap:12px">
     <% if(data.error){ %><p class="reportBlock" role="alert"><%= data.error %></p><% } %>
-    <div class="row2">
-      <label class="field">Tenant name<input class="control" name="name" required maxlength="150" placeholder="Acme Forex" value="<%= values.name || '' %>" /></label>
-      <label class="field">Slug<input class="control" name="slug" minlength="3" maxlength="17" pattern="[A-Za-z0-9][A-Za-z0-9\-]{1,15}[A-Za-z0-9]" placeholder="acme-forex" value="<%= values.slug || '' %>" /><span class="tiny">Optional, up to 17 characters on Atlas Free. Generated from the tenant name if left blank. Before creating a tenant, give the production web database user readWrite access to its exact tenant database in Atlas; existing tenant roles must remain.</span></label>
-    </div>
+    <label class="field">Tenant name<input class="control" name="name" required maxlength="150" placeholder="Acme Forex" autocomplete="organization" value="<%= values.name || '' %>" /><span class="tiny">The workspace database name is generated automatically from the first word. If another tenant uses that name, FinHub adds a unique number.</span></label>
     <div class="row2">
       <label class="field">Owner<input class="control" name="owner" required maxlength="120" value="<%= values.owner || '' %>" /></label>
       <label class="field">Owner email<input class="control" type="email" name="email" required maxlength="254" value="<%= values.email || '' %>" /></label>

@@ -957,7 +957,7 @@ textarea,textarea.control,.field textarea,.tenantCleanField textarea{border-radi
 .denseDirectory td:last-child .btn{max-width:100%;white-space:normal;text-align:center}
 .denseDirectory td{vertical-align:middle}
 .denseDirectory .dataCellLine{min-width:0;max-width:280px;overflow-wrap:anywhere}
-.tenantAuditNote{margin:14px 0 0;line-height:1.6;overflow-wrap:anywhere}
+.tenantAuditNote{margin:0;line-height:1.6;overflow-wrap:anywhere}
 .signoutProgress{position:fixed;inset:0;z-index:120;display:grid;place-items:center;padding:20px;background:rgba(11,24,44,.58);backdrop-filter:blur(4px)}
 .signoutProgress[hidden]{display:none!important}
 .signoutProgressContent{width:min(360px,100%);padding:28px 22px;border-radius:22px;text-align:center;background:var(--card);color:var(--text);border:1px solid var(--border);box-shadow:var(--shadow)}

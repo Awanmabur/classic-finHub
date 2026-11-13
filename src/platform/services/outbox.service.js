@@ -21,7 +21,7 @@ function validPayload(input,type){
     (expiresAt&&Number.isNaN(expiresAt.valueOf())))throw new Error('Outbox event requires valid notification metadata');
   if(INVITE_TYPES.has(type)){
     const recipientName=String(input?.recipientName||'').trim();
-    if(!expiresAt||recipientName.length<2||recipientName.length>120||
+    if(!expiresAt||recipientName.length<1||recipientName.length>120||
       !mongoose.isValidObjectId(input?.inviteId)||typeof input?.encryptedUrl!=='string'||
       input.encryptedUrl.length<40||input.encryptedUrl.length>4096)
       throw new Error('Invitation outbox payload must include an encrypted link and valid expiry');

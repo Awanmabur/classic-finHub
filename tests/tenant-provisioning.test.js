@@ -17,10 +17,11 @@ test('tenant creation preserves contact details and normalizes uppercase slugs a
 });
 test('generated and explicit slugs fit the MongoDB database-name limit',()=>{
   const generated=checkPayload(payload({slug:'',name:'A'.repeat(150)}));
-  assert.equal(generated.slug.length,42);
-  assert.equal(Buffer.byteLength(tenantDbNameFromSlug(generated.slug)),63);
-  assert.equal(checkPayload(payload({slug:'a'.repeat(42)})).slug.length,42);
-  assert.throws(()=>checkPayload(payload({slug:'a'.repeat(43)})),{status:400});
+  assert.equal(generated.slug.length,17);
+  assert.equal(Buffer.byteLength(tenantDbNameFromSlug(generated.slug)),38);
+  assert.equal(checkPayload(payload({slug:'a'.repeat(17)})).slug.length,17);
+  assert.throws(()=>checkPayload(payload({slug:'a'.repeat(18)})),{status:400});
+  assert.throws(()=>checkPayload(payload({slug:'a'.repeat(42)})),{status:400});
   assert.throws(()=>tenantDbNameFromSlug('a'.repeat(43)));
   const tenant=new Tenant({name:'Acme',slug:'a'.repeat(43),dbName:'unused',email:'a@example.invalid',plan:'modular',status:'trial'});
   assert(tenant.validateSync().errors.slug);
@@ -42,7 +43,7 @@ test('tenant create form escapes retained values and presents validation feedbac
   assert.doesNotMatch(html,/<script>/);
   assert.match(html,/Published Workspace/);
   assert.match(html,/value="modular" selected/);
-  assert.match(html,/maxlength="42"/);
+  assert.match(html,/maxlength="17"/);
   assert.match(html,/value="\+256 700"/);
 });
 test('empty catalogue offers an administrator setup action instead of an unusable create form',async()=>{

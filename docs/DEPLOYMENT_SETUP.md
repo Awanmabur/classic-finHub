@@ -23,7 +23,8 @@ host files, never in chat.
    development sample data into production.
 4. Plan the first tenant's slug. Slug `kampala-money` maps to database
    `classicfin_tenant_kampala_money_db`; hyphens become underscores. The slug must
-   meet the application's validation and be at most 42 characters. Each tenant
+   meet the application's validation and be at most 17 characters on Atlas Free (the
+   full prefixed database name must fit the Free cluster's 38-byte limit). Each tenant
    has a separate logical database in the same deployment.
 5. Under **Database Access**, create three different database users with different
    strong passwords: one for web/provisioning, one for platform outbox delivery,

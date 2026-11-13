@@ -31,7 +31,7 @@ const PlanVersion=require('../src/platform/models/PlanVersion');
 const mfa=require('../src/platform/services/mfa.service');
 const createApp=require('../src/app');
 const password='CFH-Provision-Integration#2026';
-const slug=`probe-tenant-${nonce}-`+'a'.repeat(42-14-nonce.length);
+const slug=`p-${nonce.slice(0,15)}`; // 17 characters: Atlas Free 38-byte tenant DB name
 let server;
 const extraSlugs=new Set();
 function csrf(html){const result=html.match(/name="_csrf" value="([a-f0-9]{64})"/);assert(result,'CSRF token rendered');return result[1];}
@@ -124,7 +124,7 @@ async function main(){
   }finally{failure='';native.createIndexes=originalIndex;}
   assert(failedIndexes>0,'the native index failure was actually exercised');
   // Revocation while the final DDL stage completes cannot publish a workspace.
-  const revokedSlug='revoked-'+nonce;extraSlugs.add(revokedSlug);
+  const revokedSlug='r-'+nonce.slice(0,15);extraSlugs.add(revokedSlug);
   const fundedModels=require('../src/tenant/funded/models'),originalEnsure=fundedModels.ensureIndexes;
   fundedModels.ensureIndexes=async function(connection){await originalEnsure(connection);if(connection.name===require('../src/config/tenantDatabaseName').tenantDbNameFromSlug(revokedSlug))await Admin.updateOne({_id:admin._id},{$set:{status:'disabled'}});};
   try{
@@ -139,7 +139,7 @@ async function main(){
   assert.equal(tenantConnection.config.autoIndex,false);
   const indexes=await tenantConnection.db.collection('securemobiletransactions').indexes();assert(indexes.some(index=>index.unique&&index.key.idempotencyKey===1),'unique financial indexes precede publication');
   const tenant=await Tenant.findOne({slug});assert(tenant);assert.equal(tenant.phone,values.phone);assert.equal(tenant.setupStatus,'invited');
-  assert.equal(Buffer.byteLength(tenant.dbName),63,'longest valid slug creates a valid database');
+  assert.equal(Buffer.byteLength(tenant.dbName),38,'longest allowed new tenant slug fits Atlas Free database limit');
   assert.equal(tenant.subscription.planCode,'modular');assert(tenant.subscription.periodEnd>new Date());assert.deepEqual(tenant.enabledModules,[]);
   const invite=await Invite.findOne({tenantId:tenant._id}).lean();assert(invite);assert(!JSON.stringify(invite).includes(token),'raw invitation token not persisted');
   assert(await Audit.exists({action:'tenant.created',recordId:String(tenant._id)}));

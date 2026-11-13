@@ -15,6 +15,12 @@ test('tenant creation preserves contact details and normalizes uppercase slugs a
   assert.equal(result.phone,'+256 700 000 123');
   assert.deepEqual(result.enabledModules,[]);
 });
+test('new tenant database identity uses the first word',()=>{
+  assert.equal(checkPayload(payload({slug:'',name:'Classic Finance South Sudan'})).slug,'classic');
+  assert.equal(checkPayload(payload({slug:'',name:'A Financial Company'})).slug,'a-financial');
+  assert.equal(checkPayload(payload({slug:'',name:'  École Finance  '})).slug,'ecole');
+  assert.equal(checkPayload(payload({slug:'',name:'AB'})).slug,'tenant');
+});
 test('generated and explicit slugs fit the MongoDB database-name limit',()=>{
   const generated=checkPayload(payload({slug:'',name:'A'.repeat(150)}));
   assert.equal(generated.slug.length,17);
@@ -43,7 +49,8 @@ test('tenant create form escapes retained values and presents validation feedbac
   assert.doesNotMatch(html,/<script>/);
   assert.match(html,/Published Workspace/);
   assert.match(html,/value="modular" selected/);
-  assert.match(html,/maxlength="17"/);
+  assert.doesNotMatch(html,/name="slug"/,'slug must not be user editable');
+  assert.match(html,/generated automatically from the first word/);
   assert.match(html,/value="\+256 700"/);
 });
 test('empty catalogue offers an administrator setup action instead of an unusable create form',async()=>{

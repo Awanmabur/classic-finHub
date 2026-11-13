@@ -102,7 +102,7 @@ test('revoked leased staff invitations cannot reach mail delivery',async()=>{
   const oldKey=process.env.INVITE_MAIL_ENCRYPTION_KEY_HEX;
   process.env.INVITE_MAIL_ENCRYPTION_KEY_HEX=crypto.randomBytes(32).toString('hex');
   try{
-    const appUrl=String(process.env.APP_URL||'http://localhost:3000').replace(/\\/$/,'');
+    const appUrl=String(process.env.APP_URL||'http://localhost:3000').replace(/\/$/,'');
     const inviteJob={...job,type:'tenant.staff.invited',eventKey:'tenant.staff.invited:revocation-test',
       payload:{to:'staff@example.org',tenantName:'Example Finance',recipientName:'Staff Person',
         inviteId:new mongoose.Types.ObjectId(),expiresAt:new Date(Date.now()+3600000),

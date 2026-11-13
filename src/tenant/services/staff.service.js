@@ -11,6 +11,8 @@ const { staffInviteModel, tenantUserModel, auditEventModel, ensureTenantIndexes 
 const { getTenantConnection } = require('../../config/mongo');
 const { validatePassword } = require('../../platform/services/authentication.service');
 const { appUrl } = require('../../config/env');
+const inviteMail=require('../../config/inviteMail');
+const outbox=require('../../platform/services/outbox.service');
 function invalid(message,status=400){const e=new Error(message);e.status=status;return e;}
 function checkStaff(input){
   const name=String(input.name||'').trim();const email=String(input.email||'').trim().toLowerCase();const role=String(input.role||'');
@@ -19,6 +21,7 @@ function checkStaff(input){
 }
 async function issueInvite(tenant,operator,input){
   if(!policy.canManage(operator))throw policy.denied();
+  const inviteQueued=inviteMail.configured();
   const values=checkStaff(input);
   values.branchId=String(input.branchId||'');
   if(!/^[a-f0-9]{24}$/i.test(values.branchId))throw invalid('An active branch assignment is required');
@@ -46,7 +49,11 @@ async function issueInvite(tenant,operator,input){
       if(await Invite.exists({email:values.email,status:'pending'}).session(session))throw invalid('An active invitation already exists for this email',409);
       const reserved=await Tenant.findOneAndUpdate({_id:tenant._id, seatsReserved:{$lt:limits.users}},{$inc:{seatsReserved:1}}, {new:true,session});
       if(!reserved)throw invalid('The tenant has reached the plan user-seat limit',409);
-      const [invite]=await Invite.create([{...values,tokenHash,createdBy:operator.id,expiresAt:new Date(Date.now()+24*60*60*1000),status:'pending'}],{session});
+      const expiresAt=new Date(Date.now()+24*60*60*1000);
+      const [invite]=await Invite.create([{...values,tokenHash,createdBy:operator.id,expiresAt,status:'pending'}],{session});
+      if(inviteQueued)await outbox.enqueue({key:`tenant.staff.invited:${invite._id}`,type:'tenant.staff.invited',tenantId:tenant._id,
+        payload:{to:values.email,tenantName:tenant.name,recipientName:values.name,inviteId:invite._id,expiresAt,
+          encryptedUrl:inviteMail.seal(`${appUrl}/accept-staff-invite?tenant=${encodeURIComponent(tenant.slug)}#token=${token}`)},session});
       await Audit.create([{action:'staff.invited',actorId:operator.id,targetId:invite._id,metadata:{role:values.role,branchId:values.branchId,allowedModules:values.allowedModules}}],{session});
     });
   }finally{await session.endSession();}

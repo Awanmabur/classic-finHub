@@ -9,8 +9,10 @@ const GMAIL_SEND_ENDPOINT='https://gmail.googleapis.com/gmail/v1/users/me/messag
 const ADDRESS=/^[^\s@\r\n]+@[^\s@\r\n]+\.[^\s@\r\n]+$/;
 const provider=()=>String(process.env.MAIL_PROVIDER||'resend').toLowerCase();
 function configured() {
-  if(!process.env.MAIL_FROM||!ADDRESS.test(process.env.MAIL_FROM)||!(/^https:\/\//i.test(appUrl)||process.env.NODE_ENV!=='production'))return false;
-  if(provider()==='gmail')return Boolean(process.env.GMAIL_CLIENT_ID&&process.env.GMAIL_CLIENT_SECRET&&process.env.GMAIL_REFRESH_TOKEN);
+  if(!process.env.MAIL_FROM||!(/^https:\/\//i.test(appUrl)||process.env.NODE_ENV!=='production'))return false;
+  // Gmail requires a plain mailbox/verified send-as alias; preserve Resend's
+  // supported \"Display Name <sender@example.com>\" format in existing installs.
+  if(provider()==='gmail')return ADDRESS.test(process.env.MAIL_FROM)&&Boolean(process.env.GMAIL_CLIENT_ID&&process.env.GMAIL_CLIENT_SECRET&&process.env.GMAIL_REFRESH_TOKEN);
   return provider()==='resend'&&Boolean(process.env.RESEND_API_KEY);
 }
 function requireConfigured() {

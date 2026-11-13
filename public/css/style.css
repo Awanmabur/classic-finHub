@@ -1147,3 +1147,19 @@ a:focus-visible,button:focus-visible,.compare-table-wrap:focus-visible{outline:3
 .auth-body .auth-main .auth-shell{column-gap:0!important;row-gap:0!important;gap:0!important}
 @media(min-width:1051px){.auth-body .auth-main .auth-panel{border-top-right-radius:0;border-bottom-right-radius:0}.auth-body .auth-main .auth-card{border-top-left-radius:0;border-bottom-left-radius:0;border-left:0}}
 @media(max-width:1050px){.auth-body .auth-main .auth-panel{border-bottom-left-radius:0;border-bottom-right-radius:0}.auth-body .auth-main .auth-card{border-top-left-radius:0;border-top-right-radius:0;border-top:0}}
+
+/* Keep marketing authentication cards joined: the right card has square left corners. */
+@media(min-width:1051px){
+ .auth-body .auth-main .auth-panel{border-top-right-radius:0!important;border-bottom-right-radius:0!important}
+ .auth-body .auth-main .auth-card{border-top-left-radius:0!important;border-bottom-left-radius:0!important;border-left:0!important}
+}
+@media(max-width:1050px){
+ .auth-body .auth-main .auth-panel{border-bottom-left-radius:0!important;border-bottom-right-radius:0!important}
+ .auth-body .auth-main .auth-card{border-top-left-radius:0!important;border-top-right-radius:0!important;border-top:0!important}
+}
+/* Show/hide password button remains inside the input without taking form space. */
+.auth-body .authPasswordField{position:relative;display:block;min-width:0;width:100%}
+.auth-body .authPasswordField>input{width:100%;padding-right:96px!important;min-width:0}
+.auth-body .authPasswordToggle{position:absolute;right:7px;top:50%;transform:translateY(-50%);display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:72px;min-height:34px;padding:6px 9px;border:1px solid var(--line);border-radius:12px;background:var(--soft);color:var(--ink);font:700 12px/1.2 var(--font,Inter,Arial,sans-serif);cursor:pointer}
+.auth-body .authPasswordToggle:hover{background:var(--paper)}
+.auth-body .authPasswordToggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}

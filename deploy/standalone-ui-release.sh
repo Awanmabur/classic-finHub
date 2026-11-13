@@ -5,9 +5,9 @@ umask 077
 test "$(id -u)" -eq 0 || { echo 'Run with sudo'; exit 1; }
 test "$(hostname -s)" = ct-apps-prod-01
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SHA="$(git -C "$ROOT" rev-parse HEAD)"
+SHA="$(git -c safe.directory="$ROOT" -C "$ROOT" rev-parse HEAD)"
 BASE=c451ae0e1479f7e4dae0db3f9eac279db52312ed
-git -C "$ROOT" merge-base --is-ancestor "$BASE" "$SHA"
+git -c safe.directory="$ROOT" -C "$ROOT" merge-base --is-ancestor "$BASE" "$SHA"
 IMAGE="classicfin:ui-${SHA:0:12}"
 OLD_WEB=classicfin-web-only
 OLD_WORKER=classicfin-worker
@@ -51,7 +51,7 @@ trap 'fail 130' INT
 trap 'fail 143' TERM
 
 echo '=== 1. CHECK EXISTING PRODUCTION ==='
-test -z "$(git -C "$ROOT" status --porcelain)"
+test -z "$(git -c safe.directory="$ROOT" -C "$ROOT" status --porcelain)"
 for n in "${NAMES[@]}"; do
   test "$(docker inspect -f '{{.State.Health.Status}}' "$n")" = healthy
 done
@@ -77,7 +77,7 @@ for n in "${NAMES[@]}"; do
   docker image inspect "$(cat "$SAFE/$n.image")" >/dev/null
 done
 for f in web.env worker.env notifications.env; do install -m 0600 "/etc/classicfin/$f" "$SAFE/$f"; done
-git -C "$ROOT" archive "$SHA" | tar -xf - -C "$STAGE"
+git -c safe.directory="$ROOT" -C "$ROOT" archive "$SHA" | tar -xf - -C "$STAGE"
 chmod -R a+rX "$STAGE"
 
 echo '=== 3. TEST DASHBOARD FIXES AND PRODUCTION BEHAVIOR ==='

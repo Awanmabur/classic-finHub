@@ -231,7 +231,7 @@ router.get('/users', requirePermission('users.manage_branch'), async (req,res,ne
       staffInviteModel(req.tenantDb).find({status:'pending',expiresAt:{$gt:new Date()},...staffPolicy.directoryFilter(req.user),...require('../services/branchView.service').readScope(req.user)}).select('name email role branchId allowedModules expiresAt').lean()
     ]);
     renderTenant(req,res,'users/index','Staff & Roles','Invite staff with fixed permissions, disable access immediately and monitor seat limits.',{
-      users,invitations,roles:staffPolicy.managedRoles(req.user),plan:planForTenant(req.tenant),
+      users,invitations,roles:staffPolicy.managedRoles(req.user),plan:planForTenant(req.tenant),inviteMailReady:require('../../config/inviteMail').configured(),
       branches:(await branchService.list(req.tenant)).filter(b=>b.status==='active' && (req.user.role==='Tenant Owner' || String(b._id)===String(req.user.branchId))),
       assignable:require('../services/moduleAccess.service').assignableModules(req.tenant,req.user.role==='Tenant Owner'?'Tenant Owner':'Branch Manager').filter(m=>req.user.role==='Tenant Owner'||hasModuleForUser(req.tenant,req.user,m))
     });
@@ -252,7 +252,7 @@ router.get('/users/:id/edit',requirePermission('users.manage_branch'),async(req,
 router.post('/users/invite',requirePermission('users.manage_branch'),async(req,res,next)=>{
   try{
     const inviteUrl=await require('../services/staff.service').issueInvite(req.tenant,req.user,req.body);
-    renderTenant(req,res,'users/invite','Staff invitation created','Share the private link securely. It is displayed only once.',{inviteUrl});
+    renderTenant(req,res,'users/invite','Staff invitation created','Secure one-time activation.',{inviteUrl,inviteQueued:require('../../config/inviteMail').configured()});
   }catch(e){next(e);}
 });
 router.post('/users/:id/disable',requirePermission('users.manage_branch'),async(req,res,next)=>{

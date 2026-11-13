@@ -60,7 +60,9 @@ test('logout remains CSRF-protected POST and centered progress only affects pres
  assert.equal((sidebar.match(/method="post" action="\/logout"/g)||[]).length,2);
  assert.match(sidebar,/name="_csrf" value="<%= csrfToken %>"/);
  assert.match(script,/form\[action="\/logout"\]/);
- assert.match(script,/indicator\.hidden=false/);
+ assert.match(script,/signoutDialog\.showModal\(\)/);
+ assert.doesNotMatch(script,/document\.body\.append\(indicator\)/);
+ assert.match(read('src/views/layouts/dashboard.ejs'),/id="dashboardSignoutDialog"/);
 });
 
 test('platform audit note is padded, platform account is collapsible and auth cards are spaced',()=>{
@@ -72,4 +74,22 @@ test('platform audit note is padded, platform account is collapsible and auth ca
  assert.doesNotMatch(sidebar,/class="sidebarAccount platformAccount"/);
  assert.match(script,/form\[action="\/logout"\]/);
  assert.match(auth,/\.auth-body \.auth-main \.auth-shell\{column-gap:0!important/);
+});
+
+test('tenant detail preview encloses all management cards and has spacing rules',()=>{
+ const template=read('src/views/platform/tenants/show.ejs');
+ const css=read('public/css/dashboard-layout.css');
+ assert.match(template,/<section class="view show platformTenantDetailPage">/);
+ assert.match(template,/<\/section>\s*$/);
+ assert.doesNotMatch(template,/<\/div><\/section><\/section>\s*\n\s*<section class="card"/);
+ assert.match(css,/#workspaceContent \.platformTenantDetailPage\{/);
+ assert.match(css,/#workspaceContent \.appointmentPreviewPage \.appointmentPreviewField/);
+ assert.match(read('public/css/workspace.css'),/data-workspace-page\$="-preview"/);
+});
+test('login includes an accessible non-submit password visibility control and joined cards',()=>{
+ const auth=read('src/views/original/signin.ejs');
+ assert.match(auth,/type="button" data-password-toggle/);
+ assert.match(auth,/aria-controls="signinPassword"/);
+ assert.match(read('public/js/script.js'),/data-password-toggle/);
+ assert.match(read('public/css/style.css'),/border-top-left-radius:0!important;border-bottom-left-radius:0!important;border-left:0!important/);
 });

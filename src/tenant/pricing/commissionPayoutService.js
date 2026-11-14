@@ -39,6 +39,18 @@ async function list(conn,tenant,actor){
  const allowed=new Set(accounts.filter(a=>a.kind==='wallet').map(a=>String(a._id)));
  return {records:records.filter(r=>allowed.has(String(r.walletAccountId))),wallets};
 }
+async function summary(conn,tenant,actor){
+ const auth=await treasury.access(conn,tenant,actor,{permission:'treasury.view',sourceType:'mobile_money'});
+ const match={tenantId:auth.tenant._id,status:'posted'};
+ if(!['Tenant Owner','Auditor'].includes(auth.actor.role))match.branchId=oid(String(auth.actor.branchId||''));
+ const groups=await model(conn).aggregate([{$match:match},{$group:{
+  _id:{network:'$network',currency:'$currency'},
+  receivedMinor:{$sum:{$toDecimal:'$amountMinor'}},
+  count:{$sum:1}
+ }},{$sort:{'_id.network':1,'_id.currency':1}}]);
+ return groups.map(g=>({network:g._id.network,currency:g._id.currency,
+  receivedMinor:String(g.receivedMinor),count:g.count}));
+}
 async function propose(conn,tenant,actor,input){
  const values=validate(input);await ensure(conn);
  const session=await conn.startSession();
@@ -103,4 +115,4 @@ async function review(conn,tenant,actor,id,input){
   return result;
  }finally{await session.endSession();}
 }
-module.exports={validate,list,propose,review};
+module.exports={validate,list,summary,propose,review};

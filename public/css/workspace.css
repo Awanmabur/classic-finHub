@@ -160,3 +160,9 @@
 #workspaceContent .mobileEntryBalances .networkBalanceStat small{font-size:11px;color:var(--muted)}
 #workspaceContent [data-mobile-currency-field][hidden],#workspaceContent [data-balance-kind][hidden]{display:none!important}
 #workspaceContent .networkReadOnly{border:1px solid var(--border);border-radius:10px;padding:12px;min-height:42px;background:var(--card2);color:var(--text);font-size:13px}
+
+#workspaceContent .networkOperationList{display:grid;gap:0;border-top:1px solid var(--border);margin-top:3px}
+#workspaceContent .networkOperationRow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px 10px;padding:10px 0;border-bottom:1px solid var(--border);align-items:center}
+#workspaceContent .networkOperationRow>span{font-size:13px;font-weight:650}
+#workspaceContent .networkOperationRow>small{font-size:11px;color:var(--muted);justify-self:end}
+#workspaceContent .networkOperationRow>a{grid-column:1/-1;justify-self:start;font-size:12px;font-weight:650;text-decoration:underline;text-underline-offset:3px}

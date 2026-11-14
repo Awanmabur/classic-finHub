@@ -32,6 +32,13 @@ module.exports=function factory({renderTenant}){
    res.redirect(303,'/tenant/mobile-money/tariffs');
   }catch(e){next(e);}
  });
+ router.post('/:id/edit',throttle,async(req,res,next)=>{
+  try{
+   await service.revise(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
+   flash(req,'good','Draft commission sheet updated. Independent approval is still required.');
+   res.redirect(303,'/tenant/mobile-money/tariffs');
+  }catch(e){next(e);}
+ });
  router.post('/:id/quote',throttle,async(req,res,next)=>{
   try{
    const rows=await service.read(req.tenantDb,req.tenant,req.user);

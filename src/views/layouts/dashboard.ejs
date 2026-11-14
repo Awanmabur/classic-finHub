@@ -26,8 +26,8 @@
        {href:'/tenant/cash/shifts',kind:'cash_shift_open',label:'Open day',permission:'treasury.view',roles:['Tenant Owner','Mobile Money Operator','Money Transfer Operator','Banking Operator','Forex Operator']}
      ].filter(action => visiblePaths.has(action.accessPath||action.href) && (Array.isArray(action.permission) ? action.permission.some(can) : can(action.permission)) && (!action.roles || action.roles.includes(user.role)) && !(action.kind==='cash_shift_open' && data.workspaceSnapshot?.currentCashShift)) : [];
      const transactionOptions = context === 'tenant' ? [
-       {kind:'cash_in',href:'/tenant/mobile-money',label:'Cash-in',description:'Mobile Money',icon:'fa-arrow-down',permission:'mobile_money.cash_in'},
-       {kind:'cash_out',href:'/tenant/mobile-money',label:'Cash-out',description:'Mobile Money',icon:'fa-arrow-up',permission:'mobile_money.cash_out'},
+       {kind:'cash_in',href:'/tenant/mobile-money',label:'Deposit',description:'Mobile Money',icon:'fa-arrow-down',permission:'mobile_money.cash_in'},
+       {kind:'cash_out',href:'/tenant/mobile-money',label:'Withdrawal',description:'Mobile Money',icon:'fa-arrow-up',permission:'mobile_money.cash_out'},
        {kind:'payout',href:'/tenant/money-transfer',label:'Payout by PIN',description:'Payout verification',icon:'fa-key',permission:'money_transfer.payout'},
        {kind:'transfer',href:'/tenant/money-transfer',label:'Send money / Generate PIN',description:'Money Transfer',icon:'fa-money-bill-transfer',permission:'money_transfer.create'},
        {kind:'banking_deposit',href:'/tenant/banking',label:'Deposit',description:'Banking Operations',icon:'fa-building-columns',permission:'banking.requests.create'},

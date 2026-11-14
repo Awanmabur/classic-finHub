@@ -10,7 +10,7 @@ const {permissionsFor}=require('../src/config/roles');
 const approved={
  Overview:['Today snapshot','New transaction','Last receipt','Remote owner dashboard'],
  'Money Transfer':['Send money / Generate PIN','Payout by PIN','Pending payout queue','Branch transfer balances','Money transfer record','Transfer fee summary','Transfer report summary'],
- 'Mobile Money':['Cash-in','Cash-out','Network activity','Cash impact','Mobile money report'],
+ 'Mobile Money':['Deposit','Withdrawal','Network activity','Cash impact','Mobile money report'],
  'Forex Operations':['Buy forex from customer','Sell forex to customer','Active rate board','Forex cash impact','Forex operation records','Forex report summary'],
  'Banking Operations':['Customers directory','New customer','Customer logbook','Accounts directory','New account','Deposit','Withdraw','Account transfer','Account balances','Account movements','Banking report summary'],
  'Operation Reports':['Daily business report','Open day','Close day','Add expense','Approvals & corrections','Manual movement review','Cash control review','Export CSV','Print report','General reports page','Opening cash report','Closing cash / expected cash','Transaction summary','Expenses report','Transfer report','Mobile report','Banking report'],
@@ -37,7 +37,7 @@ test('fully entitled owner retains approved groups with wallet controls and no d
   assert.doesNotMatch(item.href,/javascript:|undefined|#|\?/);
  }
  assert.deepEqual(menu.find(group=>group.label==='Mobile Money').items.map(item=>[item.label,item.href]),[
-  ['Cash-in','/tenant/mobile-money/cash-in'],['Cash-out','/tenant/mobile-money/cash-out'],['Network activity','/tenant/mobile-money/network-activity'],['Cash impact','/tenant/mobile-money/cash-impact'],['Mobile money report','/tenant/mobile-money/report']
+  ['Deposit','/tenant/mobile-money/cash-in'],['Withdrawal','/tenant/mobile-money/cash-out'],['Network activity','/tenant/mobile-money/network-activity'],['Cash impact','/tenant/mobile-money/cash-impact'],['Mobile money report','/tenant/mobile-money/report']
  ]);
 });
 

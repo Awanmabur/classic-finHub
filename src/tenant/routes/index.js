@@ -70,7 +70,7 @@ router.get('/mobile-money', requireModule('mobile_money'), requirePermission('mo
       branchService.list(req.tenant),
       canReview?mobile.getReviewQueue(req.tenantDb,req.user.id,25,reviewBranch):[],
       canReview?mobile.getVoidQueue(req.tenantDb,req.user.id,25,reviewBranch):[],
-      req.operationBranch&&hasPermission(req.user,'treasury.view')?require('../services/mobileMoneyFunds.service').context(req.tenantDb,req.tenant,req.user,req.operationBranch):null,
+      req.operationBranch?require('../services/mobileMoneyFunds.service').context(req.tenantDb,req.tenant,req.user,req.operationBranch):null,
       require('../pricing/presentation').context(req.tenantDb,req.tenant,req.operationBranch,'mobile_money')
     ]);
     renderTenant(req,res,'mobile-money/index','Mobile Money','Record agent transactions. Provider settlement remains unverified until reconciled.',{

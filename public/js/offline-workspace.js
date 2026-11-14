@@ -229,7 +229,7 @@
   function operationLabel(action, form) {
     if (action === '/tenant/banking/requests') return ({deposit_request: 'Deposit', withdrawal_request: 'Withdraw', transfer_request: 'Account transfer'})[form.elements.namedItem('kind')?.value] || 'Banking request';
     if (action === '/tenant/forex/quotes') return ({buy: 'Buy forex from customer', sell: 'Sell forex to customer'})[form.elements.namedItem('operation')?.value] || 'Forex quotation';
-    return ({'/tenant/mobile-money/cash-in': 'Cash-in', '/tenant/mobile-money/cash-out': 'Cash-out', '/tenant/money-transfer/requests': 'Send money', '/tenant/expenses': 'Expense'})[action] || 'Operation';
+    return ({'/tenant/mobile-money/cash-in': 'Deposit', '/tenant/mobile-money/cash-out': 'Withdrawal', '/tenant/money-transfer/requests': 'Send money', '/tenant/expenses': 'Expense'})[action] || 'Operation';
   }
   function rotateReference(form) { const identity = form.elements.namedItem('idempotencyKey'); if (identity) identity.value = identity.defaultValue = crypto.randomUUID(); }
   function resetForm(form) { form.reset(); rotateReference(form); queueMicrotask(() => form.dispatchEvent(new Event('change', {bubbles: true}))); }

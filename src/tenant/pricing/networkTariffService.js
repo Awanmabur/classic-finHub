@@ -80,7 +80,7 @@ async function revise(conn,tenant,actor,id,input){
  if(!/^(?:0|[1-9][0-9]{0,8})$/.test(String(input.revision))||!Number.isSafeInteger(expected))throw fail('Invalid tariff revision. Reload the sheet.',409);
  const tiers=parseLines(input.bands);
  const evidenceReference=input.evidenceReference;
- if(typeof evidenceReference!=='string'||evidenceReference.trim().length<12||evidenceReference.trim().length>350||/[\\u0000-\\u001f\\u007f]/.test(evidenceReference))throw fail('Provide a valid provider document reference');
+ if(typeof evidenceReference!=='string'||evidenceReference.trim().length<12||evidenceReference.trim().length>350||/[\u0000-\u001f\u007f]/.test(evidenceReference))throw fail('Provide a valid provider document reference');
  const session=await conn.startSession();
  try{
   let output;

@@ -6,7 +6,7 @@
   <p class="tiny"><% if(['Tenant Owner','Mobile Money Operator','Branch Manager','Reconciliation Officer','Auditor'].includes(user.role)){ %><a class="btn" href="/tenant/mobile-money/shifts">Manage physical cash shifts</a><% } %> Obtain independent opening approval before recording Cash payments. Bank and Wallet Balance entries do not move the physical cash drawer. A shift is not provider float or a settled balance.</p>
   <% const overviewAccounts=[...(data.funds?.paymentAccounts||[]).filter(a=>a.kind==='cash'),...(data.funds?.wallets||[])]; %>
   <section class="card mobileAgentBalances" aria-label="Agent cash and electronic float">
-   <div class="cardHead"><div><b>Cash and float balances</b><br><span>Book balances for your assigned branch; verify against physical cash and provider records</span></div><a class="btn" href="/tenant/treasury">Reconcile accounts</a></div>
+   <div class="cardHead"><div><b>Cash and float balances</b><br><span>Book balances for your assigned branch; verify against physical cash and provider records</span></div><% if((user.permissions||[]).some(p=>p==='*'||p==='treasury.view')){ %><a class="btn" href="/tenant/treasury">Reconcile accounts</a><% } %></div>
    <div class="cardBody">
     <% if(overviewAccounts.length){ %>
     <div class="networkBalanceGrid">

@@ -196,7 +196,7 @@
       const kind = tab.dataset.mobileOperation;
       if (!onOperationChange(kind)) return;
       form.dataset.operation = kind;
-      form.querySelector('[data-mobile-operation-label]').value = kind === 'cash_in' ? 'Cash-in' : 'Cash-out';
+      form.querySelector('[data-mobile-operation-label]').value = kind === 'cash_in' ? 'Deposit' : 'Withdrawal';
       form.querySelectorAll('[data-mobile-operation]').forEach(option => {
         const selected = option === tab;
         option.classList.toggle('active', selected);
@@ -380,8 +380,8 @@
   const transactionDialog = document.getElementById('transactionDialog');
   if (transactionDialog && typeof transactionDialog.showModal === 'function') {
     const operations = Object.freeze({
-      cash_in: {page:'/tenant/mobile-money/cash-in',form:'/tenant/mobile-money/cash-in',action:'/tenant/mobile-money/cash-in',title:'Mobile Money - Cash-in',description:'Only mobile money fields are shown.'},
-      cash_out: {page:'/tenant/mobile-money/cash-out',form:'/tenant/mobile-money/cash-out',action:'/tenant/mobile-money/cash-out',title:'Mobile Money - Cash-out',description:'Only mobile money fields are shown.'},
+      cash_in: {page:'/tenant/mobile-money/cash-in',form:'/tenant/mobile-money/cash-in',action:'/tenant/mobile-money/cash-in',title:'Mobile Money - Deposit',description:'Only mobile money fields are shown.'},
+      cash_out: {page:'/tenant/mobile-money/cash-out',form:'/tenant/mobile-money/cash-out',action:'/tenant/mobile-money/cash-out',title:'Mobile Money - Withdrawal',description:'Only mobile money fields are shown.'},
       transfer: {page:'/tenant/money-transfer/send',form:'/tenant/money-transfer/requests',action:'/tenant/money-transfer/requests',title:'New transaction'},
       payout: {page:'/tenant/funded/payout',form:'/tenant/funded/payout',action:'/tenant/funded/payout',title:'Payout by PIN',keepOpenAfterPost:true},
       banking_deposit: {page:'/tenant/banking/deposit',form:'/tenant/banking/requests',action:'/tenant/banking/requests',entryKind:'deposit_request',title:'Banking - Deposit'},
@@ -472,11 +472,11 @@
         // being edited or waiting for sync keeps its fields and original key.
         refresh=true;
       }
-      // Cash-in/out share one immutable server-issued request key. Switching the
+      // Deposit/out share one immutable server-issued request key. Switching the
       // approved child tabs preserves entered details until the operation saves.
       if(present?.matches('[data-mobile-money-form]')&&['cash_in','cash_out'].includes(kind)){
         selectKind(kind);present.action=operations[kind].action;present.dataset.operation=kind;
-        const label=present.querySelector('[data-mobile-operation-label]');if(label)label.value=kind==='cash_in'?'Cash-in':'Cash-out';
+        const label=present.querySelector('[data-mobile-operation-label]');if(label)label.value=kind==='cash_in'?'Deposit':'Withdrawal';
         window.ClassicFinPricing?.initialise(present);
         present.elements.namedItem('amount')?.dispatchEvent(new Event('input',{bubbles:true}));message('');return;
       }
@@ -596,7 +596,7 @@
       form.reset();form.dataset.operationDirty='false';form.querySelectorAll('[data-feedback-message],[data-offline-saved]').forEach(node=>node.remove());
       const reference=form.elements.namedItem('idempotencyKey');if(reference){const previous=reference.value;reference.value=reference.defaultValue=crypto.randomUUID();form.querySelectorAll('[data-mobile-reference],.summary .mono').forEach(label=>{if(label.hasAttribute('data-mobile-reference')||label.textContent.trim()===previous)label.textContent=reference.value;});}
       if(reload){load(currentKind,{refresh:true});return;}
-      if(form.matches('[data-mobile-money-form]')){form.dataset.operation=currentKind;const label=form.querySelector('[data-mobile-operation-label]');if(label)label.value=currentKind==='cash_in'?'Cash-in':'Cash-out';}
+      if(form.matches('[data-mobile-money-form]')){form.dataset.operation=currentKind;const label=form.querySelector('[data-mobile-operation-label]');if(label)label.value=currentKind==='cash_in'?'Deposit':'Withdrawal';}
       form.dispatchEvent(new Event('input',{bubbles:true}));form.elements.namedItem('amount')?.dispatchEvent(new Event('input',{bubbles:true}));form.dataset.operationDirty='false';message('');
     });
     transactionDialog.addEventListener('cancel',event=>{event.preventDefault();close();});

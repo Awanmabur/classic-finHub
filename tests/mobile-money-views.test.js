@@ -105,3 +105,10 @@ test('network report keeps physical cash, provider float, received commissions a
  assert.match(html,/Only independently reviewed and journal-posted provider credits/);
  assert.doesNotMatch(html,/Total profit: SSP 12.50/);
 });
+
+test('network activity handler supplies a money formatter when actual payouts exist',()=>{
+ const fs=require('node:fs');
+ const route=fs.readFileSync(path.join(__dirname,'../src/tenant/routes/mobileMoneyWorkspace.routes.js'),'utf8');
+ assert.match(route,/commissionReceived,formatMoneyMinor:require\('\.\.\/services\/mobileMoney\.service'\)\.formatMoneyMinor/);
+ assert.match(route,/commissionPayoutService'\)\.summary/);
+});

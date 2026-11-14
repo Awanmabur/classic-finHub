@@ -13,13 +13,14 @@ function recentUtc(){
 }
 const base=()=>({
  network:'MTN SSD',currency:'SSP',walletAccountId:'507f1f77bcf86cd799439011',
- amount:'102.25',providerReference:'MOMO-COMM-REF-123456',
+ amount:'102.25',grossAmount:'102.25',taxWithheld:'0',providerCost:'0',providerReference:'MOMO-COMM-REF-123456',
  statementEvidence:'Official commission line provider statement, ref 123456',
  creditedAt:recentUtc()
 });
 test('commission evidence validates exact SSP amount, network and unique trace reference',()=>{
  const result=payout.validate(base());
  assert.equal(result.amountMinor,'10225');
+ assert.equal(result.grossMinor,'10225');
  assert.equal(result.currency,'SSP');
  assert.equal(result.network,'MTN SSD');
  assert.equal(result.providerReference,'MOMO-COMM-REF-123456');

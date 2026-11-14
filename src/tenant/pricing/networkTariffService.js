@@ -73,6 +73,30 @@ async function propose(conn,tenant,actor,input){
   return output;
  }catch(e){if(e.code===11000)throw fail('The schedule changed concurrently. Reload and try again.',409);throw e;}finally{await session.endSession();}
 }
+async function revise(conn,tenant,actor,id,input){
+ if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(k=>!['bands','evidenceReference','revision','_csrf'].includes(k)))throw fail('Unrecognized tariff edit');
+ const expected=Number(input.revision);
+ if(!/^(?:0|[1-9][0-9]{0,8})$/.test(String(input.revision))||!Number.isSafeInteger(expected))throw fail('Invalid tariff revision. Reload the sheet.',409);
+ const tiers=parseLines(input.bands);
+ const evidenceReference=input.evidenceReference;
+ if(typeof evidenceReference!=='string'||evidenceReference.trim().length<12||evidenceReference.trim().length>350||/[\\u0000-\\u001f\\u007f]/.test(evidenceReference))throw fail('Provide a valid provider document reference');
+ const session=await conn.startSession();
+ try{
+  let output;
+  await session.withTransaction(async()=>{
+   const auth=await workspace.access(conn,tenant,actor,{manage:true,fence:true,session});
+   const prior=await model(conn).findOne({_id:objectId(id),tenantId:auth.tenant._id,status:'draft',revision:expected}).session(session).lean();
+   if(!prior)throw fail('Draft changed or was already approved. Reload the page.',409);
+   validateTariff({network:prior.network,currency:prior.currency,operation:prior.operation,status:'draft',tiers});
+   output=await model(conn).findOneAndUpdate({_id:prior._id,tenantId:auth.tenant._id,status:'draft',revision:expected},
+    {$set:{tiers,evidenceReference:evidenceReference.trim()},$inc:{revision:1}},{session,new:true,runValidators:true}).lean();
+   if(!output)throw fail('Draft changed while saving. Reload.',409);
+   await auditEventModel(conn).create([{actorId:auth.actor.id,action:'mobile_money.tariff.revised',targetId:prior._id,
+    metadata:{network:prior.network,operation:prior.operation,currency:prior.currency,version:prior.version,revision:output.revision}}],{session});
+  });
+  return output;
+ }finally{await session.endSession();}
+}
 async function decide(conn,tenant,actor,id,decision){
  if(!['approve','retire'].includes(decision))throw fail('Choose a valid tariff decision');
  await ensure(conn);
@@ -104,4 +128,4 @@ function preview(schedule,amountMinor){
  return quote({network:schedule.network,currency:schedule.currency,operation:schedule.operation,status:'draft',
    providerEvidence:schedule.evidenceReference,effectiveFrom:schedule.effectiveFrom,tiers:schedule.tiers},amountMinor);
 }
-module.exports={parseLines,serializeLines,validateInput,read,propose,decide,preview};
+module.exports={parseLines,serializeLines,validateInput,read,propose,revise,decide,preview};

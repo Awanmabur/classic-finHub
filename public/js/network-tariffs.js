@@ -76,77 +76,115 @@
     syncWallet();
   }
 
-  // Keep the original comma-separated textarea as the canonical server input
-  // and as a functional no-JavaScript fallback. An enhanced table is optional.
+  // UI shows amounts in the selected currency, not internal minor units.
+  // The canonical hidden textarea remains the existing server-validated payload.
   root.querySelectorAll('textarea[data-rate-editor]').forEach(textarea=>{
-    const wrapper=textarea.closest('.field');
-    if(!wrapper)return;
-    const tableRegion=create('div',{className:'networkRateEditor'});
-    const scroller=create('div',{className:'networkTariffScroll',role:'region',tabindex:'0','aria-label':'Editable amount ranges'});
+    const wrapper=textarea.closest('.field'),form=textarea.closest('form');
+    if(!wrapper||!form)return;
+    const currency=()=>form.querySelector('[data-provider-currency]')?.value||form.dataset.editorCurrency||'';
+    const factor=c=>c==='UGX'?1n:100n;
+    const decode=(raw,c)=>{
+      if(!/^(?:0|[1-9]\d*)$/.test(String(raw)))return String(raw||'');
+      const n=BigInt(raw),f=factor(c),whole=(n/f).toString();
+      if(f===1n)return whole;
+      return whole+'.'+(n%f).toString().padStart(2,'0');
+    };
+    const encode=(raw,c)=>{
+      if(!c||!['UGX','SSP','KES','USD'].includes(c))return null;
+      const text=String(raw||'').trim();
+      const regex=c==='UGX'?/^(?:0|[1-9]\d{0,17})$/:/^(?:0|[1-9]\d{0,17})(?:\.\d{1,2})?$/;
+      if(!regex.test(text))return null;
+      const parts=text.split('.');
+      const n=BigInt(parts[0])*factor(c)+(c==='UGX'?0n:BigInt((parts[1]||'').padEnd(2,'0')||'0'));
+      const result=n.toString();
+      return result.length<=18?result:null;
+    };
+    const toPercent=raw=>decode(String(raw||'0'),'SSP');
+    const fromPercent=raw=>{
+      const match=String(raw||'').trim();
+      if(!/^(?:0|[1-9]\d{0,2})(?:\.\d{1,2})?$/.test(match))return null;
+      const parts=match.split('.');
+      const bps=BigInt(parts[0])*100n+BigInt((parts[1]||'').padEnd(2,'0')||'0');
+      return bps<=10000n?bps.toString():null;
+    };
+    const editor=create('div',{className:'networkRateEditor'});
+    const scroller=create('div',{className:'networkTariffScroll',role:'region',tabindex:'0','aria-label':'Editable commission ranges; scroll horizontally for more columns'});
     const table=create('table',{className:'networkRateTable'});
-    const thead=create('thead');
-    const row=create('tr');
-    ['Minimum (minor units)','Maximum (minor units)','Rate type','Rate value',''].forEach(t=>row.append(create('th',{},t)));
-    thead.append(row);
+    const thead=create('thead'),head=create('tr');
+    ['From amount','To amount','Calculation','Commission amount or %',''].forEach(value=>head.append(create('th',{},value)));
+    thead.append(head);
     const tbody=create('tbody');
     table.append(thead,tbody);scroller.append(table);
-    const bar=create('div',{className:'networkRateToolbar'});
+    const toolbar=create('div',{className:'networkRateToolbar'});
     const add=create('button',{type:'button',className:'btn'},'Add amount range');
-    const hint=create('small',{},'Use whole minor units: UGX 1 = 1; SSP 1.00 = 100. Percentage rates use basis points (100 = 1%).');
-    bar.append(add,hint);
-    tableRegion.append(scroller,bar);
-    wrapper.after(tableRegion);
-    const initial=textarea.value.trim().split(/\r?\n/).filter(Boolean);
-    const append=(values=['','','flat',''])=>{
-      if(tbody.children.length>=250)return;
-      const tr=create('tr');
-      const fields=[];
-      for(let i=0;i<4;i++){
-        const td=create('td');
-        let input;
-        if(i===2){
-          input=create('select',{className:'control','aria-label':'Rate type'});
-          [['flat','Fixed amount'],['basis_points','Percentage']].forEach(([value,text])=>{
-            const option=create('option',{value},text);input.append(option);
-          });
-          input.value=values[i]==='basis_points'?'basis_points':'flat';
-        }else{
-          input=create('input',{className:'control',type:'text',inputmode:'numeric',pattern:'(?:0|[1-9][0-9]*)','aria-label':['Minimum minor units','Maximum minor units','','Rate value'][i]});
-          input.value=values[i]||'';
-          input.required=true;
-        }
-        fields.push(input);
-        td.append(input);tr.append(td);
+    const help=create('small',{},'Enter actual amounts in the selected currency (for example, SSP 1,000.00). Fixed commissions use that currency; percentages use 2.5 for 2.5%.');
+    toolbar.append(add,help);editor.append(scroller,toolbar);wrapper.after(editor);
+    function sync(){
+      const c=currency();
+      const lines=[];
+      for(const tr of tbody.rows){
+        const fields=[...tr.querySelectorAll('input,select')];
+        const min=encode(fields[0].value,c),max=encode(fields[1].value,c);
+        const kind=fields[2].value;
+        const amount=kind==='basis_points'?fromPercent(fields[3].value):encode(fields[3].value,c);
+        if(!min||!max||amount===null){textarea.value='';return false;}
+        lines.push([min,max,kind,amount].join(', '));
       }
-      const actions=create('td');
+      textarea.value=lines.join('\n');
+      return lines.length>0;
+    }
+    const append=(raw=['','','flat',''])=>{
+      if(tbody.rows.length>=250)return;
+      const tr=create('tr'),cells=[];
+      for(let col=0;col<4;col++){
+        const td=create('td');
+        let control;
+        if(col===2){
+          control=create('select',{className:'control','aria-label':'Commission calculation'});
+          [['flat','Fixed commission'],['basis_points','Percentage (%)']].forEach(([value,label])=>control.append(create('option',{value},label)));
+          control.value=raw[col]==='basis_points'?'basis_points':'flat';
+        }else{
+          control=create('input',{className:'control',type:'text',inputmode:'decimal','aria-label':['Minimum amount','Maximum amount','','Commission amount or percentage'][col],placeholder:col===3?'0.00':'0'});
+          control.required=true;
+          control.value=col===3&&raw[2]==='basis_points'?toPercent(raw[col]):raw[col]?decode(raw[col],currency()):'';
+        }
+        cells.push(control);td.append(control);tr.append(td);
+      }
+      const actionCell=create('td');
       const remove=create('button',{type:'button',className:'btn','aria-label':'Remove this amount range'},'Remove');
       remove.addEventListener('click',()=>{tr.remove();sync();});
-      actions.append(remove);tr.append(actions);
-      tbody.append(tr);
-      fields.forEach(field=>field.addEventListener('input',sync));
-      fields.forEach(field=>field.addEventListener('change',sync));
+      actionCell.append(remove);tr.append(actionCell);tbody.append(tr);
+      cells.forEach((field,index)=>{
+        field.addEventListener('input',sync);
+        field.addEventListener('change',()=>{
+          if(index===2)cells[3].value=''; // switching fixed/percent requires an explicit new rate
+          sync();
+        });
+      });
       sync();
     };
-    function sync(){
-      textarea.value=[...tbody.rows].map(tr=>[...tr.querySelectorAll('input,select')].map(el=>el.value.trim()).join(', ')).join('\n');
-    }
-    initial.forEach(line=>{
-      const parts=line.split(',').map(v=>v.trim());
+    const original=textarea.value.trim().split(/\r?\n/).filter(Boolean);
+    original.forEach(line=>{
+      const parts=line.split(',').map(x=>x.trim());
       if(parts.length===4)append(parts);
     });
     if(!tbody.rows.length)append();
     add.addEventListener('click',()=>append());
-    // Do not conceal the fallback until the enhanced editor is operational.
+    for(const selector of ['[data-provider-select]','[data-tariff-market-wallet]']){
+      form.querySelector(selector)?.addEventListener('change',sync);
+    }
     textarea.hidden=true;
     textarea.setAttribute('aria-hidden','true');
     textarea.removeAttribute('required');
-    wrapper.closest('form')?.addEventListener('submit',event=>{
-      sync();
-      if(!tbody.rows.length||[...tbody.querySelectorAll('input')].some(input=>!input.value.trim()||!/^(?:0|[1-9][0-9]*)$/.test(input.value.trim()))){
+    form.addEventListener('submit',event=>{
+      if(!sync()){
         event.preventDefault();
-        const bad=[...tbody.querySelectorAll('input')].find(input=>!input.value.trim()||!/^(?:0|[1-9][0-9]*)$/.test(input.value.trim()));
-        bad?.focus();
+        const invalid=[...tbody.querySelectorAll('input')].find(input=>!input.value.trim())||tbody.querySelector('input');
+        invalid?.focus();
         return;
+      }
+      if([...tbody.rows].some(tr=>[...tr.querySelectorAll('input')].some(input=>!input.value.trim()))){
+        event.preventDefault();tbody.querySelector('input')?.focus();
       }
     });
   });

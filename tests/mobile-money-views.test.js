@@ -54,7 +54,7 @@ test('cash-out has its own protected action and tabs respect exact operation per
   const locals = options(); locals.data.operation='cash_out'; locals.user.permissions=['mobile_money.view','mobile_money.cash_out'];
   const html = await render('entry',locals);
   assert.match(html,/action="\/tenant\/mobile-money\/cash-out"/);
-  assert.match(html,/Mobile Money - Customer withdrawal \(Cash-out\)/);
+  assert.match(html,/Mobile Money - Withdraw/);
   assert.match(html,/data-mobile-operation="cash_out"/);
   assert.doesNotMatch(html,/data-mobile-operation="cash_in"/);
   locals.data.canRecord=false;
@@ -86,8 +86,8 @@ test('cash impact retains all approved cards and separates physical cash from re
   assert.match(html,/Bank and Wallet Balance records are excluded/);
   const empty = options(); empty.data.summary.byCurrency=[]; empty.data.records={items:[]};
   const emptyHtml = await render('cash-impact',empty);
-  assert.match(emptyHtml,/<div class="k">Cash-in<\/div>/);
-  assert.match(emptyHtml,/<div class="k">Cash-out<\/div>/);
+  assert.match(emptyHtml,/<div class="k">Deposit<\/div>/);
+  assert.match(emptyHtml,/<div class="k">Withdrawal<\/div>/);
   assert.match(emptyHtml,/<div class="k">Net impact<\/div>/);
 });
 

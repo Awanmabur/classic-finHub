@@ -19,6 +19,17 @@
      <div class="tableWrap"><table><thead><tr><th>Minimum (<%= schedule.currency %>)</th><th>Maximum</th><th>Commission type</th><th>Rate (minor units or bps)</th></tr></thead><tbody>
       <% schedule.tiers.forEach(tier=>{ %><tr><td><%= tier.minMinor %></td><td><%= tier.maxMinor %></td><td><%= tier.rate.kind==='flat'?'Fixed':'Percentage' %></td><td><%= tier.rate.value %><%= tier.rate.kind==='basis_points'?' bps':'' %></td></tr><% }) %>
      </tbody></table></div>
+     <% if(data.canPropose&&schedule.status==='draft'){ %>
+     <details class="networkTariffEdit"><summary>Edit draft rates</summary>
+      <form class="networkTariffForm" method="post" action="/tenant/mobile-money/tariffs/<%= schedule._id %>/edit">
+       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+       <input type="hidden" name="revision" value="<%= schedule.revision %>">
+       <label class="field">Provider agreement or schedule reference<input class="control" name="evidenceReference" minlength="12" maxlength="350" required value="<%= schedule.evidenceReference %>"></label>
+       <label class="field">Rate bands<textarea class="control networkTariffBands" name="bands" rows="7" maxlength="30000" required spellcheck="false"><%= data.serializeLines(schedule.tiers) %></textarea></label>
+       <div class="networkTariffActions"><button class="btn" type="submit">Save draft revisions</button><span class="tiny">Approved schedules are immutable. Updates require an independent review.</span></div>
+      </form>
+     </details>
+     <% } %>
      <% if(data.canReview&&schedule.status==='draft'){ %>
       <div class="networkTariffAction"><p class="tiny">Review the original provider agreement before approving. You cannot approve your own submission.</p>
        <form action="/tenant/mobile-money/tariffs/<%= schedule._id %>/approve" method="post"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btnPrimary">Approve rate sheet</button></form>

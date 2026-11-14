@@ -27,6 +27,9 @@
     setMarket();
     root.querySelectorAll('[data-choose-provider]').forEach(link=>link.addEventListener('click',()=>{
       provider.value=link.dataset.chooseProvider;
+      const operation=link.dataset.chooseOperation;
+      if(operation&&draftForm.elements.namedItem('operation'))draftForm.elements.namedItem('operation').value=operation;
+      if(draftForm.elements.namedItem('scheduleKind'))draftForm.elements.namedItem('scheduleKind').value='agent_commission';
       setMarket();
     }));
   }

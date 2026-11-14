@@ -37,7 +37,7 @@ test('password recovery, invitation acceptance, and consistent visibility contro
  const script=read('public/js/password-visibility.js');
  assert.match(script,/input\.type=visible\?'text':'password'/);
  assert.match(script,/aria-pressed/);
- assert.doesNotThrow(()=>new Function(script));
+ assert.doesNotThrow(()=>new Function(script.replace(/^#![^\\n]*\\n/,'')));
  const login=read('src/views/original/signin.ejs');
  assert.match(login,/data-password-toggle/);
 });

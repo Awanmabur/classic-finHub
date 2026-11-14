@@ -65,7 +65,8 @@ test('tariff-only endpoints do not invoke ledger movements or legacy fee posting
  assert.doesNotMatch(routes+serviceFile,/applyMovements\(|recordMobileMoney\(|ensureCounterAccount\(/);
  assert.match(routes,/requireModule\('mobile_money'\)/);
  assert.match(routes,/requirePermission\('mobile_money.view'\)/);
- assert.match(serviceFile,/workspace\.access\(conn,tenant,actor,\{manage:true,fence:true,session\}\)/);
+ assert.match(serviceFile,/treasury\.access\(conn,tenant,actor,\{permission:'treasury.observe',sourceType:'mobile_money',session,fence:true\}\)/);
+ assert.match(serviceFile,/Only the original agent may edit their branch draft/);
  assert.match(serviceFile,/String\(prior.createdBy\)===auth.actor.id/);
 });
 

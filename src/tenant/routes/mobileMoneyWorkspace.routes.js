@@ -15,8 +15,10 @@ module.exports=function routes({renderTenant}){
     workspace.workspace(req.tenantDb,req.user,req.query,{operation}),branchService.list(req.tenant),
     operation?require('../pricing/presentation').context(req.tenantDb,req.tenant,req.operationBranch,'mobile_money'):[]
    ]);
+   const commissionReceived=view==='network'&&hasPermission(req.user,'treasury.view')?
+    await require('../pricing/commissionPayoutService').summary(req.tenantDb,req.tenant,req.user):[];
    const branchCurrency=require('../services/branchCurrency.service');
-   renderTenant(req,res,`mobile-money/${view}`,title,subtitle,{...data,operation,pricingContext,idempotencyKey:randomUUID(),
+   renderTenant(req,res,`mobile-money/${view}`,title,subtitle,{...data,operation,pricingContext,commissionReceived,idempotencyKey:randomUUID(),
     entryCurrency:req.operationBranch&&operation?branchCurrency.resolve(req.operationBranch,req.query.currency):null,
     entryCurrencies:req.operationBranch?branchCurrency.options(req.operationBranch):[],
     branches:branches.filter(branch=>branch.status==='active'&&(req.user.role==='Tenant Owner'||String(branch._id)===String(req.user.branchId))),

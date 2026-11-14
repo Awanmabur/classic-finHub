@@ -21,7 +21,7 @@ function filters(input={},fixedOperation){
  const result={from:scalar(input,'from'),to:scalar(input,'to'),network:scalar(input,'network'),currency:scalar(input,'currency'),operation:fixedOperation||scalar(input,'operation'),entrySource:scalar(input,'entrySource')};
  if(result.network&&!networks.includes(result.network))throw fail('Choose a supported mobile money network');
  if(result.currency&&!Object.hasOwn(mobile.currencies,result.currency))throw fail('Choose a supported currency');
- if(result.operation&&!['cash_in','cash_out'].includes(result.operation))throw fail('Choose Cash-in or Cash-out');
+ if(result.operation&&!['cash_in','cash_out'].includes(result.operation))throw fail('Choose Deposit or Withdrawal');
  if(result.entrySource&&!['manual','sms'].includes(result.entrySource))throw fail('Choose manual entry or SMS capture');
  const bounds=mobile.dateBounds(result);
  result.from=bounds.$gte.toISOString().slice(0,10);

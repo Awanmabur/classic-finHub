@@ -31,6 +31,10 @@
     <% if(data.mobileFundsState==='branch_required'){ %>
       <p class="tiny">No operating branch is selected for this account. Assign an operating branch in Branch Management before branch balances can be shown. No amounts have been inferred.</p>
     <% }else if(!fundAccounts.length){ %>
+      <div class="networkBalanceGrid">
+       <div class="networkBalanceStat"><span>Physical cash · book balance</span><strong>Not configured</strong><small>Set up and independently approve an operating cash account</small></div>
+       <div class="networkBalanceStat"><span>Electronic float · provider wallet</span><strong>Not configured</strong><small>Create an account for each provider, market and currency</small></div>
+      </div>
       <p class="tiny">No eligible physical cash drawer or network float account is assigned to this operating branch. Configure and independently approve the opening balances in Treasury. Opening a cash shift alone does not create a treasury wallet.</p>
     <% }else{ %>
       <div class="networkBalanceGrid">
@@ -43,7 +47,10 @@
        <% }) %>
       </div>
       <% if(!cashAccounts.length||!floatAccounts.length){ %>
-       <p class="tiny" style="margin-top:12px"><%= !cashAccounts.length?'Physical cash account not configured or not assigned. ':'' %><%= !floatAccounts.length?'Network float account not configured or not assigned.':'' %></p>
+       <div class="networkBalanceGrid" style="margin-top:12px">
+        <% if(!cashAccounts.length){ %><div class="networkBalanceStat"><span>Physical cash</span><strong>Not configured</strong><small>No cash account is available in this branch</small></div><% } %>
+        <% if(!floatAccounts.length){ %><div class="networkBalanceStat"><span>Electronic float</span><strong>Not configured</strong><small>No provider wallet is available in this branch</small></div><% } %>
+       </div>
       <% } %>
     <% } %>
    </div>

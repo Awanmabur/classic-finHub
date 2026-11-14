@@ -2,7 +2,7 @@
    const entryLabel = entryOperation === 'cash_in' ? 'Deposit' : 'Withdraw';
    const entryPermissions = user.permissions || [];
    const entryCan = permission => entryPermissions.includes('*') || entryPermissions.includes(permission);
-   const entryNetworks = data.networksAvailable || ['MTN','MTN SSD','Airtel','Africell','M-Pesa'];
+   const entryNetworks = data.networksAvailable || ['MTN','MTN SSD','Airtel','Africell','M-Pesa','mGURUSH','Digi Cash'];
    const entryNetworkCurrencies={MTN:'UGX','MTN SSD':'SSP',Airtel:'UGX'};
    const entryCurrencyOptions=data.entryCurrencies?.length?data.entryCurrencies:(currentBranch.currencies||['UGX','USD','SSP','KES']).map(code=>({code,label:code==='KES'?'KSH':code}));
    const selectedEntryNetwork=entryNetworks.find(n=>entryNetworkCurrencies[n]&&entryCurrencyOptions.some(c=>c.code===entryNetworkCurrencies[n]))||entryNetworks.find(n=>!entryNetworkCurrencies[n])||entryNetworks[0];

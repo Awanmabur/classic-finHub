@@ -17,13 +17,35 @@
   if(provider){
     const curr=draftForm.querySelector('[data-provider-currency]');
     const label=draftForm.querySelector('[data-provider-currency-display]');
+    const marketWallet=draftForm.querySelector('[data-tariff-market-wallet]');
+    const marketWalletField=draftForm.querySelector('[data-tariff-market-wallet-field]');
+    const branch=draftForm.elements.namedItem('branchId');
     const setMarket=()=>{
-      const code=provider.selectedOptions[0]?.dataset.currency||'';
+      const fixed=provider.selectedOptions[0]?.dataset.currency||'';
+      const needsWallet=Boolean(provider.value&&!fixed);
+      if(marketWallet&&marketWalletField){
+        marketWallet.disabled=!needsWallet;
+        marketWallet.required=needsWallet;
+        marketWalletField.hidden=!needsWallet;
+        const available=[];
+        for(const option of marketWallet.options){
+          if(!option.value)continue;
+          const allowed=needsWallet&&option.dataset.network===provider.value&&
+            option.dataset.branch===branch?.value;
+          option.hidden=!allowed;
+          option.disabled=!allowed;
+          if(allowed)available.push(option);
+        }
+        if(!available.some(o=>o.value===marketWallet.value))marketWallet.value=available.length===1?available[0].value:'';
+      }
+      const code=fixed||(needsWallet?marketWallet?.selectedOptions[0]?.dataset.currency||'':'');
       curr.value=code;
       label.value=code;
-      label.placeholder=code?'':'Select a network first';
+      label.placeholder=needsWallet?'Select a reconciled provider wallet':'Select a network first';
     };
     provider.addEventListener('change',setMarket);
+    branch?.addEventListener('change',setMarket);
+    marketWallet?.addEventListener('change',setMarket);
     setMarket();
     root.querySelectorAll('[data-choose-provider]').forEach(link=>link.addEventListener('click',()=>{
       provider.value=link.dataset.chooseProvider;

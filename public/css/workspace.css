@@ -151,3 +151,12 @@
  #workspaceContent .networkTariffAction form{max-width:100%}
  #workspaceContent .networkTariffAction .btn{width:100%}
 }
+
+/* Agent transaction balance cards, always book values and never invented live provider float. */
+#workspaceContent .mobileEntryBalances{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));gap:10px;margin:10px 0 0;min-width:0}
+#workspaceContent .mobileEntryBalances>.networkBalanceStat{display:grid;gap:5px;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--card2);min-width:0}
+#workspaceContent .mobileEntryBalances .networkBalanceStat span{color:var(--muted);font-size:12px}
+#workspaceContent .mobileEntryBalances .networkBalanceStat strong{font-size:17px;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+#workspaceContent .mobileEntryBalances .networkBalanceStat small{font-size:11px;color:var(--muted)}
+#workspaceContent [data-mobile-currency-field][hidden],#workspaceContent [data-balance-kind][hidden]{display:none!important}
+#workspaceContent .networkReadOnly{border:1px solid var(--border);border-radius:10px;padding:12px;min-height:42px;background:var(--card2);color:var(--text);font-size:13px}

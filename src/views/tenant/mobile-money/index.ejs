@@ -5,6 +5,23 @@
 <section class="view show mobileMoneyPage">
  <%- include('../../partials/operation-branch', {currentBranch, branchProblem, user}) %>
   <p class="tiny"><% if(['Tenant Owner','Mobile Money Operator','Branch Manager','Reconciliation Officer','Auditor'].includes(user.role)){ %><a class="btn" href="/tenant/mobile-money/shifts">Manage physical cash shifts</a><% } %> Obtain independent opening approval before recording Cash payments. Bank and Wallet Balance entries do not move the physical cash drawer. A shift is not provider float or a settled balance.</p>
+  <% const overviewAccounts=[...(data.funds?.paymentAccounts||[]).filter(a=>a.kind==='cash'),...(data.funds?.wallets||[])]; %>
+  <section class="card mobileAgentBalances" aria-label="Agent cash and electronic float">
+   <div class="cardHead"><div><b>Cash and float balances</b><br><span>Book balances for your assigned branch; verify against physical cash and provider records</span></div><a class="btn" href="/tenant/treasury">Reconcile accounts</a></div>
+   <div class="cardBody">
+    <% if(overviewAccounts.length){ %>
+    <div class="networkBalanceGrid">
+     <% overviewAccounts.forEach(account=>{ %>
+      <div class="networkBalanceStat">
+       <span><%= account.kind==='cash'?'Physical cash': 'Electronic float · '+(account.network==='MTN SSD'?'MTN South Sudan':account.network) %></span>
+       <strong><%= account.expected||'Opening balance not approved' %></strong>
+       <small><%= account.name %> · <%= account.currency %> · <%= account.reconciliation||'Not reconciled' %></small>
+      </div>
+     <% }) %>
+    </div>
+    <% }else{ %><p class="tiny">No active cash drawer or mobile network wallet is assigned to this operating branch. Configure accounts and approve their opening balances in Treasury.</p><% } %>
+   </div>
+  </section>
   <div class="richActions">
     <% if(user.permissions.includes('*') || user.permissions.includes('mobile_money.cash_in')){ %><a class="btn" href="/tenant/mobile-money/cash-in" data-transaction-kind="cash_in">Deposit</a><% } %>
     <% if(user.permissions.includes('*') || user.permissions.includes('mobile_money.cash_out')){ %><a class="btn" href="/tenant/mobile-money/cash-out" data-transaction-kind="cash_out">Withdrawal</a><% } %>

@@ -138,7 +138,7 @@ test('main Mobile Money workspace shows genuine scoped cash and float book balan
  locals.data.reviewQueue=[];locals.data.voidQueue=[];locals.data.summary.recent=[];
  const html=await render('index',locals);
  for(const label of ['Cash and float balances','UGX 120,000','UGX 450,000','Physical cash','Electronic float','Assigned cash drawer','MTN Uganda wallet'])assert.ok(html.includes(label),label);
- assert.match(html,/\/css\/workspace\.css\?v=/);
+
  assert.doesNotMatch(html,/Cash-in<\/a>|Cash-out<\/a>/);
 });
 test('Mobile Money entry and filters keep deposit and withdrawal labels, not cash-in/out labels',async()=>{
@@ -149,4 +149,15 @@ test('Mobile Money entry and filters keep deposit and withdrawal labels, not cas
  assert.match(filters,/>Deposit<\/option>/);
  assert.match(filters,/>Withdrawal<\/option>/);
  assert.doesNotMatch(filters,/>Cash-in<\/option>|>Cash-out<\/option>/);
+});
+
+test('workspace CSS loads in tenant dashboard head before content and is not injected late by Mobile Money partials',()=>{
+ const fs=require('node:fs');
+ const layout=fs.readFileSync(path.join(__dirname,'../src/views/layouts/dashboard.ejs'),'utf8');
+ assert.match(layout,/<link rel="stylesheet" href="\/css\/workspace\.css\?v=<%= assetVersion %>"/);
+ assert(layout.indexOf('/css/workspace.css')<layout.indexOf('<body'));
+ for(const name of ['index','entry','tariffs']){
+  const partial=fs.readFileSync(path.join(views,name+'.ejs'),'utf8');
+  assert.doesNotMatch(partial,/<link rel="stylesheet" href="\/css\/workspace\.css/);
+ }
 });

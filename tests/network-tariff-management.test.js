@@ -87,11 +87,20 @@ test('customer charges are distinctly labeled and never become agent commission 
  assert.match(html,/No physical cash, network float/);
 });
 
-test('Mongo indexes reject competing approved or draft schedule writes under concurrency',()=>{
- const model=fs.readFileSync(path.join(root,'src/tenant/pricing/networkTariffModels.js'),'utf8');
- assert.match(model,/partialFilterExpression:\{status:'approved'\}/);
- assert.match(model,/partialFilterExpression:\{status:'draft'\}/);
- assert.match(model,/scheduleKind:1\},\{unique:true/);
+test('Mongo tariff partial indexes have distinct stable names and maintain unique status scopes',()=>{
+ const schema=require('../src/tenant/pricing/networkTariffModels').schema;
+ const indexes=schema.indexes();
+ const partial=indexes.filter(([,opts])=>opts.partialFilterExpression?.status);
+ assert.equal(partial.length,2);
+ assert.deepEqual(new Set(partial.map(([,opts])=>opts.name)),new Set([
+  'agent_tariff_unique_approved_v1','agent_tariff_unique_draft_v1'
+ ]));
+ assert.deepEqual(new Set(partial.map(([,opts])=>opts.partialFilterExpression.status)),new Set(['approved','draft']));
+ for(const [keys,opts] of partial){
+  assert.equal(opts.unique,true);
+  assert.deepEqual(Object.keys(keys),['tenantId','branchId','network','currency','operation','scheduleKind']);
+ }
+ assert.equal(new Set(indexes.map(([,opts])=>opts.name).filter(Boolean)).size,indexes.filter(([,opts])=>opts.name).length);
 });
 
 test('draft evidence edit accepts normal document references but rejects control characters',()=>{

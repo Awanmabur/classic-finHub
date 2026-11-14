@@ -47,7 +47,7 @@ function validateTariff(input){
   if(!input||typeof input!=='object'||Array.isArray(input))invalid('Invalid tariff schedule');
   if(!Object.hasOwn(NETWORKS,input.network)||!OPERATIONS.includes(input.operation))invalid('Invalid provider or agent operation');
   const network=NETWORKS[input.network];
-  if(!network.currency||input.currency!==network.currency)invalid('Provider currency mismatch');
+  if((network.currency&&input.currency!==network.currency)||(!network.currency&&!require('../../config/currencies').currencyCodes.includes(input.currency)))invalid('Provider currency mismatch');
   if(!['draft','verified','retired'].includes(input.status))invalid('Invalid tariff status');
   if(input.status==='verified'&&(!input.providerEvidence||!input.effectiveFrom))invalid('A verified tariff needs provider evidence and effective start date');
   if(!Array.isArray(input.tiers)||input.tiers.length<1||input.tiers.length>250)invalid('Enter 1–250 amount bands');

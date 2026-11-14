@@ -96,6 +96,8 @@ run_tests() {
     --mount "type=bind,src=$STAGE,dst=/workspace,readonly" \
     --workdir /workspace --entrypoint /bin/sh "$OLD_IMAGE" -c "$testspec" >"$LOG" 2>&1 || {
       grep -E '^not ok |^# (tests|pass|fail)' "$LOG" || true
+      echo '=== FIRST FAILURES WITH ASSERTION DETAILS ==='
+      grep -A 38 -m 5 '^not ok ' "$LOG" | head -n 210 || true
       tail -n 25 "$LOG"
       return 1
     }

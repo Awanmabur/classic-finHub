@@ -145,5 +145,8 @@ test('owner sees branch agent-assigned real cash and float; operator never sees 
   assert.equal(operator.wallets.length,0);assert.equal(operator.paymentAccounts.length,0);
   assert.equal(String(seenQuery.branchId),branchId);
   assert.equal(seenQuery.$or.length,2,'operator must remain limited to own and shared accounts');
+  const viewer=await funds.context({},tenant,{id:operatorId,role:'Viewer',permissions:['mobile_money.view']},branch);
+  assert.equal(viewer.visibilityRestricted,true);
+  assert.equal(viewer.wallets.length,0);
  }finally{treasury.access=original.access;models.models=original.models;}
 });

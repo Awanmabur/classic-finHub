@@ -8,7 +8,7 @@ const service=require('../src/tenant/pricing/networkTariffService');
 const root=path.resolve(__dirname,'..');
 
 const base={
- network:'MTN SSD',operation:'cash_in',currency:'SSP',branchId:'507f1f77bcf86cd799439011',
+ network:'MTN SSD',operation:'cash_in',scheduleKind:'agent_commission',currency:'SSP',branchId:'507f1f77bcf86cd799439011',
  effectiveFrom:'2026-11-14',expiresAt:'',
  evidenceReference:'Verified rate-sheet copy, issued by provider 2026',
  bands:'100, 1000, basis_points, 250\n1001, 5000, flat, 120'
@@ -22,7 +22,7 @@ test('editing agent commission bands uses strict decimal-free minor units',()=>{
 test('no cross-market, duplicate band, missing source, or arbitrary operation tariff can be stored',()=>{
  const mutate=[
  {...base,network:'MTN'}, {...base,currency:'UGX'},
- {...base,operation:'transfer'}, {...base,branchId:''},
+ {...base,operation:'transfer'}, {...base,scheduleKind:'unknown'}, {...base,branchId:''},
  {...base,evidenceReference:'short'}, {...base,effectiveFrom:'2026-02-30'},
  {...base,expiresAt:'2026-11-13'}, {...base,bands:'1, 100, flat, 50\n50, 1000, flat, 100'},
  {...base,bands:'1, 100, basis_points, 10001'}, {...base,bands:'1, 100, flat, -5'},
@@ -33,7 +33,7 @@ test('no cross-market, duplicate band, missing source, or arbitrary operation ta
 test('agent tariff UI escapes provider reference and offers protected independent approval',async()=>{
  const row={
   _id:'507f1f77bcf86cd799439011',
-  branchId:'507f1f77bcf86cd799439012',network:'MTN SSD',currency:'SSP',operation:'cash_in',
+  branchId:'507f1f77bcf86cd799439012',network:'MTN SSD',currency:'SSP',operation:'cash_in',scheduleKind:'agent_commission',
   version:1,status:'draft',revision:0,
   effectiveFrom:new Date('2026-11-14T00:00:00Z'),approvedBy:null,
   evidenceReference:'<script>alert(1)</script> provider source',
@@ -45,6 +45,7 @@ test('agent tariff UI escapes provider reference and offers protected independen
    schedules:[row],branches:[{_id:'507f1f77bcf86cd799439012',name:'Juba Branch',status:'active'}],
    providerChoices:[{key:'MTN SSD',displayName:'MTN MoMo South Sudan',currency:'SSP'}],
    canPropose:true,canReview:true,canSubmitPayout:false,canReviewPayout:false,postingEnabled:false,
+   customerTariffReferences:require('../src/tenant/pricing/customerNetworkFees').TABLES,
    commissions:{records:[],wallets:[]},serializeLines:service.serializeLines,
    formatMinor:require('../src/tenant/services/mobileMoney.service').formatMoneyMinor
   }
@@ -66,4 +67,22 @@ test('tariff-only endpoints do not invoke ledger movements or legacy fee posting
  assert.match(routes,/requirePermission\('mobile_money.view'\)/);
  assert.match(serviceFile,/workspace\.access\(conn,tenant,actor,\{manage:true,fence:true,session\}\)/);
  assert.match(serviceFile,/String\(prior.createdBy\)===auth.actor.id/);
+});
+
+test('customer charges are distinctly labeled and never become agent commission estimates',async()=>{
+ const schedule={
+  network:'MTN',operation:'send',scheduleKind:'customer_network_fee',currency:'UGX',
+  version:1,status:'approved',
+  tiers:[{minMinor:'1',maxMinor:'5000',rate:{kind:'flat',value:'100'}}]
+ };
+ const q=service.preview(schedule,'3000');
+ assert.equal(q.customerNetworkChargeEstimateMinor,'100');
+ assert.equal(q.grossCommissionEstimateMinor,undefined);
+ assert.equal(q.postsToLedger,false);
+ const html=await ejs.renderFile(path.join(root,'src/views/tenant/mobile-money/tariff-quote.ejs'),{
+  data:{schedule,result:q,formatMinor:(minor,currency)=>currency+' '+minor}
+ });
+ assert.match(html,/Customer network charge estimate/);
+ assert.match(html,/Not agent income/);
+ assert.match(html,/No physical cash, network float/);
 });

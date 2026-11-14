@@ -16,7 +16,7 @@ function validate(input){
  const network=input.network,currency=input.currency;
  if(!networks.includes(network))throw fail('Choose a valid Mobile Money network');
  const networkConfig=require('./networkTariffs').NETWORKS[network];
- if(!networkConfig?.currency||networkConfig.currency!==currency)throw fail('Network and payout currency do not match a verified provider market. Configure the market before entering funds.');
+ if(!networkConfig||(networkConfig.currency&&networkConfig.currency!==currency)||(!networkConfig.currency&&!require('../../config/currencies').currencyCodes.includes(currency)))throw fail('Provider network and payout currency do not match the configured market. Select a reconciled network wallet first.');
  const providerReference=text(input.providerReference,'provider commission reference',6,120);
  if(!/^[A-Za-z0-9][A-Za-z0-9._:/-]*$/.test(providerReference))throw fail('Use a valid statement reference');
  const statementEvidence=text(input.statementEvidence,'provider payout evidence',12,350);

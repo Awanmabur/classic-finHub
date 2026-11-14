@@ -48,5 +48,5 @@ test('redacted invitation delivery doctor never prints recipients, tokens or act
  assert.match(script,/Outbox\.aggregate/);
  assert.match(script,/Heartbeat\.countDocuments/);
  assert.doesNotMatch(script,/\.payload\.to|\.encryptedUrl|console\.log\(process\.env/);
- assert.doesNotThrow(()=>new Function(script));
+ assert.doesNotThrow(()=>new Function(script.replace(/^#![^\\n]*\\n/,'')));
 });

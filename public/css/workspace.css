@@ -115,3 +115,39 @@
 #workspaceContent .networkTariffQuoteResult span{font-size:12px;color:var(--muted)}
 #workspaceContent .networkTariffQuoteResult strong{font-size:17px;line-height:1.4;overflow-wrap:anywhere}
 @media(max-width:700px){#workspaceContent .networkTariffQuoteResult{grid-template-columns:1fr}}
+
+/* Agent operations: restrained responsive balance cards and market sheets. */
+#workspaceContent .networkTariffPage{width:100%;max-width:100%;overflow:visible}
+#workspaceContent .networkTariffPage :is(.card,.cardBody,.networkTariffRecordBody){min-width:0;max-width:100%}
+#workspaceContent .networkBalanceGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:12px}
+#workspaceContent .networkBalanceStat{border:1px solid var(--border);background:var(--card2);border-radius:14px;padding:16px;display:grid;gap:7px;min-width:0}
+#workspaceContent .networkBalanceStat span{font-size:12px;font-weight:600;color:var(--muted)}
+#workspaceContent .networkBalanceStat strong{font-size:clamp(16px,2vw,23px);font-variant-numeric:tabular-nums;overflow-wrap:anywhere;line-height:1.35}
+#workspaceContent .networkBalanceStat small{font-size:11px;color:var(--muted);overflow-wrap:anywhere}
+#workspaceContent .networkProviderGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:12px}
+#workspaceContent .networkProviderCard{border:1px solid var(--border);border-radius:14px;padding:15px;display:grid;gap:9px;align-content:start;min-width:0}
+#workspaceContent .networkProviderCard>strong{font-size:14px}
+#workspaceContent .networkProviderCard>span,#workspaceContent .networkProviderCard>small{font-size:12px;color:var(--muted)}
+#workspaceContent .networkProviderCard>.btn{justify-self:start;max-width:100%}
+#workspaceContent .networkTariffScroll{display:block;max-width:100%;min-width:0;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;border:1px solid var(--border);border-radius:12px}
+#workspaceContent .networkTariffScroll table{width:100%;min-width:640px;border-collapse:collapse}
+#workspaceContent .networkTariffScroll :is(th,td){white-space:nowrap;text-align:left;padding:10px 12px}
+#workspaceContent .networkTariffScroll th{background:var(--card2);position:sticky;top:0}
+#workspaceContent .networkTariffScroll:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+#workspaceContent .networkRateEditor{display:grid;gap:12px;min-width:0}
+#workspaceContent .networkRateTable :is(input,select){min-width:105px;width:100%;max-width:none}
+#workspaceContent .networkRateTable td:last-child{width:100px}
+#workspaceContent .networkRateToolbar{display:flex;align-items:center;flex-wrap:wrap;gap:12px}
+#workspaceContent .networkRateToolbar small{font-size:12px;color:var(--muted);line-height:1.5;flex:1 1 230px}
+#workspaceContent .networkTariffPage .networkTariffActions{gap:8px}
+#workspaceContent .networkTariffPage .networkTariffActions .btn{min-height:40px;white-space:normal}
+#workspaceContent .networkTariffPage .cardHead{align-items:center}
+#workspaceContent .networkTariffRecord[open]>summary{background:var(--card2)}
+@media(max-width:720px){
+ #workspaceContent .networkTariffPage{gap:12px}
+ #workspaceContent .networkProviderGrid{grid-template-columns:1fr}
+ #workspaceContent .networkTariffRecord>summary{align-items:flex-start}
+ #workspaceContent .networkTariffAction{display:grid;grid-template-columns:minmax(0,1fr)}
+ #workspaceContent .networkTariffAction form{max-width:100%}
+ #workspaceContent .networkTariffAction .btn{width:100%}
+}

@@ -20,7 +20,7 @@
       <div class="formSectionTitle">Customer and network</div>
       <input type="hidden" value="<%= entryLabel %>" data-mobile-operation-label><input type="hidden" name="fee" value="0">
       <div class="row2">
-        <label class="field">Network<select class="control" name="network" required><% entryNetworks.forEach(network=>{ %><option value="<%= network %>"><%= network %></option><% }) %></select></label>
+        <label class="field">Network<select class="control" name="network" required><% entryNetworks.forEach(network=>{ %><option value="<%= network %>"><%= network==='MTN SSD'?'MTN MoMo South Sudan':network==='MTN'?'MTN MoMo Uganda':network %></option><% }) %></select></label>
         <label class="field">Customer phone<input class="control" type="tel" name="customerPhone" placeholder="+211..." inputmode="tel" maxlength="24" required autocomplete="tel"></label>
       </div>
       <label class="field">Network transaction reference<input class="control" name="networkReference" placeholder="Reference from the provider transaction" pattern="[A-Za-z0-9._:\/\-]{5,100}" minlength="5" maxlength="100" required><span class="tiny">Captured automatically for received SMS transactions; enter the provider reference for a manual transaction.</span></label>

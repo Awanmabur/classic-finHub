@@ -32,7 +32,16 @@
       <strong><%= p.displayName %></strong>
       <span><%= p.currency||'Market configuration required' %></span>
       <small><%= saved %> approved · <%= pending %> draft</small>
-      <% if(p.configured){ %><a class="btn" href="#network-sheet-form" data-choose-provider="<%= p.key %>"><%= data.canPropose?'Add rate sheet':'View sheets below' %></a><% }else{ %><span class="tiny">Rates unavailable until a specific country, currency and provider agreement are configured. No assumed rate.</span><% } %>
+      <div class="networkOperationList">
+       <% for(const op of [{key:'cash_in',name:'Deposit'},{key:'cash_out',name:'Withdrawal'}]){const count=data.schedules.filter(s=>s.network===p.key&&s.operation===op.key&&s.scheduleKind==='agent_commission'&&s.status==='approved').length; %>
+        <div class="networkOperationRow">
+         <span><%= op.name %></span>
+         <small><%= count?'Approved sheet available':'No approved sheet' %></small>
+         <% if(data.canPropose&&p.configured){ %><a href="#network-sheet-form" data-choose-provider="<%= p.key %>" data-choose-operation="<%= op.key %>"><%= count?'Add revision':'Add sheet' %></a><% } %>
+        </div>
+       <% } %>
+      </div>
+      <% if(!p.configured){ %><span class="tiny">Provider market is not identified. Assign a verified country and currency before entering rates; none are assumed.</span><% } %>
      </div>
     <% }) %>
    </div>

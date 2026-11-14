@@ -34,6 +34,8 @@
    <div class="cardBody">
     <% if(data.mobileFundsState==='branch_required'){ %>
       <p class="tiny">No operating branch is selected for this account. Assign an operating branch in Branch Management before branch balances can be shown. No amounts have been inferred.</p>
+    <% }else if(data.mobileFunds?.visibilityRestricted){ %>
+      <p class="tiny">This read-only role does not have permission to view cash or provider float account balances.</p>
     <% }else if(!fundAccounts.length){ %>
       <div class="networkBalanceGrid">
        <div class="networkBalanceStat"><span>Physical cash · book balance</span><strong>Not configured</strong><small>Set up and independently approve an operating cash account</small></div>

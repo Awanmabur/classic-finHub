@@ -23,7 +23,7 @@ module.exports=function factory({renderTenant}){
    renderTenant(req,res,'mobile-money/tariffs','Network commission sheets',
     'Deposit and withdrawal commission schedules, cash and float, and independent review.',
     {schedules,commissions,funds,allProviders:Object.entries(NETWORKS).map(([key,meta])=>({key,...meta,configured:!!meta.currency||commissions.wallets.some(w=>w.network===key)})),customerTariffReferences:require('../pricing/customerNetworkFees').TABLES,branches:branches.filter(b=>b.status==='active'&&(req.user.role==='Tenant Owner'||String(b._id)===String(req.user.branchId))),
-     actorId:String(req.user.id),
+     actorId:String(req.user.id),actorRole:req.user.role,
      providerChoices:Object.entries(NETWORKS).filter(([key,meta])=>Boolean(meta.currency)||commissions.wallets.some(w=>w.network===key)).map(([key,meta])=>({key,...meta})),
      canPropose:['Tenant Owner','Mobile Money Operator'].includes(req.user.role),
      canReview:['Tenant Owner','Reconciliation Officer'].includes(req.user.role),

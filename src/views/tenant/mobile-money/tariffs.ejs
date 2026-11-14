@@ -17,7 +17,7 @@
     <div class="networkTariffRecordBody">
      <div class="networkTariffMetadata"><span>Effective from <b><%= new Date(schedule.effectiveFrom).toISOString().slice(0,10) %></b></span><span>Source <b><%= schedule.evidenceReference %></b></span><span>Independent reviewer <b><%= schedule.approvedBy?'Recorded':'Pending' %></b></span></div>
      <div class="tableWrap"><table><thead><tr><th>Minimum (<%= schedule.currency %>)</th><th>Maximum</th><th>Commission type</th><th>Rate (minor units or bps)</th></tr></thead><tbody>
-      <% schedule.tiers.forEach(tier=>{ %><tr><td><%= tier.minMinor %></td><td><%= tier.maxMinor %></td><td><%= tier.rate.kind==='flat'?'Fixed':'Percentage' %></td><td><%= tier.rate.value %><%= tier.rate.kind==='basis_points'?' bps':'' %></td></tr><% }) %>
+      <% schedule.tiers.forEach(tier=>{ %><tr><td><%= data.formatMinor(tier.minMinor,schedule.currency) %></td><td><%= data.formatMinor(tier.maxMinor,schedule.currency) %></td><td><%= tier.rate.kind==='flat'?'Fixed':'Percentage' %></td><td><%= tier.rate.value %><%= tier.rate.kind==='basis_points'?' bps':'' %></td></tr><% }) %>
      </tbody></table></div>
      <% if(data.canPropose&&schedule.status==='draft'){ %>
      <details class="networkTariffEdit"><summary>Edit draft rates</summary>
@@ -88,7 +88,7 @@
    <% if(!data.commissions.records.length){ %><p class="tiny">No commission credits recorded for your permitted wallets.</p><% } %>
    <% data.commissions.records.forEach(payout=>{ %>
     <div class="networkTariffPayout">
-     <div class="networkTariffPayoutDetails"><b><%= payout.network==='MTN SSD'?'MTN South Sudan':payout.network %> — <%= payout.currency %> <%= payout.amountMinor %> minor units</b><span><%= payout.providerReference %> · <%= new Date(payout.creditedAt).toISOString().slice(0,16).replace('T',' ') %> UTC</span><span class="tiny"><%= payout.statementEvidence %></span></div>
+     <div class="networkTariffPayoutDetails"><b><%= payout.network==='MTN SSD'?'MTN South Sudan':payout.network %> — <%= data.formatMinor(payout.amountMinor,payout.currency) %></b><span><%= payout.providerReference %> · <%= new Date(payout.creditedAt).toISOString().slice(0,16).replace('T',' ') %> UTC</span><span class="tiny"><%= payout.statementEvidence %></span></div>
      <span class="tag"><%= payout.status==='posted'?'Posted income':payout.status==='rejected'?'Rejected':'Pending review' %></span>
      <% if(data.canReviewPayout&&payout.status==='pending_review'){ %>
      <form class="networkTariffReview" method="post" action="/tenant/mobile-money/tariffs/payouts/<%= payout._id %>/review">

@@ -22,12 +22,13 @@ run_test(){
    --user "$(stat -c %u "$ROOT"):$(stat -c %g "$ROOT")" \
    --env NODE_ENV=test --env NODE_PATH=/app/node_modules \
    --env SESSION_SECRET=isolated-financial-preflight-secret-not-for-production \
-   --env PLATFORM_DB_URI=mongodb://127.0.0.1:27019/classicfin_isolated_test_db \
+   --env MONGO_PLATFORM_URI=mongodb://127.0.0.1:27019/classicfin_isolated_test_db \
    --mount "type=bind,src=$ROOT,dst=/workspace,readonly" \
    --workdir /workspace --entrypoint /bin/sh "$IMAGE" \
    -c "$test_spec" >"$LOG" 2>&1 || {
      grep -E '^not ok |^# (tests|pass|fail)' "$LOG" || true
-     tail -n 55 "$LOG"
+     grep -A 26 '^not ok ' "$LOG" | head -n 190 || true
+     tail -n 30 "$LOG"
      exit 1
    }
   grep -q '^# fail 0$' "$LOG" || { cat "$LOG"; exit 1; }

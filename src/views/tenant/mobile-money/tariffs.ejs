@@ -63,4 +63,45 @@
   </form>
  </section>
  <% } %>
+
+ <section class="card">
+  <div class="cardHead"><div><b>Provider commission payouts</b><br><span>Statement-backed receipts, independent review and separate income posting</span></div><span class="tag"><%= data.postingEnabled?'Posting gate enabled':'Posting locked' %></span></div>
+  <div class="cardBody workspaceStack">
+   <% if(!data.postingEnabled){ %><p class="workspaceNote">Payout posting is disabled until historic wallet commission entries are reconciled and a staging release gate passes. Submissions are stored as evidence only, not treated as cash, float or profit.</p><% } %>
+   <% if(data.canSubmitPayout){ %>
+   <details class="networkTariffRecord"><summary><b>Record a provider commission credit</b><span class="tag">Requires statement evidence</span></summary>
+    <form class="networkTariffRecordBody networkTariffForm" method="post" action="/tenant/mobile-money/tariffs/payouts">
+     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+     <div class="networkTariffFields">
+      <label class="field">Receiving network wallet<select name="walletAccountId" class="control" required><option value="">Choose reconciled wallet</option><% data.commissions.wallets.forEach(wallet=>{ %><option value="<%= wallet._id %>"><%= wallet.name %> · <%= wallet.network %> · <%= wallet.currency %></option><% }) %></select></label>
+      <label class="field">Provider network<select name="network" class="control" required><option value="">Choose network</option><% data.providerChoices.forEach(p=>{ %><option value="<%= p.key %>"><%= p.displayName %></option><% }) %></select></label>
+      <label class="field">Currency<select name="currency" class="control" required><option value="UGX">UGX</option><option value="SSP">SSP</option><option value="KES">KES</option><option value="USD">USD</option></select></label>
+      <label class="field">Commission credited (received amount)<input name="amount" class="control" type="text" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" placeholder="0.00" required></label>
+      <label class="field">Provider commission credit reference<input name="providerReference" class="control" minlength="6" maxlength="120" placeholder="Unique credit or statement reference" required></label>
+      <label class="field">Actual provider credit time (UTC)<input name="creditedAt" class="control" type="datetime-local" required></label>
+     </div>
+     <label class="field">Statement evidence and proof reference<input name="statementEvidence" class="control" minlength="12" maxlength="350" placeholder="Statement date, provider, account and trace ID" required></label>
+     <div class="networkTariffActions"><button class="btn btnPrimary" type="submit">Submit credit for reconciliation</button><span class="tiny">No balance changes until independent review and a posting-enabled environment.</span></div>
+    </form>
+   </details>
+   <% } %>
+   <% if(!data.commissions.records.length){ %><p class="tiny">No commission credits recorded for your permitted wallets.</p><% } %>
+   <% data.commissions.records.forEach(payout=>{ %>
+    <div class="networkTariffPayout">
+     <div class="networkTariffPayoutDetails"><b><%= payout.network==='MTN SSD'?'MTN South Sudan':payout.network %> — <%= payout.currency %> <%= payout.amountMinor %> minor units</b><span><%= payout.providerReference %> · <%= new Date(payout.creditedAt).toISOString().slice(0,16).replace('T',' ') %> UTC</span><span class="tiny"><%= payout.statementEvidence %></span></div>
+     <span class="tag"><%= payout.status==='posted'?'Posted income':payout.status==='rejected'?'Rejected':'Pending review' %></span>
+     <% if(data.canReviewPayout&&payout.status==='pending_review'){ %>
+     <form class="networkTariffReview" method="post" action="/tenant/mobile-money/tariffs/payouts/<%= payout._id %>/review">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label class="field">Review note (minimum 12 characters)<input class="control" name="note" minlength="12" maxlength="400" placeholder="Compare original provider credit statement and ledger" required></label>
+      <div class="networkTariffActions"><button class="btn" name="decision" value="reject">Reject evidence</button>
+       <% if(data.postingEnabled){ %><button class="btn btnPrimary" name="decision" value="approve">Approve and post</button><% }else{ %><span class="tiny">Posting requires a verified historical-commission migration and financial release approval.</span><% } %>
+      </div>
+     </form>
+     <% } %>
+    </div>
+   <% }) %>
+  </div>
+ </section>
+
 </section>

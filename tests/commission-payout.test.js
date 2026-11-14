@@ -28,7 +28,7 @@ test('commission evidence validates exact SSP amount, network and unique trace r
 test('network payout rejects negative, mismatched currency, invalid dates and unknown provider',()=>{
  for(const v of [
   {...base(),network:'MTN'}, {...base(),currency:'UGX'},
-  {...base(),network:'Africell'},{...base(),amount:'-1'},
+  {...base(),network:'Unknown Provider'},{...base(),amount:'-1'},
   {...base(),amount:'2.999'}, {...base(),amount:'0'},
   {...base(),providerReference:'***'},
   {...base(),statementEvidence:'short'},
@@ -68,4 +68,14 @@ test('payout UI discloses lock and never offers a live approval while locked',as
  assert.match(html,/name="_csrf" value="test-csrf"/);
  assert.doesNotMatch(html,/>Approve and post</);
  assert.match(html,/>Reject evidence</);
+});
+
+test('additional market commission evidence can be entered only with matching receiving wallet at service layer',()=>{
+ const valid=payout.validate({...base(),network:'Africell'});
+ assert.equal(valid.network,'Africell');
+ assert.equal(valid.currency,'SSP');
+ const source=fs.readFileSync(path.join(root,'src/tenant/pricing/commissionPayoutService.js'),'utf8');
+ assert.match(source,/wallet\.network!==values\.network/);
+ assert.match(source,/wallet\.currency!==values\.currency/);
+ assert.match(source,/wallet\.reconciliationState!=='matched'/);
 });

@@ -1,7 +1,7 @@
 'use strict';
 const mongoose=require('mongoose');
 const {model,ensure}=require('./networkTariffModels');
-const {validateTariff,quote,NETWORKS}=require('./networkTariffs');
+const {validateTariff,quote,NETWORKS,SCHEDULE_KINDS}=require('./networkTariffs');
 const workspace=require('../workspace/service');
 const treasury=require('../treasury/service');
 const {branchModel,auditEventModel}=require('../models');
@@ -21,9 +21,10 @@ function parseLines(lines){
 }
 function serializeLines(tiers){return tiers.map(t=>[t.minMinor,t.maxMinor,t.rate.kind,t.rate.value].join(', ')).join('\n');}
 function validateInput(input){
- const allowed=['network','operation','currency','branchId','effectiveFrom','expiresAt','evidenceReference','bands','_csrf'];
+ const allowed=['network','operation','scheduleKind','currency','branchId','effectiveFrom','expiresAt','evidenceReference','bands','_csrf'];
  if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(k=>!allowed.includes(k)))throw fail('Unknown tariff input');
- const network=String(input.network||''),operation=String(input.operation||''),currency=String(input.currency||'');
+ const network=String(input.network||''),operation=String(input.operation||''),currency=String(input.currency||''),scheduleKind=String(input.scheduleKind||'');
+ if(!SCHEDULE_KINDS.includes(scheduleKind))throw fail('Choose whether this is a customer network fee or agent commission.');
  if(!input.branchId)throw fail('Choose the branch whose agent accounts use this commission schedule');
  const branchId=objectId(input.branchId);
  const evidenceReference=input.evidenceReference;
@@ -41,7 +42,7 @@ function validateInput(input){
  validateTariff({network,operation,currency,status:'draft',tiers});
  // Reject impossible cross-network currency before persisting.
  if(!NETWORKS[network]||NETWORKS[network].currency!==currency)throw fail('Choose the correct provider market and currency');
- return {network,operation,currency,branchId,effectiveFrom,expiresAt,evidenceReference:evidenceReference.trim(),tiers};
+ return {network,operation,scheduleKind,currency,branchId,effectiveFrom,expiresAt,evidenceReference:evidenceReference.trim(),tiers};
 }
 async function read(conn,tenant,actor){
  const auth=await treasury.access(conn,tenant,actor,{permission:'treasury.view',sourceType:'mobile_money'});
@@ -62,13 +63,13 @@ async function propose(conn,tenant,actor,input){
     const branch=await branchModel(conn).findOne({_id:details.branchId,status:'active'}).session(session).lean();
     if(!branch||!require('../services/branchCurrency.service').supports(branch,details.currency))throw fail('Choose an active branch that supports this currency',409);
    }
-   const scope={tenantId:auth.tenant._id,branchId:details.branchId,network:details.network,currency:details.currency,operation:details.operation};
+   const scope={tenantId:auth.tenant._id,branchId:details.branchId,network:details.network,currency:details.currency,operation:details.operation,scheduleKind:details.scheduleKind};
    // A duplicate draft must be reviewed or retired, never silently overwritten.
    const pending=await model(conn).findOne({...scope,status:'draft'}).session(session).lean();
    if(pending)throw fail('A draft schedule exists for this network and branch. Review it before submitting another.',409);
    const last=await model(conn).findOne(scope).sort({version:-1}).session(session).lean();
    [output]=await model(conn).create([{...scope,...details,version:(last?.version||0)+1,status:'draft',createdBy:auth.actor.id}],{session});
-   await auditEventModel(conn).create([{actorId:auth.actor.id,action:'mobile_money.tariff.proposed',targetId:output._id,metadata:{network:details.network,operation:details.operation,currency:details.currency,version:output.version,evidenceReference:details.evidenceReference,branchId:String(details.branchId||'')}}],{session});
+   await auditEventModel(conn).create([{actorId:auth.actor.id,action:'mobile_money.tariff.proposed',targetId:output._id,metadata:{network:details.network,operation:details.operation,currency:details.currency,scheduleKind:details.scheduleKind,version:output.version,evidenceReference:details.evidenceReference,branchId:String(details.branchId||'')}}],{session});
   });
   return output;
  }catch(e){if(e.code===11000)throw fail('The schedule changed concurrently. Reload and try again.',409);throw e;}finally{await session.endSession();}
@@ -92,7 +93,7 @@ async function revise(conn,tenant,actor,id,input){
     {$set:{tiers,evidenceReference:evidenceReference.trim()},$inc:{revision:1}},{session,new:true,runValidators:true}).lean();
    if(!output)throw fail('Draft changed while saving. Reload.',409);
    await auditEventModel(conn).create([{actorId:auth.actor.id,action:'mobile_money.tariff.revised',targetId:prior._id,
-    metadata:{network:prior.network,operation:prior.operation,currency:prior.currency,version:prior.version,revision:output.revision}}],{session});
+    metadata:{network:prior.network,operation:prior.operation,currency:prior.currency,scheduleKind:prior.scheduleKind,version:prior.version,revision:output.revision}}],{session});
   });
   return output;
  }finally{await session.endSession();}
@@ -113,7 +114,7 @@ async function decide(conn,tenant,actor,id,decision){
    if(decision==='approve'&&prior.status!=='draft'||decision==='retire'&&prior.status!=='approved')throw fail('Tariff already processed or wrong status',409);
    if(decision==='approve'){
      validateTariff({network:prior.network,operation:prior.operation,currency:prior.currency,status:'draft',tiers:prior.tiers});
-     const other=await model(conn).findOne({_id:{$ne:prior._id},tenantId:auth.tenant._id,branchId:prior.branchId,network:prior.network,operation:prior.operation,currency:prior.currency,status:'approved'}).session(session).lean();
+     const other=await model(conn).findOne({_id:{$ne:prior._id},tenantId:auth.tenant._id,branchId:prior.branchId,network:prior.network,operation:prior.operation,currency:prior.currency,scheduleKind:prior.scheduleKind,status:'approved'}).session(session).lean();
      if(other)throw fail('An approved schedule already exists. Retire the old schedule before approving the replacement.',409);
    }
    const updates=decision==='approve'?{status:'approved',approvedAt:new Date(),approvedBy:auth.actor.id}:{status:'retired',retiredAt:new Date(),retiredBy:auth.actor.id};
@@ -125,7 +126,12 @@ async function decide(conn,tenant,actor,id,decision){
  }finally{await session.endSession();}
 }
 function preview(schedule,amountMinor){
- return quote({network:schedule.network,currency:schedule.currency,operation:schedule.operation,status:'draft',
+ const calculated=quote({network:schedule.network,currency:schedule.currency,operation:schedule.operation,status:'draft',
    providerEvidence:schedule.evidenceReference,effectiveFrom:schedule.effectiveFrom,tiers:schedule.tiers},amountMinor);
+ if(schedule.scheduleKind==='customer_network_fee'){
+  const {grossCommissionEstimateMinor,...safe}=calculated;
+  return {...safe,customerNetworkChargeEstimateMinor:grossCommissionEstimateMinor??null};
+ }
+ return calculated;
 }
 module.exports={parseLines,serializeLines,validateInput,read,propose,revise,decide,preview};

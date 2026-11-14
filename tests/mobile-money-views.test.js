@@ -174,3 +174,23 @@ test('Mobile Money balance context is branch-scoped and no longer requires unrel
  assert.match(main,/req\.operationBranch\?require\('\.\.\/services\/mobileMoneyFunds\.service'\)\.context/);
  assert.match(sub,/req\.operationBranch\?await require\('\.\.\/services\/mobileMoneyFunds\.service'\)\.context/);
 });
+
+test('authorized balance-readiness view provides actionable account status without financial fabrication',async()=>{
+ const locals=options();
+ locals.user.role='Tenant Owner';locals.user.permissions=['*'];
+ locals.data.readiness={
+  scope:'all assigned and shared accounts in operating branch',
+  branchReady:true,
+  accountCounts:{cash:0,wallet:0,bank:0,unopened:2,held:0,needsReconciliation:1,ready:0},
+  providerAccountCounts:{},untrackedHistoricalOperationsPresent:true,truncated:false,
+  guidance:'Configure an independently approved provider float wallet.'
+ };
+ const html=await render('readiness',locals);
+ assert.match(html,/Physical cash accounts/);
+ assert.match(html,/Provider float wallets/);
+ assert.match(html,/Opening approval pending/);
+ assert.match(html,/historical Mobile Money records without a funds-book posting/);
+ assert.match(html,/\/tenant\/cash\/shifts/);
+ assert.match(html,/\/tenant\/treasury/);
+ assert.doesNotMatch(html,/verified actual provider balance: UGX/);
+});

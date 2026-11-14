@@ -26,6 +26,7 @@ module.exports=function factory({renderTenant}){
      canReview:req.user.role==='Reconciliation Officer',
      canSubmitPayout:['Tenant Owner','Mobile Money Operator'].includes(req.user.role),
      canReviewPayout:['Tenant Owner','Reconciliation Officer'].includes(req.user.role),
+     postingEnabled:process.env.ENABLE_MOMO_COMMISSION_POSTING==='true',
      serializeLines:service.serializeLines});
   }catch(e){next(e);}
  });

@@ -122,7 +122,18 @@ test('owner sees branch agent-assigned real cash and float; operator never sees 
   lastObservedMinor:null,lastVarianceMinor:null}];
  let seenQuery=null;
  treasury.access=async(_conn,_tenant,actor)=>({tenant,actor});
- models.models=()=>({account:{find(query){seenQuery=query;return{sort(){return this;},limit(){return this;},lean:async()=>rows.filter(r=>!query.$or||query.$or.some(term=>term.operatorId===r.operatorId))};}}}});
+ models.models=()=>({
+  account:{
+   find(query){
+    seenQuery=query;
+    return {
+     sort(){return this;},
+     limit(){return this;},
+     lean:async()=>rows.filter(r=>!query.$or||query.$or.some(term=>term.operatorId===r.operatorId))
+    };
+   }
+  }
+ });
  try{
   const owner=await funds.context({},tenant,{id:ownerId,role:'Tenant Owner'},branch);
   assert.equal(owner.wallets.length,1);assert.equal(owner.paymentAccounts.length,1);

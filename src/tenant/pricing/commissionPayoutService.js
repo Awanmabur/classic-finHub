@@ -12,7 +12,7 @@ function text(value,label,min,max){
  return value.trim();
 }
 function validate(input){
- if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(k=>!['walletAccountId','network','currency','providerReference','statementEvidence','amount','creditedAt','_csrf'].includes(k)))throw fail('Unknown payout field');
+ if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(k=>!['walletAccountId','network','currency','providerReference','statementEvidence','amount','grossAmount','taxWithheld','providerCost','creditedAt','_csrf'].includes(k)))throw fail('Unknown payout field');
  const network=input.network,currency=input.currency;
  if(!networks.includes(network))throw fail('Choose a valid Mobile Money network');
  const networkConfig=require('./networkTariffs').NETWORKS[network];
@@ -23,11 +23,13 @@ function validate(input){
  // This is a received payout, not a fee quote; accept only strictly positive exact amount.
  const amountMinor=require('../treasury/service').major(input.amount,currency);
  if(amountMinor<=0n)throw fail('Commission payout must be greater than zero');
+ const grossMinor=treasury.major(input.grossAmount,currency),taxWithheldMinor=treasury.major(input.taxWithheld??'0',currency),providerCostMinor=treasury.major(input.providerCost??'0',currency);
+ if(grossMinor<=0n||grossMinor!==amountMinor+taxWithheldMinor+providerCostMinor)throw fail('Gross commission must equal amount credited plus withheld taxes and network costs. Verify the provider statement.');
  if(typeof input.creditedAt!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(input.creditedAt))throw fail('Enter the actual provider credit date and time');
  const creditedAt=new Date(input.creditedAt+':00.000Z');
  if(!Number.isFinite(creditedAt.valueOf())||creditedAt.toISOString().slice(0,16)!==input.creditedAt||
    creditedAt>Date.now()+60000||creditedAt<Date.now()-30*86400000)throw fail('Provider credit date must be within the last 30 days (UTC)');
- return {walletAccountId:oid(input.walletAccountId),network,currency,providerReference,statementEvidence,amountMinor:String(amountMinor),creditedAt};
+ return {walletAccountId:oid(input.walletAccountId),network,currency,providerReference,statementEvidence,amountMinor:String(amountMinor),grossMinor:String(grossMinor),taxWithheldMinor:String(taxWithheldMinor),providerCostMinor:String(providerCostMinor),creditedAt};
 }
 async function list(conn,tenant,actor){
  const auth=await treasury.access(conn,tenant,actor,{permission:'treasury.view',sourceType:'mobile_money'});
@@ -93,6 +95,7 @@ async function review(conn,tenant,actor,id,input){
    let posting=null;
    if(decision==='approve'){
     if(process.env.ENABLE_MOMO_COMMISSION_POSTING!=='true')throw fail('Commission posting is locked until the legacy fee reconciliation and staging release gate are approved.',503);
+    if(BigInt(prior.taxWithheldMinor)!==0n||BigInt(prior.providerCostMinor)!==0n)throw fail('Tax withholding or network deductions require a verified accounting policy before commission posting. Preserve this evidence without changing balances.',409);
     if(account.status!=='active'||!account.openingApprovedAt||account.reconciliationState!=='matched')throw fail('Provider wallet must be reconciled before posting commission',409);
     // Historical wallet commissions may have already credited fee income.
     // Refuse a new provider payout until legacy recognition has been reconciled.

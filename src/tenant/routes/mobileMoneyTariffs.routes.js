@@ -14,13 +14,15 @@ module.exports=function factory({renderTenant}){
  router.use((_req,res,next)=>{res.setHeader('Cache-Control','private, no-store');next();});
  router.get('/',async(req,res,next)=>{
   try{
-   const [schedules,branches,commissions]=await Promise.all([
+   const [schedules,branches,commissions,funds]=await Promise.all([
     service.read(req.tenantDb,req.tenant,req.user),branchService.list(req.tenant),
-    payouts.list(req.tenantDb,req.tenant,req.user)
+    payouts.list(req.tenantDb,req.tenant,req.user),
+    req.operationBranch&&(['Tenant Owner','Mobile Money Operator','Reconciliation Officer','Branch Manager'].includes(req.user.role))?
+      require('../services/mobileMoneyFunds.service').context(req.tenantDb,req.tenant,req.user,req.operationBranch):Promise.resolve(null)
    ]);
    renderTenant(req,res,'mobile-money/tariffs','Network commission sheets',
-    'Network agent rates, independent review and non-posting commission quotes.',
-    {schedules,commissions,customerTariffReferences:require('../pricing/customerNetworkFees').TABLES,branches:branches.filter(b=>b.status==='active'),
+    'Deposit and withdrawal commission schedules, cash and float, and independent review.',
+    {schedules,commissions,funds,allProviders:Object.entries(NETWORKS).map(([key,meta])=>({key,...meta,configured:!!meta.currency})),customerTariffReferences:require('../pricing/customerNetworkFees').TABLES,branches:branches.filter(b=>b.status==='active'),
      providerChoices:Object.entries(NETWORKS).filter(([,v])=>Boolean(v.currency)).map(([key,meta])=>({key,...meta})),
      canPropose:req.user.role==='Tenant Owner',
      canReview:req.user.role==='Reconciliation Officer',

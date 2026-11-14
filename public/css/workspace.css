@@ -91,3 +91,16 @@
 #workspaceContent .networkTariffActions{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:4px}
 #workspaceContent .networkTariffActions .btn{padding:11px 18px}
 @media(max-width:720px){#workspaceContent .networkTariffFields,#workspaceContent .networkTariffMetadata{grid-template-columns:1fr}#workspaceContent .networkTariffPage .cardBody,#workspaceContent .networkTariffPage .cardHead{padding:15px}}
+
+
+#workspaceContent .networkTariffEdit{border-top:1px solid var(--border);padding-top:12px}
+#workspaceContent .networkTariffEdit>summary{cursor:pointer;font-weight:700;margin-bottom:12px}
+#workspaceContent .networkTariffEdit .networkTariffForm{padding:14px;border-radius:14px;background:var(--card2);border:1px solid var(--border)}
+#workspaceContent .networkTariffPayout{padding:16px;border:1px solid var(--border);border-radius:16px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:start}
+#workspaceContent .networkTariffPayoutDetails{display:grid;gap:6px;min-width:0}
+#workspaceContent .networkTariffPayoutDetails b{font-size:14px;overflow-wrap:anywhere}
+#workspaceContent .networkTariffPayoutDetails span{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+#workspaceContent .networkTariffReview{grid-column:1/-1;display:grid;gap:12px;padding:12px 0 0;border-top:1px solid var(--border)}
+#workspaceContent .networkTariffReview .field{display:grid;gap:7px}
+#workspaceContent .networkTariffReview .control{max-width:100%;min-width:0}
+@media(max-width:720px){#workspaceContent .networkTariffPayout{grid-template-columns:1fr}}

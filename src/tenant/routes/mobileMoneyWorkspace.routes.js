@@ -57,13 +57,18 @@ module.exports=function routes({renderTenant}){
    const untracked=await require('../models').mobileTransactionModel(req.tenantDb).exists({
     branchId:req.operationBranch._id,fundingState:{$ne:'book_recorded'}
    });
-   res.json({branchReady:true,scope:broad?'all assigned and shared accounts in operating branch':'own and shared accounts in operating branch',
+   const readiness={branchReady:true,scope:broad?'all assigned and shared accounts in operating branch':'own and shared accounts in operating branch',
     accountCounts:totals,providerAccountCounts:providers,untrackedHistoricalOperationsPresent:Boolean(untracked),
     truncated:rows.length>500,
     guidance:!totals.wallet?'Configure a provider wallet for each market and obtain independent opening approval.':
       !totals.cash?'Configure a physical cash account and approve its opening balance.':
       totals.unopened?'Submit opening evidence and obtain independent approval.':
-      totals.needsReconciliation?'Review and reconcile mismatched account observations.':'Account setup exists. Verify book values against actual provider statements and cash counts.'});
+      totals.needsReconciliation?'Review and reconcile mismatched account observations.':
+      totals.held?'An account is held. Resolve the hold or account discrepancy before processing.':
+      'Account setup exists. Verify book values against actual provider statements and cash counts.'};
+   if(req.accepts('html')&&req.query.format!=='json')
+    renderTenant(req,res,'mobile-money/readiness','Cash and float readiness','Actual branch account configuration and missing approvals, without exposing customer data.',{readiness});
+   else res.json(readiness);
   }catch(e){next(e);}
  });
  router.get('/quote',async(req,res,next)=>{

@@ -6,6 +6,7 @@ const branchService=require('../services/branch.service');
 const {flash}=require('../../utils/view');
 const throttle=require('../../platform/services/actionThrottle.service').financial;
 const service=require('../pricing/networkTariffService');
+const payouts=require('../pricing/commissionPayoutService');
 const {NETWORKS}=require('../pricing/networkTariffs');
 module.exports=function factory({renderTenant}){
  const router=Router();
@@ -13,15 +14,18 @@ module.exports=function factory({renderTenant}){
  router.use((_req,res,next)=>{res.setHeader('Cache-Control','private, no-store');next();});
  router.get('/',async(req,res,next)=>{
   try{
-   const [schedules,branches]=await Promise.all([
-    service.read(req.tenantDb,req.tenant,req.user),branchService.list(req.tenant)
+   const [schedules,branches,commissions]=await Promise.all([
+    service.read(req.tenantDb,req.tenant,req.user),branchService.list(req.tenant),
+    payouts.list(req.tenantDb,req.tenant,req.user)
    ]);
    renderTenant(req,res,'mobile-money/tariffs','Network commission sheets',
     'Network agent rates, independent review and non-posting commission quotes.',
-    {schedules,branches:branches.filter(b=>b.status==='active'),
+    {schedules,commissions,branches:branches.filter(b=>b.status==='active'),
      providerChoices:Object.entries(NETWORKS).filter(([,v])=>Boolean(v.currency)).map(([key,meta])=>({key,...meta})),
      canPropose:req.user.role==='Tenant Owner',
      canReview:req.user.role==='Reconciliation Officer',
+     canSubmitPayout:['Tenant Owner','Mobile Money Operator'].includes(req.user.role),
+     canReviewPayout:['Tenant Owner','Reconciliation Officer'].includes(req.user.role),
      serializeLines:service.serializeLines});
   }catch(e){next(e);}
  });
@@ -29,6 +33,20 @@ module.exports=function factory({renderTenant}){
   try{
    await service.propose(req.tenantDb,req.tenant,req.user,req.body);
    flash(req,'good','Commission sheet submitted for independent review. No funds or income were posted.');
+   res.redirect(303,'/tenant/mobile-money/tariffs');
+  }catch(e){next(e);}
+ });
+ router.post('/payouts',requirePermission('treasury.observe'),throttle,async(req,res,next)=>{
+  try{
+   await payouts.propose(req.tenantDb,req.tenant,req.user,req.body);
+   flash(req,'good','Provider commission evidence submitted for independent review. Funds have not changed.');
+   res.redirect(303,'/tenant/mobile-money/tariffs');
+  }catch(e){next(e);}
+ });
+ router.post('/payouts/:id/review',requirePermission('treasury.review'),throttle,async(req,res,next)=>{
+  try{
+   const result=await payouts.review(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
+   flash(req,'good',result.status==='posted'?'Commission receipt posted to the reconciled wallet and income ledger.':'Commission evidence rejected; no funds changed.');
    res.redirect(303,'/tenant/mobile-money/tariffs');
   }catch(e){next(e);}
  });

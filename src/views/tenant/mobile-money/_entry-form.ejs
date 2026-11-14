@@ -1,8 +1,9 @@
 <% const entryOperation = typeof operation === 'string' && operation === 'cash_out' ? 'cash_out' : 'cash_in';
-   const entryLabel = entryOperation === 'cash_in' ? 'Customer deposit (Cash-in)' : 'Customer withdrawal (Cash-out)';
+   const entryLabel = entryOperation === 'cash_in' ? 'Deposit' : 'Withdraw';
    const entryPermissions = user.permissions || [];
    const entryCan = permission => entryPermissions.includes('*') || entryPermissions.includes(permission);
    const entryNetworks = data.networksAvailable || ['MTN','MTN SSD','Airtel','Africell','M-Pesa'];
+   const entryNetworkCurrencies={MTN:'UGX','MTN SSD':'SSP',Airtel:'UGX'};
    const entryCurrency=data.entryCurrency||currentBranch.currency;
    const entryCurrencyOptions=data.entryCurrencies?.length?data.entryCurrencies:(currentBranch.currencies||['UGX','USD','SSP','KES']).map(code=>({code,label:code==='KES'?'KSH':code}));
    const entryAmountPattern = entryCurrency === 'UGX' ? '[0-9]{1,11}' : '[0-9]{1,11}([.][0-9]{1,2})?';
@@ -20,7 +21,7 @@
       <div class="formSectionTitle">Customer and network</div>
       <input type="hidden" value="<%= entryLabel %>" data-mobile-operation-label><input type="hidden" name="fee" value="0">
       <div class="row2">
-        <label class="field">Network<select class="control" name="network" required><% entryNetworks.forEach(network=>{ %><option value="<%= network %>"><%= network==='MTN SSD'?'MTN MoMo South Sudan':network==='MTN'?'MTN MoMo Uganda':network %></option><% }) %></select></label>
+        <label class="field">Network<select class="control" name="network" required><% entryNetworks.forEach(network=>{ %><option value="<%= network %>" data-market-currency="<%= entryNetworkCurrencies[network]||'' %>"><%= network==='MTN SSD'?'MTN MoMo South Sudan':network==='MTN'?'MTN MoMo Uganda':network %></option><% }) %></select></label>
         <label class="field">Customer phone<input class="control" type="tel" name="customerPhone" placeholder="+211..." inputmode="tel" maxlength="24" required autocomplete="tel"></label>
       </div>
       <label class="field">Network transaction reference<input class="control" name="networkReference" placeholder="Reference from the provider transaction" pattern="[A-Za-z0-9._:\/\-]{5,100}" minlength="5" maxlength="100" required><span class="tiny">Captured automatically for received SMS transactions; enter the provider reference for a manual transaction.</span></label>
@@ -28,11 +29,22 @@
     <div class="formSection">
       <div class="formSectionTitle">Amount details</div>
       <div class="row2">
-        <label class="field">Currency<select class="control" name="currency" data-mobile-currency required><% entryCurrencyOptions.forEach(option=>{ %><option value="<%= option.code %>" <%= option.code===entryCurrency?'selected':'' %>><%= option.label %></option><% }) %></select></label>
-        <label class="field">Amount<input class="control" type="text" inputmode="decimal" name="amount" placeholder="0" pattern="<%= entryAmountPattern %>" required></label>
+        <label class="field" data-mobile-currency-field>Currency (automatically set by network)<select class="control" name="currency" data-mobile-currency required><% entryCurrencyOptions.forEach(option=>{ %><option value="<%= option.code %>" <%= option.code===entryCurrency?'selected':'' %>><%= option.label %></option><% }) %></select></label>
+        <label class="field">Amount (<span data-mobile-currency-label><%= entryCurrency %></span>)<input class="control" type="text" inputmode="decimal" name="amount" placeholder="0" pattern="<%= entryAmountPattern %>" required></label>
       </div>
       <label class="field">Payment method<select class="control" name="paymentMethod" required><option value="Cash">Cash</option><option value="Wallet Balance">Wallet Balance</option><option value="Bank">Bank</option></select></label>
       <%- include('_funds-context') %>
+      <% const entryBalances=[...(data.funds?.paymentAccounts||[]).filter(a=>a.kind==='cash'),...(data.funds?.wallets||[])]; %>
+      <div class="networkBalanceGrid mobileEntryBalances" data-mobile-balance-stats aria-label="Cash and float book balances">
+       <% entryBalances.forEach(a=>{ %>
+        <div class="networkBalanceStat" data-balance-network="<%= a.network||'' %>" data-balance-currency="<%= a.currency %>" data-balance-kind="<%= a.kind %>">
+         <span><%= a.kind==='cash'?'Physical cash':'Electronic float · '+(a.network==='MTN SSD'?'MTN South Sudan':a.network) %></span>
+         <strong><%= a.expected||'Opening approval pending' %></strong>
+         <small><%= a.name %> · <%= a.reconciliation||'Not reconciled' %> · book balance</small>
+        </div>
+       <% }) %>
+       <% if(!entryBalances.length){ %><p class="tiny">No cash or float account is available. Configure the agent accounts in Treasury.</p><% } %>
+      </div>
     </div>
     <%- include('../partials/operation-pricing',{pricingOperation:'mobile_money.'+entryOperation,pricingField:'fee'}) %>
     <div class="summary">
@@ -40,6 +52,6 @@
       <div class="sumRow"><span>Reference</span><b class="mono mobileRequestReference" data-mobile-reference><%= data.idempotencyKey %></b></div>
     </div>
     <details class="logicNote"><summary>Additional details</summary><div class="row2"><label class="field">Customer name<input class="control" name="customer" placeholder="Optional customer name" minlength="2" maxlength="120" autocomplete="name"></label><label class="field">Customer ID / note<input class="control" name="customerNote" placeholder="Optional verification or note" maxlength="400"></label></div></details>
-    <div class="rowBtns"><button class="btn btnPrimary" type="submit">Process mobile money</button></div>
+    <div class="rowBtns"><button class="btn btnPrimary" type="submit"><%= entryOperation==='cash_in'?'Record deposit':'Record withdrawal' %></button></div>
   </div>
 </form>

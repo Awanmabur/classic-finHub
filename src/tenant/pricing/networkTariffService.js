@@ -21,10 +21,11 @@ function parseLines(lines){
 }
 function serializeLines(tiers){return tiers.map(t=>[t.minMinor,t.maxMinor,t.rate.kind,t.rate.value].join(', ')).join('\n');}
 function validateInput(input){
- const allowed=['network','operation','scheduleKind','currency','branchId','effectiveFrom','expiresAt','evidenceReference','bands','_csrf'];
+ const allowed=['network','operation','scheduleKind','currency','walletAccountId','branchId','effectiveFrom','expiresAt','evidenceReference','bands','_csrf'];
  if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(k=>!allowed.includes(k)))throw fail('Unknown tariff input');
- const network=String(input.network||''),operation=String(input.operation||''),currency=NETWORKS[String(input.network||'')]?.currency||'',scheduleKind=String(input.scheduleKind||'');
- if(input.currency&&input.currency!==currency)throw fail('Currency cannot be changed independently of the selected provider market',409);
+ const network=String(input.network||''),operation=String(input.operation||''),currency=NETWORKS[String(input.network||'')]?.currency||String(input.currency||''),scheduleKind=String(input.scheduleKind||'');
+ if(NETWORKS[network]?.currency&&input.currency&&input.currency!==currency)throw fail('Currency cannot be changed independently of the selected provider market',409);
+ const walletAccountId=NETWORKS[network]&&!NETWORKS[network].currency?objectId(input.walletAccountId):null;
  if(!SCHEDULE_KINDS.includes(scheduleKind))throw fail('Choose whether this is a customer network fee or agent commission.');
  if(!input.branchId)throw fail('Choose the branch whose agent accounts use this commission schedule');
  const branchId=objectId(input.branchId);
@@ -42,8 +43,8 @@ function validateInput(input){
  const tiers=parseLines(input.bands);
  validateTariff({network,operation,currency,status:'draft',tiers});
  // Reject impossible cross-network currency before persisting.
- if(!NETWORKS[network]||NETWORKS[network].currency!==currency)throw fail('Choose the correct provider market and currency');
- return {network,operation,scheduleKind,currency,branchId,effectiveFrom,expiresAt,evidenceReference:evidenceReference.trim(),tiers};
+ if(!NETWORKS[network]||(NETWORKS[network].currency&&NETWORKS[network].currency!==currency))throw fail('Choose the correct provider market and currency');
+ return {network,operation,scheduleKind,currency,branchId,...(walletAccountId?{walletAccountId}:{}),effectiveFrom,expiresAt,evidenceReference:evidenceReference.trim(),tiers};
 }
 async function read(conn,tenant,actor){
  const auth=await treasury.access(conn,tenant,actor,{permission:'treasury.view',sourceType:'mobile_money'});
@@ -64,12 +65,23 @@ async function propose(conn,tenant,actor,input){
     const branch=await branchModel(conn).findOne({_id:details.branchId,status:'active'}).session(session).lean();
     if(!branch||!require('../services/branchCurrency.service').supports(branch,details.currency))throw fail('Choose an active branch that supports this currency',409);
    }
+   if(details.walletAccountId){
+    // An ambiguous provider name is not a market. The existing, reviewed branch
+    // wallet supplies the allowed currency; no operator-entered currency is trusted.
+    const wallet=await require('../treasury/models').models(conn).account.findOne({
+      _id:details.walletAccountId,tenantId:auth.tenant._id,branchId:details.branchId,
+      network:details.network,currency:details.currency,kind:'wallet',status:'active',
+      openingApprovedAt:{$ne:null},reconciliationState:'matched'
+    }).session(session).lean();
+    if(!wallet)throw fail('Choose an active, independently reconciled wallet for this provider market and currency',409);
+   }
    const scope={tenantId:auth.tenant._id,branchId:details.branchId,network:details.network,currency:details.currency,operation:details.operation,scheduleKind:details.scheduleKind};
    // A duplicate draft must be reviewed or retired, never silently overwritten.
    const pending=await model(conn).findOne({...scope,status:'draft'}).session(session).lean();
    if(pending)throw fail('A draft schedule exists for this network and branch. Review it before submitting another.',409);
    const last=await model(conn).findOne(scope).sort({version:-1}).session(session).lean();
-   [output]=await model(conn).create([{...scope,...details,version:(last?.version||0)+1,status:'draft',createdBy:auth.actor.id}],{session});
+   const {walletAccountId:marketWalletId,...storedDetails}=details;
+   [output]=await model(conn).create([{...scope,...storedDetails,version:(last?.version||0)+1,status:'draft',createdBy:auth.actor.id}],{session});
    await auditEventModel(conn).create([{actorId:auth.actor.id,action:'mobile_money.tariff.proposed',targetId:output._id,metadata:{network:details.network,operation:details.operation,currency:details.currency,scheduleKind:details.scheduleKind,version:output.version,evidenceReference:details.evidenceReference,branchId:String(details.branchId||'')}}],{session});
   });
   return output;

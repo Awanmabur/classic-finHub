@@ -8,6 +8,27 @@
   </div>
  </section>
  <section class="card">
+  <div class="cardHead"><div><b>Published customer network charges</b><br><span>Separate from agent commission and financial profit</span></div></div>
+  <div class="cardBody workspaceStack">
+   <p class="tiny">These provider tables are informational references. Customer network fees can include separate taxes, may be revised, and are charged by the provider — never automatically credited as agent income. The Airtel schedule below contains historical effective-date text.</p>
+   <% data.customerTariffReferences.forEach(source=>{ %>
+   <details class="networkTariffRecord">
+    <summary><span><b><%= source.label %></b><small><%= source.currency %> · Deposit: <%= data.formatMinor(source.depositFeeMinor,source.currency) %> network fee</small></span><span class="tag"><%= source.status==='published_reference'?'Published reference':'Historical — verify' %></span></summary>
+    <div class="networkTariffRecordBody">
+     <p class="tiny"><%= source.note %></p>
+     <div class="networkTariffMetadata"><span>Network <b><%= source.label %></b></span><span>Checked <b><%= source.checkedOn %></b></span><span>Source <a href="<%= source.source %>" target="_blank" rel="noopener noreferrer">View official provider table</a></span></div>
+     <div class="tableWrap"><table><thead><tr><th>Amount from</th><th>Amount to</th><% source.operations.forEach(op=>{ %><th><%= op.label %></th><% }) %></tr></thead><tbody>
+      <% source.bands.forEach(tier=>{ %><tr><td><%= data.formatMinor(tier.minMinor,source.currency) %></td><td><%= data.formatMinor(tier.maxMinor,source.currency) %></td>
+       <% source.operations.forEach(op=>{const charge=tier.charges[op.key];%><td><%= charge==null?'Not available':data.formatMinor(charge,source.currency) %></td><% }) %>
+      </tr><% }) %>
+     </tbody></table></div>
+    </div>
+   </details>
+   <% }) %>
+   <div class="workspaceNote"><b>MTN MoMo South Sudan, Africell and other markets:</b> A complete current public fee and agent-commission sheet has not been verified. Configure the provider market and independently review its genuine contract before any local quote is trusted. Missing rates remain unavailable; they are never invented.</div>
+  </div>
+ </section>
+ <section class="card">
   <div class="cardHead"><b>Configured network schedules</b><span><%= data.schedules.length %> saved</span></div>
   <div class="cardBody workspaceStack">
    <% if(!data.schedules.length){ %><p class="tiny">No agent commission schedule has been entered. MTN South Sudan and other providers will show no automatic commission rather than an invented rate.</p><% } %>

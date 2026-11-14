@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css?v=<%= assetVersion %>" />
   <% if(context==='tenant'){ %><link rel="stylesheet" href="/tenant/workspace/theme.css?v=<%= assetVersion %>" /><link rel="stylesheet" href="/css/approved-tenant.css?v=<%= assetVersion %>" /><% } else { %><link rel="stylesheet" href="/css/dashboard.css?v=<%= assetVersion %>" /><% } %>
   <link rel="stylesheet" href="/css/dashboard-layout.css?v=<%= assetVersion %>" />
+  <% if(context==='tenant'){ %><link rel="stylesheet" href="/css/workspace.css?v=<%= assetVersion %>" /><% } %>
 <link rel="stylesheet" href="/css/feedback.css?v=<%= typeof assetVersion==='undefined'?'1':assetVersion %>">
 <script src="/js/feedback.js?v=<%= typeof assetVersion==='undefined'?'1':assetVersion %>" defer></script>
 </head>

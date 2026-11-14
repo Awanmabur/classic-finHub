@@ -166,3 +166,8 @@
 #workspaceContent .networkOperationRow>span{font-size:13px;font-weight:650}
 #workspaceContent .networkOperationRow>small{font-size:11px;color:var(--muted);justify-self:end}
 #workspaceContent .networkOperationRow>a{grid-column:1/-1;justify-self:start;font-size:12px;font-weight:650;text-decoration:underline;text-underline-offset:3px}
+
+#workspaceContent .networkReferenceSection>summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;align-items:center}
+#workspaceContent .networkReferenceSection>summary::-webkit-details-marker{display:none}
+#workspaceContent .networkReferenceSection[open]>summary{border-bottom:1px solid var(--border)}
+#workspaceContent .networkReferenceSection>summary .tiny{color:var(--muted)}

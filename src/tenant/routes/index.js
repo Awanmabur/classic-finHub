@@ -254,7 +254,16 @@ router.post('/users/invite',requirePermission('users.manage_branch'),async(req,r
   try{
     const inviteUrl=await require('../services/staff.service').issueInvite(req.tenant,req.user,req.body);
     renderTenant(req,res,'users/invite','Staff invitation created','Secure one-time activation.',{inviteUrl,inviteQueued:require('../../config/inviteMail').configured()});
-  }catch(e){next(e);}
+  }catch(e){
+    // Input, quota, branch, duplicate identity and permission failures are safe
+    // actionable business messages. Keep internal provider/db failures out of
+    // the UI and route them to the central request-ID error handler.
+    if([400,403,409,422].includes(e?.status)){
+      flash(req,'bad',e.message);
+      return res.redirect(303,'/tenant/users');
+    }
+    next(e);
+  }
 });
 router.post('/users/:id/disable',requirePermission('users.manage_branch'),async(req,res,next)=>{
   try{await require('../services/staff.service').disableStaff(req.tenant,req.user,req.params.id);

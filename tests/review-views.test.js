@@ -24,7 +24,7 @@ async function page(role, view, data) {
 }
 test('operator sees a functional record form but not the review or audit controls',async()=>{
   const html=await page('Mobile Money Operator','mobile-money',{summary,canRecord:true,branches:[{status:'active',_id:'aaaaaaaaaaaaaaaaaaaaaaaa',name:'Main',currency:'UGX'}],canReview:false,reviewQueue:[],idempotencyKey:'123'});
-  assert.match(html,/Process mobile money/);
+  assert.match(html,/Record deposit/);
   assert.match(html,/name="_csrf" value="abc123"/);
   assert.doesNotMatch(html,/Independent internal review/);
   assert.doesNotMatch(html,/href="\/tenant\/audit"/);
@@ -33,13 +33,13 @@ test('reconciliation officer sees review form but not an unusable record form',a
   const html=await page('Reconciliation Officer','mobile-money',{summary,canRecord:false,canReview:true,reviewQueue:[record],idempotencyKey:'123'});
   assert.match(html,/Independent internal review/);
   assert.match(html,/name="decision" value="accepted"/);
-  assert.doesNotMatch(html,/Process mobile money/);
+  assert.doesNotMatch(html,/Record deposit/);
   assert.match(html,/href="\/tenant\/audit"/);
 });
 test('auditor sees read-only activity without fake submission buttons',async()=>{
   const html=await page('Auditor','mobile-money',{summary,canRecord:false,canReview:false,reviewQueue:[],idempotencyKey:'123'});
   assert.match(html,/Network activity/);
-  assert.doesNotMatch(html,/Process mobile money/);
+  assert.doesNotMatch(html,/Record deposit/);
   assert.doesNotMatch(html,/Independent internal review/);
 });
 test('report separates provider status and review and audit pages render tenant data safely',async()=>{

@@ -15,7 +15,12 @@ function summary(account){return {id:String(account._id),name:account.name,kind:
 async function context(conn,tenant,actor,branch){
  const trusted=await treasury.access(conn,tenant,actor,{permission:'mobile_money.view',sourceType:'mobile_money'});
  const currencies=require('./branchCurrency.service').supported(branch);
- const query={tenantId:tenant._id,branchId:branch._id,currency:{$in:currencies},status:{$ne:'archived'},$or:[{operatorId:actor.id},{operatorId:null}]};
+ // Operators may see only their own/shared funds. An authorized owner or
+ // branch supervisor must see all assigned drawers and wallets *within this
+ // resolved branch*; otherwise the dashboard falsely reports no accounts.
+ const allBranchAccounts=['Tenant Owner','Branch Manager','Reconciliation Officer','Auditor'].includes(trusted.actor.role);
+ const query={tenantId:trusted.tenant._id,branchId:branch._id,currency:{$in:currencies},status:{$ne:'archived'},
+  ...(allBranchAccounts?{}:{$or:[{operatorId:trusted.actor.id},{operatorId:null}]})};
  const accounts=await fundsModels.models(conn).account.find(query).sort({name:1}).limit(200).lean();
  let customerAccounts=[];
  if(hasModuleForUser(trusted.tenant,trusted.actor,'accounts')&&hasPermission(trusted.actor,'accounts.view')){

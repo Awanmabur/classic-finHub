@@ -128,7 +128,7 @@ test('market-specific commission sheets use known currency or approved branch wa
  assert.match(src,/branchId:details\.branchId/);
 });
 
-test('provider directory shows all five registered network slots and an editable rate grid script',async()=>{
+test('provider directory shows all registered network slots and an editable rate grid script',async()=>{
  const template=fs.readFileSync(path.join(root,'src/views/tenant/mobile-money/tariffs.ejs'),'utf8');
  const script=fs.readFileSync(path.join(root,'public/js/network-tariffs.js'),'utf8');
  assert.match(template,/data\.allProviders/);

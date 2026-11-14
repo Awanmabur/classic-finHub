@@ -88,7 +88,7 @@
      </form>
      <% if(data.canPropose&&schedule.status==='draft'&&(data.actorRole==='Tenant Owner'||!data.actorRole||String(schedule.createdBy)===String(data.actorId))){ %>
      <details class="networkTariffEdit"><summary>Edit draft rates</summary>
-      <form class="networkTariffForm" method="post" action="/tenant/mobile-money/tariffs/<%= schedule._id %>/edit">
+      <form class="networkTariffForm" method="post" data-editor-currency="<%= schedule.currency %>" action="/tenant/mobile-money/tariffs/<%= schedule._id %>/edit">
        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
        <input type="hidden" name="revision" value="<%= schedule.revision %>">
        <label class="field">Provider agreement or schedule reference<input class="control" name="evidenceReference" minlength="12" maxlength="350" required value="<%= schedule.evidenceReference %>"></label>

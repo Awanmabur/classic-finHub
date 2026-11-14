@@ -31,7 +31,15 @@ async function main(){
  const tenantDb=tenantDbNameFromSlug(slug);
  const base=new URL(mongoUrl);
  base.pathname='/'+tenantDb;
- const conn=await mongoose.createConnection(base.toString(),{serverSelectionTimeoutMS:15000,autoIndex:false}).asPromise();
+ // Mirror production getTenantConnection: logical tenant DBs share the platform MongoClient.
+ // A session from an independent createConnection() cannot fence platform and tenant writes.
+ assert.equal(base.host,new URL(platformUrl).host);
+ assert.equal(base.search,new URL(platformUrl).search);
+ const conn=mongoose.connection.useDb(tenantDb,{useCache:true,noListener:true});
+ conn.config.autoIndex=false;
+ conn.config.autoCreate=false;
+ assert.strictEqual(conn.getClient(),mongoose.connection.getClient(),
+  'Tenant and platform operations must share one MongoClient for atomic transactions');
  const pass=msg=>process.stdout.write('PASS: '+msg+'\n');
  const deny=async(msg,fn)=>{
   let refused=false;try{await fn();}catch(e){refused=true;}
@@ -93,7 +101,7 @@ async function main(){
   pass('Real reviewer rejection retained original float and excluded commission income');
   process.stdout.write('LOCKED SETTLEMENT SERVICE INTEGRATION PASSED — production posting gate remained off.\n');
  }finally{
-  await conn.close();await mongoose.disconnect();
+  await mongoose.disconnect();
  }
 }
 main().catch(e=>{process.stderr.write('LOCKED SETTLEMENT SERVICE INTEGRATION FAILED: '+e.stack+'\n');process.exitCode=1;});

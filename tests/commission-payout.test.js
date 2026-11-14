@@ -44,6 +44,9 @@ test('commission posting is explicitly gated and ties to immutable treasury move
  assert.match(service,/process\.env\.ENABLE_MOMO_COMMISSION_POSTING!=='true'/);
  assert.match(service,/sourceRef:'MCOM:'\+String\(prior\._id\)/);
  assert.match(service,/treasury\.applyMovements\(/);
+ assert.match(service,/posting\.duplicate/);
+ assert.match(service,/posting\.journalIds\.length===0/);
+ assert.match(service,/!posting\?\.batch\?\._id/);
  assert.match(service,/purpose:'agent_commission_income'/);
  assert.match(service,/String\(prior\.createdBy\)===auth\.actor\.id/);
  assert.match(schema,/providerReference:1\},\{unique:true\}/);

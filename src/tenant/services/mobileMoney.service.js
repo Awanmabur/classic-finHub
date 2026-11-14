@@ -120,6 +120,8 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
       // Only physical Cash records may change a verified drawer or join a shift.
       const funds=require('./mobileMoneyFunds.service');
       const tracking=await funds.shouldTrack(conn,authorization.tenant,values,options.requireFunds===true);
+      if(['mGURUSH','Digi Cash'].includes(values.network)&&!tracking)
+       throw bad('Configure an independently approved provider float wallet before recording transactions on this new network.',409);
       // Daily transactions use the configured funds book. Actual balance checks
       // belong on the wallets page; an SMS can still attach its dated balance.
       const funding=tracking?await funds.apply(conn,session,authorization,{...values,branchId:branch._id},{receivedAt:smsAuthorization?.receivedAt,feeTreatmentSpecified,expectedFeeTreatment,useConfiguredPolicy:options.requireFunds===true}):{};

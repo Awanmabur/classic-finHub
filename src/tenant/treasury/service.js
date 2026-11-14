@@ -111,10 +111,10 @@ async function createAccount(conn,tenant,actor,input,{configurationBranchId=null
  });}catch(error){if(error.code===11000)throw fail('This account code or default account already exists. Use a different code and clear the default option for additional accounts.',409);throw error;}
 }
 async function ensureCounterAccount(conn,session,{tenantId,branchId,currency,purpose,actorId}){
- if(!session?.inTransaction()||!currencyCodes.includes(currency)||!['opening_equity','settlement_clearing','reconciliation_suspense','fee_income','expense','interbranch_payable','interbranch_receivable'].includes(purpose))throw fail('Invalid internal treasury counter account');
+ if(!session?.inTransaction()||!currencyCodes.includes(currency)||!['opening_equity','settlement_clearing','reconciliation_suspense','fee_income','agent_commission_income','expense','interbranch_payable','interbranch_receivable'].includes(purpose))throw fail('Invalid internal treasury counter account');
  const Counter=models(conn).counter,lookup={branchId:oid(branchId),currency,purpose};let counter=await Counter.findOne(lookup).session(session).lean();if(counter){if(String(counter.tenantId)!==String(tenantId))throw fail('Counter account belongs to a different tenant',403);return counter;}
  const code=`TRS_${purpose.toUpperCase()}_${currency}`;
- const [chart]=await core.ledgerAccountModel(conn).create([{branchId,code,name:`Treasury ${purpose.replaceAll('_',' ')} (${currency})`,currency,category:purpose==='opening_equity'?'equity':purpose==='fee_income'?'income':purpose==='expense'?'expense':purpose==='interbranch_receivable'?'asset':'liability',createdBy:oid(actorId)}],{session});
+ const [chart]=await core.ledgerAccountModel(conn).create([{branchId,code,name:`Treasury ${purpose.replaceAll('_',' ')} (${currency})`,currency,category:purpose==='opening_equity'?'equity':['fee_income','agent_commission_income'].includes(purpose)?'income':purpose==='expense'?'expense':purpose==='interbranch_receivable'?'asset':'liability',createdBy:oid(actorId)}],{session});
  [counter]=await Counter.create([{tenantId:oid(tenantId),...lookup,ledgerAccountId:chart._id,ledgerCode:code}],{session});return counter;
 }
 async function expectedAt(conn,account,at,session=null){

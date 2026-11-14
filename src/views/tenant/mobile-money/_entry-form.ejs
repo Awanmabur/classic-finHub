@@ -4,8 +4,9 @@
    const entryCan = permission => entryPermissions.includes('*') || entryPermissions.includes(permission);
    const entryNetworks = data.networksAvailable || ['MTN','MTN SSD','Airtel','Africell','M-Pesa'];
    const entryNetworkCurrencies={MTN:'UGX','MTN SSD':'SSP',Airtel:'UGX'};
-   const entryCurrency=data.entryCurrency||currentBranch.currency;
    const entryCurrencyOptions=data.entryCurrencies?.length?data.entryCurrencies:(currentBranch.currencies||['UGX','USD','SSP','KES']).map(code=>({code,label:code==='KES'?'KSH':code}));
+   const selectedEntryNetwork=entryNetworks.find(n=>entryNetworkCurrencies[n]&&entryCurrencyOptions.some(c=>c.code===entryNetworkCurrencies[n]))||entryNetworks.find(n=>!entryNetworkCurrencies[n])||entryNetworks[0];
+   const entryCurrency=entryNetworkCurrencies[selectedEntryNetwork]||data.entryCurrency||currentBranch.currency;
    const entryAmountPattern = entryCurrency === 'UGX' ? '[0-9]{1,11}' : '[0-9]{1,11}([.][0-9]{1,2})?';
    const entryCurrencyLabel = typeof currencyLabel === 'function' ? currencyLabel(entryCurrency) : (entryCurrency === 'KES' ? 'KSH' : entryCurrency); %>
 <form class="card mobileMoneyEntry" method="post" action="/tenant/mobile-money/<%= entryOperation === 'cash_in' ? 'cash-in' : 'cash-out' %>" autocomplete="off" data-mobile-money-form data-operation="<%= entryOperation %>" data-currency="<%= entryCurrency %>" data-currency-label="<%= entryCurrencyLabel %>">
@@ -21,7 +22,7 @@
       <div class="formSectionTitle">Customer and network</div>
       <input type="hidden" value="<%= entryLabel %>" data-mobile-operation-label><input type="hidden" name="fee" value="0">
       <div class="row2">
-        <label class="field">Network<select class="control" name="network" required><% entryNetworks.forEach(network=>{ %><option value="<%= network %>" data-market-currency="<%= entryNetworkCurrencies[network]||'' %>"><%= network==='MTN SSD'?'MTN MoMo South Sudan':network==='MTN'?'MTN MoMo Uganda':network %></option><% }) %></select></label>
+        <label class="field">Network<select class="control" name="network" required><% entryNetworks.forEach(network=>{ %><option value="<%= network %>" data-market-currency="<%= entryNetworkCurrencies[network]||'' %>"<%- network===selectedEntryNetwork?' selected':'' %><%- entryNetworkCurrencies[network]&&!entryCurrencyOptions.some(c=>c.code===entryNetworkCurrencies[network])?' disabled':'' %>><%= network==='MTN SSD'?'MTN MoMo South Sudan':network==='MTN'?'MTN MoMo Uganda':network %></option><% }) %></select></label>
         <label class="field">Customer phone<input class="control" type="tel" name="customerPhone" placeholder="+211..." inputmode="tel" maxlength="24" required autocomplete="tel"></label>
       </div>
       <label class="field">Network transaction reference<input class="control" name="networkReference" placeholder="Reference from the provider transaction" pattern="[A-Za-z0-9._:\/\-]{5,100}" minlength="5" maxlength="100" required><span class="tiny">Captured automatically for received SMS transactions; enter the provider reference for a manual transaction.</span></label>

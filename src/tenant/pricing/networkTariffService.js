@@ -23,7 +23,8 @@ function serializeLines(tiers){return tiers.map(t=>[t.minMinor,t.maxMinor,t.rate
 function validateInput(input){
  const allowed=['network','operation','scheduleKind','currency','branchId','effectiveFrom','expiresAt','evidenceReference','bands','_csrf'];
  if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(k=>!allowed.includes(k)))throw fail('Unknown tariff input');
- const network=String(input.network||''),operation=String(input.operation||''),currency=String(input.currency||''),scheduleKind=String(input.scheduleKind||'');
+ const network=String(input.network||''),operation=String(input.operation||''),currency=NETWORKS[String(input.network||'')]?.currency||'',scheduleKind=String(input.scheduleKind||'');
+ if(input.currency&&input.currency!==currency)throw fail('Currency cannot be changed independently of the selected provider market',409);
  if(!SCHEDULE_KINDS.includes(scheduleKind))throw fail('Choose whether this is a customer network fee or agent commission.');
  if(!input.branchId)throw fail('Choose the branch whose agent accounts use this commission schedule');
  const branchId=objectId(input.branchId);

@@ -44,7 +44,8 @@ test('agent tariff UI escapes provider reference and offers protected independen
   data:{
    schedules:[row],branches:[{_id:'507f1f77bcf86cd799439012',name:'Juba Branch',status:'active'}],
    providerChoices:[{key:'MTN SSD',displayName:'MTN MoMo South Sudan',currency:'SSP'}],
-   canPropose:true,canReview:true,serializeLines:service.serializeLines
+   canPropose:true,canReview:true,canSubmitPayout:false,canReviewPayout:false,postingEnabled:false,
+   commissions:{records:[],wallets:[]},serializeLines:service.serializeLines
   }
  });
  assert(html.includes('MTN MoMo South Sudan'));

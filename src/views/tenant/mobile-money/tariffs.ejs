@@ -2,7 +2,7 @@
 <script src="/js/network-tariffs.js?v=<%= assetVersion %>" defer></script>
 <section class="view show workspaceStack networkTariffPage">
  <section class="card">
-  <div class="cardHead"><div><b>Network tariff and commission sheets</b><br><span>Cash deposit and withdrawal rates for each agent network and branch</span></div><a class="btn" href="/tenant/treasury">Cash &amp; float accounts</a></div>
+  <div class="cardHead"><div><b>Agent network rate sheets</b><br><span>Deposit and withdrawal rates, editable sheets and verified wallet balances</span></div><a class="btn" href="/tenant/treasury">Cash &amp; float accounts</a></div>
   <div class="cardBody workspaceStack">
    <p class="tiny">Agent commission schedules and customer network fee sheets are separate. A customer network charge is NOT an agent commission. Quotes never increase cash, float, income or profit. Only the network's actual, independently reconciled payout may enter the books.</p>
    <div class="workspaceActions"><a class="btn" href="/tenant/mobile-money/network-activity">Network activity</a><a class="btn" href="/tenant/mobile-money/report">Operations report</a><a class="btn" href="/tenant/workspace/pricing">Customer fees &amp; costs</a></div>
@@ -47,8 +47,8 @@
    </div>
   </div>
  </section>
- <section class="card">
-  <div class="cardHead"><div><b>Published customer network charges</b><br><span>Separate from agent commission and financial profit</span></div></div>
+ <details class="card networkReferenceSection">
+  <summary class="cardHead"><b>Customer network charges (reference only)</b><span class="tiny">Open to view published provider charges · not agent commission</span></summary>
   <div class="cardBody workspaceStack">
    <p class="tiny">These provider tables are informational references. Customer network fees can include separate taxes, may be revised, and are charged by the provider — never automatically credited as agent income. The Airtel schedule below contains historical effective-date text.</p>
    <% data.customerTariffReferences.forEach(source=>{ %>
@@ -67,7 +67,7 @@
    <% }) %>
    <div class="workspaceNote"><b>MTN MoMo South Sudan, Africell and other markets:</b> A complete current public fee and agent-commission sheet has not been verified. Configure the provider market and independently review its genuine contract before any local quote is trusted. Missing rates remain unavailable; they are never invented.</div>
   </div>
- </section>
+ </details>
  <section class="card" id="configured-network-sheets">
   <div class="cardHead"><b>Saved network schedules</b><span><%= data.schedules.length %> saved</span></div>
   <div class="cardBody workspaceStack">
@@ -136,7 +136,7 @@
  <% } %>
 
  <section class="card">
-  <div class="cardHead"><div><b>Provider commission payouts</b><br><span>Statement-backed receipts, independent review and separate income posting</span></div><span class="tag"><%= data.postingEnabled?'Posting gate enabled':'Posting locked' %></span></div>
+  <div class="cardHead"><div><b>Received provider commissions</b><br><span>Statement-backed receipts, independent review and separate income posting</span></div><span class="tag"><%= data.postingEnabled?'Posting gate enabled':'Posting locked' %></span></div>
   <div class="cardBody workspaceStack">
    <% if(!data.postingEnabled){ %><p class="workspaceNote">Payout posting is disabled until historic wallet commission entries are reconciled and a staging release gate passes. Submissions are stored as evidence only, not treated as cash, float or profit.</p><% } %>
    <% if(data.canSubmitPayout){ %>

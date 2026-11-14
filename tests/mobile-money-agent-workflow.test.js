@@ -71,3 +71,10 @@ test('cash opening remains a real audited and independently reviewed action',()=
  assert.match(routes,/router\.post\('\/day\/open'/);
  assert.match(main,/href="\/tenant\/cash\/shifts"/);
 });
+
+test('standalone EJS operation partial never requires dashboard-only assetVersion local',()=>{
+ const entry=source('src/views/tenant/mobile-money/_entry-form.ejs');
+ const layout=source('src/views/layouts/dashboard.ejs');
+ assert.doesNotMatch(entry,/<script[^>]+mobile-money-quote\.js/);
+ assert.match(layout,/\/js\/mobile-money-quote\.js\?v=<%= assetVersion %>/);
+});

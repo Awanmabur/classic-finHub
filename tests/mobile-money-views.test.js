@@ -161,3 +161,15 @@ test('workspace CSS loads in tenant dashboard head before content and is not inj
   assert.doesNotMatch(partial,/<link rel="stylesheet" href="\/css\/workspace\.css/);
  }
 });
+
+test('Mobile Money balance context is branch-scoped and no longer requires unrelated treasury viewing privilege',()=>{
+ const fs=require('node:fs');
+ const main=fs.readFileSync(path.join(__dirname,'../src/tenant/routes/index.js'),'utf8');
+ const sub=fs.readFileSync(path.join(__dirname,'../src/tenant/routes/mobileMoneyWorkspace.routes.js'),'utf8');
+ const funds=fs.readFileSync(path.join(__dirname,'../src/tenant/services/mobileMoneyFunds.service.js'),'utf8');
+ assert.match(funds,/permission:'mobile_money.view',sourceType:'mobile_money'/);
+ assert.match(funds,/branchId:branch\._id/);
+ assert.match(funds,/operatorId:actor\.id/);
+ assert.match(main,/req\.operationBranch\?require\('\.\.\/services\/mobileMoneyFunds\.service'\)\.context/);
+ assert.match(sub,/req\.operationBranch\?await require\('\.\.\/services\/mobileMoneyFunds\.service'\)\.context/);
+});

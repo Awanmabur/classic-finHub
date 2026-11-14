@@ -14,6 +14,9 @@ function summary(account){return {id:String(account._id),name:account.name,kind:
  expectedMinor:account.openingBalanceMinor===null?null:String(account.bookBalanceMinor),lastFour:String(account.accountReference||'').slice(-4),isDefault:Boolean(account.selectionKey),feeTreatment:account.feeTreatment||'record_only'};}
 async function context(conn,tenant,actor,branch){
  const trusted=await treasury.access(conn,tenant,actor,{permission:'mobile_money.view',sourceType:'mobile_money'});
+ if(!['Tenant Owner','Mobile Money Operator','Branch Manager','Reconciliation Officer','Auditor'].includes(trusted.actor.role)&&
+     !hasPermission(trusted.actor,'treasury.view'))
+  return {wallets:[],paymentAccounts:[],customerAccounts:[],setupHref:'/tenant/treasury',visibilityRestricted:true};
  const currencies=require('./branchCurrency.service').supported(branch);
  // Operators may see only their own/shared funds. An authorized owner or
  // branch supervisor must see all assigned drawers and wallets *within this

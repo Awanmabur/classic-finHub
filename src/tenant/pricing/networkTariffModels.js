@@ -31,8 +31,8 @@ const schema=new mongoose.Schema({
 schema.index({tenantId:1,branchId:1,network:1,currency:1,operation:1,scheduleKind:1,version:1},{unique:true});
 schema.index({tenantId:1,status:1,network:1,operation:1,effectiveFrom:-1});
 // Database-enforced single active/draft rate sheet prevents concurrent reviewer races.
-schema.index({tenantId:1,branchId:1,network:1,currency:1,operation:1,scheduleKind:1},{unique:true,partialFilterExpression:{status:'approved'}});
-schema.index({tenantId:1,branchId:1,network:1,currency:1,operation:1,scheduleKind:1},{unique:true,partialFilterExpression:{status:'draft'}});
+schema.index({tenantId:1,branchId:1,network:1,currency:1,operation:1,scheduleKind:1},{name:'agent_tariff_unique_approved_v1',unique:true,partialFilterExpression:{status:'approved'}});
+schema.index({tenantId:1,branchId:1,network:1,currency:1,operation:1,scheduleKind:1},{name:'agent_tariff_unique_draft_v1',unique:true,partialFilterExpression:{status:'draft'}});
 function model(conn){return conn.models.AgentTariffScheduleV1||conn.model('AgentTariffScheduleV1',schema);}
 const ready=new WeakMap();
 async function ensure(conn){

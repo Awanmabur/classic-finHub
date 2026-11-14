@@ -170,7 +170,7 @@ test('Mobile Money balance context is branch-scoped and no longer requires unrel
  const funds=fs.readFileSync(path.join(__dirname,'../src/tenant/services/mobileMoneyFunds.service.js'),'utf8');
  assert.match(funds,/permission:'mobile_money.view',sourceType:'mobile_money'/);
  assert.match(funds,/branchId:branch\._id/);
- assert.match(funds,/operatorId:actor\.id/);
+ assert.match(funds,/operatorId:trusted\.actor\.id/);
  assert.match(main,/req\.operationBranch\?require\('\.\.\/services\/mobileMoneyFunds\.service'\)\.context/);
  assert.match(sub,/req\.operationBranch\?await require\('\.\.\/services\/mobileMoneyFunds\.service'\)\.context/);
 });

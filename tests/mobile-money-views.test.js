@@ -47,7 +47,7 @@ test('entry offers only the saved branch currencies and selects SSP with exact c
  const html=await render('entry',locals),currency=html.match(/<select\b[^>]*name="currency"[^>]*>([\s\S]*?)<\/select>/);
  assert.deepEqual([...currency[1].matchAll(/<option\b[^>]*value="([^"]+)"/g)].map(match=>match[1]),['USD','SSP']);
  assert.match(currency[1],/value="SSP" selected/);assert.match(html,/data-currency="SSP"/);
- assert.match(html,/value="MTN SSD">MTN SSD<\/option>/);assert.match(html,/pattern="\[0-9\]\{1,11\}\(\[\.\]\[0-9\]\{1,2\}\)\?"/);
+ assert.match(html,/value="MTN SSD">MTN MoMo South Sudan<\/option>/);assert.match(html,/pattern="\[0-9\]\{1,11\}\(\[\.\]\[0-9\]\{1,2\}\)\?"/);
 });
 
 test('cash-out has its own protected action and tabs respect exact operation permissions',async()=>{

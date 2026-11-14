@@ -47,8 +47,8 @@ function tenantMenu(tenant,user) {
     item('Transfer report summary','money-transfer/report','fa-file-lines')
   ]:[],transfer?['money-transfer']:[]);
   group('Mobile Money',mobile?[
-    item('Cash-in','mobile-money/cash-in','fa-arrow-down',{transactionKind:can('mobile_money.cash_in')?'cash_in':null}),
-    item('Cash-out','mobile-money/cash-out','fa-arrow-up',{transactionKind:can('mobile_money.cash_out')?'cash_out':null}),
+    item('Deposit','mobile-money/cash-in','fa-arrow-down',{transactionKind:can('mobile_money.cash_in')?'cash_in':null}),
+    item('Withdrawal','mobile-money/cash-out','fa-arrow-up',{transactionKind:can('mobile_money.cash_out')?'cash_out':null}),
     item('Network activity','mobile-money/network-activity','fa-tower-broadcast'),
     item('Cash impact','mobile-money/cash-impact','fa-cash-register'),
     ...(can('mobile_money.report')||can('reports.view')?[item('Mobile money report','mobile-money/report','fa-file-lines')]:[])

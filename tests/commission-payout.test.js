@@ -49,7 +49,7 @@ test('commission posting is explicitly gated and ties to immutable treasury move
  assert.match(schema,/providerReference:1\},\{unique:true\}/);
 });
 test('payout UI discloses lock and never offers a live approval while locked',async()=>{
- const d={schedules:[],commissions:{records:[{
+ const d={schedules:[],customerTariffReferences:require('../src/tenant/pricing/customerNetworkFees').TABLES,commissions:{records:[{
   _id:'507f1f77bcf86cd799439022',network:'MTN SSD',currency:'SSP',amountMinor:'1250',
   providerReference:'REF-TEST',statementEvidence:'Statement ref 123',creditedAt:new Date(),
   status:'pending_review'

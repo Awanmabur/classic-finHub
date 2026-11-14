@@ -1,4 +1,3 @@
-<link rel="stylesheet" href="/css/workspace.css?v=<%= assetVersion %>">
 <% const currentBranch = typeof operationBranch !== 'undefined' ? operationBranch : (data.branches || []).find(b => String(b._id) === String(user.transactionBranchId || user.branchId || data.selectedBranchId || '') && b.status !== 'archived');
    const currentBranchId = currentBranch ? String(currentBranch._id) : null;
    const branchProblem = typeof operationBranchError === 'string' && operationBranchError ? operationBranchError : 'An active operating branch must be assigned to your account before creating records.'; %>

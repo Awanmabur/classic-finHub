@@ -12,7 +12,7 @@
       <% data.records.items.forEach(t=>{ %><tr data-search-row>
         <td><%= new Date(t.createdAt).toISOString().slice(0,16).replace('T',' ') %></td>
         <td><a href="/tenant/mobile-money/<%= t._id %>"><%= t.networkReference %></a></td>
-        <td><%= t.network %></td><td><%= t.operation === 'cash_in' ? 'Cash-in' : 'Cash-out' %></td><td><span class="tag"><%= t.entrySource==='sms'?'SMS capture':'Manual' %></span></td><td><%= t.paymentMethod || 'Cash' %></td>
+        <td><%= t.network %></td><td><%= t.operation === 'cash_in' ? 'Deposit' : 'Withdrawal' %></td><td><span class="tag"><%= t.entrySource==='sms'?'SMS capture':'Manual' %></span></td><td><%= t.paymentMethod || 'Cash' %></td>
         <td><%= money(t.currency,amountFromMinor(t.amountMinor,t.currency)) %></td>
         <td><%= money(t.currency,amountFromMinor(t.feeMinor,t.currency)) %></td>
         <td><%= t.status.replaceAll('_',' ') %> / <%= (t.reviewState||'awaiting_review').replaceAll('_',' ') %></td>

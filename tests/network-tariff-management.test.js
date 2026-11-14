@@ -112,3 +112,30 @@ test('draft evidence edit accepts normal document references but rejects control
  assert.equal(pattern.test('MTN Uganda official November 2026 agent agreement'),false);
  assert.equal(pattern.test('MTN Uganda\u0000agreement'),true);
 });
+
+test('market-specific commission sheets use known currency or approved branch wallet',()=>{
+ const fixed=service.validateInput({...base,network:'MTN',currency:undefined});
+ assert.equal(fixed.currency,'UGX');
+ const custom=service.validateInput({...base,network:'Africell',currency:'SSP',walletAccountId:'507f1f77bcf86cd799439099'});
+ assert.equal(custom.currency,'SSP');
+ assert.equal(String(custom.walletAccountId),'507f1f77bcf86cd799439099');
+ assert.throws(()=>service.validateInput({...base,network:'Africell',currency:'SSP'}));
+ assert.throws(()=>service.validateInput({...base,network:'MTN',currency:'SSP'}));
+ const src=fs.readFileSync(path.join(root,'src/tenant/pricing/networkTariffService.js'),'utf8');
+ assert.match(src,/reconciliationState:'matched'/);
+ assert.match(src,/kind:'wallet'/);
+ assert.match(src,/branchId:details\.branchId/);
+});
+
+test('provider directory shows all five registered network slots and an editable rate grid script',async()=>{
+ const template=fs.readFileSync(path.join(root,'src/views/tenant/mobile-money/tariffs.ejs'),'utf8');
+ const script=fs.readFileSync(path.join(root,'public/js/network-tariffs.js'),'utf8');
+ assert.match(template,/data\.allProviders/);
+ assert.match(template,/data-choose-operation/);
+ assert.match(template,/data-provider-currency/);
+ assert.match(template,/data-tariff-market-wallet/);
+ assert.match(template,/networkTariffScroll/);
+ assert.match(script,/Add amount range/);
+ assert.match(script,/Remove this amount range/);
+ assert.match(script,/data-payout-wallet/);
+});

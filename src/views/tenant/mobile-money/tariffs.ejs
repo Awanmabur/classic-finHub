@@ -112,8 +112,8 @@
   </div>
  </section>
  <% if(data.canPropose){ %>
- <section class="card" id="network-sheet-form">
-  <div class="cardHead"><div><b>Add a network rate sheet</b><br><span>Operator draft · separate customer charges and agent commission · independent approval required</span></div></div>
+ <details class="card networkNewSheet" id="network-sheet-form">
+  <summary class="cardHead"><b>Add or edit agent rate ranges</b><span class="tiny">Open form · independent approval required</span></summary>
   <form class="cardBody networkTariffForm" method="post" action="/tenant/mobile-money/tariffs" autocomplete="off">
    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
    <div class="networkTariffFields">
@@ -124,7 +124,7 @@
     <div class="field"><span>Operating branch</span><div class="networkReadOnly"><%= data.branches[0].name %></div><input type="hidden" name="branchId" value="<%= data.branches[0]._id %>"></div>
     <% }else{ %><label class="field">Branch<select name="branchId" class="control" required><option value="">Choose branch</option><% data.branches.forEach(b=>{ %><option value="<%= b._id %>"><%= b.name %></option><% }) %></select></label><% } %>
     <label class="field">Schedule type<select name="scheduleKind" class="control" required><option value="agent_commission">Agent commission paid by provider</option><option value="customer_network_fee">Network charge paid by customer</option></select></label>
-    <label class="field">Agent operation<select name="operation" class="control" required><option value="cash_in">Customer deposit (Cash-in)</option><option value="cash_out">Customer withdrawal (Cash-out)</option><option value="send">Send money</option><option value="bill_payment">Pay a bill</option><option value="airtime_sale">Sell airtime or bundles</option><option value="merchant_payment">Merchant payment</option></select></label>
+    <label class="field">Agent operation<select name="operation" class="control" required><option value="cash_in">Deposit</option><option value="cash_out">Withdrawal</option><option value="send">Send money</option><option value="bill_payment">Pay a bill</option><option value="airtime_sale">Sell airtime or bundles</option><option value="merchant_payment">Merchant payment</option></select></label>
     <label class="field">Effective from (UTC)<input type="date" name="effectiveFrom" class="control" required></label>
     <label class="field">Expires (optional)<input type="date" name="expiresAt" class="control"></label>
    </div>
@@ -132,7 +132,7 @@
    <label class="field">Amount ranges and rates<textarea name="bands" class="control networkTariffBands" data-rate-editor rows="8" maxlength="30000" required spellcheck="false" placeholder="500, 2500, basis_points, 400&#10;2501, 5000, flat, 110"></textarea><span class="tiny">One row per band: minimum amount, maximum amount, flat or basis_points, rate. Use exact minor units. For UGX, 100 means UGX 100. For SSP, check the system currency precision before entering bands. 100 basis points = 1%. No overlapping ranges.</span></label>
    <div class="networkTariffActions"><button class="btn btnPrimary" type="submit">Submit for review</button><span class="tiny">This does not change customer fees or post any money.</span></div>
   </form>
- </section>
+ </details>
  <% } %>
 
  <section class="card">

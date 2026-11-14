@@ -1,6 +1,6 @@
 <section class="view show mobileMoneyPage">
   <section class="card"><div class="cardHead"><div><b>Network activity</b><br><span>Mobile money records grouped by network with recent activity.</span></div></div><div class="cardBody richPageGrid">
-    <div class="richActions"><% if(data.canRecord){ %><a class="btn btnPrimary" href="<%= data.recordPath || '/tenant/mobile-money/cash-in' %>" data-transaction-kind="mobile_money">New mobile money</a><% } %><a class="btn" href="/tenant/mobile-money/cash-impact">Cash impact</a><% if(data.canReport){ %><a class="btn" href="/tenant/mobile-money/report">Mobile money report</a><% } %></div>
+    <div class="richActions"><% if(data.canRecord){ %><a class="btn btnPrimary" href="<%= data.recordPath || '/tenant/mobile-money/cash-in' %>" data-transaction-kind="mobile_money">New mobile money</a><% } %><a class="btn" href="/tenant/mobile-money/cash-impact">Cash impact</a><a class="btn" href="/tenant/mobile-money/tariffs">Network commission sheets</a><% if(data.canReport){ %><a class="btn" href="/tenant/mobile-money/report">Mobile money report</a><% } %></div>
     <%- include('_filters',{filterAction:'/tenant/mobile-money/network-activity'}) %>
     <div class="tableWrap"><table><thead><tr><th>Network</th><th>Cash-in Count</th><th>Cash-out Count</th><th>Total Volume</th><th>Fees</th></tr></thead><tbody>
       <% if(!data.networks.length){ %><tr><td colspan="5">No network activity in this period.</td></tr><% } %>

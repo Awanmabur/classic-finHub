@@ -22,8 +22,8 @@ module.exports=function factory({renderTenant}){
    ]);
    renderTenant(req,res,'mobile-money/tariffs','Network commission sheets',
     'Deposit and withdrawal commission schedules, cash and float, and independent review.',
-    {schedules,commissions,funds,allProviders:Object.entries(NETWORKS).map(([key,meta])=>({key,...meta,configured:!!meta.currency})),customerTariffReferences:require('../pricing/customerNetworkFees').TABLES,branches:branches.filter(b=>b.status==='active'),
-     providerChoices:Object.entries(NETWORKS).filter(([,v])=>Boolean(v.currency)).map(([key,meta])=>({key,...meta})),
+    {schedules,commissions,funds,allProviders:Object.entries(NETWORKS).map(([key,meta])=>({key,...meta,configured:!!meta.currency||commissions.wallets.some(w=>w.network===key)})),customerTariffReferences:require('../pricing/customerNetworkFees').TABLES,branches:branches.filter(b=>b.status==='active'),
+     providerChoices:Object.entries(NETWORKS).filter(([key,meta])=>Boolean(meta.currency)||commissions.wallets.some(w=>w.network===key)).map(([key,meta])=>({key,...meta})),
      canPropose:req.user.role==='Tenant Owner',
      canReview:req.user.role==='Reconciliation Officer',
      canSubmitPayout:['Tenant Owner','Mobile Money Operator'].includes(req.user.role),

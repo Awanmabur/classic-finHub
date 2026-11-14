@@ -31,6 +31,24 @@
     }));
   }
 
+  const payoutWallet=root.querySelector('[data-payout-wallet]');
+  if(payoutWallet){
+    const parent=payoutWallet.closest('form');
+    const network=parent?.querySelector('[data-payout-network]');
+    const currency=parent?.querySelector('[data-payout-currency]');
+    const readOnly=parent?.querySelector('[data-payout-market]');
+    const syncWallet=()=>{
+      const option=payoutWallet.selectedOptions[0];
+      const chosenNetwork=option?.dataset.network||'';
+      const chosenCurrency=option?.dataset.currency||'';
+      if(network)network.value=chosenNetwork;
+      if(currency)currency.value=chosenCurrency;
+      if(readOnly)readOnly.textContent=chosenNetwork?chosenNetwork+' · '+chosenCurrency:'Choose a wallet to identify its network and currency';
+    };
+    payoutWallet.addEventListener('change',syncWallet);
+    syncWallet();
+  }
+
   // Keep the original comma-separated textarea as the canonical server input
   // and as a functional no-JavaScript fallback. An enhanced table is optional.
   root.querySelectorAll('textarea[data-rate-editor]').forEach(textarea=>{

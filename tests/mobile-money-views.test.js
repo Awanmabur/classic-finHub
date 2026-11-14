@@ -25,7 +25,7 @@ test('approved mobile money entry preserves the protected server contract and as
   assert.match(html,new RegExp(`name="idempotencyKey" value="${requestKey}"`));
   for(const field of ['customer','customerPhone','network','networkReference','customerNote','amount','fee','currency','paymentMethod']) assert.match(html,new RegExp(`name="${field}"`));
   for(const label of ['Customer and network','Customer phone','Customer name','Network transaction reference','Customer ID / note','Amount details','Fee / commission','Payment method','Physical cash received from customer','Process mobile money']) assert.ok(html.includes(label),label);
-  assert.match(html,/<option value="Africell">Africell<\/option>/);
+  assert.match(html,/<option value="Africell" data-market-currency="">Africell<\/option>/);
   assert.match(html,/<option value="Wallet Balance">Wallet Balance<\/option>/);
   assert.match(html,/<option value="Bank">Bank<\/option>/);
   const currency = html.match(/<select\b[^>]*name="currency"[^>]*>([\s\S]*?)<\/select>/);
@@ -111,4 +111,17 @@ test('network activity handler supplies a money formatter when actual payouts ex
  const route=fs.readFileSync(path.join(__dirname,'../src/tenant/routes/mobileMoneyWorkspace.routes.js'),'utf8');
  assert.match(route,/commissionReceived,formatMoneyMinor:require\('\.\.\/services\/mobileMoney\.service'\)\.formatMoneyMinor/);
  assert.match(route,/commissionPayoutService'\)\.summary/);
+});
+
+test('deposit and withdrawal entry displays scoped actual book balances and network-set currency',async()=>{
+ const context=options();
+ context.data.funds={wallets:[{id:'wa',name:'MTN South Sudan float',kind:'wallet',network:'MTN SSD',currency:'SSP',expected:'SSP 250.00',reconciliation:'matched'}],paymentAccounts:[{id:'ca',name:'Agent drawer',kind:'cash',network:'',currency:'SSP',expected:'SSP 550.00',reconciliation:'matched'}],customerAccounts:[]};
+ const html=await render('entry',context);
+ assert.match(html,/data-market-currency="SSP"/);
+ assert.match(html,/data-mobile-currency-field/);
+ assert.match(html,/data-mobile-balance-stats/);
+ assert.match(html,/SSP 250\.00/);
+ assert.match(html,/SSP 550\.00/);
+ assert.match(html,/Record deposit/);
+ assert.doesNotMatch(html,/Available balance from provider network/);
 });

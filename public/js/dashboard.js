@@ -153,6 +153,18 @@
     const amount = form.elements.namedItem('amount');
     const fee = form.elements.namedItem('fee');
     const currencyControl = form.elements.namedItem('currency');
+    const networkControl=form.elements.namedItem('network');
+    const currencyField=form.querySelector('[data-mobile-currency-field]');
+    const marketLabel=form.querySelector('[data-mobile-currency-label]');
+    const syncNetworkCurrency=()=>{
+      const code=networkControl?.selectedOptions[0]?.dataset.marketCurrency||'';
+      networkControl?.setCustomValidity(code&&!Array.from(currencyControl?.options||[]).some(option=>option.value===code)?'This branch does not support the selected network currency. Ask the administrator to enable it.':'');
+      if(code&&currencyControl?.querySelector('option[value="'+code+'"]'))currencyControl.value=code;
+      if(currencyField)currencyField.hidden=Boolean(code);
+      if(marketLabel)marketLabel.textContent=currencyControl?.value||form.dataset.currency;
+      if(currencyControl)currencyControl.dispatchEvent(new Event('change',{bubbles:true}));
+    };
+    networkControl?.addEventListener('change',syncNetworkCurrency);
     const selectedCurrency = () => currencyControl?.value || form.dataset.currency;
     const toMinor = (value,decimals) => {
       const match = String(value || '').match(/^(\d+)(?:\.(\d{1,2}))?$/);
@@ -192,6 +204,7 @@
       });
       updateTotal();
     }));
+    syncNetworkCurrency();
     updateTotal();
   };
   document.querySelectorAll('[data-mobile-money-form]').forEach(form => initialiseMobileMoneyForm(form));
@@ -221,6 +234,10 @@
     };
     const refresh=()=>{
       const currency=selectedCurrency(),current=wallet.value,available=[];
+      for(const stat of form.querySelectorAll('[data-balance-kind]')){
+        stat.hidden=stat.dataset.balanceCurrency!==currency||
+          (stat.dataset.balanceKind==='wallet'&&stat.dataset.balanceNetwork!==network.value);
+      }
       for(const option of wallet.options){if(!option.value)continue;const visible=option.dataset.network===network.value&&option.dataset.currency===currency;option.hidden=!visible;option.disabled=!visible||option.dataset.state!=='active'||!/^\d{1,34}$/.test(option.dataset.expectedMinor||'');if(!option.disabled)available.push(option);}
       if(!available.some(option=>option.value===current)){
         const own=available.filter(option=>option.dataset.assigned==='true'),eligible=own.length?own:available,defaults=eligible.filter(option=>option.dataset.default==='true');

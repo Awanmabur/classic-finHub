@@ -2,11 +2,28 @@
   <section class="card"><div class="cardHead"><div><b>Network activity</b><br><span>Mobile money records grouped by network with recent activity.</span></div></div><div class="cardBody richPageGrid">
     <div class="richActions"><% if(data.canRecord){ %><a class="btn btnPrimary" href="<%= data.recordPath || '/tenant/mobile-money/cash-in' %>" data-transaction-kind="mobile_money">New mobile money</a><% } %><a class="btn" href="/tenant/mobile-money/cash-impact">Cash impact</a><a class="btn" href="/tenant/mobile-money/tariffs">Network commission sheets</a><% if(data.canReport){ %><a class="btn" href="/tenant/mobile-money/report">Mobile money report</a><% } %></div>
     <%- include('_filters',{filterAction:'/tenant/mobile-money/network-activity'}) %>
-    <div class="tableWrap"><table><thead><tr><th>Network</th><th>Cash-in Count</th><th>Cash-out Count</th><th>Total Volume</th><th>Fees</th></tr></thead><tbody>
+    <div class="tableWrap"><table><thead><tr><th>Network</th><th>Customer deposits</th><th>Customer withdrawals</th><th>Transaction volume</th><th>Recorded fees (not profit)</th></tr></thead><tbody>
       <% if(!data.networks.length){ %><tr><td colspan="5">No network activity in this period.</td></tr><% } %>
       <% data.networks.forEach(network=>{ %><tr data-search-row><td><%= network.network %> · <%= network.currency %></td><td><%= network.cashInCount %></td><td><%= network.cashOutCount %></td><td><%= network.formatted.volume %></td><td><%= network.formatted.fees %></td></tr><% }) %>
     </tbody></table></div>
     <%- include('_activity',{activityRecords:data.records,activityPath:'/tenant/mobile-money/network-activity'}) %>
     <p class="tiny">Totals cover active records in the selected period. Voided originals remain in the activity trail. Provider settlement remains pending verification.</p>
   </div></section>
+
+<% if(data.funds){const accounts=[...(data.funds.paymentAccounts||[]).filter(a=>a.kind==='cash'),...(data.funds.wallets||[])]; %>
+<section class="card networkFundsOverview">
+ <div class="cardHead"><div><b>Cash and electronic float</b><br><span>Separate treasury accounts, not transaction volume or estimated commission</span></div><a class="btn" href="/tenant/treasury">Reconcile balances</a></div>
+ <div class="cardBody tableWrap"><table><thead><tr><th>Account</th><th>Type</th><th>Network</th><th>Currency</th><th>Book balance</th><th>Observed balance</th><th>Variance</th><th>Reconciliation</th></tr></thead><tbody>
+ <% if(!accounts.length){ %><tr><td colspan="8">No approved cash drawer or provider wallet is available for this branch.</td></tr><% } %>
+ <% accounts.forEach(a=>{ %><tr><td><%= a.name %></td><td><%= a.kind==='cash'?'Physical cash':'Electronic float' %></td><td><%= a.network||'—' %></td><td><%= a.currency %></td><td><%= a.expected||'Opening pending' %></td><td><%= a.observed||'Not observed' %></td><td><%= a.variance||'Not reconciled' %></td><td><span class="tag"><%= a.reconciliation||'unknown' %></span></td></tr><% }) %>
+ </tbody></table></div>
+</section>
+<% } %>
+<section class="card networkCommissionOverview">
+ <div class="cardHead"><div><b>Received agent commissions</b><br><span>Only independently reviewed and journal-posted provider credits are included</span></div><a class="btn" href="/tenant/mobile-money/tariffs">Commission sheets &amp; payouts</a></div>
+ <div class="cardBody tableWrap"><table><thead><tr><th>Network</th><th>Currency</th><th>Posted payouts</th><th>Received commission</th></tr></thead><tbody>
+ <% if(!(data.commissionReceived||[]).length){ %><tr><td colspan="4">No verified, posted commission payouts. Estimates and unreviewed claims are excluded.</td></tr><% } %>
+ <% (data.commissionReceived||[]).forEach(item=>{ %><tr><td><%= item.network==='MTN SSD'?'MTN MoMo South Sudan':item.network %></td><td><%= item.currency %></td><td><%= item.count %></td><td><%= data.formatMoneyMinor(item.receivedMinor,item.currency) %></td></tr><% }) %>
+ </tbody></table></div>
+</section>
 </section>

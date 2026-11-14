@@ -2,7 +2,6 @@
 const mongoose=require('mongoose');
 const {model,ensure}=require('./networkTariffModels');
 const {validateTariff,quote,NETWORKS,SCHEDULE_KINDS}=require('./networkTariffs');
-const workspace=require('../workspace/service');
 const treasury=require('../treasury/service');
 const {branchModel,auditEventModel}=require('../models');
 const OID=/^[a-f0-9]{24}$/i;
@@ -60,7 +59,9 @@ async function propose(conn,tenant,actor,input){
  try{
   let output;
   await session.withTransaction(async()=>{
-   const auth=await workspace.access(conn,tenant,actor,{manage:true,fence:true,session});
+   const auth=await treasury.access(conn,tenant,actor,{permission:'treasury.observe',sourceType:'mobile_money',session,fence:true});
+   if(!['Tenant Owner','Mobile Money Operator'].includes(auth.actor.role))throw fail('Only authorized agent operators may propose rate sheets',403);
+   if(auth.actor.role==='Mobile Money Operator'&&String(details.branchId)!==String(auth.actor.branchId))throw fail('Rate sheets must belong to your assigned branch',403);
    if(details.branchId){
     const branch=await branchModel(conn).findOne({_id:details.branchId,status:'active'}).session(session).lean();
     if(!branch||!require('../services/branchCurrency.service').supports(branch,details.currency))throw fail('Choose an active branch that supports this currency',409);
@@ -101,6 +102,9 @@ async function revise(conn,tenant,actor,id,input){
    const auth=await workspace.access(conn,tenant,actor,{manage:true,fence:true,session});
    const prior=await model(conn).findOne({_id:objectId(id),tenantId:auth.tenant._id,status:'draft',revision:expected}).session(session).lean();
    if(!prior)throw fail('Draft changed or was already approved. Reload the page.',409);
+   if(auth.actor.role==='Mobile Money Operator'&&
+     (String(prior.branchId)!==String(auth.actor.branchId)||String(prior.createdBy)!==auth.actor.id))
+     throw fail('Only the original agent may edit their branch draft',403);
    validateTariff({network:prior.network,currency:prior.currency,operation:prior.operation,status:'draft',tiers});
    output=await model(conn).findOneAndUpdate({_id:prior._id,tenantId:auth.tenant._id,status:'draft',revision:expected},
     {$set:{tiers,evidenceReference:evidenceReference.trim()},$inc:{revision:1}},{session,new:true,runValidators:true}).lean();

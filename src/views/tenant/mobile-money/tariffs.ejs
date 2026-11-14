@@ -24,7 +24,7 @@
   </div>
  </section>
  <section class="card networkProviderDirectory">
-  <div class="cardHead"><div><b>Network rate sheets</b><br><span>Choose a provider to see its saved deposit and withdrawal commission schedules</span></div><span class="tag"><%= data.allProviders.length %> registered networks</span></div>
+  <div class="cardHead"><div><b>Network rate sheets</b><br><span>Choose a provider to see its saved deposit and withdrawal commission schedules</span></div><span class="tag"><%= (data.allProviders||[]).length %> registered networks</span></div>
   <div class="cardBody">
    <div class="networkProviderGrid">
     <% (data.allProviders||[]).forEach(p=>{const saved=data.schedules.filter(s=>s.network===p.key&&s.status==='approved').length;const pending=data.schedules.filter(s=>s.network===p.key&&s.status==='draft').length; %>

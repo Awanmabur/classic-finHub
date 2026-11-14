@@ -54,7 +54,7 @@ test('cash-out has its own protected action and tabs respect exact operation per
   const locals = options(); locals.data.operation='cash_out'; locals.user.permissions=['mobile_money.view','mobile_money.cash_out'];
   const html = await render('entry',locals);
   assert.match(html,/action="\/tenant\/mobile-money\/cash-out"/);
-  assert.match(html,/Mobile Money - Customer withdrawal \\(Cash-out\\)/);
+  assert.match(html,/Mobile Money - Customer withdrawal \(Cash-out\)/);
   assert.match(html,/data-mobile-operation="cash_out"/);
   assert.doesNotMatch(html,/data-mobile-operation="cash_in"/);
   locals.data.canRecord=false;

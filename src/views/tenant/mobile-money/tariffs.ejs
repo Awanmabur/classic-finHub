@@ -15,7 +15,7 @@
    <% if(moneyAccounts.length){ %>
    <div class="networkBalanceGrid"><% moneyAccounts.forEach(account=>{ %>
     <div class="networkBalanceStat">
-     <span><%= account.kind==='cash'?'Available physical cash':'Electronic float · '+(account.network==='MTN SSD'?'MTN South Sudan':account.network) %></span>
+     <span><%= account.kind==='cash'?'Physical cash · book balance':'Electronic float · '+(account.network==='MTN SSD'?'MTN South Sudan':account.network) %></span>
      <strong><%= account.expected||'Opening not approved' %></strong>
      <small><%= account.name %> · <%= account.currency %> · <%= account.reconciliation==='matched'?'Reconciled':(account.reconciliation||'Not reconciled') %></small>
     </div>
@@ -86,7 +86,7 @@
       <button class="btn" type="submit">Estimate commission</button>
       <span class="tiny">Reference estimate only — no money is posted.</span>
      </form>
-     <% if(data.canPropose&&schedule.status==='draft'){ %>
+     <% if(data.canPropose&&schedule.status==='draft'&&(data.actorRole==='Tenant Owner'||!data.actorRole||String(schedule.createdBy)===String(data.actorId))){ %>
      <details class="networkTariffEdit"><summary>Edit draft rates</summary>
       <form class="networkTariffForm" method="post" action="/tenant/mobile-money/tariffs/<%= schedule._id %>/edit">
        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
@@ -97,12 +97,12 @@
       </form>
      </details>
      <% } %>
-     <% if(data.canReview&&schedule.status==='draft'){ %>
+     <% if(data.canReview&&schedule.status==='draft'&&String(schedule.createdBy)!==String(data.actorId||'')){ %>
       <div class="networkTariffAction"><p class="tiny">Review the original provider agreement before approving. You cannot approve your own submission.</p>
        <form action="/tenant/mobile-money/tariffs/<%= schedule._id %>/approve" method="post"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btnPrimary">Approve rate sheet</button></form>
       </div>
      <% } %>
-     <% if(data.canReview&&schedule.status==='approved'){ %>
+     <% if(data.canReview&&schedule.status==='approved'&&String(schedule.createdBy)!==String(data.actorId||'')){ %>
       <form action="/tenant/mobile-money/tariffs/<%= schedule._id %>/retire" method="post" class="networkTariffAction"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn">Retire rate sheet</button></form>
      <% } %>
      <p class="tiny">A schedule is an estimate. The provider balance or daily commission statement is required before recognizing actual commission revenue.</p>
@@ -113,14 +113,16 @@
  </section>
  <% if(data.canPropose){ %>
  <section class="card" id="network-sheet-form">
-  <div class="cardHead"><div><b>Add a network rate sheet</b><br><span>Tenant Owner · separate customer charges and agent income · independent approval required</span></div></div>
+  <div class="cardHead"><div><b>Add a network rate sheet</b><br><span>Operator draft · separate customer charges and agent commission · independent approval required</span></div></div>
   <form class="cardBody networkTariffForm" method="post" action="/tenant/mobile-money/tariffs" autocomplete="off">
    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
    <div class="networkTariffFields">
     <label class="field">Network<select name="network" class="control" data-provider-select required><option value="">Choose network</option><% data.providerChoices.forEach(p=>{ %><option value="<%= p.key %>" data-currency="<%= p.currency %>"><%= p.displayName %></option><% }) %></select></label>
     <label class="field">Currency (set by network or verified wallet)<input class="control" type="text" data-provider-currency-display readonly placeholder="Choose a network"><input type="hidden" name="currency" data-provider-currency></label>
     <label class="field" data-tariff-market-wallet-field hidden>Verified network wallet<select name="walletAccountId" class="control" data-tariff-market-wallet disabled><option value="">Choose reconciled network wallet</option><% data.commissions.wallets.forEach(w=>{ %><option value="<%= w._id %>" data-network="<%= w.network %>" data-currency="<%= w.currency %>" data-branch="<%= w.branchId %>"><%= w.name %> · <%= w.currency %></option><% }) %></select><small>For networks serving several markets, your approved wallet determines the currency.</small></label>
-    <label class="field">Branch<select name="branchId" class="control" required><option value="">Choose branch</option><% data.branches.forEach(b=>{ %><option value="<%= b._id %>"><%= b.name %></option><% }) %></select></label>
+    <% if(data.actorRole==='Mobile Money Operator'&&data.branches.length===1){ %>
+    <div class="field"><span>Operating branch</span><div class="networkReadOnly"><%= data.branches[0].name %></div><input type="hidden" name="branchId" value="<%= data.branches[0]._id %>"></div>
+    <% }else{ %><label class="field">Branch<select name="branchId" class="control" required><option value="">Choose branch</option><% data.branches.forEach(b=>{ %><option value="<%= b._id %>"><%= b.name %></option><% }) %></select></label><% } %>
     <label class="field">Schedule type<select name="scheduleKind" class="control" required><option value="agent_commission">Agent commission paid by provider</option><option value="customer_network_fee">Network charge paid by customer</option></select></label>
     <label class="field">Agent operation<select name="operation" class="control" required><option value="cash_in">Customer deposit (Cash-in)</option><option value="cash_out">Customer withdrawal (Cash-out)</option><option value="send">Send money</option><option value="bill_payment">Pay a bill</option><option value="airtime_sale">Sell airtime or bundles</option><option value="merchant_payment">Merchant payment</option></select></label>
     <label class="field">Effective from (UTC)<input type="date" name="effectiveFrom" class="control" required></label>

@@ -1,5 +1,5 @@
 <% const entryOperation = typeof operation === 'string' && operation === 'cash_out' ? 'cash_out' : 'cash_in';
-   const entryLabel = entryOperation === 'cash_in' ? 'Cash-in' : 'Cash-out';
+   const entryLabel = entryOperation === 'cash_in' ? 'Customer deposit (Cash-in)' : 'Customer withdrawal (Cash-out)';
    const entryPermissions = user.permissions || [];
    const entryCan = permission => entryPermissions.includes('*') || entryPermissions.includes(permission);
    const entryNetworks = data.networksAvailable || ['MTN','MTN SSD','Airtel','Africell','M-Pesa'];
@@ -13,8 +13,8 @@
   <div class="cardHead"><div><b>Mobile Money - <%= entryLabel %></b><br><span>Customer, network, and amount details</span></div></div>
   <div class="cardBody mobileMoneyFormBody">
     <div class="seg childActions" aria-label="Mobile money operation">
-      <% if(entryCan('mobile_money.cash_in')){ %><a class="chip <%= entryOperation === 'cash_in' ? 'active' : '' %>" href="/tenant/mobile-money/cash-in" data-mobile-operation="cash_in" <%- entryOperation === 'cash_in' ? 'aria-current="page"' : '' %>>Cash-in</a><% } %>
-      <% if(entryCan('mobile_money.cash_out')){ %><a class="chip <%= entryOperation === 'cash_out' ? 'active' : '' %>" href="/tenant/mobile-money/cash-out" data-mobile-operation="cash_out" <%- entryOperation === 'cash_out' ? 'aria-current="page"' : '' %>>Cash-out</a><% } %>
+      <% if(entryCan('mobile_money.cash_in')){ %><a class="chip <%= entryOperation === 'cash_in' ? 'active' : '' %>" href="/tenant/mobile-money/cash-in" data-mobile-operation="cash_in" <%- entryOperation === 'cash_in' ? 'aria-current="page"' : '' %>>Customer deposit</a><% } %>
+      <% if(entryCan('mobile_money.cash_out')){ %><a class="chip <%= entryOperation === 'cash_out' ? 'active' : '' %>" href="/tenant/mobile-money/cash-out" data-mobile-operation="cash_out" <%- entryOperation === 'cash_out' ? 'aria-current="page"' : '' %>>Customer withdrawal</a><% } %>
     </div>
     <div class="formSection">
       <div class="formSectionTitle">Customer and network</div>
@@ -36,7 +36,7 @@
     </div>
     <%- include('../partials/operation-pricing',{pricingOperation:'mobile_money.'+entryOperation,pricingField:'fee'}) %>
     <div class="summary">
-      <div class="sumRow"><span data-mobile-total-label><%= entryOperation==='cash_out'?'Total customer receives':'Total customer pays' %></span><b data-mobile-total>—</b></div>
+      <div class="sumRow"><span data-mobile-total-label><%= entryOperation==='cash_out'?'Physical cash paid to customer':'Physical cash received from customer' %></span><b data-mobile-total>—</b></div>
       <div class="sumRow"><span>Reference</span><b class="mono mobileRequestReference" data-mobile-reference><%= data.idempotencyKey %></b></div>
     </div>
     <details class="logicNote"><summary>Additional details</summary><div class="row2"><label class="field">Customer name<input class="control" name="customer" placeholder="Optional customer name" minlength="2" maxlength="120" autocomplete="name"></label><label class="field">Customer ID / note<input class="control" name="customerNote" placeholder="Optional verification or note" maxlength="400"></label></div></details>

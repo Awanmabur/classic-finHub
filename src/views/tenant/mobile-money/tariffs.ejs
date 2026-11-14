@@ -76,7 +76,10 @@
       <label class="field">Receiving network wallet<select name="walletAccountId" class="control" required><option value="">Choose reconciled wallet</option><% data.commissions.wallets.forEach(wallet=>{ %><option value="<%= wallet._id %>"><%= wallet.name %> · <%= wallet.network %> · <%= wallet.currency %></option><% }) %></select></label>
       <label class="field">Provider network<select name="network" class="control" required><option value="">Choose network</option><% data.providerChoices.forEach(p=>{ %><option value="<%= p.key %>"><%= p.displayName %></option><% }) %></select></label>
       <label class="field">Currency<select name="currency" class="control" required><option value="UGX">UGX</option><option value="SSP">SSP</option><option value="KES">KES</option><option value="USD">USD</option></select></label>
-      <label class="field">Commission credited (received amount)<input name="amount" class="control" type="text" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" placeholder="0.00" required></label>
+      <label class="field">Net commission actually credited<input name="amount" class="control" type="text" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" placeholder="0.00" required></label>
+      <label class="field">Gross commission before deductions<input name="grossAmount" class="control" type="text" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" placeholder="0.00" required></label>
+      <label class="field">Tax withheld by provider<input name="taxWithheld" class="control" type="text" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" value="0" required></label>
+      <label class="field">Provider commission deduction / cost<input name="providerCost" class="control" type="text" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" value="0" required></label>
       <label class="field">Provider commission credit reference<input name="providerReference" class="control" minlength="6" maxlength="120" placeholder="Unique credit or statement reference" required></label>
       <label class="field">Actual provider credit time (UTC)<input name="creditedAt" class="control" type="datetime-local" required></label>
      </div>

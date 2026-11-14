@@ -78,6 +78,7 @@ async function review(conn,tenant,actor,id,input){
    if(account.kind!=='wallet'||String(account.branchId)!==String(prior.branchId)||account.network!==prior.network||account.currency!==prior.currency||account.feeTreatment!=='record_only')throw fail('Provider wallet configuration changed',409);
    let posting=null;
    if(decision==='approve'){
+    if(process.env.ENABLE_MOMO_COMMISSION_POSTING!=='true')throw fail('Commission posting is locked until the legacy fee reconciliation and staging release gate are approved.',503);
     if(account.status!=='active'||!account.openingApprovedAt||account.reconciliationState!=='matched')throw fail('Provider wallet must be reconciled before posting commission',409);
     const income=await treasury.ensureCounterAccount(conn,session,{tenantId:auth.tenant._id,branchId:prior.branchId,currency:prior.currency,purpose:'fee_income',actorId:auth.actor.id});
     posting=await treasury.applyMovements(conn,session,auth,{

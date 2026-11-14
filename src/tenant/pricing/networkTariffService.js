@@ -99,7 +99,8 @@ async function revise(conn,tenant,actor,id,input){
  try{
   let output;
   await session.withTransaction(async()=>{
-   const auth=await workspace.access(conn,tenant,actor,{manage:true,fence:true,session});
+   const auth=await treasury.access(conn,tenant,actor,{permission:'treasury.observe',sourceType:'mobile_money',session,fence:true});
+   if(!['Tenant Owner','Mobile Money Operator'].includes(auth.actor.role))throw fail('Only authorized agent operators may revise rate sheets',403);
    const prior=await model(conn).findOne({_id:objectId(id),tenantId:auth.tenant._id,status:'draft',revision:expected}).session(session).lean();
    if(!prior)throw fail('Draft changed or was already approved. Reload the page.',409);
    if(auth.actor.role==='Mobile Money Operator'&&

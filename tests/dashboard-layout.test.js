@@ -69,3 +69,24 @@ test('changing header currency preserves report filters and resets pagination',a
   assert.doesNotMatch(form,/name="(?:page|cursor|_csrf)"/);
   assert.equal((form.match(/name="currency"/g)||[]).length,1);
 });
+
+test('main tenant dashboard presents separately sourced cash and electronic float, not today transaction volume',async()=>{
+ const html=await render({context:'tenant',currentPath:'/tenant/dashboard',view:'../tenant/dashboard/index',tenant:{slug:'agent-test',name:'Agent test'},menu:[],data:{
+  hasMobileMoney:true,mobileFundsState:'resolved',
+  workspaceSnapshot:{todayVolumes:{mobile_money:{formatted:'UGX 900,000'}}},
+  mobileFunds:{paymentAccounts:[{kind:'cash',name:'Actual drawer',currency:'UGX',expected:'UGX 70,000',reconciliation:'matched'}],
+   wallets:[{kind:'wallet',name:'MTN Uganda network',network:'MTN',currency:'UGX',expected:'UGX 160,000',reconciliation:'matched'}]}
+ }});
+ for(const label of ['Mobile Money cash and float','UGX 70,000','UGX 160,000','Actual drawer','MTN Uganda network','Deposits + withdrawals'])assert.ok(html.includes(label),label);
+ assert.match(html,/Physical cash/);
+ assert.match(html,/Electronic float/);
+ assert.doesNotMatch(html,/Cash-in \+ cash-out/);
+});
+test('missing dashboard cash and float records are disclosed rather than displayed as fake zero balances',async()=>{
+ const html=await render({context:'tenant',currentPath:'/tenant/dashboard',view:'../tenant/dashboard/index',tenant:{slug:'agent-test',name:'Agent test'},menu:[],data:{
+  hasMobileMoney:true,mobileFundsState:'branch_required',workspaceSnapshot:{},
+  mobileFunds:null
+ }});
+ assert.match(html,/No operating branch is selected/);
+ assert.doesNotMatch(html,/Mobile Money cash and float[\s\S]*UGX 0/);
+});

@@ -6,6 +6,7 @@ const Tenant=require('../src/platform/models/Tenant');
 const core=require('../src/tenant/models');
 const treasury=require('../src/tenant/treasury/models');
 const payout=require('../src/tenant/pricing/commissionPayoutService');
+const tariff=require('../src/tenant/pricing/networkTariffService');
 const {tenantDbNameFromSlug}=require('../src/config/tenantDatabaseName');
 const {permissionsFor}=require('../src/config/roles');
 
@@ -99,6 +100,32 @@ async function main(){
   const posted=await payout.summary(conn,tenant,reviewer);
   assert(Array.isArray(posted)&&posted.every(x=>!x.receivedMinor||BigInt(x.receivedMinor)===0n));
   pass('Real reviewer rejection retained original float and excluded commission income');
+  const tariffInput={network:'MTN SSD',operation:'cash_in',scheduleKind:'agent_commission',
+   currency:'SSP',branchId:String(branchId),effectiveFrom:new Date(now).toISOString().slice(0,10),
+   expiresAt:'',evidenceReference:'Sandbox provider commission document TEST ONLY',
+   bands:'100, 10000, flat, 125'};
+  const sheet=await tariff.propose(conn,tenant,operator,tariffInput);
+  assert.equal(sheet.status,'draft');
+  pass('Real assigned agent submits commission sheet without approval privilege');
+  await deny('Agent cannot submit tariff for another branch',()=>tariff.propose(conn,tenant,operator,{
+    ...tariffInput,branchId:String(new mongoose.Types.ObjectId())
+  }));
+  await deny('Agent cannot approve their own rate sheet',()=>tariff.decide(conn,tenant,operator,String(sheet._id),'approve'));
+  const edited=await tariff.revise(conn,tenant,operator,String(sheet._id),{
+   revision:0,evidenceReference:'Sandbox revised provider document TEST ONLY',bands:'100, 10000, flat, 150'
+  });
+  assert.equal(edited.revision,1);
+  pass('Originating operator can revise only their pending draft');
+  const approved=await tariff.decide(conn,tenant,reviewer,String(sheet._id),'approve');
+  assert.equal(approved.status,'approved');
+  const quoted=await tariff.transactionEstimates(conn,tenant,{_id:branchId},{
+   network:'MTN SSD',currency:'SSP',operation:'cash_in',amountMinor:'1000',at:new Date()
+  });
+  assert.equal(quoted.agentCommissionEstimate.amountMinor,'150');
+  pass('Independent reviewer approved agent sheet; actual service quotes corrected SSP rate only as estimate');
+  await deny('Approved agent sheet cannot be edited',()=>tariff.revise(conn,tenant,operator,String(sheet._id),{
+   revision:1,evidenceReference:'Illegal post-approval edit TEST ONLY',bands:'100, 10000, flat, 1'
+  }));
   process.stdout.write('LOCKED SETTLEMENT SERVICE INTEGRATION PASSED — production posting gate remained off.\n');
  }finally{
   await mongoose.disconnect();

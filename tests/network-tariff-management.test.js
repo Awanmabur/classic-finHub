@@ -86,3 +86,10 @@ test('customer charges are distinctly labeled and never become agent commission 
  assert.match(html,/Not agent income/);
  assert.match(html,/No physical cash, network float/);
 });
+
+test('Mongo indexes reject competing approved or draft schedule writes under concurrency',()=>{
+ const model=fs.readFileSync(path.join(root,'src/tenant/pricing/networkTariffModels.js'),'utf8');
+ assert.match(model,/partialFilterExpression:\{status:'approved'\}/);
+ assert.match(model,/partialFilterExpression:\{status:'draft'\}/);
+ assert.match(model,/scheduleKind:1\},\{unique:true/);
+});

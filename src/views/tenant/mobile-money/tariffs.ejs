@@ -1,7 +1,7 @@
 <link rel="stylesheet" href="/css/workspace.css?v=<%= assetVersion %>">
 <section class="view show workspaceStack networkTariffPage">
  <section class="card">
-  <div class="cardHead"><div><b>Network agent commission sheets</b><br><span>Cash deposit and withdrawal rates for each agent network and branch</span></div><a class="btn" href="/tenant/treasury">Cash &amp; float accounts</a></div>
+  <div class="cardHead"><div><b>Network tariff and commission sheets</b><br><span>Cash deposit and withdrawal rates for each agent network and branch</span></div><a class="btn" href="/tenant/treasury">Cash &amp; float accounts</a></div>
   <div class="cardBody workspaceStack">
    <p class="tiny">Agent commission schedules and customer network fee sheets are separate. A customer network charge is NOT an agent commission. Quotes never increase cash, float, income or profit. Only the network's actual, independently reconciled payout may enter the books.</p>
    <div class="workspaceActions"><a class="btn" href="/tenant/mobile-money/network-activity">Network activity</a><a class="btn" href="/tenant/mobile-money/report">Operations report</a><a class="btn" href="/tenant/workspace/pricing">Customer fees &amp; costs</a></div>
@@ -73,7 +73,7 @@
  </section>
  <% if(data.canPropose){ %>
  <section class="card">
-  <div class="cardHead"><div><b>Submit agent commission sheet</b><br><span>Tenant Owner · independent approval required</span></div></div>
+  <div class="cardHead"><div><b>Submit a network rate sheet</b><br><span>Tenant Owner · separate customer charges and agent income · independent approval required</span></div></div>
   <form class="cardBody networkTariffForm" method="post" action="/tenant/mobile-money/tariffs" autocomplete="off">
    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
    <div class="networkTariffFields">

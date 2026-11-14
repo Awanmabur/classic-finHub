@@ -32,7 +32,9 @@ const NETWORKS=Object.freeze({
   'MTN SSD':{country:'SS',currency:'SSP',displayName:'MTN MoMo South Sudan'},
   Airtel:{country:'UG',currency:'UGX',displayName:'Airtel Money Uganda'},
   Africell:{country:null,currency:null,displayName:'Africell Money — verify market'},
-  'M-Pesa':{country:null,currency:null,displayName:'M-Pesa — select local market'}
+  'M-Pesa':{country:null,currency:null,displayName:'M-Pesa — select local market'},
+  'mGURUSH':{country:'SS',currency:null,displayName:'mGURUSH — Zain South Sudan'},
+  'Digi Cash':{country:'SS',currency:null,displayName:'Digi Cash — Digitel South Sudan'}
 });
 function invalid(message){throw Object.assign(new Error(message),{status:422});}
 function integer(value,{positive=false}={}){

@@ -5,7 +5,7 @@
     <p><b>Network:</b> <%= data.record.network %></p>
     <p><b>Entry source:</b> <%= data.record.entrySource==='sms'?'SMS capture':'Manual entry' %></p>
     <p><b>Wallet / agent float reference:</b> <%= data.record.networkReference %></p>
-    <p><b>Operation:</b> <%= data.record.operation === 'cash_in' ? 'Cash-in' : 'Cash-out' %></p>
+    <p><b>Operation:</b> <%= data.record.operation === 'cash_in' ? 'Deposit' : 'Withdrawal' %></p>
     <p><b>Customer name:</b> <%= data.record.customer %></p>
     <p><b>Customer phone:</b> <%= data.record.customerPhone || 'Not provided' %></p>
     <p><b>Customer ID / note:</b> <%= data.record.customerNote || 'Not provided' %></p>

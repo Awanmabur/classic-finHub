@@ -11,7 +11,7 @@
     <p><b>Customer ID / note:</b> <%= data.record.customerNote || 'Not provided' %></p>
     <p><b>Payment method:</b> <%= data.record.paymentMethod || 'Cash' %></p>
     <p><b>Amount:</b> <%= money(data.record.currency,amountFromMinor(data.record.amountMinor,data.record.currency)) %></p>
-    <p><b>Fee / commission:</b> <%= money(data.record.currency,amountFromMinor(data.record.feeMinor,data.record.currency)) %></p>
+    <p><b><%= data.record.feeTreatment==='payment_collected'?'Customer fee collected':data.record.feeTreatment==='wallet_commission'?'Wallet commission recorded':'Recorded fee (not confirmed as income)' %>:</b> <%= money(data.record.currency,amountFromMinor(data.record.feeMinor,data.record.currency)) %></p>
     <p><b>Recorded (UTC):</b> <%= new Date(data.record.createdAt).toISOString() %></p>
     <p><b>Internal review:</b> <%= (data.record.reviewState||'awaiting_review').replaceAll('_',' ') %></p>
     <p><b>Correction:</b> <%= (data.record.correctionState||'none').replaceAll('_',' ') %></p>

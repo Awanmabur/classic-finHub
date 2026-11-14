@@ -3,7 +3,7 @@
  <section class="card">
   <div class="cardHead"><div><b>Network agent commission sheets</b><br><span>Cash deposit and withdrawal rates for each agent network and branch</span></div><a class="btn" href="/tenant/treasury">Cash &amp; float accounts</a></div>
   <div class="cardBody workspaceStack">
-   <p class="tiny">These are agent commission schedules, NOT customer withdrawal charges. Quotes never increase cash, float, income or profit. Only the network's actual, independently reconciled payout may enter the books.</p>
+   <p class="tiny">Agent commission schedules and customer network fee sheets are separate. A customer network charge is NOT an agent commission. Quotes never increase cash, float, income or profit. Only the network's actual, independently reconciled payout may enter the books.</p>
    <div class="workspaceActions"><a class="btn" href="/tenant/mobile-money/network-activity">Network activity</a><a class="btn" href="/tenant/mobile-money/report">Operations report</a><a class="btn" href="/tenant/workspace/pricing">Customer fees &amp; costs</a></div>
   </div>
  </section>
@@ -34,7 +34,7 @@
    <% if(!data.schedules.length){ %><p class="tiny">No agent commission schedule has been entered. MTN South Sudan and other providers will show no automatic commission rather than an invented rate.</p><% } %>
    <% data.schedules.forEach(schedule=>{ const branch=data.branches.find(b=>String(b._id)===String(schedule.branchId)); %>
    <details class="networkTariffRecord">
-    <summary><span><b><%= schedule.network==='MTN SSD'?'MTN MoMo South Sudan':schedule.network==='MTN'?'MTN MoMo Uganda':schedule.network %></b><small><%= branch?.name||'Assigned branch' %> · <%= schedule.currency %> · <%= schedule.operation==='cash_in'?'Customer deposit':'Customer withdrawal' %> · Version <%= schedule.version %></small></span><span class="tag"><%= schedule.status==='approved'?'Approved for quoting':schedule.status==='retired'?'Retired':'Awaiting independent review' %></span></summary>
+    <summary><span><b><%= schedule.network==='MTN SSD'?'MTN MoMo South Sudan':schedule.network==='MTN'?'MTN MoMo Uganda':schedule.network %></b><small><%= branch?.name||'Assigned branch' %> · <%= schedule.currency %> · <%= ({cash_in:'Customer deposit',cash_out:'Customer withdrawal',send:'Send money',bill_payment:'Bill payment',airtime_sale:'Sell airtime',merchant_payment:'Merchant payment'})[schedule.operation]||schedule.operation %> · <%= schedule.scheduleKind==='customer_network_fee'?'Customer fee':'Agent commission' %> · Version <%= schedule.version %></small></span><span class="tag"><%= schedule.status==='approved'?'Approved for quoting':schedule.status==='retired'?'Retired':'Awaiting independent review' %></span></summary>
     <div class="networkTariffRecordBody">
      <div class="networkTariffMetadata"><span>Effective from <b><%= new Date(schedule.effectiveFrom).toISOString().slice(0,10) %></b></span><span>Source <b><%= schedule.evidenceReference %></b></span><span>Independent reviewer <b><%= schedule.approvedBy?'Recorded':'Pending' %></b></span></div>
      <div class="tableWrap"><table><thead><tr><th>Minimum (<%= schedule.currency %>)</th><th>Maximum</th><th>Commission type</th><th>Rate (minor units or bps)</th></tr></thead><tbody>
@@ -80,7 +80,8 @@
     <label class="field">Network<select name="network" class="control" required><option value="">Choose network</option><% data.providerChoices.forEach(p=>{ %><option value="<%= p.key %>"><%= p.displayName %> — <%= p.currency %></option><% }) %></select></label>
     <label class="field">Currency<select name="currency" class="control" required><option value="">Choose currency</option><option value="UGX">UGX — Uganda shilling</option><option value="SSP">SSP — South Sudanese pound</option></select></label>
     <label class="field">Branch<select name="branchId" class="control" required><option value="">Choose branch</option><% data.branches.forEach(b=>{ %><option value="<%= b._id %>"><%= b.name %></option><% }) %></select></label>
-    <label class="field">Agent operation<select name="operation" class="control" required><option value="cash_in">Customer deposit (Cash-in)</option><option value="cash_out">Customer withdrawal (Cash-out)</option></select></label>
+    <label class="field">Schedule type<select name="scheduleKind" class="control" required><option value="agent_commission">Agent commission paid by provider</option><option value="customer_network_fee">Network charge paid by customer</option></select></label>
+    <label class="field">Agent operation<select name="operation" class="control" required><option value="cash_in">Customer deposit (Cash-in)</option><option value="cash_out">Customer withdrawal (Cash-out)</option><option value="send">Send money</option><option value="bill_payment">Pay a bill</option><option value="airtime_sale">Sell airtime or bundles</option><option value="merchant_payment">Merchant payment</option></select></label>
     <label class="field">Effective from (UTC)<input type="date" name="effectiveFrom" class="control" required></label>
     <label class="field">Expires (optional)<input type="date" name="expiresAt" class="control"></label>
    </div>

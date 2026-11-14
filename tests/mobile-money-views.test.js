@@ -144,7 +144,8 @@ test('main Mobile Money workspace shows genuine scoped cash and float book balan
 test('Mobile Money entry and filters keep deposit and withdrawal labels, not cash-in/out labels',async()=>{
  const locals=options();
  const entry=await render('entry',locals);
- assert.match(entry,/\/css\/workspace\.css\?v=/);
+ assert.match(entry,/Mobile Money - Deposit/);
+ assert.doesNotMatch(entry,/>Cash-in<|>Cash-out</);
  const filters=require('node:fs').readFileSync(path.join(views,'_filters.ejs'),'utf8');
  assert.match(filters,/>Deposit<\/option>/);
  assert.match(filters,/>Withdrawal<\/option>/);

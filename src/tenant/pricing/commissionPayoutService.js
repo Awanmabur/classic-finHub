@@ -94,6 +94,14 @@ async function review(conn,tenant,actor,id,input){
    if(decision==='approve'){
     if(process.env.ENABLE_MOMO_COMMISSION_POSTING!=='true')throw fail('Commission posting is locked until the legacy fee reconciliation and staging release gate are approved.',503);
     if(account.status!=='active'||!account.openingApprovedAt||account.reconciliationState!=='matched')throw fail('Provider wallet must be reconciled before posting commission',409);
+    // Historical wallet commissions may have already credited fee income.
+    // Refuse a new provider payout until legacy recognition has been reconciled.
+    const recorded=await require('../models').mobileTransactionModel(conn).exists({
+      walletAccountId:account._id,feeTreatment:'wallet_commission',
+      feeMinor:{$gt:mongoose.Types.Decimal128.fromString('0')},
+      status:{$ne:'voided_internal'},correctionState:{$ne:'voided'}
+    }).session(session);
+    if(recorded)throw fail('Historical wallet commissions exist for this account. Reconcile and migrate those entries before posting a provider payout to avoid duplicate revenue.',409);
     const income=await treasury.ensureCounterAccount(conn,session,{tenantId:auth.tenant._id,branchId:prior.branchId,currency:prior.currency,purpose:'agent_commission_income',actorId:auth.actor.id});
     posting=await treasury.applyMovements(conn,session,auth,{
       sourceType:'mobile_money',sourceRef:'MCOM:'+String(prior._id),

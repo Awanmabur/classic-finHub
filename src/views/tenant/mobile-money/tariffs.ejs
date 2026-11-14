@@ -91,7 +91,7 @@
       <form class="networkTariffForm" method="post" data-editor-currency="<%= schedule.currency %>" action="/tenant/mobile-money/tariffs/<%= schedule._id %>/edit">
        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
        <input type="hidden" name="revision" value="<%= schedule.revision %>">
-       <label class="field">Provider agreement or schedule reference<input class="control" name="evidenceReference" minlength="12" maxlength="350" required value="<%= schedule.evidenceReference %>"></label>
+       <label class="field">Provider contract or rate sheet reference<input class="control" name="evidenceReference" minlength="12" maxlength="350" required value="<%= schedule.evidenceReference %>"></label>
        <label class="field">Rate bands<textarea class="control networkTariffBands" name="bands" rows="7" data-rate-editor maxlength="30000" required spellcheck="false"><%= data.serializeLines(schedule.tiers) %></textarea></label>
        <div class="networkTariffActions"><button class="btn" type="submit">Save draft revisions</button><span class="tiny">Approved schedules are immutable. Updates require an independent review.</span></div>
       </form>
@@ -129,7 +129,7 @@
     <label class="field">Expires (optional)<input type="date" name="expiresAt" class="control"></label>
    </div>
    <label class="field">Provider rate sheet, contract or statement reference<input name="evidenceReference" class="control" minlength="12" maxlength="350" required placeholder="Source document reference, issuer and revision date"><span class="tiny">A source reference records the document's identity; it does not automatically verify a provider-issued tariff.</span></label>
-   <label class="field">Amount ranges and rates<textarea name="bands" class="control networkTariffBands" data-rate-editor rows="8" maxlength="30000" required spellcheck="false" placeholder="500, 2500, basis_points, 400&#10;2501, 5000, flat, 110"></textarea><span class="tiny">One row per band: minimum amount, maximum amount, flat or basis_points, rate. Use exact minor units. For UGX, 100 means UGX 100. For SSP, check the system currency precision before entering bands. 100 basis points = 1%. No overlapping ranges.</span></label>
+   <label class="field">Amount ranges and rates<textarea name="bands" class="control networkTariffBands" data-rate-editor rows="8" maxlength="30000" required spellcheck="false" placeholder="500, 2500, basis_points, 400&#10;2501, 5000, flat, 110"></textarea><span class="tiny">Enter transaction ranges and choose a fixed commission or percentage. The editor accepts normal currency amounts, checks for valid ranges, and requires independent approval before use. Without JavaScript, enter one line as: minimum minor units, maximum minor units, flat or basis_points, rate.</span></label>
    <div class="networkTariffActions"><button class="btn btnPrimary" type="submit">Submit for review</button><span class="tiny">This does not change customer fees or post any money.</span></div>
   </form>
  </details>

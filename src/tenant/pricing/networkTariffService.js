@@ -125,6 +125,28 @@ async function decide(conn,tenant,actor,id,decision){
   return output;
  }finally{await session.endSession();}
 }
+async function transactionEstimates(conn,tenant,branch,{network,currency,operation,amountMinor,at=new Date(),session=null}){
+ const timestamp=new Date(at);
+ if(!Number.isFinite(timestamp.getTime()))throw fail('Invalid operation date');
+ const result={agentCommissionEstimate:null,customerNetworkFeeEstimate:null};
+ for(const scheduleKind of ['agent_commission','customer_network_fee']){
+  const query=model(conn).findOne({
+   tenantId:tenant._id,branchId:branch._id,network,currency,operation,scheduleKind,
+   status:'approved',effectiveFrom:{$lte:timestamp},$or:[{expiresAt:null},{expiresAt:{$gt:timestamp}}]
+  }).sort({version:-1});
+  if(session)query.session(session);
+  const rule=await query.lean();
+  if(!rule)continue;
+  const quoted=preview(rule,String(amountMinor));
+  if(quoted.status==='no_matching_band')continue;
+  const amount=scheduleKind==='agent_commission'?quoted.grossCommissionEstimateMinor:quoted.customerNetworkChargeEstimateMinor;
+  if(amount===undefined||amount===null)continue;
+  const snapshot={scheduleId:rule._id,version:rule.version,scheduleKind,network,operation,currency,
+   amountMinor:String(amount),quotedAt:timestamp,status:'estimated_not_received'};
+  result[scheduleKind==='agent_commission'?'agentCommissionEstimate':'customerNetworkFeeEstimate']=snapshot;
+ }
+ return result;
+}
 function preview(schedule,amountMinor){
  const calculated=quote({network:schedule.network,currency:schedule.currency,operation:schedule.operation,status:'draft',
    providerEvidence:schedule.evidenceReference,effectiveFrom:schedule.effectiveFrom,tiers:schedule.tiers},amountMinor);
@@ -134,4 +156,4 @@ function preview(schedule,amountMinor){
  }
  return calculated;
 }
-module.exports={parseLines,serializeLines,validateInput,read,propose,revise,decide,preview};
+module.exports={parseLines,serializeLines,validateInput,read,propose,revise,decide,preview,transactionEstimates};

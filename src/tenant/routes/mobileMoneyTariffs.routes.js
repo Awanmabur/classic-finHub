@@ -59,16 +59,17 @@ module.exports=function factory({renderTenant}){
    res.redirect(303,'/tenant/mobile-money/tariffs');
   }catch(e){next(e);}
  });
- router.post('/:id/quote',throttle,async(req,res,next)=>{
+ router.get('/:id/quote',async(req,res,next)=>{
   try{
    const rows=await service.read(req.tenantDb,req.tenant,req.user);
    const schedule=rows.find(r=>String(r._id)===req.params.id);
    if(!schedule)return res.status(404).type('text/plain').send('Schedule not found');
-   const quote=service.preview(schedule,String(req.body.amountMinor||''));
-   res.status(200).type('text/plain').send(quote.status==='no_matching_band'?
-    'No matching tariff band. No commission calculated.':
-    'Expected agent commission: '+schedule.currency+' '+quote.grossCommissionEstimateMinor+
-     ' (minor units). Reference only; not earned or received income. No ledger entry was created.');
+   const amountMinor=require('../treasury/service').major(String(req.query.amount||''),schedule.currency);
+   if(amountMinor<=0n)throw Object.assign(new Error('Enter a positive transaction amount'),{status:400});
+   const result=service.preview(schedule,String(amountMinor));
+   renderTenant(req,res,'mobile-money/tariff-quote','Commission estimate',
+     'Reference-only agent rate quote. No cash, float or income was posted.',
+     {schedule,result,formatMinor:require('../services/mobileMoney.service').formatMoneyMinor});
   }catch(e){next(e);}
  });
  router.post('/:id/:action',throttle,async(req,res,next)=>{

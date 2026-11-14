@@ -24,7 +24,11 @@
     const fundAccounts=[...(data.mobileFunds?.paymentAccounts||[]).filter(a=>a.kind==='cash'),...(data.mobileFunds?.wallets||[])];
     const cashAccounts=fundAccounts.filter(a=>a.kind==='cash'),floatAccounts=fundAccounts.filter(a=>a.kind==='wallet');
   %>
-  <div class="rowBtns" style="margin-top:12px;margin-bottom:8px"><a class="btn btnPrimary" href="/tenant/cash/shifts">Open day / enter starting cash</a><a class="btn" href="/tenant/treasury">Set up cash and network float accounts</a></div>
+  <div class="rowBtns" style="margin-top:12px;margin-bottom:8px">
+   <% if(['Tenant Owner','Mobile Money Operator','Branch Manager','Reconciliation Officer'].includes(user.role)){ %><a class="btn btnPrimary" href="/tenant/cash/shifts">Open day / enter starting cash</a><% } %>
+   <% if((user.permissions||[]).some(p=>p==='*'||p==='treasury.view')){ %><a class="btn" href="/tenant/treasury">Cash and float accounts</a><% } %>
+   <% if(['Tenant Owner','Mobile Money Operator','Branch Manager','Reconciliation Officer','Auditor'].includes(user.role)){ %><a class="btn" href="/tenant/mobile-money/readiness">Why are balances missing?</a><% } %>
+  </div>
   <section class="card mobileDashboardBalances" style="margin-top:14px" aria-label="Mobile Money cash and float account balances">
    <div class="cardHead"><div><b>Mobile Money cash and float</b><br><span>Operating-branch book balances, separate from transaction volume and estimated commission</span></div><a class="btn" href="/tenant/mobile-money">Mobile Money</a></div>
    <div class="cardBody">

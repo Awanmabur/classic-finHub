@@ -1,3 +1,4 @@
+<link rel="stylesheet" href="/css/workspace.css?v=<%= assetVersion %>">
 <% const currentBranch = typeof operationBranch !== 'undefined' ? operationBranch : (data.branches || []).find(branch=>String(branch._id) === String(user.transactionBranchId || user.branchId || data.selectedBranchId || '') && branch.status !== 'archived');
    const branchProblem = typeof operationBranchError === 'string' && operationBranchError ? operationBranchError : 'An active operating branch must be assigned to your account before creating records.';
    const entryPath = '/tenant/mobile-money/' + (data.operation === 'cash_out' ? 'cash-out' : 'cash-in'); %>

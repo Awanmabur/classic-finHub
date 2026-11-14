@@ -29,6 +29,43 @@ module.exports=function routes({renderTenant}){
   }catch(error){next(error);}
  }
  router.get('/funds/context',async(req,res,next)=>{try{if(!req.operationBranch)return res.status(409).json({error:'An operating branch is required.'});res.set('Cache-Control','private, no-store').json(await require('../services/mobileMoneyFunds.service').context(req.tenantDb,req.tenant,req.user,req.operationBranch));}catch(error){next(error);}});
+ router.get('/readiness',async(req,res,next)=>{
+  try{
+   res.set('Cache-Control','private, no-store');
+   if(!['Tenant Owner','Mobile Money Operator','Branch Manager','Reconciliation Officer','Auditor'].includes(req.user.role))
+    return res.status(403).json({error:'Operational account readiness is restricted.'});
+   if(!req.operationBranch)return res.status(409).json({branchReady:false,error:req.operationBranchError||'Assign an operating branch.'});
+   const {models}=require('../treasury/models');
+   const accounts=models(req.tenantDb).account;
+   const broad=['Tenant Owner','Branch Manager','Reconciliation Officer','Auditor'].includes(req.user.role);
+   const query={tenantId:req.tenant._id,branchId:req.operationBranch._id,status:{$ne:'archived'},
+    ...(broad?{}:{$or:[{operatorId:req.user.id},{operatorId:null}]})};
+   const rows=await accounts.find(query).select('kind network currency status openingBalanceMinor openingApprovedAt reconciliationState').sort({_id:1}).limit(501).lean();
+   const totals={cash:0,wallet:0,bank:0,unopened:0,held:0,needsReconciliation:0,ready:0};
+   const providers={};
+   for(const account of rows.slice(0,500)){
+    if(Object.hasOwn(totals,account.kind))totals[account.kind]++;
+    if(!account.openingApprovedAt||account.openingBalanceMinor===null)totals.unopened++;
+    else if(account.status!=='active')totals.held++;
+    else if(account.reconciliationState!=='matched')totals.needsReconciliation++;
+    else totals.ready++;
+    if(account.kind==='wallet'){
+     const key=account.network+' / '+account.currency;
+     providers[key]=(providers[key]||0)+1;
+    }
+   }
+   const untracked=await require('../models').mobileTransactionModel(req.tenantDb).exists({
+    branchId:req.operationBranch._id,fundingState:{$ne:'book_recorded'}
+   });
+   res.json({branchReady:true,scope:broad?'all assigned and shared accounts in operating branch':'own and shared accounts in operating branch',
+    accountCounts:totals,providerAccountCounts:providers,untrackedHistoricalOperationsPresent:Boolean(untracked),
+    truncated:rows.length>500,
+    guidance:!totals.wallet?'Configure a provider wallet for each market and obtain independent opening approval.':
+      !totals.cash?'Configure a physical cash account and approve its opening balance.':
+      totals.unopened?'Submit opening evidence and obtain independent approval.':
+      totals.needsReconciliation?'Review and reconcile mismatched account observations.':'Account setup exists. Verify book values against actual provider statements and cash counts.'});
+  }catch(e){next(e);}
+ });
  router.get('/quote',async(req,res,next)=>{
   try{
    if(!req.operationBranch)return res.status(409).set('Cache-Control','private, no-store').json({error:'Assign an operating branch before quoting commissions.'});

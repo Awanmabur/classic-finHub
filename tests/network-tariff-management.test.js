@@ -93,3 +93,13 @@ test('Mongo indexes reject competing approved or draft schedule writes under con
  assert.match(model,/partialFilterExpression:\{status:'draft'\}/);
  assert.match(model,/scheduleKind:1\},\{unique:true/);
 });
+
+test('draft evidence edit accepts normal document references but rejects control characters',()=>{
+ const source=fs.readFileSync(path.join(root,'src/tenant/pricing/networkTariffService.js'),'utf8');
+ const edit=source.slice(source.indexOf('async function revise('),source.indexOf('async function decide('));
+ assert(edit.includes('/[\\u0000-\\u001f\\u007f]/.test(evidenceReference)'));
+ assert(!edit.includes('/[\\\\u0000-\\\\u001f\\\\u007f]/.test(evidenceReference)'));
+ const pattern=/[\u0000-\u001f\u007f]/;
+ assert.equal(pattern.test('MTN Uganda official November 2026 agent agreement'),false);
+ assert.equal(pattern.test('MTN Uganda\u0000agreement'),true);
+});

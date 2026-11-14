@@ -24,7 +24,7 @@ test('approved mobile money entry preserves the protected server contract and as
   assert.match(html,/name="_csrf" value="protected-csrf"/);
   assert.match(html,new RegExp(`name="idempotencyKey" value="${requestKey}"`));
   for(const field of ['customer','customerPhone','network','networkReference','customerNote','amount','fee','currency','paymentMethod']) assert.match(html,new RegExp(`name="${field}"`));
-  for(const label of ['Customer and network','Customer phone','Customer name','Network transaction reference','Customer ID / note','Amount details','Fee / commission','Payment method','Total customer pays','Process mobile money']) assert.ok(html.includes(label),label);
+  for(const label of ['Customer and network','Customer phone','Customer name','Network transaction reference','Customer ID / note','Amount details','Fee / commission','Payment method','Physical cash received from customer','Process mobile money']) assert.ok(html.includes(label),label);
   assert.match(html,/<option value="Africell">Africell<\/option>/);
   assert.match(html,/<option value="Wallet Balance">Wallet Balance<\/option>/);
   assert.match(html,/<option value="Bank">Bank<\/option>/);
@@ -54,7 +54,7 @@ test('cash-out has its own protected action and tabs respect exact operation per
   const locals = options(); locals.data.operation='cash_out'; locals.user.permissions=['mobile_money.view','mobile_money.cash_out'];
   const html = await render('entry',locals);
   assert.match(html,/action="\/tenant\/mobile-money\/cash-out"/);
-  assert.match(html,/Mobile Money - Cash-out/);
+  assert.match(html,/Mobile Money - Customer withdrawal \\(Cash-out\\)/);
   assert.match(html,/data-mobile-operation="cash_out"/);
   assert.doesNotMatch(html,/data-mobile-operation="cash_in"/);
   locals.data.canRecord=false;
@@ -65,7 +65,7 @@ test('cash-out has its own protected action and tabs respect exact operation per
 
 test('network activity and report use supplied totals, retained status, filters and pagination',async()=>{
   const network = await render('network',options());
-  for(const header of ['Network','Cash-in Count','Cash-out Count','Total Volume','Fees']) assert.ok(network.includes(`<th>${header}</th>`));
+  for(const header of ['Network','Customer deposits','Customer withdrawals','Transaction volume','Recorded fees (not profit)']) assert.ok(network.includes(`<th>${header}</th>`));
   assert.match(network,/UGX 5,000/);
   assert.match(network,/SMS capture/);
   assert.match(network,/pending verification/);

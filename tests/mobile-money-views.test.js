@@ -135,7 +135,7 @@ test('main Mobile Money workspace shows genuine scoped cash and float book balan
   wallets:[{id:'float1',kind:'wallet',name:'MTN Uganda wallet',network:'MTN',currency:'UGX',expected:'UGX 450,000',reconciliation:'matched'}],
   customerAccounts:[]
  };
- locals.data.reviewQueue=[];locals.data.voidQueue=[];locals.data.records=[];
+ locals.data.reviewQueue=[];locals.data.voidQueue=[];locals.data.summary.recent=[];
  const html=await render('index',locals);
  for(const label of ['Cash and float balances','UGX 120,000','UGX 450,000','Physical cash','Electronic float','Assigned cash drawer','MTN Uganda wallet'])assert.ok(html.includes(label),label);
  assert.match(html,/\/css\/workspace\.css\?v=/);

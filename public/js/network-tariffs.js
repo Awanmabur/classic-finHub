@@ -48,6 +48,8 @@
     marketWallet?.addEventListener('change',setMarket);
     setMarket();
     root.querySelectorAll('[data-choose-provider]').forEach(link=>link.addEventListener('click',()=>{
+      const formDisclosure=root.querySelector('#network-sheet-form');
+      if(formDisclosure)formDisclosure.open=true;
       provider.value=link.dataset.chooseProvider;
       const operation=link.dataset.chooseOperation;
       if(operation&&draftForm.elements.namedItem('operation'))draftForm.elements.namedItem('operation').value=operation;

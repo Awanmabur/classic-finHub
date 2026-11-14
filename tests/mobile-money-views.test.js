@@ -90,3 +90,18 @@ test('cash impact retains all approved cards and separates physical cash from re
   assert.match(emptyHtml,/<div class="k">Cash-out<\/div>/);
   assert.match(emptyHtml,/<div class="k">Net impact<\/div>/);
 });
+
+test('network report keeps physical cash, provider float, received commissions and estimates separate',async()=>{
+ const locals=options();
+ locals.user.permissions.push('treasury.view');
+ locals.data.funds={
+  wallets:[{id:'w1',name:'MTN South Sudan agent float',kind:'wallet',network:'MTN SSD',currency:'SSP',expected:'SSP 500.00',observed:'SSP 500.00',variance:'SSP 0.00',reconciliation:'matched'}],
+  paymentAccounts:[{id:'c1',name:'Operator cash drawer',kind:'cash',network:'',currency:'SSP',expected:'SSP 300.00',observed:'SSP 300.00',variance:'SSP 0.00',reconciliation:'matched'}]
+ };
+ locals.data.commissionReceived=[{network:'MTN SSD',currency:'SSP',receivedMinor:'1250',count:1}];
+ locals.data.formatMoneyMinor=(minor,currency)=>currency+' '+(Number(minor)/100).toFixed(2);
+ const html=await render('network',locals);
+ for(const label of ['Physical cash','Electronic float','Operator cash drawer','MTN MoMo South Sudan','Received agent commissions','SSP 12.50','Reconcile balances'])assert(html.includes(label),label);
+ assert.match(html,/Only independently reviewed and journal-posted provider credits/);
+ assert.doesNotMatch(html,/Total profit: SSP 12.50/);
+});

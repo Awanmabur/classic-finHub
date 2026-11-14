@@ -140,3 +140,12 @@ test('provider directory shows all five registered network slots and an editable
  assert.match(script,/Remove this amount range/);
  assert.match(script,/data-payout-wallet/);
 });
+
+test('draft editing keeps tenant authorization on treasury fenced session and has no undefined workspace dependency',()=>{
+ const source=fs.readFileSync(path.join(root,'src/tenant/pricing/networkTariffService.js'),'utf8');
+ const edit=source.slice(source.indexOf('async function revise('),source.indexOf('async function decide('));
+ assert.match(edit,/treasury\.access\(conn,tenant,actor,\{permission:'treasury\.observe',sourceType:'mobile_money',session,fence:true\}\)/);
+ assert.match(edit,/Only authorized agent operators may revise rate sheets/);
+ assert.doesNotMatch(source,/workspace\.access/);
+ assert.match(edit,/Only the original agent may edit their branch draft/);
+});

@@ -33,7 +33,9 @@ function validate(input, operation) {
   if(typeof input.network!=='string')throw bad('Choose a valid network');
   const network = input.network;
   if(typeof input.currency!=='string')throw bad('Enter a supported currency');
-  const currency = input.currency;
+  const currency = require('../pricing/networkTariffs').NETWORKS[network]?.currency || input.currency;
+  if(require('../pricing/networkTariffs').NETWORKS[network]?.currency && input.currency !== undefined && input.currency !== currency)
+    throw bad('The selected network determines the currency. Reload the transaction and try again.',409);
   const networkReference = String(input.networkReference || '').trim();
   const idempotencyKey = String(input.idempotencyKey || '');
   if (customer.length < 2 || customer.length > 120 || !networks.includes(network)) throw bad('Customer and network are required');

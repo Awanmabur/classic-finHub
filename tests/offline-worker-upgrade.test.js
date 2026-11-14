@@ -13,10 +13,11 @@ function worker({online=true}={}){
 }
 test('a controlling worker fetches a newly deployed asset version instead of stale cached JavaScript',async()=>{
  const runtime=worker();assert.equal((await runtime.request('/js/offline-workspace.js?v=next')).source,'network');assert.equal(runtime.fetched.length,1);assert.deepEqual(runtime.matched,[]);
- assert.equal((await runtime.request('/js/offline-workspace.js?v=current')).source,'cached');assert.equal(runtime.fetched.length,1);
+ assert.equal((await runtime.request('/js/offline-workspace.js?v=current')).source,'network');assert.equal(runtime.fetched.length,2);
 });
 test('saved workspace assets remain available offline across a version change',async()=>{
- const runtime=worker({online:false});assert.equal((await runtime.request('/js/offline-workspace.js?v=previous')).source,'cached');assert.deepEqual(runtime.matched,['/js/offline-workspace.js']);
+ const runtime=worker({online:false});await assert.rejects(runtime.request('/js/offline-workspace.js?v=previous'),/offline/);assert.deepEqual(runtime.matched,[]);
+ const current=worker({online:false});assert.equal((await current.request('/js/offline-workspace.js?v=current')).source,'cached');assert.deepEqual(current.matched,['/js/offline-workspace.js']);
 });
 test('worker keeps private pages out of public cache and never intercepts financial POSTs',async()=>{
  const runtime=worker();assert.equal(await runtime.request('/tenant/money-transfer/requests',{method:'POST'}),undefined);

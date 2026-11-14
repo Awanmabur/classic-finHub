@@ -24,8 +24,8 @@ test('approved mobile money entry preserves the protected server contract and as
   assert.match(html,/name="_csrf" value="protected-csrf"/);
   assert.match(html,new RegExp(`name="idempotencyKey" value="${requestKey}"`));
   for(const field of ['customer','customerPhone','network','networkReference','customerNote','amount','fee','currency','paymentMethod']) assert.match(html,new RegExp(`name="${field}"`));
-  for(const label of ['Customer and network','Customer phone','Customer name','Network transaction reference','Customer ID / note','Amount details','Fee / commission','Payment method','Physical cash received from customer','Process mobile money']) assert.ok(html.includes(label),label);
-  assert.match(html,/<option value="Africell" data-market-currency="">Africell<\/option>/);
+  for(const label of ['Customer and network','Customer phone','Customer name','Network transaction reference','Customer ID / note','Amount details','Fee / commission','Payment method','Physical cash received from customer','Record deposit']) assert.ok(html.includes(label),label);
+  assert.match(html,/<option value="Africell" data-market-currency=""(?: selected| disabled)*>Africell<\/option>/);
   assert.match(html,/<option value="Wallet Balance">Wallet Balance<\/option>/);
   assert.match(html,/<option value="Bank">Bank<\/option>/);
   const currency = html.match(/<select\b[^>]*name="currency"[^>]*>([\s\S]*?)<\/select>/);
@@ -47,7 +47,7 @@ test('entry offers only the saved branch currencies and selects SSP with exact c
  const html=await render('entry',locals),currency=html.match(/<select\b[^>]*name="currency"[^>]*>([\s\S]*?)<\/select>/);
  assert.deepEqual([...currency[1].matchAll(/<option\b[^>]*value="([^"]+)"/g)].map(match=>match[1]),['USD','SSP']);
  assert.match(currency[1],/value="SSP" selected/);assert.match(html,/data-currency="SSP"/);
- assert.match(html,/value="MTN SSD">MTN MoMo South Sudan<\/option>/);assert.match(html,/pattern="\[0-9\]\{1,11\}\(\[\.\]\[0-9\]\{1,2\}\)\?"/);
+ assert.match(html,/value="MTN SSD" data-market-currency="SSP" selected>MTN MoMo South Sudan<\/option>/);assert.match(html,/pattern="\[0-9\]\{1,11\}\(\[\.\]\[0-9\]\{1,2\}\)\?"/);
 });
 
 test('cash-out has its own protected action and tabs respect exact operation permissions',async()=>{
@@ -60,7 +60,7 @@ test('cash-out has its own protected action and tabs respect exact operation per
   locals.data.canRecord=false;
   const readonly = await render('entry',locals);
   assert.doesNotMatch(readonly,/data-mobile-money-form/);
-  assert.doesNotMatch(readonly,/Process mobile money/);
+  assert.doesNotMatch(readonly,/Record withdrawal/);
 });
 
 test('network activity and report use supplied totals, retained status, filters and pagination',async()=>{
@@ -115,6 +115,8 @@ test('network activity handler supplies a money formatter when actual payouts ex
 
 test('deposit and withdrawal entry displays scoped actual book balances and network-set currency',async()=>{
  const context=options();
+ context.data.networksAvailable=[...require('../src/config/mobileNetworks').networks];
+ context.operationBranch.currencies=['UGX','SSP'];
  context.data.funds={wallets:[{id:'wa',name:'MTN South Sudan float',kind:'wallet',network:'MTN SSD',currency:'SSP',expected:'SSP 250.00',reconciliation:'matched'}],paymentAccounts:[{id:'ca',name:'Agent drawer',kind:'cash',network:'',currency:'SSP',expected:'SSP 550.00',reconciliation:'matched'}],customerAccounts:[]};
  const html=await render('entry',context);
  assert.match(html,/data-market-currency="SSP"/);

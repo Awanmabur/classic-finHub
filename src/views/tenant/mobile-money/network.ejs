@@ -4,7 +4,7 @@
     <%- include('_filters',{filterAction:'/tenant/mobile-money/network-activity'}) %>
     <div class="tableWrap"><table><thead><tr><th>Network</th><th>Customer deposits</th><th>Customer withdrawals</th><th>Transaction volume</th><th>Recorded fees (not profit)</th></tr></thead><tbody>
       <% if(!data.networks.length){ %><tr><td colspan="5">No network activity in this period.</td></tr><% } %>
-      <% data.networks.forEach(network=>{ %><tr data-search-row><td><%= network.network %> · <%= network.currency %></td><td><%= network.cashInCount %></td><td><%= network.cashOutCount %></td><td><%= network.formatted.volume %></td><td><%= network.formatted.fees %></td></tr><% }) %>
+      <% data.networks.forEach(network=>{ %><tr data-search-row><td><%= network.network==='MTN SSD'?'MTN MoMo South Sudan':network.network==='MTN'?'MTN MoMo Uganda':network.network %> · <%= network.currency %></td><td><%= network.cashInCount %></td><td><%= network.cashOutCount %></td><td><%= network.formatted.volume %></td><td><%= network.formatted.fees %></td></tr><% }) %>
     </tbody></table></div>
     <%- include('_activity',{activityRecords:data.records,activityPath:'/tenant/mobile-money/network-activity'}) %>
     <p class="tiny">Totals cover active records in the selected period. Voided originals remain in the activity trail. Provider settlement remains pending verification.</p>
@@ -15,7 +15,7 @@
  <div class="cardHead"><div><b>Cash and electronic float</b><br><span>Separate treasury accounts, not transaction volume or estimated commission</span></div><a class="btn" href="/tenant/treasury">Reconcile balances</a></div>
  <div class="cardBody tableWrap"><table><thead><tr><th>Account</th><th>Type</th><th>Network</th><th>Currency</th><th>Book balance</th><th>Observed balance</th><th>Variance</th><th>Reconciliation</th></tr></thead><tbody>
  <% if(!accounts.length){ %><tr><td colspan="8">No approved cash drawer or provider wallet is available for this branch.</td></tr><% } %>
- <% accounts.forEach(a=>{ %><tr><td><%= a.name %></td><td><%= a.kind==='cash'?'Physical cash':'Electronic float' %></td><td><%= a.network||'—' %></td><td><%= a.currency %></td><td><%= a.expected||'Opening pending' %></td><td><%= a.observed||'Not observed' %></td><td><%= a.variance||'Not reconciled' %></td><td><span class="tag"><%= a.reconciliation||'unknown' %></span></td></tr><% }) %>
+ <% accounts.forEach(a=>{ %><tr><td><%= a.name %></td><td><%= a.kind==='cash'?'Physical cash':'Electronic float' %></td><td><%= a.network==='MTN SSD'?'MTN MoMo South Sudan':a.network==='MTN'?'MTN MoMo Uganda':a.network||'—' %></td><td><%= a.currency %></td><td><%= a.expected||'Opening pending' %></td><td><%= a.observed||'Not observed' %></td><td><%= a.variance||'Not reconciled' %></td><td><span class="tag"><%= a.reconciliation||'unknown' %></span></td></tr><% }) %>
  </tbody></table></div>
 </section>
 <% } %>

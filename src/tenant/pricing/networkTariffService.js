@@ -24,7 +24,8 @@ function validateInput(input){
  const allowed=['network','operation','currency','branchId','effectiveFrom','expiresAt','evidenceReference','bands','_csrf'];
  if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(k=>!allowed.includes(k)))throw fail('Unknown tariff input');
  const network=String(input.network||''),operation=String(input.operation||''),currency=String(input.currency||'');
- const branchId=input.branchId?objectId(input.branchId):null;
+ if(!input.branchId)throw fail('Choose the branch whose agent accounts use this commission schedule');
+ const branchId=objectId(input.branchId);
  const evidenceReference=input.evidenceReference;
  if(typeof evidenceReference!=='string'||evidenceReference.trim().length<12||evidenceReference.trim().length>350||/[\u0000-\u001f\u007f]/.test(evidenceReference))throw fail('Provide a tariff provider document, agreement or statement reference (12–350 characters)');
  const date=(value,label)=>{
@@ -100,7 +101,7 @@ async function decide(conn,tenant,actor,id,decision){
  }finally{await session.endSession();}
 }
 function preview(schedule,amountMinor){
- return quote({network:schedule.network,currency:schedule.currency,operation:schedule.operation,status:schedule.status==='approved'?'verified':'draft',
+ return quote({network:schedule.network,currency:schedule.currency,operation:schedule.operation,status:'draft',
    providerEvidence:schedule.evidenceReference,effectiveFrom:schedule.effectiveFrom,tiers:schedule.tiers},amountMinor);
 }
 module.exports={parseLines,serializeLines,validateInput,read,propose,decide,preview};

@@ -29,8 +29,8 @@ module.exports=function routes({renderTenant}){
   }catch(error){next(error);}
  }
  router.get('/funds/context',async(req,res,next)=>{try{if(!req.operationBranch)return res.status(409).json({error:'An operating branch is required.'});res.set('Cache-Control','private, no-store').json(await require('../services/mobileMoneyFunds.service').context(req.tenantDb,req.tenant,req.user,req.operationBranch));}catch(error){next(error);}});
- router.get('/cash-in',(req,res,next)=>render(req,res,next,{view:'entry',title:'Cash-in',subtitle:'Cash-in/cash-out activity and cash drawer impact.',operation:'cash_in'}));
- router.get('/cash-out',(req,res,next)=>render(req,res,next,{view:'entry',title:'Cash-out',subtitle:'Cash-in/cash-out activity and cash drawer impact.',operation:'cash_out'}));
+ router.get('/cash-in',(req,res,next)=>render(req,res,next,{view:'entry',title:'Customer deposit',subtitle:'Receive customer cash and transfer the same amount of electronic float.',operation:'cash_in'}));
+ router.get('/cash-out',(req,res,next)=>render(req,res,next,{view:'entry',title:'Customer withdrawal',subtitle:'Pay customer cash and receive the same amount of electronic float.',operation:'cash_out'}));
  router.get('/network-activity',(req,res,next)=>render(req,res,next,{view:'network',title:'Network activity',subtitle:'Mobile money records grouped by network with recent activity.'}));
  router.get('/cash-impact',(req,res,next)=>render(req,res,next,{view:'cash-impact',title:'Mobile money cash impact',subtitle:'Cash-in, cash-out, commission, and net drawer movement for mobile money.'}));
  router.get('/report',(req,res,next)=>render(req,res,next,{view:'report',title:'Mobile money report',subtitle:'Dedicated report for mobile money count, volume, network mix, and drawer impact.',report:true}));

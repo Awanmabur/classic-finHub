@@ -41,7 +41,7 @@
         </div>
        <% } %>
       </div>
-      <% if(!p.configured){ %><span class="tiny">Provider market is not identified. Assign a verified country and currency before entering rates; none are assumed.</span><% } %>
+      <% if(!p.configured){ %><span class="tiny">Provider market is not identified. Set up a provider wallet with an independently approved opening balance before creating rates; none are assumed.</span><% } %>
      </div>
     <% }) %>
    </div>
@@ -118,7 +118,8 @@
    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
    <div class="networkTariffFields">
     <label class="field">Network<select name="network" class="control" data-provider-select required><option value="">Choose network</option><% data.providerChoices.forEach(p=>{ %><option value="<%= p.key %>" data-currency="<%= p.currency %>"><%= p.displayName %></option><% }) %></select></label>
-    <label class="field">Currency (set by network)<input class="control" type="text" data-provider-currency-display readonly placeholder="Choose a network"><input type="hidden" name="currency" data-provider-currency></label>
+    <label class="field">Currency (set by network or verified wallet)<input class="control" type="text" data-provider-currency-display readonly placeholder="Choose a network"><input type="hidden" name="currency" data-provider-currency></label>
+    <label class="field" data-tariff-market-wallet-field hidden>Verified network wallet<select name="walletAccountId" class="control" data-tariff-market-wallet disabled><option value="">Choose reconciled network wallet</option><% data.commissions.wallets.forEach(w=>{ %><option value="<%= w._id %>" data-network="<%= w.network %>" data-currency="<%= w.currency %>" data-branch="<%= w.branchId %>"><%= w.name %> · <%= w.currency %></option><% }) %></select><small>For networks serving several markets, your approved wallet determines the currency.</small></label>
     <label class="field">Branch<select name="branchId" class="control" required><option value="">Choose branch</option><% data.branches.forEach(b=>{ %><option value="<%= b._id %>"><%= b.name %></option><% }) %></select></label>
     <label class="field">Schedule type<select name="scheduleKind" class="control" required><option value="agent_commission">Agent commission paid by provider</option><option value="customer_network_fee">Network charge paid by customer</option></select></label>
     <label class="field">Agent operation<select name="operation" class="control" required><option value="cash_in">Customer deposit (Cash-in)</option><option value="cash_out">Customer withdrawal (Cash-out)</option><option value="send">Send money</option><option value="bill_payment">Pay a bill</option><option value="airtime_sale">Sell airtime or bundles</option><option value="merchant_payment">Merchant payment</option></select></label>

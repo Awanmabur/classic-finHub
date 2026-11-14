@@ -29,6 +29,31 @@ module.exports=function routes({renderTenant}){
   }catch(error){next(error);}
  }
  router.get('/funds/context',async(req,res,next)=>{try{if(!req.operationBranch)return res.status(409).json({error:'An operating branch is required.'});res.set('Cache-Control','private, no-store').json(await require('../services/mobileMoneyFunds.service').context(req.tenantDb,req.tenant,req.user,req.operationBranch));}catch(error){next(error);}});
+ router.get('/quote',async(req,res,next)=>{
+  try{
+   if(!req.operationBranch)return res.status(409).set('Cache-Control','private, no-store').json({error:'Assign an operating branch before quoting commissions.'});
+   const {NETWORKS}=require('../pricing/networkTariffs');
+   const network=String(req.query.network||''),currency=String(req.query.currency||'');
+   const operation=String(req.query.operation||'');
+   const amount=String(req.query.amount||'');
+   if(!Object.hasOwn(NETWORKS,network)||!['cash_in','cash_out'].includes(operation)||
+      !require('../../config/currencies').currencyCodes.includes(currency))
+    return res.status(400).set('Cache-Control','private, no-store').json({error:'Choose a supported network, operation and currency.'});
+   if(NETWORKS[network].currency&&NETWORKS[network].currency!==currency)
+    return res.status(400).set('Cache-Control','private, no-store').json({error:'Currency must match the selected network market.'});
+   require('../services/branchCurrency.service').resolve(req.operationBranch,currency);
+   const minor=require('../services/mobileMoney.service').toMinor(amount,currency);
+   const quotes=await require('../pricing/networkTariffService').transactionEstimates(
+    req.tenantDb,req.tenant,req.operationBranch,{network,currency,operation,amountMinor:String(minor)});
+   const fmt=require('../services/mobileMoney.service').formatMoneyMinor;
+   res.set('Cache-Control','private, no-store').json({
+    network,currency,operation,
+    agentCommission:quotes.agentCommissionEstimate?{amount:fmt(quotes.agentCommissionEstimate.amountMinor,currency),version:quotes.agentCommissionEstimate.version,status:'estimate_only'}:null,
+    customerNetworkCharge:quotes.customerNetworkFeeEstimate?{amount:fmt(quotes.customerNetworkFeeEstimate.amountMinor,currency),version:quotes.customerNetworkFeeEstimate.version,status:'estimate_only'}:null,
+    note:'Only approved, effective provider schedules appear here. Estimates do not add fees to the customer transaction or recognize income.'
+   });
+  }catch(e){next(e);}
+ });
  router.get('/cash-in',(req,res,next)=>render(req,res,next,{view:'entry',title:'Deposit',subtitle:'Receive customer cash and transfer the same amount of electronic float.',operation:'cash_in'}));
  router.get('/cash-out',(req,res,next)=>render(req,res,next,{view:'entry',title:'Withdrawal',subtitle:'Pay customer cash and receive the same amount of electronic float.',operation:'cash_out'}));
  router.get('/network-activity',(req,res,next)=>render(req,res,next,{view:'network',title:'Network activity',subtitle:'Mobile money records grouped by network with recent activity.'}));

@@ -5,8 +5,8 @@
  <%- include('../../partials/operation-branch', {currentBranch, branchProblem, user}) %>
   <p class="tiny"><% if(['Tenant Owner','Mobile Money Operator','Branch Manager','Reconciliation Officer','Auditor'].includes(user.role)){ %><a class="btn" href="/tenant/mobile-money/shifts">Manage physical cash shifts</a><% } %> Obtain independent opening approval before recording Cash payments. Bank and Wallet Balance entries do not move the physical cash drawer. A shift is not provider float or a settled balance.</p>
   <div class="richActions">
-    <% if(user.permissions.includes('*') || user.permissions.includes('mobile_money.cash_in')){ %><a class="btn" href="/tenant/mobile-money/cash-in" data-transaction-kind="cash_in">Cash-in</a><% } %>
-    <% if(user.permissions.includes('*') || user.permissions.includes('mobile_money.cash_out')){ %><a class="btn" href="/tenant/mobile-money/cash-out" data-transaction-kind="cash_out">Cash-out</a><% } %>
+    <% if(user.permissions.includes('*') || user.permissions.includes('mobile_money.cash_in')){ %><a class="btn" href="/tenant/mobile-money/cash-in" data-transaction-kind="cash_in">Deposit</a><% } %>
+    <% if(user.permissions.includes('*') || user.permissions.includes('mobile_money.cash_out')){ %><a class="btn" href="/tenant/mobile-money/cash-out" data-transaction-kind="cash_out">Withdrawal</a><% } %>
     <a class="btn" href="/tenant/mobile-money/network-activity">Network activity</a><a class="btn" href="/tenant/mobile-money/cash-impact">Cash impact</a><% if((user.permissions||[]).some(permission=>['*','mobile_money.report','reports.view'].includes(permission))){ %><a class="btn" href="/tenant/mobile-money/report">Mobile money report</a><% } %>
   </div>
   <div class="grid">
@@ -19,7 +19,7 @@
       <% data.summary.recent.forEach(t => { %>
         <div class="tx" data-search-row>
           <div class="txMeta"><b><a href="/tenant/mobile-money/<%= t._id %>"><%= t.network %> · <%= t.networkReference %></a></b>
-            <span><%= t.customer %> · <%= t.entrySource === 'sms' ? 'SMS capture' : 'Manual' %> · <%= t.operation === 'cash_in' ? 'Cash-in' : 'Cash-out' %> · <%= t.status.replace(/_/g,' ') %> · Internal review: <%= (t.reviewState || 'awaiting_review').replace(/_/g,' ') %> · Correction: <%= (t.correctionState || 'none').replace(/_/g,' ') %></span>
+            <span><%= t.customer %> · <%= t.entrySource === 'sms' ? 'SMS capture' : 'Manual' %> · <%= t.operation === 'cash_in' ? 'Deposit' : 'Withdrawal' %> · <%= t.status.replace(/_/g,' ') %> · Internal review: <%= (t.reviewState || 'awaiting_review').replace(/_/g,' ') %> · Correction: <%= (t.correctionState || 'none').replace(/_/g,' ') %></span>
           </div><b><%= money(t.currency, amountFromMinor(t.amountMinor,t.currency)) %></b>
         </div>
         <% if(data.canRecord && String(t.operatorId)===String(user.id) && t.status==='pending_verification' && ['none','denied',null,undefined].includes(t.correctionState) && (t.correctionAttempts||0)<5){ %>

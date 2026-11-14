@@ -48,6 +48,15 @@
       </div>
     </div>
     <%- include('../partials/operation-pricing',{pricingOperation:'mobile_money.'+entryOperation,pricingField:'fee'}) %>
+    <section class="mobileQuoteSummary" data-mobile-provider-quote aria-live="polite">
+      <div class="summary">
+       <div class="sumRow"><span>Expected agent commission from approved network sheet</span><b data-mobile-agent-commission>Enter an amount to check</b></div>
+       <div class="sumRow"><span>Expected network charge to customer</span><b data-mobile-provider-charge>Enter an amount to check</b></div>
+      </div>
+      <p class="tiny" data-mobile-quote-note>Provider commission and provider charges are estimates, separate from the agent-configured customer fee above. Only approved effective sheets can produce a quote. They do not automatically change cash, float, or recognized income.</p>
+      <a href="/tenant/mobile-money/tariffs" class="tiny">Review network rate sheets</a>
+    </section>
+
     <div class="summary">
       <div class="sumRow"><span data-mobile-total-label><%= entryOperation==='cash_out'?'Physical cash paid to customer':'Physical cash received from customer' %></span><b data-mobile-total>—</b></div>
       <div class="sumRow"><span>Reference</span><b class="mono mobileRequestReference" data-mobile-reference><%= data.idempotencyKey %></b></div>
@@ -56,3 +65,4 @@
     <div class="rowBtns"><button class="btn btnPrimary" type="submit"><%= entryOperation==='cash_in'?'Record deposit':'Record withdrawal' %></button></div>
   </div>
 </form>
+<script src="/js/mobile-money-quote.js?v=<%= assetVersion %>" defer></script>

@@ -13,7 +13,7 @@ function summary(account){return {id:String(account._id),name:account.name,kind:
  observedAt:account.lastObservationAt,variance:account.lastVarianceMinor===null?null:money(account.lastVarianceMinor,account.currency),state:account.status,reconciliation:account.reconciliationState,
  expectedMinor:account.openingBalanceMinor===null?null:String(account.bookBalanceMinor),lastFour:String(account.accountReference||'').slice(-4),isDefault:Boolean(account.selectionKey),feeTreatment:account.feeTreatment||'record_only'};}
 async function context(conn,tenant,actor,branch){
- const trusted=await treasury.access(conn,tenant,actor,{sourceType:'mobile_money'});
+ const trusted=await treasury.access(conn,tenant,actor,{permission:'mobile_money.view',sourceType:'mobile_money'});
  const currencies=require('./branchCurrency.service').supported(branch);
  const query={tenantId:tenant._id,branchId:branch._id,currency:{$in:currencies},status:{$ne:'archived'},$or:[{operatorId:actor.id},{operatorId:null}]};
  const accounts=await fundsModels.models(conn).account.find(query).sort({name:1}).limit(200).lean();

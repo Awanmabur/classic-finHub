@@ -246,6 +246,25 @@
       for(const option of customer.options){if(!option.value)continue;const visible=option.dataset.currency===currency;option.hidden=!visible;option.disabled=!visible;}
       if(customer.selectedOptions[0]?.disabled)customer.value='';
       const internal=method.value==='Wallet Balance';form.querySelector('[data-customer-wallet-field]').hidden=!internal;customer.disabled=!internal;customer.required=internal;
+      const payment=form.querySelector('[data-payment-account]');
+      const paymentField=form.querySelector('[data-payment-account-field]');
+      if(payment&&paymentField){
+        const activeMethod=method.value,validAccounts=[];
+        for(const option of payment.options){
+          if(!option.value)continue;
+          const eligible=!internal&&option.dataset.method===activeMethod&&option.dataset.currency===currency&&option.dataset.state==='active'&&option.dataset.opened==='true';
+          option.hidden=!eligible;option.disabled=!eligible;
+          if(eligible)validAccounts.push(option);
+        }
+        const selected=validAccounts.some(option=>option.value===payment.value);
+        if(!selected){
+          const defaults=validAccounts.filter(option=>option.dataset.default==='true');
+          payment.value=defaults.length===1?defaults[0].value:validAccounts.length===1?validAccounts[0].value:'';
+        }
+        payment.disabled=internal;
+        payment.required=!internal;
+        paymentField.hidden=internal||(validAccounts.length===1&&Boolean(payment.value));
+      }
     };
     const update=()=>{
       const currency=selectedCurrency();

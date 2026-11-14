@@ -1,13 +1,13 @@
 <section class="view show workspaceStack networkTariffPage">
- <section class="card"><div class="cardHead"><div><b>Agent commission estimate</b><br><span><%= data.schedule.network==='MTN SSD'?'MTN MoMo South Sudan':data.schedule.network %> · <%= data.schedule.operation==='cash_in'?'Customer deposit':'Customer withdrawal' %></span></div><a class="btn" href="/tenant/mobile-money/tariffs">Back to rate sheets</a></div>
+ <section class="card"><div class="cardHead"><div><b><%= data.schedule.scheduleKind==='customer_network_fee'?'Customer network charge estimate':'Agent commission estimate' %></b><br><span><%= data.schedule.network==='MTN SSD'?'MTN MoMo South Sudan':data.schedule.network %> · <%= data.schedule.operation==='cash_in'?'Customer deposit':'Customer withdrawal' %></span></div><a class="btn" href="/tenant/mobile-money/tariffs">Back to rate sheets</a></div>
   <div class="cardBody workspaceStack">
    <div class="networkTariffQuoteResult">
     <div><span>Transaction amount</span><strong><%= data.formatMinor(data.result.amountMinor,data.schedule.currency) %></strong></div>
-    <div><span>Expected agent commission</span><strong><%= data.result.status==='no_matching_band'?'No matching tariff band':data.formatMinor(data.result.grossCommissionEstimateMinor,data.schedule.currency) %></strong></div>
+    <div><span><%= data.schedule.scheduleKind==='customer_network_fee'?'Estimated network charge':'Expected agent commission' %></span><strong><%= data.result.status==='no_matching_band'?'No matching tariff band':data.formatMinor(data.schedule.scheduleKind==='customer_network_fee'?data.result.customerNetworkChargeEstimateMinor:data.result.grossCommissionEstimateMinor,data.schedule.currency) %></strong></div>
     <div><span>Tariff version</span><strong><%= data.schedule.version %> · <%= data.schedule.status==='approved'?'Approved internally':'Not approved' %></strong></div>
-    <div><span>Actual commission received</span><strong>Not verified from this quote</strong></div>
+    <div><span>Agent income</span><strong><%= data.schedule.scheduleKind==='customer_network_fee'?'Not agent income':'Not verified from this quote' %></strong></div>
    </div>
-   <p class="workspaceNote">This is an estimate based on a saved agent rate sheet, not a customer fee and not a verified payout. No physical cash, network float, accounts receivable, realized income or profit was created. Compare the provider's actual commission statement in the Commission payouts section before recognizing earnings.</p>
+   <p class="workspaceNote">This is a reference quote from an internally saved rate sheet, not a provider-confirmed settlement. Customer network fees and agent commissions are distinct. No physical cash, network float, accounts receivable, revenue or realized profit was created. Compare the provider's actual commission statement in the Commission payouts section before recognizing earnings.</p>
    <% if(data.result.status==='no_matching_band'){ %><p class="tiny">No rate is configured for this amount. Do not treat an unavailable rate as a zero commission.</p><% } %>
    <div class="workspaceActions"><a class="btn btnPrimary" href="/tenant/mobile-money/tariffs">View tariff schedules</a><a class="btn" href="/tenant/treasury">Cash &amp; float balances</a></div>
   </div>

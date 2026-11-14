@@ -41,9 +41,11 @@ function integer(value,{positive=false}={}){
   if(positive&&n===0n)invalid('Amount must be positive');
   return n;
 }
+const OPERATIONS=Object.freeze(['cash_in','cash_out','send','bill_payment','airtime_sale','merchant_payment']);
+const SCHEDULE_KINDS=Object.freeze(['agent_commission','customer_network_fee']);
 function validateTariff(input){
   if(!input||typeof input!=='object'||Array.isArray(input))invalid('Invalid tariff schedule');
-  if(!Object.hasOwn(NETWORKS,input.network)||!['cash_in','cash_out'].includes(input.operation))invalid('Invalid provider or agent operation');
+  if(!Object.hasOwn(NETWORKS,input.network)||!OPERATIONS.includes(input.operation))invalid('Invalid provider or agent operation');
   const network=NETWORKS[input.network];
   if(!network.currency||input.currency!==network.currency)invalid('Provider currency mismatch');
   if(!['draft','verified','retired'].includes(input.status))invalid('Invalid tariff status');
@@ -89,4 +91,4 @@ function publicAgentReference(operation){
     }))
   };
 }
-module.exports={NETWORKS,publicAgentReference,validateTariff,quote};
+module.exports={NETWORKS,OPERATIONS,SCHEDULE_KINDS,publicAgentReference,validateTariff,quote};

@@ -27,7 +27,8 @@ module.exports=function factory({renderTenant}){
      canSubmitPayout:['Tenant Owner','Mobile Money Operator'].includes(req.user.role),
      canReviewPayout:['Tenant Owner','Reconciliation Officer'].includes(req.user.role),
      postingEnabled:process.env.ENABLE_MOMO_COMMISSION_POSTING==='true',
-     serializeLines:service.serializeLines});
+     serializeLines:service.serializeLines,
+     formatMinor:require('../services/mobileMoney.service').formatMoneyMinor});
   }catch(e){next(e);}
  });
  router.post('/',throttle,async(req,res,next)=>{

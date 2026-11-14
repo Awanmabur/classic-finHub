@@ -1,10 +1,41 @@
 <link rel="stylesheet" href="/css/workspace.css?v=<%= assetVersion %>">
+<script src="/js/network-tariffs.js?v=<%= assetVersion %>" defer></script>
 <section class="view show workspaceStack networkTariffPage">
  <section class="card">
   <div class="cardHead"><div><b>Network tariff and commission sheets</b><br><span>Cash deposit and withdrawal rates for each agent network and branch</span></div><a class="btn" href="/tenant/treasury">Cash &amp; float accounts</a></div>
   <div class="cardBody workspaceStack">
    <p class="tiny">Agent commission schedules and customer network fee sheets are separate. A customer network charge is NOT an agent commission. Quotes never increase cash, float, income or profit. Only the network's actual, independently reconciled payout may enter the books.</p>
    <div class="workspaceActions"><a class="btn" href="/tenant/mobile-money/network-activity">Network activity</a><a class="btn" href="/tenant/mobile-money/report">Operations report</a><a class="btn" href="/tenant/workspace/pricing">Customer fees &amp; costs</a></div>
+  </div>
+ </section>
+ <section class="card networkAgentOverview">
+  <div class="cardHead"><div><b>Agent cash and float</b><br><span>Current book balances for your operating branch · not live provider balances</span></div><a class="btn" href="/tenant/treasury">Reconcile accounts</a></div>
+  <div class="cardBody">
+   <% const moneyAccounts=[...(data.funds?.paymentAccounts||[]).filter(a=>a.kind==='cash'),...(data.funds?.wallets||[])]; %>
+   <% if(moneyAccounts.length){ %>
+   <div class="networkBalanceGrid"><% moneyAccounts.forEach(account=>{ %>
+    <div class="networkBalanceStat">
+     <span><%= account.kind==='cash'?'Available physical cash':'Electronic float · '+(account.network==='MTN SSD'?'MTN South Sudan':account.network) %></span>
+     <strong><%= account.expected||'Opening not approved' %></strong>
+     <small><%= account.name %> · <%= account.currency %> · <%= account.reconciliation==='matched'?'Reconciled':(account.reconciliation||'Not reconciled') %></small>
+    </div>
+   <% }) %></div>
+   <% }else{ %><p class="tiny">No scoped cash or float account is available here. Configure accounts and approve their opening balances in Treasury.</p><% } %>
+  </div>
+ </section>
+ <section class="card networkProviderDirectory">
+  <div class="cardHead"><div><b>Network rate sheets</b><br><span>Choose a provider to see its saved deposit and withdrawal commission schedules</span></div><span class="tag"><%= data.allProviders.length %> registered networks</span></div>
+  <div class="cardBody">
+   <div class="networkProviderGrid">
+    <% data.allProviders.forEach(p=>{const saved=data.schedules.filter(s=>s.network===p.key&&s.status==='approved').length;const pending=data.schedules.filter(s=>s.network===p.key&&s.status==='draft').length; %>
+     <div class="networkProviderCard">
+      <strong><%= p.displayName %></strong>
+      <span><%= p.currency||'Market configuration required' %></span>
+      <small><%= saved %> approved · <%= pending %> draft</small>
+      <% if(p.configured){ %><a class="btn" href="#network-sheet-form" data-choose-provider="<%= p.key %>"><%= data.canPropose?'Add rate sheet':'View sheets below' %></a><% }else{ %><span class="tiny">Rates unavailable until a specific country, currency and provider agreement are configured. No assumed rate.</span><% } %>
+     </div>
+    <% }) %>
+   </div>
   </div>
  </section>
  <section class="card">
@@ -17,7 +48,7 @@
     <div class="networkTariffRecordBody">
      <p class="tiny"><%= source.note %></p>
      <div class="networkTariffMetadata"><span>Network <b><%= source.label %></b></span><span>Checked <b><%= source.checkedOn %></b></span><span>Source <a href="<%= source.source %>" target="_blank" rel="noopener noreferrer">View official provider table</a></span></div>
-     <div class="tableWrap"><table><thead><tr><th>Amount from</th><th>Amount to</th><% source.operations.forEach(op=>{ %><th><%= op.label %></th><% }) %></tr></thead><tbody>
+     <div class="tableWrap networkTariffScroll" role="region" tabindex="0" aria-label="Scrollable network rate sheet"><table><thead><tr><th>Amount from</th><th>Amount to</th><% source.operations.forEach(op=>{ %><th><%= op.label %></th><% }) %></tr></thead><tbody>
       <% source.bands.forEach(tier=>{ %><tr><td><%= data.formatMinor(tier.minMinor,source.currency) %></td><td><%= data.formatMinor(tier.maxMinor,source.currency) %></td>
        <% source.operations.forEach(op=>{const charge=tier.charges[op.key];%><td><%= charge==null?'Not available':data.formatMinor(charge,source.currency) %></td><% }) %>
       </tr><% }) %>
@@ -28,8 +59,8 @@
    <div class="workspaceNote"><b>MTN MoMo South Sudan, Africell and other markets:</b> A complete current public fee and agent-commission sheet has not been verified. Configure the provider market and independently review its genuine contract before any local quote is trusted. Missing rates remain unavailable; they are never invented.</div>
   </div>
  </section>
- <section class="card">
-  <div class="cardHead"><b>Configured network schedules</b><span><%= data.schedules.length %> saved</span></div>
+ <section class="card" id="configured-network-sheets">
+  <div class="cardHead"><b>Saved network schedules</b><span><%= data.schedules.length %> saved</span></div>
   <div class="cardBody workspaceStack">
    <% if(!data.schedules.length){ %><p class="tiny">No agent commission schedule has been entered. MTN South Sudan and other providers will show no automatic commission rather than an invented rate.</p><% } %>
    <% data.schedules.forEach(schedule=>{ const branch=data.branches.find(b=>String(b._id)===String(schedule.branchId)); %>
@@ -37,7 +68,7 @@
     <summary><span><b><%= schedule.network==='MTN SSD'?'MTN MoMo South Sudan':schedule.network==='MTN'?'MTN MoMo Uganda':schedule.network %></b><small><%= branch?.name||'Assigned branch' %> · <%= schedule.currency %> · <%= ({cash_in:'Customer deposit',cash_out:'Customer withdrawal',send:'Send money',bill_payment:'Bill payment',airtime_sale:'Sell airtime',merchant_payment:'Merchant payment'})[schedule.operation]||schedule.operation %> · <%= schedule.scheduleKind==='customer_network_fee'?'Customer fee':'Agent commission' %> · Version <%= schedule.version %></small></span><span class="tag"><%= schedule.status==='approved'?'Approved for quoting':schedule.status==='retired'?'Retired':'Awaiting independent review' %></span></summary>
     <div class="networkTariffRecordBody">
      <div class="networkTariffMetadata"><span>Effective from <b><%= new Date(schedule.effectiveFrom).toISOString().slice(0,10) %></b></span><span>Source <b><%= schedule.evidenceReference %></b></span><span>Independent reviewer <b><%= schedule.approvedBy?'Recorded':'Pending' %></b></span></div>
-     <div class="tableWrap"><table><thead><tr><th>Minimum (<%= schedule.currency %>)</th><th>Maximum</th><th>Commission type</th><th>Rate (minor units or bps)</th></tr></thead><tbody>
+     <div class="tableWrap networkTariffScroll" role="region" tabindex="0" aria-label="Scrollable commission ranges"><table><thead><tr><th>Minimum (<%= schedule.currency %>)</th><th>Maximum</th><th>Commission type</th><th>Rate (minor units or bps)</th></tr></thead><tbody>
       <% schedule.tiers.forEach(tier=>{ %><tr><td><%= data.formatMinor(tier.minMinor,schedule.currency) %></td><td><%= data.formatMinor(tier.maxMinor,schedule.currency) %></td><td><%= tier.rate.kind==='flat'?'Fixed':'Percentage' %></td><td><%= tier.rate.value %><%= tier.rate.kind==='basis_points'?' bps':'' %></td></tr><% }) %>
      </tbody></table></div>
 
@@ -52,7 +83,7 @@
        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
        <input type="hidden" name="revision" value="<%= schedule.revision %>">
        <label class="field">Provider agreement or schedule reference<input class="control" name="evidenceReference" minlength="12" maxlength="350" required value="<%= schedule.evidenceReference %>"></label>
-       <label class="field">Rate bands<textarea class="control networkTariffBands" name="bands" rows="7" maxlength="30000" required spellcheck="false"><%= data.serializeLines(schedule.tiers) %></textarea></label>
+       <label class="field">Rate bands<textarea class="control networkTariffBands" name="bands" rows="7" data-rate-editor maxlength="30000" required spellcheck="false"><%= data.serializeLines(schedule.tiers) %></textarea></label>
        <div class="networkTariffActions"><button class="btn" type="submit">Save draft revisions</button><span class="tiny">Approved schedules are immutable. Updates require an independent review.</span></div>
       </form>
      </details>
@@ -72,13 +103,13 @@
   </div>
  </section>
  <% if(data.canPropose){ %>
- <section class="card">
-  <div class="cardHead"><div><b>Submit a network rate sheet</b><br><span>Tenant Owner · separate customer charges and agent income · independent approval required</span></div></div>
+ <section class="card" id="network-sheet-form">
+  <div class="cardHead"><div><b>Add a network rate sheet</b><br><span>Tenant Owner · separate customer charges and agent income · independent approval required</span></div></div>
   <form class="cardBody networkTariffForm" method="post" action="/tenant/mobile-money/tariffs" autocomplete="off">
    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
    <div class="networkTariffFields">
-    <label class="field">Network<select name="network" class="control" required><option value="">Choose network</option><% data.providerChoices.forEach(p=>{ %><option value="<%= p.key %>"><%= p.displayName %> — <%= p.currency %></option><% }) %></select></label>
-    <label class="field">Currency<select name="currency" class="control" required><option value="">Choose currency</option><option value="UGX">UGX — Uganda shilling</option><option value="SSP">SSP — South Sudanese pound</option></select></label>
+    <label class="field">Network<select name="network" class="control" data-provider-select required><option value="">Choose network</option><% data.providerChoices.forEach(p=>{ %><option value="<%= p.key %>" data-currency="<%= p.currency %>"><%= p.displayName %></option><% }) %></select></label>
+    <label class="field">Currency (set by network)<input class="control" type="text" data-provider-currency-display readonly placeholder="Choose a network"><input type="hidden" name="currency" data-provider-currency></label>
     <label class="field">Branch<select name="branchId" class="control" required><option value="">Choose branch</option><% data.branches.forEach(b=>{ %><option value="<%= b._id %>"><%= b.name %></option><% }) %></select></label>
     <label class="field">Schedule type<select name="scheduleKind" class="control" required><option value="agent_commission">Agent commission paid by provider</option><option value="customer_network_fee">Network charge paid by customer</option></select></label>
     <label class="field">Agent operation<select name="operation" class="control" required><option value="cash_in">Customer deposit (Cash-in)</option><option value="cash_out">Customer withdrawal (Cash-out)</option><option value="send">Send money</option><option value="bill_payment">Pay a bill</option><option value="airtime_sale">Sell airtime or bundles</option><option value="merchant_payment">Merchant payment</option></select></label>
@@ -86,7 +117,7 @@
     <label class="field">Expires (optional)<input type="date" name="expiresAt" class="control"></label>
    </div>
    <label class="field">Provider rate sheet, contract or statement reference<input name="evidenceReference" class="control" minlength="12" maxlength="350" required placeholder="Source document reference, issuer and revision date"><span class="tiny">A source reference records the document's identity; it does not automatically verify a provider-issued tariff.</span></label>
-   <label class="field">Commission bands<textarea name="bands" class="control networkTariffBands" rows="8" maxlength="30000" required spellcheck="false" placeholder="500, 2500, basis_points, 400&#10;2501, 5000, flat, 110"></textarea><span class="tiny">One row per band: minimum amount, maximum amount, flat or basis_points, rate. Use exact minor units. For UGX, 100 means UGX 100. For SSP, check the system currency precision before entering bands. 100 basis points = 1%. No overlapping ranges.</span></label>
+   <label class="field">Amount ranges and rates<textarea name="bands" class="control networkTariffBands" data-rate-editor rows="8" maxlength="30000" required spellcheck="false" placeholder="500, 2500, basis_points, 400&#10;2501, 5000, flat, 110"></textarea><span class="tiny">One row per band: minimum amount, maximum amount, flat or basis_points, rate. Use exact minor units. For UGX, 100 means UGX 100. For SSP, check the system currency precision before entering bands. 100 basis points = 1%. No overlapping ranges.</span></label>
    <div class="networkTariffActions"><button class="btn btnPrimary" type="submit">Submit for review</button><span class="tiny">This does not change customer fees or post any money.</span></div>
   </form>
  </section>

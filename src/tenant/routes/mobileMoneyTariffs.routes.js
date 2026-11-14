@@ -20,7 +20,7 @@ module.exports=function factory({renderTenant}){
    ]);
    renderTenant(req,res,'mobile-money/tariffs','Network commission sheets',
     'Network agent rates, independent review and non-posting commission quotes.',
-    {schedules,commissions,branches:branches.filter(b=>b.status==='active'),
+    {schedules,commissions,customerTariffReferences:require('../pricing/customerNetworkFees').TABLES,branches:branches.filter(b=>b.status==='active'),
      providerChoices:Object.entries(NETWORKS).filter(([,v])=>Boolean(v.currency)).map(([key,meta])=>({key,...meta})),
      canPropose:req.user.role==='Tenant Owner',
      canReview:req.user.role==='Reconciliation Officer',

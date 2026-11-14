@@ -231,8 +231,17 @@ router.get('/users', requirePermission('users.manage_branch'), async (req,res,ne
       tenantUserModel(req.tenantDb).find({...staffPolicy.directoryFilter(req.user),...require('../services/branchView.service').readScope(req.user)}).select('name email role status branchId allowedModules').sort({createdAt:-1}).limit(100).lean(),
       staffInviteModel(req.tenantDb).find({status:'pending',expiresAt:{$gt:new Date()},...staffPolicy.directoryFilter(req.user),...require('../services/branchView.service').readScope(req.user)}).select('name email role branchId allowedModules expiresAt').lean()
     ]);
+    const inviteKeys=invitations.map(i=>'tenant.staff.invited:'+String(i._id));
+    const deliveryRows=inviteKeys.length?await require('../../platform/models/OutboxEvent').find({
+      tenantId:req.tenant._id,type:'tenant.staff.invited',eventKey:{$in:inviteKeys}
+    }).select('eventKey state failureCode providerAcceptance.acceptedAt').lean():[];
+    const deliveries=Object.fromEntries(deliveryRows.map(row=>[
+      row.eventKey.replace(/^tenant\\.staff\\.invited:/,''),{
+        state:row.state,failureCode:row.failureCode||null,acceptedAt:row.providerAcceptance?.acceptedAt||null
+      }
+    ]));
     renderTenant(req,res,'users/index','Staff & Roles','Invite staff with fixed permissions, disable access immediately and monitor seat limits.',{
-      users,invitations,roles:staffPolicy.managedRoles(req.user),plan:planForTenant(req.tenant),inviteMailReady:require('../../config/inviteMail').configured(),
+      users,invitations,inviteDeliveries:deliveries,roles:staffPolicy.managedRoles(req.user),plan:planForTenant(req.tenant),inviteMailReady:require('../../config/inviteMail').configured(),
       branches:(await branchService.list(req.tenant)).filter(b=>b.status==='active' && (req.user.role==='Tenant Owner' || String(b._id)===String(req.user.branchId))),
       assignable:require('../services/moduleAccess.service').assignableModules(req.tenant,req.user.role==='Tenant Owner'?'Tenant Owner':'Branch Manager').filter(m=>req.user.role==='Tenant Owner'||hasModuleForUser(req.tenant,req.user,m))
     });

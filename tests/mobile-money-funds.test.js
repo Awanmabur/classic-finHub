@@ -108,3 +108,31 @@ test('customer wallet payments require the transaction phone to identify the sel
   assert.deepEqual(movement.legs,[{accountId:walletId,deltaMinor:'-10000'}]);
  }finally{models.ensure=original.ensure;models.models=original.models;treasury.applyMovements=original.apply;directory.accountModel=original.account;directory.customerModel=original.customer;core.ledgerAccountModel=original.ledger;core.ledgerPostingModel=original.postings;}
 });
+
+test('owner sees branch agent-assigned real cash and float; operator never sees another agent funds',async()=>{
+ const original={access:treasury.access,models:models.models};
+ const branchId=oid(),tenantId=oid(),ownerId=oid(),operatorId=oid(),otherId=oid();
+ const branch={_id:branchId,currency:'UGX',currencies:['UGX']};
+ const tenant={_id:tenantId,enabledModules:[],subscription:null};
+ const rows=[{_id:oid(),name:'Agent network float',kind:'wallet',network:'MTN',currency:'UGX',
+  operatorId:otherId,openingBalanceMinor:'100000',bookBalanceMinor:'100000',status:'active',reconciliationState:'matched',
+  lastObservedMinor:null,lastVarianceMinor:null},
+ {_id:oid(),name:'Agent cash drawer',kind:'cash',network:'',currency:'UGX',
+  operatorId:otherId,openingBalanceMinor:'30000',bookBalanceMinor:'30000',status:'active',reconciliationState:'matched',
+  lastObservedMinor:null,lastVarianceMinor:null}];
+ let seenQuery=null;
+ treasury.access=async(_conn,_tenant,actor)=>({tenant,actor});
+ models.models=()=>({account:{find(query){seenQuery=query;return{sort(){return this;},limit(){return this;},lean:async()=>rows.filter(r=>!query.$or||query.$or.some(term=>term.operatorId===r.operatorId))};}}}});
+ try{
+  const owner=await funds.context({},tenant,{id:ownerId,role:'Tenant Owner'},branch);
+  assert.equal(owner.wallets.length,1);assert.equal(owner.paymentAccounts.length,1);
+  assert.equal(owner.wallets[0].expected,'UGX 100,000');
+  assert.equal(owner.paymentAccounts[0].expected,'UGX 30,000');
+  assert.equal(String(seenQuery.branchId),branchId);
+  assert.equal(seenQuery.$or,undefined,'owner sees assigned accounts only in selected branch');
+  const operator=await funds.context({},tenant,{id:operatorId,role:'Mobile Money Operator'},branch);
+  assert.equal(operator.wallets.length,0);assert.equal(operator.paymentAccounts.length,0);
+  assert.equal(String(seenQuery.branchId),branchId);
+  assert.equal(seenQuery.$or.length,2,'operator must remain limited to own and shared accounts');
+ }finally{treasury.access=original.access;models.models=original.models;}
+});

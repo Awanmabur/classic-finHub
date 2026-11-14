@@ -127,3 +127,26 @@ test('deposit and withdrawal entry displays scoped actual book balances and netw
  assert.match(html,/Record deposit/);
  assert.doesNotMatch(html,/Available balance from provider network/);
 });
+
+test('main Mobile Money workspace shows genuine scoped cash and float book balance cards',async()=>{
+ const locals=options();
+ locals.data.funds={
+  paymentAccounts:[{id:'cash1',kind:'cash',name:'Assigned cash drawer',currency:'UGX',expected:'UGX 120,000',reconciliation:'matched'}],
+  wallets:[{id:'float1',kind:'wallet',name:'MTN Uganda wallet',network:'MTN',currency:'UGX',expected:'UGX 450,000',reconciliation:'matched'}],
+  customerAccounts:[]
+ };
+ locals.data.reviewQueue=[];locals.data.voidQueue=[];locals.data.records=[];
+ const html=await render('index',locals);
+ for(const label of ['Cash and float balances','UGX 120,000','UGX 450,000','Physical cash','Electronic float','Assigned cash drawer','MTN Uganda wallet'])assert.ok(html.includes(label),label);
+ assert.match(html,/\/css\/workspace\.css\?v=/);
+ assert.doesNotMatch(html,/Cash-in<\/a>|Cash-out<\/a>/);
+});
+test('Mobile Money entry and filters keep deposit and withdrawal labels, not cash-in/out labels',async()=>{
+ const locals=options();
+ const entry=await render('entry',locals);
+ assert.match(entry,/\/css\/workspace\.css\?v=/);
+ const filters=require('node:fs').readFileSync(path.join(views,'_filters.ejs'),'utf8');
+ assert.match(filters,/>Deposit<\/option>/);
+ assert.match(filters,/>Withdrawal<\/option>/);
+ assert.doesNotMatch(filters,/>Cash-in<\/option>|>Cash-out<\/option>/);
+});

@@ -54,5 +54,17 @@ docker run --rm --network "$NET" --read-only \
  -e MOMO_TEST_MONGO_URI="mongodb://$HOST:27017/$DB?replicaSet=rs0" \
  --mount "type=bind,src=$ROOT,dst=/workspace,readonly" \
  --workdir /workspace --entrypoint /usr/local/bin/node "$IMAGE" scripts/mobile-money-model-integration.js
+echo '=== REAL TENANT COMMISSION SERVICE: LOCKED SETTLEMENT ==='
+docker run --rm --network "$NET" --read-only \
+ --tmpfs /tmp:rw,nosuid,nodev,size=128m,mode=1777 \
+ --cap-drop ALL --security-opt no-new-privileges \
+ --user "$(stat -c %u "$ROOT"):$(stat -c %g "$ROOT")" \
+ -e NODE_ENV=test -e MFA_ENABLED=false -e NODE_PATH=/app/node_modules \
+ -e ENABLE_MOMO_COMMISSION_POSTING=false \
+ -e MOMO_TEST_MONGO_URI="mongodb://$HOST:27017/$DB?replicaSet=rs0" \
+ -e MOMO_TEST_PLATFORM_URI="mongodb://$HOST:27017/classicfin-momo-platform-test-$ID?replicaSet=rs0" \
+ -e MOMO_TEST_TENANT_SLUG="mmtest$ID" \
+ --mount "type=bind,src=$ROOT,dst=/workspace,readonly" \
+ --workdir /workspace --entrypoint /usr/local/bin/node "$IMAGE" scripts/mobile-money-locked-service-integration.js
 echo '=== VERIFIED: DISPOSABLE TEST FINISHED ==='
 echo 'Production application containers and databases were not used by this test.'

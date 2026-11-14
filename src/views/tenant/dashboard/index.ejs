@@ -24,13 +24,14 @@
     const fundAccounts=[...(data.mobileFunds?.paymentAccounts||[]).filter(a=>a.kind==='cash'),...(data.mobileFunds?.wallets||[])];
     const cashAccounts=fundAccounts.filter(a=>a.kind==='cash'),floatAccounts=fundAccounts.filter(a=>a.kind==='wallet');
   %>
+  <div class="rowBtns" style="margin-top:12px;margin-bottom:8px"><a class="btn btnPrimary" href="/tenant/cash/shifts">Open day / enter starting cash</a><a class="btn" href="/tenant/treasury">Set up cash and network float accounts</a></div>
   <section class="card mobileDashboardBalances" style="margin-top:14px" aria-label="Mobile Money cash and float account balances">
    <div class="cardHead"><div><b>Mobile Money cash and float</b><br><span>Operating-branch book balances, separate from transaction volume and estimated commission</span></div><a class="btn" href="/tenant/mobile-money">Mobile Money</a></div>
    <div class="cardBody">
     <% if(data.mobileFundsState==='branch_required'){ %>
       <p class="tiny">No operating branch is selected for this account. Assign an operating branch in Branch Management before branch balances can be shown. No amounts have been inferred.</p>
     <% }else if(!fundAccounts.length){ %>
-      <p class="tiny">No eligible physical cash drawer or network float account is assigned to this operating branch. Configure and independently approve the opening balances in Treasury.</p>
+      <p class="tiny">No eligible physical cash drawer or network float account is assigned to this operating branch. Configure and independently approve the opening balances in Treasury. Opening a cash shift alone does not create a treasury wallet.</p>
     <% }else{ %>
       <div class="networkBalanceGrid">
        <% fundAccounts.forEach(account=>{ %>

@@ -13,7 +13,8 @@ const schema=new mongoose.Schema({
  branchId:{type:mongoose.Schema.Types.ObjectId,default:null,immutable:true},
  network:{type:String,enum:networks,required:true,immutable:true},
  currency:{type:String,enum:require('../../config/currencies').currencyCodes,required:true,immutable:true},
- operation:{type:String,enum:['cash_in','cash_out'],required:true,immutable:true},
+ operation:{type:String,enum:require('./networkTariffs').OPERATIONS,required:true,immutable:true},
+ scheduleKind:{type:String,enum:require('./networkTariffs').SCHEDULE_KINDS,required:true,immutable:true},
  version:{type:Number,min:1,required:true,immutable:true},
  status:{type:String,enum:['draft','approved','retired'],default:'draft'},
  tiers:{type:[bands],required:true},
@@ -27,7 +28,7 @@ const schema=new mongoose.Schema({
  retiredAt:{type:Date,default:null},
  revision:{type:Number,required:true,default:0,min:0}
 },{timestamps:true,strict:'throw'});
-schema.index({tenantId:1,branchId:1,network:1,currency:1,operation:1,version:1},{unique:true});
+schema.index({tenantId:1,branchId:1,network:1,currency:1,operation:1,scheduleKind:1,version:1},{unique:true});
 schema.index({tenantId:1,status:1,network:1,operation:1,effectiveFrom:-1});
 function model(conn){return conn.models.AgentTariffScheduleV1||conn.model('AgentTariffScheduleV1',schema);}
 const ready=new WeakMap();

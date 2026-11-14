@@ -116,6 +116,7 @@ async function review(conn,tenant,actor,id,input){
       evidenceReference:prior.providerReference,
       occurredAt:prior.creditedAt
     });
+    if(!posting?.batch?._id||!Array.isArray(posting.journalIds)||posting.journalIds.length===0||posting.duplicate)throw fail('Commission payout lacks a newly committed balanced journal. No income was recognized.',503);
    }
    result=await model(conn).findOneAndUpdate({_id:prior._id,tenantId:auth.tenant._id,status:'pending_review'},
      {$set:{status:decision==='approve'?'posted':'rejected',reviewedBy:auth.actor.id,reviewedAt:new Date(),reviewNote:note,journalBatchId:posting?.batch?._id||null}},

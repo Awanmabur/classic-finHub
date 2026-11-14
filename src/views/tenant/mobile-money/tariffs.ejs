@@ -19,6 +19,12 @@
      <div class="tableWrap"><table><thead><tr><th>Minimum (<%= schedule.currency %>)</th><th>Maximum</th><th>Commission type</th><th>Rate (minor units or bps)</th></tr></thead><tbody>
       <% schedule.tiers.forEach(tier=>{ %><tr><td><%= data.formatMinor(tier.minMinor,schedule.currency) %></td><td><%= data.formatMinor(tier.maxMinor,schedule.currency) %></td><td><%= tier.rate.kind==='flat'?'Fixed':'Percentage' %></td><td><%= tier.rate.value %><%= tier.rate.kind==='basis_points'?' bps':'' %></td></tr><% }) %>
      </tbody></table></div>
+
+     <form class="networkTariffQuoteForm" method="get" action="/tenant/mobile-money/tariffs/<%= schedule._id %>/quote">
+      <label class="field">Transaction amount (<%= schedule.currency %>)<input class="control" name="amount" type="text" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" placeholder="Amount to quote" required></label>
+      <button class="btn" type="submit">Estimate commission</button>
+      <span class="tiny">Reference estimate only — no money is posted.</span>
+     </form>
      <% if(data.canPropose&&schedule.status==='draft'){ %>
      <details class="networkTariffEdit"><summary>Edit draft rates</summary>
       <form class="networkTariffForm" method="post" action="/tenant/mobile-money/tariffs/<%= schedule._id %>/edit">

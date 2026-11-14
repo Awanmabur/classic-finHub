@@ -50,7 +50,7 @@
     const hint=create('small',{},'Use whole minor units: UGX 1 = 1; SSP 1.00 = 100. Percentage rates use basis points (100 = 1%).');
     bar.append(add,hint);
     tableRegion.append(scroller,bar);
-    textarea.before(tableRegion);
+    wrapper.after(tableRegion);
     const initial=textarea.value.trim().split(/\r?\n/).filter(Boolean);
     const append=(values=['','','flat',''])=>{
       if(tbody.children.length>=250)return;

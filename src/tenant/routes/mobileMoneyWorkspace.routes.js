@@ -23,7 +23,7 @@ module.exports=function routes({renderTenant}){
     entryCurrencies:req.operationBranch?branchCurrency.options(req.operationBranch):[],
     branches:branches.filter(branch=>branch.status==='active'&&(req.user.role==='Tenant Owner'||String(branch._id)===String(req.user.branchId))),
     selectedBranchId:req.operationBranch?String(req.operationBranch._id):null,
-    funds:req.operationBranch&&hasPermission(req.user,'treasury.view')?await require('../services/mobileMoneyFunds.service').context(req.tenantDb,req.tenant,req.user,req.operationBranch):null,
+    funds:req.operationBranch?await require('../services/mobileMoneyFunds.service').context(req.tenantDb,req.tenant,req.user,req.operationBranch):null,
     canRecord:operation?hasPermission(req.user,`mobile_money.${operation}`):hasPermission(req.user,'mobile_money.cash_in')||hasPermission(req.user,'mobile_money.cash_out'),
     recordPath:hasPermission(req.user,'mobile_money.cash_in')?'/tenant/mobile-money/cash-in':'/tenant/mobile-money/cash-out'});
   }catch(error){next(error);}
@@ -32,7 +32,7 @@ module.exports=function routes({renderTenant}){
  router.get('/cash-in',(req,res,next)=>render(req,res,next,{view:'entry',title:'Deposit',subtitle:'Receive customer cash and transfer the same amount of electronic float.',operation:'cash_in'}));
  router.get('/cash-out',(req,res,next)=>render(req,res,next,{view:'entry',title:'Withdrawal',subtitle:'Pay customer cash and receive the same amount of electronic float.',operation:'cash_out'}));
  router.get('/network-activity',(req,res,next)=>render(req,res,next,{view:'network',title:'Network activity',subtitle:'Mobile money records grouped by network with recent activity.'}));
- router.get('/cash-impact',(req,res,next)=>render(req,res,next,{view:'cash-impact',title:'Mobile money cash impact',subtitle:'Deposit, cash-out, commission, and net drawer movement for mobile money.'}));
+ router.get('/cash-impact',(req,res,next)=>render(req,res,next,{view:'cash-impact',title:'Mobile money cash impact',subtitle:'Deposit, withdrawal, commission, and net drawer movement for mobile money.'}));
  router.get('/report',(req,res,next)=>render(req,res,next,{view:'report',title:'Mobile money report',subtitle:'Dedicated report for mobile money count, volume, network mix, and drawer impact.',report:true}));
  router.get('/report/export.csv',async(req,res,next)=>{
   try{

@@ -1,0 +1,46 @@
+<section class="view show workspaceStack" aria-label="Cash and float readiness">
+ <section class="card">
+  <div class="cardHead"><div><b>Why cash and float balances may be missing</b><br><span>Actual operating-branch funds-account readiness · read-only</span></div><a class="btn" href="/tenant/mobile-money">Back to Mobile Money</a></div>
+  <div class="cardBody">
+   <p>This page checks your authorized operating branch. It does not create accounts, invent cash balances, alter transactions or expose another branch's records.</p>
+   <p class="tiny">Scope: <%= data.readiness.scope %></p>
+  </div>
+ </section>
+ <section class="card">
+  <div class="cardHead"><b>Account setup status</b></div>
+  <div class="cardBody">
+   <div class="networkBalanceGrid">
+    <div class="networkBalanceStat"><span>Physical cash accounts</span><strong><%= data.readiness.accountCounts.cash %></strong><small>Must be approved before funds-book processing</small></div>
+    <div class="networkBalanceStat"><span>Provider float wallets</span><strong><%= data.readiness.accountCounts.wallet %></strong><small>One or more per provider market and currency</small></div>
+    <div class="networkBalanceStat"><span>Accounts ready</span><strong><%= data.readiness.accountCounts.ready %></strong><small>Active, opened and last observation reconciled</small></div>
+    <div class="networkBalanceStat"><span>Opening approval pending</span><strong><%= data.readiness.accountCounts.unopened %></strong><small>Actual opening evidence must be independently approved</small></div>
+    <div class="networkBalanceStat"><span>Account held</span><strong><%= data.readiness.accountCounts.held %></strong><small>Resolve account hold before processing</small></div>
+    <div class="networkBalanceStat"><span>Reconciliation attention</span><strong><%= data.readiness.accountCounts.needsReconciliation %></strong><small>Last observation is not matched</small></div>
+   </div>
+   <p><%= data.readiness.guidance %></p>
+   <% if(data.readiness.truncated){ %><p class="tiny">The account inspection reached its safety limit of 500. Ask a tenant administrator to review the complete account inventory.</p><% } %>
+  </div>
+ </section>
+ <section class="card">
+  <div class="cardHead"><b>Provider wallets configured</b></div>
+  <div class="cardBody">
+   <% if(!Object.keys(data.readiness.providerAccountCounts||{}).length){ %>
+    <p>No provider wallet exists in your visible account scope. A provider rate sheet or past transaction is not a substitute for an actual wallet account.</p>
+   <% }else{ %>
+    <div class="tableWrap" tabindex="0" role="region" aria-label="Provider account inventory">
+     <table><thead><tr><th>Provider and currency</th><th>Wallet accounts</th></tr></thead>
+      <tbody><% Object.entries(data.readiness.providerAccountCounts).forEach(([provider,count])=>{ %><tr><td><%= provider %></td><td><%= count %></td></tr><% }) %></tbody>
+     </table>
+    </div>
+   <% } %>
+   <% if(data.readiness.untrackedHistoricalOperationsPresent){ %>
+    <p class="workspaceNote">There are historical Mobile Money records without a funds-book posting in this branch. Do not turn their totals into cash or float balances. Reconcile provider statements and approved opening balances before migrating any historical amounts.</p>
+   <% } %>
+   <div class="rowBtns">
+    <% if((user.permissions||[]).some(p=>p==='*'||p==='treasury.view')){ %><a class="btn" href="/tenant/treasury">Set up and review funds accounts</a><% } %>
+    <% if(['Tenant Owner','Mobile Money Operator'].includes(user.role)){ %><a class="btn" href="/tenant/cash/shifts">Open day / count starting cash</a><% } %>
+    <a class="btn" href="/tenant/mobile-money/readiness?format=json">View read-only diagnostic JSON</a>
+   </div>
+  </div>
+ </section>
+</section>

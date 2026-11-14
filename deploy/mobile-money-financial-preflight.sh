@@ -19,7 +19,7 @@ run_test(){
   docker run --rm --network none --read-only \
    --tmpfs /tmp:rw,exec,nosuid,size=128m,mode=1777 \
    --cap-drop ALL --security-opt no-new-privileges \
-   --user 1000:1000 \
+   --user "$(stat -c %u "$ROOT"):$(stat -c %g "$ROOT")" \
    --env NODE_ENV=test --env NODE_PATH=/app/node_modules \
    --env SESSION_SECRET=isolated-financial-preflight-secret-not-for-production \
    --env PLATFORM_DB_URI=mongodb://127.0.0.1:27019/classicfin_isolated_test_db \

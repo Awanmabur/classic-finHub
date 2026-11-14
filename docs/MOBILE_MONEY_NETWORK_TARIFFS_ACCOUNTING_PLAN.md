@@ -89,3 +89,41 @@ Customer pays a **provider withdrawal charge**: do **not** add that charge to th
 - Zero critical discrepancies, smoke tests and rollback exercise on staging before production rollout.
 
 **No existing deployed production accounting route calls `networkTariffs.js` yet.** Its public MTN Uganda rate table is safe as reference only, and cannot create money.
+
+
+## Implementation update — 2026-11-14
+
+Branch `feat/mobile-money-tariff-ledger-foundation-20261114` contains the following real code, **not yet deployed or database-verified**:
+
+- `networkTariffModels.js` / `networkTariffService.js`: tenant/branch-scoped, versioned agent-commission **and customer-network-charge** rate schedules, draft editing, source/effective-date recording, second-person approval and audited retirement.
+- `networkTariffs.js`: fixed-precision bracket selection and quote calculation; MTN Uganda publicly published agent commission bands remain **reference only**, not auto-approved by the tenant.
+- `customerNetworkFees.js`: separate customer-charge reference tables for MTN Uganda and historical Airtel Uganda; MTN South Sudan rates remain unknown until genuine provider evidence is supplied.
+- `networkTariffSnapshot.js`: actual cash-in/out transactions take an immutable, **non-posting** snapshot of eligible approved rates and display estimates separately from actual settlements.
+- `commissionPayoutModels.js` / `commissionPayoutService.js`: unique provider credit references, gross/net/withholding/cost evidence, maker-checker review and an accounting posting path to a **separate** agent commission income ledger account.
+- The commission payout **posting switch is OFF by default** (`ENABLE_MOMO_COMMISSION_POSTING` must be explicitly set to `true` after staging sign-off). A historical wallet-commission audit also blocks duplicate recognition. Entries with withholding tax or network deductions remain unpostable until their accounting treatment is configured.
+- `mobile-money/tariffs.ejs`, `tariff-quote.ejs` and network-activity report: rate sheet management, source references, receipt evidence, read-only quotes, distinct float/cash balances and received commission totals.
+- Existing cash/float principal entries, corrections, treasury reconciliations and all existing transaction journal semantics remain unchanged. This branch does not introduce network API credentials or imply provider integration.
+
+### Critical deployment gate
+
+**Do not enable `ENABLE_MOMO_COMMISSION_POSTING` in production merely because unit tests pass.**
+
+Required, sequentially:
+
+1. Run all existing Node tests and new tariff/payout tests using network-isolated containers and no production DB credentials.
+2. Test against a dedicated disposable MongoDB replica set: tenant isolation, maker-checker access, revision races, duplicate payout attempts, unique provider references, balance integrity and rollback of failed transactions.
+3. Verify actual provider commission payout mechanism (same float wallet vs dedicated commission line), source documents and taxation with the target agent account before choosing the receiving wallet.
+4. Inventory historical `feeTreatment=wallet_commission` and `payment_collected` entries and reconcile every affected wallet/income account; ensure no amounts are being recognized in both old and new paths.
+5. Reconcile opening and closing cash counts and provider float statements, including any matched payout. Investigate rather than resetting mismatches.
+6. Validate that agent revenue includes only received, independently verified commission (or a separately approved accrual policy), customer network fees are excluded, and tax deductions are not miscategorized.
+7. Take verified offsite backups, rehearse restore and image rollback, and activate behind controlled release approval. Monitor first settlement entries and reverse operational mistakes only through audited compensating journal entries.
+
+### Not yet fully integrated
+
+- Signed/current tariff agreements for every market, especially MTN South Sudan, Africell and M-Pesa.
+- Direct provider statement ingestion, cryptographic evidence binding and automated matching to bank/agent statements.
+- Customer sends, merchant payments, bill payments and airtime sales as distinct **operational posting** workflows. Their rate-sheet quotes are informational only.
+- Withholding-tax/deduction ledger treatment, multi-currency FX settlement, dispute recovery and automated commission accrual/receivable clearing.
+- Legacy commission migration, end-to-end provider sandbox evidence and production activation.
+
+Until these items are verified, do not claim that every rate, settlement or profit number is fully reconciled.

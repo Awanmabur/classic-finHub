@@ -44,7 +44,9 @@
        {kind:'cash_shift_open',href:'/tenant/cash/shifts',label:'Open day',description:'Opening drawer by currency',icon:'fa-cash-register',permission:'treasury.view',roles:['Tenant Owner','Mobile Money Operator','Money Transfer Operator','Banking Operator','Forex Operator']}
      ].filter(option=>visiblePaths.has(option.href) && can(option.permission) && (!option.roles || option.roles.includes(user.role))) : [];
      const assignedOperationBranch = typeof operationBranch === 'undefined' ? null : operationBranch;
-     const dashboardCurrencies=typeof currencyOptions==='undefined'?[{code:'UGX',label:'UGX'},{code:'USD',label:'USD'},{code:'SSP',label:'SSP'},{code:'KES',label:'KSH'}]:currencyOptions;
+     const availableCurrencies=typeof currencyOptions==='undefined'?[{code:'UGX',label:'UGX'},{code:'USD',label:'USD'},{code:'SSP',label:'SSP'},{code:'KES',label:'KSH'}]:currencyOptions;
+     const dashboardCurrencies=currentPath==='/tenant/dashboard'&&data.hasMobileMoney&&!data.hasTransfer&&!data.hasBanking&&!data.hasForex&&data.mobileMarkets?.length?
+       availableCurrencies.filter(option=>data.mobileMarkets.some(m=>m.currency===option.code)):availableCurrencies;
      const currencyFilterParams=new URLSearchParams(typeof branchViewReturnTo==='string'?branchViewReturnTo.split('?')[1]||'':'');
      const requestedDisplayCurrency=currencyFilterParams.get('currency');
      const selectedDisplayCurrency=data.workspaceSnapshot?.selectedCurrency||data.filters?.currency||data.selectedCurrency||data.entryCurrency||(dashboardCurrencies.some(option=>option.code===requestedDisplayCurrency)?requestedDisplayCurrency:null)||assignedOperationBranch?.currency||'UGX';

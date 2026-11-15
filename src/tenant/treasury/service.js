@@ -110,6 +110,46 @@ async function createAccount(conn,tenant,actor,input,{configurationBranchId=null
   await audit(conn,session,authorization.actor,'treasury.account.created',created._id,{branchId:String(branch._id),kind:created.kind,currency:created.currency,code:created.code});return created;
  });}catch(error){if(error.code===11000)throw fail('This account code or default account already exists. Use a different code and clear the default option for additional accounts.',409);throw error;}
 }
+function assertUnusedWalletArchivable(account,confirmCode) {
+  if(account.kind!=='wallet')throw fail('Only an unused provider wallet can be archived through this control',409);
+  if(account.code!==confirmCode)throw fail('Type the exact wallet account code to confirm archival',400);
+  if(account.status!=='uninitialized'||account.openingBalanceMinor!==null||account.openingApprovedAt||
+     account.openingObservationId||account.pendingOpeningId||account.lastObservationId||
+     account.sequence!==0||BigInt(String(account.bookBalanceMinor))!==0n||
+     account.reconciliationState!=='unknown')
+    throw fail('Only a wallet with no approved opening, balance, pending evidence or financial activity can be archived',409);
+}
+async function archiveUnusedWallet(conn,tenant,actor,accountId,input) {
+  const reason=text(input?.reason,'account archival reason',20,400);
+  const confirmCode=text(input?.confirmCode,'account code confirmation',3,40).toUpperCase();
+  await Promise.all([ensure(conn),core.ensureTenantIndexes(conn)]);
+  return transaction(conn,async session=>{
+    const authorization=await access(conn,tenant,actor,{permission:'treasury.manage',session,fence:true});
+    if(authorization.actor.role!=='Tenant Owner')throw fail('Only the Tenant Owner can archive an unused wallet',403);
+    const account=await loadAccount(conn,authorization,accountId,{session,fence:true});
+    assertUnusedWalletArchivable(account,confirmCode);
+    const treasury=models(conn), funding=require('./funding.models').model(conn);
+    const blockers=await Promise.all([
+      treasury.observation.exists({accountId:account._id,status:{$ne:'rejected'}}).session(session),
+      treasury.movement.exists({accountId:account._id}).session(session),
+      treasury.adjustment.exists({accountId:account._id}).session(session),
+      funding.exists({$or:[{sourceAccountId:account._id},{destinationAccountId:account._id}]}).session(session),
+      core.mobileTransactionModel(conn).exists({$or:[{walletAccountId:account._id},{paymentAccountId:account._id}]}).session(session),
+      core.ledgerPostingModel(conn).exists({accountId:account.ledgerAccountId}).session(session)
+    ]);
+    if(blockers.some(Boolean))
+      throw fail('This wallet has pending evidence or linked financial records. Resolve its dependencies before archival; no history can be deleted.',409);
+    const updated=await treasury.account.findOneAndUpdate({
+      _id:account._id,tenantId:authorization.tenant._id,status:'uninitialized',revision:account.revision
+    },{$set:{status:'archived',holdReason:'Unused wallet archived by Tenant Owner.'},$unset:{selectionKey:''},$inc:{revision:1}},{new:true,session}).lean();
+    if(!updated)throw fail('Wallet changed while archiving. Reload and inspect its latest state.',409);
+    await audit(conn,session,authorization.actor,'treasury.account.archived',account._id,{
+      branchId:String(account.branchId),code:account.code,kind:account.kind,reason,
+      retainedEvidence:'rejected observations and ledger identity'
+    });
+    return updated;
+  });
+}
 async function ensureCounterAccount(conn,session,{tenantId,branchId,currency,purpose,actorId}){
  if(!session?.inTransaction()||!currencyCodes.includes(currency)||!['opening_equity','settlement_clearing','reconciliation_suspense','fee_income','agent_commission_income','expense','interbranch_payable','interbranch_receivable'].includes(purpose))throw fail('Invalid internal treasury counter account');
  const Counter=models(conn).counter,lookup={branchId:oid(branchId),currency,purpose};let counter=await Counter.findOne(lookup).session(session).lean();if(counter){if(String(counter.tenantId)!==String(tenantId))throw fail('Counter account belongs to a different tenant',403);return counter;}
@@ -379,4 +419,4 @@ async function reviewAdjustment(conn,tenant,actor,adjustmentId,input){
   await audit(conn,session,authorization.actor,`treasury.adjustment.${input.decision==='approve'?'approved':'rejected'}`,adjustment._id,{branchId:String(account.branchId),accountId:String(account._id),batchId:batchId?String(batchId):null,deltaMinor:String(adjustment.deltaMinor)});return result;
  });
 }
-module.exports={postBranchTransferPayout,models,ensure,access,loadAccount,createAccount,configureAccount,validateAccount,requestObservation,requestObservationInSession,reviewObservation,reviewObservationInSession,applyMovements,reverseMovements,ensureCounterAccount,findAccount,findOperatingAccounts,balanceSnapshot,accountDetail,reviewQueue,requestAdjustment,reviewAdjustment,expectedAt,assertBookIntegrity,format,major,signedMinor,normalizeMovement,parseObservation,scope,moduleForKind,normalSide,fail,KINDS,NETWORKS};
+module.exports={postBranchTransferPayout,models,ensure,access,loadAccount,createAccount,configureAccount,archiveUnusedWallet,assertUnusedWalletArchivable,validateAccount,requestObservation,requestObservationInSession,reviewObservation,reviewObservationInSession,applyMovements,reverseMovements,ensureCounterAccount,findAccount,findOperatingAccounts,balanceSnapshot,accountDetail,reviewQueue,requestAdjustment,reviewAdjustment,expectedAt,assertBookIntegrity,format,major,signedMinor,normalizeMovement,parseObservation,scope,moduleForKind,normalSide,fail,KINDS,NETWORKS};

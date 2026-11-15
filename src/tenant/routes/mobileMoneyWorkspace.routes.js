@@ -11,20 +11,27 @@ module.exports=function routes({renderTenant}){
  async function render(req,res,next,{view,title,subtitle,operation,report=false}){
   try{
    if(report&&!workspace.canReport(req.user))return res.status(403).send('Mobile money report permission is required.');
-   const reportData=report?await require('../services/mobileMoneyUnifiedReport.service').generate(req.tenantDb,req.tenant,req.user,req.query):null;
+   const funds=req.operationBranch?await require('../services/mobileMoneyFunds.service').context(
+    req.tenantDb,req.tenant,req.user,req.operationBranch):null;
+   const market=require('../services/mobileMoneyMarket.service');
+   const realWallets=(funds?.wallets||[]).filter(wallet=>!operation||wallet.shared||wallet.assignedToOperator);
+   const marketOptions=market.markets(realWallets);
+   const filters=market.withDefaultFilters(req.query,realWallets);
+   const reportData=report?await require('../services/mobileMoneyUnifiedReport.service').generate(
+    req.tenantDb,req.tenant,req.user,filters):null;
    const [data,branches,pricingContext]=await Promise.all([
-    workspace.workspace(req.tenantDb,req.user,report?{}:req.query,{operation}),branchService.list(req.tenant),
+    workspace.workspace(req.tenantDb,req.user,report?{}:filters,{operation}),branchService.list(req.tenant),
     operation?require('../pricing/presentation').context(req.tenantDb,req.tenant,req.operationBranch,'mobile_money'):[]
    ]);
    const commissionReceived=view==='network'&&hasPermission(req.user,'treasury.view')?
     await require('../pricing/commissionPayoutService').summary(req.tenantDb,req.tenant,req.user):[];
    const branchCurrency=require('../services/branchCurrency.service');
-   renderTenant(req,res,`mobile-money/${view}`,title,subtitle,{...data,reportData,filters:report?{...data.filters,network:req.query.network||'',currency:req.query.currency||'',from:reportData.window.from,to:reportData.window.to}:data.filters,operation,pricingContext,commissionReceived,formatMoneyMinor:require('../services/mobileMoney.service').formatMoneyMinor,idempotencyKey:randomUUID(),
+   renderTenant(req,res,`mobile-money/${view}`,title,subtitle,{...data,reportData,networkMarkets:marketOptions,networksAvailable:marketOptions.length?[...new Set(marketOptions.map(x=>x.network))]:data.networksAvailable,filters:report?{...data.filters,network:filters.network||'',currency:filters.currency||'',from:reportData.window.from,to:reportData.window.to}:data.filters,operation,pricingContext,commissionReceived,formatMoneyMinor:require('../services/mobileMoney.service').formatMoneyMinor,idempotencyKey:randomUUID(),
     entryCurrency:req.operationBranch&&operation?branchCurrency.resolve(req.operationBranch,req.query.currency):null,
     entryCurrencies:req.operationBranch?branchCurrency.options(req.operationBranch):[],
     branches:branches.filter(branch=>branch.status==='active'&&(req.user.role==='Tenant Owner'||String(branch._id)===String(req.user.branchId))),
     selectedBranchId:req.operationBranch?String(req.operationBranch._id):null,
-    funds:req.operationBranch?await require('../services/mobileMoneyFunds.service').context(req.tenantDb,req.tenant,req.user,req.operationBranch):null,
+    funds,
     canRecord:operation?hasPermission(req.user,`mobile_money.${operation}`):hasPermission(req.user,'mobile_money.cash_in')||hasPermission(req.user,'mobile_money.cash_out'),
     recordPath:hasPermission(req.user,'mobile_money.cash_in')?'/tenant/mobile-money/cash-in':'/tenant/mobile-money/cash-out'});
   }catch(error){next(error);}
@@ -107,7 +114,10 @@ module.exports=function routes({renderTenant}){
   try{
    if(!workspace.canExport(req.user))return res.status(403).send('Mobile Money report export permission is required.');
    const service=require('../services/mobileMoneyUnifiedReport.service');
-   const report=await service.generate(req.tenantDb,req.tenant,req.user,req.query);
+   const funds=req.operationBranch?await require('../services/mobileMoneyFunds.service').context(
+    req.tenantDb,req.tenant,req.user,req.operationBranch):null;
+   const report=await service.generate(req.tenantDb,req.tenant,req.user,
+    require('../services/mobileMoneyMarket.service').withDefaultFilters(req.query,funds?.wallets||[]));
    res.set({'Content-Type':'text/csv; charset=utf-8',
     'Content-Disposition':`attachment; filename="mobile-money-unified-${report.window.from}-${report.window.to}.csv"`,
     'Cache-Control':'private, no-store'});

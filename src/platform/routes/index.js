@@ -29,7 +29,15 @@ router.get('/dashboard',async(req,res,next)=>{
 });
 router.get('/tenants',async(req,res,next)=>{
   try {const tenants=(await Tenant.find({}).sort({createdAt:-1}).limit(100).lean()).map(t=>({...t,id:String(t._id)}));
-    renderPlatform(req,res,'tenants/index','Tenants','Tenant directories, plan assignment, isolation boundaries and status.',{tenants,plans,modules});
+    const grants=require('../services/moduleSubscriptions.service');
+    const summaries=tenants.map(t=>{
+      const effective=commercial.effectiveSubscription(t);
+      const independentlyGranted=grants.activeGrants(t);
+      const live=new Set(modules.filter(m=>m.runtimeStatus!=='disabled').map(m=>m.key));
+      const moduleKeys=new Set([...(effective?.modules||[]).filter(key=>live.has(key)&&t.enabledModules.includes(key)),...independentlyGranted.map(g=>g.moduleKey)]);
+      return {...t,currentPlanName:t.subscription?.planName||null,currentPlanVersion:t.subscription?.planVersion||null,planAccessActive:Boolean(effective),currentModuleCount:moduleKeys.size,independentModuleCount:independentlyGranted.length};
+    });
+    renderPlatform(req,res,'tenants/index','Tenants','Tenant directories, plan assignment, isolation boundaries and status.',{tenants:summaries,plans,modules});
   }catch(e){next(e);}
 });
 async function renderTenantCreate(req,res,values={},error=null){
@@ -73,7 +81,7 @@ router.get('/tenants/:id',async(req,res,next)=>{
     if (!/^[a-f0-9]{24}$/i.test(req.params.id)) return res.status(404).send('Tenant not found');
     const tenant=await Tenant.findById(req.params.id).lean(); if(!tenant) return res.status(404).send('Tenant not found');
     const published=await commercial.publishedPlans();
-    renderPlatform(req,res,'tenants/show',tenant.name,'Tenant profile, subscription control and audit-safe entitlements.',{tenant:{...tenant,id:String(tenant._id)},tenants:[],plans,modules,published,independentModules:require('../services/moduleSubscriptions.service').listable().map(module=>({...module,requiresRecords:require('../services/moduleSubscriptions.service').requiresRecords(module.key)}))});
+    renderPlatform(req,res,'tenants/show',tenant.name,'Tenant profile, subscription control and audit-safe entitlements.',{tenant:{...tenant,id:String(tenant._id)},effectivePlan:commercial.effectiveSubscription(tenant),activeAddonGrants:require('../services/moduleSubscriptions.service').activeGrants(tenant),tenants:[],plans,modules,published,independentModules:require('../services/moduleSubscriptions.service').listable().map(module=>({...module,requiresRecords:require('../services/moduleSubscriptions.service').requiresRecords(module.key)}))});
   }catch(e){next(e);}
 });
 router.post('/tenants/:id/status',async(req,res,next)=>{

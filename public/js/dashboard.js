@@ -253,21 +253,30 @@
       const payment=form.querySelector('[data-payment-account]');
       const paymentField=form.querySelector('[data-payment-account-field]');
       if(payment&&paymentField){
-        const activeMethod=method.value,validAccounts=[];
+        const validAccounts=[];
         for(const option of payment.options){
           if(!option.value)continue;
-          const eligible=activeMethod==='Cash'&&option.dataset.method==='Cash'&&option.dataset.assigned==='true'&&option.dataset.currency===currency&&option.dataset.state==='active'&&option.dataset.reconciliation==='matched'&&option.dataset.opened==='true';
-          option.hidden=!eligible;option.disabled=!eligible;
+          const eligible=option.dataset.method==='Cash'&&option.dataset.assigned==='true'&&
+            option.dataset.currency===currency&&option.dataset.state==='active'&&
+            option.dataset.reconciliation==='matched'&&option.dataset.opened==='true';
+          option.disabled=!eligible;option.hidden=!eligible;
           if(eligible)validAccounts.push(option);
         }
-        const selected=validAccounts.some(option=>option.value===payment.value);
-        if(!selected){
-          const defaults=validAccounts.filter(option=>option.dataset.default==='true');
-          payment.value=defaults.length===1?defaults[0].value:validAccounts.length===1?validAccounts[0].value:'';
-        }
-        payment.disabled=false;
-        payment.required=true;
-        paymentField.hidden=validAccounts.length===1&&Boolean(payment.value);
+        const configuredDrawer=wallet.selectedOptions?.[0]?.dataset.cashDrawer||'';
+        // Never allow the teller to choose a cash drawer. Server independently
+        // recomputes the mapping, checks branch, operator, approval and shift.
+        const mapped=configuredDrawer?validAccounts.filter(option=>option.value===configuredDrawer):[];
+        const resolved=configuredDrawer?
+          (mapped.length===1?mapped[0]:null):
+          (validAccounts.length===1?validAccounts[0]:null);
+        payment.value=resolved?.value||'';
+        payment.disabled=!resolved;
+        payment.required=false;
+        paymentField.hidden=true;
+        const help=form.querySelector('[data-drawer-help]');
+        if(help)help.hidden=true;
+        wallet.setCustomValidity(wallet.value&&!resolved?
+          'The Tenant Owner must map this network wallet to your approved physical cash drawer.': '');
       }
     };
     const update=()=>{

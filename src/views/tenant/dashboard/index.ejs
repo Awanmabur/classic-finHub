@@ -2,19 +2,21 @@
    const volumes=snapshot.todayVolumes||{};
    const financialActions=quickActions.filter(action=>['transfer','mobile_money','forex_buy','banking_deposit'].includes(action.kind));
    const opener=quickActions.find(action=>action.kind==='cash_shift_open');
-   const currencyRows=typeof currencyOptions==='undefined'?[{code:'UGX',label:'UGX'},{code:'USD',label:'USD'},{code:'SSP',label:'SSP'},{code:'KES',label:'KSH'}]:currencyOptions;
+   const overviewCurrencies=typeof currencyOptions==='undefined'?[{code:'UGX',label:'UGX'},{code:'USD',label:'USD'},{code:'SSP',label:'SSP'},{code:'KES',label:'KSH'}]:currencyOptions;
+   const currencyRows=data.hasMobileMoney&&!data.hasTransfer&&!data.hasBanking&&!data.hasForex&&data.mobileMarkets?.length?
+    [...new Set(data.mobileMarkets.map(m=>m.currency))].map(code=>({code,label:code==='KES'?'KSH':code})):overviewCurrencies;
    const cards=[['hasTransfer','money_transfer','Money transfer volume','ovTransfer','Send + payout'],['hasMobileMoney','mobile_money','Mobile money volume','ovMobile','Deposits + withdrawals'],['hasBanking','banking','Banking volume','ovBanking','Deposit/withdraw/transfer'],['hasForex','forex','Forex volume','ovForex','Buy + sell exchange']];
    const hasSources=cards.some(([flag])=>data[flag]);
    const canConfigureFunds=(user.permissions||[]).some(p=>p==='*'||p==='treasury.view');
-   const cashFunds=(data.mobileFunds?.paymentAccounts||[]).filter(a=>a.kind==='cash');
-   const floatFunds=data.mobileFunds?.wallets||[];
+   const cashFunds=(data.mobileFunds?.paymentAccounts||[]).filter(a=>a.kind==='cash'&&(!data.mobileMarket||a.currency===data.mobileMarket.currency));
+   const floatFunds=(data.mobileFunds?.wallets||[]).filter(a=>!data.mobileMarket||(a.network===data.mobileMarket.network&&a.currency===data.mobileMarket.currency));
    const fundsVisibility=data.mobileFundsState==='all_branches'?'Choose a viewing branch for balance details':data.mobileFundsState==='branch_required'?'No operating branch is selected':data.mobileFunds?.visibilityRestricted?'Restricted by role':null;
    const canSeeCash=visiblePaths.has('/tenant/treasury'); %>
 <section class="view show" id="view-overview">
   <div class="card"><div class="cardHead"><div><b>Today snapshot</b><br><span>Core modules plus daily control</span></div><span class="mono" id="terminalCode"><%= snapshot.terminalCode||tenant.slug||'—' %></span></div>
     <div class="cardBody">
       <% if(hasSources){ %><div class="grid3">
-        <% cards.forEach(([flag,key,label,id,sub])=>{if(!data[flag])return;const value=volumes[key]; %><div class="stat" title="Today's active recorded <%= key.replaceAll('_',' ') %> operations and instructions. This total is separate from verified external balances."><div class="k"><%= label %></div><div class="v" id="<%= id %>"><%= value?.formatted||'—' %></div><div class="s"><span class="dot <%= key==='forex'?'warn':'' %>"></span><span><%= sub %></span></div></div><% }) %>
+        <% cards.forEach(([flag,key,label,id,sub])=>{if(!data[flag])return;const value=volumes[key]; %><div class="stat" title="Today's active recorded <%= key.replaceAll('_',' ') %> operations and instructions. This total is separate from verified external balances."><div class="k"><%= label %></div><div class="v" id="<%= id %>"><%= value?.formatted||'—' %></div><div class="s"><span class="dot <%= key==='forex'?'warn':'' %>"></span><span><%= key==='mobile_money'&&data.mobileMarket?data.mobileMarket.label+' · '+data.mobileMarket.currency:sub %></span></div></div><% }) %>
         <% if(data.hasMobileMoney){ %>
         <% [['cash',cashFunds,'Physical cash · book balance','ovCash'],['float',floatFunds,'Electronic float · wallet balance','ovFloat']].forEach(([type,accounts,label,id])=>{const totals=(data.mobileBookTotals?.[type]||[]);const unapproved=accounts.filter(a=>a.expectedMinor===null||a.expectedMinor===undefined); %>
         <div class="stat" data-dashboard-fund-stat="<%= type %>" title="Approved opening balances plus recorded internal funds movements, not live provider balances.">

@@ -54,6 +54,7 @@ async function main(){
  }
  await openFund('cash','SMS_UGX_CASH','UGX','','0');
  await openFund('wallet','SMS_UGX_MTN','UGX','MTN','10000');
+ tenant=await Tenant.findById(tenant._id).lean(); // Treasury opening transactions advance the tenant authorization revision.
  const enrolled=await capture.enroll(conn,tenant,owner,{operatorId:operator.id,name:'Integration Android',network:'MTN',allowedSenders:'MTNMOMO',autoRecord:'on'});
   assert.equal(enrolled.secret.length,64);
   const stored=await Device.findOne({deviceId:enrolled.device.deviceId}).select('+secretEncrypted').lean();

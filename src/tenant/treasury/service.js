@@ -105,6 +105,12 @@ async function configureAccount(conn,tenant,actor,accountId,input){
     if(!drawer||!drawer.operatorId)throw fail('Choose a verified physical cash drawer in the same branch and currency.',409);
     if(account.operatorId&&String(drawer.operatorId)!==String(account.operatorId))
      throw fail('A wallet assigned to a specific agent must link to that same agent’s cash drawer.',409);
+    const conflict=await core.cashSessionModel(conn).exists({
+     branchId:account.branchId,operatorId:drawer.operatorId,currency:account.currency,
+     status:{$in:['pending_open','open','submitted','disputed']},
+     treasuryAccountId:{$ne:drawer._id}
+    }).session(session);
+    if(conflict)throw fail('This operator already has an unfinished shift for another physical cash drawer in the same currency. Finish the independent cash review before changing wallet-to-drawer custody.',409);
     linkedCashId=drawer._id;
    }else linkedCashId=null;
   }

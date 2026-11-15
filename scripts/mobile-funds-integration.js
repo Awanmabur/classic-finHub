@@ -98,6 +98,35 @@ async function main(){
  await core.branchModel(conn).updateOne({_id:branch._id},{$set:{currencies:['UGX','USD']}});
  await assert.rejects(record({...sspInput,idempotencyKey:crypto.randomUUID(),networkReference:'DISABLED-CURRENCY-'+nonce}),{status:409});
  await assert.rejects(open('bank','DISABLED_SSP_BANK','1.00','','SSP'),{status:409});
+ // Rejecting duplicate evidence must precede unused-wallet archival.
+ const duplicate=await treasury.createAccount(conn,tenant,owner,{
+  kind:'wallet',code:'DUPLICATE_MTN',name:'Incorrect duplicate MTN float',
+  currency:'UGX',network:'MTN',operatorId:operator.id,isDefault:false
+ });
+ const wrongOpening=await treasury.requestObservation(conn,tenant,operator,duplicate._id,{
+  kind:'opening',actualBalance:'2000000',observedAt:new Date(Date.now()-1000).toISOString(),
+  evidenceType:'provider_app',evidenceReference:'DUPLICATE-STATEMENT-'+nonce,
+  note:'Duplicate wallet opening recorded in error for review',idempotencyKey:crypto.randomUUID()
+ });
+ await assert.rejects(treasury.archiveUnusedWallet(conn,tenant,owner,duplicate._id,{
+  confirmCode:'DUPLICATE_MTN',reason:'Archive the wrong duplicate only after independent opening rejection'
+ }),{status:409});
+ await treasury.reviewObservation(conn,tenant,reviewer,wrongOpening.observation._id,{
+  decision:'reject',note:'Wrong duplicate wallet has no independently recognized opening'
+ });
+ await assert.rejects(treasury.archiveUnusedWallet(conn,tenant,reviewer,duplicate._id,{
+  confirmCode:'DUPLICATE_MTN',reason:'This role is not authorized to archive the wallet'
+ }),{status:403});
+ const archived=await treasury.archiveUnusedWallet(conn,tenant,owner,duplicate._id,{
+  confirmCode:'DUPLICATE_MTN',reason:'Incorrect duplicated MTN account; original provider wallet retained'
+ });
+ assert.equal(archived.status,'archived');
+ assert.equal((await funds.models(conn).observation.findById(wrongOpening.observation._id)).status,'rejected');
+ assert(!(await treasury.findOperatingAccounts(conn,tenant,owner,{branchId:String(branch._id)})).some(row=>String(row._id)===String(duplicate._id)));
+ await assert.rejects(treasury.archiveUnusedWallet(conn,tenant,owner,wallet._id,{
+  confirmCode:wallet.code,reason:'Attempt to archive a funded operational wallet must be blocked'
+ }),{status:409});
+ assert(await core.auditEventModel(conn).exists({action:'treasury.account.archived',targetId:duplicate._id}));
  console.log('PASS: Configured wallet/payment defaults, daily entries without repeated balance setup, configured fee policy and idempotency, exact funds and balanced journals, optional actual evidence, mismatch holds/adjustments, insufficient-float rollback, inverse corrections, cash close and privacy.');
  console.log('PASS: One branch/operator posts USD and SSP independently; MTN SSD preserves its own network references, wallets, verified shifts, exact cents, scoped reports and reversal. Wrong currency/network accounts and disabled currencies are rejected without changing other books.');
 }

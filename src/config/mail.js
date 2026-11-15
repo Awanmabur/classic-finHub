@@ -7,13 +7,20 @@ const RESEND_ENDPOINT='https://api.resend.com/emails';
 const GMAIL_TOKEN_ENDPOINT='https://oauth2.googleapis.com/token';
 const GMAIL_SEND_ENDPOINT='https://gmail.googleapis.com/gmail/v1/users/me/messages/send';
 const ADDRESS=/^[^\s@\r\n]+@[^\s@\r\n]+\.[^\s@\r\n]+$/;
+function validFrom(value,{gmail=false}={}){
+  if(typeof value!=='string'||value.length>254||value!==value.trim()||/[\r\n\u0000-\u001f\u007f]/.test(value))return false;
+  if(ADDRESS.test(value))return true;
+  if(gmail)return false;
+  // Resend accepts "Display name <mailbox@domain>", without surrounding
+  // quotation marks. Docker --env-file does not strip shell-style quotes.
+  const parts=/^([^<>"']{1,120}) <([^<>\s"']+)>$/.exec(value);
+  return Boolean(parts&&parts[1].trim()===parts[1]&&parts[1].length>0&&ADDRESS.test(parts[2]));
+}
 const provider=()=>String(process.env.MAIL_PROVIDER||'resend').toLowerCase();
 function configured() {
-  if(!process.env.MAIL_FROM||!(/^https:\/\//i.test(appUrl)||process.env.NODE_ENV!=='production'))return false;
-  // Gmail requires a plain mailbox/verified send-as alias; preserve Resend's
-  // supported \"Display Name <sender@example.com>\" format in existing installs.
-  if(provider()==='gmail')return ADDRESS.test(process.env.MAIL_FROM)&&Boolean(process.env.GMAIL_CLIENT_ID&&process.env.GMAIL_CLIENT_SECRET&&process.env.GMAIL_REFRESH_TOKEN);
-  return provider()==='resend'&&Boolean(process.env.RESEND_API_KEY);
+  if(!(/^https:\/\//i.test(appUrl)||process.env.NODE_ENV!=='production'))return false;
+  if(provider()==='gmail')return validFrom(process.env.MAIL_FROM,{gmail:true})&&Boolean(process.env.GMAIL_CLIENT_ID&&process.env.GMAIL_CLIENT_SECRET&&process.env.GMAIL_REFRESH_TOKEN);
+  return provider()==='resend'&&validFrom(process.env.MAIL_FROM)&&Boolean(process.env.RESEND_API_KEY);
 }
 function requireConfigured() {
   if(configured())return;
@@ -75,4 +82,4 @@ async function sendMail(input) {
   safeMailInput(input);
   return provider()==='gmail'?sendGmail(input):sendResend(input);
 }
-module.exports={sendMail,configured,provider,makeMime};
+module.exports={sendMail,configured,provider,makeMime,validFrom};

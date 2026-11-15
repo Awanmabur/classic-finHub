@@ -31,7 +31,30 @@ async function main(){
       modules:['mobile_money','sms_capture'],limits:{users:3,branches:2,transactionsPerMonth:20,smsPerMonth:8,storageMb:100},status:'granted',source:'manual_admin_grant',generation:1,periodStart:new Date(now-60000),periodEnd:new Date(now+86400000)}});
   await Identity.create({email:operatorDoc.email,kind:'tenant',accountId:operatorDoc._id,tenantId:tenantDoc._id});
   let tenant=await Tenant.findById(tenantDoc._id).lean();
-  const enrolled=await capture.enroll(conn,tenant,owner,{operatorId:operator.id,name:'Integration Android',network:'MTN',allowedSenders:'MTNMOMO',autoRecord:'on'});
+  // SMS automatic recording cannot invent a ledger balance. Provision real
+ // reconciled operator cash and provider float in the isolated scratch tenant.
+ const treasury=require('../src/tenant/treasury/service');
+ async function openFund(kind,code,currency,network,initial){
+  const account=await treasury.createAccount(conn,tenant,owner,{
+   kind,code,name:'Verified '+code,currency,network,
+   operatorId:kind==='cash'?operator.id:null
+  });
+  const evidence=await treasury.requestObservation(conn,tenant,operator,account._id,{
+   kind:'opening',actualBalance:initial,
+   observedAt:new Date(Date.now()-1000).toISOString(),
+   evidenceType:kind==='cash'?'cash_count':'provider_app',
+   evidenceReference:'SMS-PROBE-'+code,
+   note:'Independently verified real opening evidence for SMS agent cash and float',
+   idempotencyKey:crypto.randomUUID()
+  });
+  await treasury.reviewObservation(conn,tenant,owner,evidence.observation._id,{
+   decision:'approve',note:'Independent cash or provider opening evidence checked before SMS recording'
+  });
+  return account;
+ }
+ await openFund('cash','SMS_UGX_CASH','UGX','','0');
+ await openFund('wallet','SMS_UGX_MTN','UGX','MTN','10000');
+ const enrolled=await capture.enroll(conn,tenant,owner,{operatorId:operator.id,name:'Integration Android',network:'MTN',allowedSenders:'MTNMOMO',autoRecord:'on'});
   assert.equal(enrolled.secret.length,64);
   const stored=await Device.findOne({deviceId:enrolled.device.deviceId}).select('+secretEncrypted').lean();
   assert(!stored.secretEncrypted.includes(enrolled.secret),'signing credentials encrypted at rest');
@@ -152,7 +175,9 @@ async function main(){
   await Tenant.updateOne({_id:tenant._id},{$set:{'subscription.limits.smsPerMonth':9}});
   tenant=await Tenant.findById(tenant._id).lean();
   const originalMovement=String((await models.cashSessionModel(conn).findById(shift._id)).provisionalMovementMinor);
-  const sspShift=await cash.open(conn,tenant,operator,{currency:'SSP',openingCash:'0.00'});
+  await openFund('cash','SMS_SSP_CASH','SSP','','0.00');
+ await openFund('wallet','SMS_SSP_FLOAT','SSP','MTN SSD','5000.00');
+ const sspShift=await cash.open(conn,tenant,operator,{currency:'SSP',openingCash:'0.00'});
   await cash.decideOpening(conn,tenant,owner,sspShift._id,{decision:'approve',note:'Independent physical SSP opening count checked separately from the UGX drawer'});
   tenant=await Tenant.findById(tenant._id).lean();
   const ssd=await capture.enroll(conn,tenant,owner,{operatorId:operator.id,name:'MTN South Sudan Android',network:'MTN SSD',allowedSenders:'MTNSSD',autoRecord:'on'});

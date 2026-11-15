@@ -11,14 +11,15 @@ module.exports=function routes({renderTenant}){
  async function render(req,res,next,{view,title,subtitle,operation,report=false}){
   try{
    if(report&&!workspace.canReport(req.user))return res.status(403).send('Mobile money report permission is required.');
+   const reportData=report?await require('../services/mobileMoneyUnifiedReport.service').generate(req.tenantDb,req.tenant,req.user,req.query):null;
    const [data,branches,pricingContext]=await Promise.all([
-    workspace.workspace(req.tenantDb,req.user,req.query,{operation}),branchService.list(req.tenant),
+    workspace.workspace(req.tenantDb,req.user,report?{}:req.query,{operation}),branchService.list(req.tenant),
     operation?require('../pricing/presentation').context(req.tenantDb,req.tenant,req.operationBranch,'mobile_money'):[]
    ]);
    const commissionReceived=view==='network'&&hasPermission(req.user,'treasury.view')?
     await require('../pricing/commissionPayoutService').summary(req.tenantDb,req.tenant,req.user):[];
    const branchCurrency=require('../services/branchCurrency.service');
-   renderTenant(req,res,`mobile-money/${view}`,title,subtitle,{...data,operation,pricingContext,commissionReceived,formatMoneyMinor:require('../services/mobileMoney.service').formatMoneyMinor,idempotencyKey:randomUUID(),
+   renderTenant(req,res,`mobile-money/${view}`,title,subtitle,{...data,reportData,operation,pricingContext,commissionReceived,formatMoneyMinor:require('../services/mobileMoney.service').formatMoneyMinor,idempotencyKey:randomUUID(),
     entryCurrency:req.operationBranch&&operation?branchCurrency.resolve(req.operationBranch,req.query.currency):null,
     entryCurrencies:req.operationBranch?branchCurrency.options(req.operationBranch):[],
     branches:branches.filter(branch=>branch.status==='active'&&(req.user.role==='Tenant Owner'||String(branch._id)===String(req.user.branchId))),
@@ -101,6 +102,17 @@ module.exports=function routes({renderTenant}){
  router.get('/network-activity',(req,res,next)=>render(req,res,next,{view:'network',title:'Network activity',subtitle:'Mobile money records grouped by network with recent activity.'}));
  router.get('/cash-impact',(req,res,next)=>render(req,res,next,{view:'cash-impact',title:'Mobile money cash impact',subtitle:'Deposit, withdrawal, commission, and net drawer movement for mobile money.'}));
  router.get('/report',(req,res,next)=>render(req,res,next,{view:'report',title:'Mobile money report',subtitle:'Dedicated report for mobile money count, volume, network mix, and drawer impact.',report:true}));
+ router.get('/report/unified.csv',async(req,res,next)=>{
+  try{
+   if(!workspace.canExport(req.user))return res.status(403).send('Mobile Money report export permission is required.');
+   const service=require('../services/mobileMoneyUnifiedReport.service');
+   const report=await service.generate(req.tenantDb,req.tenant,req.user,req.query);
+   res.set({'Content-Type':'text/csv; charset=utf-8',
+    'Content-Disposition':`attachment; filename="mobile-money-unified-${report.window.from}-${report.window.to}.csv"`,
+    'Cache-Control':'private, no-store'});
+   res.send(service.csv(report));
+  }catch(error){next(error);}
+ });
  router.get('/report/export.csv',async(req,res,next)=>{
   try{
    const result=await workspace.exportCsv(req.tenantDb,req.user,req.query);

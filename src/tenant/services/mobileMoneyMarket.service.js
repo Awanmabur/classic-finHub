@@ -20,11 +20,15 @@ function markets(wallets=[]){
 }
 function preferred(wallets=[]){return markets(wallets)[0]||null;}
 function withDefaultFilters(input={},wallets=[]){
- const selected=preferred(wallets);
- if(!selected)return {...input};
+ const choices=markets(wallets),preferredMarket=choices[0];
  const result={...input};
- if(!Object.hasOwn(result,'network'))result.network=selected.network;
- if(!Object.hasOwn(result,'currency'))result.currency=selected.currency;
+ if(!preferredMarket)return result;
+ const networkProvided=Object.hasOwn(result,'network');
+ if(!networkProvided)result.network=preferredMarket.network;
+ if(!Object.hasOwn(result,'currency')){
+  const matching=choices.find(m=>m.network===result.network);
+  result.currency=matching?.currency||'';
+ }
  return result;
 }
 module.exports={eligibleWallet,markets,preferred,withDefaultFilters};

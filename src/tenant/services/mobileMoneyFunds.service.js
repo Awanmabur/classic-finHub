@@ -70,6 +70,10 @@ async function apply(conn,session,authorization,values,{requireObservation=false
   if(!['record_only','payment_collected','wallet_commission'].includes(expectedFeeTreatment))throw fail('Reload the transaction form to obtain valid wallet settings.',400);
   if(expectedFeeTreatment!==(wallet.feeTreatment||'record_only'))throw fail('Wallet settings changed. Reload this page before posting.',409);
  }
+ // Legacy wallet_commission treated estimates as received float/income.
+ // Preserve historic entries but stop creating new artificial commission funds.
+ if(useConfiguredPolicy&&wallet.feeTreatment==='wallet_commission')
+  throw fail('Legacy wallet commission is disabled for new agent transactions. Set wallet treatment to Record only and independently reconcile actual provider payouts.',409);
  const configuredPolicy=wallet.feeTreatment||'record_only';
  if(useConfiguredPolicy&&feeTreatmentSpecified&&values.feeTreatment!==configuredPolicy)throw fail('Use the fee policy configured on the Wallets page.',409);
  const feeTreatment=useConfiguredPolicy||!feeTreatmentSpecified?configuredPolicy:values.feeTreatment;

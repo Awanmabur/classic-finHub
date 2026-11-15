@@ -1,10 +1,46 @@
 <% const assignedModules=Array.isArray(data.tenant.enabledModules)?data.tenant.enabledModules:[];
-   const grants=Array.isArray(data.tenant.moduleGrants)?data.tenant.moduleGrants:[]; %>
-<section class="view show platformTenantDetailPage"><div class="grid3"><div class="stat"><div class="k">Tenant</div><div class="v"><%= data.tenant.name %></div><div class="s"><span class="dot"></span><%= data.tenant.status %></div></div><div class="stat"><div class="k">Owner</div><div class="v" style="font-size:14px"><%= data.tenant.owner %></div><div class="s"><%= data.tenant.email %></div></div><div class="stat"><div class="k">Modules</div><div class="v"><%= assignedModules.length+grants.filter(g=>g.status==='granted'&&new Date(g.periodEnd)>new Date()).length %></div><div class="s"><span class="dot warn"></span>Assigned to this workspace</div></div></div><% if(data.tenant.setupStatus==='invited'){ %>
+   const grants=Array.isArray(data.tenant.moduleGrants)?data.tenant.moduleGrants:[];
+   const currentSub=data.tenant.subscription;
+   const currentNow=new Date();
+   const isValidDate=value=>value&&Number.isFinite(new Date(value).getTime());
+   const tenantCanOperate=['active','trial'].includes(data.tenant.status);
+   const planTermActive=tenantCanOperate&&currentSub&&['trial','granted'].includes(currentSub.status)&&isValidDate(currentSub.periodStart)&&isValidDate(currentSub.periodEnd)&&new Date(currentSub.periodStart)<=currentNow&&new Date(currentSub.periodEnd)>currentNow;
+   const snapModules=Array.isArray(currentSub?.modules)?currentSub.modules:[];
+   const activePlanModules=planTermActive?assignedModules.filter(key=>snapModules.includes(key)):[];
+   const activeAddonGrants=tenantCanOperate?grants.filter(g=>g.status==='granted'&&isValidDate(g.periodStart)&&isValidDate(g.periodEnd)&&new Date(g.periodStart)<=currentNow&&new Date(g.periodEnd)>currentNow):[];
+   const effectiveKeys=new Set([...activePlanModules,...activeAddonGrants.map(g=>g.moduleKey)]);
+   const moduleLabel=key=>data.modules?.find(m=>m.key===key)?.name||key.replaceAll('_',' ');
+   const setupDescription=data.tenant.setupStatus==='invited'?'Owner activation pending':data.tenant.setupStatus==='complete'?'Owner setup completed':'Setup status unavailable'; %>
+<section class="view show platformTenantDetailPage"><div class="grid3"><div class="stat"><div class="k">Tenant</div><div class="v"><%= data.tenant.name %></div><div class="s"><span class="dot"></span><%= data.tenant.status %></div></div><div class="stat"><div class="k">Owner</div><div class="v" style="font-size:14px"><%= data.tenant.owner %></div><div class="s"><%= data.tenant.email %></div></div><div class="stat"><div class="k">Modules</div><div class="v"><%= effectiveKeys.size %></div><div class="s"><span class="dot warn"></span>Currently entitled, not all assigned</div></div></div><% if(data.tenant.setupStatus==='invited'){ %>
 <section class="card" style="margin-top:14px"><div class="cardHead"><b>Owner activation</b><span>Invitation pending</span></div><div class="cardBody"><p class="tiny">If the original activation page was interrupted or its link was lost, create a replacement for the existing workspace. Earlier unused links will expire.</p><form method="post" action="/platform/tenants/<%= data.tenant.id||data.tenant._id %>/owner-invitation"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="revision" value="<%= data.tenant.__v||0 %>"><label class="field">Reason (12–400 characters)<textarea class="control" name="reason" minlength="12" maxlength="400" rows="2" required placeholder="Explain why the owner needs a replacement activation link"></textarea></label><button class="btn" type="submit">Create replacement owner activation link</button></form></div></section>
 <% } %>
-<section class="card" style="margin-top:14px"><div class="cardHead"><b>Enabled modules</b><span>Plan and independent entitlements are administered separately below.</span></div><div class="cardBody"><div class="seg"><% data.modules.forEach(m => { %><span class="chip <%= (assignedModules.includes(m.key)||grants.some(g=>g.moduleKey===m.key&&g.status==='granted'&&new Date(g.periodEnd)>new Date())) ? 'active' : '' %>"><i class="fa-solid <%= m.icon %>"></i> <%= m.name %></span><% }) %></div></div></section>
-
+<section class="card" style="margin-top:14px" aria-label="Current tenant setup and access">
+  <div class="cardHead"><div><b>Current workspace state</b><br><span>Saved tenant subscription and activation status, not unpublished plan drafts</span></div><span class="tag"><%= setupDescription %></span></div>
+  <div class="cardBody">
+    <div class="summary">
+      <div class="sumRow"><span>Owner setup</span><b><%= setupDescription %></b></div>
+      <div class="sumRow"><span>Workspace access</span><b><%= data.tenant.status %></b></div>
+      <div class="sumRow"><span>Current subscribed plan</span><b><%= currentSub?currentSub.planName+' · '+currentSub.planCode+' v'+currentSub.planVersion:'No published plan entitlement recorded' %></b></div>
+      <div class="sumRow"><span>Plan access right now</span><b><%= planTermActive?'In term':currentSub?'Inactive / expired / revoked':'Not configured' %></b></div>
+      <div class="sumRow"><span>Current plan modules available</span><b><%= activePlanModules.length %> of <%= snapModules.length %> in saved terms</b></div>
+      <div class="sumRow"><span>Active independent module grants</span><b><%= activeAddonGrants.length %></b></div>
+      <div class="sumRow"><span>Reserved staff seats</span><b><%= data.tenant.seatsReserved %><%= currentSub?' / '+currentSub.limits.users:'' %></b></div>
+      <div class="sumRow"><span>Branches created</span><b><%= data.tenant.branchCount %><%= currentSub?' / '+currentSub.limits.branches:'' %></b></div>
+    </div>
+    <p class="tiny">No setup task is marked complete based on a plan's current marketing description. These values come from the saved tenant record; branch and account readiness must be checked in the tenant workspace.</p>
+  </div>
+</section>
+<section class="card" style="margin-top:14px" aria-label="Active module entitlements">
+ <div class="cardHead"><div><b>Modules — plan vs independent access</b><br><span>Current entitlements, with recorded but inactive assignments shown separately</span></div></div>
+ <div class="cardBody">
+   <h3>Included in saved plan terms</h3>
+   <% if(!snapModules.length){ %><p class="tiny">This plan does not include operational modules.</p><% } %>
+   <div class="seg"><% snapModules.forEach(key=>{ %><span class="chip <%= activePlanModules.includes(key)?'active':'' %>"><%= moduleLabel(key) %> · <%= activePlanModules.includes(key)?'available':'not currently available' %></span><% }) %></div>
+   <h3>Independent module grants</h3>
+   <% if(!grants.length){ %><p class="tiny">No independent grants have been recorded.</p><% } %>
+   <div class="seg"><% grants.forEach(g=>{ %><span class="chip <%= activeAddonGrants.some(a=>a.moduleKey===g.moduleKey)?'active':'' %>"><%= moduleLabel(g.moduleKey) %> · <%= activeAddonGrants.some(a=>a.moduleKey===g.moduleKey)?'active':g.status==='revoked'?'revoked':'expired / not in term' %></span><% }) %></div>
+ </div>
+</section>
 <section class="card" style="margin-top:14px"><div class="cardHead"><b>Change workspace access status</b><span>Super Admin · audited</span></div><div class="cardBody"><p class="tiny">A suspension blocks tenant operations. Status changes require a reason. Plan, pricing and subscription changes are deliberately separate from this control.</p>
 <form method="post" action="/platform/tenants/<%= data.tenant.id %>/status"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><label class="field">New status<select name="status" class="control" required><option value="">Choose status</option><% const options={trial:['active','suspended'],active:['past_due','suspended'],past_due:['active','suspended'],suspended:['active']}[data.tenant.status]||[];options.forEach(st=>{ %><option value="<%= st %>"><%= st %></option><% }) %></select></label><label class="field">Reason (12–400 characters)<textarea name="reason" class="control" required minlength="12" maxlength="400" rows="3"></textarea></label><button type="submit" class="btn btnPrimary">Update status</button></form></div></section>
 <section class="card" style="margin-top:14px"><div class="cardHead"><b>Edit tenant profile</b><span>Display details only · audited</span></div><div class="cardBody"><form method="post" action="/platform/tenants/<%= data.tenant.id %>/profile"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><div class="row2"><label class="field">Business name<input class="control" name="name" required minlength="2" maxlength="150" value="<%= data.tenant.name %>"></label><label class="field">Contact phone<input class="control" name="phone" maxlength="40" value="<%= data.tenant.phone||'' %>"></label></div><label class="field">Reason (12–400 characters)<textarea class="control" name="reason" required minlength="12" maxlength="400" rows="2"></textarea></label><button type="submit" class="btn">Save profile</button></form><p class="tiny">Owner email, tenant slug, financial records, plan entitlements, subscription charges and audit history are not editable through this form.</p></div></section>

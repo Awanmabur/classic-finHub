@@ -40,6 +40,8 @@
      </div>
      <div class="summary">
       <div class="sumRow"><span>All transaction fees recorded (including non-income)</span><b><%= row.recordedFeeMinorFormatted %></b></div>
+      <div class="sumRow"><span>Provider network customer-charge estimates (not agent revenue)</span><b><%= row.customerNetworkChargeEstimateMinorFormatted %></b></div>
+      <div class="sumRow"><span>Configured operating-cost estimates (not verified cash expenses)</span><b><%= row.configuredCostEstimateMinorFormatted %></b></div>
       <div class="sumRow"><span>Legacy wallet-commission treatment — review for double counting</span><b><%= row.legacyWalletFeeMinorFormatted %></b></div>
       <div class="sumRow"><span>Provider commission gross / withheld tax / provider costs</span><b><%= row.grossCommissionMinorFormatted %> / <%= row.withheldTaxMinorFormatted %> / <%= row.providerCostMinorFormatted %></b></div>
      </div>
@@ -50,13 +52,14 @@
  <section class="card">
   <div class="cardHead"><b>Network and currency breakdown</b><span>MTN Uganda, Airtel, South Sudan and other configured providers remain distinct</span></div>
   <div class="cardBody tableWrap" tabindex="0" role="region" aria-label="Mobile Money network and currency reporting">
-   <table><thead><tr><th>Network · Currency</th><th>Deposits</th><th>Withdrawals</th><th>Principal volume</th><th>Cash impact</th><th>Collected agent fees</th><th>Commission estimated</th><th>Commission received</th></tr></thead>
-    <tbody><% if(!groups.length){ %><tr><td colspan="8">No recorded activity in this period.</td></tr><% } %>
+   <table><thead><tr><th>Network · Currency</th><th>Deposits</th><th>Withdrawals</th><th>Principal volume</th><th>Cash impact</th><th>Collected agent fees</th><th>Commission estimated</th><th>Provider charge estimate</th><th>Configured cost estimate</th><th>Commission received</th></tr></thead>
+    <tbody><% if(!groups.length){ %><tr><td colspan="10">No recorded activity in this period.</td></tr><% } %>
      <% groups.forEach(row=>{ %><tr data-search-row>
       <td><b><%= row.network %></b> · <%= row.currency==='KES'?'KSH':row.currency %></td>
       <td><%= row.depositCount %></td><td><%= row.withdrawalCount %></td>
       <td><%= row.volumeMinorFormatted %></td><td><%= row.cashImpactMinorFormatted %></td>
       <td><%= row.collectedFeeMinorFormatted %></td><td><%= row.estimatedCommissionMinorFormatted %></td>
+      <td><%= row.customerNetworkChargeEstimateMinorFormatted %></td><td><%= row.configuredCostEstimateMinorFormatted %></td>
       <td><%= row.receivedCommissionMinorFormatted %></td>
      </tr><% }) %></tbody>
    </table>

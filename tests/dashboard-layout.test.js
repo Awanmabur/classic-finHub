@@ -22,7 +22,7 @@ test('page search appears for loaded records and not for an empty directory',asy
   const options={currentPath:'/platform/tenants',view:'../platform/tenants/index',data:{tenants:[],plans:[]}};
   const empty=await render(options);
   assert.doesNotMatch(empty,/id="search"/);
-  const populated=await render({...options,data:{plans:[{code:'agent',name:'Agent Plan'}],tenants:[{id:'123',name:'Acme',slug:'acme',owner:'Owner',email:'owner@example.invalid',plan:'agent',status:'active',enabledModules:['mobile_money']}]}});
+  const populated=await render({...options,data:{plans:[{code:'agent',name:'Agent Plan'}],tenants:[{id:'123',name:'Acme',slug:'acme',owner:'Owner',email:'owner@example.invalid',plan:'agent',status:'active',setupStatus:'complete',currentPlanName:'Agent Plan',currentPlanVersion:2,planAccessActive:true,currentModuleCount:1,enabledModules:['mobile_money']}]}});
   assert.match(populated,/id="search"/);
   assert.match(populated,/data-search-row/);
   assert.match(populated,/Agent Plan/);

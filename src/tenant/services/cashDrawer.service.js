@@ -100,16 +100,31 @@ async function refreshFundBalance(conn,session,account,balanceAfterMinor,options
  if(!updated)throw fail('Cash closing changed concurrently. Retry after reconciliation.',409);
  return updated;
 }
+// SMS can arrive late. Check the verified shift boundary before booking any
+// cash/float movement (Treasury also rejects movements older than its opening).
+// The later attachRecord still takes the shift revision fence inside the same
+// transaction so a concurrent close cannot race a successful posting.
+function assertSmsShiftTime(shift,receivedAt){
+ if(!receivedAt)return;
+ const occurred=new Date(receivedAt);
+ if(!Number.isFinite(occurred.valueOf())||!shift?.openingVerifiedAt||
+  occurred<new Date(shift.createdAt)||occurred<new Date(shift.openingVerifiedAt)){
+  const error=fail('This SMS predates the current verified cash shift. Keep it for historical reconciliation instead of recording it in this drawer.',409);
+  error.code='SMS_SHIFT_MISMATCH';throw error;
+ }
+}
+async function assertSmsWithinShift(conn,tx,actor,branchId,currency,receivedAt){
+ if(!receivedAt)return;
+ const shift=await cashSessionModel(conn).findOne({...activeFilter(branchId,actor.id,currency),status:'open'}).session(tx).lean();
+ if(!shift)throw fail('Open and independently verify your physical cash shift before recording an SMS transaction',409);
+ assertSmsShiftTime(shift,receivedAt);
+}
 // Atomic with the original network record, not with external provider settlement.
 async function attachRecord(conn,tx,operator,branchId,currency,operation,amountMinor,smsContext=null){
  const shift=await cashSessionModel(conn).findOneAndUpdate({...activeFilter(branchId,operator.id,currency),status:'open'},
   {$inc:{revision:1,recordCount:1,...(smsContext?.bookManaged?{}:{provisionalMovementMinor:decimal(operation==='cash_in'?amountMinor:-amountMinor)})}},{new:true,session:tx});
  if(!shift)throw fail('Open a cash shift before recording operations',409);
- if(smsContext?.receivedAt&&(!smsContext.receivedAt||!shift.openingVerifiedAt||
-   new Date(smsContext.receivedAt)<new Date(shift.createdAt)||new Date(smsContext.receivedAt)<new Date(shift.openingVerifiedAt))){
-   const error=fail('This SMS predates the current verified cash shift. Keep it for historical reconciliation instead of recording it in this drawer.',409);
-   error.code='SMS_SHIFT_MISMATCH';throw error;
- }
+ assertSmsShiftTime(shift,smsContext?.receivedAt);
  if(minor(shift.openingMinor)+minor(shift.provisionalMovementMinor)<0n)throw fail('Insufficient provisional cash for this cash-out',409);
  return shift._id;
 }
@@ -227,4 +242,4 @@ async function reportRows({conn,filters,scope:filter}){
  return rows.map(r=>({module:'Mobile Money',activity:'Physical cash shifts',status:r._id.status,currency:r._id.currency,
  count:r.count,volume:mobile.formatMoneyMinor(r.expected||0,r._id.currency),fees:'N/A'}));
 }
-module.exports={allowed,bindFundAccount,refreshFundBalance,open,decideOpening,attachRecord,fenceRecordChange,submit,decide,list,detail,reportRows,key,activeFilter,minor,decimal,visibleScope,opener,reviewer};
+module.exports={allowed,bindFundAccount,refreshFundBalance,open,decideOpening,assertSmsWithinShift,assertSmsShiftTime,attachRecord,fenceRecordChange,submit,decide,list,detail,reportRows,key,activeFilter,minor,decimal,visibleScope,opener,reviewer};

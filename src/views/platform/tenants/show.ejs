@@ -4,10 +4,10 @@
    const currentNow=new Date();
    const isValidDate=value=>value&&Number.isFinite(new Date(value).getTime());
    const tenantCanOperate=['active','trial'].includes(data.tenant.status);
-   const planTermActive=tenantCanOperate&&currentSub&&['trial','granted'].includes(currentSub.status)&&isValidDate(currentSub.periodStart)&&isValidDate(currentSub.periodEnd)&&new Date(currentSub.periodStart)<=currentNow&&new Date(currentSub.periodEnd)>currentNow;
+   const planTermActive=Object.hasOwn(data,'effectivePlan')?Boolean(data.effectivePlan):Boolean(tenantCanOperate&&currentSub&&['trial','granted'].includes(currentSub.status)&&isValidDate(currentSub.periodStart)&&isValidDate(currentSub.periodEnd)&&new Date(currentSub.periodStart)<=currentNow&&new Date(currentSub.periodEnd)>currentNow);
    const snapModules=Array.isArray(currentSub?.modules)?currentSub.modules:[];
-   const activePlanModules=planTermActive?assignedModules.filter(key=>snapModules.includes(key)):[];
-   const activeAddonGrants=tenantCanOperate?grants.filter(g=>g.status==='granted'&&isValidDate(g.periodStart)&&isValidDate(g.periodEnd)&&new Date(g.periodStart)<=currentNow&&new Date(g.periodEnd)>currentNow):[];
+   const activePlanModules=planTermActive?assignedModules.filter(key=>snapModules.includes(key)&&(!data.modules?.length||data.modules.some(m=>m.key===key&&m.runtimeStatus!=='disabled'))):[];
+   const activeAddonGrants=Object.hasOwn(data,'activeAddonGrants')?data.activeAddonGrants:tenantCanOperate?grants.filter(g=>g.status==='granted'&&isValidDate(g.periodStart)&&isValidDate(g.periodEnd)&&new Date(g.periodStart)<=currentNow&&new Date(g.periodEnd)>currentNow):[];
    const effectiveKeys=new Set([...activePlanModules,...activeAddonGrants.map(g=>g.moduleKey)]);
    const moduleLabel=key=>data.modules?.find(m=>m.key===key)?.name||key.replaceAll('_',' ');
    const setupDescription=data.tenant.setupStatus==='invited'?'Owner activation pending':data.tenant.setupStatus==='complete'?'Owner setup completed':'Setup status unavailable'; %>

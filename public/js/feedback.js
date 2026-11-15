@@ -3,8 +3,10 @@
   const submitting=new WeakSet(),restorers=new Set();
   const headers=Object.freeze({'X-ClassicFin-Redirect':'json','X-ClassicFin-Background':'true'});
   function show(message,type='bad',{form,focus=true}={}){
-    const host=form||document.querySelector('main')||document.body;
-    if(form){const previous=form.closest('main')?.querySelector('[data-session-flash]');if(previous&&!form.contains(previous))previous.remove();}
+    // Workspace feedback belongs in the main panel, never inside the sidebar or a narrow header form.
+    const host=document.querySelector('main.panel.main')||form||document.querySelector('main')||document.body;
+    const previous=host.querySelector(':scope > [data-session-flash]');
+    if(previous)previous.dataset.feedbackMessage='';
     let target=[...host.children].find(node=>node.matches?.('[data-feedback-message]'));
     if(!target){target=document.createElement('div');target.dataset.feedbackMessage='';target.tabIndex=-1;const icon=document.createElement('span');icon.className='feedbackIcon';icon.setAttribute('aria-hidden','true');const content=document.createElement('div');content.className='feedbackContent';content.append(document.createElement('strong'),document.createElement('p'));const dismiss=document.createElement('button');dismiss.type='button';dismiss.className='feedbackDismiss';dismiss.dataset.feedbackDismiss='';dismiss.setAttribute('aria-label','Dismiss message');dismiss.textContent='×';target.append(icon,content,dismiss);host.prepend(target);}
     const kind=type==='good'?'good':type==='info'?'info':'bad';target.className='sessionFeedback feedback-'+kind;target.hidden=false;target.setAttribute('role',kind==='bad'?'alert':'status');target.querySelector('.feedbackIcon').textContent=kind==='bad'?'!':kind==='good'?'✓':'i';target.querySelector('.feedbackContent>strong').textContent=kind==='bad'?'Please check':kind==='good'?'Done':'Information';target.querySelector('.feedbackContent>p').textContent=String(message||'Please review this action.');
@@ -26,7 +28,7 @@
     const action=new URL(event.submitter?.getAttribute('formaction')||form.action,location.origin);
     // These handoffs render private one-time HTML or use the dedicated,
     // durable financial submission handlers. Preserve their normal behavior.
-    if(action.origin!==location.origin||/^\/platform\/tenants(?:\/[a-f0-9]{24}\/owner-invitation)?\/?$/i.test(action.pathname)||/\/reveal-pin\/?$/i.test(action.pathname)||action.pathname==='/tenant/backups/action'||form.matches('[data-mobile-money-form],[data-transfer-form],[data-forex-form],[data-funded-form],[data-payout-form],[data-expense-form]'))return;
+    if(action.origin!==location.origin||action.pathname==='/logout'||action.pathname==='/tenant/view-branch'||/^\/platform\/tenants(?:\/[a-f0-9]{24}\/owner-invitation)?\/?$/i.test(action.pathname)||/\/reveal-pin\/?$/i.test(action.pathname)||action.pathname==='/tenant/backups/action'||form.matches('[data-mobile-money-form],[data-transfer-form],[data-forex-form],[data-funded-form],[data-payout-form],[data-expense-form]'))return;
     event.preventDefault();if(submitting.has(form)||!form.reportValidity())return;
     const fields=new URLSearchParams(new FormData(form));if(event.submitter?.name)fields.append(event.submitter.name,event.submitter.value);
     const buttons=[...form.elements].filter(node=>node.tagName==='BUTTON'&&node.type==='submit'),states=buttons.map(button=>({button,disabled:button.disabled,html:button.innerHTML}));

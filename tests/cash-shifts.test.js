@@ -153,3 +153,16 @@ test('cash close computes exact minor-unit variances for matched, short and exce
   assert.equal(audits[0].metadata.varianceMinor,variance);
  }
 });
+
+test('stale SMS is rejected before cash and float posting with a stable review reason',()=>{
+ const {assertSmsShiftTime}=require('../src/tenant/services/cashDrawer.service');
+ const shift={createdAt:new Date('2026-11-16T08:00:00Z'),
+  openingVerifiedAt:new Date('2026-11-16T08:02:00Z')};
+ for(const at of ['2026-11-16T07:59:59Z','2026-11-16T08:01:59Z','invalid']){
+  assert.throws(()=>assertSmsShiftTime(shift,at),error=>error.status===409&&error.code==='SMS_SHIFT_MISMATCH');
+ }
+ assert.doesNotThrow(()=>assertSmsShiftTime(shift,'2026-11-16T08:02:01Z'));
+ assert.doesNotThrow(()=>assertSmsShiftTime(shift,null));
+ assert.throws(()=>assertSmsShiftTime({...shift,openingVerifiedAt:null},'2026-11-16T08:03:00Z'),
+  error=>error.code==='SMS_SHIFT_MISMATCH');
+});

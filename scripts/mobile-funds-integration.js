@@ -90,6 +90,13 @@ async function main(){
  await assert.rejects(record({...sspInput,idempotencyKey:crypto.randomUUID(),networkReference:'CROSS-NETWORK-'+nonce,walletAccountId:String(usdWallet._id)}),{status:409});
  const allFunds=await require('../src/tenant/services/mobileMoneyFunds.service').context(conn,tenant,operator,branch);
  assert(allFunds.wallets.some(row=>row.network==='MTN SSD'&&row.currency==='SSP'));assert(allFunds.wallets.some(row=>row.network==='Africell'&&row.currency==='USD'));
+ // Real Mongo aggregation of unified report across independent currencies.
+ // Commission estimates cannot masquerade as actual received payouts.
+ const report=await require('../src/tenant/services/mobileMoneyUnifiedReport.service').generate(conn,tenant,operator,{period:'year'});
+ for(const [network,currency] of [['MTN','UGX'],['Africell','USD'],['MTN SSD','SSP']])
+  assert(report.networks.some(row=>row.network===network&&row.currency===currency),'Missing reported '+network+' / '+currency);
+ assert.equal(report.currencies.find(row=>row.currency==='UGX').receivedCommissionMinor,0n);
+ assert(report.currencies.find(row=>row.currency==='UGX').voidedCount>=1);
  const scoped=await require('../src/tenant/services/mobileMoneyWorkspace.service').workspace(conn,operator,{network:'MTN SSD',currency:'SSP'});
  assert.equal(scoped.summary.activeCount,1);assert.equal(scoped.summary.byCurrency[0].currency,'SSP');assert.equal(scoped.networks[0].network,'MTN SSD');
  await mobile.requestVoid(conn,operator,ssp.created._id,'The SSP cash-in was entered against the wrong physical instruction');

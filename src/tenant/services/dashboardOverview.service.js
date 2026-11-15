@@ -47,9 +47,10 @@ async function overview(conn,tenant,user,options={}){
   overviewOptions.currency=mobileMarket.currency;
  const workspaceSnapshot=await snapshot.snapshot(conn,tenant,user,flags,options.operationBranch,overviewOptions);
  const displayWallets=mobileMarket?(mobileFunds?.wallets||[]).filter(a=>a.network===mobileMarket.network&&a.currency===mobileMarket.currency):(mobileFunds?.wallets||[]);
- const displayCash=mobileMarket?(mobileFunds?.paymentAccounts||[]).filter(a=>a.kind==='cash'&&a.currency===mobileMarket.currency):(mobileFunds?.paymentAccounts||[]).filter(a=>a.kind==='cash');
+ const {accounts:displayCash,requiresMapping:cashMappingRequired}=marketService.cashForMarket(mobileFunds||{},mobileMarket);
  const mobileBookTotals={cash:groupedBookTotals(displayCash),float:groupedBookTotals(displayWallets)};
- const data={...flags,mobileFunds,mobileMarkets,mobileMarket,mobileBookTotals,mobileFundsState:!hasMobileMoney?'unavailable':wideRead&&options.viewBranchId==='all'?'all_branches':fundsBranch?'resolved':'branch_required',summary:{recent:mobileRows},bankingRecords:{items:bankingRows},forexRecords:{items:forexRows},transferRecords:{items:transferRows}};
+ const data={...flags,mobileFunds,mobileMarkets,mobileMarket,cashMappingRequired,
+  mobileDisplayCashIds:displayCash.map(a=>a.id),mobileBookTotals,mobileFundsState:!hasMobileMoney?'unavailable':wideRead&&options.viewBranchId==='all'?'all_branches':fundsBranch?'resolved':'branch_required',summary:{recent:mobileRows},bankingRecords:{items:bankingRows},forexRecords:{items:forexRows},transferRecords:{items:transferRows}};
  return {...data,workspaceSnapshot:{...workspaceSnapshot,...snapshot.activity(data)}};
 }
 module.exports={overview,mobileScope,groupedBookTotals};

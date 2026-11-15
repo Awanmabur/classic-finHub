@@ -1,4 +1,9 @@
-<% const mobileFilters = data.reportData?{...data.filters,...data.reportData.window}:data.filters || {}; const filterOperation = typeof fixedOperation === 'string' ? fixedOperation : ''; %>
+<% const mobileFilters = data.reportData?{...data.filters,...data.reportData.window}:data.filters || {};
+   const filterOperation=typeof fixedOperation==='string'?fixedOperation:'';
+   const marketOptions=Array.isArray(data.networkMarkets)?data.networkMarkets:[];
+   const isUnifiedReport=filterAction==='/tenant/mobile-money/report';
+   const singleMarket=isUnifiedReport&&marketOptions.length===1?marketOptions[0]:null;
+   const networksForFilter=marketOptions.length?[...new Set(marketOptions.map(m=>m.network))]:(data.networksAvailable||['MTN','MTN SSD','Airtel','Africell','M-Pesa']); %>
 <form method="get" action="<%= filterAction %>" class="mobileMoneyFilters">
   <% if(filterAction==='/tenant/mobile-money/report'){ %>
   <div class="row2"><label class="field">Reporting period
@@ -12,10 +17,12 @@
   <div class="row3">
     <label class="field">From (UTC)<input class="control" type="date" name="from" value="<%= mobileFilters.from || '' %>"></label>
     <label class="field">To (UTC)<input class="control" type="date" name="to" value="<%= mobileFilters.to || '' %>"></label>
-    <label class="field">Network<select class="control" name="network"><option value="">All networks</option><% (data.networksAvailable || ['MTN','MTN SSD','Airtel','Africell','M-Pesa']).forEach(network=>{ %><option value="<%= network %>" <%= mobileFilters.network === network ? 'selected' : '' %>><%= network %></option><% }) %></select></label>
+    <% if(singleMarket){ %><input type="hidden" name="network" value="<%= singleMarket.network %>"><% } else { %>
+    <label class="field">Network<select class="control" name="network" data-momo-filter-network><option value="">All networks</option><% networksForFilter.forEach(network=>{const match=marketOptions.find(m=>m.network===network); %><option value="<%= network %>" data-market-currency="<%= match?.currency||'' %>" <%= mobileFilters.network === network ? 'selected' : '' %>><%= match?.label||network %></option><% }) %></select></label><% } %>
   </div>
   <div class="row3">
-    <label class="field">Currency<select class="control" name="currency"><option value="">All currencies</option><% (data.currencies || ['UGX','USD','SSP','KES']).forEach(currency=>{ %><option value="<%= currency %>" <%= mobileFilters.currency === currency ? 'selected' : '' %>><%= typeof currencyLabel === 'function' ? currencyLabel(currency) : (currency === 'KES' ? 'KSH' : currency) %></option><% }) %></select></label>
+    <% if(singleMarket){ %><input type="hidden" name="currency" value="<%= singleMarket.currency %>"><% }else{ %>
+    <label class="field" data-momo-filter-currency <%= isUnifiedReport&&marketOptions.some(m=>m.network===mobileFilters.network&&m.currency===mobileFilters.currency)?'hidden':'' %>>Currency<select class="control" name="currency"><option value="">All currencies</option><% (data.currencies || ['UGX','USD','SSP','KES']).forEach(currency=>{ %><option value="<%= currency %>" <%= mobileFilters.currency === currency ? 'selected' : '' %>><%= typeof currencyLabel === 'function' ? currencyLabel(currency) : (currency === 'KES' ? 'KSH' : currency) %></option><% }) %></select></label><% } %>
     <% if(!filterOperation){ %><label class="field">Operation<select class="control" name="operation"><option value="">Deposits and Withdrawals</option><option value="cash_in" <%= mobileFilters.operation === 'cash_in' ? 'selected' : '' %>>Deposit</option><option value="cash_out" <%= mobileFilters.operation === 'cash_out' ? 'selected' : '' %>>Withdrawal</option></select></label><% } %>
     <label class="field">Entry source<select class="control" name="entrySource"><option value="">Manual and SMS capture</option><option value="manual" <%= mobileFilters.entrySource === 'manual' ? 'selected' : '' %>>Manual</option><option value="sms" <%= mobileFilters.entrySource === 'sms' ? 'selected' : '' %>>SMS capture</option></select></label>
   </div>

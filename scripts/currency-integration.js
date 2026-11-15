@@ -44,14 +44,14 @@ async function main(){
   await cash.decideOpening(conn,tenant,reviewer,String(opened._id),{decision:'approve',note:'Independent opening cash count checked for currency test'});
   const records=[];
   for(const [operation,amount] of [['cash_in','123.45'],['cash_out','23.45']]){
-   const input={customer:'Currency customer',customerPhone:'+256700123456',network:'MTN',currency,amount,fee:'0.01',networkReference:`CCY-${nonce}-${currency}-${operation}`,idempotencyKey:crypto.randomUUID()};
+   const input={customer:'Currency customer',customerPhone:'+256700123456',network:currency==='SSP'?'MTN SSD':'Africell',currency,amount,fee:'0.01',networkReference:`CCY-${nonce}-${currency}-${operation}`,idempotencyKey:crypto.randomUUID()};
    const result=await mobile.recordMobileMoney(conn,owner,input,operation,tenant);records.push(result.created);
    assert.equal(String(result.created.amountMinor),operation==='cash_in'?'12345':'2345');
    assert.equal(String(result.created.feeMinor),'1');assert.equal(result.created.currency,currency);
    assert.equal((await mobile.recordMobileMoney(conn,owner,input,operation,tenant)).duplicate,true);
    await mobile.reviewMobileMoney(conn,reviewer,String(result.created._id),'accepted','Independent receipt evidence checked for currency test');
   }
-  const incompatible={customer:'Currency mismatch',network:'MTN',currency:currency==='USD'?'SSP':'USD',amount:'1.00',fee:'0',networkReference:`CCY-WRONG-${nonce}-${currency}`,idempotencyKey:crypto.randomUUID()};
+  const incompatible={customer:'Currency mismatch',network:currency==='USD'?'MTN SSD':'MTN',currency,amount:'1.00',fee:'0',networkReference:`CCY-WRONG-${nonce}-${currency}`,idempotencyKey:crypto.randomUUID()};
   await assert.rejects(mobile.recordMobileMoney(conn,owner,incompatible,'cash_in',tenant),{status:409});
   const day=new Date().toISOString().slice(0,10);
   const summary=await mobileWorkspace.workspace(conn,owner,{from:day,to:day,currency});

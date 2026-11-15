@@ -57,30 +57,43 @@ test('platform dashboard and audit page preserve their first-run empty states',a
   assert.match(audit,/No recorded platform administration events/);
 });
 
-test('legacy tenant module display stays unassigned when optional module arrays are absent or malformed',async()=>{
+test('legacy tenant module display never invents an active entitlement',async()=>{
   for(const fields of [{},{enabledModules:null,moduleGrants:null},{enabledModules:'mobile_money',moduleGrants:{}}]){
     const tenant=Object.freeze({id:'507f1f77bcf86cd799439012',name:'Legacy workspace',slug:'legacy',plan:'agent',...fields});
     const before=structuredClone(tenant);
     const list=await page('tenants/index',{tenants:[tenant],plans:[]});
-    assert.match(list,/0 assigned/);
+    assert.match(list,/0 available/);
     assert.match(list,/Unknown status/);
     const profile=await page('tenants/show',{
       tenant,modules:[{key:'mobile_money',name:'Mobile Money',icon:'fa-wallet'}],published:[]
     });
-    assert.match(profile,/class="chip "><i class="fa-solid fa-wallet"/);
-    assert.doesNotMatch(profile,/class="chip active"/);
+    assert.match(profile,/No published plan entitlement recorded/);
     assert.match(profile,/Not migrated \/ no entitlement/);
+    assert.doesNotMatch(profile,/class="chip active"/);
     assert.deepEqual(tenant,before);
   }
 });
 
-test('valid assigned modules remain visible on platform tenant lists and profiles',async()=>{
-  const tenant={id:'507f1f77bcf86cd799439012',name:'Assigned workspace',slug:'assigned',plan:'agent',status:'past_due',enabledModules:['mobile_money']};
+test('only active saved subscription terms enable modules; a past-due workspace remains restricted',async()=>{
+  const tenant={id:'507f1f77bcf86cd799439012',name:'Assigned workspace',slug:'assigned',plan:'agent',status:'active',setupStatus:'complete',
+    enabledModules:['mobile_money'],moduleGrants:[],seatsReserved:1,branchCount:1,
+    currentPlanName:'Agent Plan',currentPlanVersion:2,planAccessActive:true,currentModuleCount:1,
+    subscription:{planCode:'agent',planName:'Agent Plan',planVersion:2,status:'granted',
+      periodStart:new Date('2026-01-01T00:00:00Z'),periodEnd:new Date('2030-01-01T00:00:00Z'),
+      modules:['mobile_money'],limits:{users:5,branches:2}}};
   const list=await page('tenants/index',{tenants:[tenant],plans:[]});
-  assert.match(list,/1 assigned/);
-  assert.match(list,/past due/);
+  assert.match(list,/1 available/);
+  assert.match(list,/Agent Plan/);
   const profile=await page('tenants/show',{
-    tenant,modules:[{key:'mobile_money',name:'Mobile Money',icon:'fa-wallet'}],published:[]
+    tenant,modules:[{key:'mobile_money',name:'Mobile Money',icon:'fa-wallet'}],published:[],effectivePlan:tenant.subscription,activeAddonGrants:[]
   });
-  assert.match(profile,/class="chip active"><i class="fa-solid fa-wallet"/);
+  assert.match(profile,/class="chip active">Mobile Money · available/);
+  const pastDue={...tenant,status:'past_due',planAccessActive:false,currentModuleCount:0};
+  const restrictedList=await page('tenants/index',{tenants:[pastDue],plans:[]});
+  assert.match(restrictedList,/0 available/);
+  assert.match(restrictedList,/past due/);
+  const restrictedProfile=await page('tenants/show',{
+    tenant:pastDue,modules:[{key:'mobile_money',name:'Mobile Money',icon:'fa-wallet'}],published:[],effectivePlan:null,activeAddonGrants:[]
+  });
+  assert.doesNotMatch(restrictedProfile,/class="chip active"/);
 });

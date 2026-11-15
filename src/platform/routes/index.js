@@ -86,7 +86,7 @@ router.post('/tenants/:id/profile',async(req,res,next)=>{
   try{await updateProfile(req.params.id,req.platformUser,req.body);flash(req,'good','Tenant profile updated and audited.');res.redirect(303,'/platform/tenants/'+req.params.id);}catch(e){next(e);}
 });
 router.get('/plans',async(req,res,next)=>{
-  try{renderPlatform(req,res,'plans/index','Plans & Pricing','Configure plans, prices and included services.',{plans,...await planBuilder.list()});}
+  try{renderPlatform(req,res,'plans/index','Plans & Pricing','Configure plans, prices and included services.',{plans,modules,...await planBuilder.list()});}
   catch(e){next(e);}
 });
 async function renderPlanEditor(req,res,code,overrides={}){

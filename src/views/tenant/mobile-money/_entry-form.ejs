@@ -32,7 +32,7 @@
           <input type="hidden" name="network" value="<%= selectedEntryNetwork %>" data-market-currency="<%= entryVerifiedMarket(selectedEntryNetwork) %>">
         </div>
         <% }else{ %><label class="field">Network<select class="control" name="network" required><% entryNetworks.forEach(network=>{ %><option value="<%= network %>" data-market-currency="<%= entryVerifiedMarket(network) %>"<%- network===selectedEntryNetwork?' selected':'' %><%- (entryNetworkCurrencies[network]&&!entryCurrencyOptions.some(c=>c.code===entryNetworkCurrencies[network]))||entryNeedsWallet(network)?' disabled':'' %>><%= network==='MTN SSD'?'MTN MoMo South Sudan':network==='MTN'?'MTN MoMo Uganda':network %></option><% }) %></select></label><% } %>
-        <label class="field">Customer phone<input class="control" type="tel" name="customerPhone" placeholder="+211..." inputmode="tel" maxlength="24" required autocomplete="tel"></label>
+        <label class="field">Customer phone<input class="control" type="tel" name="customerPhone" placeholder="<%= entryCurrency==='UGX'?'+256...':entryCurrency==='SSP'?'+211...':entryCurrency==='KES'?'+254...':'International number...' %>" inputmode="tel" maxlength="24" required autocomplete="tel"></label>
       </div>
       <label class="field">Network transaction reference<input class="control" name="networkReference" placeholder="Reference from the provider transaction" pattern="[A-Za-z0-9._:\/\-]{5,100}" minlength="5" maxlength="100" required><span class="tiny">Captured automatically for received SMS transactions; enter the provider reference for a manual transaction.</span></label>
     </div>

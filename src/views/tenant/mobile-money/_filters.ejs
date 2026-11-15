@@ -1,5 +1,14 @@
-<% const mobileFilters = data.filters || {}; const filterOperation = typeof fixedOperation === 'string' ? fixedOperation : ''; %>
+<% const mobileFilters = data.reportData?{...data.filters,...data.reportData.window}:data.filters || {}; const filterOperation = typeof fixedOperation === 'string' ? fixedOperation : ''; %>
 <form method="get" action="<%= filterAction %>" class="mobileMoneyFilters">
+  <% if(filterAction==='/tenant/mobile-money/report'){ %>
+  <div class="row2"><label class="field">Reporting period
+    <select class="control" name="period">
+      <% [['today','Today'],['week','This week (Monday–Sunday)'],['month','This month'],['quarter','This quarter'],['year','This year'],['custom','Custom dates']].forEach(([key,label])=>{ %>
+      <option value="<%= key %>" <%= (data.reportData?.window.key||'today')===key?'selected':'' %>><%= label %></option>
+      <% }) %>
+    </select>
+  </label><div class="field"><span>Report basis</span><div class="networkReadOnly">UTC · Provider and currency remain separate</div></div></div>
+  <% } %>
   <div class="row3">
     <label class="field">From (UTC)<input class="control" type="date" name="from" value="<%= mobileFilters.from || '' %>"></label>
     <label class="field">To (UTC)<input class="control" type="date" name="to" value="<%= mobileFilters.to || '' %>"></label>

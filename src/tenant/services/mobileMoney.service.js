@@ -111,6 +111,8 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
       const branch=await branchModel(conn).findOneAndUpdate({_id:requestedBranchId,status:'active'},{$inc:{revision:1}},{session,new:true});
       if(!branch)throw bad('Assigned branch is inactive or unavailable',409);
       require('./branchCurrency.service').resolve(branch,values.currency);
+      if(smsAuthorization?.receivedAt)
+        await require('./cashDrawer.service').assertSmsWithinShift(conn,session,authorization.actor,branch._id,values.currency,smsAuthorization.receivedAt);
       const pricing=await require('../pricing/apply').resolve(conn,authorization.tenant,branch,input,{operation:'mobile_money.'+operation,currency:values.currency,amountMinor:values.amountMinor,network:values.network,providedMinor:values.feeMinor,session,source:sourceContext?'sms':'manual'});
       if(pricing){values.pricing=pricing;values.feeMinor=BigInt(pricing.feeMinor);if(values.feeMinor>values.amountMinor)throw bad('Configured fee cannot exceed the amount',409);}
       // Immutable informational reference only. Approved network tariff quotes

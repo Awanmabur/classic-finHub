@@ -295,6 +295,19 @@
     refresh();update();
   };
   document.querySelectorAll('[data-mobile-money-form]').forEach(initialiseMobileFunds);
+  // Keep the approved compact report controls; a known network supplies its
+  // currency. The tenant can still explicitly request All networks.
+  document.querySelectorAll('.mobileMoneyFilters [data-momo-filter-network]').forEach(network=>{
+    const form=network.form,currency=form?.elements.namedItem('currency');
+    const wrapper=form?.querySelector('[data-momo-filter-currency]');
+    if(!currency)return;
+    network.addEventListener('change',()=>{
+      const fixed=network.selectedOptions?.[0]?.dataset.marketCurrency||'';
+      currency.value=fixed||'';
+      if(wrapper)wrapper.hidden=Boolean(fixed);
+    });
+  });
+
 
   const initialiseOperationForm = form => {
     if(!form?.matches('[data-transfer-form],[data-forex-form],form:has([data-account-currency])')||operationBindings.has(form))return;

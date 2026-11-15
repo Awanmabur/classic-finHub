@@ -4,8 +4,7 @@
 const {NETWORKS}=require('../pricing/networkTariffs');
 function eligibleWallet(wallet){
  return wallet&&wallet.state==='active'&&wallet.reconciliation==='matched'&&
-  wallet.expectedMinor!==null&&wallet.expectedMinor!==undefined&&
-  (wallet.assignedToOperator||wallet.shared);
+  wallet.expectedMinor!==null&&wallet.expectedMinor!==undefined;
 }
 function markets(wallets=[]){
  const seen=new Map();

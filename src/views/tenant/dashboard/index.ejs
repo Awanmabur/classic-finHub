@@ -8,7 +8,7 @@
    const cards=[['hasTransfer','money_transfer','Money transfer volume','ovTransfer','Send + payout'],['hasMobileMoney','mobile_money','Mobile money volume','ovMobile','Deposits + withdrawals'],['hasBanking','banking','Banking volume','ovBanking','Deposit/withdraw/transfer'],['hasForex','forex','Forex volume','ovForex','Buy + sell exchange']];
    const hasSources=cards.some(([flag])=>data[flag]);
    const canConfigureFunds=(user.permissions||[]).some(p=>p==='*'||p==='treasury.view');
-   const cashFunds=(data.mobileFunds?.paymentAccounts||[]).filter(a=>a.kind==='cash'&&(!data.mobileMarket||a.currency===data.mobileMarket.currency));
+   const cashFunds=(data.mobileFunds?.paymentAccounts||[]).filter(a=>a.kind==='cash'&&(!data.mobileMarket||(data.mobileDisplayCashIds||[]).includes(a.id)));
    const floatFunds=(data.mobileFunds?.wallets||[]).filter(a=>!data.mobileMarket||(a.network===data.mobileMarket.network&&a.currency===data.mobileMarket.currency));
    const fundsVisibility=data.mobileFundsState==='all_branches'?'Choose a viewing branch for balance details':data.mobileFundsState==='branch_required'?'No operating branch is selected':data.mobileFunds?.visibilityRestricted?'Restricted by role':null;
    const canSeeCash=visiblePaths.has('/tenant/treasury'); %>
@@ -22,11 +22,13 @@
         <div class="stat" data-dashboard-fund-stat="<%= type %>" title="Approved opening balances plus recorded internal funds movements, not live provider balances.">
           <div class="k"><%= label %></div>
           <% if(fundsVisibility){ %><div class="v" id="<%= id %>"><%= fundsVisibility %></div>
+          <% }else if(type==='cash'&&data.cashMappingRequired&&!accounts.length){ %><div class="v" id="<%= id %>">Cash assignment needed</div><div class="s"><a href="/tenant/treasury">Map this provider wallet to its actual cash drawer</a></div>
           <% }else if(!accounts.length){ %><div class="v" id="<%= id %>">Not configured</div>
           <% }else{ %>
              <div class="v" id="<%= id %>"><%= accounts.length===1?(accounts[0].expected||'Opening approval pending'):totals.length===1?totals[0].formatted:accounts.length+' accounts across currencies' %></div>
              <% if(accounts.length>1&&totals.length>1){ %><div class="s"><span>Approved books by currency: <% totals.forEach(total=>{ %><%= total.formatted %> · <% }) %></span></div><% } %>
              <% if(unapproved.length){ %><div class="s"><span><%= unapproved.length %> account(s) awaiting approved opening balance</span></div><% } %>
+             <% if(type==='cash'&&data.cashMappingRequired){ %><div class="s">Additional drawers require owner mapping before they can be attributed to this network.</div><% } %>
              <% accounts.slice(0,3).forEach(account=>{ %><div class="s"><span><%= account.name %> · <%= account.currency %>: <%= account.expected||'Opening approval pending' %></span></div><% }) %>
              <% if(accounts.length>3){ %><div class="s"><span>+<%= accounts.length-3 %> more accounts in the funds register</span></div><% } %>
           <% } %>

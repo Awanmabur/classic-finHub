@@ -79,7 +79,7 @@ async function configureAccount(conn,tenant,actor,accountId,input){
  await ensure(conn);
  const name=text(input.name,'account name',3,120),isDefault=['true',true,'on'].includes(input.isDefault);
  if(!['true','false',true,false,'on'].includes(input.isDefault))throw fail('Choose whether this account is the default');
- const feeTreatment=input.feeTreatment||'record_only';if(!['record_only','payment_collected','wallet_commission'].includes(feeTreatment))throw fail('Choose a valid fee treatment');
+ const feeTreatment=input.feeTreatment||'record_only';if(!['record_only','payment_collected'].includes(feeTreatment))throw fail('Provider commission must be recognized from independently verified payout evidence, not as estimated transaction float. Choose Record only or Verified customer fee collected.');
  return transaction(conn,async session=>{
   const authorization=await access(conn,tenant,actor,{permission:'treasury.manage',session,fence:true});
   if(authorization.actor.role!=='Tenant Owner')throw fail('Tenant Owner account administration required',403);

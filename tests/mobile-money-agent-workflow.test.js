@@ -39,16 +39,21 @@ test('agent transaction shows confirmed-rate estimates separately from configure
  assert.doesNotMatch(quote,/recordMobileMoney|applyMovements|\.create\(/);
 });
 
-test('payment-dependent fields are disabled unless applicable and never require invisible customer accounts',()=>{
+test('agent form selects authorized cash and provider float without customer wallet/bank entry',()=>{
+ const form=source('src/views/tenant/mobile-money/_entry-form.ejs');
  const template=source('src/views/tenant/mobile-money/_funds-context.ejs');
  const scripts=source('public/js/dashboard.js');
- assert.match(template,/data-payment-account-field hidden/);
- assert.match(template,/name="paymentAccountId"/);
- assert.match(template,/data-customer-wallet-field hidden/);
- assert.match(scripts,/payment\.disabled=internal/);
- assert.match(scripts,/payment\.required=!internal/);
- assert.match(scripts,/paymentField\.hidden=internal/);
- assert.match(scripts,/customer\.disabled=!internal/);
+ const service=source('src/tenant/services/mobileMoney.service.js');
+ assert.match(form,/name="paymentMethod" value="Cash"/);
+ assert.doesNotMatch(form,/value="Wallet Balance"/);
+ assert.doesNotMatch(form,/value="Bank"/);
+ assert.match(template,/data-wallet-account-field/);
+ assert.match(template,/data-payment-account-field/);
+ assert.doesNotMatch(template,/data-customer-wallet/);
+ assert.match(template,/assignedToOperator/);
+ assert.match(scripts,/paymentField.hidden=validAccounts.length===1/);
+ assert.match(scripts,/walletField.hidden=available.length===1/);
+ assert.match(service,/options.requireFunds===true && values.paymentMethod!=='Cash'/);
 });
 
 test('financial readiness diagnostic is read-only and scoped to the operating branch',()=>{

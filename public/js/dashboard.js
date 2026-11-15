@@ -238,7 +238,7 @@
         stat.hidden=stat.dataset.balanceCurrency!==currency||
           (stat.dataset.balanceKind==='wallet'&&stat.dataset.balanceNetwork!==network.value);
       }
-      for(const option of wallet.options){if(!option.value)continue;const visible=option.dataset.network===network.value&&option.dataset.currency===currency;option.hidden=!visible;option.disabled=!visible||option.dataset.state!=='active'||!/^\d{1,34}$/.test(option.dataset.expectedMinor||'');if(!option.disabled)available.push(option);}
+      for(const option of wallet.options){if(!option.value)continue;const visible=option.dataset.network===network.value&&option.dataset.currency===currency;option.hidden=!visible;option.disabled=!visible||option.dataset.state!=='active'||option.dataset.reconciliation!=='matched'||!/^\d{1,34}$/.test(option.dataset.expectedMinor||'');if(!option.disabled)available.push(option);}
       if(!available.some(option=>option.value===current)){
         const own=available.filter(option=>option.dataset.assigned==='true'),eligible=own.length?own:available,defaults=eligible.filter(option=>option.dataset.default==='true');
         wallet.value=defaults.length===1?defaults[0].value:eligible.length===1?eligible[0].value:'';
@@ -253,7 +253,7 @@
         const activeMethod=method.value,validAccounts=[];
         for(const option of payment.options){
           if(!option.value)continue;
-          const eligible=activeMethod==='Cash'&&option.dataset.method==='Cash'&&option.dataset.assigned==='true'&&option.dataset.currency===currency&&option.dataset.state==='active'&&option.dataset.opened==='true';
+          const eligible=activeMethod==='Cash'&&option.dataset.method==='Cash'&&option.dataset.assigned==='true'&&option.dataset.currency===currency&&option.dataset.state==='active'&&option.dataset.reconciliation==='matched'&&option.dataset.opened==='true';
           option.hidden=!eligible;option.disabled=!eligible;
           if(eligible)validAccounts.push(option);
         }

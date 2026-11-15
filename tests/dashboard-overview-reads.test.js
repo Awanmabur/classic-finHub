@@ -43,3 +43,22 @@ test('main dashboard fund totals add only approved real book values within each 
  assert.deepEqual(amounts.find(a=>a.currency==='SSP'),{currency:'SSP',formatted:formatMoneyMinor(7500n,'SSP')});
  assert.deepEqual(groupedBookTotals([{currency:'UGX',expectedMinor:null}]),[]);
 });
+
+test('owner cash and float cards follow selected viewing branch; all-branch view never mislabels operating branch totals',async t=>{
+ const tenant=entitledTenant({plan:'enterprise'});
+ const owner={id:account,role:'Tenant Owner',permissions:['*'],branchId:branch};
+ const second={_id:'507f1f77bcf86cd799439088',currency:'SSP',currencies:['SSP']};
+ const operation={_id:branch,currency:'UGX'};
+ const calls=[],conn={models:Object.fromEntries(['SecureMobileTransaction','BankingRequestV1','ForexQuoteV1','TransferOrderV1'].map(name=>[name,{find:query([],calls)}]))};
+ t.mock.method(snapshots,'snapshot',async()=>({todayVolumes:{},cash:[]}));
+ let resolved=null;
+ t.mock.method(require('../src/tenant/services/mobileMoneyFunds.service'),'context',async(_conn,_tenant,_user,chosen)=>{resolved=chosen;return {wallets:[],paymentAccounts:[]};});
+ const selected=await overview(conn,tenant,owner,{operationBranch:operation,viewBranchId:String(second._id),viewBranch:second});
+ assert.equal(resolved,second);
+ assert.equal(selected.mobileFundsState,'resolved');
+ resolved=null;
+ const all=await overview(conn,tenant,owner,{operationBranch:operation,viewBranchId:'all',viewBranch:null});
+ assert.equal(resolved,null,'all-branch view must not silently use the operating branch');
+ assert.equal(all.mobileFundsState,'all_branches');
+ assert.equal(all.mobileFunds,null);
+});

@@ -20,7 +20,7 @@ for (const name of original) router.get(name === 'home' ? '/' : '/' + name, asyn
   const catalogue=['home','pricing','price-compare'].includes(name)
     ? await require('./platform/services/publicPlans.service').publicPlans() : {plans:store.plans,persisted:false};
   if(catalogue.unavailable&&name!=='home')res.status(503).set({'Retry-After':'60','X-Robots-Tag':'noindex, nofollow, noarchive'});
-  res.render('original/' + name, { flash: consumeFlash(req), plans:catalogue.plans, cataloguePersisted:catalogue.persisted,catalogueUnavailable:Boolean(catalogue.unavailable),selectableModules:require('./utils/selectionOptions').publicModuleOptions() });
+  res.render('original/' + name, { flash: consumeFlash(req), plans:catalogue.plans, addonModules:store.modules.filter(m=>m.category==='Addon'&&m.runtimeStatus==='enabled'&&m.status==='active'), cataloguePersisted:catalogue.persisted,catalogueUnavailable:Boolean(catalogue.unavailable),selectableModules:require('./utils/selectionOptions').publicModuleOptions() });
   }catch(error){next(error);}
 });
 function renderPublic(req, res, view, title, data = {}) {

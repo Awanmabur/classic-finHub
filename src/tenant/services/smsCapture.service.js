@@ -207,7 +207,7 @@ async function recordDraft(conn,tenant,actor,id,input,automatic=false){
     {$set:{state:'processing',fields:valuesWithoutKey(values),processingToken:token,processingUntil:new Date(Date.now()+60000)}},{new:true});
   if(!claimed)throw secure.fail('This SMS is already recorded, dismissed or being processed. Refresh the inbox.',409);
   try{
-    const result=await mobile.recordMobileMoney(conn,fresh.actor,values,values.operation,fresh.tenant,{smsInboxId:id});
+    const result=await mobile.recordMobileMoney(conn,fresh.actor,values,values.operation,fresh.tenant,{smsInboxId:id},{requireFunds:true});
     await Inbox.updateOne({_id:id,processingToken:token},{$set:{state:'recorded',reasonCode:automatic?'auto_recorded_pending_verification':'confirmed_pending_verification',
       recordId:result.created._id,fields:valuesWithoutKey(values),confirmedBy:actor.id,confirmedAt:new Date(),processingToken:null,processingUntil:null}});
     return result;

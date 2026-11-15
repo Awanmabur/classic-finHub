@@ -2,7 +2,8 @@
    const entryLabel = entryOperation === 'cash_in' ? 'Deposit' : 'Withdraw';
    const entryPermissions = user.permissions || [];
    const entryCan = permission => entryPermissions.includes('*') || entryPermissions.includes(permission);
-   const entryNetworks = data.networksAvailable || ['MTN','MTN SSD','Airtel','Africell','M-Pesa','mGURUSH','Digi Cash'];
+   const configuredNetworks=[...new Set((data.funds?.wallets||[]).filter(w=>(w.assignedToOperator||w.shared)&&w.state==='active'&&w.expectedMinor!==null).map(w=>w.network))];
+   const entryNetworks = configuredNetworks.length?configuredNetworks:(data.networksAvailable || ['MTN','MTN SSD','Airtel','Africell','M-Pesa','mGURUSH','Digi Cash']);
    const entryNetworkCurrencies={MTN:'UGX','MTN SSD':'SSP',Airtel:'UGX'};
    const entryCurrencyOptions=data.entryCurrencies?.length?data.entryCurrencies:(currentBranch.currencies||['UGX','USD','SSP','KES']).map(code=>({code,label:code==='KES'?'KSH':code}));
    const entryEligibleWallets=(data.funds?.wallets||[]).filter(w=>w.state==='active'&&w.expectedMinor!==null);
@@ -31,12 +32,13 @@
       <label class="field">Network transaction reference<input class="control" name="networkReference" placeholder="Reference from the provider transaction" pattern="[A-Za-z0-9._:\/\-]{5,100}" minlength="5" maxlength="100" required><span class="tiny">Captured automatically for received SMS transactions; enter the provider reference for a manual transaction.</span></label>
     </div>
     <div class="formSection">
-      <div class="formSectionTitle">Amount details</div>
+      <div class="formSectionTitle">Amount and accounts</div>
       <div class="row2">
-        <label class="field" data-mobile-currency-field>Currency (automatically set by network)<select class="control" name="currency" data-mobile-currency required><% entryCurrencyOptions.forEach(option=>{ %><option value="<%= option.code %>" <%= option.code===entryCurrency?'selected':'' %>><%= option.label %></option><% }) %></select></label>
+        <label class="field" data-mobile-currency-field>Currency (derived from network)<select class="control" name="currency" data-mobile-currency required><% entryCurrencyOptions.forEach(option=>{ %><option value="<%= option.code %>" <%= option.code===entryCurrency?'selected':'' %>><%= option.label %></option><% }) %></select></label>
         <label class="field">Amount (<span data-mobile-currency-label><%= entryCurrency %></span>)<input class="control" type="text" inputmode="decimal" name="amount" placeholder="0" pattern="<%= entryAmountPattern %>" required></label>
       </div>
-      <label class="field">Payment method<select class="control" name="paymentMethod" required><option value="Cash">Cash</option><option value="Wallet Balance">Wallet Balance</option><option value="Bank">Bank</option></select></label>
+      <input type="hidden" name="paymentMethod" value="Cash">
+      <div class="field"><span>Settlement accounts</span><div class="networkReadOnly"><b>Physical cash ↔ provider electronic float</b></div><small>Cash drawer and approved float wallet are assigned automatically from your operator, branch, currency and network. No bank or customer wallet is used for agent Cash-In/Cash-Out.</small></div>
       <%- include('_funds-context') %>
       <% const entryBalances=[...(data.funds?.paymentAccounts||[]).filter(a=>a.kind==='cash'),...(data.funds?.wallets||[])]; %>
       <div class="networkBalanceGrid mobileEntryBalances" data-mobile-balance-stats aria-label="Cash and float book balances">
@@ -65,6 +67,7 @@
       <div class="sumRow"><span>Reference</span><b class="mono mobileRequestReference" data-mobile-reference><%= data.idempotencyKey %></b></div>
     </div>
     <details class="logicNote"><summary>Additional details</summary><div class="row2"><label class="field">Customer name<input class="control" name="customer" placeholder="Optional customer name" minlength="2" maxlength="120" autocomplete="name"></label><label class="field">Customer ID / note<input class="control" name="customerNote" placeholder="Optional verification or note" maxlength="400"></label></div></details>
+    <p class="tiny">Only record a transaction after the official network confirms it and the real customer cash exchange has occurred. Internal posting is immediate; independent review is separate.</p>
     <div class="rowBtns"><button class="btn btnPrimary" type="submit"><%= entryOperation==='cash_in'?'Record deposit':'Record withdrawal' %></button></div>
   </div>
 </form>

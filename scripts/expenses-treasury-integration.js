@@ -42,7 +42,7 @@ async function main(){
    evidenceType:kind==='cash'?'cash_count':kind==='bank'?'bank_statement':'provider_app',evidenceReference:`OPEN-${name}-${nonce}`,note,idempotencyKey:crypto.randomUUID()});
   await treasury.reviewObservation(conn,tenant,reviewer,observation.observation._id,{decision:'approve',note});return account;
  }
- const cashFund=await openFund('cash','cash_fund','1000.00'),bankFund=await openFund('bank','bank_fund','500.00'),walletFund=await openFund('wallet','wallet_fund','200.00','MTN');
+ const cashFund=await openFund('cash','cash_fund','1000.00'),bankFund=await openFund('bank','bank_fund','500.00'),walletFund=await openFund('wallet','wallet_fund','200.00','M-Pesa');
  const balance=async account=>String((await models(conn).account.findById(account._id)).bookBalanceMinor);
  const body=(extra={})=>({expenseType:'Office transport',currency:'KES',amount:'100.00',paymentMethod:'Cash',vendor:'Reviewed vendor',reference:`VOUCHER-${nonce}`,description:'Actual operating expense with source evidence',idempotencyKey:crypto.randomUUID(),...extra});
  const cashInput=body({treasuryAccountId:String(cashFund._id)}),record=(await expenses.create(conn,tenant,maker,cashInput,{requireFunds:true})).record;

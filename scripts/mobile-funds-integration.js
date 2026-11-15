@@ -28,7 +28,15 @@ async function main(){
  async function record(input){return mobile.recordMobileMoney(conn,operator,input,input.operation,tenant,null,{requireFunds:true});}
  async function accept(recorded){return mobile.reviewMobileMoney(conn,reviewer,recorded.created._id,'accepted','Provider evidence, actual wallet and recorded payment checked independently');}
  async function balance(account){return String((await funds.models(conn).account.findById(account._id).lean()).bookBalanceMinor);}
- await treasury.configureAccount(conn,tenant,owner,wallet._id,{name:wallet.name,isDefault:'true',feeTreatment:'payment_collected'});
+ await treasury.configureAccount(conn,tenant,owner,wallet._id,{name:wallet.name,isDefault:'true',
+  feeTreatment:'payment_collected',cashDrawerAccountId:String(drawer._id)});
+ assert.equal(String((await funds.models(conn).account.findById(wallet._id).lean()).cashDrawerAccountId),String(drawer._id));
+ await assert.rejects(
+  record(request('cash_in',100,999900,{paymentAccountId:String(bank._id),feeTreatment:'payment_collected'})),
+  error=>error.status===409&&/does not match/i.test(error.message),
+  'Cashier cannot override the mapped physical drawer');
+ assert.equal(await balance(wallet),'1000000');
+ assert.equal(await balance(drawer),'500000');
  const firstInput=request('cash_in',10000,990000,{fee:'100',feeTreatment:'payment_collected'}),first=await record(firstInput);
  assert.equal(first.created.fundingState,'book_recorded');assert.equal(String(first.created.physicalCashMovementMinor),'10100');assert.equal(await balance(wallet),'990000');assert.equal(await balance(drawer),'510100');assert.equal((await record(firstInput)).duplicate,true);
  await assert.rejects(record({...firstInput,feeTreatment:'record_only'}),{status:409});await accept(first);
@@ -55,6 +63,7 @@ async function main(){
  const daily=await record(dailyInput);
  assert.equal(daily.created.fundingState,'book_recorded');assert.equal(daily.created.feeTreatment,'record_only');assert.equal(daily.created.walletObservationId,null,'daily entries do not require a repeated actual balance declaration');
  assert.equal(String(daily.created.walletAccountId),String(wallet._id));assert.equal(String(daily.created.paymentAccountId),String(drawer._id));
+ assert.equal((await funds.models(conn).account.findById(wallet._id).lean()).cashDrawerAccountId?.toString(),String(drawer._id));
  assert.equal(await balance(wallet),'991850');assert.equal(await balance(drawer),'508200');
  await treasury.configureAccount(conn,tenant,owner,wallet._id,{name:wallet.name,isDefault:'true',feeTreatment:'record_only'});
  const dailyCount=await core.mobileTransactionModel(conn).countDocuments();

@@ -34,8 +34,10 @@ router.get('/tenants',async(req,res,next)=>{
       const effective=commercial.effectiveSubscription(t);
       const independentlyGranted=grants.activeGrants(t);
       const live=new Set(modules.filter(m=>m.runtimeStatus!=='disabled').map(m=>m.key));
-      const moduleKeys=new Set([...(effective?.modules||[]).filter(key=>live.has(key)&&t.enabledModules.includes(key)),...independentlyGranted.map(g=>g.moduleKey)]);
-      return {...t,currentPlanName:t.subscription?.planName||null,currentPlanVersion:t.subscription?.planVersion||null,planAccessActive:Boolean(effective),currentModuleCount:moduleKeys.size,independentModuleCount:independentlyGranted.length};
+      const assigned=Array.isArray(t.enabledModules)?t.enabledModules:[];
+      const liveGrants=independentlyGranted.filter(g=>live.has(g.moduleKey));
+      const moduleKeys=new Set([...(Array.isArray(effective?.modules)?effective.modules:[]).filter(key=>live.has(key)&&assigned.includes(key)),...liveGrants.map(g=>g.moduleKey)]);
+      return {...t,currentPlanName:t.subscription?.planName||null,currentPlanVersion:t.subscription?.planVersion||null,planAccessActive:Boolean(effective),currentModuleCount:moduleKeys.size,independentModuleCount:liveGrants.length};
     });
     renderPlatform(req,res,'tenants/index','Tenants','Tenant directories, plan assignment, isolation boundaries and status.',{tenants:summaries,plans,modules});
   }catch(e){next(e);}

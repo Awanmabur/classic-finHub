@@ -16,13 +16,15 @@
       <% if(hasSources){ %><div class="grid3">
         <% cards.forEach(([flag,key,label,id,sub])=>{if(!data[flag])return;const value=volumes[key]; %><div class="stat" title="Today's active recorded <%= key.replaceAll('_',' ') %> operations and instructions. This total is separate from verified external balances."><div class="k"><%= label %></div><div class="v" id="<%= id %>"><%= value?.formatted||'—' %></div><div class="s"><span class="dot <%= key==='forex'?'warn':'' %>"></span><span><%= sub %></span></div></div><% }) %>
         <% if(data.hasMobileMoney){ %>
-        <% [['cash',cashFunds,'Physical cash · book balance','ovCash'],['float',floatFunds,'Electronic float · wallet balance','ovFloat']].forEach(([type,accounts,label,id])=>{ %>
+        <% [['cash',cashFunds,'Physical cash · book balance','ovCash'],['float',floatFunds,'Electronic float · wallet balance','ovFloat']].forEach(([type,accounts,label,id])=>{const totals=(data.mobileBookTotals?.[type]||[]);const unapproved=accounts.filter(a=>a.expectedMinor===null||a.expectedMinor===undefined); %>
         <div class="stat" data-dashboard-fund-stat="<%= type %>" title="Approved opening balances plus recorded internal funds movements, not live provider balances.">
           <div class="k"><%= label %></div>
           <% if(fundsVisibility){ %><div class="v" id="<%= id %>"><%= fundsVisibility %></div>
           <% }else if(!accounts.length){ %><div class="v" id="<%= id %>">Not configured</div>
           <% }else{ %>
-             <div class="v" id="<%= id %>"><%= accounts.length===1?(accounts[0].expected||'Opening approval pending'):accounts.length+' accounts' %></div>
+             <div class="v" id="<%= id %>"><%= accounts.length===1?(accounts[0].expected||'Opening approval pending'):totals.length===1?totals[0].formatted:accounts.length+' accounts across currencies' %></div>
+             <% if(accounts.length>1&&totals.length>1){ %><div class="s"><span>Approved books by currency: <% totals.forEach(total=>{ %><%= total.formatted %> · <% }) %></span></div><% } %>
+             <% if(unapproved.length){ %><div class="s"><span><%= unapproved.length %> account(s) awaiting approved opening balance</span></div><% } %>
              <% accounts.slice(0,3).forEach(account=>{ %><div class="s"><span><%= account.name %> · <%= account.currency %>: <%= account.expected||'Opening approval pending' %></span></div><% }) %>
              <% if(accounts.length>3){ %><div class="s"><span>+<%= accounts.length-3 %> more accounts in the funds register</span></div><% } %>
           <% } %>

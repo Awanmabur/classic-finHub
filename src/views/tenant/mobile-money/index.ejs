@@ -12,7 +12,7 @@
  <%- include('../../partials/operation-branch', {currentBranch, branchProblem, user}) %>
 
  <section class="card" data-mobile-onboarding aria-label="Mobile Money start and opening checklist">
-  <div class="cardHead"><div><b><%= needsOnboarding?'Start Mobile Money — cash and float setup':'Mobile Money operational setup' %></b><br><span><%= currentBranch?'Operating branch: '+currentBranch.name:'Operating branch not assigned' %> · actual balances only</span></div><a class="btn" href="/tenant/mobile-money/readiness">Check readiness</a></div>
+  <div class="cardHead"><div><b><%= needsOnboarding?'Start Mobile Money — cash and float setup':'Mobile Money operational setup' %></b><br><span><%= currentBranch?'Operating branch: '+currentBranch.name:'Operating branch not assigned' %> · actual balances only</span></div><div class="rowBtns"><a class="btn" href="/tenant/mobile-money/onboarding">Onboarding manual</a><a class="btn" href="/tenant/mobile-money/readiness">Check readiness</a></div></div>
   <div class="cardBody">
     <% if(needsOnboarding){ %>
       <% if(!currentBranch){ %><p role="status">First, assign an active operating branch. Account balances and financial records cannot be linked to a branch until that assignment is resolved. <a href="/tenant/branches">Review branch assignments</a>.</p><% } %>

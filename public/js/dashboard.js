@@ -623,6 +623,33 @@
     transactionDialog.addEventListener('click',event=>{if(event.target===transactionDialog){const rect=transactionDialog.getBoundingClientRect();if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)close();}});
   }
 
+  // New Treasury wallet setup inherits the provider market's currency and
+  // does not burden the owner with redundant or incompatible choices.
+  document.querySelectorAll('[data-treasury-account-setup]').forEach(form=>{
+    const kind=form.querySelector('[data-treasury-account-kind]');
+    const network=form.querySelector('[data-treasury-account-network]');
+    const currency=form.querySelector('[data-treasury-account-currency]');
+    const networkField=form.querySelector('[data-treasury-account-network-field]');
+    const currencyField=form.querySelector('[data-treasury-account-currency-field]');
+    if(!kind||!network||!currency||!networkField||!currencyField)return;
+    const update=()=>{
+      const wallet=kind.value==='wallet';
+      network.disabled=!wallet;
+      network.required=wallet;
+      networkField.hidden=!wallet;
+      if(!wallet)network.value='';
+      const market=wallet?(network.selectedOptions?.[0]?.dataset.marketCurrency||''):'';
+      const supported=market&&[...currency.options].some(option=>option.value===market);
+      if(supported)currency.value=market;
+      // Keep currency visible when a provider has multiple possible markets,
+      // or when the branch does not support its required fixed currency.
+      currencyField.hidden=Boolean(supported);
+    };
+    kind.addEventListener('change',update);
+    network.addEventListener('change',update);
+    update();
+  });
+
   document.querySelectorAll('[data-dashboard-currency-form]').forEach(form=>form.querySelector('select')?.addEventListener('change',()=>form.requestSubmit()));
   document.querySelectorAll('[data-branch-view-form]').forEach(form=>form.querySelector('select')?.addEventListener('change',()=>form.requestSubmit()));
 

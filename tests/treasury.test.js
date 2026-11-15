@@ -39,3 +39,29 @@ test('fund movements and batches are append-only evidence and keys prevent dupli
  assert(schemas.movementSchema.indexes().some(([key,options])=>key.accountId===1&&key.sequence===1&&options.unique));
  assert(schemas.accountSchema.indexes().some(([key,options])=>key.selectionKey===1&&options.unique));
 });
+
+test('unused wallet archival is limited to uninitialized, unposted wallets after rejected evidence',()=>{
+ const base={kind:'wallet',code:'WRONG_MTN',status:'uninitialized',openingBalanceMinor:null,
+  openingApprovedAt:null,openingObservationId:null,pendingOpeningId:null,lastObservationId:null,
+  sequence:0,bookBalanceMinor:'0',reconciliationState:'unknown'};
+ assert.doesNotThrow(()=>service.assertUnusedWalletArchivable(base,'WRONG_MTN'));
+ for(const changed of [
+  {kind:'cash'},{status:'active'},{status:'held'},{status:'archived'},
+  {openingBalanceMinor:'0'},{openingApprovedAt:new Date()},{openingObservationId:new mongoose.Types.ObjectId()},
+  {pendingOpeningId:new mongoose.Types.ObjectId()},{lastObservationId:new mongoose.Types.ObjectId()},
+  {sequence:1},{bookBalanceMinor:'100'},{reconciliationState:'matched'}
+ ])assert.throws(()=>service.assertUnusedWalletArchivable({...base,...changed},'WRONG_MTN'));
+ assert.throws(()=>service.assertUnusedWalletArchivable(base,'ANOTHER_WALLET'),{status:400});
+});
+test('unused wallet archive requires owner POST and explicit code, reason and CSRF',()=>{
+ const fs=require('node:fs'),path=require('node:path');
+ const routes=fs.readFileSync(path.resolve(__dirname,'../src/tenant/treasury/routes.js'),'utf8');
+ const view=fs.readFileSync(path.resolve(__dirname,'../src/views/tenant/treasury/detail.ejs'),'utf8');
+ assert.match(routes,/router\.post\('\/accounts\/:id\/archive',requirePermission\('treasury\.manage'\),throttle/);
+ assert.match(view,/user\.role==='Tenant Owner'/);
+ assert.match(view,/account\.status==='uninitialized'/);
+ assert.match(view,/name="confirmCode"/);
+ assert.match(view,/name="reason"/);
+ assert.match(view,/name="_csrf"/);
+ assert.doesNotMatch(routes,/router\.(?:delete|get)\('\/accounts\/:id\/archive'/);
+});

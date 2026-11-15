@@ -73,6 +73,30 @@ async function main(){
       modules:['mobile_money','sms_capture'],limits:{users:3,branches:2,transactionsPerMonth:100,smsPerMonth:100,storageMb:100},
       status:'granted',source:'manual_admin_grant',generation:1,periodStart:new Date(now-60000),periodEnd:new Date(now+86400000)}});
   tenantId=doc._id;
+  // Authorization and delayed SMS checks require actual approved assets;
+  // otherwise the error would be missing funds rather than the shift or
+  // privilege violation under test.
+  const treasury=require('../src/tenant/treasury/service');
+  async function approvedFund(kind,code,opening,network=''){
+    const current=await tenant(),agent=await actor();
+    const account=await treasury.createAccount(conn,current,owner,{
+      kind,code,name:'Race '+code,currency:'UGX',network,
+      operatorId:kind==='cash'?agent.id:null
+    },{configurationBranchId:String(branch._id)});
+    const observation=await treasury.requestObservation(conn,current,agent,account._id,{
+      kind:'opening',actualBalance:opening,
+      observedAt:new Date(Date.now()-1000).toISOString(),
+      evidenceType:kind==='cash'?'cash_count':'provider_app',
+      evidenceReference:'RACE-'+code+'-'+nonce,
+      note:'Independently verified cash and provider opening for SMS authorization tests',
+      idempotencyKey:crypto.randomUUID()
+    });
+    await treasury.reviewObservation(conn,current,owner,observation.observation._id,{
+      decision:'approve',note:'Independent opening cash/provider evidence verified in scratch'
+    });
+  }
+  await approvedFund('cash','RACE_UGX_CASH','0');
+  await approvedFund('wallet','RACE_UGX_MTN','10000','MTN');
   shift=await cash.open(conn,await tenant(),await actor(),{openingCash:'0'});
   await cash.decideOpening(conn,await tenant(),owner,String(shift._id),{decision:'approve',note:'Independent opening cash verification for authorization race checks'});
   const first=await enroll('Device revoke race'),second=await enroll('User authorization races');

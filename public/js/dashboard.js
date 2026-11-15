@@ -300,6 +300,14 @@
   document.querySelectorAll('[data-mobile-money-form]').forEach(initialiseMobileFunds);
   // Keep the approved compact report controls; a known network supplies its
   // currency. The tenant can still explicitly request All networks.
+  document.querySelectorAll('.mobileMoneyFilters [data-momo-report-period]').forEach(period=>{
+    const form=period.form;
+    const sync=()=>{
+      for(const field of form.querySelectorAll('[data-momo-custom-date]'))field.hidden=period.value!=='custom';
+    };
+    period.addEventListener('change',sync);
+    sync();
+  });
   document.querySelectorAll('.mobileMoneyFilters [data-momo-filter-network]').forEach(network=>{
     const form=network.form,currency=form?.elements.namedItem('currency');
     const wrapper=form?.querySelector('[data-momo-filter-currency]');

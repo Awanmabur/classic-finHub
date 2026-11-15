@@ -162,6 +162,9 @@
       if(code&&currencyControl?.querySelector('option[value="'+code+'"]'))currencyControl.value=code;
       if(currencyField)currencyField.hidden=Boolean(code);
       if(marketLabel)marketLabel.textContent=currencyControl?.value||form.dataset.currency;
+      const phone=form.elements.namedItem('customerPhone');
+      const prefix={UGX:'+256...',SSP:'+211...',KES:'+254...'}[code||currencyControl?.value];
+      if(phone&&prefix)phone.placeholder=prefix;
       if(currencyControl)currencyControl.dispatchEvent(new Event('change',{bubbles:true}));
     };
     networkControl?.addEventListener('change',syncNetworkCurrency);

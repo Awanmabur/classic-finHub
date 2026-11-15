@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path');
-const {markets,preferred,withDefaultFilters}=require('../src/tenant/services/mobileMoneyMarket.service');
+const {markets,preferred,withDefaultFilters,cashForMarket}=require('../src/tenant/services/mobileMoneyMarket.service');
 const file=p=>fs.readFileSync(path.join(__dirname,'..',p),'utf8');
 const wallet=(network,currency,extra={})=>({network,currency,state:'active',
  reconciliation:'matched',expectedMinor:'200000',...extra});
@@ -38,4 +38,19 @@ test('cash-drawer association is configured once by owner and enforced in funds 
  assert.match(form,/data-cash-drawer/);
  assert.match(scripts,/paymentField.hidden=true/);
  assert.doesNotMatch(form,/<label class="field" data-payment-account-field/);
+});
+
+test('dashboard does not attribute Airtel or shared branch cash to MTN without explicit mapping',()=>{
+ const a={id:'drawer-mtn',kind:'cash',currency:'UGX'};
+ const b={id:'drawer-airtel',kind:'cash',currency:'UGX'};
+ const market={network:'MTN',currency:'UGX'};
+ const single=cashForMarket({paymentAccounts:[a],wallets:[wallet('MTN','UGX')]},market);
+ assert.equal(single.accounts.length,1);
+ assert.equal(single.requiresMapping,false);
+ const unmapped=cashForMarket({paymentAccounts:[a,b],wallets:[wallet('MTN','UGX')]},market);
+ assert.deepEqual(unmapped.accounts,[]);
+ assert.equal(unmapped.requiresMapping,true);
+ const mapped=cashForMarket({paymentAccounts:[a,b],wallets:[wallet('MTN','UGX',{cashDrawerAccountId:'drawer-mtn'})]},market);
+ assert.deepEqual(mapped.accounts.map(x=>x.id),['drawer-mtn']);
+ assert.equal(mapped.requiresMapping,false);
 });

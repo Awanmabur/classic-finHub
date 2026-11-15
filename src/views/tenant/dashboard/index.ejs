@@ -8,7 +8,7 @@
    const canConfigureFunds=(user.permissions||[]).some(p=>p==='*'||p==='treasury.view');
    const cashFunds=(data.mobileFunds?.paymentAccounts||[]).filter(a=>a.kind==='cash');
    const floatFunds=data.mobileFunds?.wallets||[];
-   const fundsVisibility=data.mobileFundsState==='branch_required'?'No operating branch is selected':data.mobileFunds?.visibilityRestricted?'Restricted by role':null;
+   const fundsVisibility=data.mobileFundsState==='all_branches'?'Choose a viewing branch for balance details':data.mobileFundsState==='branch_required'?'No operating branch is selected':data.mobileFunds?.visibilityRestricted?'Restricted by role':null;
    const canSeeCash=visiblePaths.has('/tenant/treasury'); %>
 <section class="view show" id="view-overview">
   <div class="card"><div class="cardHead"><div><b>Today snapshot</b><br><span>Core modules plus daily control</span></div><span class="mono" id="terminalCode"><%= snapshot.terminalCode||tenant.slug||'—' %></span></div>

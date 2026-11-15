@@ -69,7 +69,9 @@ test('cash opening remains a real audited and independently reviewed action',()=
  assert.match(template,/name="openingCash"/);
  assert.match(template,/action="\/tenant\/day\/open"/);
  assert.match(routes,/router\.post\('\/day\/open'/);
- assert.match(main,/href="\/tenant\/cash\/shifts"/);
+ assert.match(main,/visiblePaths\.has\('\/tenant\/cash\/shifts'\)/);
+ assert.match(main,/href="<%= opener\.href %>"/);
+ assert.match(main,/id="openDayBtn"/);
 });
 
 test('standalone EJS operation partial never requires dashboard-only assetVersion local',()=>{

@@ -74,6 +74,10 @@ function sameDetails(record,values,{feeTreatmentSpecified=true}={}){
 async function recordMobileMoney(conn, operator, input, operation, tenant, sourceContext = null, options = {}) {
   if(!operator?.id || !['Tenant Owner','Mobile Money Operator'].includes(operator.role))throw bad('This role cannot record Mobile Money operations',403);
   const values = validate(input, operation);
+  // New agent cash-in/out is physical cash exchanged against provider float.
+  // Keep historical Bank/Wallet Balance records readable; do not create new ones.
+  if(options.requireFunds===true && values.paymentMethod!=='Cash')
+    throw bad('Agent deposits and withdrawals require physical Cash against the selected provider float. Bank and customer-wallet operations belong to their dedicated modules.',400);
   const feeTreatmentSpecified=typeof input.feeTreatment==='string'&&input.feeTreatment!=='';
   const expectedFeeTreatment=input.walletFeePolicy===''?undefined:input.walletFeePolicy;
   if(expectedFeeTreatment!==undefined&&!['record_only','payment_collected','wallet_commission'].includes(expectedFeeTreatment))throw bad('Reload the transaction to use the current wallet settings');

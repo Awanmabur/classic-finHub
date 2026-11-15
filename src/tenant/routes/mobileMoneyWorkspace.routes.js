@@ -19,7 +19,7 @@ module.exports=function routes({renderTenant}){
    const commissionReceived=view==='network'&&hasPermission(req.user,'treasury.view')?
     await require('../pricing/commissionPayoutService').summary(req.tenantDb,req.tenant,req.user):[];
    const branchCurrency=require('../services/branchCurrency.service');
-   renderTenant(req,res,`mobile-money/${view}`,title,subtitle,{...data,reportData,operation,pricingContext,commissionReceived,formatMoneyMinor:require('../services/mobileMoney.service').formatMoneyMinor,idempotencyKey:randomUUID(),
+   renderTenant(req,res,`mobile-money/${view}`,title,subtitle,{...data,reportData,filters:report?{...data.filters,network:req.query.network||'',currency:req.query.currency||'',from:reportData.window.from,to:reportData.window.to}:data.filters,operation,pricingContext,commissionReceived,formatMoneyMinor:require('../services/mobileMoney.service').formatMoneyMinor,idempotencyKey:randomUUID(),
     entryCurrency:req.operationBranch&&operation?branchCurrency.resolve(req.operationBranch,req.query.currency):null,
     entryCurrencies:req.operationBranch?branchCurrency.options(req.operationBranch):[],
     branches:branches.filter(branch=>branch.status==='active'&&(req.user.role==='Tenant Owner'||String(branch._id)===String(req.user.branchId))),

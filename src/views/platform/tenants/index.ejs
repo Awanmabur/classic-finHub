@@ -1,13 +1,13 @@
 <section class="view show platformTenantsPage"><section class="card">
   <div class="cardHead"><b>Tenants</b><span>Workspace owners, plans and access</span></div>
-  <div class="cardBody tableWrap"><table class="denseDirectory"><thead><tr><th>Workspace</th><th>Owner</th><th>Plan</th><th>Status</th><th>Modules</th><th></th></tr></thead><tbody>
+  <div class="cardBody tableWrap"><table class="denseDirectory"><thead><tr><th>Workspace</th><th>Owner</th><th>Saved plan</th><th>Workspace / setup</th><th>Active modules</th><th></th></tr></thead><tbody>
     <% if(!data.tenants.length){ %><tr><td colspan="6">No tenants yet. Use Create tenant to add your first workspace.</td></tr><% } %>
     <% data.tenants.forEach(t => { %><tr data-search-row>
       <td><div class="dataCellLine" title="<%= t.name %> · <%= t.slug %>"><b><%= t.name %></b><span class="tiny"><%= t.slug %></span></div></td>
       <td><div class="dataCellLine" title="<%= t.owner %> · <%= t.email %>"><span><%= t.owner %></span><span class="tiny"><%= t.email %></span></div></td>
-      <td><%= data.plans.find(p=>p.code===t.plan)?.name || t.plan %></td>
-      <td><span class="tag"><%= typeof t.status==='string'?t.status.replaceAll('_',' '):'Unknown status' %></span></td>
-      <td><%= Array.isArray(t.enabledModules)?t.enabledModules.length:0 %> assigned</td>
+      <td><div class="dataCellLine"><b><%= t.currentPlanName||'No saved subscription' %></b><span class="tiny"><%= t.currentPlanVersion?'v'+t.currentPlanVersion+' · ':'' %><%= t.planAccessActive?'In term':'Inactive / expired / revoked' %></span></div></td>
+      <td><div class="dataCellLine"><span class="tag"><%= typeof t.status==='string'?t.status.replaceAll('_',' '):'Unknown status' %></span><span class="tiny"><%= t.setupStatus==='invited'?'Owner activation pending':t.setupStatus==='complete'?'Owner activated':'Setup unknown' %></span></div></td>
+      <td><%= t.currentModuleCount??0 %> available<% if(t.independentModuleCount){ %> · <%= t.independentModuleCount %> independent<% } %></td>
       <td><a class="btn" href="/platform/tenants/<%= t.id %>">Manage</a></td>
     </tr><% }) %>
   </tbody></table></div>

@@ -1,0 +1,59 @@
+<% const accounts=data.funds||{wallets:[],paymentAccounts:[]};
+   const cash=(accounts.paymentAccounts||[]).filter(a=>a.kind==='cash');
+   const wallets=accounts.wallets||[];
+   const ready=account=>account.expectedMinor!==null&&account.expectedMinor!==undefined&&account.state==='active'&&account.reconciliation==='matched';
+   const completeCash=cash.filter(ready).length,completeWallets=wallets.filter(ready).length; %>
+<section class="view show workspaceStack" aria-label="Mobile Money tenant onboarding and operating manual">
+ <section class="card">
+  <div class="cardHead"><div><b>Mobile Money operating guide</b><br><span>Owner setup · agent cash and float · manual and SMS-assisted operations · independent financial control</span></div><a class="btn" href="/tenant/mobile-money">Back to Mobile Money</a></div>
+  <div class="cardBody workspaceStack">
+   <p>Classic FinHub records and reconciles authorized agent operations; it does not initiate a provider transfer or claim that an internal receipt proves payment. Cash and provider electronic float remain separate real accounts, and commission estimates are not money received.</p>
+   <div class="networkBalanceGrid">
+    <div class="networkBalanceStat"><span>Verified physical cash accounts in this branch</span><strong><%= completeCash %> / <%= cash.length %></strong><small>Assigned operator · independently approved</small></div>
+    <div class="networkBalanceStat"><span>Verified provider float wallets</span><strong><%= completeWallets %> / <%= wallets.length %></strong><small>Provider and currency · independently approved</small></div>
+   </div>
+   <p class="tiny">These counts reflect only your authorized operating branch account scope. Shift, transaction, provider settlement and expense readiness must be checked separately.</p>
+  </div>
+ </section>
+ <section class="card">
+  <div class="cardHead"><b>Tenant Owner — setup checklist</b><span>Do in order; do not invent opening balances</span></div>
+  <div class="cardBody">
+   <ol class="setupSteps">
+    <li><strong>Business, branch and staff</strong><p>Verify the business identity, operating branch, active Mobile Money subscription and role assignments. Invite the actual agent operator and a different Reconciliation Officer. Do not let the owner open an employee's shift.</p><div class="rowBtns"><a class="btn" href="/tenant/branches">Branches</a><a class="btn" href="/tenant/users">Staff</a></div></li>
+    <li><strong>Cash drawer and network wallet</strong><p>Create the operator's real cash drawer and a real provider float account. Codes are generated automatically. MTN Uganda uses UGX, Airtel Uganda UGX, and MTN South Sudan SSP. Currency is derived from the verified provider market.</p><a class="btn" href="/tenant/treasury">Set up cash and float</a></li>
+    <li><strong>Independent opening evidence</strong><p>Record genuine physical cash count and official provider float statement/app balance; a different authorized reviewer approves both. Ensure both accounts show active and matched, with zero reviewed difference.</p><a class="btn" href="/tenant/treasury/review">Opening balance review</a></li>
+    <li><strong>Owner fee policy and provider rate sheets</strong><p>Set real, contractually permitted agent-collected customer fees. Record-only is the safe default. Add provider commission schedules from dated real documents; commission estimates never increase wallet balances. An independent reviewer approves schedule versions.</p><div class="rowBtns"><a class="btn" href="/tenant/workspace/pricing">Agent-collected fee configuration</a><a class="btn" href="/tenant/mobile-money/tariffs">Provider rate sheets</a></div></li>
+    <li><strong>Provider commission receipt destination</strong><p>At actual payout, choose the wallet where the provider really credited the funds. Use the main float wallet only if the credit actually landed there; create a separate genuine commission wallet if the provider uses a separate line. Posting is disabled until legacy-commission migration and release gates are verified.</p><a class="btn" href="/tenant/mobile-money/tariffs">Actual received commissions</a></li>
+    <li><strong>Optional SMS-assisted capture</strong><p>Connect a dedicated Android agent device using enrolled senders and signed HTTPS. Verify native provider message formats, never treat arbitrary SMS as authenticated provider settlement. Manual entry remains available.</p><a class="btn" href="/tenant/sms-capture">SMS Capture</a></li>
+   </ol>
+  </div>
+ </section>
+ <section class="card">
+  <div class="cardHead"><b>Mobile Money Operator — operating day</b><span>Manual or SMS-assisted capture only</span></div>
+  <div class="cardBody">
+   <ol class="setupSteps">
+    <li><strong>Count and open physical cash shift</strong><p>Sign in as the assigned drawer operator, count physical cash and request an opening. A separate reviewer must verify it. Cash shift and Treasury cash account must belong to the same operator and branch.</p><a class="btn" href="/tenant/cash/shifts">Cash shifts</a></li>
+    <li><strong>Complete real provider transaction</strong><p>Use the authorized provider channel first. Cash-In means receive customer cash and send provider float; Cash-Out means receive provider float and pay customer cash. Do not record fabricated provider confirmations.</p></li>
+    <li><strong>Record deposit or withdrawal</strong><p>Choose the provider. Currency, approved provider wallet and assigned cash account are selected automatically where unambiguous. Enter real customer phone, amount and genuine provider reference. Internal books post immediately; an internal review does not prove network settlement.</p><div class="rowBtns"><a class="btn btnPrimary" href="/tenant/mobile-money/cash-in">Record deposit</a><a class="btn" href="/tenant/mobile-money/cash-out">Record withdrawal</a></div></li>
+    <li><strong>Verify and correct</strong><p>Inspect real provider evidence and cash/float movements. If a transaction was entered in error, the original operator requests a correction; a separate reviewer authorizes an audited reversal. Never edit or delete ledger entries.</p><div class="rowBtns"><a class="btn" href="/tenant/mobile-money/history">Transaction history</a><a class="btn" href="/tenant/mobile-money">Independent internal review</a></div></li>
+    <li><strong>Close, reconcile and review</strong><p>Resolve pending entries, physically count the cash drawer and submit closing evidence. An independent supervisor approves or disputes. Reconcile actual provider electronic float from statement/app and review received commission evidence.</p><a class="btn" href="/tenant/cash/shifts">End-of-day cash control</a></li>
+   </ol>
+  </div>
+ </section>
+ <section class="card">
+  <div class="cardHead"><b>Daily, weekly, monthly, quarterly and annual reporting</b></div>
+  <div class="cardBody workspaceStack">
+   <p>One report groups each provider and currency separately: deposit and withdrawal principal, cash impact, fees recorded, genuinely collected agent fees, estimated commissions, actual posted provider payouts, withheld taxes, deductions, pending reviews, voids and manually/SMS captured entries.</p>
+   <p>Approved operating expenses are shown separately by currency. Shared branch expenses cannot be assigned to an individual network without an evidence-based allocation policy. Cross-currency sums are never called profit.</p>
+   <a class="btn btnPrimary" href="/tenant/mobile-money/report">Open consolidated report</a>
+   <p class="tiny">If no actual provider payout was verified or its posting control is disabled, received commission remains zero even when estimates appear. This is financially correct.</p>
+  </div>
+ </section>
+ <section class="card">
+  <div class="cardHead"><b>Exception response and production cautions</b></div>
+  <div class="cardBody">
+   <p><b>Fake provider reference:</b> Request and independently approve an internal void; verify inverse cash/float journals. <b>Account mismatch:</b> Stop new postings until the real provider statement and cash count reconcile. <b>Insufficient funds:</b> Do not override limits or create invented float. <b>SMS uncertain:</b> Leave in the review inbox. <b>Provider timeout:</b> Check provider status before resubmitting.</p>
+   <p class="tiny">The SMS relay needs real-device and native-message testing; the public provider API is not the same as an ordinary agent float API. The commission posting gate cannot be enabled solely to make the dashboard show income. Preserve old records and separately audit historical wallet-commission modes.</p>
+  </div>
+ </section>
+</section>

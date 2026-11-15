@@ -55,11 +55,16 @@ async function context(req,res,{branches:providedBranches}={}){
 async function change(req,res,next){try{
  if(!canViewBranches(req.user))throw fail('Branch viewing is limited to tenant-wide administrators and auditors');
  const selected=req.body?.viewBranchId;
+ let label='All branches';
  if(selected!=='all'){
   if(typeof selected!=='string'||!OID.test(selected))throw fail('Choose an active viewing branch',400);
-  if(!await require('../models').branchModel(req.tenantDb).exists({_id:selected,status:'active'}))throw fail('The viewing branch is inactive or unavailable',404);
+  const branch=await require('../models').branchModel(req.tenantDb).findOne({_id:selected,status:'active'}).select('name').lean();
+  if(!branch)throw fail('The viewing branch is inactive or unavailable',404);
+  label=branch.name;
  }
+ const previous=req.session.viewBranchId;
  req.session.viewBranchId=selected;
+ if(previous!==selected)require('../../utils/view').flash(req,'good',selected==='all'?'Now viewing all permitted branches.':'Now viewing '+label+'. Your operating branch is unchanged.');
  res.redirect(303,safeReturnTo(req.body.returnTo));
  }catch(error){next(error);}}
 module.exports={canViewBranches,readScope,ownerScope:readScope,withReadView,withoutReadView,followRecord,mainBranch,safeReturnTo,context,change};

@@ -63,13 +63,17 @@ async function volumes(conn,tenant,user,input={},operationBranch=null,overview={
  const currency=selectedCurrency(input.currency,operationBranch),now=input.now||new Date(),result={};
  await Promise.all(Object.entries(sources).map(async([key,spec])=>{
   if(overview[spec.flag]===false||!hasModuleForUser(tenant,user,key)||!hasPermission(user,`${key}.view`))return;
-  const match=key==='mobile_money'?{...activeMatch(user,key,operationBranch,now),fundingState:'book_recorded'}:executionMatch(user,key,operationBranch,currency,now);
+  const market=key==='mobile_money'?input.mobileMarket:null;
+  const effectiveCurrency=market?.currency||currency;
+  const match=key==='mobile_money'?{...activeMatch(user,key,operationBranch,now),fundingState:'book_recorded',
+   ...(market?.network?{network:market.network}:{})}:executionMatch(user,key,operationBranch,currency,now);
   const Model=key==='mobile_money'?models.mobileTransactionModel(conn):require('../funded/models').models(conn).execution;
   const grouped=await Model.aggregate([
    {$match:match},
    {$group:{_id:{currency:key==='mobile_money'?'$currency':{$literal:currency},status:'$status'},count:{$sum:1},amountMinor:{$sum:key==='mobile_money'?'$amountMinor':executionAmount(key,currency)}}}
   ]).option({maxTimeMS:2500});
-  result[key]={...totalFor(grouped,currency),basis:key==='mobile_money'?'posted funds book movements':'independently reviewed posted manual movements'};
+  result[key]={...totalFor(grouped,effectiveCurrency),basis:key==='mobile_money'?'posted funds book movements':'independently reviewed posted manual movements',
+   ...(market?{network:market.network,networkLabel:market.label}:{})};
  }));
  return {selectedCurrency:currency,currencyOptions:currencyCodes.map(code=>({code,label:currencyLabel(code)})),todayVolumes:result,date:now.toISOString().slice(0,10)};
 }

@@ -35,7 +35,14 @@ module.exports=function treasuryRoutes({renderTenant}){
  }));
  router.post('/funding',requirePermission('treasury.observe'),throttle,wrap(async(req,res)=>{const result=await funding.request(req.tenantDb,req.tenant,req.user,req.body);flash(req,'good',result.duplicate?'This funding transfer already exists.':'Funding transfer submitted for independent review.');branchView.followRecord(req,result.funding);res.redirect(303,'/tenant/treasury#funding-history');}));
  router.post('/funding/:id/review',requirePermission('treasury.review'),throttle,wrap(async(req,res)=>{const result=await funding.review(req.tenantDb,req.tenant,req.user,req.params.id,req.body);flash(req,'good',result.funding.status==='posted'?'Funding posted to both accounts.':'Funding transfer rejected.');branchView.followRecord(req,result.funding);res.redirect(303,'/tenant/treasury#funding-history');}));
- router.get('/accounts/:id',wrap(async(req,res)=>{const detail=await treasury.accountDetail(req.tenantDb,req.tenant,req.user,req.params.id);renderTenant(req,res,'treasury/detail',detail.account.name,'Expected book balance and independently reviewed actual observations.',{...detail,canManage:can(req,'treasury.manage'),canObserve:can(req,'treasury.observe'),canReview:can(req,'treasury.review'),idempotencyKey:randomUUID()});}));
+ router.get('/accounts/:id',wrap(async(req,res)=>{const detail=await treasury.accountDetail(req.tenantDb,req.tenant,req.user,req.params.id);
+  const cashDrawerOptions=detail.account.kind==='wallet'&&can(req,'treasury.manage')?
+   await require('../treasury/models').models(req.tenantDb).account.find({
+    tenantId:req.tenant._id,branchId:detail.account.branchId,kind:'cash',
+    currency:detail.account.currency,status:'active',reconciliationState:'matched',
+    openingApprovedAt:{$ne:null}
+   }).select('_id name operatorId').sort({name:1}).lean():[];
+  renderTenant(req,res,'treasury/detail',detail.account.name,'Expected book balance and independently reviewed actual observations.',{...detail,cashDrawerOptions,canManage:can(req,'treasury.manage'),canObserve:can(req,'treasury.observe'),canReview:can(req,'treasury.review'),idempotencyKey:randomUUID()});}));
  router.post('/accounts/:id/archive',requirePermission('treasury.manage'),throttle,wrap(async(req,res)=>{
   const account=await treasury.archiveUnusedWallet(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
   flash(req,'good','Unused wallet archived. Rejected evidence and ledger identity were preserved in the audit history.');

@@ -2,11 +2,11 @@
    const entryLabel = entryOperation === 'cash_in' ? 'Deposit' : 'Withdraw';
    const entryPermissions = user.permissions || [];
    const entryCan = permission => entryPermissions.includes('*') || entryPermissions.includes(permission);
-   const configuredNetworks=[...new Set((data.funds?.wallets||[]).filter(w=>(w.assignedToOperator||w.shared)&&w.state==='active'&&w.expectedMinor!==null).map(w=>w.network))];
+   const configuredNetworks=[...new Set((data.funds?.wallets||[]).filter(w=>(w.assignedToOperator||w.shared)&&w.state==='active'&&w.reconciliation==='matched'&&w.expectedMinor!==null).map(w=>w.network))];
    const entryNetworks = configuredNetworks.length?configuredNetworks:(data.networksAvailable || ['MTN','MTN SSD','Airtel','Africell','M-Pesa','mGURUSH','Digi Cash']);
    const entryNetworkCurrencies={MTN:'UGX','MTN SSD':'SSP',Airtel:'UGX'};
    const entryCurrencyOptions=data.entryCurrencies?.length?data.entryCurrencies:(currentBranch.currencies||['UGX','USD','SSP','KES']).map(code=>({code,label:code==='KES'?'KSH':code}));
-   const entryEligibleWallets=(data.funds?.wallets||[]).filter(w=>w.state==='active'&&w.expectedMinor!==null);
+   const entryEligibleWallets=(data.funds?.wallets||[]).filter(w=>w.state==='active'&&w.reconciliation==='matched'&&w.expectedMinor!==null);
    const entryVerifiedMarket=network=>{const markets=[...new Set(entryEligibleWallets.filter(w=>w.network===network).map(w=>w.currency))];return entryNetworkCurrencies[network]||(markets.length===1?markets[0]:'');};
    const entryNeedsWallet=network=>['mGURUSH','Digi Cash'].includes(network)&&!entryEligibleWallets.some(w=>w.network===network);
    const selectedEntryNetwork=entryNetworks.find(n=>entryNetworkCurrencies[n]&&entryCurrencyOptions.some(c=>c.code===entryNetworkCurrencies[n]))||entryNetworks.find(n=>!entryNetworkCurrencies[n])||entryNetworks[0];

@@ -30,16 +30,26 @@ async function overview(conn,tenant,user,options={}){
  // viewing scope must not silently display a single operating branch as if total.
  const wideRead=['Tenant Owner','Auditor'].includes(user.role)&&options.viewBranchId!==undefined&&options.viewBranchId!==null;
  const fundsBranch=wideRead?(options.viewBranchId==='all'?null:options.viewBranch||null):options.operationBranch;
- const [mobileRows,bankingRows,forexRows,transferRows,workspaceSnapshot,mobileFunds]=await Promise.all([
+ const [mobileRows,bankingRows,forexRows,transferRows,mobileFunds]=await Promise.all([
   hasMobileMoney?require('./mobileMoney.service').recent(conn,mobileScope(user)):[],
   hasBanking?require('./banking.service').recent(conn,tenant,user):[],
   hasForex?require('./forex.service').recent(conn,tenant,user):[],
   hasTransfer?require('./moneyTransfer.service').recent(conn,tenant,user):[],
-  snapshot.snapshot(conn,tenant,user,flags,options.operationBranch,options),
   hasMobileMoney&&fundsBranch?require('./mobileMoneyFunds.service').context(conn,tenant,user,fundsBranch):null
  ]);
- const mobileBookTotals={cash:groupedBookTotals((mobileFunds?.paymentAccounts||[]).filter(a=>a.kind==='cash')),float:groupedBookTotals(mobileFunds?.wallets||[])};
- const data={...flags,mobileFunds,mobileBookTotals,mobileFundsState:!hasMobileMoney?'unavailable':wideRead&&options.viewBranchId==='all'?'all_branches':fundsBranch?'resolved':'branch_required',summary:{recent:mobileRows},bankingRecords:{items:bankingRows},forexRecords:{items:forexRows},transferRecords:{items:transferRows}};
+ const marketService=require('./mobileMoneyMarket.service');
+ const mobileMarkets=marketService.markets(mobileFunds?.wallets||[]);
+ const mobileMarket=mobileMarkets[0]||null;
+ // Use the provider's actual currency in Mobile Money, independently of the
+ // currency selected for unrelated Money Transfer, Banking and Forex cards.
+ const overviewOptions={...options,mobileMarket};
+ if(mobileMarket&&!hasTransfer&&!hasBanking&&!hasForex&&!options.currency)
+  overviewOptions.currency=mobileMarket.currency;
+ const workspaceSnapshot=await snapshot.snapshot(conn,tenant,user,flags,options.operationBranch,overviewOptions);
+ const displayWallets=mobileMarket?(mobileFunds?.wallets||[]).filter(a=>a.network===mobileMarket.network&&a.currency===mobileMarket.currency):(mobileFunds?.wallets||[]);
+ const displayCash=mobileMarket?(mobileFunds?.paymentAccounts||[]).filter(a=>a.kind==='cash'&&a.currency===mobileMarket.currency):(mobileFunds?.paymentAccounts||[]).filter(a=>a.kind==='cash');
+ const mobileBookTotals={cash:groupedBookTotals(displayCash),float:groupedBookTotals(displayWallets)};
+ const data={...flags,mobileFunds,mobileMarkets,mobileMarket,mobileBookTotals,mobileFundsState:!hasMobileMoney?'unavailable':wideRead&&options.viewBranchId==='all'?'all_branches':fundsBranch?'resolved':'branch_required',summary:{recent:mobileRows},bankingRecords:{items:bankingRows},forexRecords:{items:forexRows},transferRecords:{items:transferRows}};
  return {...data,workspaceSnapshot:{...workspaceSnapshot,...snapshot.activity(data)}};
 }
 module.exports={overview,mobileScope,groupedBookTotals};

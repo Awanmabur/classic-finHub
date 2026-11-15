@@ -30,7 +30,7 @@ test('agent transaction shows confirmed-rate estimates separately from configure
  assert.match(template,/data-mobile-provider-charge/);
  assert.match(template,/include\('\.\.\/partials\/operation-pricing'/);
  assert.match(quoteJs,/\/tenant\/mobile-money\/quote/);
- assert.match(quoteJs,/No approved matching sheet/);
+ assert.match(quoteJs,/Not configured — request approved agent rate sheet/);
  assert.doesNotThrow(()=>new Function(quoteJs));
  const routes=source('src/tenant/routes/mobileMoneyWorkspace.routes.js');
  const quote=routes.slice(routes.indexOf("router.get('/quote'"),routes.indexOf("router.get('/cash-in'"));
@@ -51,7 +51,9 @@ test('agent form selects authorized cash and provider float without customer wal
  assert.match(template,/data-payment-account-field/);
  assert.doesNotMatch(template,/data-customer-wallet/);
  assert.match(template,/assignedToOperator/);
- assert.match(scripts,/paymentField.hidden=validAccounts.length===1/);
+ assert.match(scripts,/paymentField.hidden=true/);
+ assert.match(scripts,/configuredDrawer=wallet.selectedOptions/);
+ assert.match(template,/data-cash-drawer/);
  assert.match(scripts,/walletField.hidden=available.length===1/);
  assert.match(service,/options.requireFunds===true && values.paymentMethod!=='Cash'/);
 });

@@ -33,7 +33,7 @@ async function context(conn,tenant,actor,branch){
   const balances=new Map(postings.map(row=>[String(row._id),String(row.amount)]));
   customerAccounts=rows.map(row=>({id:String(row._id),name:row.customer.name,last4:row.accountNumber.slice(-4),currency:row.currency,balance:money(balances.get(String(row.ledgerAccountId))||'0',row.currency)}));
  }
- return {wallets:accounts.filter(account=>account.kind==='wallet').map(account=>({...summary(account),assignedToOperator:String(account.operatorId||'')===String(actor.id)})),paymentAccounts:accounts.filter(account=>['cash','bank'].includes(account.kind)).map(account=>({...summary(account),assignedToOperator:String(account.operatorId||'')===String(actor.id)})),customerAccounts,setupHref:'/tenant/treasury'};
+ return {wallets:accounts.filter(account=>account.kind==='wallet').map(account=>({...summary(account),assignedToOperator:String(account.operatorId||'')===String(actor.id),shared:!account.operatorId})),paymentAccounts:accounts.filter(account=>['cash','bank'].includes(account.kind)).map(account=>({...summary(account),assignedToOperator:String(account.operatorId||'')===String(actor.id)})),customerAccounts,setupHref:'/tenant/treasury'};
 }
 async function shouldTrack(conn,tenant,values,required){
  if(required||values.walletAccountId)return true;

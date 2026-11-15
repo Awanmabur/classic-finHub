@@ -97,13 +97,24 @@
           <li><%= plan.limits.transactionsPerMonth.toLocaleString('en-US') %> transaction records / month</li>
           <% if(auto){ %><li><%= plan.limits.smsPerMonth.toLocaleString('en-US') %> SMS imports / month; manual entry included</li><% } %>
           <li><%= plan.trialMonths?plan.trialMonths+' month'+(plan.trialMonths===1?'':'s')+' trial':'No trial' %></li>
-          <li><%= labels.length?'Included: '+labels.join(', '):'Add services to your workspace as needed' %></li>
+        </ul>
+        <div class="planIncludedModules" aria-label="Included modules for <%= plan.name %>"><strong>Included with this plan</strong>
+          <% if(labels.length){ %><ul><% labels.forEach(label=>{ %><li><i class="fa-solid fa-check" aria-hidden="true"></i> <%= label %></li><% }) %></ul>
+          <% }else{ %><p>Workspace access only. Operational modules are subscribed to separately.</p><% } %>
+        </div>
+        <ul>
         </ul>
         <a class="btn <%= auto?'btn-dark':'btn-light' %>" href="/signup">Request <%= plan.name %></a>
       </article>
       <% }) %>
     </section>
     <% } %>
+    <section class="addon-grid reveal" aria-labelledby="optionalAddonsTitle">
+      <article><p class="kicker">Optional add-ons · not bundled unless listed in a published plan</p><h2 id="optionalAddonsTitle">Add extra capabilities only when needed</h2><p>These are separately entitled services. Their listed monthly prices are indicative until an administrator approves the subscription; the application does not automatically collect payment.</p></article>
+      <% (typeof addonModules==='undefined'?[]:addonModules).forEach(addon=>{ %>
+        <article data-addon-key="<%= addon.key %>"><h3><%= addon.name %></h3><p><%= addon.description %></p><strong>USD $<%= addon.priceMonthly.toFixed(2) %> / month · standalone</strong><p><a class="btn btn-light" href="/signup">Request this add-on</a></p></article>
+      <% }) %>
+    </section>
     <section class="addon-grid reveal">
       <article><h2>Choose how records arrive</h2><p>Manual plans support staff entry. SMS-assisted plans add a registered, branch-bound SMS relay and capture inbox while retaining the same manual workflows. Automatic capture has a higher subscription price than its matching manual plan.</p></article>
       <article><h2>Know what is included</h2><p>The modules, staff seats, branch capacity and import quotas shown here follow the current published plan. Future plan revisions do not silently change existing subscriber terms.</p><a class="btn btn-light" href="/price-compare">Compare current plans</a></article>

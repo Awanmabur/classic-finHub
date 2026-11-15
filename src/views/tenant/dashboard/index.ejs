@@ -5,12 +5,35 @@
    const currencyRows=typeof currencyOptions==='undefined'?[{code:'UGX',label:'UGX'},{code:'USD',label:'USD'},{code:'SSP',label:'SSP'},{code:'KES',label:'KSH'}]:currencyOptions;
    const cards=[['hasTransfer','money_transfer','Money transfer volume','ovTransfer','Send + payout'],['hasMobileMoney','mobile_money','Mobile money volume','ovMobile','Deposits + withdrawals'],['hasBanking','banking','Banking volume','ovBanking','Deposit/withdraw/transfer'],['hasForex','forex','Forex volume','ovForex','Buy + sell exchange']];
    const hasSources=cards.some(([flag])=>data[flag]);
+   const canConfigureFunds=(user.permissions||[]).some(p=>p==='*'||p==='treasury.view');
+   const cashFunds=(data.mobileFunds?.paymentAccounts||[]).filter(a=>a.kind==='cash');
+   const floatFunds=data.mobileFunds?.wallets||[];
+   const fundsVisibility=data.mobileFundsState==='branch_required'?'No operating branch is selected':data.mobileFunds?.visibilityRestricted?'Restricted by role':null;
    const canSeeCash=visiblePaths.has('/tenant/treasury'); %>
 <section class="view show" id="view-overview">
   <div class="card"><div class="cardHead"><div><b>Today snapshot</b><br><span>Core modules plus daily control</span></div><span class="mono" id="terminalCode"><%= snapshot.terminalCode||tenant.slug||'—' %></span></div>
     <div class="cardBody">
       <% if(hasSources){ %><div class="grid3">
         <% cards.forEach(([flag,key,label,id,sub])=>{if(!data[flag])return;const value=volumes[key]; %><div class="stat" title="Today's active recorded <%= key.replaceAll('_',' ') %> operations and instructions. This total is separate from verified external balances."><div class="k"><%= label %></div><div class="v" id="<%= id %>"><%= value?.formatted||'—' %></div><div class="s"><span class="dot <%= key==='forex'?'warn':'' %>"></span><span><%= sub %></span></div></div><% }) %>
+        <% if(data.hasMobileMoney){ %>
+        <% [['cash',cashFunds,'Physical cash · book balance','ovCash'],['float',floatFunds,'Electronic float · wallet balance','ovFloat']].forEach(([type,accounts,label,id])=>{ %>
+        <div class="stat" data-dashboard-fund-stat="<%= type %>" title="Approved opening balances plus recorded internal funds movements, not live provider balances.">
+          <div class="k"><%= label %></div>
+          <% if(fundsVisibility){ %><div class="v" id="<%= id %>"><%= fundsVisibility %></div>
+          <% }else if(!accounts.length){ %><div class="v" id="<%= id %>">Not configured</div>
+          <% }else{ %>
+             <div class="v" id="<%= id %>"><%= accounts.length===1?(accounts[0].expected||'Opening approval pending'):accounts.length+' accounts' %></div>
+             <% accounts.slice(0,3).forEach(account=>{ %><div class="s"><span><%= account.name %> · <%= account.currency %>: <%= account.expected||'Opening approval pending' %></span></div><% }) %>
+             <% if(accounts.length>3){ %><div class="s"><span>+<%= accounts.length-3 %> more accounts in the funds register</span></div><% } %>
+          <% } %>
+          <div class="s"><span class="dot <%= type==='float'?'warn':'' %>"></span>
+            <% if(canConfigureFunds){ %><a href="/tenant/treasury"><%= accounts.length?'View accounts / reconcile':'Set up '+(type==='cash'?'cash drawer':'provider wallet') %></a>
+            <% }else if(['Tenant Owner','Mobile Money Operator','Branch Manager','Reconciliation Officer','Auditor'].includes(user.role)){ %><a href="/tenant/mobile-money/readiness">Check readiness</a>
+            <% }else{ %><span>Branch-scoped funds only</span><% } %>
+          </div>
+        </div>
+        <% }) %>
+        <% } %>
       </div><% } else { %><p>Your workspace is ready.</p><p class="tiny"><%= visiblePaths.has('/tenant/modules')?'Choose the modules your team needs to start recording activity.':'Your administrator can enable the modules you need to get started.' %></p><% if(visiblePaths.has('/tenant/modules')){ %><a class="btn" href="/tenant/modules">Explore modules</a><% } %><% } %>
       <% if(financialActions.length||visiblePaths.has('/tenant/reports')||visiblePaths.has('/tenant/cash/shifts')){ %><div class="rowBtns" style="margin-top:12px">
         <% financialActions.forEach((action,index)=>{ %><a class="btn <%= index===0?'btnPrimary':'' %>" href="<%= action.href %>" data-transaction-kind="<%= action.kind %>"><%= action.label %></a><% }) %>
@@ -20,48 +43,6 @@
       </div><% } %>
     </div>
   </div>
-  <% if(data.hasMobileMoney){ 
-    const fundAccounts=[...(data.mobileFunds?.paymentAccounts||[]).filter(a=>a.kind==='cash'),...(data.mobileFunds?.wallets||[])];
-    const cashAccounts=fundAccounts.filter(a=>a.kind==='cash'),floatAccounts=fundAccounts.filter(a=>a.kind==='wallet');
-  %>
-  <div class="rowBtns" style="margin-top:12px;margin-bottom:8px">
-   <% if(['Tenant Owner','Mobile Money Operator','Branch Manager','Reconciliation Officer'].includes(user.role)){ %><a class="btn btnPrimary" href="/tenant/cash/shifts">Open day / enter starting cash</a><% } %>
-   <% if((user.permissions||[]).some(p=>p==='*'||p==='treasury.view')){ %><a class="btn" href="/tenant/treasury">Cash and float accounts</a><% } %>
-   <% if(['Tenant Owner','Mobile Money Operator','Branch Manager','Reconciliation Officer','Auditor'].includes(user.role)){ %><a class="btn" href="/tenant/mobile-money/readiness">Why are balances missing?</a><% } %>
-  </div>
-  <section class="card mobileDashboardBalances" style="margin-top:14px" aria-label="Mobile Money cash and float account balances">
-   <div class="cardHead"><div><b>Mobile Money cash and float</b><br><span>Operating-branch book balances, separate from transaction volume and estimated commission</span></div><a class="btn" href="/tenant/mobile-money">Mobile Money</a></div>
-   <div class="cardBody">
-    <% if(data.mobileFundsState==='branch_required'){ %>
-      <p class="tiny">No operating branch is selected for this account. Assign an operating branch in Branch Management before branch balances can be shown. No amounts have been inferred.</p>
-    <% }else if(data.mobileFunds?.visibilityRestricted){ %>
-      <p class="tiny">This read-only role does not have permission to view cash or provider float account balances.</p>
-    <% }else if(!fundAccounts.length){ %>
-      <div class="networkBalanceGrid">
-       <div class="networkBalanceStat"><span>Physical cash · book balance</span><strong>Not configured</strong><small>Set up and independently approve an operating cash account</small></div>
-       <div class="networkBalanceStat"><span>Electronic float · provider wallet</span><strong>Not configured</strong><small>Create an account for each provider, market and currency</small></div>
-      </div>
-      <p class="tiny">No eligible physical cash drawer or network float account is assigned to this operating branch. Configure and independently approve the opening balances in Treasury. Opening a cash shift alone does not create a treasury wallet.</p>
-    <% }else{ %>
-      <div class="networkBalanceGrid">
-       <% fundAccounts.forEach(account=>{ %>
-        <div class="networkBalanceStat">
-         <span><%= account.kind==='cash'?'Physical cash':'Electronic float · '+(account.network==='MTN SSD'?'MTN South Sudan':account.network==='MTN'?'MTN Uganda':account.network) %></span>
-         <strong><%= account.expected||'Opening approval pending' %></strong>
-         <small><%= account.name %> · <%= account.currency %> · <%= account.reconciliation||'Not reconciled' %> · book balance</small>
-        </div>
-       <% }) %>
-      </div>
-      <% if(!cashAccounts.length||!floatAccounts.length){ %>
-       <div class="networkBalanceGrid" style="margin-top:12px">
-        <% if(!cashAccounts.length){ %><div class="networkBalanceStat"><span>Physical cash</span><strong>Not configured</strong><small>No cash account is available in this branch</small></div><% } %>
-        <% if(!floatAccounts.length){ %><div class="networkBalanceStat"><span>Electronic float</span><strong>Not configured</strong><small>No provider wallet is available in this branch</small></div><% } %>
-       </div>
-      <% } %>
-    <% } %>
-   </div>
-  </section>
-  <% } %>
   <div class="<%= canSeeCash?'grid':'' %>" style="margin-top:14px">
     <div class="card"><div class="cardHead"><div><b>Recent activity</b><br><span>Click any row to open receipt</span></div></div><div class="cardBody"><div class="txList" id="recentList">
       <% if(!(snapshot.recentActivity||[]).length){ %><div class="tiny">No records yet.</div><% } %>

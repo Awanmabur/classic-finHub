@@ -2,7 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const view=require('../src/tenant/services/branchView.service');
 const main={_id:'507f1f77bcf86cd799439011',name:'Kampala Main',code:'main',currency:'UGX'},east={_id:'507f1f77bcf86cd799439012',name:'East',code:'east',currency:'UGX'};
-function connection(rows){return {models:{SecureBranch:{find:()=>({sort(){return this;},select(){return this;},lean:async()=>rows}),exists:async query=>rows.some(row=>String(row._id)===String(query._id)&&row.status!=='archived')}}};}
+function connection(rows){return {models:{SecureBranch:{find:()=>({sort(){return this;},select(){return this;},lean:async()=>rows}),exists:async query=>rows.some(row=>String(row._id)===String(query._id)&&row.status!=='archived'),findOne:query=>({select(){return this;},lean:async()=>rows.find(row=>String(row._id)===String(query._id)&&(row.status||'active')===query.status)||null})}}};}
 function req(role='Tenant Owner',method='GET',session={}){return {method,user:{id:'507f1f77bcf86cd799439013',role,branchId:main._id,transactionBranchId:main._id},session,tenantDb:connection([east,main]),originalUrl:'/tenant/reports/mobile?from=2026-11-01&network=MTN&cursor=stale'};}
 test('tenant-wide viewing defaults to main, supports All, and leaves the operating assignment unchanged',async()=>{
  for(const role of ['Tenant Owner','Auditor']){

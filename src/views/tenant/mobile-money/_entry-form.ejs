@@ -9,7 +9,7 @@
    const entryEligibleWallets=(data.funds?.wallets||[]).filter(w=>w.state==='active'&&w.reconciliation==='matched'&&w.expectedMinor!==null);
    const entryVerifiedMarket=network=>{const markets=[...new Set(entryEligibleWallets.filter(w=>w.network===network).map(w=>w.currency))];return entryNetworkCurrencies[network]||(markets.length===1?markets[0]:'');};
    const entryNeedsWallet=network=>['mGURUSH','Digi Cash'].includes(network)&&!entryEligibleWallets.some(w=>w.network===network);
-   const selectedEntryNetwork=entryNetworks.find(n=>entryNetworkCurrencies[n]&&entryCurrencyOptions.some(c=>c.code===entryNetworkCurrencies[n]))||entryNetworks.find(n=>!entryNetworkCurrencies[n])||entryNetworks[0];
+   const selectedEntryNetwork=(entryNetworks.includes('MTN')&&entryCurrencyOptions.some(c=>c.code==='UGX')?'MTN':null)||entryNetworks.find(n=>entryNetworkCurrencies[n]&&entryCurrencyOptions.some(c=>c.code===entryNetworkCurrencies[n]))||entryNetworks.find(n=>!entryNetworkCurrencies[n])||entryNetworks[0];
    const entryCurrency=entryVerifiedMarket(selectedEntryNetwork)||data.entryCurrency||currentBranch.currency;
    const entryAmountPattern = entryCurrency === 'UGX' ? '[0-9]{1,11}' : '[0-9]{1,11}([.][0-9]{1,2})?';
    const entryCurrencyLabel = typeof currencyLabel === 'function' ? currencyLabel(entryCurrency) : (entryCurrency === 'KES' ? 'KSH' : entryCurrency); %>
@@ -43,12 +43,12 @@
         <label class="field">Amount (<span data-mobile-currency-label><%= entryCurrency %></span>)<input class="control" type="text" inputmode="decimal" name="amount" placeholder="0" pattern="<%= entryAmountPattern %>" required></label>
       </div>
       <input type="hidden" name="paymentMethod" value="Cash">
-      <div class="field"><span>Settlement accounts</span><div class="networkReadOnly"><b>Physical cash ↔ provider electronic float</b></div><small>Cash drawer and approved float wallet are assigned automatically from your operator, branch, currency and network. No bank or customer wallet is used for agent Cash-In/Cash-Out.</small></div>
+      <p class="tiny">The approved provider wallet and your physical drawer are matched automatically. No extra payment-method or cash-drawer selection is needed.</p>
       <%- include('_funds-context') %>
       <% const entryBalances=[...(data.funds?.paymentAccounts||[]).filter(a=>a.kind==='cash'),...(data.funds?.wallets||[])]; %>
       <div class="networkBalanceGrid mobileEntryBalances" data-mobile-balance-stats aria-label="Cash and float book balances">
        <% entryBalances.forEach(a=>{ %>
-        <div class="networkBalanceStat" data-balance-network="<%= a.network||'' %>" data-balance-currency="<%= a.currency %>" data-balance-kind="<%= a.kind %>">
+        <div class="networkBalanceStat" data-balance-account="<%= a.id %>" data-balance-network="<%= a.network||'' %>" data-balance-currency="<%= a.currency %>" data-balance-kind="<%= a.kind %>">
          <span><%= a.kind==='cash'?'Physical cash':'Electronic float · '+(a.network==='MTN SSD'?'MTN South Sudan':a.network) %></span>
          <strong><%= a.expected||'Opening approval pending' %></strong>
          <small><%= a.name %> · <%= a.reconciliation||'Not reconciled' %> · book balance</small>
@@ -60,7 +60,7 @@
     <%- include('../partials/operation-pricing',{pricingOperation:'mobile_money.'+entryOperation,pricingField:'fee'}) %>
     <section class="mobileQuoteSummary" data-mobile-provider-quote aria-live="polite">
       <div class="summary">
-       <div class="sumRow"><span>Expected agent commission from approved network sheet</span><b data-mobile-agent-commission>Enter an amount to check</b></div>
+       <div class="sumRow"><span>Agent commission · approved rate sheet (estimate)</span><b data-mobile-agent-commission>Enter an amount to check</b></div>
        <div class="sumRow"><span>Expected network charge to customer</span><b data-mobile-provider-charge>Enter an amount to check</b></div>
       </div>
       <p class="tiny" data-mobile-quote-note>Provider commission and provider charges are estimates, separate from the agent-configured customer fee above. Only approved effective sheets can produce a quote. They do not automatically change cash, float, or recognized income.</p>

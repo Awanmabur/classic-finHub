@@ -90,12 +90,34 @@ async function configureAccount(conn,tenant,actor,accountId,input){
   if(authorization.actor.role!=='Tenant Owner')throw fail('Tenant Owner account administration required',403);
   const account=await loadAccount(conn,authorization,accountId,{session,fence:true});
   if(account.status==='archived')throw fail('Restore this funds account before changing its settings',409);
+  // The owner chooses this once, not the agent on every operation. Restrict
+  // mapping to a genuine, approved, same-branch and same-currency cash account.
+  // An operator-bound wallet can only map to its own operator's cash drawer.
+  let linkedCashId;
+  if(account.kind==='wallet'&&input.cashDrawerAccountId!==undefined){
+   const requested=String(input.cashDrawerAccountId||'').trim();
+   if(requested){
+    const drawer=await models(conn).account.findOne({
+     _id:oid(requested,'cash drawer'),tenantId:authorization.tenant._id,
+     branchId:account.branchId,currency:account.currency,kind:'cash',
+     status:'active',reconciliationState:'matched',openingApprovedAt:{$ne:null}
+    }).session(session).lean();
+    if(!drawer||!drawer.operatorId)throw fail('Choose a verified physical cash drawer in the same branch and currency.',409);
+    if(account.operatorId&&String(drawer.operatorId)!==String(account.operatorId))
+     throw fail('A wallet assigned to a specific agent must link to that same agent’s cash drawer.',409);
+    linkedCashId=drawer._id;
+   }else linkedCashId=null;
+  }
+
   const selectionKey=`${account.branchId}:${account.kind}:${account.network}:${account.currency}:${account.operatorId||'shared'}`;
   if(isDefault)await models(conn).account.updateMany({_id:{$ne:account._id},tenantId:authorization.tenant._id,selectionKey},{$unset:{selectionKey:''},$inc:{revision:1}},{session});
-  const changes={$set:{name,feeTreatment:account.kind==='wallet'?feeTreatment:'record_only'},$inc:{revision:1},...(isDefault?{}:{$unset:{selectionKey:''}})};
+  const changes={$set:{name,feeTreatment:account.kind==='wallet'?feeTreatment:'record_only',
+   ...(linkedCashId!==undefined?{cashDrawerAccountId:linkedCashId}:{})},$inc:{revision:1},
+   ...(isDefault?{}:{$unset:{selectionKey:''}})};
   if(isDefault)changes.$set.selectionKey=selectionKey;
   const configured=await models(conn).account.findOneAndUpdate({_id:account._id,tenantId:authorization.tenant._id},changes,{session,new:true,runValidators:true}).lean();
-  await audit(conn,session,authorization.actor,'treasury.account.configured',account._id,{branchId:String(account.branchId),isDefault,feeTreatment:configured.feeTreatment});
+  await audit(conn,session,authorization.actor,'treasury.account.configured',account._id,{branchId:String(account.branchId),isDefault,feeTreatment:configured.feeTreatment,
+   cashDrawerAccountId:String(configured.cashDrawerAccountId||'')});
   return configured;
  });
 }

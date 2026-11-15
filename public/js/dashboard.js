@@ -157,7 +157,7 @@
     const currencyField=form.querySelector('[data-mobile-currency-field]');
     const marketLabel=form.querySelector('[data-mobile-currency-label]');
     const syncNetworkCurrency=()=>{
-      const code=networkControl?.selectedOptions[0]?.dataset.marketCurrency||'';
+      const code=networkControl?.selectedOptions?.[0]?.dataset.marketCurrency||networkControl?.dataset.marketCurrency||'';
       networkControl?.setCustomValidity(code&&!Array.from(currencyControl?.options||[]).some(option=>option.value===code)?'This branch does not support the selected network currency. Ask the administrator to enable it.':'');
       if(code&&currencyControl?.querySelector('option[value="'+code+'"]'))currencyControl.value=code;
       if(currencyField)currencyField.hidden=Boolean(code);

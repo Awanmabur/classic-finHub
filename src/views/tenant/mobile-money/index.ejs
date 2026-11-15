@@ -1,9 +1,37 @@
 <% const currentBranch = typeof operationBranch !== 'undefined' ? operationBranch : (data.branches || []).find(b => String(b._id) === String(user.transactionBranchId || user.branchId || data.selectedBranchId || '') && b.status !== 'archived');
    const currentBranchId = currentBranch ? String(currentBranch._id) : null;
-   const branchProblem = typeof operationBranchError === 'string' && operationBranchError ? operationBranchError : 'An active operating branch must be assigned to your account before creating records.'; %>
+   const branchProblem = typeof operationBranchError === 'string' && operationBranchError ? operationBranchError : 'An active operating branch must be assigned to your account before creating records.';
+   const canSetupFunds=(user.permissions||[]).includes('*')||(user.permissions||[]).includes('treasury.manage');
+   const canObserveFunds=(user.permissions||[]).includes('*')||(user.permissions||[]).includes('treasury.observe');
+   const canReviewFunds=(user.permissions||[]).includes('*')||(user.permissions||[]).includes('treasury.review');
+   const visibleCashAccounts=(data.funds?.paymentAccounts||[]).filter(a=>a.kind==='cash');
+   const visibleWalletAccounts=data.funds?.wallets||[];
+   const pendingFunds=[...visibleCashAccounts,...visibleWalletAccounts].filter(a=>!a.expected||a.state!=='active');
+   const needsOnboarding=!visibleCashAccounts.length||!visibleWalletAccounts.length||pendingFunds.length>0; %>
 <section class="view show mobileMoneyPage">
  <%- include('../../partials/operation-branch', {currentBranch, branchProblem, user}) %>
   <p class="tiny"><% if(['Tenant Owner','Mobile Money Operator','Branch Manager','Reconciliation Officer','Auditor'].includes(user.role)){ %><a class="btn" href="/tenant/mobile-money/shifts">Manage physical cash shifts</a><% } %> Obtain independent opening approval before recording Cash payments. Bank and Wallet Balance entries do not move the physical cash drawer. A shift is not provider float or a settled balance.</p>
+ <section class="card" data-mobile-onboarding aria-label="Mobile Money start and opening checklist">
+  <div class="cardHead"><div><b><%= needsOnboarding?'Start Mobile Money — cash and float setup':'Mobile Money operational setup' %></b><br><span><%= currentBranch?'Operating branch: '+currentBranch.name:'Operating branch not assigned' %> · actual balances only</span></div><a class="btn" href="/tenant/mobile-money/readiness">Check readiness</a></div>
+  <div class="cardBody">
+    <% if(needsOnboarding){ %>
+      <p class="tiny">Complete these real steps before expecting cash or electronic float amounts. An opened shift is not a provider wallet, and saved agent rate sheets are not money.</p>
+      <ol class="setupSteps">
+        <li><strong>1. Set up the cash drawer and network wallet</strong><p><%= visibleCashAccounts.length?'Cash drawer exists.':'No physical cash account is available for this branch.' %> <%= visibleWalletAccounts.length?'Wallet account exists.':'No mobile network float wallet is available for this branch.' %> Create a separate wallet for each network, market and currency.</p>
+          <% if(canSetupFunds){ %><a class="btn" href="/tenant/treasury#account-setup">Create cash / wallet account</a><% }else{ %><span class="tiny">Ask the Tenant Owner or an authorized Treasury Manager to configure the accounts.</span><% } %></li>
+        <li><strong>2. Submit and independently approve real opening balances</strong><p><%= pendingFunds.length?pendingFunds.length+' visible account(s) need opening approval or activation.':'Each account needs dated cash-count or provider-balance evidence, reviewed by a different authorized person.' %></p>
+          <% if(canObserveFunds){ %><a class="btn" href="/tenant/treasury">Open accounts to submit balance evidence</a><% } %>
+          <% if(canReviewFunds){ %><a class="btn" href="/tenant/treasury/review">Review opening evidence</a><% } %></li>
+        <li><strong>3. Open the physical cash day</strong><p>Count starting cash in the operating currency; an independent supervisor verifies the cash shift. This does not manufacture electronic float.</p>
+          <% if(['Tenant Owner','Mobile Money Operator','Branch Manager','Reconciliation Officer'].includes(user.role)){ %><a class="btn" href="/tenant/cash/shifts">Open or review cash shift</a><% } %></li>
+        <li><strong>4. Record and reconcile</strong><p>Once the required accounts and shift are approved, record a real deposit or withdrawal and compare book balances to physical counts and provider evidence.</p></li>
+      </ol>
+    <% }else{ %>
+      <p class="tiny">Cash drawers and provider wallets are configured for this operating branch. Check that your cash shift is open and reconciled before processing cash. Balances are internal book figures, not live provider balances.</p>
+      <div class="rowBtns"><a class="btn" href="/tenant/cash/shifts">Cash shift</a><a class="btn" href="/tenant/mobile-money/readiness">Review funds readiness</a></div>
+    <% } %>
+  </div>
+ </section>
   <% const overviewAccounts=[...(data.funds?.paymentAccounts||[]).filter(a=>a.kind==='cash'),...(data.funds?.wallets||[])]; %>
   <div class="rowBtns">
    <% if(['Tenant Owner','Mobile Money Operator'].includes(user.role)){ %><a class="btn btnPrimary" href="/tenant/cash/shifts">Open day / enter starting cash</a><% } %>

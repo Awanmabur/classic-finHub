@@ -36,7 +36,7 @@
       <div class="networkBalanceStat"><span>Net cash movement</span><strong><%= row.cashImpactMinorFormatted %></strong><small>Internal physical drawer movement</small></div>
       <div class="networkBalanceStat"><span>Provider commission received</span><strong><%= row.receivedCommissionMinorFormatted %></strong><small>Posted from independently reviewed payout evidence</small></div>
       <div class="networkBalanceStat"><span>Explicitly collected agent fees</span><strong><%= row.collectedFeeMinorFormatted %></strong><small>Only payment_collected policy, not provider charges</small></div>
-      <div class="networkBalanceStat"><span>Estimated commission</span><strong><%= row.commissionMissingCount&&row.estimatedCommissionMinor==='0'?'Not configured':row.estimatedCommissionMinorFormatted %></strong><small>From approved rate sheets only · <%= row.commissionMissingCount||0 %> transaction(s) without a matching sheet. Never posted as income.</small></div>
+      <div class="networkBalanceStat"><span>Estimated commission</span><strong><%= row.commissionMissingCount&&String(row.estimatedCommissionMinor)==='0'?'Not configured':row.estimatedCommissionMinorFormatted %></strong><small>From approved rate sheets only · <%= row.commissionMissingCount||0 %> transaction(s) without a matching sheet. Never posted as income.</small></div>
      </div>
      <div class="summary">
       <div class="sumRow"><span>All transaction fees recorded (including non-income)</span><b><%= row.recordedFeeMinorFormatted %></b></div>
@@ -58,7 +58,7 @@
       <td><b><%= row.network %></b> · <%= row.currency==='KES'?'KSH':row.currency %></td>
       <td><%= row.depositCount %></td><td><%= row.withdrawalCount %></td>
       <td><%= row.volumeMinorFormatted %></td><td><%= row.cashImpactMinorFormatted %></td>
-      <td><%= row.collectedFeeMinorFormatted %></td><td><%= row.commissionMissingCount&&row.estimatedCommissionMinor==='0'?'Not configured':row.estimatedCommissionMinorFormatted %><% if(row.commissionMissingCount){ %><small><%= row.commissionMissingCount %> missing sheet</small><% } %></td>
+      <td><%= row.collectedFeeMinorFormatted %></td><td><%= row.commissionMissingCount&&String(row.estimatedCommissionMinor)==='0'?'Not configured':row.estimatedCommissionMinorFormatted %><% if(row.commissionMissingCount){ %><small><%= row.commissionMissingCount %> missing sheet</small><% } %></td>
       <td><%= row.customerNetworkChargeEstimateMinorFormatted %></td><td><%= row.configuredCostEstimateMinorFormatted %></td>
       <td><%= row.receivedCommissionMinorFormatted %></td>
      </tr><% }) %></tbody>

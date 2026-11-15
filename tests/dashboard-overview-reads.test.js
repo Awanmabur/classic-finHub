@@ -26,3 +26,20 @@ test('transfer recent activity preserves incoming paid transfer scope and minimi
  assert(!calls[0].fields.includes('phone'));assert(!calls[0].fields.includes('sender'));
  await assert.rejects(require('../src/tenant/services/moneyTransfer.service').recent(conn,{...tenant,enabledModules:[],subscription:null},actor),error=>error.status===403);
 });
+
+test('main dashboard fund totals add only approved real book values within each currency',()=>{
+ const {groupedBookTotals}=require('../src/tenant/services/dashboardOverview.service');
+ const {formatMoneyMinor}=require('../src/tenant/services/mobileMoney.service');
+ const amounts=groupedBookTotals([
+  {kind:'cash',currency:'UGX',expectedMinor:'120000'},
+  {kind:'cash',currency:'UGX',expectedMinor:'25000'},
+  {kind:'cash',currency:'SSP',expectedMinor:'7500'},
+  {kind:'cash',currency:'UGX',expectedMinor:null},
+  {kind:'cash',currency:'UGX',expectedMinor:'not_approved'},
+  {kind:'cash',currency:'EUR',expectedMinor:'800'}
+ ]);
+ assert.equal(amounts.length,2,'separate currency groups, never a misleading combined amount');
+ assert.deepEqual(amounts.find(a=>a.currency==='UGX'),{currency:'UGX',formatted:formatMoneyMinor(145000n,'UGX')});
+ assert.deepEqual(amounts.find(a=>a.currency==='SSP'),{currency:'SSP',formatted:formatMoneyMinor(7500n,'SSP')});
+ assert.deepEqual(groupedBookTotals([{currency:'UGX',expectedMinor:null}]),[]);
+});

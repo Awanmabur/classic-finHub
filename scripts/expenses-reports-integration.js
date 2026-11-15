@@ -89,7 +89,7 @@ async function main(){
  assert.equal((await expenseModel(conn).findById(insufficient._id)).status,'pending_review');assert.equal(await balance(),'-2050');
  assert.equal(await models.auditEventModel(conn).countDocuments({targetId:insufficient._id,action:'expenses.approved'}),0);
  await expenses.review(conn,tenant,reviewer,insufficient._id,{decision:'reject',note:'Requested amount exceeds the available physical drawer'});
- const mobileInput={idempotencyKey:crypto.randomUUID(),customer:'Cash customer',network:'MTN',networkReference:`EXP-MOBILE-${nonce}`,currency:'KES',amount:'40.00',fee:'1.25'};
+ const mobileInput={idempotencyKey:crypto.randomUUID(),customer:'Cash customer',network:'M-Pesa',networkReference:`EXP-MOBILE-${nonce}`,currency:'KES',amount:'40.00',fee:'1.25'};
  const mobileRecord=(await mobile.recordMobileMoney(conn,operator,mobileInput,'cash_in',tenant)).created;
  await mobile.reviewMobileMoney(conn,reviewer,String(mobileRecord._id),'accepted','Receipt checked independently for closing cash');
  const wallet=(await mobile.recordMobileMoney(conn,operator,{...mobileInput,idempotencyKey:crypto.randomUUID(),networkReference:`EXP-WALLET-${nonce}`,amount:'50.00',paymentMethod:'Wallet Balance'},'cash_in',tenant)).created;

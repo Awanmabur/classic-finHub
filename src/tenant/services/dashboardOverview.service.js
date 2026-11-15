@@ -26,16 +26,20 @@ async function overview(conn,tenant,user,options={}){
  const hasBanking=hasModuleForUser(tenant,user,'banking')&&hasPermission(user,'banking.view');
  const hasForex=hasModuleForUser(tenant,user,'forex')&&hasPermission(user,'forex.view');
  const flags={hasMobileMoney,hasTransfer,hasBanking,hasForex};
+ // Owner/auditor viewing scope controls dashboard balance cards. An "all"
+ // viewing scope must not silently display a single operating branch as if total.
+ const wideRead=['Tenant Owner','Auditor'].includes(user.role)&&options.viewBranchId!==undefined&&options.viewBranchId!==null;
+ const fundsBranch=wideRead?(options.viewBranchId==='all'?null:options.viewBranch||null):options.operationBranch;
  const [mobileRows,bankingRows,forexRows,transferRows,workspaceSnapshot,mobileFunds]=await Promise.all([
   hasMobileMoney?require('./mobileMoney.service').recent(conn,mobileScope(user)):[],
   hasBanking?require('./banking.service').recent(conn,tenant,user):[],
   hasForex?require('./forex.service').recent(conn,tenant,user):[],
   hasTransfer?require('./moneyTransfer.service').recent(conn,tenant,user):[],
   snapshot.snapshot(conn,tenant,user,flags,options.operationBranch,options),
-  hasMobileMoney&&options.operationBranch?require('./mobileMoneyFunds.service').context(conn,tenant,user,options.operationBranch):null
+  hasMobileMoney&&fundsBranch?require('./mobileMoneyFunds.service').context(conn,tenant,user,fundsBranch):null
  ]);
  const mobileBookTotals={cash:groupedBookTotals((mobileFunds?.paymentAccounts||[]).filter(a=>a.kind==='cash')),float:groupedBookTotals(mobileFunds?.wallets||[])};
- const data={...flags,mobileFunds,mobileBookTotals,mobileFundsState:!hasMobileMoney?'unavailable':options.operationBranch?'resolved':'branch_required',summary:{recent:mobileRows},bankingRecords:{items:bankingRows},forexRecords:{items:forexRows},transferRecords:{items:transferRows}};
+ const data={...flags,mobileFunds,mobileBookTotals,mobileFundsState:!hasMobileMoney?'unavailable':wideRead&&options.viewBranchId==='all'?'all_branches':fundsBranch?'resolved':'branch_required',summary:{recent:mobileRows},bankingRecords:{items:bankingRows},forexRecords:{items:forexRows},transferRecords:{items:transferRows}};
  return {...data,workspaceSnapshot:{...workspaceSnapshot,...snapshot.activity(data)}};
 }
 module.exports={overview,mobileScope,groupedBookTotals};

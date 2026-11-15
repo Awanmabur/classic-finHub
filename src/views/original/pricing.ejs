@@ -102,8 +102,6 @@
           <% if(labels.length){ %><ul><% labels.forEach(label=>{ %><li><i class="fa-solid fa-check" aria-hidden="true"></i> <%= label %></li><% }) %></ul>
           <% }else{ %><p>Workspace access only. Operational modules are subscribed to separately.</p><% } %>
         </div>
-        <ul>
-        </ul>
         <a class="btn <%= auto?'btn-dark':'btn-light' %>" href="/signup">Request <%= plan.name %></a>
       </article>
       <% }) %>

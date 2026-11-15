@@ -7,7 +7,7 @@
       <option value="<%= key %>" <%= (data.reportData?.window.key||'today')===key?'selected':'' %>><%= label %></option>
       <% }) %>
     </select>
-  </label><div class="field"><span>Report basis</span><div class="networkReadOnly">UTC · Provider and currency remain separate</div></div></div>
+  </label></div>
   <% } %>
   <div class="row3">
     <label class="field">From (UTC)<input class="control" type="date" name="from" value="<%= mobileFilters.from || '' %>"></label>

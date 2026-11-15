@@ -1,5 +1,24 @@
 <section class="view show">
- <section class="card"><div class="cardHead"><div><b>Wallets, cash &amp; balances</b><br><span>Expected book and actual evidence</span></div><div class="rowBtns"><% if(data.canCreateAccount){ %><a class="btn" href="#account-setup">Add account</a><% } %><% if(data.canObserve){ %><a class="btn btnPrimary" href="#add-funds">Add funds</a><% } %><% if(data.canReview){ %><a class="btn" href="/tenant/treasury/review">Independent review</a><% } %></div></div><div class="cardBody">
+ <section class="card treasurySetupGuide" aria-label="Start cash and float setup">
+  <% const configuredCash=(data.snapshot.accounts||[]).filter(a=>a.kind==='cash').length;
+     const configuredWallet=(data.snapshot.accounts||[]).filter(a=>a.kind==='wallet').length;
+     const pendingOpening=(data.snapshot.accounts||[]).filter(a=>a.bookKnown!==true).length; %>
+  <div class="cardHead"><div><b>Start here: cash and wallet opening</b><br><span>Real accounts, real opening evidence, independent approval</span></div><a class="btn" href="/tenant/mobile-money/readiness">Mobile Money readiness</a></div>
+  <div class="cardBody">
+    <div class="summary">
+      <div class="sumRow"><span>Cash drawers in this view</span><b><%= configuredCash %></b></div>
+      <div class="sumRow"><span>Provider float wallets in this view</span><b><%= configuredWallet %></b></div>
+      <div class="sumRow"><span>Accounts awaiting approved opening</span><b><%= pendingOpening %></b></div>
+    </div>
+    <ol class="setupSteps">
+      <li><strong>Create an account</strong><p>Choose Cash for a physical drawer or Wallet for a real mobile network float account. Assign the correct branch, network, currency and operator. No money is created by this step.</p><% if(data.canCreateAccount){ %><a class="btn btnPrimary" href="#account-setup">Create an account</a><% }else{ %><span class="tiny">An authorized Treasury Manager must create the account in a selected branch.</span><% } %></li>
+      <li><strong>Record opening balance evidence</strong><p>Open the newly created account from the balance table below. Submit its actual cash count or provider statement for review.</p><a class="btn" href="#treasury-accounts">Find your account</a></li>
+      <li><strong>Approve independently</strong><p>A different authorized reviewer approves the evidence. Pending balances are not usable funds.</p><% if(data.canReview){ %><a class="btn" href="/tenant/treasury/review">Review opening evidence</a><% }else{ %><span class="tiny">An independently authorized reviewer completes this step.</span><% } %></li>
+      <li><strong>Open day and record operations</strong><p>For cash payments, open a physical cash shift separately. Cash shifts never replace a provider float wallet or prove network settlement.</p><a class="btn" href="/tenant/cash/shifts">Cash shifts</a></li>
+    </ol>
+  </div>
+ </section>
+ <section class="card" id="treasury-accounts"><div class="cardHead"><div><b>Wallets, cash &amp; balances</b><br><span>Expected book and actual evidence</span></div><div class="rowBtns"><% if(data.canCreateAccount){ %><a class="btn" href="#account-setup">Add account</a><% } %><% if(data.canObserve){ %><a class="btn btnPrimary" href="#add-funds">Add funds</a><% } %><% if(data.canReview){ %><a class="btn" href="/tenant/treasury/review">Independent review</a><% } %></div></div><div class="cardBody">
   <p class="tiny"><%= data.snapshot.note %></p>
   <div class="tableWrap"><table><thead><tr><th>Account</th><th>Expected book</th><th>Last actual observation</th><th>Observed at (UTC)</th><th>Difference</th><th>Control</th></tr></thead><tbody>
    <% if(!data.snapshot.accounts.length){ %><tr><td colspan="6">No accounts are configured in this view. Add the wallet, drawer, bank or stock account and confirm its opening balance before using it.</td></tr><% } %>

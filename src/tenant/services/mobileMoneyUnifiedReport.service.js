@@ -45,7 +45,7 @@ function blank(network,currency){
   pendingReviewCount:0,providerUnverifiedCount:0,voidedCount:0,
   depositMinor:0n,withdrawalMinor:0n,volumeMinor:0n,cashImpactMinor:0n,
   recordedFeeMinor:0n,collectedFeeMinor:0n,legacyWalletFeeMinor:0n,
-  estimatedCommissionMinor:0n,receivedCommissionMinor:0n,grossCommissionMinor:0n,
+  estimatedCommissionMinor:0n,customerNetworkChargeEstimateMinor:0n,configuredCostEstimateMinor:0n,receivedCommissionMinor:0n,grossCommissionMinor:0n,
   withheldTaxMinor:0n,providerCostMinor:0n};
 }
 const format=(amount,currency)=>mobile.formatMoneyMinor(amount,currency);
@@ -80,6 +80,8 @@ function summarize(transactionGroups,payoutGroups,expenseGroups){
    if(feeTreatment==='payment_collected')row.collectedFeeMinor+=fees;
    if(feeTreatment==='wallet_commission')row.legacyWalletFeeMinor+=fees;
    row.estimatedCommissionMinor+=whole(group.estimatedCommissionMinor);
+   row.customerNetworkChargeEstimateMinor+=whole(group.customerNetworkChargeEstimateMinor);
+   row.configuredCostEstimateMinor+=whole(group.configuredCostEstimateMinor);
   }
  }
  for(const group of payoutGroups){
@@ -111,7 +113,9 @@ async function generate(conn,tenant,actor,input={}){
   count:{$sum:1},amountMinor:{$sum:'$amountMinor'},feeMinor:{$sum:'$feeMinor'},
   cashMovementMinor:{$sum:{$cond:[{$eq:[{$ifNull:['$paymentMethod','Cash']},'Cash']},
     {$ifNull:['$physicalCashMovementMinor',{$cond:[{$eq:['$operation','cash_in']},'$amountMinor',{$multiply:['$amountMinor',-1]}]}]},0]}},
-  estimatedCommissionMinor:{$sum:{$convert:{input:'$agentCommissionEstimate.amountMinor',to:'decimal',onError:0,onNull:0}}}
+  estimatedCommissionMinor:{$sum:{$convert:{input:'$agentCommissionEstimate.amountMinor',to:'decimal',onError:0,onNull:0}}},
+  customerNetworkChargeEstimateMinor:{$sum:{$convert:{input:'$customerNetworkFeeEstimate.amountMinor',to:'decimal',onError:0,onNull:0}}},
+  configuredCostEstimateMinor:{$sum:{$convert:{input:'$pricing.costMinor',to:'decimal',onError:0,onNull:0}}}
  }}]).option({maxTimeMS:8000});
  const broad=['Tenant Owner','Reconciliation Officer','Branch Manager','Auditor'].includes(actor.role);
  const hasPayoutScope=broad&&hasPermission(actor,'treasury.view');
@@ -135,12 +139,12 @@ async function generate(conn,tenant,actor,input={}){
 function csv(report){
  const fields=['Network','Currency','Deposit count','Withdrawal count','Deposit principal','Withdrawal principal',
   'Net physical cash movement','Fees recorded (not income)','Explicitly collected agent fees',
-  'Legacy wallet fee recognition','Estimated agent commission (unreceived)','Provider commission actually received',
+  'Legacy wallet fee recognition','Estimated agent commission (unreceived)','Estimated provider customer network charge','Configured operating cost estimate','Provider commission actually received',
   'Provider gross commission','Withheld tax','Provider deductions','Unreviewed records','Provider-unverified records','Voided records'];
  const rows=[fields,...report.networks.map(row=>[
   row.network,row.currency,row.depositCount,row.withdrawalCount,
   row.depositMinor,row.withdrawalMinor,row.cashImpactMinor,row.recordedFeeMinor,row.collectedFeeMinor,
-  row.legacyWalletFeeMinor,row.estimatedCommissionMinor,row.receivedCommissionMinor,
+  row.legacyWalletFeeMinor,row.estimatedCommissionMinor,row.customerNetworkChargeEstimateMinor,row.configuredCostEstimateMinor,row.receivedCommissionMinor,
   row.grossCommissionMinor,row.withheldTaxMinor,row.providerCostMinor,row.pendingReviewCount,row.providerUnverifiedCount,row.voidedCount
  ].map(v=>typeof v==='bigint'?String(v):v)),
  ['Period UTC',report.window.from+' to '+report.window.to],

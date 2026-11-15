@@ -10,7 +10,7 @@
    const needsOnboarding=!visibleCashAccounts.length||!visibleWalletAccounts.length||pendingFunds.length>0; %>
 <section class="view show mobileMoneyPage">
  <%- include('../../partials/operation-branch', {currentBranch, branchProblem, user}) %>
-  <p class="tiny"><% if(['Tenant Owner','Mobile Money Operator','Branch Manager','Reconciliation Officer','Auditor'].includes(user.role)){ %><a class="btn" href="/tenant/mobile-money/shifts">Manage physical cash shifts</a><% } %> Obtain independent opening approval before recording Cash payments. Bank and Wallet Balance entries do not move the physical cash drawer. A shift is not provider float or a settled balance.</p>
+
  <section class="card" data-mobile-onboarding aria-label="Mobile Money start and opening checklist">
   <div class="cardHead"><div><b><%= needsOnboarding?'Start Mobile Money — cash and float setup':'Mobile Money operational setup' %></b><br><span><%= currentBranch?'Operating branch: '+currentBranch.name:'Operating branch not assigned' %> · actual balances only</span></div><a class="btn" href="/tenant/mobile-money/readiness">Check readiness</a></div>
   <div class="cardBody">
@@ -33,11 +33,6 @@
   </div>
  </section>
   <% const overviewAccounts=[...(data.funds?.paymentAccounts||[]).filter(a=>a.kind==='cash'),...(data.funds?.wallets||[])]; %>
-  <div class="rowBtns">
-   <% if(['Tenant Owner','Mobile Money Operator'].includes(user.role)){ %><a class="btn btnPrimary" href="/tenant/cash/shifts">Open day / enter starting cash</a><% } %>
-   <% if((user.permissions||[]).some(p=>p==='*'||p==='treasury.view')){ %><a class="btn" href="/tenant/treasury">Cash and float accounts</a><% } %>
-   <% if(['Tenant Owner','Mobile Money Operator','Branch Manager','Reconciliation Officer','Auditor'].includes(user.role)){ %><a class="btn" href="/tenant/mobile-money/readiness">Diagnose missing balances</a><% } %>
-  </div>
   <section class="card mobileAgentBalances" aria-label="Agent cash and electronic float">
    <div class="cardHead"><div><b>Cash and float balances</b><br><span>Book balances for your assigned branch; verify against physical cash and provider records</span></div><% if((user.permissions||[]).some(p=>p==='*'||p==='treasury.view')){ %><a class="btn" href="/tenant/treasury">Reconcile accounts</a><% } %></div>
    <div class="cardBody">
@@ -56,7 +51,7 @@
     <% }else{ %><p class="tiny">No active cash drawer or mobile network wallet is assigned to this operating branch. Configure accounts and approve their opening balances in Treasury. Opening a cash shift alone does not create a treasury wallet.</p><% } %>
    </div>
   </section>
-  <div class="richActions">
+  <div class="richActions" style="margin-top:14px">
     <% if(user.permissions.includes('*') || user.permissions.includes('mobile_money.cash_in')){ %><a class="btn" href="/tenant/mobile-money/cash-in" data-transaction-kind="cash_in">Deposit</a><% } %>
     <% if(user.permissions.includes('*') || user.permissions.includes('mobile_money.cash_out')){ %><a class="btn" href="/tenant/mobile-money/cash-out" data-transaction-kind="cash_out">Withdrawal</a><% } %>
     <a class="btn" href="/tenant/mobile-money/network-activity">Network activity</a><a class="btn" href="/tenant/mobile-money/cash-impact">Cash impact</a><% if((user.permissions||[]).includes('*')||(user.permissions||[]).includes('treasury.view')){ %><a class="btn" href="/tenant/mobile-money/tariffs">Agent rate sheets</a><% } %><% if((user.permissions||[]).some(permission=>['*','mobile_money.report','reports.view'].includes(permission))){ %><a class="btn" href="/tenant/mobile-money/report">Mobile money report</a><% } %>

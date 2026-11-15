@@ -11,6 +11,9 @@ const accountSchema=new Schema({
  network:{type:String,enum:['',...require('../../config/mobileNetworks').networks],default:'',immutable:true},
  currency:{type:String,enum:currencyCodes,required:true,immutable:true},operatorId:{type:O,default:null,immutable:true},
  accountReference:{type:String,maxlength:80,default:'',immutable:true},selectionKey:{type:String,default:undefined},
+ // Owner-selected physical cash account corresponding to an actual provider
+ // float wallet. Null preserves operator/currency automatic resolution.
+ cashDrawerAccountId:{type:O,default:null},
  feeTreatment:{type:String,enum:['record_only','payment_collected','wallet_commission'],default:'record_only'},
  ledgerAccountId:{type:O,required:true,immutable:true},ledgerCode:{type:String,required:true,immutable:true},
  status:{type:String,enum:['uninitialized','active','held','archived'],default:'uninitialized'},

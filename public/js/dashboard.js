@@ -237,10 +237,6 @@
     };
     const refresh=()=>{
       const currency=selectedCurrency(),current=wallet.value,available=[];
-      for(const stat of form.querySelectorAll('[data-balance-kind]')){
-        stat.hidden=stat.dataset.balanceCurrency!==currency||
-          (stat.dataset.balanceKind==='wallet'&&stat.dataset.balanceNetwork!==network.value);
-      }
       for(const option of wallet.options){if(!option.value)continue;const visible=option.dataset.network===network.value&&option.dataset.currency===currency;option.hidden=!visible;option.disabled=!visible||option.dataset.state!=='active'||option.dataset.reconciliation!=='matched'||!/^\d{1,34}$/.test(option.dataset.expectedMinor||'');if(!option.disabled)available.push(option);}
       if(!available.some(option=>option.value===current)){
         const own=available.filter(option=>option.dataset.assigned==='true'),eligible=own.length?own:available,defaults=eligible.filter(option=>option.dataset.default==='true');
@@ -277,6 +273,13 @@
         if(help)help.hidden=true;
         wallet.setCustomValidity(wallet.value&&!resolved?
           'The Tenant Owner must map this network wallet to your approved physical cash drawer.': '');
+      }
+      const chosenCash=payment?.value||'';
+      const chosenWallet=wallet.value||'';
+      for(const stat of form.querySelectorAll('[data-balance-kind]')){
+        stat.hidden=stat.dataset.balanceCurrency!==currency||
+          (stat.dataset.balanceKind==='wallet'&&stat.dataset.balanceAccount!==chosenWallet)||
+          (stat.dataset.balanceKind==='cash'&&stat.dataset.balanceAccount!==chosenCash);
       }
     };
     const update=()=>{

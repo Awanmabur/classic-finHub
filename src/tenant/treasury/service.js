@@ -67,9 +67,14 @@ async function loadAccount(conn,authorization,accountId,{session=null,fence=fals
 async function transaction(conn,handler){const session=await conn.startSession();try{let result;await session.withTransaction(async()=>{result=await handler(session);},{readConcern:{level:'snapshot'}});return result;}finally{await session.endSession();}}
 async function audit(conn,session,actor,action,targetId,metadata){await core.auditEventModel(conn).create([{action,actorId:actor.id,targetId,metadata}],{session});}
 function validateAccount(input){
- const code=text(input.code,'account code',3,40).toUpperCase();if(!/^[A-Z][A-Z0-9_]{2,39}$/.test(code))throw fail('Use a 3–40 character account code with letters, numbers and underscores');
+ const code=input.code?text(input.code,'account code',3,40).toUpperCase():null;
+ if(code&&!/^[A-Z][A-Z0-9_]{2,39}$/.test(code))throw fail('Use a valid account code with letters, numbers and underscores');
  const name=text(input.name,'account name',3,120),kind=input.kind,currency=input.currency,network=input.network||'';
  if(!KINDS.includes(kind)||!currencyCodes.includes(currency)||(kind==='wallet'?!NETWORKS.includes(network):network!==''))throw fail('Choose a valid account kind, currency and wallet network');
+ if(kind==='wallet'){
+  const fixedCurrency=require('../pricing/networkTariffs').NETWORKS[network]?.currency;
+  if(fixedCurrency&&currency!==fixedCurrency)throw fail('This network requires '+fixedCurrency+'. Currency is derived from the provider market.',409);
+ }
  const operatorId=input.operatorId?String(oid(input.operatorId,'assigned operator')):null;if(kind==='cash'&&!operatorId)throw fail('A cash drawer must be assigned to its actual operator');
  const accountReference=text(input.accountReference||'','wallet or account identifier',0,80);
  if(input.isDefault!==undefined&&!['true','false',true,false,'on'].includes(input.isDefault))throw fail('Choose a valid default-account option');
@@ -104,11 +109,15 @@ async function createAccount(conn,tenant,actor,input,{configurationBranchId=null
   require('../services/branchCurrency.service').resolve(branch,values.currency);
   if(values.operatorId){const operator=await core.tenantUserModel(conn).findOne({_id:values.operatorId,status:'active'}).session(session).lean();if(!operator||(operator.role!=='Tenant Owner'&&String(operator.branchId)!==String(branch._id)))throw fail('Choose an active staff member from this branch',409);}
   const accountId=new mongoose.Types.ObjectId(),ledgerCode=`TRS_${accountId.toString().toUpperCase()}`;
+  // The user never needs to invent a bookkeeping code. Use the immutable
+  // ObjectId suffix so concurrently created accounts have distinct codes.
+  const autoPrefix=(values.kind==='wallet'?values.network.replace(/[^A-Za-z0-9]+/g,'_'):values.kind).toUpperCase();
+  const accountCode=values.code||`${autoPrefix}_${values.currency}_${accountId.toString().slice(-8).toUpperCase()}`;
   const [chart]=await core.ledgerAccountModel(conn).create([{branchId:branch._id,code:ledgerCode,name:values.name,currency:values.currency,category:values.kind==='transfer_clearing'?'liability':'asset',createdBy:authorization.actor.id}],{session});
   const selectionKey=values.isDefault?`${branch._id}:${values.kind}:${values.network}:${values.currency}:${values.operatorId||'shared'}`:undefined;
-  const [created]=await models(conn).account.create([{_id:accountId,tenantId:authorization.tenant._id,branchId:branch._id,code:values.code,name:values.name,kind:values.kind,moduleKey:moduleForKind(values.kind),network:values.network,currency:values.currency,operatorId:values.operatorId,accountReference:values.accountReference,selectionKey,ledgerAccountId:chart._id,ledgerCode,createdBy:authorization.actor.id}],{session});
+  const [created]=await models(conn).account.create([{_id:accountId,tenantId:authorization.tenant._id,branchId:branch._id,code:accountCode,name:values.name,kind:values.kind,moduleKey:moduleForKind(values.kind),network:values.network,currency:values.currency,operatorId:values.operatorId,accountReference:values.accountReference,selectionKey,ledgerAccountId:chart._id,ledgerCode,createdBy:authorization.actor.id}],{session});
   await audit(conn,session,authorization.actor,'treasury.account.created',created._id,{branchId:String(branch._id),kind:created.kind,currency:created.currency,code:created.code});return created;
- });}catch(error){if(error.code===11000)throw fail('This account code or default account already exists. Use a different code and clear the default option for additional accounts.',409);throw error;}
+ });}catch(error){if(error.code===11000)throw fail('The default funds account is already assigned or this account already exists. Review existing accounts before trying again.',409);throw error;}
 }
 function assertUnusedWalletArchivable(account,confirmCode) {
   if(account.kind!=='wallet')throw fail('Only an unused provider wallet can be archived through this control',409);

@@ -8,7 +8,7 @@ const snapshot=require('./workspaceSnapshot.service');
 function groupedBookTotals(accounts=[]){
  const groups=new Map();
  for(const account of accounts){
-  if(!account||account.expectedMinor===null||account.expectedMinor===undefined||!/^[-]?\\d+$/.test(String(account.expectedMinor)))continue;
+  if(!account||account.expectedMinor===null||account.expectedMinor===undefined||!/^-?\d+$/.test(String(account.expectedMinor)))continue;
   const currency=String(account.currency||'');
   if(!['UGX','USD','SSP','KES'].includes(currency))continue;
   groups.set(currency,(groups.get(currency)||0n)+BigInt(account.expectedMinor));

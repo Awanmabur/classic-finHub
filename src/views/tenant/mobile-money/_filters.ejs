@@ -3,28 +3,62 @@
    const marketOptions=Array.isArray(data.networkMarkets)?data.networkMarkets:[];
    const isUnifiedReport=filterAction==='/tenant/mobile-money/report';
    const singleMarket=isUnifiedReport&&marketOptions.length===1?marketOptions[0]:null;
-   const networksForFilter=marketOptions.length?[...new Set(marketOptions.map(m=>m.network))]:(data.networksAvailable||['MTN','MTN SSD','Airtel','Africell','M-Pesa']); %>
+   const networksForFilter=marketOptions.length?[...new Set(marketOptions.map(m=>m.network))]:(data.networksAvailable||['MTN','MTN SSD','Airtel','Africell','M-Pesa']);
+   const networkFilterOptions=networksForFilter.map(network=>({network,market:marketOptions.find(m=>m.network===network)}));
+   const isCustom=data.reportData?.window.key==='custom'; %>
 <form method="get" action="<%= filterAction %>" class="mobileMoneyFilters">
-  <% if(filterAction==='/tenant/mobile-money/report'){ %>
-  <div class="row2"><label class="field">Reporting period
-    <select class="control" name="period">
-      <% [['today','Today'],['week','This week (Monday–Sunday)'],['month','This month'],['quarter','This quarter'],['year','This year'],['custom','Custom dates']].forEach(([key,label])=>{ %>
-      <option value="<%= key %>" <%= (data.reportData?.window.key||'today')===key?'selected':'' %>><%= label %></option>
-      <% }) %>
+ <% if(isUnifiedReport){ %>
+  <div class="row3">
+   <label class="field">Reporting period
+    <select class="control" name="period" data-momo-report-period>
+     <% [['today','Today'],['week','This week'],['month','This month'],['quarter','This quarter'],['year','This year'],['custom','Custom dates']].forEach(([value,label])=>{ %>
+      <option value="<%= value %>" <%= (data.reportData?.window.key||'today')===value?'selected':'' %>><%= label %></option>
+     <% }) %>
     </select>
-  </label></div>
+   </label>
+   <label class="field" data-momo-custom-date <%= isCustom?'':'hidden' %>>From (UTC)<input class="control" type="date" name="from" value="<%= mobileFilters.from||'' %>"></label>
+   <label class="field" data-momo-custom-date <%= isCustom?'':'hidden' %>>To (UTC)<input class="control" type="date" name="to" value="<%= mobileFilters.to||'' %>"></label>
+  </div>
+  <% if(singleMarket){ %>
+   <input type="hidden" name="network" value="<%= singleMarket.network %>">
+   <input type="hidden" name="currency" value="<%= singleMarket.currency %>">
+  <% }else{ %>
+   <div class="row3">
+    <label class="field">Network
+     <select class="control" name="network" data-momo-filter-network>
+      <option value="">All networks</option>
+      <% networkFilterOptions.forEach(({network,market})=>{ %>
+       <option value="<%= network %>" data-market-currency="<%= marketOptions.filter(m=>m.network===network).length===1?market?.currency||'':'' %>" <%= mobileFilters.network===network?'selected':'' %>><%= market?.label||network %></option>
+      <% }) %>
+     </select>
+    </label>
+    <label class="field" data-momo-filter-currency <%= marketOptions.filter(m=>m.network===mobileFilters.network).length===1?'hidden':'' %>>Currency
+     <select class="control" name="currency">
+      <option value="">All currencies</option>
+      <% (data.currencies||['UGX','USD','SSP','KES']).forEach(code=>{ %>
+       <option value="<%= code %>" <%= mobileFilters.currency===code?'selected':'' %>><%= typeof currencyLabel==='function'?currencyLabel(code):code==='KES'?'KSH':code %></option>
+      <% }) %>
+     </select>
+    </label>
+   </div>
   <% } %>
+ <% }else{ %>
   <div class="row3">
-    <label class="field">From (UTC)<input class="control" type="date" name="from" value="<%= mobileFilters.from || '' %>"></label>
-    <label class="field">To (UTC)<input class="control" type="date" name="to" value="<%= mobileFilters.to || '' %>"></label>
-    <% if(singleMarket){ %><input type="hidden" name="network" value="<%= singleMarket.network %>"><% } else { %>
-    <label class="field">Network<select class="control" name="network" data-momo-filter-network><option value="">All networks</option><% networksForFilter.forEach(network=>{const match=marketOptions.find(m=>m.network===network); %><option value="<%= network %>" data-market-currency="<%= match?.currency||'' %>" <%= mobileFilters.network === network ? 'selected' : '' %>><%= match?.label||network %></option><% }) %></select></label><% } %>
+   <label class="field">From (UTC)<input class="control" type="date" name="from" value="<%= mobileFilters.from||'' %>"></label>
+   <label class="field">To (UTC)<input class="control" type="date" name="to" value="<%= mobileFilters.to||'' %>"></label>
+   <label class="field">Network<select class="control" name="network"><option value="">All networks</option>
+    <% (data.networksAvailable||['MTN','MTN SSD','Airtel','Africell','M-Pesa']).forEach(network=>{ %>
+     <option value="<%= network %>" <%= mobileFilters.network===network?'selected':'' %>><%= network %></option>
+    <% }) %>
+   </select></label>
   </div>
   <div class="row3">
-    <% if(singleMarket){ %><input type="hidden" name="currency" value="<%= singleMarket.currency %>"><% }else{ %>
-    <label class="field" data-momo-filter-currency <%= isUnifiedReport&&marketOptions.some(m=>m.network===mobileFilters.network&&m.currency===mobileFilters.currency)?'hidden':'' %>>Currency<select class="control" name="currency"><option value="">All currencies</option><% (data.currencies || ['UGX','USD','SSP','KES']).forEach(currency=>{ %><option value="<%= currency %>" <%= mobileFilters.currency === currency ? 'selected' : '' %>><%= typeof currencyLabel === 'function' ? currencyLabel(currency) : (currency === 'KES' ? 'KSH' : currency) %></option><% }) %></select></label><% } %>
-    <% if(!filterOperation){ %><label class="field">Operation<select class="control" name="operation"><option value="">Deposits and Withdrawals</option><option value="cash_in" <%= mobileFilters.operation === 'cash_in' ? 'selected' : '' %>>Deposit</option><option value="cash_out" <%= mobileFilters.operation === 'cash_out' ? 'selected' : '' %>>Withdrawal</option></select></label><% } %>
-    <label class="field">Entry source<select class="control" name="entrySource"><option value="">Manual and SMS capture</option><option value="manual" <%= mobileFilters.entrySource === 'manual' ? 'selected' : '' %>>Manual</option><option value="sms" <%= mobileFilters.entrySource === 'sms' ? 'selected' : '' %>>SMS capture</option></select></label>
+   <label class="field">Currency<select class="control" name="currency"><option value="">All currencies</option>
+    <% (data.currencies||['UGX','USD','SSP','KES']).forEach(code=>{ %><option value="<%= code %>" <%= mobileFilters.currency===code?'selected':'' %>><%= typeof currencyLabel==='function'?currencyLabel(code):code==='KES'?'KSH':code %></option><% }) %>
+   </select></label>
+   <% if(!filterOperation){ %><label class="field">Operation<select class="control" name="operation"><option value="">Deposits and Withdrawals</option><option value="cash_in" <%= mobileFilters.operation==='cash_in'?'selected':'' %>>Deposit</option><option value="cash_out" <%= mobileFilters.operation==='cash_out'?'selected':'' %>>Withdrawal</option></select></label><% } %>
+   <label class="field">Entry source<select class="control" name="entrySource"><option value="">Manual and SMS capture</option><option value="manual" <%= mobileFilters.entrySource==='manual'?'selected':'' %>>Manual</option><option value="sms" <%= mobileFilters.entrySource==='sms'?'selected':'' %>>SMS capture</option></select></label>
   </div>
-  <div class="rowBtns"><button class="btn btnPrimary" type="submit">Apply filters</button><a class="btn" href="<%= filterAction %>">Today</a></div>
+ <% } %>
+ <div class="rowBtns"><button class="btn btnPrimary" type="submit">Apply filters</button><a class="btn" href="<%= filterAction %>">Today</a></div>
 </form>

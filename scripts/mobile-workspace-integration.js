@@ -28,7 +28,7 @@ async function main(){
   subscription:{...snapshot,status:'granted',source:'manual_admin_grant',generation:1,periodStart:new Date(Date.now()-60000),periodEnd:new Date(Date.now()+86400000)}});
  const shift=await cash.open(conn,tenant,operator,{openingCash:'1000.00'});await cash.decideOpening(conn,tenant,reviewer,String(shift._id),{decision:'approve',note:'Independent opening count verified for integration'});
  let sequence=0;
- const input=(amount,fee='0',extra={})=>({customer:'Workspace customer',customerPhone:'+254 (700) 123-456',customerNote:'=HYPERLINK("example.invalid")',network:'MTN',networkReference:`WORK-${nonce}-${++sequence}`,currency:'KES',amount,fee,idempotencyKey:crypto.randomUUID(),...extra});
+ const input=(amount,fee='0',extra={})=>({customer:'Workspace customer',customerPhone:'+254 (700) 123-456',customerNote:'=HYPERLINK("example.invalid")',network:'M-Pesa',networkReference:`WORK-${nonce}-${++sequence}`,currency:'KES',amount,fee,idempotencyKey:crypto.randomUUID(),...extra});
  const recorded=[];
  for(const [operation,amount,fee,extra] of [['cash_in','10.25','0.25',{}],['cash_out','2.10','0.10',{}],['cash_in','300.45','1.00',{paymentMethod:'Bank',network:'Africell'}],['cash_in','4.00','0',{paymentMethod:'Wallet Balance',network:'M-Pesa'}]]){
   const body=input(amount,fee,extra),result=await mobile.recordMobileMoney(conn,operator,body,operation,tenant);recorded.push(result.created);
@@ -52,7 +52,7 @@ async function main(){
  const report=await workspace.workspace(conn,operator,selected);
  assert.equal(report.summary.total,6);assert.equal(report.summary.activeCount,5);assert.equal(report.summary.voidedCount,1);assert.equal(report.summary.smsCount,1);assert.equal(report.summary.manualCount,5);
  assert.equal(report.summary.byCurrency.length,1);assert.equal(report.summary.byCurrency[0].volumeMinor,'32415');assert.equal(report.summary.byCurrency[0].feesMinor,'140');assert.equal(report.summary.byCurrency[0].cashImpactMinor,'1550');
- assert.equal(report.networks.find(row=>row.network==='MTN').cashInCount,2);assert.equal(report.networks.find(row=>row.network==='MTN').cashOutCount,1);assert.equal(report.networks.find(row=>row.network==='Africell').volumeMinor,'30045');
+ assert.equal(report.networks.find(row=>row.network==='M-Pesa').cashInCount,2);assert.equal(report.networks.find(row=>row.network==='M-Pesa').cashOutCount,1);assert.equal(report.networks.find(row=>row.network==='MTN').cashInCount,1,'legacy recorded source remains visible but is not posted with an incompatible new network/currency');assert.equal(report.networks.find(row=>row.network==='Africell').volumeMinor,'30045');
  assert.equal((await workspace.workspace(other,operator,selected)).summary.total,0,'tenant connections isolate all report queries');
  const manager={...reviewer,role:'Branch Manager',permissions:permissionsFor('Branch Manager')};
  const branchReport=await workspace.workspace(conn,manager,selected);assert.equal(branchReport.summary.total,7);assert.equal(branchReport.summary.byCurrency[0].cashImpactMinor,'11550');

@@ -68,7 +68,7 @@ async function main(){
  assert.equal((await require('../src/tenant/services/ledger.service').trialBalance(conn,{branchId:branch._id,currency:'UGX'})).balanced,true);
  // One branch/operator keeps independent exact cash and network books in
  // multiple selected currencies. MTN SSD never shares MTN's reference space.
- const usdWallet=await open('wallet','USD_MTN_FLOAT','1000.25','MTN','USD'),usdCash=await open('cash','USD_PHYSICAL_CASH','500.00','','USD');
+ const usdWallet=await open('wallet','USD_AFRICELL_FLOAT','1000.25','Africell','USD'),usdCash=await open('cash','USD_PHYSICAL_CASH','500.00','','USD');
  const sspWallet=await open('wallet','SSP_MTN_SSD_FLOAT','2000.50','MTN SSD','SSP'),sspCash=await open('cash','SSP_PHYSICAL_CASH','700.00','','SSP');
  const multiShifts={};
  for(const [currency,openingCash] of [['USD','500.00'],['SSP','700.00']]){
@@ -77,7 +77,7 @@ async function main(){
  }
  assert.notEqual(multiShifts.USD.activeKey,multiShifts.SSP.activeKey);
  const beforeUgx=await balance(wallet),beforeUgxCash=await balance(drawer),sameReference='MULTI-NETWORK-'+nonce;
- const usdInput={...base,currency:'USD',network:'MTN',walletAccountId:String(usdWallet._id),paymentAccountId:String(usdCash._id),operation:'cash_in',amount:'10.25',fee:'0',networkReference:sameReference,idempotencyKey:crypto.randomUUID()};
+ const usdInput={...base,currency:'USD',network:'Africell',walletAccountId:String(usdWallet._id),paymentAccountId:String(usdCash._id),operation:'cash_in',amount:'10.25',fee:'0',networkReference:sameReference,idempotencyKey:crypto.randomUUID()};
  const usd=await record(usdInput);await accept(usd);
  const sspInput={...base,currency:'SSP',network:'MTN SSD',walletAccountId:String(sspWallet._id),paymentAccountId:String(sspCash._id),operation:'cash_in',amount:'20.05',fee:'0',networkReference:sameReference,idempotencyKey:crypto.randomUUID()};
  const ssp=await record(sspInput);await accept(ssp);

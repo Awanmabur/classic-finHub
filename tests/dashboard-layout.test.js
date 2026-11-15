@@ -77,9 +77,11 @@ test('main tenant dashboard presents separately sourced cash and electronic floa
   mobileFunds:{paymentAccounts:[{kind:'cash',name:'Actual drawer',currency:'UGX',expected:'UGX 70,000',reconciliation:'matched'}],
    wallets:[{kind:'wallet',name:'MTN Uganda network',network:'MTN',currency:'UGX',expected:'UGX 160,000',reconciliation:'matched'}]}
  }});
- for(const label of ['Mobile Money cash and float','UGX 70,000','UGX 160,000','Actual drawer','MTN Uganda network','Deposits + withdrawals'])assert.ok(html.includes(label),label);
- assert.match(html,/Physical cash/);
- assert.match(html,/Electronic float/);
+ const top=html.slice(html.indexOf('Today snapshot'),html.indexOf('Recent activity'));
+ for(const label of ['UGX 70,000','UGX 160,000','Actual drawer','MTN Uganda network','Deposits + withdrawals','Physical cash','Electronic float'])assert.ok(top.includes(label),label);
+ assert.match(top,/data-dashboard-fund-stat="cash"/);
+ assert.match(top,/data-dashboard-fund-stat="float"/);
+ assert.doesNotMatch(html,/mobileDashboardBalances/,'no duplicate balances panel below Today snapshot');
  assert.doesNotMatch(html,/Cash-in \+ cash-out/);
 });
 test('missing dashboard cash and float records are disclosed rather than displayed as fake zero balances',async()=>{
@@ -88,5 +90,7 @@ test('missing dashboard cash and float records are disclosed rather than display
   mobileFunds:null
  }});
  assert.match(html,/No operating branch is selected/);
- assert.doesNotMatch(html,/Mobile Money cash and float[\s\S]*UGX 0/);
+ assert.match(html,/data-dashboard-fund-stat="cash"/);
+ assert.match(html,/data-dashboard-fund-stat="float"/);
+ assert.doesNotMatch(html,/data-dashboard-fund-stat="(?:cash|float)"[^>]*>[\s\S]*?UGX 0/);
 });

@@ -3,7 +3,7 @@
   <% const configuredCash=(data.snapshot.accounts||[]).filter(a=>a.kind==='cash').length;
      const configuredWallet=(data.snapshot.accounts||[]).filter(a=>a.kind==='wallet').length;
      const pendingOpening=(data.snapshot.accounts||[]).filter(a=>a.bookKnown!==true).length; %>
-  <div class="cardHead"><div><b>Start here: cash and wallet opening</b><br><span>Real accounts, real opening evidence, independent approval</span></div><a class="btn" href="/tenant/mobile-money/readiness">Mobile Money readiness</a></div>
+  <div class="cardHead"><div><b>Start here: cash and wallet opening</b><br><span>Real accounts, real opening evidence, independent approval</span></div><% if(data.hasMobileMoney){ %><a class="btn" href="/tenant/mobile-money/readiness">Mobile Money readiness</a><% } %></div>
   <div class="cardBody">
     <div class="summary">
       <div class="sumRow"><span>Cash drawers in this view</span><b><%= configuredCash %></b></div>

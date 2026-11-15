@@ -58,3 +58,37 @@ test('activation links are encrypted and authenticated in queued records',()=>{
    assert.throws(()=>invites.seal('https://attacker.invalid/accept-invite#token='+'a'.repeat(64)));
  }finally{restore();}
 });
+
+test('Resend sender must be unquoted valid mailbox or display name; reject Docker env-file literal quotes',async()=>{
+ const saved={MAIL_PROVIDER:process.env.MAIL_PROVIDER,MAIL_FROM:process.env.MAIL_FROM,RESEND_API_KEY:process.env.RESEND_API_KEY,NODE_ENV:process.env.NODE_ENV};
+ const oldFetch=global.fetch;
+ let requests=0;
+ global.fetch=async()=>{requests++;return {ok:true,json:async()=>({id:'accepted-1'})};};
+ try{
+  process.env.NODE_ENV='test';
+  process.env.MAIL_PROVIDER='resend';
+  process.env.RESEND_API_KEY='test-key';
+  for(const broken of [
+    '"ClassicFin Hub <no-reply@classicfinhub.com>"',
+    "'ClassicFin Hub <no-reply@classicfinhub.com>'",
+    'ClassicFin Hub <no-reply@classicfinhub.com',
+    'ClassicFin Hub <no-reply@classicfinhub.com>\\nBCC:evil@example.com'
+  ]){
+   process.env.MAIL_FROM=broken;
+   assert.equal(mail.configured(),false,broken);
+   await assert.rejects(mail.sendMail({to:'safe@example.com',subject:'Invite',text:'Safe content'}),{code:'MAIL_NOT_CONFIGURED'});
+  }
+  assert.equal(requests,0,'bad sender must never reach provider');
+  for(const valid of ['no-reply@classicfinhub.com','ClassicFin Hub <no-reply@classicfinhub.com>']){
+   process.env.MAIL_FROM=valid;
+   assert.equal(mail.configured(),true,valid);
+  }
+  const sent=await mail.sendMail({to:'safe@example.com',subject:'Invite',text:'Safe content'});
+  assert.equal(sent.status,'accepted');assert.equal(requests,1);
+ }finally{
+  global.fetch=oldFetch;
+  for(const [key,value] of Object.entries(saved)){
+   if(value===undefined)delete process.env[key];else process.env[key]=value;
+  }
+ }
+});

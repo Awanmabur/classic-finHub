@@ -88,7 +88,7 @@ async function main(){
  await assert.rejects(record({...sspInput,idempotencyKey:crypto.randomUUID(),networkReference:'CROSS-CURRENCY-'+nonce,paymentAccountId:String(usdCash._id)}),{status:409});
  await assert.rejects(record({...sspInput,idempotencyKey:crypto.randomUUID(),networkReference:'CROSS-NETWORK-'+nonce,walletAccountId:String(usdWallet._id)}),{status:409});
  const allFunds=await require('../src/tenant/services/mobileMoneyFunds.service').context(conn,tenant,operator,branch);
- assert(allFunds.wallets.some(row=>row.network==='MTN SSD'&&row.currency==='SSP'));assert(allFunds.wallets.some(row=>row.network==='MTN'&&row.currency==='USD'));
+ assert(allFunds.wallets.some(row=>row.network==='MTN SSD'&&row.currency==='SSP'));assert(allFunds.wallets.some(row=>row.network==='Africell'&&row.currency==='USD'));
  const scoped=await require('../src/tenant/services/mobileMoneyWorkspace.service').workspace(conn,operator,{network:'MTN SSD',currency:'SSP'});
  assert.equal(scoped.summary.activeCount,1);assert.equal(scoped.summary.byCurrency[0].currency,'SSP');assert.equal(scoped.networks[0].network,'MTN SSD');
  await mobile.requestVoid(conn,operator,ssp.created._id,'The SSP cash-in was entered against the wrong physical instruction');

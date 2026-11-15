@@ -41,10 +41,10 @@
    <div class="seg"><% grants.forEach(g=>{ %><span class="chip <%= activeAddonGrants.some(a=>a.moduleKey===g.moduleKey)?'active':'' %>"><%= moduleLabel(g.moduleKey) %> · <%= activeAddonGrants.some(a=>a.moduleKey===g.moduleKey)?'active':g.status==='revoked'?'revoked':'expired / not in term' %></span><% }) %></div>
  </div>
 </section>
-<section class="card" style="margin-top:14px"><div class="cardHead"><b>Change workspace access status</b><span>Super Admin · audited</span></div><div class="cardBody"><p class="tiny">A suspension blocks tenant operations. Status changes require a reason. Plan, pricing and subscription changes are deliberately separate from this control.</p>
-<form method="post" action="/platform/tenants/<%= data.tenant.id %>/status"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><label class="field">New status<select name="status" class="control" required><option value="">Choose status</option><% const options={trial:['active','suspended'],active:['past_due','suspended'],past_due:['active','suspended'],suspended:['active']}[data.tenant.status]||[];options.forEach(st=>{ %><option value="<%= st %>"><%= st %></option><% }) %></select></label><label class="field">Reason (12–400 characters)<textarea name="reason" class="control" required minlength="12" maxlength="400" rows="3"></textarea></label><button type="submit" class="btn btnPrimary">Update status</button></form></div></section>
-<section class="card" style="margin-top:14px"><div class="cardHead"><b>Edit tenant profile</b><span>Display details only · audited</span></div><div class="cardBody"><form method="post" action="/platform/tenants/<%= data.tenant.id %>/profile"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><div class="row2"><label class="field">Business name<input class="control" name="name" required minlength="2" maxlength="150" value="<%= data.tenant.name %>"></label><label class="field">Contact phone<input class="control" name="phone" maxlength="40" value="<%= data.tenant.phone||'' %>"></label></div><label class="field">Reason (12–400 characters)<textarea class="control" name="reason" required minlength="12" maxlength="400" rows="2"></textarea></label><button type="submit" class="btn">Save profile</button></form><p class="tiny">Owner email, tenant slug, financial records, plan entitlements, subscription charges and audit history are not editable through this form.</p></div></section>
-<section class="card" style="margin-top:14px"><div class="cardHead"><b>Subscription access &amp; limits</b><span>Plan terms and usage</span></div><div class="cardBody">
+<details class="card" style="margin-top:14px"><summary class="cardHead"><b>Change workspace access status</b><span>Super Admin · audited</span></summary><div class="cardBody"><p class="tiny">A suspension blocks tenant operations. Status changes require a reason. Plan, pricing and subscription changes are deliberately separate from this control.</p>
+<form method="post" action="/platform/tenants/<%= data.tenant.id %>/status"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><label class="field">New status<select name="status" class="control" required><option value="">Choose status</option><% const options={trial:['active','suspended'],active:['past_due','suspended'],past_due:['active','suspended'],suspended:['active']}[data.tenant.status]||[];options.forEach(st=>{ %><option value="<%= st %>"><%= st %></option><% }) %></select></label><label class="field">Reason (12–400 characters)<textarea name="reason" class="control" required minlength="12" maxlength="400" rows="3"></textarea></label><button type="submit" class="btn btnPrimary">Update status</button></form></div></details>
+<details class="card" style="margin-top:14px"><summary class="cardHead"><b>Edit tenant profile</b><span>Display details only · audited</span></summary><div class="cardBody"><form method="post" action="/platform/tenants/<%= data.tenant.id %>/profile"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><div class="row2"><label class="field">Business name<input class="control" name="name" required minlength="2" maxlength="150" value="<%= data.tenant.name %>"></label><label class="field">Contact phone<input class="control" name="phone" maxlength="40" value="<%= data.tenant.phone||'' %>"></label></div><label class="field">Reason (12–400 characters)<textarea class="control" name="reason" required minlength="12" maxlength="400" rows="2"></textarea></label><button type="submit" class="btn">Save profile</button></form><p class="tiny">Owner email, tenant slug, financial records, plan entitlements, subscription charges and audit history are not editable through this form.</p></div></details>
+<details class="card" style="margin-top:14px"><summary class="cardHead"><b>Subscription access &amp; limits</b><span>Plan terms and usage</span></summary><div class="cardBody">
   <% const sub=data.tenant.subscription; %>
   <div class="summary"><div class="sumRow"><span>Published plan</span><b><%= sub?`${sub.planCode} v${sub.planVersion}`:'Not migrated / no entitlement' %></b></div>
   <div class="sumRow"><span>Entitlement</span><b><%= sub?.status||'Unassigned' %></b></div>
@@ -64,9 +64,9 @@
     <input type="hidden" name="_csrf" value="<%= csrfToken %>"><label class="field">Revocation reason (20–600 characters)<textarea class="control" name="reason" minlength="20" maxlength="600" required rows="2"></textarea></label>
     <button type="submit" class="btn">Revoke subscription access</button>
   </form><% } %>
-</div></section>
+</div></details>
 
-<section class="card" style="margin-top:14px"><div class="cardHead"><b>Independent module subscriptions</b><span>Super Admin · audited manual entitlement · no payment collected</span></div><div class="cardBody">
+<details class="card" style="margin-top:14px"><summary class="cardHead"><b>Independent module subscriptions</b><span>Super Admin · audited manual entitlement · no payment collected</span></summary><div class="cardBody">
   <div class="summary"><% grants.forEach(g=>{ %><div class="sumRow"><span><%= g.moduleKey %> (<%= g.status %>)</span><b><%= formatUtcDate(g.periodEnd).split('T')[0] %></b></div><% }) %></div>
   <form method="post" action="/platform/tenants/<%= data.tenant.id %>/modules/grant">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>"><div class="row3">
@@ -83,5 +83,5 @@
     <button type="submit" class="btn">Revoke standalone grant</button>
   </form><% }) %>
   <p class="tiny">Each module may be independently granted or revoked. This action updates access and audit history, not bank transfers, invoices or actual billing payments.</p>
-</div></section>
+</div></details>
 </section>

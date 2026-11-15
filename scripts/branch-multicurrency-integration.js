@@ -38,7 +38,7 @@ async function main(){
  for(const [currency,shift] of opened){
   await cash.decideOpening(conn,tenant,reviewer,shift._id,{decision:'approve',note:'Independent physical count checked for this currency drawer'});
   const amount=currency==='UGX'?'12':'12.34';
-  const record=await mobile.recordMobileMoney(conn,owner,{customer:'Multicurrency customer',customerPhone:'+256700123456',network:currency==='SSP'?'MTN SSD':'MTN',currency,amount,fee:'0',networkReference:`MULTI-${nonce}-${currency}`,idempotencyKey:crypto.randomUUID()},'cash_in',tenant);
+  const record=await mobile.recordMobileMoney(conn,owner,{customer:'Multicurrency customer',customerPhone:'+256700123456',network:currency==='SSP'?'MTN SSD':currency==='UGX'?'MTN':currency==='KES'?'M-Pesa':'Africell',currency,amount,fee:'0',networkReference:`MULTI-${nonce}-${currency}`,idempotencyKey:crypto.randomUUID()},'cash_in',tenant);
   assert.equal(String(record.created.cashSessionId),String(shift._id));assert.equal(record.created.currency,currency);assert.equal(String(record.created.amountMinor),currency==='UGX'?'12':'1234');
   await mobile.reviewMobileMoney(conn,reviewer,record.created._id,'accepted','Independent provider receipt and currency evidence inspected');
   for(const other of [...opened.keys()].filter(code=>code!==currency)){
@@ -63,7 +63,7 @@ async function main(){
  const enabled=await cash.open(conn,tenant,owner,{currency:'SSP',openingCash:'0'});assert.equal(enabled.currency,'SSP');
  await assert.rejects(branches.update(tenant,owner,String(limited._id),{name:limited.name,address:'',currencies:['UGX','USD']}),{status:409},'cannot disable an unfinished currency drawer');
  await assert.rejects(branches.update(tenant,owner,String(limited._id),{name:limited.name,address:'',currencies:['USD','SSP']}),{status:409},'default remains enabled');
- console.log('PASS: one branch runs UGX/USD/SSP/KES with independent drawers, legacy and mixed-key uniqueness, concurrent opening fence, exact isolated MoMo records, bank/transfer instructions, balanced per-currency journals, FX pair, owner currency selection and guarded disabling.');
+ console.log('PASS: one branch runs UGX/USD/SSP/KES with independent drawers, legacy and mixed-key uniqueness, concurrent opening fence, market-compatible isolated MoMo records, bank/transfer instructions, balanced per-currency journals, FX pair, owner currency selection and guarded disabling.');
 }
 async function cleanup(){if(mongoose.connection.readyState===1&&mongoose.connection.name===platformName&&/^cfh_branch_ccy_[a-f0-9]{16}$/.test(platformName)){if(conn?.name===require('../src/config/tenantDatabaseName').tenantDbNameFromSlug(slug))await conn.db.dropDatabase();await mongoose.connection.db.dropDatabase();}await mongoose.disconnect();}
 main().catch(error=>{console.error('BRANCH MULTICURRENCY INTEGRATION FAILED:',error.stack||error.message);process.exitCode=1;}).finally(()=>cleanup().catch(error=>{console.error('Branch currency cleanup failed:',error.message);process.exitCode=1;}));

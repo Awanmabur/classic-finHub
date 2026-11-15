@@ -1,6 +1,6 @@
-<% const values = data.values || {}; %>
+<% const values = data.values || {}, availablePlans=Array.isArray(data.plans)?data.plans:[], availableModules=Array.isArray(data.modules)?data.modules:[]; %>
 <section class="view show"><div class="grid">
-<% if(!data.plans.length){ %>
+<% if(!availablePlans.length){ %>
 <section class="card">
   <div class="cardHead"><b>Create tenant</b><span>Plan setup</span></div>
   <div class="cardBody" style="display:grid;gap:12px">
@@ -32,14 +32,14 @@
     </div>
     <div class="row2">
       <label class="field">Phone<input class="control" name="phone" maxlength="40" type="tel" value="<%= values.phone || '' %>" /></label>
-      <label class="field">Plan<select class="control" name="plan" required><option value="" <%= values.plan ? '' : 'selected' %> disabled>Choose a plan</option><% data.plans.forEach(p => { %><option value="<%= p.code %>" <%= values.plan === p.code ? 'selected' : '' %>><%= p.name %> · published v<%= p.version %> · <%= p.limits.users %> staff / <%= p.limits.branches %> branches</option><% }) %></select></label>
+      <label class="field">Plan<select class="control" name="plan" required><option value="" <%= values.plan ? '' : 'selected' %> disabled>Choose a plan</option><% availablePlans.forEach(p => { %><option value="<%= p.code %>" <%= values.plan === p.code ? 'selected' : '' %>><%= p.name %> · published v<%= p.version %> · <%= (p.limits?.users??'—') %> staff / <%= (p.limits?.branches??'—') %> branches</option><% }) %></select></label>
     </div>
     <details class="planCreatePreview">
       <summary><strong>Preview current published plan inclusions and limits</strong></summary>
-      <% data.plans.forEach(plan=>{ %>
+      <% availablePlans.forEach(plan=>{ %>
       <div class="sumRow" data-published-plan="<%= plan.code %>">
-        <span><b><%= plan.name %> · v<%= plan.version %></b><br><span class="tiny"><%= (plan.modules||[]).map(key=>data.modules.find(m=>m.key===key)?.name||key.replaceAll('_',' ')).join(', ')||'Workspace only — add modules independently' %></span></span>
-        <span class="tiny"><%= plan.currency %> <%= (plan.priceMonthlyMinor/100).toFixed(2) %>/mo<br><%= plan.limits.users %> users · <%= plan.limits.branches %> branches · <%= plan.limits.transactionsPerMonth %> records/mo</span>
+        <span><b><%= plan.name %> · v<%= plan.version %></b><br><span class="tiny"><%= (plan.modules||[]).map(key=>availableModules.find(m=>m.key===key)?.name||key.replaceAll('_',' ')).join(', ')||'Workspace only — add modules independently' %></span></span>
+        <span class="tiny"><%= plan.currency %> <%= Number.isSafeInteger(plan.priceMonthlyMinor)?(plan.priceMonthlyMinor/100).toFixed(2):'Not configured' %>/mo<br><%= (plan.limits?.users??'—') %> users · <%= (plan.limits?.branches??'—') %> branches · <%= (plan.limits?.transactionsPerMonth??'—') %> records/mo</span>
       </div>
       <% }) %>
       <p class="tiny">Only saved, published versions are shown. Independent grants are separate from the selected plan and are not activated by this form.</p>

@@ -38,7 +38,7 @@ async function main(){
   const account=await treasury.createAccount(conn,tenant,owner,{
    kind,code,name:'Verified '+code,currency,network,
    operatorId:kind==='cash'?operator.id:null
-  });
+  },{configurationBranchId:String(branch._id)});
   const evidence=await treasury.requestObservation(conn,tenant,operator,account._id,{
    kind:'opening',actualBalance:initial,
    observedAt:new Date(Date.now()-1000).toISOString(),

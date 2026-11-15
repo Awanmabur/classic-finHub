@@ -12,7 +12,22 @@ function options(overrides={}) {
     user:{id:'507f1f77bcf86cd799439012',role:'Mobile Money Operator',permissions:['mobile_money.view','mobile_money.cash_in','mobile_money.cash_out'],branchId:'aaaaaaaaaaaaaaaaaaaaaaaa'},
     operationBranch:{_id:'aaaaaaaaaaaaaaaaaaaaaaaa',name:'Assigned branch',currency:'UGX',status:'active'},
     csrfToken:'protected-csrf',money:(currency,amount)=>`${currency} ${amount}`,amountFromMinor:fromMinor,
-    data:{operation:'cash_in',canRecord:true,canExport:true,idempotencyKey:requestKey,filters:{from:'2026-11-03',to:'2026-11-03',network:'MTN',currency:'UGX',entrySource:'sms'},records:{items:[record],nextCursor:'next-key'},networksAvailable:['MTN','Airtel','Africell','M-Pesa'],currencies:['UGX','USD','SSP','KES'],networks:[{network:'MTN',currency:'UGX',cashInCount:1,cashOutCount:0,formatted:{volume:'UGX 5,000',fees:'UGX 100'}}],summary:{total:1,activeCount:1,manualCount:0,smsCount:1,voidedCount:0,byCurrency:[{currency:'UGX',count:1,cashInCount:1,cashOutCount:0,physicalCashInCount:1,physicalCashOutCount:0,formatted:{cashIn:'UGX 5,000',cashOut:'UGX 0',physicalCashIn:'UGX 5,000',physicalCashOut:'UGX 0',cashImpact:'UGX 5,000',volume:'UGX 5,000',fees:'UGX 100'}}]}},
+    data:{reportData:{window:{key:'today',from:'2026-11-03',to:'2026-11-03'},
+  currencies:[{currency:'UGX',depositCount:1,withdrawalCount:0,manualCount:0,smsCount:1,
+   pendingReviewCount:1,providerUnverifiedCount:1,voidedCount:0,
+   volumeMinorFormatted:'UGX 5,000',cashImpactMinorFormatted:'UGX 5,000',
+   receivedCommissionMinorFormatted:'UGX 0',collectedFeeMinorFormatted:'UGX 0',
+   estimatedCommissionMinorFormatted:'UGX 100',recordedFeeMinorFormatted:'UGX 100',
+   legacyWalletFeeMinorFormatted:'UGX 0',grossCommissionMinorFormatted:'UGX 0',
+   withheldTaxMinorFormatted:'UGX 0',providerCostMinorFormatted:'UGX 0'}],
+  networks:[{network:'MTN',currency:'UGX',depositCount:1,withdrawalCount:0,manualCount:0,smsCount:1,
+   pendingReviewCount:1,providerUnverifiedCount:1,voidedCount:0,
+   volumeMinorFormatted:'UGX 5,000',cashImpactMinorFormatted:'UGX 5,000',
+   collectedFeeMinorFormatted:'UGX 0',estimatedCommissionMinorFormatted:'UGX 100',
+   receivedCommissionMinorFormatted:'UGX 0'}],
+  expenses:[],expensesAccessible:true,note:'Internal book figures, not provider settlement.'},
+  formatMoneyMinor:(minor,currency)=>currency+' '+String(minor),
+  operation:'cash_in',canRecord:true,canExport:true,idempotencyKey:requestKey,filters:{from:'2026-11-03',to:'2026-11-03',network:'MTN',currency:'UGX',entrySource:'sms'},records:{items:[record],nextCursor:'next-key'},networksAvailable:['MTN','Airtel','Africell','M-Pesa'],currencies:['UGX','USD','SSP','KES'],networks:[{network:'MTN',currency:'UGX',cashInCount:1,cashOutCount:0,formatted:{volume:'UGX 5,000',fees:'UGX 100'}}],summary:{total:1,activeCount:1,manualCount:0,smsCount:1,voidedCount:0,byCurrency:[{currency:'UGX',count:1,cashInCount:1,cashOutCount:0,physicalCashInCount:1,physicalCashOutCount:0,formatted:{cashIn:'UGX 5,000',cashOut:'UGX 0',physicalCashIn:'UGX 5,000',physicalCashOut:'UGX 0',cashImpact:'UGX 5,000',volume:'UGX 5,000',fees:'UGX 100'}}]}},
     ...overrides
   };
 }
@@ -24,10 +39,11 @@ test('approved mobile money entry preserves the protected server contract and as
   assert.match(html,/name="_csrf" value="protected-csrf"/);
   assert.match(html,new RegExp(`name="idempotencyKey" value="${requestKey}"`));
   for(const field of ['customer','customerPhone','network','networkReference','customerNote','amount','fee','currency','paymentMethod']) assert.match(html,new RegExp(`name="${field}"`));
-  for(const label of ['Customer and network','Customer phone','Customer name','Network transaction reference','Customer ID / note','Amount details','Configured transaction fee','Payment method','Physical cash received from customer','Record deposit']) assert.ok(html.includes(label),label);
+  for(const label of ['Customer and network','Customer phone','Customer name','Network transaction reference','Customer ID / note','Amount and accounts','Configured transaction fee','Settlement accounts','Physical cash received from customer','Record deposit']) assert.ok(html.includes(label),label);
   assert.match(html,/<option value="Africell" data-market-currency=""(?: selected| disabled)*>Africell<\/option>/);
-  assert.match(html,/<option value="Wallet Balance">Wallet Balance<\/option>/);
-  assert.match(html,/<option value="Bank">Bank<\/option>/);
+  assert.match(html,/name="paymentMethod" value="Cash"/);
+  assert.doesNotMatch(html,/<option value="Wallet Balance">/);
+  assert.doesNotMatch(html,/<option value="Bank">/);
   const currency = html.match(/<select\b[^>]*name="currency"[^>]*>([\s\S]*?)<\/select>/);
   assert(currency,'Approved currency control must be present');
   assert.deepEqual([...currency[1].matchAll(/<option\b[^>]*value="([^"]+)"/g)].map(match=>match[1]),['UGX','USD','SSP','KES']);
@@ -73,10 +89,10 @@ test('network activity and report use supplied totals, retained status, filters 
   assert.match(network,/entrySource=sms/);
   assert.match(network,/cursor=next-key/);
   const report = await render('report',options());
-  for(const label of ['Mobile tx','Mobile volume','Cash impact','Manual records','SMS capture records','Voided originals']) assert.ok(report.includes(label));
-  assert.match(report,/\/tenant\/mobile-money\/report\/export\.csv\?/);
+  for(const label of ['Mobile Money business report','Transaction volume','Net cash movement','Manual / SMS records','Voided originals','Approved operating expenses']) assert.ok(report.includes(label));
+  assert.match(report,/\/tenant\/mobile-money\/report\/unified\.csv\?/);
   const readonly = options(); readonly.data.canExport=false;
-  assert.doesNotMatch(await render('report',readonly),/Export CSV/);
+  assert.doesNotMatch(await render('report',readonly),/Export consolidated CSV/);
 });
 
 test('cash impact retains all approved cards and separates physical cash from recorded commissions',async()=>{

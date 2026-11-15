@@ -11,7 +11,7 @@ function money(value,currency){return require('./mobileMoney.service').formatMon
 function summary(account){return {id:String(account._id),name:account.name,kind:account.kind,network:account.network,currency:account.currency,
  expected:account.openingBalanceMinor===null?null:money(account.bookBalanceMinor,account.currency),observed:account.lastObservedMinor===null?null:money(account.lastObservedMinor,account.currency),
  observedAt:account.lastObservationAt,variance:account.lastVarianceMinor===null?null:money(account.lastVarianceMinor,account.currency),state:account.status,reconciliation:account.reconciliationState,
- expectedMinor:account.openingBalanceMinor===null?null:String(account.bookBalanceMinor),lastFour:String(account.accountReference||'').slice(-4),isDefault:Boolean(account.selectionKey),feeTreatment:account.feeTreatment||'record_only'};}
+ expectedMinor:account.openingBalanceMinor===null?null:String(account.bookBalanceMinor),lastFour:String(account.accountReference||'').slice(-4),isDefault:Boolean(account.selectionKey),cashDrawerAccountId:account.cashDrawerAccountId?String(account.cashDrawerAccountId):null,feeTreatment:account.feeTreatment||'record_only'};}
 async function context(conn,tenant,actor,branch){
  const trusted=await treasury.access(conn,tenant,actor,{permission:'mobile_money.view',sourceType:'mobile_money'});
  if(!['Tenant Owner','Mobile Money Operator','Branch Manager','Reconciliation Officer','Auditor'].includes(trusted.actor.role)&&
@@ -85,7 +85,27 @@ async function apply(conn,session,authorization,values,{requireObservation=false
  if(values.paymentMethod==='Wallet Balance'){
   const counter=await customerCounter(conn,session,authorization,values,-paymentDelta);customer=counter.account;if(counter.line.amountMinor!=='0')ledgerLines.push(counter.line);
  }else{
-  payment=await selectFund(conn,session,authorization,values,values.paymentMethod==='Cash'?'cash':'bank',values.paymentAccountId);
+  if(useConfiguredPolicy&&values.paymentMethod==='Cash'){
+   // A cashier cannot override network-to-drawer custody with a posted ID.
+   // Match this provider wallet to the assigned, independently approved drawer.
+   const cashQuery={tenantId:authorization.tenant._id,branchId:values.branchId,
+    kind:'cash',currency:values.currency,operatorId:authorization.actor.id,
+    status:'active',reconciliationState:'matched',openingApprovedAt:{$ne:null}};
+   let drawer;
+   if(wallet.cashDrawerAccountId){
+    drawer=await fundsModels.models(conn).account.findOne({...cashQuery,_id:wallet.cashDrawerAccountId}).session(session).lean();
+    if(!drawer)throw fail('This provider wallet is linked to another operator or an unavailable cash drawer. Ask the Tenant Owner to review its mapping.',409);
+   }else{
+    const eligible=await fundsModels.models(conn).account.find(cashQuery).limit(2).session(session).lean();
+    if(eligible.length!==1)throw fail(eligible.length?
+     'More than one physical drawer qualifies. The Tenant Owner must map the network wallet to the real drawer in Treasury.':
+     'An independently verified physical cash drawer assigned to your operator is required.',409);
+    drawer=eligible[0];
+   }
+   if(values.paymentAccountId&&String(values.paymentAccountId)!==String(drawer._id))
+    throw fail('The supplied cash drawer does not match this network wallet. Reload; the drawer is assigned automatically.',409);
+   payment=await selectFund(conn,session,authorization,values,'cash',drawer._id);
+  }else payment=await selectFund(conn,session,authorization,values,values.paymentMethod==='Cash'?'cash':'bank',values.paymentAccountId);
   legs.push({accountId:payment._id,deltaMinor:String(paymentDelta)});
  }
  if(fee>0n&&feeTreatment!=='record_only'){

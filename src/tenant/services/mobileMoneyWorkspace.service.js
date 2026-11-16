@@ -95,7 +95,7 @@ async function workspace(conn,actor,input={},options={}){
 }
 function major(value,currency){const decimals=mobile.currencies[currency],n=BigInt(String(value)),absolute=n<0n?-n:n,base=10n**BigInt(decimals);return `${n<0n?'-':''}${absolute/base}${decimals?'.'+String(absolute%base).padStart(decimals,'0'):''}`;}
 function toCsv(items,timeZone=businessTime.DEFAULT_TIME_ZONE){
- const rows=[['Date ('+timeZone+')','Operation','Customer','Customer phone','Customer ID / note','Network','Network reference','Currency','Amount','Recorded customer fee','Agent commission estimate (unreceived)','Agent sheet version','Provider customer charge estimate (not income)','Provider charge sheet version','Payment method','Entry source','Internal record status','Internal review','Correction state','Provisional cash impact']];
+ const rows=[['Date ('+timeZone+')','Operation','Customer','Customer phone','Customer ID / note','Network','Network reference','Currency','Amount','Recorded customer fee','Agent commission estimate (unreceived)','Agent sheet version','Provider customer charge estimate (not income)','Provider charge sheet version','Published agent commission reference (unapproved)','Published agent source checked on','Published customer network charge (not agent income)','Published customer source checked on','Payment method','Entry source','Internal record status','Internal review','Correction state','Provisional cash impact']];
  for(const row of items){
   const voided=row.status==='voided_internal'||row.correctionState==='voided';
   rows.push([businessTime.format(row.createdAt,timeZone,true),row.operation,row.customer,row.customerPhone||'',row.customerNote||'',row.network,row.networkReference,row.currency,
@@ -104,6 +104,10 @@ function toCsv(items,timeZone=businessTime.DEFAULT_TIME_ZONE){
    row.agentCommissionEstimate?.version||'',
    row.customerNetworkFeeEstimate?major(row.customerNetworkFeeEstimate.amountMinor,row.currency):'Not configured',
    row.customerNetworkFeeEstimate?.version||'',
+   row.agentCommissionPublishedReference?major(row.agentCommissionPublishedReference.amountMinor,row.currency):'',
+   row.agentCommissionPublishedReference?.checkedOn||'',
+   row.customerNetworkChargePublishedReference?major(row.customerNetworkChargePublishedReference.amountMinor,row.currency):'',
+   row.customerNetworkChargePublishedReference?.checkedOn||'',
    row.paymentMethod||'Cash',row.entrySource||'manual',row.status,row.reviewState||'awaiting_review',row.correctionState||'none',
    major(voided||(row.paymentMethod||'Cash')!=='Cash'?0n:(row.physicalCashMovementMinor==null?BigInt(String(row.amountMinor))*(row.operation==='cash_in'?1n:-1n):BigInt(String(row.physicalCashMovementMinor))),row.currency)]);
  }

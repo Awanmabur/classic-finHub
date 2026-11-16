@@ -28,7 +28,7 @@
       <div class="row2">
         <% if(entryNetworks.length===1){ %>
         <div class="field"><span>Provider network (automatically selected)</span>
-          <div class="networkReadOnly"><b><%= selectedEntryNetwork==='MTN'?'MTN MoMo Uganda':selectedEntryNetwork==='MTN SSD'?'MTN MoMo South Sudan':selectedEntryNetwork %></b> · <%= entryCurrency %></div>
+          <input class="control" type="text" readonly tabindex="-1" aria-label="Automatically selected network" value="<%= selectedEntryNetwork==='MTN'?'MTN MoMo Uganda':selectedEntryNetwork==='MTN SSD'?'MTN MoMo South Sudan':selectedEntryNetwork %> · <%= entryCurrency %>">
           <input type="hidden" name="network" value="<%= selectedEntryNetwork %>" data-market-currency="<%= entryVerifiedMarket(selectedEntryNetwork) %>">
         </div>
         <% }else{ %><label class="field">Network<select class="control" name="network" required><% entryNetworks.forEach(network=>{ %><option value="<%= network %>" data-market-currency="<%= entryVerifiedMarket(network) %>"<%- network===selectedEntryNetwork?' selected':'' %><%- (entryNetworkCurrencies[network]&&!entryCurrencyOptions.some(c=>c.code===entryNetworkCurrencies[network]))||entryNeedsWallet(network)?' disabled':'' %>><%= network==='MTN SSD'?'MTN MoMo South Sudan':network==='MTN'?'MTN MoMo Uganda':network %></option><% }) %></select></label><% } %>
@@ -43,7 +43,7 @@
         <label class="field">Amount (<span data-mobile-currency-label><%= entryCurrency %></span>)<input class="control" type="text" inputmode="decimal" name="amount" placeholder="0" pattern="<%= entryAmountPattern %>" required></label>
       </div>
       <input type="hidden" name="paymentMethod" value="Cash">
-      <p class="tiny">The approved provider wallet and your physical drawer are matched automatically. No extra payment-method or cash-drawer selection is needed.</p>
+      <p class="tiny" data-momo-account-notice hidden aria-live="polite"></p>
       <%- include('_funds-context') %>
       <% const entryBalances=[...(data.funds?.paymentAccounts||[]).filter(a=>a.kind==='cash'),...(data.funds?.wallets||[])]; %>
       <div class="networkBalanceGrid mobileEntryBalances" data-mobile-balance-stats aria-label="Cash and float book balances">

@@ -21,12 +21,20 @@
     <p><b>Record status:</b> <%= data.record.status.replaceAll('_',' ') %></p>
   </div><p class="tiny">An internally voided entry is retained for investigation and reporting. It does not reverse any provider transaction, refund a customer or settle a balance.</p></div></section>
   <% if(data.record){ %>
-  <section class="card" style="margin-top:14px"><div class="cardHead"><div><b>Saved network rate estimates</b><br><span>Captured from the approved schedule version at transaction time</span></div><a class="btn" href="/tenant/mobile-money/tariffs">Rate sheets</a></div>
+  <section class="card" style="margin-top:14px"><div class="cardHead"><div><b>Saved network rate estimates</b><br><span>Captured from approved rate sheets or clearly labelled published references at transaction time</span></div><a class="btn" href="/tenant/mobile-money/tariffs">Rate sheets</a></div>
    <div class="cardBody"><div class="summary">
     <div class="sumRow"><span>Agent commission estimate</span><b><%= data.record.agentCommissionEstimate?data.formatMoneyMinor(data.record.agentCommissionEstimate.amountMinor,data.record.currency):'No verified matching rate' %></b></div>
     <% if(data.record.agentCommissionEstimate){ %><div class="sumRow"><span>Agent rate sheet version</span><b><%= data.record.agentCommissionEstimate.version %> · Expected only</b></div><% } %>
     <div class="sumRow"><span>Customer network charge estimate</span><b><%= data.record.customerNetworkFeeEstimate?data.formatMoneyMinor(data.record.customerNetworkFeeEstimate.amountMinor,data.record.currency):'No verified matching rate' %></b></div>
     <% if(data.record.customerNetworkFeeEstimate){ %><div class="sumRow"><span>Customer charge sheet version</span><b><%= data.record.customerNetworkFeeEstimate.version %> · Provider charge, not agent earnings</b></div><% } %>
+    <% if(data.record.agentCommissionPublishedReference){ const publicRate=data.record.agentCommissionPublishedReference; %>
+    <div class="sumRow"><span>Published agent commission reference</span><b><%= data.formatMoneyMinor(publicRate.amountMinor,data.record.currency) %> · Not a confirmed payout</b></div>
+    <div class="sumRow"><span>Published source checked</span><b><%= publicRate.checkedOn %> · <a href="<%= publicRate.sourceUrl %>" target="_blank" rel="noopener noreferrer">Provider source</a></b></div>
+    <% } %>
+    <% if(data.record.customerNetworkChargePublishedReference){const publicCharge=data.record.customerNetworkChargePublishedReference; %>
+    <div class="sumRow"><span>Published customer network charge</span><b><%= data.formatMoneyMinor(publicCharge.amountMinor,data.record.currency) %> · Paid to provider, not agent earnings</b></div>
+    <% } %>
+    <% if(!data.record.agentCommissionEstimate&&!data.record.agentCommissionPublishedReference){ %><div class="sumRow"><span>Rate sheet status</span><b>No approved or published reference captured at recording</b></div><% } %>
     <div class="sumRow"><span>Commission actually received</span><b>Requires separate provider settlement evidence</b></div>
    </div><p class="tiny">Neither estimate changed the customer transaction amount, cash drawer, provider float, journal, profit or income. The signed provider statement and independent settlement review determine actual earnings.</p></div>
   </section>

@@ -26,7 +26,14 @@ async function main(){
  const base={customer:'Actual Customer',customerPhone:'+256700123456',network:'MTN',currency:'UGX',walletAccountId:String(wallet._id),paymentAccountId:String(drawer._id),paymentMethod:'Cash',fee:'0',feeTreatment:'record_only'};
  const request=(operation,amount,observed,extra={})=>({...base,operation,amount:String(amount),observedWalletBalance:String(observed),networkReference:'ACTUAL-'+crypto.randomBytes(8).toString('hex'),idempotencyKey:crypto.randomUUID(),...extra});
  async function record(input){return mobile.recordMobileMoney(conn,operator,input,input.operation,tenant,null,{requireFunds:true});}
- async function accept(recorded){return mobile.reviewMobileMoney(conn,reviewer,recorded.created._id,'accepted','Provider evidence, actual wallet and recorded payment checked independently');}
+ async function accept(recorded){
+  assert.equal(recorded.created.status,'recorded','new financial records are final without per-transaction approval');
+  const observationId=recorded.created.walletObservationId;
+  if(!observationId)return;
+  const observation=await funds.models(conn).observation.findById(observationId).lean();
+  if(observation?.status==='pending_review')await treasury.reviewObservation(conn,tenant,reviewer,observationId,
+   {decision:'approve',note:'Independent provider balance evidence and cash posting were inspected'});
+ }
  async function balance(account){return String((await funds.models(conn).account.findById(account._id).lean()).bookBalanceMinor);}
  await treasury.configureAccount(conn,tenant,owner,wallet._id,{name:wallet.name,isDefault:'true',
   feeTreatment:'payment_collected',cashDrawerAccountId:String(drawer._id)});

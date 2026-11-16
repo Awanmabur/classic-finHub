@@ -37,11 +37,13 @@
       <div class="networkBalanceStat"><span>Net cash movement</span><strong><%= row.cashImpactMinorFormatted %></strong><small>Internal physical drawer movement</small></div>
       <div class="networkBalanceStat"><span>Provider commission received</span><strong><%= row.receivedCommissionMinorFormatted %></strong><small>Posted from independently reviewed payout evidence</small></div>
       <div class="networkBalanceStat"><span>Explicitly collected agent fees</span><strong><%= row.collectedFeeMinorFormatted %></strong><small>Only payment_collected policy, not provider charges</small></div>
-      <div class="networkBalanceStat"><span>Estimated commission</span><strong><%= row.commissionMissingCount&&String(row.estimatedCommissionMinor)==='0'?'Not configured':row.estimatedCommissionMinorFormatted %></strong><small>From approved rate sheets only · <%= row.commissionMissingCount||0 %> transaction(s) without a matching sheet. Never posted as income.</small></div>
+      <div class="networkBalanceStat"><span>Estimated commission</span><strong><%= row.commissionMissingCount&&String(row.estimatedCommissionMinor)==='0'?'Not configured':row.estimatedCommissionMinorFormatted %></strong><small>From approved tenant sheets · <%= row.commissionMissingCount||0 %> transaction(s) without an approved sheet. Published provider reference amounts appear separately below and never count as income.</small></div>
      </div>
      <div class="summary">
       <div class="sumRow"><span>All transaction fees recorded (including non-income)</span><b><%= row.recordedFeeMinorFormatted %></b></div>
-      <div class="sumRow"><span>Provider network customer-charge estimates (not agent revenue)</span><b><%= row.customerNetworkChargeEstimateMinorFormatted %></b></div>
+      <div class="sumRow"><span>Provider network customer-charge estimates from approved tenant sheets</span><b><%= row.customerNetworkChargeEstimateMinorFormatted %></b></div>
+      <div class="sumRow"><span>Published agent commission reference (not received income)</span><b><%= row.publishedCommissionReferenceMinorFormatted %></b></div>
+      <div class="sumRow"><span>Published network charge to customers (not agent revenue)</span><b><%= row.publishedCustomerChargeReferenceMinorFormatted %></b></div>
       <div class="sumRow"><span>Configured operating-cost estimates (not verified cash expenses)</span><b><%= row.configuredCostEstimateMinorFormatted %></b></div>
       <div class="sumRow"><span>Legacy wallet-commission treatment — review for double counting</span><b><%= row.legacyWalletFeeMinorFormatted %></b></div>
       <div class="sumRow"><span>Provider commission gross / withheld tax / provider costs</span><b><%= row.grossCommissionMinorFormatted %> / <%= row.withheldTaxMinorFormatted %> / <%= row.providerCostMinorFormatted %></b></div>
@@ -53,14 +55,14 @@
  <section class="card">
   <div class="cardHead"><b>Network and currency breakdown</b><span>MTN Uganda, Airtel, South Sudan and other configured providers remain distinct</span></div>
   <div class="cardBody tableWrap" tabindex="0" role="region" aria-label="Mobile Money network and currency reporting">
-   <table><thead><tr><th>Network · Currency</th><th>Deposits</th><th>Withdrawals</th><th>Principal volume</th><th>Cash impact</th><th>Collected agent fees</th><th>Commission estimated</th><th>Provider charge estimate</th><th>Configured cost estimate</th><th>Commission received</th></tr></thead>
-    <tbody><% if(!groups.length){ %><tr><td colspan="10">No recorded activity in this period.</td></tr><% } %>
+   <table><thead><tr><th>Network · Currency</th><th>Deposits</th><th>Withdrawals</th><th>Principal volume</th><th>Cash impact</th><th>Collected agent fees</th><th>Commission estimated</th><th>Approved provider charge estimate</th><th>Published commission reference</th><th>Published customer network charge</th><th>Configured cost estimate</th><th>Commission received</th></tr></thead>
+    <tbody><% if(!groups.length){ %><tr><td colspan="12">No recorded activity in this period.</td></tr><% } %>
      <% groups.forEach(row=>{ %><tr data-search-row>
       <td><b><%= row.network %></b> · <%= row.currency==='KES'?'KSH':row.currency %></td>
       <td><%= row.depositCount %></td><td><%= row.withdrawalCount %></td>
       <td><%= row.volumeMinorFormatted %></td><td><%= row.cashImpactMinorFormatted %></td>
       <td><%= row.collectedFeeMinorFormatted %></td><td><%= row.commissionMissingCount&&String(row.estimatedCommissionMinor)==='0'?'Not configured':row.estimatedCommissionMinorFormatted %><% if(row.commissionMissingCount){ %><small><%= row.commissionMissingCount %> missing sheet</small><% } %></td>
-      <td><%= row.customerNetworkChargeEstimateMinorFormatted %></td><td><%= row.configuredCostEstimateMinorFormatted %></td>
+      <td><%= row.customerNetworkChargeEstimateMinorFormatted %></td><td><%= row.publishedCommissionReferenceMinorFormatted %></td><td><%= row.publishedCustomerChargeReferenceMinorFormatted %></td><td><%= row.configuredCostEstimateMinorFormatted %></td>
       <td><%= row.receivedCommissionMinorFormatted %></td>
      </tr><% }) %></tbody>
    </table>

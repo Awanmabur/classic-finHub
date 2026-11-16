@@ -26,7 +26,9 @@ async function open(conn,tenant,actor,input={}){
  const branch=await branchModel(conn).findOne({_id:branchId,status:'active'}).lean();
  if(!branch)throw fail('Active branch required',409);
  const currency=require('./branchCurrency.service').resolve(branch,input.currency);
- const opening=mobile.toMinor(input.openingCash,currency,true);
+ const useBookCount=input.openingFromBook==='on';
+ if(useBookCount&&input.physicalCountConfirmed!=='on')throw fail('Count physical cash and confirm it matches the current book before starting a shift',400);
+ const manuallyCounted=useBookCount?null:mobile.toMinor(input.openingCash,currency,true);
  const tx=await conn.startSession();let created;
  try{await tx.withTransaction(async()=>{
    const touched=await branchModel(conn).findOneAndUpdate({_id:branchId,status:'active'},{$inc:{revision:1}},{new:true,session:tx});
@@ -34,6 +36,9 @@ async function open(conn,tenant,actor,input={}){
    require('./branchCurrency.service').resolve(touched,currency);
    if(await cashSessionModel(conn).exists({...activeFilter(branchId,operatorId,currency),status:{$in:['pending_open','open','submitted','disputed']}}).session(tx))throw fail('An unfinished cash shift already exists for this operator, branch and currency',409);
    const funds=require('../treasury/service'),fund=await funds.findAccount(conn,tx,{branchId,kind:'cash',currency,operatorId:actor.id});
+   if(useBookCount&&(!fund||fund.openingBalanceMinor===null||!fund.openingApprovedAt||fund.status!=='active'||fund.reconciliationState!=='matched'))
+    throw fail('An active, reconciled cash drawer is required to reuse the automatic book balance',409);
+   const opening=useBookCount?String(fund.bookBalanceMinor):manuallyCounted;
    if(fund&&fund.openingBalanceMinor!==null){
     if(fund.status!=='active'||fund.reconciliationState!=='matched')throw fail('Reconcile the actual cash account before opening another day',409);
     await funds.assertBookIntegrity(conn,tx,fund);
@@ -172,8 +177,11 @@ async function submit(conn,tenant,actor,shiftId,input={}){
     const fund=await require('../treasury/models').models(conn).account.findOne({_id:result.treasuryAccountId,branchId:result.branchId,operatorId:result.operatorId,currency:result.currency}).session(tx).lean();
     if(!fund||minor(fund.bookBalanceMinor)!==minor(result.openingMinor)+minor(result.provisionalMovementMinor))throw fail('Cash drawer and treasury book do not reconcile',409);
    }else if(computed!==minor(result.provisionalMovementMinor))throw fail('Cash shift movement does not reconcile with original records',409);
-   const declared=BigInt(mobile.toMinor(input.countedCash,result.currency,true));
    const expected=minor(result.openingMinor)+minor(result.provisionalMovementMinor);
+   const useBookCount=input.closingFromBook==='on';
+   if(useBookCount&&input.physicalCountConfirmed!=='on')
+    throw fail('Count physical closing cash and confirm it matches the book amount before submitting',400);
+   const declared=useBookCount?expected:BigInt(mobile.toMinor(input.countedCash,result.currency,true));
    if(expected<0n)throw fail('Invalid estimated cash balance',409);
    const variance=declared-expected, reason=note(input.note||'',variance!==0n);
    let treasuryObservationId=null;

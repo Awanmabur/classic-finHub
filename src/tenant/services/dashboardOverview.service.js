@@ -46,9 +46,9 @@ async function overview(conn,tenant,user,options={}){
  const overviewOptions={...options,mobileMarket,
   timeZone:businessTime.forBranch(options.viewBranch||options.operationBranch)};
  if(options.viewBranchId==='all'){
-  const branches=await require('../models').branchModel(conn)
-   .find({status:'active'}).select('timeZone currency').lean();
-  const zones=[...new Set(branches.map(branch=>businessTime.forBranch(branch)))];
+  // The trusted branch-view middleware already resolved active branches.
+  // Reuse its read-only list rather than making an extra database query.
+  const zones=[...new Set((options.viewBranches||[]).map(branch=>businessTime.forBranch(branch)))];
   // No single local 'today' exists across branches in different timezones.
   // Keep the dashboard responsive, but never fabricate a comparable daily total.
   if(zones.length>1)overviewOptions.suppressTodayVolumes=true;

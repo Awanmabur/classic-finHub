@@ -102,11 +102,29 @@ module.exports=function routes({renderTenant}){
    const quotes=await require('../pricing/networkTariffService').transactionEstimates(
     req.tenantDb,req.tenant,req.operationBranch,{network,currency,operation,amountMinor:String(minor)});
    const fmt=require('../services/mobileMoney.service').formatMoneyMinor;
+   // A public rate table is useful for estimating, but cannot be silently
+   // converted into an approved tenant-agent agreement or posted as income.
+   const agentReference=network==='MTN'?
+    require('../pricing/networkTariffs').quote(
+     require('../pricing/networkTariffs').publicAgentReference(operation),String(minor)):null;
+   const networkReference=require('../pricing/customerNetworkFees').quote(network,operation,String(minor));
+   const agentCommission=quotes.agentCommissionEstimate?
+    {amount:fmt(quotes.agentCommissionEstimate.amountMinor,currency),
+     version:quotes.agentCommissionEstimate.version,status:'estimate_only',source:'approved_tenant_sheet'}:
+    agentReference?.grossCommissionEstimateMinor!=null?
+    {amount:fmt(agentReference.grossCommissionEstimateMinor,currency),
+     status:'reference_only',source:'published_reference'}:null;
+   const customerNetworkCharge=quotes.customerNetworkFeeEstimate?
+    {amount:fmt(quotes.customerNetworkFeeEstimate.amountMinor,currency),
+     version:quotes.customerNetworkFeeEstimate.version,status:'estimate_only',source:'approved_tenant_sheet'}:
+    networkReference?.customerFeeMinor!=null&&networkReference.status==='published_reference'?
+    {amount:fmt(networkReference.customerFeeMinor,currency),
+     status:'reference_only',source:'published_reference'}:null;
    res.set('Cache-Control','private, no-store').json({
-    network,currency,operation,
-    agentCommission:quotes.agentCommissionEstimate?{amount:fmt(quotes.agentCommissionEstimate.amountMinor,currency),version:quotes.agentCommissionEstimate.version,status:'estimate_only'}:null,
-    customerNetworkCharge:quotes.customerNetworkFeeEstimate?{amount:fmt(quotes.customerNetworkFeeEstimate.amountMinor,currency),version:quotes.customerNetworkFeeEstimate.version,status:'estimate_only'}:null,
-    note:'Only approved, effective provider schedules appear here. Estimates do not add fees to the customer transaction or recognize income.'
+    network,currency,operation,agentCommission,customerNetworkCharge,
+    note:agentCommission?.source==='published_reference'||customerNetworkCharge?.source==='published_reference'?
+      'Published provider reference only, not an approved tenant rate or guaranteed agent payout. Have the Tenant Owner configure these bands for independent approval before expecting commission estimates on saved transactions. No additional customer charge, funds or income is posted.':
+      'Rates from independently approved tenant schedules are estimates. The provider must separately confirm the actual payout; no customer fee or commission income is posted automatically.'
    });
   }catch(e){next(e);}
  });

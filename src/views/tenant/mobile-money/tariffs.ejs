@@ -145,9 +145,19 @@
       </form>
      </details>
      <% } %>
-     <% if(data.canReview&&schedule.status==='draft'&&String(schedule.createdBy)!==String(data.actorId||'')){ %>
-      <div class="networkTariffAction"><p class="tiny">Review the original provider agreement before approving. You cannot approve your own submission.</p>
-       <form action="/tenant/mobile-money/tariffs/<%= schedule._id %>/approve" method="post"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btnPrimary">Approve rate sheet</button></form>
+     <% const isOwnReference=data.actorRole==='Tenant Owner'&&
+       String(schedule.createdBy)===String(data.actorId||'')&&
+       schedule.origin==='published_reference'&&schedule.revision===0;
+     const independentReviewer=String(schedule.createdBy)!==String(data.actorId||'');
+     if(data.canReview&&schedule.status==='draft'&&(independentReviewer||isOwnReference)){ %>
+      <div class="networkTariffAction"><p class="tiny"><%= isOwnReference?'Confirm the published MTN rates apply to your agent business. Only the unchanged imported bands can be owner-approved; this is an estimate schedule, not credited commission.':'Review the original provider agreement and approve independently of its proposer.' %></p>
+       <form action="/tenant/mobile-money/tariffs/<%= schedule._id %>/approve" method="post">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <% if(isOwnReference){ %>
+         <label class="field"><span><input type="checkbox" name="ownerAttestation" value="I verified these provider rates for my business" required> I confirm these published rates apply to my business</span></label>
+        <% } %>
+        <button class="btn btnPrimary" type="submit">Approve rate sheet</button>
+       </form>
       </div>
      <% } %>
      <% if(data.canReview&&schedule.status==='approved'&&String(schedule.createdBy)!==String(data.actorId||'')){ %>

@@ -3,7 +3,7 @@
  <section class="card">
   <div class="cardHead"><div><b>Agent network rate sheets</b><br><span>Deposit and withdrawal rates, editable sheets and verified wallet balances</span></div><a class="btn" href="/tenant/treasury">Cash &amp; float accounts</a></div>
   <div class="cardBody workspaceStack">
-   <p class="tiny">Agent commission schedules and customer network fee sheets are separate. A customer network charge is NOT an agent commission. Quotes never increase cash, float, income or profit. Only the network's actual, independently reconciled payout may enter the books.</p>
+   <p class="tiny">Agent commission schedules and customer network fee sheets are separate. A customer network charge is NOT an agent commission. Quotes never increase cash, float, income or profit. Only the network's actual, independently reconciled payout may enter the books. Approved rates are attached to new transactions and visible in their history; past transactions keep their original rate version.</p>
    <p class="tiny">Tenant Owner controls what is configured. Fee collection is configured under Fees & commissions and the provider wallet's Treasury settings. For actual provider commission payouts, select the account that MTN/Airtel really credited: the approved main float wallet or a separately opened genuine commission wallet. An estimate never causes either credit. Until the posting gate is reviewed, payout evidence stays pending without creating revenue.</p>
    <div class="workspaceActions"><a class="btn" href="/tenant/mobile-money/network-activity">Network activity</a><a class="btn" href="/tenant/mobile-money/report">Operations report</a><a class="btn" href="/tenant/workspace/pricing">Customer fees &amp; costs</a></div>
   </div>
@@ -24,10 +24,12 @@
   </div>
  </section>
  <section class="card networkProviderDirectory">
-  <div class="cardHead"><div><b>Network rate sheets</b><br><span>Choose a provider to see its saved deposit and withdrawal commission schedules</span></div><span class="tag"><%= (data.allProviders||[]).length %> registered networks</span></div>
+  <div class="cardHead"><div><b>Network rate sheets</b><br><span>Choose a provider to see its saved deposit and withdrawal commission schedules</span></div><span class="tag">Configured providers</span></div>
   <div class="cardBody">
    <div class="networkProviderGrid">
-    <% (data.allProviders||[]).forEach(p=>{const saved=data.schedules.filter(s=>s.network===p.key&&s.status==='approved').length;const pending=data.schedules.filter(s=>s.network===p.key&&s.status==='draft').length; %>
+    <% const activeProviders=(data.allProviders||[]).filter(p=>(data.commissions.wallets||[]).some(w=>w.network===p.key)||(data.schedules||[]).some(s=>s.network===p.key&&s.status!=='retired')); %>
+    <% if(!activeProviders.length){ %><p class="tiny">No provider network has an active configured wallet or saved rate sheet. Set up the actual provider float account first.</p><% } %>
+    <% activeProviders.forEach(p=>{const saved=data.schedules.filter(s=>s.network===p.key&&s.status==='approved').length;const pending=data.schedules.filter(s=>s.network===p.key&&s.status==='draft').length; %>
      <div class="networkProviderCard">
       <strong><%= p.displayName %></strong>
       <span><%= p.currency||'Market configuration required' %></span>
@@ -37,16 +39,12 @@
         <div class="networkOperationRow">
          <span><%= op.name %></span>
          <small><%= count?'Approved sheet available':'No approved sheet' %></small>
-         <% if(data.canPropose&&p.configured){ %><a href="#network-sheet-form" data-choose-provider="<%= p.key %>" data-choose-operation="<%= op.key %>"><%= count?'Add revision':'Add sheet' %></a><% } %>
+         <% if(data.canPropose&&p.configured){ %><a href="#network-sheet-form" data-choose-provider="<%= p.key %>" data-choose-operation="<%= op.key %>"><%= count?'Review approved sheet below':'Create initial sheet' %></a><% } %>
         </div>
        <% } %>
       </div>
       <% if(!p.configured){ %><span class="tiny">Provider market is not identified. Set up a provider wallet with an independently approved opening balance before creating rates; none are assumed.</span><% } %>
-      <% if(!saved){ %><details class="networkExampleSheet">
-        <summary class="tiny">Show an editable example structure — not an official rate</summary>
-        <p class="tiny">Example only: From 1,000 to 5,000 units, fixed example commission of 100 units; from 5,001 to 10,000, example commission 1%. These are fabricated teaching values, not provider rates, and never apply automatically.</p>
-        <% if(data.canPropose&&p.configured){ %><a class="tiny" href="#network-sheet-form" data-choose-provider="<%= p.key %>" data-choose-operation="cash_in">Create my own draft from verified provider evidence</a><% }else{ %><a class="tiny" href="/tenant/treasury">Configure a verified network wallet before creating a rate sheet</a><% } %>
-       </details><% } %>
+
      </div>
     <% }) %>
    </div>
@@ -91,6 +89,23 @@
       <button class="btn" type="submit">Estimate commission</button>
       <span class="tiny">Reference estimate only — no money is posted.</span>
      </form>
+     <% if(data.canPropose&&schedule.status==='approved'&&(data.actorRole==='Tenant Owner'||String(schedule.branchId)===String(user.branchId))){ %>
+     <details class="networkTariffEdit"><summary>Edit approved sheet · prepare next version</summary>
+      <form class="networkTariffForm" method="post" data-editor-currency="<%= schedule.currency %>" action="/tenant/mobile-money/tariffs/<%= schedule._id %>/revise">
+       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+       <label class="field">Updated provider document or agreement<input class="control" name="evidenceReference" minlength="12" maxlength="350" required value="<%= schedule.evidenceReference %>"></label>
+       <div class="row2">
+        <label class="field">New effective date (branch-local)<input class="control" type="date" name="effectiveFrom" value="<%= businessToday %>" required></label>
+        <label class="field">Expires on (optional)<input class="control" type="date" name="expiresAt" value="<%= schedule.expiresAt?new Date(schedule.expiresAt).toISOString().slice(0,10):'' %>"></label>
+       </div>
+       <% if(!data.allProviders.find(p=>p.key===schedule.network)?.currency){ %>
+        <label class="field">Verified wallet for this provider market<select class="control" name="walletAccountId" required><option value="">Choose wallet</option><% data.commissions.wallets.filter(w=>w.network===schedule.network&&w.currency===schedule.currency&&String(w.branchId)===String(schedule.branchId)).forEach(w=>{ %><option value="<%= w._id %>"><%= w.name %></option><% }) %></select></label>
+       <% } %>
+       <label class="field">Rate bands<textarea class="control networkTariffBands" name="bands" rows="7" data-rate-editor maxlength="30000" required><%= data.serializeLines(schedule.tiers) %></textarea></label>
+       <div class="networkTariffActions"><button class="btn btnPrimary" type="submit">Submit updated version for review</button><small>The current approved version stays active until its replacement is approved.</small></div>
+      </form>
+     </details>
+     <% } %>
      <% if(data.canPropose&&schedule.status==='draft'&&(data.actorRole==='Tenant Owner'||!data.actorRole||String(schedule.createdBy)===String(data.actorId))){ %>
      <details class="networkTariffEdit"><summary>Edit draft rates</summary>
       <form class="networkTariffForm" method="post" data-editor-currency="<%= schedule.currency %>" action="/tenant/mobile-money/tariffs/<%= schedule._id %>/edit">

@@ -17,6 +17,7 @@ const schema=new mongoose.Schema({
  scheduleKind:{type:String,enum:require('./networkTariffs').SCHEDULE_KINDS,required:true,immutable:true},
  version:{type:Number,min:1,required:true,immutable:true},
  status:{type:String,enum:['draft','approved','retired'],default:'draft'},
+ origin:{type:String,enum:['manual','published_reference'],default:'manual',immutable:true},
  tiers:{type:[bands],required:true},
  evidenceReference:{type:String,required:true,maxlength:350},
  effectiveFrom:{type:Date,required:true,immutable:true},

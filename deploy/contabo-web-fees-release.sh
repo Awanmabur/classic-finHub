@@ -22,7 +22,7 @@ install -d -m 0700 "$SAFE"
 ROLLBACK=0
 DONE=0
 recover(){
- code=$?
+ code=${1:-$?}
  trap - ERR INT TERM
  set +e
  docker rm -f "$CANARY" >/dev/null 2>&1
@@ -36,8 +36,8 @@ recover(){
  exit "$code"
 }
 trap recover ERR
-trap 'exit 130' INT
-trap 'exit 143' TERM
+trap 'recover 130' INT
+trap 'recover 143' TERM
 
 echo '=== PRODUCTION SAFETY CHECK ==='
 for n in "$APP" classicfin-worker classicfin-notifications; do

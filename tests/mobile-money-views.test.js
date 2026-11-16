@@ -51,7 +51,7 @@ test('approved mobile money entry preserves the protected server contract and as
   const transactionForm = html.match(/<form[^>]+data-mobile-money-form[\s\S]*?<\/form>/)[0];
   assert.doesNotMatch(transactionForm,/<(?:select|input)[^>]+name="branchId"/);
   assert.doesNotMatch(html,/name="branchId"/);
-  assert.match(html,/Saved records and verification status/);
+  assert.match(html,/Recorded operations/);
   assert.match(html,/Recorded in books/);
   assert.match(html,/Customer &lt;script&gt;/);
   assert.doesNotMatch(html,/Customer <script>/);

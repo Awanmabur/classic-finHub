@@ -1,3 +1,6 @@
+<% const detailZone=typeof businessTimeZone==='string'?businessTimeZone:'UTC';
+   const detailLocalDate=typeof formatLocalDate==='function'?formatLocalDate:
+    (value=>new Date(value).toISOString().slice(0,16).replace('T',' ')); %>
 <section class="view show">
   <p class="tiny"><a class="btn" href="/tenant/mobile-money/<%= data.record._id %>/acknowledgement">Print internal acknowledgement</a> Not proof of payment or settlement.</p>
   <section class="card"><div class="cardHead"><b>Recorded operation</b><span>Original financial details are retained</span><a class="btn" href="/tenant/mobile-money/history">History</a></div>
@@ -12,7 +15,7 @@
     <p><b>Payment method:</b> <%= data.record.paymentMethod || 'Cash' %></p>
     <p><b>Amount:</b> <%= money(data.record.currency,amountFromMinor(data.record.amountMinor,data.record.currency)) %></p>
     <p><b><%= data.record.feeTreatment==='payment_collected'?'Customer fee collected':data.record.feeTreatment==='wallet_commission'?'Wallet commission recorded':'Recorded fee (not confirmed as income)' %>:</b> <%= money(data.record.currency,amountFromMinor(data.record.feeMinor,data.record.currency)) %></p>
-    <p><b>Recorded (<%= businessTimeZone %>):</b> <%= formatLocalDate(data.record.createdAt) %></p>
+    <p><b>Recorded (<%= detailZone %>):</b> <%= detailLocalDate(data.record.createdAt) %></p>
     <p><b>Internal review:</b> <%= (data.record.reviewState||'awaiting_review').replaceAll('_',' ') %></p>
     <p><b>Correction:</b> <%= (data.record.correctionState||'none').replaceAll('_',' ') %></p>
     <p><b>Record status:</b> <%= data.record.status.replaceAll('_',' ') %></p>
@@ -37,9 +40,9 @@
       <% if(observation){ const variance=observation.varianceMinorAtReview??observation.varianceMinorAtRequest; %>
       <div class="sumRow"><span>Reported actual wallet balance</span><b><%= data.formatMoneyMinor(observation.actualMinor,data.record.currency) %></b></div>
       <div class="sumRow"><span>Difference at observation</span><b><%= variance===null?'Not yet calculated':data.formatMoneyMinor(variance,data.record.currency) %></b></div>
-      <div class="sumRow"><span>Observed (<%= businessTimeZone %>)</span><b><%= formatLocalDate(observation.observedAt) %></b></div>
+      <div class="sumRow"><span>Observed (<%= detailZone %>)</span><b><%= detailLocalDate(observation.observedAt) %></b></div>
       <div class="sumRow"><span>Evidence</span><b><%= observation.evidenceType.replaceAll('_',' ') %> · <%= observation.evidenceReference %></b></div>
-      <div class="sumRow"><span>Evidence review</span><b><%= observation.status.replaceAll('_',' ') %><%= observation.reviewedAt?' · '+formatLocalDate(observation.reviewedAt):'' %></b></div>
+      <div class="sumRow"><span>Evidence review</span><b><%= observation.status.replaceAll('_',' ') %><%= observation.reviewedAt?' · '+detailLocalDate(observation.reviewedAt):'' %></b></div>
       <% }else{ %><div class="sumRow"><span>Actual wallet evidence</span><b>No balance observation attached</b></div><% } %>
       <div class="sumRow"><span>Balanced book journals</span><b><%= (data.record.fundJournalIds||[]).length %></b></div>
     </div><p class="tiny">The actual balance is dated evidence from the network app, statement or SMS. Independent review confirms that observation; it does not provide a live provider balance. An internal void posts inverse book movements while retaining this original evidence.</p>
@@ -68,7 +71,7 @@
   <section class="card" style="margin-top:14px"><div class="cardHead"><b>Correction decisions</b><span>Chronological evidence history</span></div>
     <div class="cardBody tableWrap"><table><thead><tr><th>Time (UTC)</th><th>Action</th><th>Decision note</th></tr></thead><tbody>
       <% if(!(data.record.correctionHistory||[]).length){ %><tr><td colspan="3">No corrections requested.</td></tr><% } %>
-      <% (data.record.correctionHistory||[]).forEach(entry=>{ %><tr><td><%= formatLocalDate(entry.at) %></td><td><%= entry.action %></td><td><%= entry.note %></td></tr><% }) %>
+      <% (data.record.correctionHistory||[]).forEach(entry=>{ %><tr><td><%= detailLocalDate(entry.at) %></td><td><%= entry.action %></td><td><%= entry.note %></td></tr><% }) %>
     </tbody></table></div>
   </section>
 </section>

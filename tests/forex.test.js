@@ -117,7 +117,8 @@ test('Standalone Forex reporting excludes customer details and uses branch-scope
 test('Forex UI uses existing card layout, CSRF protection, independent controls and escapes user values',async()=>{
  const html=await ejs.renderFile(path.join(__dirname,'../src/views/tenant/forex/index.ejs'),{
   user:{role:'Forex Operator'},csrfToken:'test-csrf',data:{canPropose:true,canQuote:true,canRateReview:false,canQuoteReview:false,
-   selectedBranchId:branch,branches:[{_id:branch,name:'Test',currency:'UGX'}],rates:[],records:{items:[]},rateQueue:[],quoteQueue:[],idempotencyKey:crypto.randomUUID(),amountLabel:fx.amountLabel}
+   selectedBranchId:branch,branches:[{_id:branch,name:'Test',currency:'UGX'}],
+    currencyChoices:[{code:'UGX'},{code:'USD'},{code:'SSP'},{code:'KES'}],rates:[],records:{items:[]},rateQueue:[],quoteQueue:[],idempotencyKey:crypto.randomUUID(),amountLabel:fx.amountLabel}
  });
  assert.match(html,/forex\/quotes/);assert.match(html,/forex\/rates/);assert.match(html,/name="_csrf" value="test-csrf"/);
  assert.doesNotMatch(html,/name="decision"/);assert.match(html,/record the actual exchange against opened foreign currency and settlement accounts for independent review/);

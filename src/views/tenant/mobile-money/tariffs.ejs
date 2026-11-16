@@ -35,7 +35,8 @@
       const scopedFloat=(data.funds?.wallets||[]).filter(w=>markets.has(w.network+'|'+w.currency)&&w.state==='active');
       const linkedCash=new Set(scopedFloat.map(w=>w.cashDrawerAccountId).filter(Boolean));
       const compatibleCash=(data.funds?.paymentAccounts||[]).filter(a=>a.kind==='cash'&&(data.networkMarkets||[]).some(m=>m.currency===a.currency));
-      const scopedCash=compatibleCash.filter(a=>linkedCash.has(a.id)||((data.networkMarkets||[]).length===1&&compatibleCash.length===1));
+      const scopedCash=compatibleCash.filter(a=>linkedCash.has(a.id)||
+       compatibleCash.filter(x=>x.currency===a.currency).length===1);
       const moneyAccounts=[...scopedCash,...scopedFloat]; %>
    <% if(moneyAccounts.length){ %>
    <div class="networkBalanceGrid"><% moneyAccounts.forEach(account=>{ %>

@@ -202,7 +202,7 @@ async function main() {
     assert.equal(report.status,200);
     const csv=await report.text();
     assert(csv.replace(/^\uFEFF/,'').startsWith('"Module","Activity","Status","Currency","Count",'),'reports exports use the current aggregate contract');
-    assert.match(csv,/recorded \/ not_required \/ none/,'finalized operation is present in the authorized source aggregate');
+    assert.match(csv,/"Mobile Money","MTN · cash_in","recorded","UGX"/,'finalized Mobile Money operation must appear in the authorized aggregate CSV');
     assert.doesNotMatch(csv,/Auth Probe Customer/,'aggregate reports must not expose customer identities');
     assert.equal((await fetch(`${base}/tenant/audit`,{headers:{cookie:reviewerFull.cookie}})).status,200);
     const auditor=await signIn('auditor');

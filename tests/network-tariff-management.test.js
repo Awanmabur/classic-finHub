@@ -132,7 +132,9 @@ test('provider directory shows all registered network slots and an editable rate
  const template=fs.readFileSync(path.join(root,'src/views/tenant/mobile-money/tariffs.ejs'),'utf8');
  const script=fs.readFileSync(path.join(root,'public/js/network-tariffs.js'),'utf8');
  assert.match(template,/data\.allProviders/);
- assert.match(template,/data-choose-operation/);
+ assert.match(template,/visibleProviderSheets/);
+ assert.match(template,/technical-rate-components/);
+ assert.match(template,/One sheet per provider and branch/);
  assert.match(template,/data-provider-currency/);
  assert.match(template,/data-tariff-market-wallet/);
  assert.match(template,/networkTariffScroll/);

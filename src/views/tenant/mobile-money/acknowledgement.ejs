@@ -13,8 +13,9 @@
 <dt>Customer</dt><dd><%= record.customer %></dd>
 <dt>Recorded amount</dt><dd><%= amount %></dd>
 <dt>Recorded fee</dt><dd><%= fee %></dd>
-<dt>Internal status</dt><dd><%= record.status %></dd>
-<dt>Internal review</dt><dd><%= record.reviewState || 'awaiting_review' %></dd>
+<dt>Internal record</dt><dd><%= record.status==='voided_internal'?'Voided internally':record.fundingState==='book_recorded'?'Recorded in cash and float books':record.status==='recorded'?'Recorded':record.status==='pending_verification'?'Historical entry · book posting not established':record.status.replaceAll('_',' ') %></dd>
+<dt>Network settlement</dt><dd>Not independently verified in FinHub</dd>
+<% if(['accepted','disputed'].includes(record.reviewState)){ %><dt>Historical review outcome</dt><dd><%= record.reviewState %></dd><% } %>
 <dt>Correction status</dt><dd><%= record.correctionState || 'none' %></dd></dl>
 <p class="foot">If the entry is inaccurate, contact the branch for a controlled correction. No wallet or provider balance is confirmed here.</p>
 <% if(typeof identity!=='undefined'&&identity?.footerNote){ %><p class="foot"><%= identity.footerNote %></p><% } %>

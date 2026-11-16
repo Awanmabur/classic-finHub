@@ -134,7 +134,7 @@ test('provider directory shows all registered network slots and an editable rate
  assert.match(template,/data\.allProviders/);
  assert.match(template,/visibleProviderSheets/);
  assert.match(template,/technical-rate-components/);
- assert.match(template,/One sheet per provider and branch/);
+ assert.match(template,/One sheet per network and branch/);
  assert.match(template,/data-provider-currency/);
  assert.match(template,/data-tariff-market-wallet/);
  assert.match(template,/networkTariffScroll/);

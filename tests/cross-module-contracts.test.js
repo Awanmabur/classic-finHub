@@ -60,6 +60,7 @@ test('cross-module reports never manufacture an additive total from overlapping 
   {key:'banking',label:'Banking',moduleKey:'banking',rows:async()=>[{...rows[0],module:'Banking',count:1}]}];
  const service=loadWithMocks('../src/tenant/services/operationsReports.service.js',{
   './mobileMoney.service':{dateBounds:()=>({$gte:new Date(0),$lt:new Date(86400000)}),csvCell:String},
+  '../../utils/businessTime':require('../src/utils/businessTime'),
   './moduleAccess.service':{hasPermission:()=>true,hasModuleForUser:()=>true,hasModule:()=>true},
   './branchView.service':{readScope:()=>({})},
   '../reporting/registry':sources

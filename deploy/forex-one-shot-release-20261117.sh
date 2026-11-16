@@ -87,16 +87,22 @@ docker buildx build --pull --load -f "$WT/deploy/Dockerfile" \
   -t "$IMAGE" "$WT"
 test "$(docker image inspect "$IMAGE" -f '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$SHA"
 
-echo '=== 3. FOREX UNIT TESTS ==='
-# The hardened release checkout inherits umask 077; git-created test files
-# are owned by classicdeploy and cannot be read by the image's node user.
-# Run the disposable test container as that existing source owner.
-test -f "$WT/tests/forex.test.js"
-test -r "$WT/tests/forex.test.js"
-TEST_UID="$(id -u classicdeploy)"
-TEST_GID="$(id -g classicdeploy)"
-docker run --rm --network none --memory 768m --cpus 1 \
-  --user "$TEST_UID:$TEST_GID" \
+echo '=== 3. VERIFY RUNTIME AND RUN ISOLATED FOREX TESTS ==='
+# The production image deliberately excludes tests; mount them read-only.
+# With umask 077, the worktree files belong to classicdeploy (often uid 1001),
+# but /app/src files inside the image belong to node (uid 1000). Neither UID
+# can necessarily read both trees. Verify the production user first, then run
+# tests as root INSIDE a networkless, read-only, capability-free container.
+test -s "$WT/tests/forex.test.js"
+docker run --rm --network none --read-only \
+  --cap-drop ALL --security-opt no-new-privileges:true \
+  --memory 512m --cpus 1 \
+  "$IMAGE" node -e \
+  "require.resolve('./src/tenant/services/forex.service.js'); console.log('Production service readable: PASS')"
+docker run --rm --network none --read-only \
+  --cap-drop ALL --security-opt no-new-privileges:true \
+  --memory 768m --cpus 1 --pids-limit 128 \
+  --user 0:0 \
   -e NODE_ENV=test -e HOME=/tmp \
   --tmpfs /tmp:rw,nosuid,size=64m \
   -v "$WT/tests:/app/tests:ro" \

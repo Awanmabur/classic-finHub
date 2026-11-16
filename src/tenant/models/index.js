@@ -56,8 +56,6 @@ const moneySchema = new mongoose.Schema({
   reviewedAt: { type: Date, default: null },
   reviewNote: { type: String, default: null, maxlength: 400 },
   riskSignals:{type:[{type:String,enum:['rapid_repeat','unusual_amount','wallet_balance_mismatch']}],default:[],immutable:true},
-  riskAlertsSynced:{type:Boolean,default:false},
-  riskAlertsSyncedAt:{type:Date,default:null},
   // Never remove or overwrite an incorrect record. A different person must
   // authorize its internal void, and both decisions remain in the audit trail.
   correctionState: {type:String,enum:['none','requested','denied','voided'],default:'none'},
@@ -96,8 +94,8 @@ moneySchema.index({ network: 1, status: 1, createdAt: -1 });
 moneySchema.index({ reviewState: 1, createdAt: -1 });
 moneySchema.index({ branchId: 1, reviewState: 1, createdAt: 1 });
 moneySchema.index({ branchId: 1, correctionState: 1, createdAt: 1 });
-// Partial queue index covers only records requiring owner alerts.
-moneySchema.index({riskAlertsSynced:1,createdAt:1,_id:1},{partialFilterExpression:{'riskSignals.0':{$exists:true}}});
+// Read-only notification-worker risk scan, indexed only for flagged records.
+moneySchema.index({createdAt:1,_id:1},{partialFilterExpression:{'riskSignals.0':{$exists:true}}});
 const ledgerSchemas = require('../ledger/schemas');
 const financialSchemas = require('../financial/schemas');
 const staffInviteSchema = require('./StaffInvite');
@@ -113,6 +111,7 @@ const forexRateSchema=require('../schemas/ForexRate.schema');
 const forexQuoteSchema=require('../schemas/ForexQuote.schema');
 const notificationTemplateSchema=require('../schemas/NotificationTemplate.schema');
 const notificationMessageSchema=require('../schemas/NotificationMessage.schema');
+const riskAlertDispatchCursorSchema=require('../schemas/RiskAlertDispatchCursor.schema');
 const notificationPreferenceSchema=require('../schemas/NotificationPreference.schema');
 const smsInboxSchema=require('../schemas/SmsInbox.schema');
 const auditSchema = new mongoose.Schema({
@@ -146,6 +145,7 @@ function ensureTenantIndexes(conn) {
       ensureModelIndexes(model(conn,'ApprovalRequestV1',approvalRequestSchema)),
       ensureModelIndexes(model(conn,'NotificationTemplateV1',notificationTemplateSchema)),
       ensureModelIndexes(model(conn,'NotificationMessageV1',notificationMessageSchema)),
+      ensureModelIndexes(model(conn,'RiskAlertDispatchCursorV1',riskAlertDispatchCursorSchema)),
       ensureModelIndexes(model(conn,'NotificationPreferenceV1',notificationPreferenceSchema)),
       ensureModelIndexes(model(conn,'SmsInboxV1',smsInboxSchema)),
       ensureModelIndexes(model(conn, 'LedgerAccountV2', ledgerSchemas.account)),
@@ -176,6 +176,7 @@ module.exports = {
   approvalRequestModel: conn=>model(conn,'ApprovalRequestV1',approvalRequestSchema),
   notificationTemplateModel: conn=>model(conn,'NotificationTemplateV1',notificationTemplateSchema),
   notificationMessageModel: conn=>model(conn,'NotificationMessageV1',notificationMessageSchema),
+  riskAlertDispatchCursorModel: conn=>model(conn,'RiskAlertDispatchCursorV1',riskAlertDispatchCursorSchema),
   notificationPreferenceModel: conn=>model(conn,'NotificationPreferenceV1',notificationPreferenceSchema),
   smsInboxModel:conn=>model(conn,'SmsInboxV1',smsInboxSchema),
   ledgerAccountModel: conn => model(conn, 'LedgerAccountV2', ledgerSchemas.account),

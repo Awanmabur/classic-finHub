@@ -1,6 +1,7 @@
 const { mobileTransactionModel, auditEventModel, branchModel, ensureTenantIndexes } = require('../models');
 const {currencies}=require('../../config/currencies');
 const {networks}=require('../../config/mobileNetworks');
+const businessTime=require('../../utils/businessTime');
 const MAX_MINOR = 10000000000;
 function toMinor(value, currency, allowZero = false) {
   if(typeof currency!=='string'||!Object.hasOwn(currencies,currency))throw bad('Enter a supported currency');
@@ -273,18 +274,15 @@ async function getVoidQueue(conn,reviewerId,max=25,branchId=null){
     operatorId:{$ne:reviewerId},correctionRequestedBy:{$ne:reviewerId},...(branchId?{branchId}:{})})
     .sort({correctionRequestedAt:1}).limit(take).lean();
 }
-function dateBounds({ from, to } = {}) {
-  if (!from && !to) {
-    const start = new Date(); start.setUTCHours(0,0,0,0);
-    return { $gte: start, $lt: new Date(start.getTime() + 86400000) };
-  }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(from || '') || !/^\d{4}-\d{2}-\d{2}$/.test(to || '')) throw bad('Use valid start and end dates');
-  const a = new Date(`${from}T00:00:00Z`), b = new Date(`${to}T00:00:00Z`);
-  if (!Number.isFinite(a.getTime()) || !Number.isFinite(b.getTime()) || a.toISOString().slice(0,10) !== from || b.toISOString().slice(0,10) !== to || b < a || b-a > 90*86400000) throw bad('Report dates must be valid and within 90 days');
-  return { $gte: a, $lt: new Date(b.getTime()+86400000) };
+function dateBounds({from,to}={},timeZone=businessTime.DEFAULT_TIME_ZONE){
+ try{
+  const { $gte,$lt }=businessTime.dayBounds({from,to},timeZone,90);
+  return {$gte,$lt};
+ }catch(error){throw bad(error.message==='Report date range is invalid or too long'?'Report dates must be valid and within 90 days':error.message);}
 }
-async function getTransactions(conn, { from, to, limit = 60, operatorId, branchId } = {}) {
-  const bounds = dateBounds({ from, to });
+
+async function getTransactions(conn, { from, to, limit = 60, operatorId, branchId, timeZone } = {}) {
+  const bounds = dateBounds({ from, to },timeZone);
   const Model = mobileTransactionModel(conn);
   const scope = { ...(operatorId ? {operatorId} : {}), ...(branchId ? {branchId} : {}) };
   const requested = Number(limit);
@@ -313,8 +311,8 @@ function decodeCursor(raw){
     return {at:new Date(values[0]),id:values[1]};
   }catch{throw bad('Invalid history cursor');}
 }
-async function getTransactionPage(conn,{from,to,cursor,operatorId,branchId,limit=40}={}){
-  const dateRange=dateBounds({from,to}),position=decodeCursor(cursor);
+async function getTransactionPage(conn,{from,to,cursor,operatorId,branchId,timeZone,limit=40}={}){
+  const dateRange=dateBounds({from,to},timeZone),position=decodeCursor(cursor);
   const n=Number(limit),take=Number.isSafeInteger(n)&&n>0&&n<=100?n:40;
   const {Types}=require('mongoose');
   const scope={...(operatorId?{operatorId:new Types.ObjectId(operatorId)}:{}),
@@ -324,7 +322,9 @@ async function getTransactionPage(conn,{from,to,cursor,operatorId,branchId,limit
     {createdAt:position.at,_id:{$lt:new Types.ObjectId(position.id)}}];
   const results=await mobileTransactionModel(conn).find(query).sort({createdAt:-1,_id:-1}).limit(take+1).lean();
   const hasMore=results.length>take,items=results.slice(0,take);
-  return {items,nextCursor:hasMore?encodeCursor(items.at(-1)):null,from:from||'',to:to||''};
+  return {items,nextCursor:hasMore?encodeCursor(items.at(-1)):null,
+  from:from||businessTime.localDay(new Date(),timeZone||businessTime.DEFAULT_TIME_ZONE),
+  to:to||businessTime.localDay(new Date(),timeZone||businessTime.DEFAULT_TIME_ZONE)};
 }
 function visibleRecordForRole(record,role){
   if(role!=='Viewer')return record;
@@ -344,7 +344,7 @@ async function getRecordDetails(conn,recordId,scope={}){
   if(!record)throw bad('Record not found within your access scope',404);
   return record;
 }
-async function getSummary(conn, { from, to, operatorId, branchId } = {}) {
+async function getSummary(conn, { from, to, operatorId, branchId, timeZone } = {}) {
   const bounds = dateBounds({ from, to });
   const Model = mobileTransactionModel(conn);
   const {Types}=require('mongoose');

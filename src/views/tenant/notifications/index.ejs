@@ -1,8 +1,10 @@
+<% const regionalZone=typeof businessTimeZone==='string'?businessTimeZone:'UTC';
+ const regionalTime=typeof formatLocalDate==='function'?formatLocalDate:(v=>new Date(v).toISOString()); %>
 <section class="view show">
  <section class="card"><div class="cardHead"><b>My notification inbox</b><span>Messages for your account only</span></div>
- <div class="cardBody tableWrap"><table><thead><tr><th>Subject</th><th>Created (UTC)</th><th>Read</th><th>Email</th></tr></thead><tbody>
+ <div class="cardBody tableWrap"><table><thead><tr><th>Subject</th><th>Created (local)</th><th>Read</th><th>Email</th></tr></thead><tbody>
  <% data.inbox.items.forEach(n=>{ %><tr data-search-row><td><a href="/tenant/notifications/<%= n._id %>"><%= n.subject %></a></td>
- <td><%= new Date(n.createdAt).toISOString().slice(0,16).replace('T',' ') %></td><td><%= n.readAt?'Read':'Unread' %></td><td><%= n.emailState.replaceAll('_',' ') %></td></tr><% }) %>
+ <td><%= regionalTime(n.createdAt,n.branchId) %></td><td><%= n.readAt?'Read':'Unread' %></td><td><%= n.emailState.replaceAll('_',' ') %></td></tr><% }) %>
  </tbody></table><% if(!data.inbox.items.length){ %><p class="tiny">No notifications have been sent to your account.</p><% } %>
  <% if(data.inbox.nextCursor){ %><a class="btn" href="/tenant/notifications?cursor=<%= encodeURIComponent(data.inbox.nextCursor) %>">Older messages</a><% } %></div></section>
  <section class="card" style="margin-top:14px"><div class="cardHead"><b>My delivery preferences</b><span>In-app is always available</span></div><div class="cardBody">
@@ -31,8 +33,8 @@
  <section class="card" style="margin-top:14px"><div class="cardHead"><b>Active templates</b><span>Owner-controlled</span></div><div class="cardBody tableWrap"><table><thead><tr><th>Template</th><th>Version</th><th>Email permitted</th><th>Action</th></tr></thead><tbody>
  <% data.templates.forEach(t=>{ %><tr><td><%= t.name %> <span class="tiny">(<%= t.code %>)</span></td><td><%= t.version %></td><td><%= t.emailAvailable?'Yes':'No' %></td><td><form method="post" action="/tenant/notifications/templates/<%= t.code %>/retire"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn" type="submit">Retire</button></form></td></tr><% }) %>
  </tbody></table></div></section><% } %>
- <% if(data.logs.length){ %><section class="card" style="margin-top:14px"><div class="cardHead"><b>Authorized delivery log</b><span>Email acceptance, retry and suppression states only</span></div><div class="cardBody tableWrap"><table><thead><tr><th>Template</th><th>Created (UTC)</th><th>Email state</th><th>Attempts</th><th>Failure code</th><% if(data.canManage){ %><th>Recovery</th><% } %></tr></thead><tbody>
- <% data.logs.forEach(n=>{ %><tr><td><%= n.templateCode %></td><td><%= new Date(n.createdAt).toISOString().slice(0,16).replace('T',' ') %></td><td><%= n.emailState %></td><td><%= n.attempts %></td><td><%= n.failureCode||'—' %></td><% if(data.canManage){ %><td>
+ <% if(data.logs.length){ %><section class="card" style="margin-top:14px"><div class="cardHead"><b>Authorized delivery log</b><span>Email acceptance, retry and suppression states only</span></div><div class="cardBody tableWrap"><table><thead><tr><th>Template</th><th>Created (local)</th><th>Email state</th><th>Attempts</th><th>Failure code</th><% if(data.canManage){ %><th>Recovery</th><% } %></tr></thead><tbody>
+ <% data.logs.forEach(n=>{ %><tr><td><%= n.templateCode %></td><td><%= regionalTime(n.createdAt,n.branchId) %></td><td><%= n.emailState %></td><td><%= n.attempts %></td><td><%= n.failureCode||'—' %></td><% if(data.canManage){ %><td>
  <% if(n.emailState==='dead'){ %><form method="post" action="/tenant/notifications/<%= n._id %>/requeue">
  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
  <label class="field">Retry reason<input class="control" name="reason" required minlength="20" maxlength="400" placeholder="Document why retry is safe"></label>

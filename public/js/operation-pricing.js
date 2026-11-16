@@ -29,7 +29,11 @@
    try{fee=BigInt(rule?.fixedFeeMinor||'0')+(base===null?0n:(base*BigInt(rule?.feeBps||0)+5000n)/10000n);cost=BigInt(rule?.fixedCostMinor||'0')+(base===null?0n:(base*BigInt(rule?.costBps||0)+5000n)/10000n);}catch{return;}
    const next=decimal(fee,scale(currency)),changed=field.value!==next;field.value=next;
    host.querySelector('[data-pricing-fee]').textContent=amount(fee,currency);host.querySelector('[data-pricing-cost]').textContent=amount(cost,currency);
-   host.querySelector('[data-pricing-label]').textContent=rule?'Configured charges applied automatically. Operating cost is an estimate, not an additional customer charge.':'No charge is configured for this operation and currency. The customer fee is zero.';
+   host.querySelector('[data-pricing-label]').textContent=operation.startsWith('mobile_money.')?
+    (rule?'Extra agent service fee calculated from the configured rule; collection depends on the wallet fee treatment. Network charges and provider commission are separate.':
+     'No extra agent service fee is configured. Provider network charges and estimated agent commission are shown separately.'):
+    (rule?'Configured charges applied automatically. Operating cost is an estimate, not an additional customer charge.':
+     'No charge is configured for this operation and currency. The customer fee is zero.');
    if(changed)field.dispatchEvent(new Event('input',{bubbles:true}));
   };
   bindings.set(form,refresh);form.addEventListener('input',event=>{if(event.target!==field)refresh();});form.addEventListener('change',event=>{if(event.target!==field)refresh();});form.addEventListener('reset',()=>queueMicrotask(refresh));refresh();

@@ -217,7 +217,8 @@ router.use('/approvals',requireModule('approval_workflows'),require('./approvals
 router.use('/notifications',requireModule('notifications'),require('./notification.routes')({renderTenant}));
 router.get('/reports', requireModule('reports'), requirePermission('reports.view'), async(req,res,next)=>{
   try{
-    const report=await require('../services/operationsReports.service').generate(req.tenantDb,req.tenant,req.user,req.query);
+    const timeZone=await reportTimeZone.forRequest(req);
+    const report=await require('../services/operationsReports.service').generate(req.tenantDb,req.tenant,req.user,req.query,timeZone);
     renderTenant(req,res,'reports/index','Operations Reports','Standalone, access-controlled reporting across subscribed modules.',{
       report,canExport:hasPermission(req.user,'reports.export')
     });
@@ -226,7 +227,8 @@ router.get('/reports', requireModule('reports'), requirePermission('reports.view
 router.get('/reports/export.csv', requireModule('reports'), requirePermission('reports.export'), async(req,res,next)=>{
   try{
     const reporting=require('../services/operationsReports.service');
-    const report=await reporting.generate(req.tenantDb,req.tenant,req.user,req.query);
+    const timeZone=await reportTimeZone.forRequest(req);
+    const report=await reporting.generate(req.tenantDb,req.tenant,req.user,req.query,timeZone);
     res.setHeader('Content-Type','text/csv; charset=utf-8');
     res.setHeader('Content-Disposition','attachment; filename="classicfin-operations-report.csv"');
     res.setHeader('Cache-Control','private, no-store');

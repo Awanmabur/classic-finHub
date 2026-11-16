@@ -11,6 +11,6 @@ const schema=new Schema({
  sourceUrl:{type:String,required:true,maxlength:300,immutable:true},
  checkedOn:{type:String,required:true,match:/^\d{4}-\d{2}-\d{2}$/,immutable:true},
  quotedAt:{type:Date,required:true,immutable:true},
- status:{type:String,enum:['reference_only'],required:true,immutable:true}
+ status:{type:String,enum:['reference_only','historical_unverified'],required:true,immutable:true}
 },{_id:false,strict:'throw'});
 module.exports={schema};

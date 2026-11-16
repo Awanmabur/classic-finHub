@@ -18,8 +18,10 @@
         <td><%= t.network %></td><td><%= t.operation === 'cash_in' ? 'Deposit' : 'Withdrawal' %></td><td><span class="tag"><%= t.entrySource==='sms'?'SMS capture':'Manual' %></span></td><td><%= t.paymentMethod || 'Cash' %></td>
         <td><%= money(t.currency,amountFromMinor(t.amountMinor,t.currency)) %></td>
         <td><%= money(t.currency,amountFromMinor(t.feeMinor,t.currency)) %></td>
-        <td><%= t.agentCommissionEstimate?money(t.currency,amountFromMinor(t.agentCommissionEstimate.amountMinor,t.currency))+' · v'+t.agentCommissionEstimate.version:'No approved matching sheet' %></td>
-        <td><%= t.customerNetworkFeeEstimate?money(t.currency,amountFromMinor(t.customerNetworkFeeEstimate.amountMinor,t.currency))+' · v'+t.customerNetworkFeeEstimate.version:'Not configured' %></td>
+        <td><%= t.agentCommissionEstimate?money(t.currency,amountFromMinor(t.agentCommissionEstimate.amountMinor,t.currency))+' · approved v'+t.agentCommissionEstimate.version:
+         t.agentCommissionPublishedReference?money(t.currency,amountFromMinor(t.agentCommissionPublishedReference.amountMinor,t.currency))+' · published reference only':'No saved rate' %></td>
+        <td><%= t.customerNetworkFeeEstimate?money(t.currency,amountFromMinor(t.customerNetworkFeeEstimate.amountMinor,t.currency))+' · approved v'+t.customerNetworkFeeEstimate.version:
+          t.customerNetworkChargePublishedReference?money(t.currency,amountFromMinor(t.customerNetworkChargePublishedReference.amountMinor,t.currency))+' · published reference only':'No saved rate' %></td>
         <td><%= t.status.replaceAll('_',' ') %> / <%= (t.reviewState||'awaiting_review').replaceAll('_',' ') %></td>
         <td><%= (t.correctionState||'none').replaceAll('_',' ') %></td>
       </tr><% }) %>

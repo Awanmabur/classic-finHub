@@ -58,13 +58,12 @@
       </div>
     </div>
     <%- include('../partials/operation-pricing',{pricingOperation:'mobile_money.'+entryOperation,pricingField:'fee'}) %>
-    <section class="mobileQuoteSummary" data-mobile-provider-quote aria-live="polite">
+    <section class="mobileQuoteSummary" data-mobile-provider-quote aria-live="polite" hidden>
       <div class="summary">
-       <div class="sumRow"><span>Agent commission estimate</span><b data-mobile-agent-commission>Enter an amount to check</b></div>
-       <div class="sumRow"><span>Expected network charge to customer</span><b data-mobile-provider-charge>Enter an amount to check</b></div>
+       <div class="sumRow" data-quote-commission-row hidden><span>Expected agent commission</span><b data-mobile-agent-commission></b></div>
+       <div class="sumRow" data-quote-customer-row hidden><span>Network customer charge</span><b data-mobile-provider-charge></b></div>
       </div>
-      <p class="tiny" data-mobile-quote-note>Provider commission and provider charges are estimates, separate from the agent-configured customer fee above. Only approved effective sheets can produce a quote. They do not automatically change cash, float, or recognized income.</p>
-      <a href="/tenant/mobile-money/tariffs" class="tiny">Review network rate sheets</a>
+      <p class="tiny" data-mobile-quote-note></p>
     </section>
 
     <div class="summary">

@@ -148,7 +148,7 @@ const tariffToday=typeof businessToday==='string'?businessToday:new Date().toISO
   <div class="cardHead"><div><b>Received provider commissions</b><br><span>Statement-backed receipts, independent review and separate income posting</span></div><span class="tag"><%= data.postingEnabled?'Posting gate enabled':'Posting locked' %></span></div>
   <div class="cardBody workspaceStack">
    <% if(!data.postingEnabled){ %><p class="workspaceNote">Payout posting is disabled until historic wallet commission entries are reconciled and a staging release gate passes. Submissions are stored as evidence only, not treated as cash, float or profit.</p><% } %>
-   <% if(data.canSubmitPayout&&data.postingEnabled){ %>
+   <% if(data.canSubmitPayout&&(data.commissions?.wallets||[]).length){ %>
    <details class="networkTariffRecord"><summary><b>Record a provider commission credit</b><span class="tag">Requires statement evidence</span></summary>
     <form class="networkTariffRecordBody networkTariffForm" method="post" action="/tenant/mobile-money/tariffs/payouts">
      <input type="hidden" name="_csrf" value="<%= csrfToken %>">

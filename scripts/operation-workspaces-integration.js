@@ -66,7 +66,7 @@ async function main(){
   const base=`http://127.0.0.1:${server.address().port}`,query=new URLSearchParams(filters);
   for(const [modulePath,subpaths] of [['money-transfer',['records','fees','pending-payouts','report']],['banking',['records','movements','report']],['forex',['records','cash-impact','report']]]){
    for(const subpath of subpaths){const response=await fetch(`${base}/tenant/${modulePath}/${subpath}?${query}`);assert.equal(response.status,200,`${modulePath}/${subpath}`);assert((await response.text()).includes('Apply filters'));}
-   const csv=await fetch(`${base}/tenant/${modulePath}/report/export.csv?${query}`);assert.equal(csv.status,200);assert.match(csv.headers.get('content-type'),/text\/csv/);assert.match(await csv.text(),/Date \(UTC\)/);
+   const csv=await fetch(`${base}/tenant/${modulePath}/report/export.csv?${query}`);assert.equal(csv.status,200);assert.match(csv.headers.get('content-type'),/text\/csv/);assert.match(await csv.text(),/Date \(Africa\/Kampala\)/);
   }
   const payoutRedirect=await fetch(`${base}/tenant/money-transfer/payout`,{redirect:'manual'});assert.equal(payoutRedirect.status,303);assert.equal(payoutRedirect.headers.get('location'),'/tenant/funded/payout');
   const payout=await fetch(new URL(payoutRedirect.headers.get('location'),base));assert.equal(payout.status,200);const payoutHtml=await payout.text();assert.match(payoutHtml,/data-payout-form/);assert.match(payoutHtml,/name="pin"/);assert.match(payoutHtml,/name="senderPhone"/);assert.match(payoutHtml,/name="legacyReceiverPhone"/);assert.match(payoutHtml,/name="_csrf" value="scratch"/);assert.match(payoutHtml,/Check PIN/);assert.match(payoutHtml,/<button[^>]+disabled[^>]*>Pay out cash<\/button>/);

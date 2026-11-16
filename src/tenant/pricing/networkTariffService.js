@@ -117,6 +117,26 @@ async function revise(conn,tenant,actor,id,input){
   return output;
  }finally{await session.endSession();}
 }
+// Editing an approved schedule creates the next draft version, never changes
+// the version already snapshotted on historical transactions.
+async function proposeRevision(conn,tenant,actor,id,input){
+ if(!input||typeof input!=='object'||Array.isArray(input)||
+   Object.keys(input).some(key=>!['bands','evidenceReference','effectiveFrom','expiresAt','walletAccountId','_csrf'].includes(key)))
+  throw fail('Unrecognized tariff revision');
+ const auth=await treasury.access(conn,tenant,actor,{permission:'treasury.observe',sourceType:'mobile_money'});
+ if(!['Tenant Owner','Mobile Money Operator'].includes(auth.actor.role))throw fail('Only authorized agents may revise sheets',403);
+ const previous=await model(conn).findOne({_id:objectId(id),tenantId:auth.tenant._id,status:'approved'}).lean();
+ if(!previous)throw fail('Active approved sheet not found',404);
+ if(auth.actor.role==='Mobile Money Operator'&&String(previous.branchId)!==String(auth.actor.branchId))
+  throw fail('Rate sheets belong to your assigned branch',403);
+ return propose(conn,tenant,actor,{
+  network:previous.network,operation:previous.operation,scheduleKind:previous.scheduleKind,
+  currency:previous.currency,branchId:String(previous.branchId),
+  ...(input.walletAccountId?{walletAccountId:input.walletAccountId}:{}),
+  effectiveFrom:input.effectiveFrom,expiresAt:input.expiresAt||'',
+  bands:input.bands,evidenceReference:input.evidenceReference
+ });
+}
 async function decide(conn,tenant,actor,id,decision){
  if(!['approve','retire'].includes(decision))throw fail('Choose a valid tariff decision');
  await ensure(conn);
@@ -134,7 +154,18 @@ async function decide(conn,tenant,actor,id,decision){
    if(decision==='approve'){
      validateTariff({network:prior.network,operation:prior.operation,currency:prior.currency,status:'draft',tiers:prior.tiers});
      const other=await model(conn).findOne({_id:{$ne:prior._id},tenantId:auth.tenant._id,branchId:prior.branchId,network:prior.network,operation:prior.operation,currency:prior.currency,scheduleKind:prior.scheduleKind,status:'approved'}).session(session).lean();
-     if(other)throw fail('An approved schedule already exists. Retire the old schedule before approving the replacement.',409);
+     if(other){
+       const branch=await branchModel(conn).findOne({_id:prior.branchId,status:'active'}).session(session).lean();
+       if(!branch)throw fail('Active branch required for tariff activation',409);
+       const currentDay=businessTime.localDay(new Date(),businessTime.forBranch(branch));
+       if(prior.effectiveFrom.toISOString().slice(0,10)>currentDay)
+        throw fail('A replacement cannot take effect before its stated local effective date. Review it on that date.',409);
+       const replaced=await model(conn).updateOne({_id:other._id,tenantId:auth.tenant._id,status:'approved',revision:other.revision},
+        {$set:{status:'retired',retiredAt:new Date(),retiredBy:auth.actor.id},$inc:{revision:1}},{session});
+       if(replaced.modifiedCount!==1)throw fail('The existing rate sheet changed. Reload before approval.',409);
+       await auditEventModel(conn).create([{actorId:auth.actor.id,action:'mobile_money.tariff.superseded',targetId:other._id,
+        metadata:{replacedBy:String(prior._id),version:other.version,newVersion:prior.version}}],{session});
+     }
    }
    const updates=decision==='approve'?{status:'approved',approvedAt:new Date(),approvedBy:auth.actor.id}:{status:'retired',retiredAt:new Date(),retiredBy:auth.actor.id};
    output=await model(conn).findOneAndUpdate({_id:prior._id,tenantId:auth.tenant._id,status:prior.status,revision:prior.revision},{$set:updates,$inc:{revision:1}},{session,new:true,runValidators:true}).lean();
@@ -181,4 +212,4 @@ function preview(schedule,amountMinor){
  }
  return calculated;
 }
-module.exports={parseLines,serializeLines,validateInput,read,propose,revise,decide,preview,transactionEstimates};
+module.exports={parseLines,serializeLines,validateInput,read,propose,proposeRevision,revise,decide,preview,transactionEstimates};

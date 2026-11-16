@@ -52,5 +52,10 @@ test('cash shifts label counted existing cash and do not require separate approv
  assert.match(close,/name="closingFromBook" value="on"/);
  assert.match(detail,/expectedNow=BigInt\(String\(data\.shift\.openingMinor\)\)\+BigInt\(String\(data\.shift\.provisionalMovementMinor\)\)/);
  assert.match(detail,/cashLabel\(String\(expectedNow\),data\.shift\.currency\)/);
- assert.match(close,/Transactions themselves are recorded immediately/);
+ assert.match(close,/Calculated from opening balance and posted movements in your own drawer/);
+ assert.match(close,/name="physicalCountConfirmed" value="on" required/);
+ assert.match(close,/name="countedCash" required/);
+ assert.match(close,/Submit discrepancy for review/);
+ assert.match(close,/data\.shift\.currency/);
+ assert.doesNotMatch(close,/name="openingCash"/);
 });

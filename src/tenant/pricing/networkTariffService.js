@@ -133,7 +133,20 @@ async function decide(conn,tenant,actor,id,decision){
    if(decision==='approve'){
      validateTariff({network:prior.network,operation:prior.operation,currency:prior.currency,status:'draft',tiers:prior.tiers});
      const other=await model(conn).findOne({_id:{$ne:prior._id},tenantId:auth.tenant._id,branchId:prior.branchId,network:prior.network,operation:prior.operation,currency:prior.currency,scheduleKind:prior.scheduleKind,status:'approved'}).session(session).lean();
-     if(other)throw fail('An approved schedule already exists. Retire the old schedule before approving the replacement.',409);
+     if(other){
+      if(prior.version<=other.version||new Date(prior.effectiveFrom)<new Date(other.effectiveFrom))
+       throw fail('A replacement must have a newer version and effective date. Revise the current approved sheet.',409);
+      // Retire predecessor in this same transaction before the unique partial
+      // index allows the replacement. No moment exists with two active sheets.
+      const retired=await model(conn).findOneAndUpdate({
+       _id:other._id,tenantId:auth.tenant._id,status:'approved',revision:other.revision
+      },{$set:{status:'retired',retiredBy:auth.actor.id,retiredAt:new Date()},$inc:{revision:1}},
+      {session,new:true}).lean();
+      if(!retired)throw fail('The previously approved rate changed. Reload before approving the replacement.',409);
+      await auditEventModel(conn).create([{actorId:auth.actor.id,action:'mobile_money.tariff.superseded',
+       targetId:other._id,metadata:{replacementId:String(prior._id),priorVersion:other.version,
+        replacementVersion:prior.version,network:prior.network,operation:prior.operation}}],{session});
+     }
    }
    const updates=decision==='approve'?{status:'approved',approvedAt:new Date(),approvedBy:auth.actor.id}:{status:'retired',retiredAt:new Date(),retiredBy:auth.actor.id};
    output=await model(conn).findOneAndUpdate({_id:prior._id,tenantId:auth.tenant._id,status:prior.status,revision:prior.revision},{$set:updates,$inc:{revision:1}},{session,new:true,runValidators:true}).lean();

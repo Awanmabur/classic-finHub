@@ -1,3 +1,6 @@
+<% const adminZone=typeof businessTimeZone==='string'?businessTimeZone:'UTC';
+   const adminLocalDate=typeof formatLocalDate==='function'?formatLocalDate:
+    (value=>new Date(value).toISOString()); %>
 <section class="view show">
   <section class="card"><div class="cardHead"><div><b>Platform snapshot</b><br><span>Workspaces and onboarding</span></div></div><div class="cardBody"><div class="grid3">
     <div class="stat"><div class="k">Total workspaces</div><div class="v"><%= data.totalTenants %></div><div class="s"><span class="dot"></span>Across your platform</div></div>
@@ -15,8 +18,8 @@
       <a class="tx" href="/platform/modules"><div class="txMeta"><b>Module catalogue</b><span><%= data.availableModuleCount %> available modules</span></div><i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
     </div></section>
   </div>
-  <section class="card" style="margin-top:14px"><div class="cardHead"><b>Recent activity</b><span>Administration changes</span><a class="btn" href="/platform/audit">View all</a></div><div class="cardBody tableWrap"><table class="denseDirectory"><thead><tr><th>Time (UTC)</th><th>Action</th><th>Record</th></tr></thead><tbody>
+  <section class="card" style="margin-top:14px"><div class="cardHead"><b>Recent activity</b><span>Administration changes</span><a class="btn" href="/platform/audit">View all</a></div><div class="cardBody tableWrap"><table class="denseDirectory"><thead><tr><th>Time (<%= adminZone %>)</th><th>Action</th><th>Record</th></tr></thead><tbody>
     <% if(!data.recentAudits.length){ %><tr><td colspan="3">No activity to show yet.</td></tr><% } %>
-    <% data.recentAudits.forEach(a=>{ %><tr data-search-row><td><%= formatUtcDate(a.createdAt) %></td><td><%= a.action %></td><td><%= a.recordId||'—' %></td></tr><% }) %>
+    <% data.recentAudits.forEach(a=>{ %><tr data-search-row><td><%= adminLocalDate(a.createdAt) %></td><td><%= a.action %></td><td><%= a.recordId||'—' %></td></tr><% }) %>
   </tbody></table></div></section>
 </section>

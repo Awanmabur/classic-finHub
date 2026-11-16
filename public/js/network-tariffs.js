@@ -64,12 +64,14 @@
     const network=parent?.querySelector('[data-payout-network]');
     const currency=parent?.querySelector('[data-payout-currency]');
     const readOnly=parent?.querySelector('[data-payout-market]');
+    const timeZoneLabel=parent?.querySelector('[data-credit-time-zone]');
     const syncWallet=()=>{
       const option=payoutWallet.selectedOptions[0];
       const chosenNetwork=option?.dataset.network||'';
       const chosenCurrency=option?.dataset.currency||'';
       if(network)network.value=chosenNetwork;
       if(currency)currency.value=chosenCurrency;
+      if(timeZoneLabel)timeZoneLabel.textContent=option?.dataset.timeZone||'Choose receiving wallet';
       if(readOnly)readOnly.textContent=chosenNetwork?chosenNetwork+' · '+chosenCurrency:'Choose a wallet to identify its network and currency';
     };
     payoutWallet.addEventListener('change',syncWallet);

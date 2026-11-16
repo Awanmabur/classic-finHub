@@ -6,6 +6,7 @@ const {mobileTransactionModel,ensureTenantIndexes}=require('../models');
 const mobile=require('./mobileMoney.service');
 const {hasPermission}=require('./moduleAccess.service');
 const {networks}=require('../../config/mobileNetworks');
+const businessTime=require('../../utils/businessTime');
 function fail(message,status=400){const error=new Error(message);error.status=status;return error;}
 function objectId(value){if(!/^[a-f0-9]{24}$/i.test(String(value||'')))throw fail('An authorized record scope is required',403);return new Types.ObjectId(String(value));}
 function readScope(actor){
@@ -17,19 +18,19 @@ function readScope(actor){
 function canReport(actor){return hasPermission(actor,'mobile_money.report')||hasPermission(actor,'reports.view');}
 function canExport(actor){return hasPermission(actor,'mobile_money.report')||hasPermission(actor,'reports.export');}
 function scalar(input,key){const value=input[key];if(value===undefined||value===null||value==='')return '';if(typeof value!=='string')throw fail('Invalid Mobile Money filter');return value;}
-function filters(input={},fixedOperation){
+function filters(input={},fixedOperation,timeZone=businessTime.DEFAULT_TIME_ZONE){
  const result={from:scalar(input,'from'),to:scalar(input,'to'),network:scalar(input,'network'),currency:scalar(input,'currency'),operation:fixedOperation||scalar(input,'operation'),entrySource:scalar(input,'entrySource')};
  if(result.network&&!networks.includes(result.network))throw fail('Choose a supported mobile money network');
  if(result.currency&&!Object.hasOwn(mobile.currencies,result.currency))throw fail('Choose a supported currency');
  if(result.operation&&!['cash_in','cash_out'].includes(result.operation))throw fail('Choose Deposit or Withdrawal');
  if(result.entrySource&&!['manual','sms'].includes(result.entrySource))throw fail('Choose manual entry or SMS capture');
- const bounds=mobile.dateBounds(result);
- result.from=bounds.$gte.toISOString().slice(0,10);
- result.to=new Date(bounds.$lt.getTime()-1).toISOString().slice(0,10);
+ const bounds=mobile.dateBounds(result,timeZone);
+ result.from=businessTime.localDay(bounds.$gte,timeZone);
+ result.to=businessTime.localDay(new Date(bounds.$lt.getTime()-1),timeZone);
  return result;
 }
-function matchFor(actor,selected){
- return {...readScope(actor),createdAt:mobile.dateBounds(selected),
+function matchFor(actor,selected,timeZone=businessTime.DEFAULT_TIME_ZONE){
+ return {...readScope(actor),createdAt:mobile.dateBounds(selected,timeZone),
   ...(selected.network?{network:selected.network}:{}),...(selected.currency?{currency:selected.currency}:{}),
   ...(selected.operation?{operation:selected.operation}:{}),
   ...(selected.entrySource==='manual'?{entrySource:{$in:['manual',null]}}:selected.entrySource?{entrySource:selected.entrySource}:{})};
@@ -69,7 +70,8 @@ function summarize(groups){
  return {summary,networks:[...byNetwork.values()].sort((a,b)=>a.network.localeCompare(b.network)||a.currency.localeCompare(b.currency)).map(serialize)};
 }
 async function workspace(conn,actor,input={},options={}){
- const selected=filters(input,options.operation),match=matchFor(actor,selected),position=mobile.decodeCursor(input.cursor);
+ const timeZone=options.timeZone||businessTime.DEFAULT_TIME_ZONE;
+ const selected=filters(input,options.operation,timeZone),match=matchFor(actor,selected,timeZone),position=mobile.decodeCursor(input.cursor);
  const requested=Number(options.limit??40),take=Number.isSafeInteger(requested)&&requested>=1&&requested<=100?requested:40;
  const query={...match};
  if(position)query.$or=[{createdAt:{$lt:position.at}},{createdAt:position.at,_id:{$lt:new Types.ObjectId(position.id)}}];
@@ -92,23 +94,28 @@ async function workspace(conn,actor,input={},options={}){
   canReport:canReport(actor),canExport:canExport(actor),cashImpactNote:'Cash impact follows the recorded physical movement, including explicitly collected cash fees. Other commissions remain separate. Internally voided records and Wallet Balance / Bank methods are excluded; provider settlement is unverified.'};
 }
 function major(value,currency){const decimals=mobile.currencies[currency],n=BigInt(String(value)),absolute=n<0n?-n:n,base=10n**BigInt(decimals);return `${n<0n?'-':''}${absolute/base}${decimals?'.'+String(absolute%base).padStart(decimals,'0'):''}`;}
-function toCsv(items){
- const rows=[['Date (UTC)','Operation','Customer','Customer phone','Customer ID / note','Network','Network reference','Currency','Amount','Fee / commission','Payment method','Entry source','Internal record status','Internal review','Correction state','Provisional cash impact']];
+function toCsv(items,timeZone=businessTime.DEFAULT_TIME_ZONE){
+ const rows=[['Date ('+timeZone+')','Operation','Customer','Customer phone','Customer ID / note','Network','Network reference','Currency','Amount','Recorded customer fee','Agent commission estimate (unreceived)','Agent sheet version','Provider customer charge estimate (not income)','Provider charge sheet version','Payment method','Entry source','Internal record status','Internal review','Correction state','Provisional cash impact']];
  for(const row of items){
   const voided=row.status==='voided_internal'||row.correctionState==='voided';
-  rows.push([new Date(row.createdAt).toISOString(),row.operation,row.customer,row.customerPhone||'',row.customerNote||'',row.network,row.networkReference,row.currency,
-   major(row.amountMinor,row.currency),major(row.feeMinor,row.currency),row.paymentMethod||'Cash',row.entrySource||'manual',row.status,row.reviewState||'awaiting_review',row.correctionState||'none',
+  rows.push([businessTime.format(row.createdAt,timeZone,true),row.operation,row.customer,row.customerPhone||'',row.customerNote||'',row.network,row.networkReference,row.currency,
+   major(row.amountMinor,row.currency),major(row.feeMinor,row.currency),
+   row.agentCommissionEstimate?major(row.agentCommissionEstimate.amountMinor,row.currency):'Not configured',
+   row.agentCommissionEstimate?.version||'',
+   row.customerNetworkFeeEstimate?major(row.customerNetworkFeeEstimate.amountMinor,row.currency):'Not configured',
+   row.customerNetworkFeeEstimate?.version||'',
+   row.paymentMethod||'Cash',row.entrySource||'manual',row.status,row.reviewState||'awaiting_review',row.correctionState||'none',
    major(voided||(row.paymentMethod||'Cash')!=='Cash'?0n:(row.physicalCashMovementMinor==null?BigInt(String(row.amountMinor))*(row.operation==='cash_in'?1n:-1n):BigInt(String(row.physicalCashMovementMinor))),row.currency)]);
  }
  return rows.map(row=>row.map(mobile.csvCell).join(',')).join('\r\n')+'\r\n';
 }
-async function exportCsv(conn,actor,input={}){
+async function exportCsv(conn,actor,input={},timeZone=businessTime.DEFAULT_TIME_ZONE){
  if(!canExport(actor))throw fail('Mobile money report export permission is required',403);
- const selected=filters(input),match=matchFor(actor,selected),Model=mobileTransactionModel(conn);
+ const selected=filters(input,undefined,timeZone),match=matchFor(actor,selected,timeZone),Model=mobileTransactionModel(conn);
  const count=await Model.countDocuments(match);
  if(count>5000)throw fail('Export contains more than 5,000 records. Narrow the dates or filters to export the complete result.',422);
  const items=await Model.find(match).sort({createdAt:-1,_id:-1}).limit(5001).lean();
  if(items.length>5000)throw fail('Export contains more than 5,000 records. Narrow the dates or filters to export the complete result.',422);
- return {csv:toCsv(items),count:items.length,filters:selected};
+ return {csv:toCsv(items,timeZone),count:items.length,filters:selected};
 }
 module.exports={workspace,exportCsv,toCsv,summarize,filters,readScope,matchFor,canReport,canExport,networks,major};

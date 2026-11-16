@@ -59,10 +59,13 @@ async function main() {
     const first=await mobile.recordMobileMoney(a,operator,input,'cash_in',tenants[0]);
     created=first.created;
     assert(!first.duplicate);
-    assert.equal(first.created.status,'pending_verification');
+     assert.equal(first.created.status,'recorded');assert.equal(first.created.reviewState,'not_required');
     const repeated=await mobile.recordMobileMoney(a,operator,input,'cash_in',tenants[0]);
     assert(repeated.duplicate, 'identical retry must not double-post');
-    assert.equal(String(first.created._id),String(repeated.created._id));
+     assert.equal(String(first.created._id),String(repeated.created._id));
+     // A persisted pre-upgrade pending record still needs independent receipt review.
+     // Do not reintroduce approval for completed new transactions.
+     await mobileTransactionModel(a).collection.updateOne({_id:created._id},{$set:{status:'pending_verification',reviewState:'awaiting_review'}});
     await assert.rejects(mobile.reviewMobileMoney(a,{...reviewer,id:operator.id,role:'Tenant Owner'},String(created._id),'accepted','Receipt checked manually'),e=>e.status===409);
     await assert.rejects(mobile.reviewMobileMoney(b,reviewer,String(created._id),'accepted','Receipt checked manually'),e=>e.status===409,'other tenant cannot access record');
     const reviewed=await mobile.reviewMobileMoney(a,reviewer,String(created._id),'accepted','Receipt checked manually');

@@ -203,13 +203,14 @@ async function processOne(conn,tenant,workerId,mailer=sendMail){
  const {row,leaseToken}=claimed,Model=models.notificationMessageModel(conn);
  const filter={_id:row._id,emailState:'processing',leaseToken};
  try{
-  if(!hasModuleForUser(tenant,{role:'Tenant Owner'},'notifications')){
+  const isRiskAlert=row.source==='risk_alert'&&row.templateCode==='mobile_money_risk';
+   if(!isRiskAlert&&!hasModuleForUser(tenant,{role:'Tenant Owner'},'notifications')){
    await Model.updateOne(filter,{$set:{emailState:'suppressed',leaseToken:null,leaseUntil:null,failureCode:'MODULE_UNAVAILABLE'}});
    return {state:'suppressed'};
   }
   const recipient=await models.tenantUserModel(conn).findOne({_id:row.recipientId,status:'active'}).select('email role branchId allowedModules status').lean();
   const opt=recipient?await models.notificationPreferenceModel(conn).findOne({userId:recipient._id}).lean():null;
-  if(!recipient||!hasModuleForUser(tenant,recipient,'notifications')||!opt?.emailOptIn){
+  if(!recipient||(isRiskAlert?recipient.role!=='Tenant Owner':(!hasModuleForUser(tenant,recipient,'notifications')||!opt?.emailOptIn))){
    await Model.updateOne(filter,{$set:{emailState:'suppressed',leaseToken:null,leaseUntil:null,failureCode:'RECIPIENT_UNAVAILABLE'}});
    return {state:'suppressed'};
   }

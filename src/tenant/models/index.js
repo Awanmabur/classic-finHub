@@ -55,6 +55,7 @@ const moneySchema = new mongoose.Schema({
   reviewedBy: { type: mongoose.Schema.Types.ObjectId, default: null },
   reviewedAt: { type: Date, default: null },
   reviewNote: { type: String, default: null, maxlength: 400 },
+  riskSignals:{type:[{type:String,enum:['rapid_repeat','unusual_amount','wallet_balance_mismatch']}],default:[],immutable:true},
   // Never remove or overwrite an incorrect record. A different person must
   // authorize its internal void, and both decisions remain in the audit trail.
   correctionState: {type:String,enum:['none','requested','denied','voided'],default:'none'},
@@ -85,6 +86,7 @@ moneySchema.index({branchId:1,operatorId:1,operation:1,createdAt:-1,_id:-1});
 moneySchema.index({ operatorId: 1, createdAt: -1 });
 moneySchema.index({ operatorId:1, createdAt:-1, _id:-1 });
 moneySchema.index({ branchId: 1, createdAt: -1 });
+moneySchema.index({branchId:1,network:1,customerPhone:1,operation:1,createdAt:-1});
 moneySchema.index({ branchId:1, createdAt:-1, _id:-1 });
 moneySchema.index({ branchId:1,operatorId:1,createdAt:-1,_id:-1 });
 moneySchema.index({ status: 1, createdAt: -1 });

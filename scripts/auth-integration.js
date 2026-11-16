@@ -188,13 +188,17 @@ async function main() {
     const reviewPage=await fetch(`${base}/tenant/mobile-money`,{headers:{cookie:reviewerFull.cookie}});
     assert.equal(reviewPage.status,200);
     const reviewHtml=await reviewPage.text();
-    assert.match(reviewHtml,/Independent internal review/);
+    assert.doesNotMatch(reviewHtml,/Independent internal review/);
+    assert.equal(created.reviewState,'recorded','Internal recording is final without routine approval');
     const reviewPost=await fetch(`${base}/tenant/mobile-money/${created._id}/review`,{method:'POST',redirect:'manual',
       headers:{cookie:reviewerFull.cookie,'content-type':'application/x-www-form-urlencoded'},
       body:new URLSearchParams({_csrf:csrf(reviewHtml),decision:'accepted',note:'Evidence checked by different staff member'}).toString()});
-    assert.equal(reviewPost.status,303);
+    assert.equal(reviewPost.status,409,'Final internal records cannot be routinely approved');
     const finalRecord=await require('../src/tenant/models').mobileTransactionModel(tenantDb).findById(created._id).lean();
-    assert.equal(finalRecord.reviewState,'accepted');
+    assert.equal(finalRecord.reviewState,'recorded');
+    await treasury.reviewObservation(tenantDb,tenant,ownerActor,created.walletObservationId,{
+     decision:'approve',note:'Actual provider wallet balance reviewed separately from final internal transaction'
+    });
     const walletObservation=await treasuryModels.models(tenantDb).observation.findById(created.walletObservationId).lean();assert.equal(walletObservation.status,'approved');assert.equal(String(walletObservation.varianceMinorAtReview),'0');
     assert.equal(finalRecord.status,'pending_verification');
     const report=await fetch(`${base}/tenant/reports/export.csv`,{headers:{cookie:reviewerFull.cookie}});

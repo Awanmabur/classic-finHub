@@ -16,8 +16,8 @@
      <% }) %>
     </select>
    </label>
-   <label class="field" data-momo-custom-date <%= isCustom?'':'hidden' %>>From (UTC)<input class="control" type="date" name="from" value="<%= mobileFilters.from||'' %>"></label>
-   <label class="field" data-momo-custom-date <%= isCustom?'':'hidden' %>>To (UTC)<input class="control" type="date" name="to" value="<%= mobileFilters.to||'' %>"></label>
+   <label class="field" data-momo-custom-date <%= isCustom?'':'hidden' %>>From (<%= businessTimeZone %>)<input class="control" type="date" name="from" value="<%= mobileFilters.from||'' %>"></label>
+   <label class="field" data-momo-custom-date <%= isCustom?'':'hidden' %>>To (<%= businessTimeZone %>)<input class="control" type="date" name="to" value="<%= mobileFilters.to||'' %>"></label>
   </div>
   <% if(singleMarket){ %>
    <input type="hidden" name="network" value="<%= singleMarket.network %>">
@@ -44,8 +44,8 @@
   <% } %>
  <% }else{ %>
   <div class="row3">
-   <label class="field">From (UTC)<input class="control" type="date" name="from" value="<%= mobileFilters.from||'' %>"></label>
-   <label class="field">To (UTC)<input class="control" type="date" name="to" value="<%= mobileFilters.to||'' %>"></label>
+   <label class="field">From (<%= businessTimeZone %>)<input class="control" type="date" name="from" value="<%= mobileFilters.from||'' %>"></label>
+   <label class="field">To (<%= businessTimeZone %>)<input class="control" type="date" name="to" value="<%= mobileFilters.to||'' %>"></label>
    <label class="field">Network<select class="control" name="network"><option value="">All networks</option>
     <% (data.networksAvailable||['MTN','MTN SSD','Airtel','Africell','M-Pesa']).forEach(network=>{ %>
      <option value="<%= network %>" <%= mobileFilters.network===network?'selected':'' %>><%= network %></option>

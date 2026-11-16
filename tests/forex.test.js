@@ -45,6 +45,11 @@ test('FX rates are exact fixed-point decimals and conversion does not use floati
 test('Input validation requires valid pair, expiry, idempotency and explanations',()=>{
  const rate={fromCurrency:'UGX',toCurrency:'USD',rateDecimal:'0.000275',note:'Market reference documented by an operator',validHours:'24'};
  assert.equal(fx.rateInput(rate).toCurrency,'USD');
+ assert.equal(fx.rateInput(rate).side,'quote');
+ assert.equal(fx.rateInput({...rate,side:'buy'}).side,'buy');
+ assert.equal(fx.rateInput({...rate,side:'sell'}).side,'sell');
+ fail(()=>fx.rateInput({...rate,side:'arbitrage'}),400);
+ fail(()=>fx.rateInput({...rate,side:'buy',fromCurrency:'EUR'}),400);
  fail(()=>fx.rateInput({...rate,toCurrency:'UGX'}),400);
  fail(()=>fx.rateInput({...rate,validHours:0}),400);
  fail(()=>fx.rateInput({...rate,note:'tiny'}),400);
@@ -72,14 +77,21 @@ test('posted forex history remains branch and originator scoped when filtering',
  await assert.rejects(fx.listQuotes(null,base,actor('Forex Operator'),{status:'not_a_state'}),{status:400});
 });
 test('executable forex forms offer eligible approved pairs and a validity the selected rate can honor',async()=>{
- const rates=[{_id:'507f1f77bcf86cd799439021',branchId:branch,status:'active',fromCurrency:'EUR',toCurrency:'USD',rateDecimal:'1.10',expiresAt:new Date(Date.now()+3600000)},
-  {_id:'507f1f77bcf86cd799439022',branchId:branch,status:'active',fromCurrency:'USD',toCurrency:'SSP',rateDecimal:'100',expiresAt:new Date(Date.now()+10*60000)},
-  {_id:'507f1f77bcf86cd799439023',branchId:branch,status:'active',fromCurrency:'KES',toCurrency:'USD',rateDecimal:'0.01',expiresAt:new Date(Date.now()+3600000)}];
+ const rates=[{_id:'507f1f77bcf86cd799439021',branchId:branch,status:'active',side:'quote',fromCurrency:'EUR',toCurrency:'USD',rateDecimal:'1.10',expiresAt:new Date(Date.now()+3600000)},
+  {_id:'507f1f77bcf86cd799439022',branchId:branch,status:'active',side:'buy',fromCurrency:'USD',toCurrency:'SSP',rateDecimal:'100',expiresAt:new Date(Date.now()+10*60000)},
+  {_id:'507f1f77bcf86cd799439023',branchId:branch,status:'active',side:'buy',fromCurrency:'KES',toCurrency:'USD',rateDecimal:'0.01',expiresAt:new Date(Date.now()+3600000)}];
  const template=path.join(__dirname,'../src/views/tenant/forex/_entry-form.ejs');
  const locals={currentBranchId:branch,user:actor('Forex Operator'),data:{rates,workspaceOperation:'buy',currencyChoices:[{code:'USD'},{code:'SSP'}],idempotencyKey:crypto.randomUUID()}};
  const html=await ejs.renderFile(template,locals);
  assert.doesNotMatch(html,/value="(?:EUR|KES)"/);
  assert.doesNotMatch(html,new RegExp(rates[0]._id+'|'+rates[2]._id));
+ const sellOnly={_id:'507f1f77bcf86cd799439024',branchId:branch,status:'active',side:'sell',fromCurrency:'USD',toCurrency:'SSP',rateDecimal:'105',expiresAt:new Date(Date.now()+3600000)};
+ const buyHtml=await ejs.renderFile(template,{...locals,data:{...locals.data,rates:[...rates,sellOnly]}});
+ assert.doesNotMatch(buyHtml,new RegExp(sellOnly._id));
+ const sellHtml=await ejs.renderFile(template,{...locals,data:{...locals.data,rates:[...rates,sellOnly],workspaceOperation:'sell'}});
+ assert.match(sellHtml,new RegExp(sellOnly._id));
+ assert.doesNotMatch(sellHtml,new RegExp(rates[1]._id));
+ assert.match(sellHtml,/data-side="sell"/);
  assert.match(html,/data-expires-at="[^"]+"/);
  const selected=Number(html.match(/<input type="hidden" name="validMinutes" value="(\d+)"/)[1]);
  assert(selected>=5&&selected<10);
@@ -102,9 +114,9 @@ test('Tenant and branch access fail closed for unrelated roles and assignments',
 test('Forex schemas prevent mutable rate and quote snapshots and enforce unique keys',()=>{
  const rate=require('../src/tenant/schemas/ForexRate.schema');
  const quote=require('../src/tenant/schemas/ForexQuote.schema');
- for(const name of ['fromCurrency','toCurrency','rateDecimal','expiresAt'])assert(rate.path(name).options.immutable);
+ for(const name of ['fromCurrency','toCurrency','side','rateDecimal','expiresAt'])assert(rate.path(name).options.immutable);
  for(const name of ['fromCurrency','toCurrency','rateDecimal','sourceMinor','targetMinor','rateId','expiresAt'])assert(quote.path(name).options.immutable);
- assert(rate.indexes().some(([fields,options])=>fields.branchId===1&&options.unique&&options.partialFilterExpression?.status==='active'));
+ assert(rate.indexes().some(([fields,options])=>fields.branchId===1&&fields.side===1&&options.unique&&options.name==='one_active_forex_rate_per_pair_side'&&options.partialFilterExpression?.status==='active'));
  assert(quote.indexes().some(([fields,options])=>fields.idempotencyKey===1&&options.unique));
 });
 test('Standalone Forex reporting excludes customer details and uses branch-scoped aggregates',async()=>{
@@ -120,7 +132,7 @@ test('Forex UI uses existing card layout, CSRF protection, independent controls 
    selectedBranchId:branch,branches:[{_id:branch,name:'Test',currency:'UGX'}],
     currencyChoices:[{code:'UGX'},{code:'USD'},{code:'SSP'},{code:'KES'}],rates:[],records:{items:[]},rateQueue:[],quoteQueue:[],idempotencyKey:crypto.randomUUID(),amountLabel:fx.amountLabel}
  });
- assert.match(html,/forex\/quotes/);assert.match(html,/forex\/rates/);assert.match(html,/name="_csrf" value="test-csrf"/);
+ assert.match(html,/forex\/quotes/);assert.match(html,/forex\/rates/);assert.match(html,/name="side"/);assert.match(html,/name="_csrf" value="test-csrf"/);
  assert.doesNotMatch(html,/name="decision"/);assert.match(html,/record the actual exchange against opened foreign currency and settlement accounts for independent review/);
  const detail=await ejs.renderFile(path.join(__dirname,'../src/views/tenant/forex/detail.ejs'),{
   csrfToken:'x',data:{quote:{_id:branch,reference:'FX-test',status:'quoted',customerLabel:'<script>alert(1)<\/script>',

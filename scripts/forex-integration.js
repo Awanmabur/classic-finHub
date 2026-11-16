@@ -44,7 +44,7 @@ async function main(){
   const reviewer={id:reviewerId,role:'Reconciliation Officer',branchId:String(a.branch._id),allowedModules:['forex'],permissions:permissionsFor('Reconciliation Officer')};
   const User=require('../src/tenant/models').tenantUserModel(a.conn);
   await User.create([{_id:maker.id,name:'Persisted financial operator',email:`operator-${nonce}@example.invalid`,passwordHash:'unused-integration-password',role:maker.role,branchId:maker.branchId,allowedModules:['forex'],authVersion:0},{_id:reviewer.id,name:'Persisted financial reviewer',email:`reviewer-${nonce}@example.invalid`,passwordHash:'unused-integration-password',role:reviewer.role,branchId:reviewer.branchId,allowedModules:['forex'],authVersion:0}]);
-  const rateInput={branchId:String(a.branch._id),fromCurrency:'UGX',toCurrency:'USD',rateDecimal:'0.000275',validHours:24,
+  const rateInput={branchId:String(a.branch._id),fromCurrency:'UGX',toCurrency:'USD',side:'buy',rateDecimal:'0.000275',validHours:24,
    note:'Authorized indicative rate proposed from an external observation'};
   const first=await forex.proposeRate(a.conn,a.tenant,maker,rateInput);
   assert.equal(first.status,'pending_review');
@@ -57,10 +57,20 @@ async function main(){
   const active=await forex.decideRate(a.conn,a.tenant,reviewer,String(first._id),
    {decision:'approve',note:'Independent rate approval, not external price verification'});
   assert.equal(active.status,'active');
+  const sellProposed=await forex.proposeRate(a.conn,a.tenant,maker,{...rateInput,side:'sell',rateDecimal:'0.000300'});
+  const sellRate=await forex.decideRate(a.conn,a.tenant,reviewer,String(sellProposed._id),
+   {decision:'approve',note:'Independent selling price approved for this currency pair'});
+  assert.equal(sellRate.status,'active');
+  assert.equal((await forexRateModel(a.conn).findById(first._id)).status,'active','Sell approval must not supersede Buy');
+  const inverted=await forex.proposeRate(a.conn,a.tenant,maker,{...rateInput,side:'sell',rateDecimal:'0.000200'});
+  await assert.rejects(forex.decideRate(a.conn,a.tenant,reviewer,String(inverted._id),
+   {decision:'approve',note:'Inverted Forex spread must not be approved'}),e=>e.status===409);
   await assert.rejects(forex.decideRate(a.conn,a.tenant,reviewer,String(first._id),
    {decision:'approve',note:'Repeat approval must fail'}),e=>e.status===409);
   const quoteInput=()=>({branchId:String(a.branch._id),rateId:String(active._id),customerLabel:'Scratch customer',
    customerPhone:'+256700123456',identityDocument:'FX-DOC',commission:'0.10',settlementMethod:'Bank settlement',rateSource:'Internal rate board',externalReference:'FX-SLIP',amount:'20000',validMinutes:15,note:'Indicative quote with no currency execution',operation:'buy',idempotencyKey:crypto.randomUUID()});
+  await assert.rejects(forex.createQuote(a.conn,a.tenant,maker,{...quoteInput(),operation:'sell'}),e=>e.status===409,
+   'Sell must not accept an approved Buy rate');
   const input=quoteInput(),created=await forex.createQuote(a.conn,a.tenant,maker,input);
   assert.equal(created.quote.status,'quoted');assert.equal(created.quote.targetMinor.toString(),'550');
   assert.equal(created.quote.operation,'buy');assert.equal(created.quote.capture.commission,'0.1');assert.equal(created.quote.capture.externalReference,'FX-SLIP');
@@ -85,7 +95,8 @@ async function main(){
    {decision:'approve',note:'Later rate supersedes earlier rate for new quotations'});
   assert.equal((await forex.detail(a.conn,a.tenant,maker,String(created.quote._id))).rateDecimal,'0.000275');
   assert.equal((await forexRateModel(a.conn).findById(first._id)).status,'superseded');
-  const second=await forex.createQuote(a.conn,a.tenant,maker,{...quoteInput(),rateId:String(nextRate._id)});
+  const second=await forex.createQuote(a.conn,a.tenant,maker,{...quoteInput(),operation:'sell',rateId:String(sellRate._id)});
+  assert.equal(second.quote.rateDecimal,'0.000300');
   const cancelled=await forex.cancelQuote(a.conn,a.tenant,maker,String(second.quote._id),
    {note:'Customer declined the internal quote before execution'});
   assert.equal(cancelled.status,'cancelled');

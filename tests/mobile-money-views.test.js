@@ -25,6 +25,11 @@ function options(overrides={}) {
    volumeMinorFormatted:'UGX 5,000',cashImpactMinorFormatted:'UGX 5,000',
    collectedFeeMinorFormatted:'UGX 0',estimatedCommissionMinorFormatted:'UGX 100',
    receivedCommissionMinorFormatted:'UGX 0'}],
+  recentRecords:[{id:'507f1f77bcf86cd799439011',at:new Date('2026-11-03T12:00:00Z'),
+   operation:'cash_in',network:'MTN',currency:'UGX',reference:'MTN-TEST1<script>',
+   amount:'UGX 5,000',recordedFee:'UGX 100',commission:'UGX 50',
+   source:'sms',providerStatus:'pending_verification',internalState:'recorded',
+   correction:'none',flagged:true}],hasMoreRecords:true,
   expenses:[],expensesAccessible:true,note:'Internal book figures, not provider settlement.'},
   formatMoneyMinor:(minor,currency)=>currency+' '+String(minor),
   operation:'cash_in',canRecord:true,canExport:true,idempotencyKey:requestKey,filters:{from:'2026-11-03',to:'2026-11-03',network:'MTN',currency:'UGX',entrySource:'sms'},records:{items:[record],nextCursor:'next-key'},networksAvailable:['MTN','Airtel','Africell','M-Pesa'],currencies:['UGX','USD','SSP','KES'],networks:[{network:'MTN',currency:'UGX',cashInCount:1,cashOutCount:0,formatted:{volume:'UGX 5,000',fees:'UGX 100'}}],summary:{total:1,activeCount:1,manualCount:0,smsCount:1,voidedCount:0,byCurrency:[{currency:'UGX',count:1,cashInCount:1,cashOutCount:0,physicalCashInCount:1,physicalCashOutCount:0,formatted:{cashIn:'UGX 5,000',cashOut:'UGX 0',physicalCashIn:'UGX 5,000',physicalCashOut:'UGX 0',cashImpact:'UGX 5,000',volume:'UGX 5,000',fees:'UGX 100'}}]}},
@@ -94,6 +99,15 @@ test('network activity and report use supplied totals, retained status, filters 
   assert.doesNotMatch(report,/Report basis/);
   assert.doesNotMatch(report,/Entry source/);
   assert.match(report,/Reporting period/);
+  assert.match(report,/Recorded transactions/);
+  assert.match(report,/Rate not approved|UGX 50/);
+  assert.match(report,/Attention flagged/);
+  assert.match(report,/Recorded/);
+  assert.match(report,/Provider not verified/);
+  assert.match(report,/MTN-TEST1&lt;script&gt;/);
+  assert.doesNotMatch(report,/MTN-TEST1<script>/);
+  assert.doesNotMatch(report,/awaiting independent approval/i);
+  assert.match(report,/More records exist in this period/);
   const readonly = options(); readonly.data.canExport=false;
   assert.doesNotMatch(await render('report',readonly),/Export consolidated CSV/);
 });

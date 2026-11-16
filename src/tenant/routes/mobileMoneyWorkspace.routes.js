@@ -120,13 +120,16 @@ module.exports=function routes({renderTenant}){
    const customerNetworkCharge=quotes.customerNetworkFeeEstimate?
     {amount:fmt(quotes.customerNetworkFeeEstimate.amountMinor,currency),
      version:quotes.customerNetworkFeeEstimate.version,status:'estimate_only',source:'approved_tenant_sheet'}:
-    networkReference?.customerFeeMinor!=null&&networkReference.status==='published_reference'?
+    networkReference?.customerFeeMinor!=null&&['published_reference','historical_source_unverified'].includes(networkReference.status)?
     {amount:fmt(networkReference.customerFeeMinor,currency),
-     status:'reference_only',source:'published_reference'}:null;
+     status:networkReference.status==='published_reference'?'reference_only':'historical_unverified',
+     source:networkReference.status==='published_reference'?'published_reference':'historical_reference'}:null;
    res.set('Cache-Control','private, no-store').json({
     network,currency,operation,agentCommission,customerNetworkCharge,
-    note:agentCommission?.source==='published_reference'||customerNetworkCharge?.source==='published_reference'?
-      'Published provider reference only, not an approved tenant rate or guaranteed agent payout. Have the Tenant Owner configure these bands for independent approval before expecting commission estimates on saved transactions. No additional customer charge, funds or income is posted.':
+    note:customerNetworkCharge?.source==='historical_reference'?
+      'This provider table contains historical rates. Confirm the current provider fee before relying on this amount; it is reference only and never posted as income.':
+     agentCommission?.source==='published_reference'||customerNetworkCharge?.source==='published_reference'?
+      'Published provider reference only, not an approved tenant rate or guaranteed agent payout. The tenant owner can authorize these existing rates for branch estimates without entering them again. No additional customer charge, funds or income is posted.':
       'Rates from independently approved tenant schedules are estimates. The provider must separately confirm the actual payout; no customer fee or commission income is posted automatically.'
    });
   }catch(e){next(e);}

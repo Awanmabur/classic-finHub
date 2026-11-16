@@ -5,6 +5,7 @@ const requireModule=require('../../middleware/requireModule');
 const {hasPermission}=require('../services/moduleAccess.service');
 const branchService=require('../services/branch.service');
 const workspace=require('../services/mobileMoneyWorkspace.service');
+const businessTime=require('../../utils/businessTime');
 module.exports=function routes({renderTenant}){
  const router=require('express').Router();
  router.use(requireModule('mobile_money'),requirePermission('mobile_money.view'));
@@ -18,9 +19,9 @@ module.exports=function routes({renderTenant}){
    const marketOptions=market.markets(realWallets);
    const filters=market.withDefaultFilters(req.query,realWallets);
    const reportData=report?await require('../services/mobileMoneyUnifiedReport.service').generate(
-    req.tenantDb,req.tenant,req.user,filters):null;
+    req.tenantDb,req.tenant,req.user,filters,businessTime.forBranch(req.operationBranch)):null;
    const [data,branches,pricingContext]=await Promise.all([
-    workspace.workspace(req.tenantDb,req.user,report?{}:filters,{operation}),branchService.list(req.tenant),
+    workspace.workspace(req.tenantDb,req.user,report?{}:filters,{operation,timeZone:businessTime.forBranch(req.operationBranch)}),branchService.list(req.tenant),
     operation?require('../pricing/presentation').context(req.tenantDb,req.tenant,req.operationBranch,'mobile_money'):[]
    ]);
    const commissionReceived=view==='network'&&hasPermission(req.user,'treasury.view')?
@@ -141,7 +142,7 @@ module.exports=function routes({renderTenant}){
    const funds=req.operationBranch?await require('../services/mobileMoneyFunds.service').context(
     req.tenantDb,req.tenant,req.user,req.operationBranch):null;
    const report=await service.generate(req.tenantDb,req.tenant,req.user,
-    require('../services/mobileMoneyMarket.service').withDefaultFilters(req.query,funds?.wallets||[]));
+    require('../services/mobileMoneyMarket.service').withDefaultFilters(req.query,funds?.wallets||[]),businessTime.forBranch(req.operationBranch));
    res.set({'Content-Type':'text/csv; charset=utf-8',
     'Content-Disposition':`attachment; filename="mobile-money-unified-${report.window.from}-${report.window.to}.csv"`,
     'Cache-Control':'private, no-store'});
@@ -150,7 +151,7 @@ module.exports=function routes({renderTenant}){
  });
  router.get('/report/export.csv',async(req,res,next)=>{
   try{
-   const result=await workspace.exportCsv(req.tenantDb,req.user,req.query);
+   const result=await workspace.exportCsv(req.tenantDb,req.user,req.query,businessTime.forBranch(req.operationBranch));
    res.set({'Content-Type':'text/csv; charset=utf-8','Content-Disposition':`attachment; filename="mobile-money-${result.filters.from}-${result.filters.to}.csv"`,'Cache-Control':'private, no-store'});
    res.send(result.csv);
   }catch(error){next(error);}

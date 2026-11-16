@@ -1,3 +1,4 @@
+<% const reportZoneLabel=typeof businessTimeZone==='string'?businessTimeZone:'UTC'; %>
 <% const report=data.reportData;
    const exportParams=new URLSearchParams();
    if(report){exportParams.set('period',report.window.key);if(report.window.key==='custom'){exportParams.set('from',report.window.from);exportParams.set('to',report.window.to);}
@@ -15,7 +16,7 @@
    <p class="tiny">Cash/float principal is not income. Provider commission estimates are not received commission. Customer network charges are not automatically agent earnings. Values are scoped to your accessible branches and records.</p>
    <%- include('_filters',{filterAction:'/tenant/mobile-money/report'}) %>
    <div class="summary">
-    <div class="sumRow"><span>Business period (<%= businessTimeZone %>)</span><b><%= report.window.from %> to <%= report.window.to %></b></div>
+    <div class="sumRow"><span>Business period (<%= reportZoneLabel %>)</span><b><%= report.window.from %> to <%= report.window.to %></b></div>
     <div class="sumRow"><span>Manual / SMS records</span><b><%= count('manualCount') %> / <%= count('smsCount') %></b></div>
     <div class="sumRow"><span>Awaiting independent review</span><b><%= count('pendingReviewCount') %></b></div>
     <div class="sumRow"><span>Provider-unverified recorded entries</span><b><%= count('providerUnverifiedCount') %></b></div>

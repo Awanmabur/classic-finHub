@@ -3,5 +3,5 @@
 // account references leave the aggregate adapter.
 module.exports=Object.freeze({
  key:'forex',label:'Indicative Forex quotations',moduleKey:'forex',
- async rows({conn,filters,scope}){return require('../../services/forex.service').reportRows({conn,filters,scope});}
+ async rows({conn,filters,scope,dateRange}){return require('../../services/forex.service').reportRows({conn,filters,scope,dateRange});}
 });

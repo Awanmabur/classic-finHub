@@ -1,5 +1,5 @@
 <section class="view show">
-  <section class="card"><div class="cardHead"><b>Transaction history</b><span>Records, not verified network settlement</span><div class="richActions"><a class="btn" href="/tenant/mobile-money/network-activity">Network activity</a><a class="btn" href="/tenant/mobile-money/report">Mobile money report</a><a class="btn" href="/tenant/mobile-money">Internal review</a></div></div>
+  <section class="card"><div class="cardHead"><b>Transaction history</b><span>Records, not verified network settlement</span><div class="richActions"><a class="btn" href="/tenant/mobile-money/network-activity">Network activity</a><a class="btn" href="/tenant/mobile-money/report">Mobile money report</a><a class="btn" href="/tenant/mobile-money">Mobile Money</a></div></div>
     <div class="cardBody"><form method="get" action="/tenant/mobile-money/history" class="row3">
       <label class="field">From (UTC)<input class="control" type="date" name="from" value="<%= data.records.from %>"></label>
       <label class="field">To (UTC)<input class="control" type="date" name="to" value="<%= data.records.to %>"></label>
@@ -15,7 +15,7 @@
         <td><%= t.network %></td><td><%= t.operation === 'cash_in' ? 'Deposit' : 'Withdrawal' %></td><td><span class="tag"><%= t.entrySource==='sms'?'SMS capture':'Manual' %></span></td><td><%= t.paymentMethod || 'Cash' %></td>
         <td><%= money(t.currency,amountFromMinor(t.amountMinor,t.currency)) %></td>
         <td><%= money(t.currency,amountFromMinor(t.feeMinor,t.currency)) %></td>
-        <td><%= t.status.replaceAll('_',' ') %> / <%= (t.reviewState||'awaiting_review').replaceAll('_',' ') %></td>
+        <td><%= t.reviewState==='recorded'?'Recorded internally · Provider unverified':t.status.replaceAll('_',' ')+' / '+(t.reviewState||'awaiting_review').replaceAll('_',' ') %><% if(t.riskFlags?.length){ %><span class="tag">Attention flagged</span><% } %></td>
         <td><%= (t.correctionState||'none').replaceAll('_',' ') %></td>
       </tr><% }) %>
     </tbody></table></div>

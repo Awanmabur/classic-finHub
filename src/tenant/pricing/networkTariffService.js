@@ -3,6 +3,7 @@ const mongoose=require('mongoose');
 const {model,ensure}=require('./networkTariffModels');
 const {validateTariff,quote,NETWORKS,SCHEDULE_KINDS}=require('./networkTariffs');
 const treasury=require('../treasury/service');
+const businessTime=require('../../utils/businessTime');
 const {branchModel,auditEventModel}=require('../models');
 const OID=/^[a-f0-9]{24}$/i;
 function fail(message,status=400){return Object.assign(new Error(message),{status});}
@@ -150,11 +151,17 @@ async function transactionEstimates(conn,tenant,branch,{network,currency,operati
  for(const scheduleKind of ['agent_commission','customer_network_fee']){
   const query=model(conn).findOne({
    tenantId:tenant._id,branchId:branch._id,network,currency,operation,scheduleKind,
-   status:'approved',effectiveFrom:{$lte:timestamp},$or:[{expiresAt:null},{expiresAt:{$gt:timestamp}}]
+   status:'approved'
   }).sort({version:-1});
   if(session)query.session(session);
   const rule=await query.lean();
   if(!rule)continue;
+  // The sheet's YYYY-MM-DD fields describe local business dates, not UTC
+  // instants. Compare their date keys against the branch's local transaction
+  // date; otherwise 00:00–02:59 EAT transactions miss an effective sheet.
+  const localDate=businessTime.localDay(timestamp,businessTime.forBranch(branch));
+  if(rule.effectiveFrom?.toISOString().slice(0,10)>localDate||
+    (rule.expiresAt&&rule.expiresAt.toISOString().slice(0,10)<=localDate))continue;
   const quoted=preview(rule,String(amountMinor));
   if(quoted.status==='no_matching_band')continue;
   const amount=scheduleKind==='agent_commission'?quoted.grossCommissionEstimateMinor:quoted.customerNetworkChargeEstimateMinor;

@@ -8,7 +8,9 @@ test('historical booked Mobile Money transactions no longer look like unposted a
  const detail=src('src/views/tenant/mobile-money/detail.ejs');
  const index=src('src/views/tenant/mobile-money/index.ejs');
  const activity=src('src/views/tenant/mobile-money/_activity.ejs');
- for(const view of [detail,index,activity]){
+ const history=src('src/views/tenant/mobile-money/history.ejs');
+ const receipt=src('src/views/tenant/mobile-money/acknowledgement.ejs');
+ for(const view of [detail,index,activity,history,receipt]){
   assert.match(view,/fundingState==='book_recorded'/);
   assert.match(view,/Recorded in books|Recorded in cash and float books/);
   assert.match(view,/status==='pending_verification'/);
@@ -17,6 +19,10 @@ test('historical booked Mobile Money transactions no longer look like unposted a
  assert.match(detail,/Not independently verified in FinHub/);
  assert.match(detail,/\['accepted','disputed'\]\.includes\(data\.record\.reviewState\)/);
  assert.doesNotMatch(detail,/Record status:<\/b>/);
+ assert.match(history,/Internal record/);
+ assert.match(receipt,/Network settlement/);
+ assert.doesNotMatch(receipt,/<dt>Internal status<\/dt>/);
+ assert.doesNotMatch(receipt,/<dt>Internal review<\/dt>/);
 });
 test('one provider rate sheet exposes only amount-band copy, not cloned commissions or approval',()=>{
  const view=src('src/views/tenant/mobile-money/tariffs.ejs');

@@ -77,6 +77,33 @@ async function main(){
   await notice.setPreference(a.conn,a.tenant,recipient,{emailOptIn:'off'});
   const suppressed=await notice.processOne(a.conn,a.tenant,'integration-notify',async()=>{throw Error('Opt-out ignored');});
   assert.equal(suppressed.state,'suppressed');
+  // Core financial owner alerts are delivered even when the tenant has no
+  // paid Notifications module and the owner did not opt into marketing mail.
+  const risk=require('../src/tenant/services/mobileMoneyRisk.service');
+  const recordId=new mongoose.Types.ObjectId();
+  const session=await a.conn.startSession();
+  try{
+   await session.withTransaction(async()=>{
+    const count=await risk.queueOwnerAlerts(a.conn,session,
+     {_id:recordId,branchId:a.branch._id},{id:recipient.id},['rapid_repeat']);
+    assert.equal(count,1);
+   });
+  }finally{await session.endSession();}
+  const ownerAlerts=await risk.ownerAlerts(a.conn,owner);
+  assert(ownerAlerts.some(item=>String(item.sourceId)===String(recordId)));
+  const ownerAlert=ownerAlerts.find(item=>String(item.sourceId)===String(recordId));
+  assert.equal(ownerAlert.emailState,'pending');
+  const withoutAddon={...a.tenant,enabledModules:[],subscription:{
+   ...a.tenant.subscription,modules:[]}};
+  const financial=await notice.processOne(a.conn,withoutAddon,'integration-risk',async ({to,subject,idempotencyKey})=>{
+   assert.equal(to,`owner-${nonce}@example.invalid`);
+   assert.match(subject,/needs attention/);
+   assert(idempotencyKey.includes(String(ownerAlert._id)));
+   return {status:'accepted',messageId:'stub-financial-alert'};
+  });
+  assert.equal(financial.state,'accepted');
+  assert.equal((await risk.ownerAlerts(a.conn,recipient)).length,0);
+  assert.equal((await risk.acknowledge(a.conn,owner,String(ownerAlert._id))).readAt instanceof Date,true);
   await assert.rejects(notice.send(a.conn,a.tenant,{...manager,branchId:String(b.branch._id)},
    {...payload,idempotencyKey:crypto.randomUUID()}),e=>e.status===403);
   const agg=await require('../src/tenant/reporting/adapters/notifications').rows({conn:a.conn,
@@ -84,7 +111,7 @@ async function main(){
   assert(agg.some(x=>x.status==='accepted'&&x.count===1));
   assert.equal(await models.notificationMessageModel(b.conn).countDocuments({}),0);
   assert((await models.auditEventModel(a.conn).countDocuments({action:'notifications.message.created'}))===2);
-  console.log('PASS: Notification templates, immutable versions, inbox, idempotency, email acceptance, opt-out, cross-tenant isolation and reporting');
+  console.log('PASS: Notification templates, immutable versions, inbox, idempotency, email, recipient opt-out, tenant isolation and core financial owner alerts without a paid messaging add-on');
  }finally{
   for(const slug of slugs){if(!/^probe-notify-[ab]-[a-f0-9]{16}$/.test(slug))throw Error('Unsafe cleanup slug');
    try{await getTenantConnection(slug).db.dropDatabase();}catch(e){console.error('Scratch cleanup:',e.message);process.exitCode=1;}}

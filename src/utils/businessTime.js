@@ -51,6 +51,31 @@ function dayBounds({from,to}={},timeZone=DEFAULT_TIME_ZONE,maxDays=90,now=new Da
  if(days<0||days>maxDays)throw new RangeError('Report date range is invalid or too long');
  return {from:first,to:last,$gte:startOfDay(first,timeZone),$lt:startOfDay(addDays(last,1),timeZone)};
 }
+// Parse a datetime-local value as a wall-clock time in the verified branch.
+// Reject nonexistent spring-forward and ambiguous fall-back times rather than
+// silently shifting the financial event. The source provider can supply a
+// timestamp with explicit offset if a future workflow needs that precision.
+function parseLocalDateTime(value,timeZone){
+ if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d$/.test(value))throw new RangeError('Enter a valid local date and time');
+ const tz=validTimeZone(timeZone)?timeZone:DEFAULT_TIME_ZONE;
+ const day=value.slice(0,10);
+ parseDay(day);
+ const h=Number(value.slice(11,13)),m=Number(value.slice(14,16));
+ const wall=Date.UTC(Number(day.slice(0,4)),Number(day.slice(5,7))-1,Number(day.slice(8,10)),h,m,0);
+ const offsets=new Set();
+ for(const delta of [-36,-12,0,12,36]){
+  const probe=wall+delta*3600000,p=partsAt(probe,tz);
+  offsets.add(Date.UTC(p.year,p.month-1,p.day,p.hour,p.minute,p.second)-probe);
+ }
+ const matching=[];
+ for(const offset of offsets){
+  const candidate=wall-offset,p=partsAt(candidate,tz);
+  if(p.year===Number(day.slice(0,4))&&p.month===Number(day.slice(5,7))&&p.day===Number(day.slice(8,10))&&p.hour===h&&p.minute===m&&p.second===0)matching.push(candidate);
+ }
+ const unique=[...new Set(matching)];
+ if(unique.length!==1)throw new RangeError(unique.length?'The local time is ambiguous due to a timezone change':'The local time does not exist in the selected timezone');
+ return new Date(unique[0]);
+}
 function format(value,timeZone,withSeconds=false){
  if(value===undefined||value===null||value==='')return 'Unknown date';
  const date=new Date(value);
@@ -59,4 +84,4 @@ function format(value,timeZone,withSeconds=false){
  return new Intl.DateTimeFormat('en-GB',{timeZone:tz,day:'2-digit',month:'short',year:'numeric',
   hour:'2-digit',minute:'2-digit',...(withSeconds?{second:'2-digit'}:{}),hourCycle:'h23'}).format(date);
 }
-module.exports={DEFAULT_TIME_ZONE,defaultZone,validTimeZone,forBranch,parseDay,addDays,localDay,startOfDay,dayBounds,format};
+module.exports={DEFAULT_TIME_ZONE,defaultZone,validTimeZone,forBranch,parseDay,addDays,localDay,startOfDay,dayBounds,format,parseLocalDateTime};

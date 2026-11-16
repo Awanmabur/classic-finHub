@@ -1,3 +1,4 @@
+<% const dashboardZone=typeof businessTimeZone==='string'?businessTimeZone:'UTC'; %>
 <% const snapshot=data.workspaceSnapshot||{};
    const volumes=snapshot.todayVolumes||{};
    const financialActions=quickActions.filter(action=>['transfer','mobile_money','forex_buy','banking_deposit'].includes(action.kind));
@@ -13,7 +14,7 @@
    const fundsVisibility=data.mobileFundsState==='all_branches'?'Choose a viewing branch for balance details':data.mobileFundsState==='branch_required'?'No operating branch is selected':data.mobileFunds?.visibilityRestricted?'Restricted by role':null;
    const canSeeCash=visiblePaths.has('/tenant/treasury'); %>
 <section class="view show" id="view-overview">
-  <div class="card"><div class="cardHead"><div><b>Today snapshot</b><br><span>Core modules plus daily control · <%= businessTimeZone %></span></div><span class="mono" id="terminalCode"><%= snapshot.terminalCode||tenant.slug||'—' %></span></div>
+  <div class="card"><div class="cardHead"><div><b>Today snapshot</b><br><span>Core modules plus daily control · <%= dashboardZone %></span></div><span class="mono" id="terminalCode"><%= snapshot.terminalCode||tenant.slug||'—' %></span></div>
     <div class="cardBody">
       <% if(snapshot.mixedRegion){ %><p class="tiny">Branches use different timezones. Select a branch from the dashboard header to view accurate local-day transaction totals; cash and float accounts remain independently scoped.</p><% } %>
       <% if(hasSources){ %><div class="grid3">

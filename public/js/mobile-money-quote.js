@@ -10,6 +10,9 @@
     const commission=area.querySelector('[data-mobile-agent-commission]');
     const charge=area.querySelector('[data-mobile-provider-charge]');
     const note=area.querySelector('[data-mobile-quote-note]');
+    const commissionRow=area.querySelector('[data-quote-commission-row]');
+    const chargeRow=area.querySelector('[data-quote-customer-row]');
+    const hide=()=>{area.hidden=true;if(commissionRow)commissionRow.hidden=true;if(chargeRow)chargeRow.hidden=true;};
     const market=form.elements.namedItem('network');
     const currency=form.elements.namedItem('currency');
     const amount=form.elements.namedItem('amount');
@@ -24,13 +27,10 @@
       const scale=currencyCode==='UGX'?0:2;
       const valid=scale===0?/^(?:0|[1-9]\d{0,10})$/:/^(?:0|[1-9]\d{0,10})(?:\.\d{1,2})?$/;
       if(!marketCode||!currencyCode||!valid.test(number)||!Number(number)){
-        commission.textContent='Enter a valid amount';
-        charge.textContent='Enter a valid amount';
-        note.textContent='Select a network and amount to check any approved provider sheets. Provider rates are estimates only.';
+        hide();
         return;
       }
-      commission.textContent='Checking approved rate…';
-      charge.textContent='Checking approved rate…';
+      hide();
       delay=setTimeout(async()=>{
         abortController=new AbortController();
         try{
@@ -45,14 +45,22 @@
           if(!result.ok)throw new Error(data.error||'Quote is currently unavailable');
           const label=value=>value?.amount?
             value.amount+(value.source==='published_reference'?' · published reference only':value.source==='historical_reference'?' · historical reference only — verify provider':' · approved-sheet estimate'):null;
-          commission.textContent=label(data.agentCommission)||'Not configured — request approved agent rate sheet';
-          charge.textContent=label(data.customerNetworkCharge)||'No matching published or approved charge';
-          note.textContent=data.note||'Agent earnings are estimates until the network settles the provider commission.';
+          const hasCommission=Boolean(data.agentCommission?.amount);
+          const hasCharge=Boolean(data.customerNetworkCharge?.amount);
+          if(commissionRow)commissionRow.hidden=!hasCommission;
+          if(chargeRow)chargeRow.hidden=!hasCharge;
+          commission.textContent=hasCommission?label(data.agentCommission):'';
+          charge.textContent=hasCharge?label(data.customerNetworkCharge):'';
+          if(!hasCommission&&!hasCharge){hide();return;}
+          area.hidden=false;
+          note.textContent=data.customerNetworkCharge?.source==='historical_reference'?
+            'Historical rates: confirm current provider charges.':
+            'Provider estimates only. Commission is recorded as income when actually received.';
         }catch(e){
           if(requestId!==pending||e.name==='AbortError')return;
-          commission.textContent='Not available';
-          charge.textContent='Not available';
-          note.textContent='A verified quote could not be retrieved. Do not assume any provider commission or charge.';
+          hide();
+          note.textContent='Provider rates could not be checked. Do not assume commission or network charges.';
+          area.hidden=false;
         }
       },220);
     };

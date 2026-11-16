@@ -5,7 +5,8 @@
     if(data.filters?.currency)exportParams.set('currency',data.filters.currency);}
    const totals=(report?.currencies||[]),groups=report?.networks||[],expenses=report?.expenses||[];
    const count=key=>groups.reduce((sum,row)=>sum+(row[key]||0),0);
-   const format=(minor,currency)=>data.formatMoneyMinor(minor,currency); %>
+   const format=(minor,currency)=>data.formatMoneyMinor(minor,currency);
+   const singleMarket=(data.networkMarkets||[]).length===1?(data.networkMarkets||[])[0]:null; %>
 <section class="view show mobileMoneyPage workspaceStack" aria-label="Mobile Money consolidated reporting">
  <section class="card">
   <div class="cardHead"><div><b>Mobile Money business report</b><br><span>One view · provider, currency, verified income, cash movements and expenses</span></div>
@@ -24,12 +25,12 @@
   </div>
  </section>
  <section class="card">
-  <div class="cardHead"><b>Per-currency operating totals</b><span>Never add different currencies together</span></div>
+  <div class="cardHead"><b><%= singleMarket?singleMarket.label+' · '+singleMarket.currency:'Totals by currency' %></b><% if(!singleMarket){ %><span>Different currencies remain separate</span><% } %></div>
   <div class="cardBody">
    <% if(!totals.length){ %><p class="tiny">No Mobile Money records or posted commission receipts in this period.</p><% } %>
    <% totals.forEach(row=>{ %>
     <div class="mobileMoneyCurrencyBlock">
-     <h3><%= row.currency==='KES'?'KSH':row.currency %></h3>
+     <% if(!singleMarket){ %><h3><%= row.currency==='KES'?'KSH':row.currency %></h3><% } %>
      <div class="networkBalanceGrid">
       <div class="networkBalanceStat"><span>Deposits / Withdrawals</span><strong><%= row.depositCount %> / <%= row.withdrawalCount %></strong><small>Recorded entries, voids excluded</small></div>
       <div class="networkBalanceStat"><span>Transaction volume</span><strong><%= row.volumeMinorFormatted %></strong><small>Principal exchanged — not revenue</small></div>
@@ -49,6 +50,7 @@
    <% }) %>
   </div>
  </section>
+ <% if(!singleMarket){ %>
  <section class="card">
   <div class="cardHead"><b>Network and currency breakdown</b><span>MTN Uganda, Airtel, South Sudan and other configured providers remain distinct</span></div>
   <div class="cardBody tableWrap" tabindex="0" role="region" aria-label="Mobile Money network and currency reporting">
@@ -65,6 +67,7 @@
    </table>
   </div>
  </section>
+ <% } %>
  <section class="card">
   <div class="cardHead"><b>Approved operating expenses by currency</b><span>Shared branch costs are not arbitrarily allocated to networks</span></div>
   <div class="cardBody">

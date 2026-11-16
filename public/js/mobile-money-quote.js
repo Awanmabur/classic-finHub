@@ -40,9 +40,11 @@
           const data=await result.json();
           if(requestId!==pending)return;
           if(!result.ok)throw new Error(data.error||'Quote is currently unavailable');
-          commission.textContent=data.agentCommission?.amount||'Not configured — request approved agent rate sheet';
-          charge.textContent=data.customerNetworkCharge?.amount||'No approved matching sheet';
-          note.textContent=data.agentCommission?data.note||'Commission is estimated from an approved rate sheet; it is not received income.':'No approved rate band applies to this transaction. Commission is unknown, not zero. Ask the Tenant Owner to configure and obtain independent approval of the provider sheet.';
+          const label=value=>value?.amount?
+            value.amount+(value.source==='published_reference'?' · reference only':' · approved-sheet estimate'):null;
+          commission.textContent=label(data.agentCommission)||'Not configured — request approved agent rate sheet';
+          charge.textContent=label(data.customerNetworkCharge)||'No matching published or approved charge';
+          note.textContent=data.note||'Agent earnings are estimates until the network settles the provider commission.';
         }catch(e){
           if(requestId!==pending||e.name==='AbortError')return;
           commission.textContent='Not available';

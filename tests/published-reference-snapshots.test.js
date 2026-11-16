@@ -19,9 +19,10 @@ test('published MTN agent commission and customer charges remain reference-only 
  assert.match(quote.agentCommissionPublishedReference.sourceUrl,/^https:\/\//);
  assert.equal(model.path('amountMinor').options.immutable,true);
 });
-test('unverified Airtel historical customer fee and unknown providers must not produce fake published reference',()=>{
+test('Airtel historical customer fee is explicitly unverified while unknown markets produce no reference',()=>{
  const airtel=published.quote({network:'Airtel',currency:'UGX',operation:'cash_out',amountMinor:'250000'});
- assert.equal(airtel.customerNetworkChargePublishedReference,null);
+ assert.equal(airtel.customerNetworkChargePublishedReference.amountMinor,'3575');
+ assert.equal(airtel.customerNetworkChargePublishedReference.status,'historical_unverified');
  assert.equal(airtel.agentCommissionPublishedReference,null);
  const juba=published.quote({network:'MTN SSD',currency:'SSP',operation:'cash_out',amountMinor:'250000'});
  assert.equal(juba.agentCommissionPublishedReference,null);

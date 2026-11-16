@@ -23,7 +23,7 @@ function validate(input,create=false){
   }
   const suppliedZone=input?.timeZone;
   if(suppliedZone!==undefined&&(!businessTime.validTimeZone(suppliedZone)))throw fail('Enter a valid region timezone (e.g. Africa/Kampala)');
-  const timeZone=create?(suppliedZone||businessTime.defaultZone(input.currency)):suppliedZone;
+  const timeZone=suppliedZone;
   return {name,address,...(create?{code,currency:input.currency}:{}),...(currencies?{currencies}:{}),...(timeZone?{timeZone}:{})};
 }
 async function list(tenant){const conn=getTenantConnection(tenant.slug);await ensureTenantIndexes(conn);return branchModel(conn).find({}).sort({status:1,name:1}).limit(500).lean();}
@@ -40,7 +40,7 @@ async function create(tenant,actor,input){
     // a branch picker to transaction forms or narrowing owner reporting scope.
     if(reserved.branchCount===1)await tenantUserModel(conn).updateOne({_id:actor.id,role:'Tenant Owner',status:'active',
       $or:[{branchId:null},{branchId:{$exists:false}},{branchId:''}]},{$set:{branchId:String(created._id)}},{session});
-    await auditEventModel(conn).create([{action:'branch.created',actorId:actor.id,targetId:created._id,metadata:{code:values.code,currency:values.currency,currencies:values.currencies,timeZone:values.timeZone}}],{session});
+    await auditEventModel(conn).create([{action:'branch.created',actorId:actor.id,targetId:created._id,metadata:{code:values.code,currency:values.currency,currencies:values.currencies,timeZone:created.timeZone}}],{session});
   });return created;
   }catch(e){if(e.code===11000)throw fail('A branch with this code already exists',409);throw e;}finally{await session.endSession();}
 }

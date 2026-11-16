@@ -45,7 +45,8 @@
       <input type="hidden" name="paymentMethod" value="Cash">
       <p class="tiny" data-momo-account-notice hidden aria-live="polite"></p>
       <%- include('_funds-context') %>
-      <% const entryBalances=[...(data.funds?.paymentAccounts||[]).filter(a=>a.kind==='cash'),...(data.funds?.wallets||[])]; %>
+      <% const entryBalances=[...(data.funds?.paymentAccounts||[]).filter(a=>a.kind==='cash'&&a.state==='active'&&a.reconciliation==='matched'&&a.expectedMinor!=null),
+       ...(data.funds?.wallets||[]).filter(a=>a.state==='active'&&a.reconciliation==='matched'&&a.expectedMinor!=null)]; %>
       <div class="networkBalanceGrid mobileEntryBalances" data-mobile-balance-stats aria-label="Cash and float book balances">
        <% entryBalances.forEach(a=>{ %>
         <div class="networkBalanceStat" data-balance-account="<%= a.id %>" data-balance-network="<%= a.network||'' %>" data-balance-currency="<%= a.currency %>" data-balance-kind="<%= a.kind %>">

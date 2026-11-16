@@ -174,4 +174,112 @@ function preview(schedule,amountMinor){
  }
  return calculated;
 }
-module.exports={parseLines,serializeLines,validateInput,read,propose,revise,decide,preview,transactionEstimates};
+
+/**
+ * Convert the EXISTING published tables into tenant drafts without retyping
+ * tariff ranges. A verified tenant account, legal branch and independent
+ * reviewer still govern activation. Imported references are not provider
+ * settlement evidence and do not post income.
+ */
+function builtInReference(network,scheduleKind,operation){
+ if(!['cash_in','cash_out'].includes(operation))throw fail('Unsupported provider agent operation');
+ if(network==='MTN'&&scheduleKind==='agent_commission'){
+  const template=require('./networkTariffs').publicAgentReference(operation);
+  return {tiers:template.tiers,currency:'UGX',
+   evidenceReference:'Published MTN Uganda agent commission reference '+template.providerEvidence+
+    ' checked '+template.reviewedOn};
+ }
+ if(scheduleKind==='customer_network_fee'){
+  const template=require('./customerNetworkFees').TABLES.find(row=>row.network===network);
+  // Never promote obsolete tariff references into a usable draft.
+  if(!template||template.status!=='published_reference')return null;
+  const tiers=operation==='cash_in'?
+   [{minMinor:'1',maxMinor:String(Math.max(...template.bands.map(b=>Number(b.maxMinor)))),
+    rate:{kind:'flat',value:template.depositFeeMinor}}]:
+   template.bands.map(b=>({minMinor:b.minMinor,maxMinor:b.maxMinor,
+    rate:{kind:'flat',value:b.charges.cash_out}})).filter(t=>t.rate.value!==null&&t.rate.value!==undefined);
+  return {currency:template.currency,tiers,
+   evidenceReference:'Published '+template.label+' customer network charge '+template.source+
+    ' checked '+template.checkedOn};
+ }
+ return null;
+}
+async function importExistingReferences(conn,tenant,actor,{network,branchId}){
+ if(typeof network!=='string'||network!=='MTN'||typeof branchId!=='string')throw fail('Only supported, current provider references can be imported automatically');
+ await ensure(conn);
+ const oid=objectId(branchId);
+ const session=await conn.startSession();
+ try{
+  const result={created:[],alreadyPresent:[],unavailable:[]};
+  await session.withTransaction(async()=>{
+   const auth=await treasury.access(conn,tenant,actor,{permission:'treasury.observe',sourceType:'mobile_money',session,fence:true});
+   if(!['Tenant Owner','Mobile Money Operator'].includes(auth.actor.role))throw fail('Only authorized agent operators may prepare a sheet',403);
+   if(auth.actor.role==='Mobile Money Operator'&&String(oid)!==String(auth.actor.branchId))throw fail('Choose your assigned branch',403);
+   const branch=await branchModel(conn).findOne({_id:oid,status:'active'}).session(session).lean();
+   if(!branch||!require('../services/branchCurrency.service').supports(branch,'UGX'))throw fail('This branch does not support MTN Uganda UGX',409);
+   const account=await require('../treasury/models').models(conn).account.findOne({
+    tenantId:auth.tenant._id,branchId:oid,network:'MTN',currency:'UGX',kind:'wallet',
+    status:'active',openingApprovedAt:{$ne:null},reconciliationState:'matched'
+   }).session(session).lean();
+   if(!account)throw fail('An active, independently verified MTN Uganda float wallet is required',409);
+   for(const scheduleKind of SCHEDULE_KINDS){
+    for(const operation of ['cash_in','cash_out']){
+     const ref=builtInReference('MTN',scheduleKind,operation);
+     const scope={tenantId:auth.tenant._id,branchId:oid,network:'MTN',currency:'UGX',scheduleKind,operation};
+     const key=scheduleKind+':'+operation;
+     if(!ref){result.unavailable.push(key);continue;}
+     const existing=await model(conn).findOne({...scope,status:{$in:['draft','approved']}}).session(session).lean();
+     if(existing){result.alreadyPresent.push(key);continue;}
+     validateTariff({network:'MTN',currency:'UGX',operation,status:'draft',tiers:ref.tiers});
+     const last=await model(conn).findOne(scope).sort({version:-1}).session(session).lean();
+     const [created]=await model(conn).create([{
+      ...scope,version:(last?.version||0)+1,status:'draft',createdBy:auth.actor.id,
+      tiers:ref.tiers,evidenceReference:ref.evidenceReference,effectiveFrom:new Date()
+     }],{session});
+     result.created.push(key);
+     await auditEventModel(conn).create([{
+      actorId:auth.actor.id,action:'mobile_money.tariff.reference_imported',targetId:created._id,
+      metadata:{scheduleKind,operation,network:'MTN',currency:'UGX',branchId:String(oid),
+       checkedReference:'published_reference',version:created.version}
+     }],{session});
+    }
+   }
+  });
+  return result;
+ }catch(e){if(e.code===11000)throw fail('The rate sheet changed during import. Reload and review the existing sheet.',409);throw e;}
+ finally{await session.endSession();}
+}
+
+/** Start a replacement version based on the currently approved sheet.
+ * No change to the active schedule until independent approval.
+ */
+async function editApprovedVersion(conn,tenant,actor,id){
+ await ensure(conn);
+ const session=await conn.startSession();
+ try{
+  let output;
+  await session.withTransaction(async()=>{
+   const auth=await treasury.access(conn,tenant,actor,{permission:'treasury.observe',sourceType:'mobile_money',session,fence:true});
+   if(!['Tenant Owner','Mobile Money Operator'].includes(auth.actor.role))throw fail('Only authorized operators may request tariff changes',403);
+   const old=await model(conn).findOne({_id:objectId(id),tenantId:auth.tenant._id,status:'approved'}).session(session).lean();
+   if(!old)throw fail('An approved sheet is required to start a revision',409);
+   if(auth.actor.role==='Mobile Money Operator'&&String(old.branchId)!==String(auth.actor.branchId))throw fail('Choose your assigned branch',403);
+   const scope={tenantId:old.tenantId,branchId:old.branchId,network:old.network,currency:old.currency,
+    operation:old.operation,scheduleKind:old.scheduleKind};
+   const pending=await model(conn).findOne({...scope,status:'draft'}).session(session).lean();
+   if(pending)throw fail('An editable draft already exists for this sheet. Edit that draft instead.',409);
+   const last=await model(conn).findOne(scope).sort({version:-1}).session(session).lean();
+   [output]=await model(conn).create([{
+    ...scope,version:(last?.version||old.version)+1,status:'draft',
+    tiers:old.tiers,evidenceReference:old.evidenceReference,
+    effectiveFrom:new Date(),createdBy:auth.actor.id
+   }],{session});
+   await auditEventModel(conn).create([{actorId:auth.actor.id,action:'mobile_money.tariff.revision_started',
+    targetId:output._id,metadata:{priorId:String(old._id),priorVersion:old.version,version:output.version}}],{session});
+  });
+  return output;
+ }catch(e){if(e.code===11000)throw fail('An edit was started concurrently. Reload the sheet.',409);throw e;}
+ finally{await session.endSession();}
+}
+
+module.exports={parseLines,serializeLines,validateInput,read,propose,revise,decide,preview,transactionEstimates,builtInReference,importExistingReferences,editApprovedVersion};

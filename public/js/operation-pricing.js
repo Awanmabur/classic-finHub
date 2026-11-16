@@ -35,8 +35,8 @@
     (rule?'Configured charges applied automatically. Operating cost is an estimate, not an additional customer charge.':
      'No charge is configured for this operation and currency. The customer fee is zero.');
    if(operation.startsWith('mobile_money.')){
-    const feeRow=host.querySelector('[data-pricing-fee]')?.closest('.sumRow');
-    const costRow=host.querySelector('[data-pricing-cost]')?.closest('.sumRow');
+    const feeRow=host.querySelector('[data-pricing-fee]')?.closest?.('.sumRow');
+    const costRow=host.querySelector('[data-pricing-cost]')?.closest?.('.sumRow');
     if(feeRow)feeRow.hidden=fee===0n;
     if(costRow)costRow.hidden=cost===0n;
     host.hidden=fee===0n&&cost===0n;

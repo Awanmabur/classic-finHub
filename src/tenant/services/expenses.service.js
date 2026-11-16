@@ -267,8 +267,8 @@ async function detail(conn,tenant,actor,expenseId){
  ({actor,tenant}=await access(conn,tenant,actor,'expenses.view'));const record=await expenseModel(conn).findOne({_id:id(expenseId),...scopeFor(actor)}).lean();
  if(!record)throw fail('Expense not found within your permissions',404);return record;
 }
-async function reportRows({conn,filters,scope={}}){
- const match={createdAt:mobile.dateBounds(filters),...require('../reporting/aggregateScope').branchMatch(scope,id)};
+async function reportRows({conn,filters,scope={},dateRange}){
+ const match={createdAt:dateRange||mobile.dateBounds(filters,filters.timeZone||'UTC'),...require('../reporting/aggregateScope').branchMatch(scope,id)};
  if(scope.operatorId)match.operatorId=id(scope.operatorId);
  const rows=await expenseModel(conn).aggregate([{$match:match},{$group:{_id:{currency:'$currency',status:'$status',method:'$paymentMethod'},
   count:{$sum:1},amount:{$sum:'$amountMinor'}}},{$sort:{'_id.currency':1,'_id.status':1,'_id.method':1}}]).option({maxTimeMS:5000});

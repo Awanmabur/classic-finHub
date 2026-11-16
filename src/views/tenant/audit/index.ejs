@@ -1,11 +1,13 @@
+<% const regionalZone=typeof businessTimeZone==='string'?businessTimeZone:'UTC';
+ const regionalTime=typeof formatLocalDate==='function'?formatLocalDate:(v=>new Date(v).toISOString()); %>
 <section class="view show"><section class="card">
   <div class="cardHead"><b>Tenant security & operations audit</b><span>Latest 100 database-backed events</span></div>
   <div class="cardBody tableWrap"><table>
-    <thead><tr><th>Time (UTC)</th><th>Actor ID</th><th>Action</th><th>Target ID</th></tr></thead>
+    <thead><tr><th>Time (local)</th><th>Actor ID</th><th>Action</th><th>Target ID</th></tr></thead>
     <tbody>
       <% if (!data.logs.length) { %><tr><td colspan="4">No recorded events yet.</td></tr><% } %>
       <% data.logs.forEach(a=>{ %><tr data-search-row>
-        <td><%= new Date(a.createdAt).toISOString() %></td>
+        <td><%= regionalTime(a.createdAt) %></td>
         <td><%= String(a.actorId) %></td><td><%= a.action %></td><td><%= String(a.targetId) %></td>
       </tr><% }) %>
     </tbody>

@@ -63,7 +63,7 @@ const tariffToday=typeof businessToday==='string'?businessToday:new Date().toISO
  <details class="card networkRateAdvanced" id="technical-rate-settings">
   <summary class="cardHead"><b>Advanced rate maintenance</b><span class="tiny">Edit existing rates, review updates or deactivate a component</span></summary>
   <div class="cardBody">
- <section class="card" id="configured-network-sheets">
+ <section class="card" id="technical-rate-components">
   <div class="cardHead"><b>Rate components</b><span class="tiny">Technical settings · not separate provider sheets</span></div>
   <div class="cardBody workspaceStack">
    
@@ -123,10 +123,6 @@ const tariffToday=typeof businessToday==='string'?businessToday:new Date().toISO
    <% }) %>
   </div>
  </section>
-
-  </div>
- </details>
- <% } %>
  <% if(data.canPropose){ %>
  <details class="card networkNewSheet" id="network-sheet-form">
   <summary class="cardHead"><b>Custom provider rates — only when the built-in sheet is unavailable or outdated</b><span class="tiny">Manual provider agreement · independent review</span></summary>
@@ -150,13 +146,16 @@ const tariffToday=typeof businessToday==='string'?businessToday:new Date().toISO
   </form>
  </details>
  <% } %>
+  </div>
+ </details>
+ <% } %>
 
  <% if(data.postingEnabled||(data.commissions?.records||[]).length){ %>
  <section class="card">
   <div class="cardHead"><div><b>Received provider commissions</b><br><span>Statement-backed receipts, independent review and separate income posting</span></div><span class="tag"><%= data.postingEnabled?'Posting gate enabled':'Posting locked' %></span></div>
   <div class="cardBody workspaceStack">
    <% if(!data.postingEnabled){ %><p class="workspaceNote">Payout posting is disabled until historic wallet commission entries are reconciled and a staging release gate passes. Submissions are stored as evidence only, not treated as cash, float or profit.</p><% } %>
-   <% if(data.canSubmitPayout){ %>
+   <% if(data.canSubmitPayout&&data.postingEnabled){ %>
    <details class="networkTariffRecord"><summary><b>Record a provider commission credit</b><span class="tag">Requires statement evidence</span></summary>
     <form class="networkTariffRecordBody networkTariffForm" method="post" action="/tenant/mobile-money/tariffs/payouts">
      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
@@ -193,5 +192,6 @@ const tariffToday=typeof businessToday==='string'?businessToday:new Date().toISO
    <% }) %>
   </div>
  </section>
+ <% } %>
 
 </section>

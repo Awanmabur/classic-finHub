@@ -1,14 +1,15 @@
+<% const operationsReportZone=typeof businessTimeZone==='string'?businessTimeZone:'UTC'; %>
 <section class="view show">
   <section class="card"><div class="cardHead"><b>Operations reporting hub</b><span>Separate subscription · tenant and branch-scoped data</span></div>
     <div class="cardBody"><form method="get" action="/tenant/reports" class="row3">
-      <label class="field">From (UTC)<input class="control" type="date" name="from" value="<%= data.report.filters.from %>"></label>
-      <label class="field">To (UTC)<input class="control" type="date" name="to" value="<%= data.report.filters.to %>"></label>
+      <label class="field">From (<%= operationsReportZone %>)<input class="control" type="date" name="from" value="<%= data.report.filters.from %>"></label>
+      <label class="field">To (<%= operationsReportZone %>)<input class="control" type="date" name="to" value="<%= data.report.filters.to %>"></label>
       <label class="field">Report source<select class="control" name="source">
         <option value="all" <%= data.report.filters.source==='all'?'selected':'' %>>All permitted sources</option>
         <% data.report.sources.forEach(s=>{ %><option value="<%= s.key %>" <%= data.report.filters.source===s.key?'selected':'' %>><%= s.label %></option><% }) %>
       </select></label>
       <div class="rowBtns"><button class="btn btnPrimary" type="submit">Apply filters</button><a class="btn" href="/tenant/reports">Today</a></div>
-    </form><p class="tiny">Date range: today (UTC) or a custom 90-day maximum. Sources are available only when separately subscribed and assigned to your account.</p></div>
+    </form><p class="tiny">Date range: today (<%= operationsReportZone %>) or a custom 90-day maximum. Sources are available only when separately subscribed and assigned to your account.</p></div>
   </section>
   <div class="grid3" style="margin-top:14px">
     <div class="stat"><div class="k">Permitted report sources</div><div class="v"><%= data.report.sources.length %></div><div class="s"><span class="dot"></span>Standalone Reports access</div></div>

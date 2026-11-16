@@ -61,7 +61,7 @@ async function main(){
  const receiver=await transfer.addContact(conn,tenant,makers[0],{kind:'beneficiary',fullName:'Receiver probe',phone:'+256701234567',country:'UG'});
  const source=await banking.createReference(conn,tenant,makers[1],{customerName:'Bank probe',institutionName:'Scratch bank',last4:'1234',currency:'UGX'});
  const destination=await banking.createReference(conn,tenant,makers[1],{customerName:'Destination probe',institutionName:'Scratch bank',last4:'5678',currency:'UGX'});
- const rateInput={fromCurrency:'UGX',toCurrency:'USD',rateDecimal:'0.000275',validHours:24,note};
+ const rateInput={fromCurrency:'UGX',toCurrency:'USD',side:'buy',rateDecimal:'0.000275',validHours:24,note};
  const rate=await forex.proposeRate(conn,tenant,makers[2],rateInput);await forex.decideRate(conn,tenant,reviewers[2],String(rate._id),{decision:'approve',note});
  const pendingRate=await forex.proposeRate(conn,tenant,makers[2],{...rateInput,rateDecimal:'0.000280'});
  const transferInput=()=>({destinationBranchId:String(second._id),senderId:String(sender._id),beneficiaryId:String(receiver._id),currency:'UGX',amount:'20000',fee:'100',validDays:7,idempotencyKey:crypto.randomUUID()});

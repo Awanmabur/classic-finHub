@@ -77,7 +77,7 @@ async function main(){
   for(const [kind,phone] of [['sender','+256700123456'],['beneficiary','+256700123457']])contacts.push(await transfer.addContact(conn,tenant,owner,{kind,phone,country:'UG',fullName:`Currency ${kind}`}));
   const order=await transfer.createRequest(conn,tenant,owner,{destinationBranchId:String(destinationBranch._id),senderId:String(contacts[0]._id),beneficiaryId:String(contacts[1]._id),currency,amount:'12.34',fee:'0.01',idempotencyKey:crypto.randomUUID()});
   assert.equal(String(order.order.amountMinor),'1234');assert.equal(String(order.order.feeMinor),'1');
-  const rate=await forex.proposeRate(conn,tenant,owner,{fromCurrency:currency,toCurrency:currency==='USD'?'SSP':'USD',rateDecimal:'2.5',validHours:2,note:'Internal indicative rate for exact currency test'});
+  const rate=await forex.proposeRate(conn,tenant,owner,{fromCurrency:currency,toCurrency:currency==='USD'?'SSP':'USD',side:'buy',rateDecimal:'2.5',validHours:2,note:'Internal indicative rate for exact currency test'});
   await forex.decideRate(conn,tenant,reviewer,String(rate._id),{decision:'approve',note:'Independent indicative rate source checked for test'});
   const quote=await forex.createQuote(conn,tenant,owner,{rateId:String(rate._id),customerLabel:'Currency customer',amount:'12.34',operation:'buy',note:'Internal unexecuted quote for exact currency test',validMinutes:15,idempotencyKey:crypto.randomUUID()});
   assert.equal(String(quote.quote.sourceMinor),'1234');assert.equal(String(quote.quote.targetMinor),'3085');

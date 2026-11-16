@@ -73,7 +73,7 @@
       <% data.summary.recent.forEach(t => { %>
         <div class="tx" data-search-row>
           <div class="txMeta"><b><a href="/tenant/mobile-money/<%= t._id %>"><%= t.network %> · <%= t.networkReference %></a></b>
-            <span><%= t.customer %> · <%= t.entrySource === 'sms' ? 'SMS capture' : 'Manual' %> · <%= t.operation === 'cash_in' ? 'Deposit' : 'Withdrawal' %> · <%= t.status.replace(/_/g,' ') %> · Internal review: <%= (t.reviewState || 'awaiting_review').replace(/_/g,' ') %> · Correction: <%= (t.correctionState || 'none').replace(/_/g,' ') %></span>
+            <span><%= t.customer %> · <%= t.entrySource === 'sms' ? 'SMS capture' : 'Manual' %> · <%= t.operation === 'cash_in' ? 'Deposit' : 'Withdrawal' %> · <%= t.status.replace(/_/g,' ') %> · <%= t.reviewState==='recorded'?'Recorded internally · provider not confirmed':('Review '+(t.reviewState||'awaiting_review').replace(/_/g,' ')) %> · Correction: <%= (t.correctionState || 'none').replace(/_/g,' ') %></span>
           </div><b><%= money(t.currency, amountFromMinor(t.amountMinor,t.currency)) %></b>
         </div>
         <% if(data.canRecord && String(t.operatorId)===String(user.id) && t.status==='pending_verification' && ['none','denied',null,undefined].includes(t.correctionState) && (t.correctionAttempts||0)<5){ %>
@@ -88,7 +88,27 @@
       <% }) %>
     </div></section>
   </div>
-  <% if (data.canReview) { %>
+  <% if(user.role==='Tenant Owner'&&(data.riskAlerts||[]).length){ %>
+   <section class="card" aria-label="Owner Mobile Money attention notifications">
+    <div class="cardHead"><b>Transactions needing attention</b><span>Automatic alerts · no routine approvals</span></div>
+    <div class="cardBody txList">
+     <% data.riskAlerts.forEach(alert=>{ %>
+      <div class="tx">
+       <div class="txMeta">
+        <b><a href="/tenant/mobile-money/<%= alert.sourceId %>"><%= alert.subject %></a></b>
+        <span><%= alert.body %></span>
+        <span><%= new Date(alert.createdAt).toISOString().slice(0,16).replace('T',' ') %> UTC · <%= alert.readAt?'Acknowledged':'Needs attention' %> · Email: <%= alert.emailState==='accepted'?'accepted by mail provider':alert.emailState==='pending'||alert.emailState==='retry'?'queued':alert.emailState %></span>
+       </div>
+       <% if(!alert.readAt){ %><form method="post" action="/tenant/mobile-money/alerts/<%= alert._id %>/read">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button class="btn" type="submit">Acknowledge</button>
+       </form><% } %>
+      </div>
+     <% }) %>
+    </div>
+   </section>
+  <% } %>
+  <% if (data.canReview&&(data.voidQueue||[]).length) { %>
   <section class="card" style="margin-top:14px">
     <div class="cardHead"><b>Correction requests</b><span>Separate reviewer · full audit trail</span></div>
     <div class="cardBody"><p class="tiny">Approve an internal void only after examining supporting evidence. The original entry and reference are retained. This action never refunds money or reverses a settled journal.</p>
@@ -102,24 +122,6 @@
             <textarea class="control" name="note" minlength="12" maxlength="400" required rows="2" placeholder="Why is this correction approved or denied?"></textarea>
           </label>
           <div class="rowBtns"><button class="btn btnPrimary" name="decision" value="approve">Approve internal void</button><button class="btn" name="decision" value="deny">Deny request</button></div>
-        </form>
-      <% }) %>
-    </div>
-  </section>
-  <section class="card" style="margin-top:14px">
-    <div class="cardHead"><b>Independent internal review</b><span>Two-person control · no provider settlement</span></div>
-    <div class="cardBody">
-      <p class="tiny">Review the network receipt or supporting evidence outside this platform. You cannot review an entry you recorded. Accepting a record does not make the provider status verified and does not move money.</p>
-      <% if (!data.reviewQueue.length) { %><p class="tiny">No records are awaiting internal review.</p><% } %>
-      <% data.reviewQueue.forEach(t => { %>
-        <form method="post" action="/tenant/mobile-money/<%= t._id %>/review" class="card" style="margin:12px 0;padding:12px">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-          <div class="cardHead"><b><%= t.network %> · <%= t.networkReference %></b><span><%= t.customer %> · <%= t.entrySource === 'sms' ? 'SMS capture' : 'Manual' %> · <%= t.operation.replace('_',' ') %> · <%= money(t.currency,amountFromMinor(t.amountMinor,t.currency)) %></span></div>
-            <label class="field">Evidence or dispute explanation (12–400 characters)
-              <textarea class="control" name="note" minlength="12" maxlength="400" required rows="2" placeholder="State what evidence was checked or why this record is disputed"></textarea>
-            </label>
-            <div class="rowBtns"><button class="btn btnPrimary" name="decision" value="accepted">Accept internal record</button>
-            <button class="btn" name="decision" value="disputed">Mark disputed</button></div>
         </form>
       <% }) %>
     </div>

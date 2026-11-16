@@ -11,6 +11,7 @@ function getTenantConnection(slug){return mongoose.connection.useDb(tenantDbName
 const {verifyReplicaPrimary}=require('../../config/mongoTopology');
 const {parseMongoUri}=require('../../config/mongoUris');
 const service=require('../services/notification.service');
+const mobileRisk=require('../services/mobileMoneyRisk.service');
 const transferSms=require('../transferSms/service');
 const workerId=`notification-${crypto.randomUUID()}`;
 const every=Number(process.env.NOTIFICATION_POLL_MS||5000);
@@ -39,6 +40,10 @@ async function sweep(){
   try{
    await heartbeat();
    const conn=getTenantConnection(tenant.slug);
+   try{processed+=await mobileRisk.dispatchPending(conn,{limit:10});}
+   catch(error){
+    console.error(JSON.stringify({event:'notifications.risk_dispatch_error',kind:error?.name||'Error'}));
+   }
    const result=await service.processOne(conn,tenant,workerId);
    if(result)processed++;
    await heartbeat();

@@ -144,7 +144,7 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
         action: `mobile_money.${operation}.recorded`, actorId: operator.id, targetId: created._id,
         metadata: { currency: values.currency, amountMinor: values.amountMinor, network: values.network, paymentMethod:values.paymentMethod, branchId: String(created.branchId),riskSignals }
       }], { session });
-      if(riskSignals.length)await risk.notifyOwners(conn,session,created,authorization.actor);
+      // Owner alerts are dispatched by the independent worker after commit.
     });
     return { created, duplicate: false };
   } catch (e) {

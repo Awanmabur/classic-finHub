@@ -29,22 +29,42 @@ async function assess(conn,session,Model,values,branchId,funding){
  return classify({amountMinor:values.amountMinor,previousForPhone,peerAmounts:peers.map(x=>x.amountMinor),
   walletExpected:funding?.walletBalanceAfterMinor??null,walletReported});
 }
-async function notifyOwners(conn,session,record,actor){
- if(!record?.riskSignals?.length)return 0;
- const owners=await models.tenantUserModel(conn).find({role:'Tenant Owner',status:'active'})
-  .select('_id').limit(10).session(session).lean();
- const Messages=models.notificationMessageModel(conn);let sent=0;
- for(const owner of owners){
-  const existing=await Messages.exists({recipientId:owner._id,source:'risk_alert',branchId:String(record.branchId),
-   emailState:{$in:['pending','processing','retry','accepted']},
-   createdAt:{$gte:new Date(Date.now()-15*60000)}}).session(session);
-  await Messages.create([{
-   dedupeKey:`mm-risk:${record._id}:${owner._id}`,recipientId:owner._id,senderId:actor.id,branchId:String(record.branchId),
-   templateCode:'mobile_money_risk',templateVersion:1,subject:'Mobile Money transaction needs attention',
-   body:`Mobile Money record ${record.network} / ${record.networkReference} was saved and flagged: ${record.riskSignals.map(s=>LABELS[s]||s).join('; ')}. Investigate /tenant/mobile-money/${record._id}. Recording is final; this does not prove external settlement.`,
-   source:'risk_alert',sourceId:record._id,emailState:existing?'not_requested':'pending'
-  }],{session});sent++;
+// Risk flags are committed with the transaction and act as a durable outbox.
+// Notification or email failures cannot roll back a legitimate cash/float entry.
+// Upserts are idempotent across crashes, restarts and concurrent workers.
+async function dispatchPending(conn,{limit=10,tenantModels=models}={}){
+ if(!Number.isSafeInteger(limit)||limit<1||limit>25)throw new Error('Invalid risk alert dispatch limit');
+ const Mobile=tenantModels.mobileTransactionModel(conn),Messages=tenantModels.notificationMessageModel(conn);
+ const pending=await Mobile.find({'riskSignals.0':{$exists:true},riskAlertsSynced:{$ne:true}})
+  .select('_id riskSignals network branchId operatorId createdAt')
+  .sort({createdAt:1,_id:1}).limit(limit).lean();
+ if(!pending.length)return 0;
+ const owners=await tenantModels.tenantUserModel(conn).find({role:'Tenant Owner',status:'active'})
+  .select('_id').limit(51).lean();
+ if(owners.length>50)throw new Error('Too many active tenant owners for risk alert dispatch');
+ if(!owners.length)return 0;
+ let processed=0;
+ for(const record of pending){
+  for(const owner of owners){
+   const dedupeKey=`mm-risk:${record._id}:${owner._id}`;
+   const recent=await Messages.exists({recipientId:owner._id,source:'risk_alert',
+    emailState:{$in:['pending','processing','retry','accepted']},
+    createdAt:{$gte:new Date(Date.now()-15*60000)}});
+   try{
+    await Messages.updateOne({dedupeKey},{$setOnInsert:{
+     dedupeKey,recipientId:owner._id,senderId:record.operatorId,branchId:String(record.branchId||''),
+     templateCode:'mobile_money_risk',templateVersion:1,
+     subject:'Mobile Money transaction needs attention',
+     body:`Mobile Money ${record.network} transaction ${record._id} was recorded and flagged: ${record.riskSignals.map(s=>LABELS[s]||s).join('; ')}. Investigate /tenant/mobile-money/${record._id}. This record does not prove external provider settlement.`,
+     source:'risk_alert',sourceId:record._id,emailState:recent?'not_requested':'pending'
+    }},{upsert:true,runValidators:true});
+   }catch(error){if(error?.code!==11000)throw error;}
+  }
+  // A failed owner notice leaves this transaction pending for the next sweep.
+  await Mobile.updateOne({_id:record._id,riskAlertsSynced:{$ne:true}},
+   {$set:{riskAlertsSynced:true,riskAlertsSyncedAt:new Date()}});
+  processed++;
  }
- return sent;
+ return processed;
 }
-module.exports={LABELS,classify,assess,notifyOwners};
+module.exports={LABELS,classify,assess,dispatchPending};

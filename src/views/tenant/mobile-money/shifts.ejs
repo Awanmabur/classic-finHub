@@ -20,16 +20,32 @@
        <p><b>Expected closing:</b> Opening count plus posted cash movements, not commission estimates.</p>
        <p><b>Count variance:</b> The difference between real closing cash and the expected cash. A supervisor reviews it.</p>
       </details>
-      <% if(data.canOpen && currentBranch&&!unfinishedShift){ %>
-      <form method="post" action="/tenant/day/open" data-cash-open-form>
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-
-        <div class="formSection"><div class="formSectionTitle">Opening drawer by currency</div><div class="row2"><label class="field">Currency<select class="control" name="currency" required><% (data.currencyOptions||((typeof currencyOptions!=='undefined'?currencyOptions:[{code:'UGX',label:'UGX'},{code:'USD',label:'USD'},{code:'SSP',label:'SSP'},{code:'KES',label:'KSH'}]).filter(option=>(currentBranch.currencies||['UGX','USD','SSP','KES']).includes(option.code)))).forEach(option=>{ %><option value="<%= option.code %>" <%= option.code===(data.selectedCurrency||currentBranch.currency)?'selected':'' %>><%= option.label %></option><% }) %></select></label><label class="field">Counted cash already in your drawer<input class="control" name="openingCash" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" required placeholder="0"></label></div></div>
-        <div class="rowBtns"><button class="btn btnPrimary" type="submit">Submit opening cash count</button></div>
-      </form>
+      <% if(data.canOpen&&currentBranch){ %>
+      <% const books=data.openingBooks||[]; %>
+      <% if(books.length){ %>
+       <% books.forEach(account=>{const existing=(data.shifts?.items||[]).find(shift=>String(shift.operatorId)===String(user.id)&&String(shift.branchId)===String(currentBranchId)&&shift.currency===account.currency&&['pending_open','open','submitted','disputed'].includes(shift.status)); %>
+       <div class="summary">
+        <div class="sumRow"><span><%= account.name %> · <%= account.currency==='KES'?'KSH':account.currency %></span><b><%= cashLabel(account.bookBalanceMinor,account.currency) %></b></div>
+       </div>
+       <% if(existing){ %>
+        <a class="btn" href="/tenant/cash/shifts/<%= existing._id %>">Continue current <%= account.currency %> shift</a>
+       <% }else{ %>
+        <form method="post" action="/tenant/day/open" data-cash-open-form>
+         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+         <input type="hidden" name="currency" value="<%= account.currency %>">
+         <input type="hidden" name="openingFromBook" value="on">
+         <label class="field"><input type="checkbox" name="physicalCountConfirmed" value="on" required> I counted my physical <%= account.currency %> cash and it matches the displayed book balance.</label>
+         <div class="rowBtns"><button class="btn btnPrimary" type="submit">Start <%= account.currency %> shift</button></div>
+        </form>
+       <% } %>
+       <% }) %>
       <% }else if(unfinishedShift){ %>
-      <p class="tiny">You already have a cash shift for this branch and currency. Continue it instead of opening another shift.</p>
-      <a class="btn" href="/tenant/cash/shifts/<%= unfinishedShift._id %>">View current shift</a>
+       <p class="tiny">Your existing shift is available below; you do not need to open another one.</p>
+       <a class="btn" href="/tenant/cash/shifts/<%= unfinishedShift._id %>">View current shift</a>
+      <% }else{ %>
+       <p class="tiny">No active reconciled physical cash drawer is assigned to your operator account. Open and verify a real cash account in Treasury first; do not enter an invented starting amount.</p>
+       <a class="btn" href="/tenant/treasury">Prepare cash drawer</a>
+      <% } %>
       <% } %>
     </div>
   </section>

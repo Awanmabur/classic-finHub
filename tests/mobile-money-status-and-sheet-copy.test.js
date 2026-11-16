@@ -50,6 +50,7 @@ test('cash shifts label counted existing cash and do not require separate approv
  assert.match(detail,/name="closingFromBook" value="on"/);
  assert.match(detail,/Cash differs from the system amount/);
  assert.match(close,/name="closingFromBook" value="on"/);
- assert.match(detail,/Recorded transactions already affect the internal cash book/);
+ assert.match(detail,/expectedNow=BigInt\(String\(data\.shift\.openingMinor\)\)\+BigInt\(String\(data\.shift\.provisionalMovementMinor\)\)/);
+ assert.match(detail,/cashLabel\(String\(expectedNow\),data\.shift\.currency\)/);
  assert.match(close,/Transactions themselves are recorded immediately/);
 });

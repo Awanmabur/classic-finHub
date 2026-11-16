@@ -274,7 +274,7 @@ async function getVoidQueue(conn,reviewerId,max=25,branchId=null){
     operatorId:{$ne:reviewerId},correctionRequestedBy:{$ne:reviewerId},...(branchId?{branchId}:{})})
     .sort({correctionRequestedAt:1}).limit(take).lean();
 }
-function dateBounds({from,to}={},timeZone=businessTime.DEFAULT_TIME_ZONE){
+function dateBounds({from,to}={},timeZone='UTC'){
  try{
   const { $gte,$lt }=businessTime.dayBounds({from,to},timeZone,90);
   return {$gte,$lt};
@@ -323,7 +323,7 @@ async function getTransactionPage(conn,{from,to,cursor,operatorId,branchId,timeZ
   const results=await mobileTransactionModel(conn).find(query).sort({createdAt:-1,_id:-1}).limit(take+1).lean();
   const hasMore=results.length>take,items=results.slice(0,take);
   return {items,nextCursor:hasMore?encodeCursor(items.at(-1)):null,
-  from:from||businessTime.localDay(new Date(),timeZone||businessTime.DEFAULT_TIME_ZONE),
+  from:from||businessTime.localDay(new Date(),timeZone||'UTC'),
   to:to||businessTime.localDay(new Date(),timeZone||businessTime.DEFAULT_TIME_ZONE)};
 }
 function visibleRecordForRole(record,role){

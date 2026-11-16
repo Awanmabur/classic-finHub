@@ -17,7 +17,7 @@
     <p><b>Correction:</b> <%= (data.record.correctionState||'none').replaceAll('_',' ') %></p>
     <p><b>Record status:</b> <%= data.record.status.replaceAll('_',' ') %></p>
   </div><p class="tiny">An internally voided entry is retained for investigation and reporting. It does not reverse any provider transaction, refund a customer or settle a balance.</p></div></section>
-  <% if(true){ %>
+  <% if(data.record){ %>
   <section class="card" style="margin-top:14px"><div class="cardHead"><div><b>Saved network rate estimates</b><br><span>Captured from the approved schedule version at transaction time</span></div><a class="btn" href="/tenant/mobile-money/tariffs">Rate sheets</a></div>
    <div class="cardBody"><div class="summary">
     <div class="sumRow"><span>Agent commission estimate</span><b><%= data.record.agentCommissionEstimate?data.formatMoneyMinor(data.record.agentCommissionEstimate.amountMinor,data.record.currency):'No verified matching rate' %></b></div>

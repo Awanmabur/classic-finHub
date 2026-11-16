@@ -44,7 +44,10 @@ function renderTenant(req, res, view, pageTitle, pageSub, data) {
     businessTimeZone:businessTime.forBranch(req.viewBranch||req.operationBranch),
     businessToday:businessTime.localDay(new Date(),businessTime.forBranch(req.viewBranch||req.operationBranch)),
     businessTimeZoneForBranch:businessTime.forBranch,
-    formatLocalDate:value=>businessTime.format(value,businessTime.forBranch(req.viewBranch||req.operationBranch)),
+    formatLocalDate:(value,branchId)=>{
+      const branch=branchId&&(res.locals.viewBranches||[]).find(b=>String(b._id)===String(branchId));
+      return businessTime.format(value,businessTime.forBranch(branch||req.viewBranch||req.operationBranch));
+    },
     amountFromMinor:mobile.fromMinor
   });
 }

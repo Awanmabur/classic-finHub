@@ -40,7 +40,8 @@ async function main(){
   const amount=currency==='UGX'?'12':'12.34';
   const record=await mobile.recordMobileMoney(conn,owner,{customer:'Multicurrency customer',customerPhone:'+256700123456',network:currency==='SSP'?'MTN SSD':currency==='UGX'?'MTN':currency==='KES'?'M-Pesa':'Africell',currency,amount,fee:'0',networkReference:`MULTI-${nonce}-${currency}`,idempotencyKey:crypto.randomUUID()},'cash_in',tenant);
   assert.equal(String(record.created.cashSessionId),String(shift._id));assert.equal(record.created.currency,currency);assert.equal(String(record.created.amountMinor),currency==='UGX'?'12':'1234');
-  await mobile.reviewMobileMoney(conn,reviewer,record.created._id,'accepted','Independent provider receipt and currency evidence inspected');
+  const saved=await core.mobileTransactionModel(conn).findById(record.created._id).lean();
+  assert(saved,'a final recorded transaction needs no separate approval');
   for(const other of [...opened.keys()].filter(code=>code!==currency)){
    const unchanged=await core.cashSessionModel(conn).findById(opened.get(other)._id).lean();
    if(unchanged.recordCount===0)assert.equal(String(unchanged.provisionalMovementMinor),'0','another currency cash drawer must remain unchanged');
@@ -53,7 +54,7 @@ async function main(){
   const closed=await cash.submit(conn,tenant,owner,shift._id,{countedCash:currency==='UGX'?'512':'512.34',note:'Independent closing count uses only the selected currency drawer'});assert.equal(String(closed.varianceMinor),'0');await cash.decide(conn,tenant,reviewer,shift._id,{decision:'approve',note:'Each currency closing matches its own immutable records'});
  }
  assert.equal((await core.branchModel(conn).findById(branch._id)).currency,'UGX');
- const rate=await forex.proposeRate(conn,tenant,owner,{fromCurrency:'USD',toCurrency:'SSP',rateDecimal:'2.5',validHours:2,note:'Indicative multi-currency exchange board independently checked'});await forex.decideRate(conn,tenant,reviewer,rate._id,{decision:'approve',note:'Independent USD to SSP rate source evidence inspected'});
+ const rate=await forex.proposeRate(conn,tenant,owner,{fromCurrency:'USD',toCurrency:'SSP',side:'buy',rateDecimal:'2.5',validHours:2,note:'Indicative multi-currency exchange board independently checked'});await forex.decideRate(conn,tenant,reviewer,rate._id,{decision:'approve',note:'Independent USD to SSP rate source evidence inspected'});
  const quote=await forex.createQuote(conn,tenant,owner,{rateId:String(rate._id),operation:'buy',customerLabel:'Multicurrency customer',amount:'12.34',note:'Customer agreed to the explicit USD to SSP indicative quote',validMinutes:15,idempotencyKey:crypto.randomUUID()});assert.equal(String(quote.quote.targetMinor),'3085');
  // A selected subset remains authoritative; enabling more requires an owner change.
  const limited=await branches.create(tenant,owner,{name:'Selected subset',code:'subset',currency:'UGX',currencies:['UGX','USD']});

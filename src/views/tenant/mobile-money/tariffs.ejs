@@ -52,7 +52,7 @@ const tariffToday=typeof businessToday==='string'?businessToday:new Date().toISO
   </div>
  </section>
  <% } %>
- <% if(data.canPropose||data.canReview){ %>
+ <% if((data.canPropose||data.canReview)&&((data.schedules||[]).length||(data.commissions?.wallets||[]).length)){ %>
  <details class="card networkRateAdvanced" id="technical-rate-settings">
   <summary class="cardHead"><b>Advanced rate maintenance</b><span class="tiny">Edit existing rates, review updates or deactivate a component</span></summary>
   <div class="cardBody">

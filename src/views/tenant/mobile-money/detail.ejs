@@ -13,7 +13,8 @@
     <p><b>Amount:</b> <%= money(data.record.currency,amountFromMinor(data.record.amountMinor,data.record.currency)) %></p>
     <p><b><%= data.record.feeTreatment==='payment_collected'?'Customer fee collected':data.record.feeTreatment==='wallet_commission'?'Wallet commission recorded':'Recorded fee (not confirmed as income)' %>:</b> <%= money(data.record.currency,amountFromMinor(data.record.feeMinor,data.record.currency)) %></p>
     <p><b>Recorded (UTC):</b> <%= new Date(data.record.createdAt).toISOString() %></p>
-    <p><b>Internal review:</b> <%= (data.record.reviewState||'awaiting_review').replaceAll('_',' ') %></p>
+    <p><b>Internal recording:</b> <%= data.record.reviewState==='recorded'?'Finalized on entry':(data.record.reviewState||'awaiting_review').replaceAll('_',' ') %></p>
+    <% if(data.record.riskFlags?.length){ %><p><b>Attention indicators:</b> <%= data.record.riskFlags.map(v=>v.replaceAll('_',' ')).join(', ') %> · Review supporting evidence; this does not prove wrongdoing.</p><% } %>
     <p><b>Correction:</b> <%= (data.record.correctionState||'none').replaceAll('_',' ') %></p>
     <p><b>Record status:</b> <%= data.record.status.replaceAll('_',' ') %></p>
   </div><p class="tiny">An internally voided entry is retained for investigation and reporting. It does not reverse any provider transaction, refund a customer or settle a balance.</p></div></section>

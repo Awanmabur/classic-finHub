@@ -149,7 +149,8 @@ async function decide(conn,tenant,actor,id,decision){
    const prior=await model(conn).findOne({_id:objectId(id),tenantId:auth.tenant._id}).session(session).lean();
    if(!prior)throw fail('Tariff not found',404);
    if(auth.actor.role!=='Tenant Owner'&&String(prior.branchId||'')!==String(auth.actor.branchId||''))throw fail('Reviewer belongs to a different branch',403);
-   if(String(prior.createdBy)===auth.actor.id)throw fail('The proposer cannot approve or retire their own schedule',403);
+   if(String(prior.createdBy)===auth.actor.id && !(decision==='retire'&&prior.sourceKind==='published_reference'&&auth.actor.role==='Tenant Owner'))
+    throw fail('The proposer cannot approve their own custom rates or retire their own reviewed sheet',403);
    if(decision==='approve'&&prior.status!=='draft'||decision==='retire'&&prior.status!=='approved')throw fail('Tariff already processed or wrong status',409);
    if(decision==='approve'){
      validateTariff({network:prior.network,operation:prior.operation,currency:prior.currency,status:'draft',tiers:prior.tiers});

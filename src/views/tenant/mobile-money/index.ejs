@@ -38,7 +38,8 @@
   </div>
  </section>
  <% } %>
-  <% const overviewAccounts=[...(data.funds?.paymentAccounts||[]).filter(a=>a.kind==='cash'),...(data.funds?.wallets||[])]; %>
+  <% const overviewAccounts=[...(data.funds?.paymentAccounts||[]).filter(a=>a.kind==='cash'&&a.state==='active'&&a.reconciliation==='matched'&&a.expectedMinor!=null),
+    ...(data.funds?.wallets||[]).filter(a=>a.state==='active'&&a.reconciliation==='matched'&&a.expectedMinor!=null)]; %>
   <section class="card mobileAgentBalances" aria-label="Agent cash and electronic float">
    <div class="cardHead"><div><b>Cash and float balances</b><br><span>Book balances for your assigned branch; verify against physical cash and provider records</span></div><% if((user.permissions||[]).some(p=>p==='*'||p==='treasury.view')){ %><a class="btn" href="/tenant/treasury">Reconcile accounts</a><% } %></div>
    <div class="cardBody">

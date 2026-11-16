@@ -49,7 +49,7 @@ const moneySchema = new mongoose.Schema({
   feeMinor: { type: mongoose.Schema.Types.Decimal128, required: true, immutable: true },
   currency: { type: String, enum: currencyCodes, required: true, immutable: true },
   status: { type: String, enum: ['pending_verification','verified','rejected','voided_internal'], default: 'pending_verification' },
-  reviewState: { type: String, enum: ['awaiting_review','accepted','disputed'], default: 'awaiting_review' },
+  reviewState: { type: String, enum: ['awaiting_review','accepted','disputed','recorded'], default: 'awaiting_review' },
   reviewedBy: { type: mongoose.Schema.Types.ObjectId, default: null },
   reviewedAt: { type: Date, default: null },
   reviewNote: { type: String, default: null, maxlength: 400 },

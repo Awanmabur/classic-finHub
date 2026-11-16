@@ -91,9 +91,9 @@ async function main(){
  await expenses.review(conn,tenant,reviewer,insufficient._id,{decision:'reject',note:'Requested amount exceeds the available physical drawer'});
  const mobileInput={idempotencyKey:crypto.randomUUID(),customer:'Cash customer',network:'M-Pesa',networkReference:`EXP-MOBILE-${nonce}`,currency:'KES',amount:'40.00',fee:'1.25'};
  const mobileRecord=(await mobile.recordMobileMoney(conn,operator,mobileInput,'cash_in',tenant)).created;
- await mobile.reviewMobileMoney(conn,reviewer,String(mobileRecord._id),'accepted','Receipt checked independently for closing cash');
+ assert.equal(mobileRecord.reviewState,'recorded');
  const wallet=(await mobile.recordMobileMoney(conn,operator,{...mobileInput,idempotencyKey:crypto.randomUUID(),networkReference:`EXP-WALLET-${nonce}`,amount:'50.00',paymentMethod:'Wallet Balance'},'cash_in',tenant)).created;
- await mobile.reviewMobileMoney(conn,reviewer,String(wallet._id),'accepted','Wallet evidence does not change physical cash');
+ assert.equal(wallet.reviewState,'recorded');
  assert.equal(await balance(),'1950');
  const submitted=await cash.submit(conn,tenant,operator,String(shift._id),{countedCash:'1019.50'});
  assert.equal(String(submitted.expectedClosingMinor),'101950');assert.equal(String(submitted.varianceMinor),'0');

@@ -18,7 +18,7 @@ function readScope(actor){
 function canReport(actor){return hasPermission(actor,'mobile_money.report')||hasPermission(actor,'reports.view');}
 function canExport(actor){return hasPermission(actor,'mobile_money.report')||hasPermission(actor,'reports.export');}
 function scalar(input,key){const value=input[key];if(value===undefined||value===null||value==='')return '';if(typeof value!=='string')throw fail('Invalid Mobile Money filter');return value;}
-function filters(input={},fixedOperation,timeZone=businessTime.DEFAULT_TIME_ZONE){
+function filters(input={},fixedOperation,timeZone='UTC'){
  const result={from:scalar(input,'from'),to:scalar(input,'to'),network:scalar(input,'network'),currency:scalar(input,'currency'),operation:fixedOperation||scalar(input,'operation'),entrySource:scalar(input,'entrySource')};
  if(result.network&&!networks.includes(result.network))throw fail('Choose a supported mobile money network');
  if(result.currency&&!Object.hasOwn(mobile.currencies,result.currency))throw fail('Choose a supported currency');
@@ -29,7 +29,7 @@ function filters(input={},fixedOperation,timeZone=businessTime.DEFAULT_TIME_ZONE
  result.to=businessTime.localDay(new Date(bounds.$lt.getTime()-1),timeZone);
  return result;
 }
-function matchFor(actor,selected,timeZone=businessTime.DEFAULT_TIME_ZONE){
+function matchFor(actor,selected,timeZone='UTC'){
  return {...readScope(actor),createdAt:mobile.dateBounds(selected,timeZone),
   ...(selected.network?{network:selected.network}:{}),...(selected.currency?{currency:selected.currency}:{}),
   ...(selected.operation?{operation:selected.operation}:{}),

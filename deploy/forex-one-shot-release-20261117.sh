@@ -88,8 +88,17 @@ docker buildx build --pull --load -f "$WT/deploy/Dockerfile" \
 test "$(docker image inspect "$IMAGE" -f '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$SHA"
 
 echo '=== 3. FOREX UNIT TESTS ==='
+# The hardened release checkout inherits umask 077; git-created test files
+# are owned by classicdeploy and cannot be read by the image's node user.
+# Run the disposable test container as that existing source owner.
+test -f "$WT/tests/forex.test.js"
+test -r "$WT/tests/forex.test.js"
+TEST_UID="$(id -u classicdeploy)"
+TEST_GID="$(id -g classicdeploy)"
 docker run --rm --network none --memory 768m --cpus 1 \
-  -e NODE_ENV=test \
+  --user "$TEST_UID:$TEST_GID" \
+  -e NODE_ENV=test -e HOME=/tmp \
+  --tmpfs /tmp:rw,nosuid,size=64m \
   -v "$WT/tests:/app/tests:ro" \
   "$IMAGE" node --test tests/forex.test.js
 

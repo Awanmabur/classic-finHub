@@ -12,7 +12,7 @@
 - A **network customer charge** generally belongs to the provider. It is not automatically an agent fee or commission.
 - **Agent commission estimate** is a contract/rate-sheet quote, not money received. Book income only under a verified settlement/accrual policy.
 - **Cash shift** is operator accountability. **Treasury account** is an independently verified asset balance. Both are required for cash operations.
-- Internal review means supporting evidence was inspected. It **does not** make a pending provider operation settled.
+- A normal operator transaction becomes a **final internal financial record immediately**, without routine approval. This does not independently verify provider settlement. Owner alerts highlight unusual patterns; corrections and financial balance checkpoints remain separately controlled.
 - **Manual** and **approved SMS-assisted capture** are the two software entry channels. The software does not originate provider payments.
 
 ## 1. First-time Tenant Owner checklist
@@ -20,7 +20,7 @@
 1. Sign in to your tenant workspace and confirm the tenant identity. For a production finance tenant, verify actual business name, legal jurisdiction and correct billing/operating branch.
 2. Ensure Mobile Money is enabled in the tenant plan and assigned to staff. Assign Expenses and Operations Reports if you need these cross-module summaries. SMS capture requires its own entitlement and configured quota.
 3. Create an active branch in **Branches**. Set real operating currencies. Staff operate in their assigned branch; transaction forms must not accept an arbitrary user-entered branch.
-4. Invite users with separate credentials: at minimum a Tenant Owner, Mobile Money Operator and an independent Reconciliation Officer. The reviewer cannot approve an observation, shift or transaction they originated.
+4. Invite users with separate credentials: at minimum a Tenant Owner, Mobile Money Operator and an independent Reconciliation Officer. Normal transactions do not require approval. The reviewer cannot approve a shift, financial observation, payout or correction they originated.
 5. Open **Treasury** at `/tenant/treasury`. Create one actual cash drawer **assigned to its physical custodian/operator** and an actual provider float wallet with the correct provider market and currency.
 6. Account codes are generated automatically from account type, provider/currency and a unique ID. Do not duplicate or hand-edit bookkeeping IDs.
 7. Currency follows the provider: **MTN MoMo Uganda → UGX**, **Airtel Uganda → UGX**, **MTN MoMo South Sudan → SSP**. A provider whose market is unresolved needs an approved market-specific wallet, not an arbitrary guessed currency.
@@ -48,7 +48,7 @@
 6. Enter the real customer phone/name as required, actual principal amount, and the unique provider transaction reference from an authentic provider confirmation.
 7. Review configured transaction-fee preview and any reference-only provider charges/commission estimate. Confirm the real provider amount and collected cash; estimated commission is **not** part of today's principal.
 8. Click **Record deposit** or **Record withdrawal** **once**. The backend commits one atomic internal posting with a unique idempotency key and journals. It does **not** call MTN/Airtel to execute a transfer.
-9. The record starts at `pending_verification` and `awaiting_review`. Obtain independent review after external evidence is checked. An internally accepted record may still have provider status pending; do not call that settled.
+9. The record immediately receives the internal state `recorded` and is visible in the operator and owner reports. Its provider status remains `pending_verification` until genuine external evidence establishes settlement. There is no routine transaction-approval queue.
 10. Check transaction details: cash delta, float delta, funding journal IDs, real provider reference, operator and linked cash shift. No transactions with made-up references should be left in financial books.
 
 ### Physical-cash principal example (not a transaction to enter)
@@ -63,7 +63,7 @@ There are **three economic events** that must not be conflated:
 
 1. **Agent-collected fee:** An additional amount the agent is legally/contractually entitled to collect and really receives from the customer. Tenant Owner configures pricing under `/tenant/workspace/pricing` and the wallet fee policy under its Treasury settings. Only choose **Verified fee collected from customer** when authorized; it changes the actual cash received/paid. Pricing is snapshotted per transaction and can be recalculated when configuration changes; the server validates the policy again.
 2. **Provider customer charge:** A fee charged by MTN/Airtel directly to the customer's wallet under provider tariff. It is displayed as provider reference/estimate, **never** as the agent's revenue unless documented otherwise.
-3. **Agent commission:** Provider remuneration for qualifying deposits/withdrawals. Tenant Owner/operator creates *agent commission* tariff bands under `/tenant/mobile-money/tariffs` from a dated, genuine contract/provider rate sheet. A different authorized reviewer approves the schedule. Quotes are automatically calculated and snapshotted for transactions within approved effective bands. **Operators never manually enter agent commission.** If no approved rate applies, the form and reports show **Not configured / unknown**, not a fabricated zero. Quotes remain unreceived estimates, not posted spendable float.
+3. **Agent commission:** Provider remuneration for qualifying deposits/withdrawals. For MTN Uganda, use **Use existing MTN rate sheets** to prepare all four available commission and customer-charge schedules without typing bands again. An independent reviewer must approve the applicable rates; the Tenant Owner must verify the figures suit the actual provider contract. Change approved rates through **Edit existing rates**, creating a replacement version and preserving the original transaction snapshots. **Operators never manually enter agent commission.** Missing approved rates mean **unknown**, not zero. Commission estimates are not spendable float or received income.
 
 ### Where should an actual provider commission credit go?
 
@@ -93,13 +93,13 @@ When the provider really credits a payout, choose the **receiving account shown 
 2. Owner enrolls the exact device, trusted sender IDs, operator, provider and branch in **SMS Capture**. Configure the dedicated Android phone with the repository's `tools/android-sms-relay/README.md`, Termux and Termux:API.
 3. The relay uses a unique device secret, signed HTTPS requests, sender allowlists, encrypted tenant inbox and durable local retry/duplicate suppression.
 4. Unrecognized, changed, incomplete, reversed, failed, forwarded or suspicious messages remain for manual review; they are **not** silently converted to successful payments.
-5. Automatic recording, if entitled and enabled, posts supported confirmations as **pending verification** with the same branch, operator, active cash shift, funds-book and independent-review controls. An SMS signature authenticates the enrolled device transport, **not the provider's original sender**.
+5. Automatic recording, if entitled and enabled, creates an immediately recorded internal transaction, with provider verification still pending. It uses the same branch, operator, active cash shift, funds book, idempotency and anomaly alerts as manual transactions. An SMS signature authenticates the enrolled device transport, **not the provider's original sender**.
 6. Verify actual provider SMS wording on a real dedicated agent SIM before activating automation. The bundled strict example parser is not guaranteed to match native MTN/Airtel SMS formats. No OTP, PIN or full personal inbox should enter ordinary logs.
 7. If the device loses power/network, recover queued messages safely. SMS older than the approved shift or outside retention boundaries requires investigation, not automatic backdating.
 
 ## 6. Shift closing and reconciliations
 
-1. Review every pending transaction, variance and authorized correction before attempting closure.
+1. Check unusual-activity alerts, unresolved correction requests and actual cash/float discrepancies before shift closure. Do not manually approve ordinary transactions.
 2. Count the actual physical cash in the assigned drawer. Confirm against Treasury cash and the shift's provisional expected value.
 3. Operator submits the shift close from `/tenant/cash/shifts/:id`, with explanation if there is a surplus/shortage.
 4. A different authorized reviewer approves/disputes closing count. Do not reopen approved shifts or delete their history. A closing count may create an independent Treasury checkpoint.
@@ -118,7 +118,7 @@ Each currency section shows:
 - Independently reviewed and posted real commission payouts (net and gross).
 - Withheld tax and provider deductions where supported by payout evidence.
 - Historical `wallet_commission` amounts flagged separately for double-counting review.
-- Pending internal reviews, provider-unverified records, voided originals, and manual/SMS source counts.
+- Immediately recorded transaction counts, provider-unverified records, anomalies, voids and manual/SMS source counts. Legacy records awaiting old review decisions are separately identified when present.
 
 Provider/currency rows stay separate; **UGX, SSP, USD and KES must never be added directly together**. A posted provider commission may be included by the date of provider credit; approved branch expenses use their review dates. Expenses are reported separately by currency because they can serve multiple networks/modules and cannot be assigned to MTN or Airtel without explicit allocation evidence.
 
@@ -156,4 +156,4 @@ Provider/currency rows stay separate; **UGX, SSP, USD and KES must never be adde
 - Financially audited network-specific net profit where expenses are shared.
 - Airtime sale, bill payment, merchant checkout, wallet-to-wallet customer account transfer or money transfer/forex under the Cash-In/Cash-Out forms.
 
-Those operations need separate provider authority and economic posting rules. Keep the Mobile Money operational scope honest: **manual and validated SMS-assisted entry, real cash/float books, independent review, and transparent evidence-based reporting**.
+Those operations need separate provider authority and economic posting rules. Keep the Mobile Money operational scope honest: **manual and validated SMS-assisted recording, immediate internal financial postings, anomaly notifications, real cash/float books, independently controlled corrections and settlement evidence, and clear reports**.

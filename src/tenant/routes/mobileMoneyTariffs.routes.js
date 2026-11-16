@@ -55,6 +55,13 @@ module.exports=function factory({renderTenant}){
    res.redirect(303,'/tenant/mobile-money/tariffs');
   }catch(e){next(e);}
  });
+ router.post('/:id/revise',throttle,async(req,res,next)=>{
+  try{
+   await service.proposeRevision(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
+   flash(req,'good','Updated sheet saved as a new version for independent review. The approved sheet remains active until its replacement is approved.');
+   res.redirect(303,'/tenant/mobile-money/tariffs');
+  }catch(e){next(e);}
+ });
  router.post('/:id/edit',throttle,async(req,res,next)=>{
   try{
    await service.revise(req.tenantDb,req.tenant,req.user,req.params.id,req.body);

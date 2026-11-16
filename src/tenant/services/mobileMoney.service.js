@@ -122,6 +122,10 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
       const tariffEstimates=await require('../pricing/networkTariffService').transactionEstimates(
         conn,authorization.tenant,branch,{network:values.network,currency:values.currency,
           operation,amountMinor:values.amountMinor,at:smsAuthorization?.receivedAt||new Date(),session});
+      const publicReferences=require('../pricing/publishedReference.service').quote({
+        network:values.network,currency:values.currency,operation,
+        amountMinor:values.amountMinor,at:smsAuthorization?.receivedAt||new Date()
+      });
       await require('../../platform/services/commercial.service').reserveUsage(authorization.tenant,'mobile_money_records',session);
       // Wallet and bank are declared receipt methods, not verified integrations.
       // Only physical Cash records may change a verified drawer or join a shift.
@@ -133,7 +137,7 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
       // belong on the wallets page; an SMS can still attach its dated balance.
       const funding=tracking?await funds.apply(conn,session,authorization,{...values,branchId:branch._id},{receivedAt:smsAuthorization?.receivedAt,feeTreatmentSpecified,expectedFeeTreatment,useConfiguredPolicy:options.requireFunds===true}):{};
       const cashSessionId=values.paymentMethod==='Cash'?await require('./cashDrawer.service').attachRecord(conn,session,authorization.actor,branch._id,values.currency,operation,BigInt(values.amountMinor),{...(smsAuthorization?{receivedAt:smsAuthorization.receivedAt}:{}),bookManaged:tracking}):null;
-      [created] = await Model.create([{ ...values, ...source,...tariffEstimates,...funding, cashSessionId, branchId:branch._id, amountMinor: String(values.amountMinor), feeMinor: String(values.feeMinor), operatorId: operator.id, status: 'pending_verification' }], { session });
+      [created] = await Model.create([{ ...values, ...source,...tariffEstimates,...publicReferences,...funding, cashSessionId, branchId:branch._id, amountMinor: String(values.amountMinor), feeMinor: String(values.feeMinor), operatorId: operator.id, status: 'pending_verification' }], { session });
       await Audit.create([{
         action: `mobile_money.${operation}.recorded`, actorId: operator.id, targetId: created._id,
         metadata: { currency: values.currency, amountMinor: values.amountMinor, network: values.network, paymentMethod:values.paymentMethod, branchId: String(created.branchId) }

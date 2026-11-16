@@ -24,6 +24,6 @@
  <label class="field">Note / narration<input name="note" class="control" maxlength="400" placeholder="Optional teller note"></label>
 </div></details>
 <div class="summary"><div class="sumRow"><span><%= operation==='sell'?'Customer pays':operation==='buy'?'Customer receives':'Quoted settlement' %></span><b data-forex-total>—</b></div><div class="sumRow"><span>Drawer effect</span><b>Pending reviewed execution</b></div><div class="sumRow"><span>Reference</span><b class="mono"><%= data.idempotencyKey %></b></div></div>
-<input type="hidden" name="validMinutes" value="<%= initialValidity %>"><p class="tiny" id="approvedRateHelp">Your approved branch rate and quotation window are applied automatically.</p>
-<button type="submit" class="btn btnPrimary" <%= availableRates.length?'':'disabled' %>>Post forex operation</button>
+<input type="hidden" name="validMinutes" value="<%= initialValidity %>"><p class="tiny" id="approvedRateHelp">Your approved branch rate and quotation window are applied automatically. Saving this quote does not exchange physical cash or post a ledger movement.</p>
+<button type="submit" class="btn btnPrimary">Save <%= operation==='buy'?'buy':operation==='sell'?'sell':'exchange' %> quote</button>
 <% } %>

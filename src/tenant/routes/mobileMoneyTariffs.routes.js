@@ -27,6 +27,7 @@ module.exports=function factory({renderTenant}){
      providerChoices:Object.entries(NETWORKS).filter(([key,meta])=>Boolean(meta.currency)||commissions.wallets.some(w=>w.network===key)).map(([key,meta])=>({key,...meta})),
      canActivatePublished:req.user.role==='Tenant Owner'&&Boolean(req.operationBranch?._id),
      publishedRateBranch:req.operationBranch?.name||null,
+     providerSheets:require('../pricing/networkRateSheetPresentation').group(schedules,branches),
      canPropose:['Tenant Owner','Mobile Money Operator'].includes(req.user.role),
      canReview:['Tenant Owner','Reconciliation Officer'].includes(req.user.role),
      canSubmitPayout:['Tenant Owner','Mobile Money Operator'].includes(req.user.role),

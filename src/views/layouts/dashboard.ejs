@@ -45,11 +45,21 @@
      ].filter(option=>visiblePaths.has(option.href) && can(option.permission) && (!option.roles || option.roles.includes(user.role))) : [];
      const assignedOperationBranch = typeof operationBranch === 'undefined' ? null : operationBranch;
      const availableCurrencies=typeof currencyOptions==='undefined'?[{code:'UGX',label:'UGX'},{code:'USD',label:'USD'},{code:'SSP',label:'SSP'},{code:'KES',label:'KSH'}]:currencyOptions;
-     const dashboardCurrencies=currentPath==='/tenant/dashboard'&&data.hasMobileMoney&&!data.hasTransfer&&!data.hasBanking&&!data.hasForex&&data.mobileMarkets?.length?
-       availableCurrencies.filter(option=>data.mobileMarkets.some(m=>m.currency===option.code)):availableCurrencies;
+     const momoOnlyDashboard=currentPath==='/tenant/dashboard'&&data.hasMobileMoney&&!data.hasTransfer&&!data.hasBanking&&!data.hasForex;
+     const mobileOperationPage=/^\/tenant\/mobile-money\/(cash-in|cash-out|report)$/.test(currentPath);
+     const mobileMarketCurrencies=mobileOperationPage?(data.networkMarkets||[]).map(m=>m.currency):
+       momoOnlyDashboard?(data.mobileMarkets||[]).map(m=>m.currency):[];
+     const dashboardCurrencies=mobileMarketCurrencies.length?
+       availableCurrencies.filter(option=>mobileMarketCurrencies.includes(option.code)):availableCurrencies;
      const currencyFilterParams=new URLSearchParams(typeof branchViewReturnTo==='string'?branchViewReturnTo.split('?')[1]||'':'');
      const requestedDisplayCurrency=currencyFilterParams.get('currency');
-     const selectedDisplayCurrency=data.workspaceSnapshot?.selectedCurrency||data.filters?.currency||data.selectedCurrency||data.entryCurrency||(dashboardCurrencies.some(option=>option.code===requestedDisplayCurrency)?requestedDisplayCurrency:null)||assignedOperationBranch?.currency||'UGX';
+     const mobileMarketDefault=(mobileOperationPage||momoOnlyDashboard)&&dashboardCurrencies.length?
+       (dashboardCurrencies.some(option=>option.code===data.mobileMoneySelectedCurrency)?data.mobileMoneySelectedCurrency:
+        dashboardCurrencies.some(option=>option.code===data.mobileMarket?.currency)?data.mobileMarket.currency:dashboardCurrencies[0].code):null;
+     const selectedDisplayCurrency=mobileMarketDefault||
+       data.workspaceSnapshot?.selectedCurrency||data.filters?.currency||data.selectedCurrency||data.entryCurrency||
+       (dashboardCurrencies.some(option=>option.code===requestedDisplayCurrency)?requestedDisplayCurrency:null)||
+       assignedOperationBranch?.currency||'UGX';
      const pageContent = include(view, { data, money, tenant, user, context, quickActions, visiblePaths, transactionOptions });
      const hasPageSearch = pageContent.includes('data-search-row'); %>
   <a class="skip-link" href="#workspaceContent">Skip to workspace</a>
@@ -71,7 +81,10 @@
           <% if(context==='tenant'){ %>
             <div class="headerScope">
               <% if(typeof canViewBranches!=='undefined'&&canViewBranches){ %><form method="post" action="/tenant/view-branch" class="ctrl" data-branch-view-form><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="returnTo" value="<%= branchViewReturnTo %>"><select name="viewBranchId" aria-label="Viewing branch"><option value="all" <%= viewBranchId==='all'?'selected':'' %>>All branches</option><% viewBranches.forEach(branch=>{ %><option value="<%= branch._id %>" <%= String(branch._id)===viewBranchId?'selected':'' %>><%= branch.name %></option><% }) %></select><noscript><button class="btn" type="submit">View branch</button></noscript></form><% } %>
-              <form method="get" action="<%= currentPath %>" class="ctrl" data-dashboard-currency-form><% for(const [key,value] of currencyFilterParams){if(!['currency','page','cursor','_csrf'].includes(key)){ %><input type="hidden" name="<%= key %>" value="<%= value %>"><% }} %><select id="currencySelect" name="currency" aria-label="Display currency"><% dashboardCurrencies.forEach(option=>{ %><option value="<%= option.code %>" <%= selectedDisplayCurrency===option.code?'selected':'' %>><%= option.label %></option><% }) %></select><button type="submit" hidden>Apply currency</button><noscript><button type="submit" class="btn">Apply currency</button></noscript></form>
+              <% if(dashboardCurrencies.length===1&&(mobileOperationPage||momoOnlyDashboard)){ %>
+               <span class="ctrl" aria-label="Network currency"><%= dashboardCurrencies[0].label %></span>
+              <% }else{ %>
+              <form method="get" action="<%= currentPath %>" class="ctrl" data-dashboard-currency-form><% for(const [key,value] of currencyFilterParams){if(!['currency','page','cursor','_csrf'].includes(key)){ %><input type="hidden" name="<%= key %>" value="<%= value %>"><% }} %><select id="currencySelect" name="currency" aria-label="Display currency"><% dashboardCurrencies.forEach(option=>{ %><option value="<%= option.code %>" <%= selectedDisplayCurrency===option.code?'selected':'' %>><%= option.label %></option><% }) %></select><button type="submit" hidden>Apply currency</button><noscript><button type="submit" class="btn">Apply currency</button></noscript></form><% } %>
             </div>
             <div class="ctrl headerSearch"><input id="search" type="search" aria-label="Search loaded records" placeholder="Search name, phone, ref, PIN, account…"></div>
             <div class="headerButtons">

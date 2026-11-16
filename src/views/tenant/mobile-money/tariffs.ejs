@@ -62,6 +62,17 @@ const tariffToday=typeof businessToday==='string'?businessToday:new Date().toISO
     <summary><span><b><%= source.label %></b><small><%= source.currency %> · Deposit: <%= data.formatMinor(source.depositFeeMinor,source.currency) %> network fee</small></span><span class="tag"><%= source.status==='published_reference'?'Published reference':'Historical — verify' %></span></summary>
     <div class="networkTariffRecordBody">
      <p class="tiny"><%= source.note %></p>
+     <% if(data.canActivatePublished&&source.status==='published_reference'){ %>
+     <form method="post" action="/tenant/mobile-money/tariffs/published/activate" class="networkTariffActions">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="network" value="<%= source.network %>">
+      <input type="hidden" name="scheduleKind" value="customer_network_fee">
+      <button class="btn btnPrimary" type="submit">Approve these existing fees for estimates</button>
+      <span class="tiny">Uses all deposit and withdrawal bands for <%= data.publishedRateBranch||'your operating branch' %>. No fee re-entry, cash collection or income posting.</span>
+     </form>
+     <% }else if(source.status!=='published_reference'){ %>
+     <p class="tiny">This sheet is shown for reference but its provider page has an old effective-date notice. It cannot be activated as a current approved rate without provider confirmation.</p>
+     <% } %>
      <div class="networkTariffMetadata"><span>Network <b><%= source.label %></b></span><span>Checked <b><%= source.checkedOn %></b></span><span>Source <a href="<%= source.source %>" target="_blank" rel="noopener noreferrer">View official provider table</a></span></div>
      <div class="tableWrap networkTariffScroll" role="region" tabindex="0" aria-label="Scrollable network rate sheet"><table><thead><tr><th>Amount from</th><th>Amount to</th><% source.operations.forEach(op=>{ %><th><%= op.label %></th><% }) %></tr></thead><tbody>
       <% source.bands.forEach(tier=>{ %><tr><td><%= data.formatMinor(tier.minMinor,source.currency) %></td><td><%= data.formatMinor(tier.maxMinor,source.currency) %></td>
@@ -74,15 +85,26 @@ const tariffToday=typeof businessToday==='string'?businessToday:new Date().toISO
    <div class="workspaceNote"><b>MTN MoMo South Sudan, Africell and other markets:</b> A complete current public fee and agent-commission sheet has not been verified. Configure the provider market and independently review its genuine contract before any local quote is trusted. Missing rates remain unavailable; they are never invented.</div>
   </div>
  </details>
+ <% if(data.canActivatePublished){ %>
+ <div class="workspaceActions">
+  <form method="post" action="/tenant/mobile-money/tariffs/published/activate" class="networkTariffActions">
+   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+   <input type="hidden" name="network" value="MTN">
+   <input type="hidden" name="scheduleKind" value="agent_commission">
+   <button type="submit" class="btn">Approve existing MTN agent commission bands for estimates</button>
+   <span class="tiny">Uses the built-in MTN Uganda commission sheet in <%= data.publishedRateBranch||'your branch' %>, without entering rates. This does not recognize actual provider earnings.</span>
+  </form>
+ </div>
+ <% } %>
  <section class="card" id="configured-network-sheets">
   <div class="cardHead"><b>Saved network schedules</b><span><%= data.schedules.length %> saved</span></div>
   <div class="cardBody workspaceStack">
    <% if(!data.schedules.length){ %><p class="tiny">No agent commission schedule has been entered. MTN South Sudan and other providers will show no automatic commission rather than an invented rate.</p><% } %>
    <% data.schedules.forEach(schedule=>{ const branch=data.branches.find(b=>String(b._id)===String(schedule.branchId)); %>
    <details class="networkTariffRecord">
-    <summary><span><b><%= schedule.network==='MTN SSD'?'MTN MoMo South Sudan':schedule.network==='MTN'?'MTN MoMo Uganda':schedule.network %></b><small><%= branch?.name||'Assigned branch' %> · <%= schedule.currency %> · <%= ({cash_in:'Customer deposit',cash_out:'Customer withdrawal',send:'Send money',bill_payment:'Bill payment',airtime_sale:'Sell airtime',merchant_payment:'Merchant payment'})[schedule.operation]||schedule.operation %> · <%= schedule.scheduleKind==='customer_network_fee'?'Customer fee':'Agent commission' %> · Version <%= schedule.version %></small></span><span class="tag"><%= schedule.status==='approved'?'Approved for quoting':schedule.status==='retired'?'Retired':'Awaiting independent review' %></span></summary>
+    <summary><span><b><%= schedule.network==='MTN SSD'?'MTN MoMo South Sudan':schedule.network==='MTN'?'MTN MoMo Uganda':schedule.network %></b><small><%= branch?.name||'Assigned branch' %> · <%= schedule.currency %> · <%= ({cash_in:'Customer deposit',cash_out:'Customer withdrawal',send:'Send money',bill_payment:'Bill payment',airtime_sale:'Sell airtime',merchant_payment:'Merchant payment'})[schedule.operation]||schedule.operation %> · <%= schedule.scheduleKind==='customer_network_fee'?'Customer fee':'Agent commission' %> · Version <%= schedule.version %></small></span><span class="tag"><%= schedule.status==='approved'?(schedule.sourceKind==='published_reference'?'Owner-authorized reference estimate':'Approved for quoting'):schedule.status==='retired'?'Retired':'Awaiting independent review' %></span></summary>
     <div class="networkTariffRecordBody">
-     <div class="networkTariffMetadata"><span>Effective from <b><%= new Date(schedule.effectiveFrom).toISOString().slice(0,10) %></b></span><span>Source <b><%= schedule.evidenceReference %></b></span><span>Independent reviewer <b><%= schedule.approvedBy?'Recorded':'Pending' %></b></span></div>
+     <div class="networkTariffMetadata"><span>Effective from <b><%= new Date(schedule.effectiveFrom).toISOString().slice(0,10) %></b></span><span>Source <b><%= schedule.evidenceReference %></b></span><span>Authorized by <b><%= schedule.approvedBy?(schedule.sourceKind==='published_reference'?'Tenant Owner (provider confirmation not implied)':'Independent reviewer'):'Pending' %></b></span></div>
      <div class="tableWrap networkTariffScroll" role="region" tabindex="0" aria-label="Scrollable commission ranges"><table><thead><tr><th>Minimum (<%= schedule.currency %>)</th><th>Maximum</th><th>Commission type</th><th>Rate (minor units or bps)</th></tr></thead><tbody>
       <% schedule.tiers.forEach(tier=>{ %><tr><td><%= data.formatMinor(tier.minMinor,schedule.currency) %></td><td><%= data.formatMinor(tier.maxMinor,schedule.currency) %></td><td><%= tier.rate.kind==='flat'?'Fixed':'Percentage' %></td><td><%= tier.rate.value %><%= tier.rate.kind==='basis_points'?' bps':'' %></td></tr><% }) %>
      </tbody></table></div>

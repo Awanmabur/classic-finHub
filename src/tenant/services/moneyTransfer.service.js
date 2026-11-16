@@ -250,8 +250,8 @@ async function reviewQueue(conn,tenant,actor){
  return transferOrderModel(conn).find({status:'requested',createdBy:{$ne:id(actor.id)},expiresAt:{$gt:new Date()},...branchScope(actor)})
   .sort({createdAt:1}).limit(30).lean();
 }
-async function reportRows({conn,filters,scope}){
- const query={createdAt:mobile.dateBounds({from:filters.from,to:filters.to}),...(scope.branchId?{branchId:new mongoose.Types.ObjectId(id(scope.branchId))}:{}),
+async function reportRows({conn,filters,scope,dateRange}){
+ const query={createdAt:dateRange||mobile.dateBounds({from:filters.from,to:filters.to},filters.timeZone||'UTC'),...(scope.branchId?{branchId:new mongoose.Types.ObjectId(id(scope.branchId))}:{}),
   ...(scope.operatorId?{createdBy:new mongoose.Types.ObjectId(id(scope.operatorId))}:{})};
  const rows=await transferOrderModel(conn).aggregate([{$match:query},{$group:{_id:{currency:'$currency',status:'$status'},
   count:{$sum:1},amount:{$sum:'$amountMinor'},fees:{$sum:'$feeMinor'}}},{$sort:{'_id.currency':1,'_id.status':1}},{$limit:501}]);

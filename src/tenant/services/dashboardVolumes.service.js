@@ -6,6 +6,7 @@ const models=require('../models');
 const {hasModuleForUser,hasPermission}=require('./moduleAccess.service');
 const {currencyCodes,currencyLabel}=require('../../config/currencies');
 const mobile=require('./mobileMoney.service');
+const businessTime=require('../../utils/businessTime');
 const sources=Object.freeze({
  money_transfer:{flag:'hasTransfer',model:'transferOrderModel',creator:'Money Transfer Operator',states:['requested','approved_pending_provider','collected_manual','paid_out_manual'],amount:'amountMinor',currency:'currency'},
  mobile_money:{flag:'hasMobileMoney',model:'mobileTransactionModel',creator:'Mobile Money Operator',states:['pending_verification','verified'],amount:'amountMinor',currency:'currency'},
@@ -32,12 +33,13 @@ function scopeFor(user,key,operationBranch){
  if(user?.role===spec.creator)scope[key==='mobile_money'?'operatorId':'createdBy']=objectId(user.id);
  return scope;
 }
-function bounds(now=new Date()){
+function bounds(now=new Date(),timeZone='UTC'){
  if(!(now instanceof Date)||!Number.isFinite(now.getTime()))throw fail('Invalid dashboard date');
- const start=new Date(now);start.setUTCHours(0,0,0,0);return {$gte:start,$lt:new Date(start.getTime()+86400000)};
+ const { $gte,$lt }=businessTime.dayBounds({},timeZone,90,now);
+ return {$gte,$lt};
 }
-function activeMatch(user,key,operationBranch,now){
- const spec=sources[key];return {...scopeFor(user,key,operationBranch),createdAt:bounds(now),status:{$in:spec.states},
+function activeMatch(user,key,operationBranch,now,timeZone='UTC'){
+ const spec=sources[key];return {...scopeFor(user,key,operationBranch),createdAt:bounds(now,timeZone),status:{$in:spec.states},
   ...(key==='mobile_money'?{correctionState:{$ne:'voided'}}:{})};
 }
 function money(value,currency){return mobile.formatMoneyMinor(value,currency).replace(/^[A-Z]{3}\s/,currencyLabel(currency)+' ');}
@@ -55,18 +57,21 @@ function executionAmount(key,currency){
  const settlement={$cond:[{$eq:['$sourceSnapshot.operation','buy']},{$subtract:[{$toDecimal:'$sourceSnapshot.targetMinor'},{$toDecimal:'$sourceSnapshot.feeMinor'}]},{$add:[{$toDecimal:'$sourceSnapshot.targetMinor'},{$toDecimal:'$sourceSnapshot.feeMinor'}]}]};
  return {$cond:[{$eq:['$sourceSnapshot.fromCurrency',currency]},{$toDecimal:'$sourceSnapshot.sourceMinor'},settlement]};
 }
-function executionMatch(user,key,operationBranch,currency,now){
- return {...scopeFor(user,key,operationBranch),sourceType:key,status:'posted_manual',reviewedAt:bounds(now),
+function executionMatch(user,key,operationBranch,currency,now,timeZone='UTC'){
+ return {...scopeFor(user,key,operationBranch),sourceType:key,status:'posted_manual',reviewedAt:bounds(now,timeZone),
   ...(key==='forex'?{$or:[{'sourceSnapshot.fromCurrency':currency},{'sourceSnapshot.toCurrency':currency}]}:{'sourceSnapshot.currency':currency})};
 }
 async function volumes(conn,tenant,user,input={},operationBranch=null,overview={}){
- const currency=selectedCurrency(input.currency,operationBranch),now=input.now||new Date(),result={};
+ const currency=selectedCurrency(input.currency,operationBranch),now=input.now||new Date(),
+  timeZone=input.timeZone||'UTC',result={};
+ if(input.suppressTodayVolumes===true)return {selectedCurrency:currency,currencyOptions:currencyCodes.map(code=>({code,label:currencyLabel(code)})),
+  todayVolumes:{},date:businessTime.localDay(now,timeZone),mixedRegion:true};
  await Promise.all(Object.entries(sources).map(async([key,spec])=>{
   if(overview[spec.flag]===false||!hasModuleForUser(tenant,user,key)||!hasPermission(user,`${key}.view`))return;
   const market=key==='mobile_money'?input.mobileMarket:null;
   const effectiveCurrency=market?.currency||currency;
-  const match=key==='mobile_money'?{...activeMatch(user,key,operationBranch,now),fundingState:'book_recorded',
-   ...(market?.network?{network:market.network}:{})}:executionMatch(user,key,operationBranch,currency,now);
+  const match=key==='mobile_money'?{...activeMatch(user,key,operationBranch,now,timeZone),fundingState:'book_recorded',
+   ...(market?.network?{network:market.network}:{})}:executionMatch(user,key,operationBranch,currency,now,timeZone);
   const Model=key==='mobile_money'?models.mobileTransactionModel(conn):require('../funded/models').models(conn).execution;
   const grouped=await Model.aggregate([
    {$match:match},
@@ -75,6 +80,6 @@ async function volumes(conn,tenant,user,input={},operationBranch=null,overview={
   result[key]={...totalFor(grouped,effectiveCurrency),basis:key==='mobile_money'?'posted funds book movements':'independently reviewed posted manual movements',
    ...(market?{network:market.network,networkLabel:market.label}:{})};
  }));
- return {selectedCurrency:currency,currencyOptions:currencyCodes.map(code=>({code,label:currencyLabel(code)})),todayVolumes:result,date:now.toISOString().slice(0,10)};
+ return {selectedCurrency:currency,currencyOptions:currencyCodes.map(code=>({code,label:currencyLabel(code)})),todayVolumes:result,date:businessTime.localDay(now,timeZone)};
 }
 module.exports={volumes,sources,selectedCurrency,scopeFor,activeMatch,executionMatch,executionAmount,bounds,totalFor,money,fail};

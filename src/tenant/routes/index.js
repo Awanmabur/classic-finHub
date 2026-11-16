@@ -41,6 +41,7 @@ function renderTenant(req, res, view, pageTitle, pageSub, data) {
     tenant:{...req.tenant,name:req.workspaceIdentity?.name||req.tenant.name}, user:req.user, menu:tenantMenu(req.tenant,req.user),
     view:`../tenant/${view}`, data, flash:consumeFlash(req), money, formatUtcDate,
     businessTimeZone:businessTime.forBranch(req.operationBranch),
+    businessToday:businessTime.localDay(new Date(),businessTime.forBranch(req.operationBranch)),
     businessTimeZoneForBranch:businessTime.forBranch,
     formatLocalDate:value=>businessTime.format(value,businessTime.forBranch(req.operationBranch)),
     amountFromMinor:mobile.fromMinor

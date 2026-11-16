@@ -41,7 +41,7 @@
           if(requestId!==pending)return;
           if(!result.ok)throw new Error(data.error||'Quote is currently unavailable');
           const label=value=>value?.amount?
-            value.amount+(value.source==='published_reference'?' · reference only':' · approved-sheet estimate'):null;
+            value.amount+(value.source==='published_reference'?' · published reference':value.source==='historical_reference'?' · historical, verify provider':' · approved-sheet estimate'):null;
           commission.textContent=label(data.agentCommission)||'Not configured — request approved agent rate sheet';
           charge.textContent=label(data.customerNetworkCharge)||'No matching published or approved charge';
           note.textContent=data.note||'Agent earnings are estimates until the network settles the provider commission.';

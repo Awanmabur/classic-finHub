@@ -2,7 +2,7 @@
    const historyLocalDate=typeof formatLocalDate==='function'?formatLocalDate:
     (value=>new Date(value).toISOString().slice(0,16).replace('T',' ')); %>
 <section class="view show">
-  <section class="card"><div class="cardHead"><b>Transaction history</b><span>Records, not verified network settlement</span><div class="richActions"><a class="btn" href="/tenant/mobile-money/network-activity">Network activity</a><a class="btn" href="/tenant/mobile-money/report">Mobile money report</a><a class="btn" href="/tenant/mobile-money">Internal review</a></div></div>
+  <section class="card"><div class="cardHead"><b>Transaction history</b><span>Records, not verified network settlement</span><div class="richActions"><a class="btn" href="/tenant/mobile-money/network-activity">Network activity</a><a class="btn" href="/tenant/mobile-money/report">Mobile money report</a><a class="btn" href="/tenant/mobile-money">Record transaction</a></div></div>
     <div class="cardBody"><form method="get" action="/tenant/mobile-money/history" class="row3">
       <label class="field">From (<%= historyZone %>)<input class="control" type="date" name="from" value="<%= data.records.from %>"></label>
       <label class="field">To (<%= historyZone %>)<input class="control" type="date" name="to" value="<%= data.records.to %>"></label>
@@ -22,7 +22,7 @@
          t.agentCommissionPublishedReference?money(t.currency,amountFromMinor(t.agentCommissionPublishedReference.amountMinor,t.currency))+' · published reference only':'No saved rate' %></td>
         <td><%= t.customerNetworkFeeEstimate?money(t.currency,amountFromMinor(t.customerNetworkFeeEstimate.amountMinor,t.currency))+' · approved v'+t.customerNetworkFeeEstimate.version:
           t.customerNetworkChargePublishedReference?money(t.currency,amountFromMinor(t.customerNetworkChargePublishedReference.amountMinor,t.currency))+' · published reference only':'No saved rate' %></td>
-        <td><%= t.status.replaceAll('_',' ') %> / <%= (t.reviewState||'awaiting_review').replaceAll('_',' ') %></td>
+        <td><%= t.status.replaceAll('_',' ') %></td>
         <td><%= (t.correctionState||'none').replaceAll('_',' ') %></td>
       </tr><% }) %>
     </tbody></table></div>

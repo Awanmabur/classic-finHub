@@ -76,10 +76,9 @@ router.get('/mobile-money', requireModule('mobile_money'), requirePermission('mo
     const reportZone=await reportTimeZone.forRequest(req);
     const canReview=hasPermission(req.user,'mobile_money.review')&&(req.user.role==='Tenant Owner'||req.user.branchId);
     const reviewBranch=req.user.role==='Tenant Owner'?(require('../services/branchView.service').readScope(req.user).branchId||null):req.user.branchId;
-    const [summary,branches,reviewQueue,voidQueue,funds,pricingContext]=await Promise.all([
+    const [summary,branches,voidQueue,funds,pricingContext]=await Promise.all([
       mobile.getSummary(req.tenantDb,{...recordScope(req),timeZone:reportZone}),
       branchService.list(req.tenant),
-      canReview?mobile.getReviewQueue(req.tenantDb,req.user.id,25,reviewBranch):[],
       canReview?mobile.getVoidQueue(req.tenantDb,req.user.id,25,reviewBranch):[],
       req.operationBranch?require('../services/mobileMoneyFunds.service').context(req.tenantDb,req.tenant,req.user,req.operationBranch):null,
       require('../pricing/presentation').context(req.tenantDb,req.tenant,req.operationBranch,'mobile_money')
@@ -87,7 +86,7 @@ router.get('/mobile-money', requireModule('mobile_money'), requirePermission('mo
     renderTenant(req,res,'mobile-money/index','Mobile Money','Record agent transactions. Provider settlement remains unverified until reconciled.',{
       entryCurrency:req.operationBranch?require('../services/branchCurrency.service').resolve(req.operationBranch,req.query.currency):null,
       entryCurrencies:req.operationBranch?require('../services/branchCurrency.service').options(req.operationBranch):[],
-      summary,branches:branches.filter(b=>b.status==='active' && (req.user.role==='Tenant Owner' || String(b._id)===String(req.user.branchId))),reviewQueue,voidQueue,funds,pricingContext,
+      summary,branches:branches.filter(b=>b.status==='active' && (req.user.role==='Tenant Owner' || String(b._id)===String(req.user.branchId))),voidQueue,funds,pricingContext,
       canReview: hasPermission(req.user,'mobile_money.review'), idempotencyKey:randomUUID(),
       canRecord: hasPermission(req.user,'mobile_money.cash_in') || hasPermission(req.user,'mobile_money.cash_out')
     });
@@ -97,20 +96,12 @@ for (const [path,op,permission] of [['cash-in','cash_in','mobile_money.cash_in']
   router.post(`/mobile-money/${path}`, requireModule('mobile_money'),requirePermission(permission),require('../../platform/services/actionThrottle.service').financial,async(req,res,next)=>{
     try {
       const result = await mobile.recordMobileMoney(req.tenantDb,req.user,req.body,op,req.tenant,null,{requireFunds:true});
-      flash(req,'good',result.duplicate ? 'This request was already recorded. No duplicate created.' : 'Transaction recorded for verification. No provider settlement has been claimed.');
+      flash(req,'good',result.duplicate ? 'This request was already recorded. No duplicate created.' : 'Transaction recorded as final in FinHub. Provider settlement remains independently unverified.');
       require('../services/branchView.service').followRecord(req,result.created);
       res.redirect(303,'/tenant/mobile-money');
     } catch(e) { next(e); }
   });
 }
-router.post('/mobile-money/:id/review', requireModule('mobile_money'), requirePermission('mobile_money.review'),
-  require('../../platform/services/actionThrottle.service').financial, async(req,res,next)=>{
-  try {
-    await mobile.reviewMobileMoney(req.tenantDb, req.user, req.params.id, req.body.decision, req.body.note);
-    flash(req,'good','Independent review saved and audited. Provider settlement is still unverified.');
-    res.redirect(303,'/tenant/mobile-money');
-  } catch(e) { next(e); }
-});
 router.post('/mobile-money/:id/request-void',requireModule('mobile_money'),requirePermission('mobile_money.view'),
   require('../../platform/services/actionThrottle.service').financial,async(req,res,next)=>{
   try{
@@ -199,10 +190,10 @@ router.get('/mobile-money/:id',requireModule('mobile_money'),requirePermission('
       _id:record.walletObservationId,tenantId:req.tenant._id,branchId:record.branchId,accountId:record.walletAccountId
     }).select('status observedAt actualMinor expectedMinorAtRequest varianceMinorAtRequest expectedMinorAtReview varianceMinorAtReview evidenceType evidenceReference reviewedAt').lean():null;
     const canRequestCorrection=['Tenant Owner','Mobile Money Operator'].includes(req.user.role)&&
-      String(record.operatorId)===String(req.user.id)&&record.status==='pending_verification'&&
+      String(record.operatorId)===String(req.user.id)&&['recorded','pending_verification'].includes(record.status)&&
       ['none','denied',null,undefined].includes(record.correctionState)&&(record.correctionAttempts||0)<5;
     const canReviewCorrection=['Tenant Owner','Reconciliation Officer'].includes(req.user.role)&&
-      String(record.operatorId)!==String(req.user.id)&&record.status==='pending_verification'&&record.correctionState==='requested';
+      String(record.operatorId)!==String(req.user.id)&&['recorded','pending_verification'].includes(record.status)&&record.correctionState==='requested';
     renderTenant(req,res,'mobile-money/detail','Mobile Money Record',
       'Historical evidence and internal correction decisions. No status claims external settlement.',
       {record:visible,canRequestCorrection,canReviewCorrection,canViewFunds,walletObservation,formatMoneyMinor:mobile.formatMoneyMinor});

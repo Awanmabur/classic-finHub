@@ -137,7 +137,7 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
       // belong on the wallets page; an SMS can still attach its dated balance.
       const funding=tracking?await funds.apply(conn,session,authorization,{...values,branchId:branch._id},{receivedAt:smsAuthorization?.receivedAt,feeTreatmentSpecified,expectedFeeTreatment,useConfiguredPolicy:options.requireFunds===true}):{};
       const cashSessionId=values.paymentMethod==='Cash'?await require('./cashDrawer.service').attachRecord(conn,session,authorization.actor,branch._id,values.currency,operation,BigInt(values.amountMinor),{...(smsAuthorization?{receivedAt:smsAuthorization.receivedAt}:{}),bookManaged:tracking}):null;
-      [created] = await Model.create([{ ...values, ...source,...tariffEstimates,...publicReferences,...funding, cashSessionId, branchId:branch._id, amountMinor: String(values.amountMinor), feeMinor: String(values.feeMinor), operatorId: operator.id, status: 'pending_verification' }], { session });
+      [created] = await Model.create([{ ...values, ...source,...tariffEstimates,...publicReferences,...funding, cashSessionId, branchId:branch._id, amountMinor: String(values.amountMinor), feeMinor: String(values.feeMinor), operatorId: operator.id, status: 'recorded', reviewState: 'not_required' }], { session });
       await Audit.create([{
         action: `mobile_money.${operation}.recorded`, actorId: operator.id, targetId: created._id,
         metadata: { currency: values.currency, amountMinor: values.amountMinor, network: values.network, paymentMethod:values.paymentMethod, branchId: String(created.branchId) }
@@ -224,7 +224,7 @@ async function requestVoid(conn,actor,recordId,note){
   try{
     let record;
     await session.withTransaction(async()=>{
-      record=await Model.findOneAndUpdate({_id:recordId,operatorId:actor.id,status:'pending_verification',
+      record=await Model.findOneAndUpdate({_id:recordId,operatorId:actor.id,status:{$in:['recorded','pending_verification']},
         correctionState:{$in:['none','denied',null]},
         $or:[{correctionAttempts:{$lt:5}},{correctionAttempts:{$exists:false}}],...(actor.role==='Tenant Owner'?{}:{branchId:actor.branchId||null})},
         {$set:{correctionState:'requested',correctionReason:reason,correctionRequestedAt:new Date(),correctionRequestedBy:actor.id,
@@ -249,7 +249,7 @@ async function decideVoid(conn,reviewer,recordId,decision,note){
   try{
     let record;
     await session.withTransaction(async()=>{
-      record=await Model.findOneAndUpdate({_id:recordId,status:'pending_verification',correctionState:'requested',
+      record=await Model.findOneAndUpdate({_id:recordId,status:{$in:['recorded','pending_verification']},correctionState:'requested',
         operatorId:{$ne:reviewer.id},correctionRequestedBy:{$ne:reviewer.id},
         ...(reviewer.role==='Tenant Owner'?{}:{branchId:reviewer.branchId||null})},
         {$set:{correctionState:decision==='approve'?'voided':'denied',
@@ -274,7 +274,7 @@ async function decideVoid(conn,reviewer,recordId,decision,note){
 }
 async function getVoidQueue(conn,reviewerId,max=25,branchId=null){
   const take=Number.isSafeInteger(max)&&max>=1&&max<=100?max:25;
-  return mobileTransactionModel(conn).find({status:'pending_verification',correctionState:'requested',
+  return mobileTransactionModel(conn).find({status:{$in:['recorded','pending_verification']},correctionState:'requested',
     operatorId:{$ne:reviewerId},correctionRequestedBy:{$ne:reviewerId},...(branchId?{branchId}:{})})
     .sort({correctionRequestedAt:1}).limit(take).lean();
 }
@@ -349,7 +349,7 @@ async function getRecordDetails(conn,recordId,scope={}){
   return record;
 }
 async function getSummary(conn, { from, to, operatorId, branchId, timeZone } = {}) {
-  const bounds = dateBounds({ from, to });
+  const bounds = dateBounds({ from, to },timeZone);
   const Model = mobileTransactionModel(conn);
   const {Types}=require('mongoose');
   const scope = { ...(operatorId ? {operatorId:new Types.ObjectId(operatorId)} : {}), ...(branchId ? {branchId:new Types.ObjectId(branchId)} : {}) };

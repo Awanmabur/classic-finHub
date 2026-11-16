@@ -62,15 +62,15 @@
     <%- include('_entry-form',{currentBranch,operation:(user.permissions.includes('*') || user.permissions.includes('mobile_money.cash_in')) ? 'cash_in' : 'cash_out'}) %>
     <% } %>
 
-    <section class="card"><div class="cardHead"><b>Network activity</b><span><%= data.summary.total %> records today (UTC)</span><a class="btn" href="/tenant/mobile-money/history">All history</a></div><div class="cardBody txList">
+    <section class="card"><div class="cardHead"><b>Network activity</b><span><%= data.summary.total %> records in selected business period</span><a class="btn" href="/tenant/mobile-money/history">All history</a></div><div class="cardBody txList">
       <% if (!data.summary.recent.length) { %><p class="tiny">No records yet. The list uses this tenant's database, not demonstration data.</p><% } %>
       <% data.summary.recent.forEach(t => { %>
         <div class="tx" data-search-row>
           <div class="txMeta"><b><a href="/tenant/mobile-money/<%= t._id %>"><%= t.network %> · <%= t.networkReference %></a></b>
-            <span><%= t.customer %> · <%= t.entrySource === 'sms' ? 'SMS capture' : 'Manual' %> · <%= t.operation === 'cash_in' ? 'Deposit' : 'Withdrawal' %> · <%= t.status.replace(/_/g,' ') %> · Internal review: <%= (t.reviewState || 'awaiting_review').replace(/_/g,' ') %> · Correction: <%= (t.correctionState || 'none').replace(/_/g,' ') %></span>
+            <span><%= t.customer %> · <%= t.entrySource === 'sms' ? 'SMS capture' : 'Manual' %> · <%= t.operation === 'cash_in' ? 'Deposit' : 'Withdrawal' %> · <%= t.status.replace(/_/g,' ') %> · Correction: <%= (t.correctionState || 'none').replace(/_/g,' ') %></span>
           </div><b><%= money(t.currency, amountFromMinor(t.amountMinor,t.currency)) %></b>
         </div>
-        <% if(data.canRecord && String(t.operatorId)===String(user.id) && t.status==='pending_verification' && ['none','denied',null,undefined].includes(t.correctionState) && (t.correctionAttempts||0)<5){ %>
+        <% if(data.canRecord && String(t.operatorId)===String(user.id) && ['recorded','pending_verification'].includes(t.status) && ['none','denied',null,undefined].includes(t.correctionState) && (t.correctionAttempts||0)<5){ %>
           <details style="margin:8px 0 12px"><summary class="tiny">Request correction</summary>
           <form method="post" action="/tenant/mobile-money/<%= t._id %>/request-void" class="row2" style="margin:10px 0">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
@@ -96,24 +96,6 @@
             <textarea class="control" name="note" minlength="12" maxlength="400" required rows="2" placeholder="Why is this correction approved or denied?"></textarea>
           </label>
           <div class="rowBtns"><button class="btn btnPrimary" name="decision" value="approve">Approve internal void</button><button class="btn" name="decision" value="deny">Deny request</button></div>
-        </form>
-      <% }) %>
-    </div>
-  </section>
-  <section class="card" style="margin-top:14px">
-    <div class="cardHead"><b>Independent internal review</b><span>Two-person control · no provider settlement</span></div>
-    <div class="cardBody">
-      <p class="tiny">Review the network receipt or supporting evidence outside this platform. You cannot review an entry you recorded. Accepting a record does not make the provider status verified and does not move money.</p>
-      <% if (!data.reviewQueue.length) { %><p class="tiny">No records are awaiting internal review.</p><% } %>
-      <% data.reviewQueue.forEach(t => { %>
-        <form method="post" action="/tenant/mobile-money/<%= t._id %>/review" class="card" style="margin:12px 0;padding:12px">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-          <div class="cardHead"><b><%= t.network %> · <%= t.networkReference %></b><span><%= t.customer %> · <%= t.entrySource === 'sms' ? 'SMS capture' : 'Manual' %> · <%= t.operation.replace('_',' ') %> · <%= money(t.currency,amountFromMinor(t.amountMinor,t.currency)) %></span></div>
-            <label class="field">Evidence or dispute explanation (12–400 characters)
-              <textarea class="control" name="note" minlength="12" maxlength="400" required rows="2" placeholder="State what evidence was checked or why this record is disputed"></textarea>
-            </label>
-            <div class="rowBtns"><button class="btn btnPrimary" name="decision" value="accepted">Accept internal record</button>
-            <button class="btn" name="decision" value="disputed">Mark disputed</button></div>
         </form>
       <% }) %>
     </div>

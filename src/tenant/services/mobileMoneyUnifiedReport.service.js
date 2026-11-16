@@ -69,7 +69,7 @@ function summarize(transactionGroups,payoutGroups,expenseGroups){
    row[operation==='cash_in'?'depositCount':'withdrawalCount']+=group.count;
    row[entrySource==='sms'?'smsCount':'manualCount']+=group.count;
    if(reviewState==='awaiting_review')row.pendingReviewCount+=group.count;
-   if(status==='pending_verification')row.providerUnverifiedCount+=group.count;
+   if(status==='pending_verification'||status==='recorded')row.providerUnverifiedCount+=group.count;
    row[operation==='cash_in'?'depositMinor':'withdrawalMinor']+=amount;
    row.volumeMinor+=amount;
    row.cashImpactMinor+=whole(group.cashMovementMinor);

@@ -64,7 +64,7 @@ router.get('/dashboard', requirePermission('dashboard.view'), async (req,res,nex
   try {
     // Indexes are prepared by provisioning and awaited by mutation services.
     // Reading an overview must not start collection/index DDL after a restart.
-    const overview=await require('../services/dashboardOverview.service').overview(req.tenantDb,req.tenant,req.user,{operationBranch:req.operationBranch,currency:req.query.currency,viewBranch:req.viewBranch,viewBranchId:req.viewBranchId});
+    const overview=await require('../services/dashboardOverview.service').overview(req.tenantDb,req.tenant,req.user,{operationBranch:req.operationBranch,currency:req.query.currency,viewBranch:req.viewBranch,viewBranchId:req.viewBranchId,viewBranches:res.locals.viewBranches});
     renderTenant(req,res,'dashboard/index','Overview','Money transfer, mobile money, banking, forex, tenants, roles, reports, analytics, and daily controls.',overview);
   } catch(e) { next(e); }
 });

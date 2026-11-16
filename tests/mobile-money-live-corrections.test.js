@@ -27,7 +27,7 @@ test('the existing real drawer is used by its assigned operator, never impersona
  assert.match(funds,/eligible\.length!==1/);
  assert.match(funds,/do not create a duplicate cash drawer/);
  assert.match(js,/validAccounts\.length===0/);
- assert.match(js,/sign in as that operator/);
+ assert.match(js,/Sign in as the operator assigned to the physical drawer/);
  assert.match(entry,/data-momo-account-notice/);
  assert.match(js,/paymentField\.hidden=true/);
 });

@@ -9,7 +9,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SHA="$(git -c safe.directory="$ROOT" -C "$ROOT" rev-parse HEAD)"
 test -n "${CLASSICFIN_EXPECTED_SHA:-}"
 test "$SHA" = "$CLASSICFIN_EXPECTED_SHA"
-test -z "$(git -c safe.directory="$ROOT" -C "$ROOT" status --porcelain)"
+test -z "$(GIT_OPTIONAL_LOCKS=0 git -c safe.directory="$ROOT" -C "$ROOT" status --porcelain)"
 exec 9>/run/lock/classicfin-web-fees-release.lock
 flock -n 9
 APP=classicfin-web-only

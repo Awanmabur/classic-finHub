@@ -19,12 +19,13 @@ function quote({network,operation,currency,amountMinor,at=new Date()}){
   }
  }
  const table=customer.TABLES.find(x=>x.network===network&&x.currency===currency);
- if(table?.status==='published_reference'){
+ if(table&&['published_reference','historical_source_unverified'].includes(table.status)){
   const calculated=customer.quote(network,operation,input);
-  if(calculated.customerFeeMinor!=null&&calculated.status==='published_reference')
+  if(calculated.customerFeeMinor!=null&&calculated.status===table.status)
    result.customerNetworkChargePublishedReference={
     network,operation,currency,amountMinor:String(calculated.customerFeeMinor),
-    sourceUrl:table.source,checkedOn:table.checkedOn,quotedAt:instant,status:'reference_only'
+    sourceUrl:table.source,checkedOn:table.checkedOn,quotedAt:instant,
+    status:table.status==='published_reference'?'reference_only':'historical_unverified'
    };
  }
  return result;

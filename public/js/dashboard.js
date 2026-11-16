@@ -539,6 +539,7 @@
         selectKind(kind);present.action=operations[kind].action;present.dataset.operation=kind;
         const label=present.querySelector('[data-mobile-operation-label]');if(label)label.value=kind==='cash_in'?'Deposit':'Withdrawal';
         window.ClassicFinPricing?.initialise(present);
+        window.ClassicFinMobileQuote?.initialise(present);
         present.elements.namedItem('amount')?.dispatchEvent(new Event('input',{bubbles:true}));message('');return;
       }
       activeRequest?.abort();activeRequest=new AbortController();
@@ -559,7 +560,7 @@
             seed.querySelectorAll('button[type="submit"],button:not([type])').forEach(button=>{button.disabled=true;});
             const reference=seed.elements.namedItem('idempotencyKey');if(reference)reference.value=crypto.randomUUID();
             seed.addEventListener('submit',event=>{event.preventDefault();event.stopImmediatePropagation();});
-            formHost.append(seed);initialiseApprovedFields(seed);const editSeed=event=>{if(event.target.matches('input:not([type="hidden"]):not([readonly]),select,textarea'))seed.dataset.operationDirty='true';};seed.addEventListener('input',editSeed);seed.addEventListener('change',editSeed);seed.querySelector('input:not([type="hidden"]):not([readonly])')?.focus();
+            formHost.append(seed);initialiseApprovedFields(seed);window.ClassicFinMobileQuote?.initialise(seed);const editSeed=event=>{if(event.target.matches('input:not([type="hidden"]):not([readonly]),select,textarea'))seed.dataset.operationDirty='true';};seed.addEventListener('input',editSeed);seed.addEventListener('change',editSeed);seed.querySelector('input:not([type="hidden"]):not([readonly])')?.focus();
             message('Checking current branch choices and charges…');
           }
           const requestUrl=new URL(quickKinds.has(kind)?'/tenant/operation-form/'+kind:operation.page,location.origin);
@@ -636,7 +637,7 @@
         if(version!==requestVersion)return;
         const activeSeed=seed?.contains(document.activeElement)?document.activeElement:null;
         const seedFocus=activeSeed?.name?{name:activeSeed.name,start:activeSeed.selectionStart,end:activeSeed.selectionEnd,direction:activeSeed.selectionDirection}:null;
-        formHost.replaceChildren(form);window.ClassicFinDirectory?.initialiseForm(form);initialiseOperationForm(form);initialiseMobileFunds(form);message('');
+        formHost.replaceChildren(form);window.ClassicFinDirectory?.initialiseForm(form);initialiseOperationForm(form);initialiseMobileFunds(form);window.ClassicFinMobileQuote?.initialise(form);message('');
         form.dataset.operationLoadedAt=String(Date.now());form.dataset.operationDirty=seed?.dataset.operationDirty==='true'?'true':'false';
         const markDirty=event=>{if(event.target.matches('input:not([type="hidden"]):not([readonly]),select,textarea'))form.dataset.operationDirty='true';};form.addEventListener('input',markDirty);form.addEventListener('change',markDirty);
         const restoredFocus=seedFocus?form.elements.namedItem(seedFocus.name):null;

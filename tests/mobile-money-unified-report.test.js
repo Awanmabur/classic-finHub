@@ -58,3 +58,23 @@ test('legacy wallet commissions are flagged but not combined into actual provide
  assert.equal(result.currencies[0].legacyWalletFeeMinor,400n);
  assert.equal(result.currencies[0].receivedCommissionMinor,0n);
 });
+
+test('published provider fee-sheet references appear in reports but never become collected fees or commission income',()=>{
+ const result=reporting.summarize([{
+  _id:{network:'MTN',currency:'UGX',operation:'cash_out',entrySource:'manual',
+   feeTreatment:'record_only',status:'recorded',reviewState:'not_required',voided:false},
+  count:1,amountMinor:'50000',feeMinor:'0',cashMovementMinor:'-50000',
+  estimatedCommissionMinor:'0',customerNetworkChargeEstimateMinor:'0',
+  publishedCommissionReferenceMinor:'325',publishedCustomerChargeReferenceMinor:'1500'
+ }],[],[]);
+ const row=result.networks[0];
+ assert.equal(row.publishedCommissionReferenceMinor,325n);
+ assert.equal(row.publishedCustomerChargeReferenceMinor,1500n);
+ assert.equal(row.recordedFeeMinor,0n);
+ assert.equal(row.collectedFeeMinor,0n);
+ assert.equal(row.receivedCommissionMinor,0n);
+ const csv=reporting.csv({networks:result.networks,window:{timeZone:'Africa/Kampala',from:'2026-11-16',to:'2026-11-16'},expenses:[]});
+ assert.match(csv,/Published agent commission reference/);
+ assert.match(csv,/Published customer network charge/);
+ assert.match(csv,/,325,1500,/);
+});

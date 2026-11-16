@@ -5,7 +5,7 @@
   <section class="card">
     <div class="cardHead"><b>Shift <%= data.shift._id %></b><span class="tag"><%= data.shift.status %></span><a class="btn" href="/tenant/cash/shifts">All shifts</a></div>
     <div class="cardBody">
-      <p class="tiny">Physical cash estimate only. Network settlements and agent e-float are not represented here.</p>
+      <p class="tiny">Recorded transactions already affect the internal cash book. This shift tracks physical cash only; network settlement and electronic float are separate.</p>
       <div class="grid3">
         <div class="stat"><div class="k">Opening cash</div><div class="v"><%= cashLabel(data.shift.openingMinor,data.shift.currency) %></div></div>
         <div class="stat"><div class="k">Provisional movement</div><div class="v"><%= cashLabel(data.shift.provisionalMovementMinor,data.shift.currency) %></div></div>

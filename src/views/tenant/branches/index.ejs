@@ -1,7 +1,9 @@
 <% const branchCurrencyOptions=typeof currencyOptions!=='undefined'?currencyOptions:[{code:'UGX',label:'UGX'},{code:'USD',label:'USD'},{code:'SSP',label:'SSP'},{code:'KES',label:'KSH'}];
    const labelCurrency=code=>typeof currencyLabel==='function'?currencyLabel(code):(code==='KES'?'KSH':code);
    const activeBranches=data.branches.filter(branch=>branch.status==='active');
-   const branchAssetVersion=typeof assetVersion==='undefined'?'1':assetVersion; %>
+   const branchAssetVersion=typeof assetVersion==='undefined'?'1':assetVersion;
+   const displayedZoneForBranch=typeof businessTimeZoneForBranch==='function'?businessTimeZoneForBranch:
+    (branch=>branch?.timeZone||(branch?.currency==='SSP'?'Africa/Juba':branch?.currency==='KES'?'Africa/Nairobi':'Africa/Kampala')); %>
 <link rel="stylesheet" href="/css/branches.css?v=<%= branchAssetVersion %>">
 <section class="view show branchWorkspace">
   <div class="grid3">
@@ -24,9 +26,9 @@
       <div class="branchList" role="list" aria-label="Branches">
         <% if(!data.branches.length){ %><p class="tiny branchEmpty">No branches yet. Create the first branch before inviting operational staff or recording transactions.</p><% } %>
         <% data.branches.forEach(branch=>{ const supported=branch.currencies||['UGX','USD','SSP','KES'];const currencyText=supported.map(labelCurrency).join(' · '); %>
-        <article class="branchRow" role="listitem" data-search-row data-branch-row data-branch-id="<%= branch._id %>" data-branch-name="<%= branch.name %>" data-branch-code="<%= branch.code %>" data-branch-address="<%= branch.address||'' %>" data-branch-currency="<%= branch.currency %>" data-branch-currencies="<%= supported.join(',') %>" data-branch-status="<%= branch.status %>" data-branch-time-zone="<%= businessTimeZoneForBranch(branch) %>">
+        <article class="branchRow" role="listitem" data-search-row data-branch-row data-branch-id="<%= branch._id %>" data-branch-name="<%= branch.name %>" data-branch-code="<%= branch.code %>" data-branch-address="<%= branch.address||'' %>" data-branch-currency="<%= branch.currency %>" data-branch-currencies="<%= supported.join(',') %>" data-branch-status="<%= branch.status %>" data-branch-time-zone="<%= displayedZoneForBranch(branch) %>">
           <div class="branchIdentity"><b class="branchName" title="<%= branch.name %>"><%= branch.name %></b><span class="tiny branchCode" title="Branch code: <%= branch.code %>"><%= branch.code %></span></div>
-          <span class="tiny branchAddress" title="<%= branch.address||'No address added' %>"><%= branch.address||'No address added' %> · <%= businessTimeZoneForBranch(branch) %></span>
+          <span class="tiny branchAddress" title="<%= branch.address||'No address added' %>"><%= branch.address||'No address added' %> · <%= displayedZoneForBranch(branch) %></span>
           <span class="tiny branchCurrencies" title="Operating currencies: <%= currencyText %>. Default: <%= labelCurrency(branch.currency) %>"><%= currencyText %></span>
           <span class="tag branchStatus <%= branch.status==='archived'?'branchStatusArchived':'' %>"><%= branch.status %></span>
           <div class="branchActions">

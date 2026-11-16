@@ -3,15 +3,40 @@
  <section class="card">
   <div class="cardHead"><div><b>Mobile Money rates</b><br><span>Use existing network sheets · approve once · edit when rates change</span></div><a class="btn" href="/tenant/treasury">Cash &amp; float accounts</a></div>
   <div class="cardBody workspaceStack">
-   <p class="tiny">Agent commission schedules and customer network fee sheets are separate. A customer network charge is NOT an agent commission. Quotes never increase cash, float, income or profit. Only the network's actual, independently reconciled payout may enter the books.</p>
-   <p class="tiny">Tenant Owner controls what is configured. Fee collection is configured under Fees & commissions and the provider wallet's Treasury settings. For actual provider commission payouts, select the account that MTN/Airtel really credited: the approved main float wallet or a separately opened genuine commission wallet. An estimate never causes either credit. Until the posting gate is reviewed, payout evidence stays pending without creating revenue.</p>
+   <p class="tiny">The existing provider sheets are the starting rates. Prepare missing MTN bands without retyping, then have a different authorized reviewer approve the tenant copy. Approved rates automatically calculate transaction estimates. Customer network charges never become agent income.</p>
+   <% if(data.networkMarkets.length===1){ %>
+    <p class="tiny"><b>Your network:</b> <%= data.networkMarkets[0].label %> · <%= data.networkMarkets[0].currency %></p>
+   <% } %>
+   <% const selectedRateBranch=data.selectedBranchId||String(data.branches[0]?._id||'');
+      const existingMtnKinds=['agent_commission:cash_in','agent_commission:cash_out','customer_network_fee:cash_in','customer_network_fee:cash_out'];
+      const activeMtn=new Set(data.schedules.filter(rule=>rule.network==='MTN'&&rule.currency==='UGX'&&
+       String(rule.branchId)===selectedRateBranch&&['approved','draft'].includes(rule.status))
+       .map(rule=>rule.scheduleKind+':'+rule.operation));
+      const needMtnRates=data.networkMarkets.some(m=>m.network==='MTN')&&existingMtnKinds.some(key=>!activeMtn.has(key)); %>
+   <% if(data.canPropose&&needMtnRates){ %>
+    <form method="post" action="/tenant/mobile-money/tariffs/existing-reference" class="networkTariffActions">
+     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+     <input type="hidden" name="network" value="MTN">
+     <% if(data.branches.length===1){ %><input type="hidden" name="branchId" value="<%= data.branches[0]._id %>">
+     <% }else{ %><label class="field">Branch<select class="control" name="branchId" required>
+      <% data.branches.forEach(branch=>{ %><option value="<%= branch._id %>" <%= String(branch._id)===selectedRateBranch?'selected':'' %>><%= branch.name %></option><% }) %>
+     </select></label><% } %>
+     <button class="btn btnPrimary" type="submit">Use existing MTN rate sheets</button>
+     <span class="tiny">Prepares only missing rate bands for independent approval. No duplicates or manual entry.</span>
+    </form>
+   <% } %>
    <div class="workspaceActions"><a class="btn" href="/tenant/mobile-money/network-activity">Network activity</a><a class="btn" href="/tenant/mobile-money/report">Operations report</a><a class="btn" href="/tenant/workspace/pricing">Customer fees &amp; costs</a></div>
   </div>
  </section>
  <section class="card networkAgentOverview">
-  <div class="cardHead"><div><b>Agent cash and float</b><br><span>Current book balances for your operating branch · not live provider balances</span></div><a class="btn" href="/tenant/treasury">Reconcile accounts</a></div>
+  <div class="cardHead"><div><b>Cash and float</b><br><span>Book balances for configured networks · not live provider balances</span></div><a class="btn" href="/tenant/treasury">Reconcile accounts</a></div>
   <div class="cardBody">
-   <% const moneyAccounts=[...(data.funds?.paymentAccounts||[]).filter(a=>a.kind==='cash'),...(data.funds?.wallets||[])]; %>
+   <% const markets=new Set(data.networkMarkets.map(m=>m.network+'|'+m.currency));
+      const scopedFloat=(data.funds?.wallets||[]).filter(w=>markets.has(w.network+'|'+w.currency)&&w.state==='active');
+      const linkedCash=new Set(scopedFloat.map(w=>w.cashDrawerAccountId).filter(Boolean));
+      const compatibleCash=(data.funds?.paymentAccounts||[]).filter(a=>a.kind==='cash'&&data.networkMarkets.some(m=>m.currency===a.currency));
+      const scopedCash=compatibleCash.filter(a=>linkedCash.has(a.id)||(data.networkMarkets.length===1&&compatibleCash.length===1));
+      const moneyAccounts=[...scopedCash,...scopedFloat]; %>
    <% if(moneyAccounts.length){ %>
    <div class="networkBalanceGrid"><% moneyAccounts.forEach(account=>{ %>
     <div class="networkBalanceStat">

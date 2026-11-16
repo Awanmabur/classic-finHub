@@ -32,7 +32,9 @@ test('operator sees a functional record form but not the review or audit control
 test('reconciliation officer sees no routine transaction review form',async()=>{
   const html=await page('Reconciliation Officer','mobile-money',{summary,canRecord:false,canReview:true,reviewQueue:[record],idempotencyKey:'123'});
   assert.doesNotMatch(html,/Independent internal review/);
-  assert.match(html,/name="decision" value="accepted"/);
+  assert.doesNotMatch(html,/name="decision" value="accepted"/);
+  assert.doesNotMatch(html,/name="decision" value="disputed"/);
+  assert.match(html,/Network activity/);
   assert.doesNotMatch(html,/Record deposit/);
   assert.match(html,/href="\/tenant\/audit"/);
 });

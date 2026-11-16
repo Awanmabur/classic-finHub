@@ -158,7 +158,7 @@ const tariffToday=typeof businessToday==='string'?businessToday:new Date().toISO
  </section>
  <% if(data.canPropose){ %>
  <details class="card networkNewSheet" id="network-sheet-form">
-  <summary class="cardHead"><b>Add or edit agent rate ranges</b><span class="tiny">Open form · independent approval required</span></summary>
+  <summary class="cardHead"><b>Custom provider rates — only when the built-in sheet is unavailable or outdated</b><span class="tiny">Manual provider agreement · independent review</span></summary>
   <form class="cardBody networkTariffForm" method="post" action="/tenant/mobile-money/tariffs" autocomplete="off">
    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
    <div class="networkTariffFields">

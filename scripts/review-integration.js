@@ -63,6 +63,10 @@ async function main() {
     const repeated=await mobile.recordMobileMoney(a,operator,input,'cash_in',tenants[0]);
     assert(repeated.duplicate, 'identical retry must not double-post');
     assert.equal(String(first.created._id),String(repeated.created._id));
+     // Explicitly turn this isolated record into a pre-upgrade legacy fixture:
+     // brand-new records do not require routine review, but legacy reviewer
+     // boundaries and historical audit behavior must still be protected.
+     await mobileTransactionModel(a).collection.updateOne({_id:created._id},{$set:{reviewState:'awaiting_review'}});
     await assert.rejects(mobile.reviewMobileMoney(a,{...reviewer,id:operator.id,role:'Tenant Owner'},String(created._id),'accepted','Receipt checked manually'),e=>e.status===409);
     await assert.rejects(mobile.reviewMobileMoney(b,reviewer,String(created._id),'accepted','Receipt checked manually'),e=>e.status===409,'other tenant cannot access record');
     const reviewed=await mobile.reviewMobileMoney(a,reviewer,String(created._id),'accepted','Receipt checked manually');

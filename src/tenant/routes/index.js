@@ -138,17 +138,10 @@ router.post('/mobile-money/alerts/:id/read',requireModule('mobile_money'),requir
 // Physical cash count shifts are internal operational evidence, not provider float.
 const cash=require('../services/cashDrawer.service');
 const financialThrottle=require('../../platform/services/actionThrottle.service').financial;
-router.get('/mobile-money/shifts',requireModule('mobile_money'),requirePermission('mobile_money.view'),async(req,res,next)=>{
-  try{
-    const [shifts,branches]=await Promise.all([cash.list(req.tenantDb,req.tenant,req.user,{cursor:req.query.cursor}),branchService.list(req.tenant)]);
-    const operators=await require('../models').tenantUserModel(req.tenantDb)
-      .find({_id:{$in:shifts.items.map(x=>x.operatorId)}}).select('_id name').lean();
-    const branchNames=Object.fromEntries(branches.map(x=>[String(x._id),x.name]));
-    const operatorNames=Object.fromEntries(operators.map(x=>[String(x._id),x.name]));
-    renderTenant(req,res,'mobile-money/shifts','Physical Cash Shifts','Operator cash counts and independent branch reconciliation; not electronic float or provider settlement.',
-      {shifts,branchNames,operatorNames,branches:branches.filter(b=>b.status==='active'&&(req.user.role==='Tenant Owner'||String(b._id)===String(req.user.branchId))),
-        canOpen:cash.opener(req.user),canReview:cash.reviewer(req.user)});
-  }catch(e){next(e);}
+// Keep one operating cash control page across Mobile Money and other modules.
+router.get('/mobile-money/shifts',requireModule('mobile_money'),requirePermission('mobile_money.view'),(req,res)=>{
+ const cursor=typeof req.query.cursor==='string'&&req.query.cursor.length<=200?'?cursor='+encodeURIComponent(req.query.cursor):'';
+ res.redirect(303,'/tenant/cash/shifts'+cursor);
 });
 router.post('/mobile-money/shifts/open',requireModule('mobile_money'),requirePermission('mobile_money.view'),financialThrottle,async(req,res,next)=>{
   try{const shift=await cash.open(req.tenantDb,req.tenant,req.user,req.body);
@@ -170,15 +163,8 @@ router.post('/mobile-money/shifts/:id/decide',requireModule('mobile_money'),requ
     flash(req,'good','Cash reconciliation decision saved and audited.');require('../services/branchView.service').followRecord(req,shift);res.redirect(303,'/tenant/mobile-money/shifts');
   }catch(e){next(e);}
 });
-router.get('/mobile-money/shifts/:id',requireModule('mobile_money'),requirePermission('mobile_money.view'),async(req,res,next)=>{
-  try{
-    const shift=await cash.detail(req.tenantDb,req.tenant,req.user,req.params.id);
-    renderTenant(req,res,'mobile-money/shift-detail','Cash Shift Detail','Internal physical cash reconciliation history. No provider float or cleared balance claims.',
-     {shift,canSubmit:cash.opener(req.user)&&String(shift.operatorId)===String(req.user.id)&&['open','disputed'].includes(shift.status),
-      canReview:cash.reviewer(req.user)&&String(shift.operatorId)!==String(req.user.id)&&shift.status==='submitted',
-      canReviewOpening:cash.reviewer(req.user)&&String(shift.operatorId)!==String(req.user.id)&&shift.status==='pending_open',
-      canApprove:shift.varianceMinor==null||String(shift.varianceMinor)==='0'||req.user.role!=='Branch Manager'});
-  }catch(e){next(e);}
+router.get('/mobile-money/shifts/:id',requireModule('mobile_money'),requirePermission('mobile_money.view'),(req,res)=>{
+ res.redirect(303,'/tenant/cash/shifts/'+encodeURIComponent(req.params.id));
 });
 router.get('/mobile-money/:id/acknowledgement',requireModule('mobile_money'),requirePermission('mobile_money.view'),async(req,res,next)=>{
   try{

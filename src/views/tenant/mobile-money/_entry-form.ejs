@@ -45,7 +45,8 @@
       <input type="hidden" name="paymentMethod" value="Cash">
       <p class="tiny" data-momo-account-notice hidden aria-live="polite"></p>
       <%- include('_funds-context') %>
-      <% const entryBalances=[...(data.funds?.paymentAccounts||[]).filter(a=>a.kind==='cash'),...(data.funds?.wallets||[])]; %>
+      <% const entryBalances=[...(data.funds?.paymentAccounts||[]).filter(a=>a.kind==='cash'&&a.state==='active'&&a.reconciliation==='matched'&&a.expectedMinor!=null),
+       ...(data.funds?.wallets||[]).filter(a=>a.state==='active'&&a.reconciliation==='matched'&&a.expectedMinor!=null)]; %>
       <div class="networkBalanceGrid mobileEntryBalances" data-mobile-balance-stats aria-label="Cash and float book balances">
        <% entryBalances.forEach(a=>{ %>
         <div class="networkBalanceStat" data-balance-account="<%= a.id %>" data-balance-network="<%= a.network||'' %>" data-balance-currency="<%= a.currency %>" data-balance-kind="<%= a.kind %>">
@@ -58,13 +59,12 @@
       </div>
     </div>
     <%- include('../partials/operation-pricing',{pricingOperation:'mobile_money.'+entryOperation,pricingField:'fee'}) %>
-    <section class="mobileQuoteSummary" data-mobile-provider-quote aria-live="polite">
+    <section class="mobileQuoteSummary" data-mobile-provider-quote aria-live="polite" hidden>
       <div class="summary">
-       <div class="sumRow"><span>Agent commission estimate</span><b data-mobile-agent-commission>Enter an amount to check</b></div>
-       <div class="sumRow"><span>Expected network charge to customer</span><b data-mobile-provider-charge>Enter an amount to check</b></div>
+       <div class="sumRow" data-quote-commission-row hidden><span>Expected agent commission</span><b data-mobile-agent-commission></b></div>
+       <div class="sumRow" data-quote-customer-row hidden><span>Network customer charge</span><b data-mobile-provider-charge></b></div>
       </div>
-      <p class="tiny" data-mobile-quote-note>Provider commission and provider charges are estimates, separate from the agent-configured customer fee above. Only approved effective sheets can produce a quote. They do not automatically change cash, float, or recognized income.</p>
-      <a href="/tenant/mobile-money/tariffs" class="tiny">Review network rate sheets</a>
+      <p class="tiny" data-mobile-quote-note></p>
     </section>
 
     <div class="summary">
@@ -73,6 +73,6 @@
     </div>
     <details class="logicNote"><summary>Additional details</summary><div class="row2"><label class="field">Customer name<input class="control" name="customer" placeholder="Optional customer name" minlength="2" maxlength="120" autocomplete="name"></label><label class="field">Customer ID / note<input class="control" name="customerNote" placeholder="Optional verification or note" maxlength="400"></label></div></details>
     <p class="tiny">Only record a transaction after the official network confirms it and the real customer cash exchange has occurred. Internal posting is immediate; independent review is separate.</p>
-    <div class="rowBtns"><button class="btn btnPrimary" type="submit"><%= entryOperation==='cash_in'?'Record deposit':'Record withdrawal' %></button></div>
+    <div class="rowBtns"><button class="btn btnPrimary" type="submit" data-mobile-submit-label><%= entryOperation==='cash_in'?'Record deposit':'Record withdrawal' %></button></div>
   </div>
 </form>

@@ -8,6 +8,10 @@ const schema = new mongoose.Schema({
   mfaEnabledAt: { type: Date, default: null },
   mfaLastCounter: { type: Number, min: -1, default: -1 },
   role: { type: String, enum: ['Super Admin'], required: true },
-  status: { type: String, enum: ['active','disabled'], default: 'active' }
+  status: { type: String, enum: ['active','disabled'], default: 'active' },
+  timeZone: {type:String,default:'Africa/Kampala',validate:{
+    validator:require('../../utils/businessTime').validTimeZone,
+    message:'Enter a valid regional timezone'
+  }}
 }, { timestamps: true, strict: 'throw' });
 module.exports = mongoose.models.PlatformAdmin || mongoose.model('PlatformAdmin', schema);

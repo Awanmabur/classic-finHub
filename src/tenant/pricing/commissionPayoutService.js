@@ -2,7 +2,8 @@
 const mongoose=require('mongoose');
 const treasury=require('../treasury/service');
 const {model,ensure}=require('./commissionPayoutModels');
-const {auditEventModel}=require('../models');
+const {auditEventModel,branchModel}=require('../models');
+const businessTime=require('../../utils/businessTime');
 const {networks}=require('../../config/mobileNetworks');
 const OID=/^[a-f0-9]{24}$/i;
 function fail(message,status=400){return Object.assign(new Error(message),{status});}
@@ -11,7 +12,7 @@ function text(value,label,min,max){
  if(typeof value!=='string'||value.trim().length<min||value.trim().length>max||/[<>\u0000-\u001f\u007f]/.test(value))throw fail('Enter valid '+label);
  return value.trim();
 }
-function validate(input){
+function validate(input,timeZone='UTC'){
  if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(k=>!['walletAccountId','network','currency','providerReference','statementEvidence','amount','grossAmount','taxWithheld','providerCost','creditedAt','_csrf'].includes(k)))throw fail('Unknown payout field');
  const network=input.network,currency=input.currency;
  if(!networks.includes(network))throw fail('Choose a valid Mobile Money network');
@@ -26,9 +27,11 @@ function validate(input){
  const grossMinor=treasury.major(input.grossAmount,currency),taxWithheldMinor=treasury.major(input.taxWithheld??'0',currency),providerCostMinor=treasury.major(input.providerCost??'0',currency);
  if(grossMinor<=0n||grossMinor!==amountMinor+taxWithheldMinor+providerCostMinor)throw fail('Gross commission must equal amount credited plus withheld taxes and network costs. Verify the provider statement.');
  if(typeof input.creditedAt!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(input.creditedAt))throw fail('Enter the actual provider credit date and time');
- const creditedAt=new Date(input.creditedAt+':00.000Z');
- if(!Number.isFinite(creditedAt.valueOf())||creditedAt.toISOString().slice(0,16)!==input.creditedAt||
-   creditedAt>Date.now()+60000||creditedAt<Date.now()-30*86400000)throw fail('Provider credit date must be within the last 30 days (UTC)');
+ let creditedAt;
+ try{creditedAt=businessTime.parseLocalDateTime(input.creditedAt,timeZone);}
+ catch(error){throw fail('Invalid local provider credit time: '+error.message);}
+ if(creditedAt>Date.now()+60000||creditedAt<Date.now()-30*86400000)
+  throw fail('Provider credit date must be within the last 30 days in the receiving wallet branch timezone');
  return {walletAccountId:oid(input.walletAccountId),network,currency,providerReference,statementEvidence,amountMinor:String(amountMinor),grossMinor:String(grossMinor),taxWithheldMinor:String(taxWithheldMinor),providerCostMinor:String(providerCostMinor),creditedAt};
 }
 async function list(conn,tenant,actor){
@@ -56,14 +59,19 @@ async function summary(conn,tenant,actor){
   receivedMinor:String(g.receivedMinor),count:g.count}));
 }
 async function propose(conn,tenant,actor,input){
- const values=validate(input);await ensure(conn);
+ await ensure(conn);
  const session=await conn.startSession();
  try{
   let created;
   await session.withTransaction(async()=>{
    const auth=await treasury.access(conn,tenant,actor,{permission:'treasury.observe',sourceType:'mobile_money',session,fence:true});
    if(!['Tenant Owner','Mobile Money Operator'].includes(auth.actor.role))throw fail('Only the agent or tenant owner may submit payout evidence',403);
-   const wallet=await treasury.loadAccount(conn,auth,values.walletAccountId,{session});
+   const wallet=await treasury.loadAccount(conn,auth,oid(input?.walletAccountId),{session});
+   const receivingBranch=await branchModel(conn).findOne({_id:wallet.branchId,status:'active'}).session(session).lean();
+   if(!receivingBranch)throw fail('The receiving wallet branch is not active',409);
+   // A browser's datetime-local contains NO offset. The wallet's trusted
+   // branch controls its interpretation, not a user-supplied timezone.
+   const values=validate(input,businessTime.forBranch(receivingBranch));
    if(wallet.kind!=='wallet'||wallet.network!==values.network||wallet.currency!==values.currency||
       wallet.status!=='active'||!wallet.openingApprovedAt||wallet.reconciliationState!=='matched')throw fail('Select an active, reconciled provider commission wallet with the correct network and currency',409);
    if(wallet.operatorId&&String(wallet.operatorId)!==auth.actor.id&&auth.actor.role!=='Tenant Owner')throw fail('This wallet belongs to a different agent',403);

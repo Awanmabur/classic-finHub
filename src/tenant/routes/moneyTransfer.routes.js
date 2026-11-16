@@ -88,7 +88,10 @@ function routes({renderTenant}){
  router.get('/:id/acknowledgement',requirePermission('money_transfer.view'),async(req,res,next)=>{
   try{const order=await transfer.detail(req.tenantDb,req.tenant,req.user,req.params.id);
    res.setHeader('Cache-Control','private, no-store');res.setHeader('X-Robots-Tag','noindex, nofollow');
+   const businessTime=require('../../utils/businessTime');
+   const timeZone=businessTime.forBranch((res.locals.viewBranches||[]).find(b=>String(b._id)===String(order.branchId))||req.operationBranch);
    res.render('tenant/money-transfer/acknowledgement',{order,tenant:req.tenant,user:req.user,flash:require('../../utils/view').consumeFlash(req),identity:req.workspaceIdentity||await require('../workspace/service').receiptIdentity(req.tenantDb,req.tenant),
+    businessTimeZone:timeZone,formatLocalDate:value=>businessTime.format(value,timeZone),
     formatMoneyMinor,assetVersion:res.locals.assetVersion});
   }catch(e){next(e);}
  });

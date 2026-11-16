@@ -1,6 +1,7 @@
 'use strict';
 const mongoose=require('mongoose');
 const {currencyCodes}=require('../../config/currencies');
+const businessTime=require('../../utils/businessTime');
 const Tenant=require('../../platform/models/Tenant');
 const {limitsFor}=require('../../platform/services/commercial.service');
 const {getTenantConnection}=require('../../config/mongo');
@@ -20,7 +21,10 @@ function validate(input,create=false){
     currencies=currencyCodes.filter(code=>currencies.includes(code));
     if(create&&!currencies.includes(input.currency))throw fail('The default currency must be included among the operating currencies');
   }
-  return {name,address,...(create?{code,currency:input.currency}:{}),...(currencies?{currencies}:{})};
+  const suppliedZone=input?.timeZone;
+  if(suppliedZone!==undefined&&(!businessTime.validTimeZone(suppliedZone)))throw fail('Enter a valid region timezone (e.g. Africa/Kampala)');
+  const timeZone=suppliedZone;
+  return {name,address,...(create?{code,currency:input.currency}:{}),...(currencies?{currencies}:{}),...(timeZone?{timeZone}:{})};
 }
 async function list(tenant){const conn=getTenantConnection(tenant.slug);await ensureTenantIndexes(conn);return branchModel(conn).find({}).sort({status:1,name:1}).limit(500).lean();}
 async function create(tenant,actor,input){
@@ -36,7 +40,7 @@ async function create(tenant,actor,input){
     // a branch picker to transaction forms or narrowing owner reporting scope.
     if(reserved.branchCount===1)await tenantUserModel(conn).updateOne({_id:actor.id,role:'Tenant Owner',status:'active',
       $or:[{branchId:null},{branchId:{$exists:false}},{branchId:''}]},{$set:{branchId:String(created._id)}},{session});
-    await auditEventModel(conn).create([{action:'branch.created',actorId:actor.id,targetId:created._id,metadata:{code:values.code,currency:values.currency,currencies:values.currencies}}],{session});
+    await auditEventModel(conn).create([{action:'branch.created',actorId:actor.id,targetId:created._id,metadata:{code:values.code,currency:values.currency,currencies:values.currencies,timeZone:created.timeZone}}],{session});
   });return created;
   }catch(e){if(e.code===11000)throw fail('A branch with this code already exists',409);throw e;}finally{await session.endSession();}
 }
@@ -80,7 +84,7 @@ async function update(tenant,actor,branchId,input){
     }
     updated=await branchModel(conn).findOneAndUpdate({_id:branchId,status:'active'},{$set:{...values,updatedBy:actor.id},$inc:{revision:1}},{session,new:true});
     if(!updated)throw fail('Branch not found or archived',404);
-    await auditEventModel(conn).create([{action:'branch.updated',actorId:actor.id,targetId:updated._id,metadata:{name:updated.name,address:updated.address,currencies:require('./branchCurrency.service').supported(updated)}}],{session});
+    await auditEventModel(conn).create([{action:'branch.updated',actorId:actor.id,targetId:updated._id,metadata:{name:updated.name,address:updated.address,currencies:require('./branchCurrency.service').supported(updated),timeZone:updated.timeZone}}],{session});
   });return updated;
   }finally{await session.endSession();}
 }

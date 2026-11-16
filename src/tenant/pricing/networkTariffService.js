@@ -3,6 +3,7 @@ const mongoose=require('mongoose');
 const {model,ensure}=require('./networkTariffModels');
 const {validateTariff,quote,NETWORKS,SCHEDULE_KINDS}=require('./networkTariffs');
 const treasury=require('../treasury/service');
+const businessTime=require('../../utils/businessTime');
 const {branchModel,auditEventModel}=require('../models');
 const OID=/^[a-f0-9]{24}$/i;
 function fail(message,status=400){return Object.assign(new Error(message),{status});}
@@ -116,6 +117,26 @@ async function revise(conn,tenant,actor,id,input){
   return output;
  }finally{await session.endSession();}
 }
+// Editing an approved schedule creates the next draft version, never changes
+// the version already snapshotted on historical transactions.
+async function proposeRevision(conn,tenant,actor,id,input){
+ if(!input||typeof input!=='object'||Array.isArray(input)||
+   Object.keys(input).some(key=>!['bands','evidenceReference','effectiveFrom','expiresAt','walletAccountId','_csrf'].includes(key)))
+  throw fail('Unrecognized tariff revision');
+ const auth=await treasury.access(conn,tenant,actor,{permission:'treasury.observe',sourceType:'mobile_money'});
+ if(!['Tenant Owner','Mobile Money Operator'].includes(auth.actor.role))throw fail('Only authorized agents may revise sheets',403);
+ const previous=await model(conn).findOne({_id:objectId(id),tenantId:auth.tenant._id,status:'approved'}).lean();
+ if(!previous)throw fail('Active approved sheet not found',404);
+ if(auth.actor.role==='Mobile Money Operator'&&String(previous.branchId)!==String(auth.actor.branchId))
+  throw fail('Rate sheets belong to your assigned branch',403);
+ return propose(conn,tenant,actor,{
+  network:previous.network,operation:previous.operation,scheduleKind:previous.scheduleKind,
+  currency:previous.currency,branchId:String(previous.branchId),
+  ...(input.walletAccountId?{walletAccountId:input.walletAccountId}:{}),
+  effectiveFrom:input.effectiveFrom,expiresAt:input.expiresAt||'',
+  bands:input.bands,evidenceReference:input.evidenceReference
+ });
+}
 async function decide(conn,tenant,actor,id,decision){
  if(!['approve','retire'].includes(decision))throw fail('Choose a valid tariff decision');
  await ensure(conn);
@@ -128,12 +149,24 @@ async function decide(conn,tenant,actor,id,decision){
    const prior=await model(conn).findOne({_id:objectId(id),tenantId:auth.tenant._id}).session(session).lean();
    if(!prior)throw fail('Tariff not found',404);
    if(auth.actor.role!=='Tenant Owner'&&String(prior.branchId||'')!==String(auth.actor.branchId||''))throw fail('Reviewer belongs to a different branch',403);
-   if(String(prior.createdBy)===auth.actor.id)throw fail('The proposer cannot approve or retire their own schedule',403);
+   if(String(prior.createdBy)===auth.actor.id && !(decision==='retire'&&prior.sourceKind==='published_reference'&&auth.actor.role==='Tenant Owner'))
+    throw fail('The proposer cannot approve their own custom rates or retire their own reviewed sheet',403);
    if(decision==='approve'&&prior.status!=='draft'||decision==='retire'&&prior.status!=='approved')throw fail('Tariff already processed or wrong status',409);
    if(decision==='approve'){
      validateTariff({network:prior.network,operation:prior.operation,currency:prior.currency,status:'draft',tiers:prior.tiers});
      const other=await model(conn).findOne({_id:{$ne:prior._id},tenantId:auth.tenant._id,branchId:prior.branchId,network:prior.network,operation:prior.operation,currency:prior.currency,scheduleKind:prior.scheduleKind,status:'approved'}).session(session).lean();
-     if(other)throw fail('An approved schedule already exists. Retire the old schedule before approving the replacement.',409);
+     if(other){
+       const branch=await branchModel(conn).findOne({_id:prior.branchId,status:'active'}).session(session).lean();
+       if(!branch)throw fail('Active branch required for tariff activation',409);
+       const currentDay=businessTime.localDay(new Date(),businessTime.forBranch(branch));
+       if(prior.effectiveFrom.toISOString().slice(0,10)>currentDay)
+        throw fail('A replacement cannot take effect before its stated local effective date. Review it on that date.',409);
+       const replaced=await model(conn).updateOne({_id:other._id,tenantId:auth.tenant._id,status:'approved',revision:other.revision},
+        {$set:{status:'retired',retiredAt:new Date(),retiredBy:auth.actor.id},$inc:{revision:1}},{session});
+       if(replaced.modifiedCount!==1)throw fail('The existing rate sheet changed. Reload before approval.',409);
+       await auditEventModel(conn).create([{actorId:auth.actor.id,action:'mobile_money.tariff.superseded',targetId:other._id,
+        metadata:{replacedBy:String(prior._id),version:other.version,newVersion:prior.version}}],{session});
+     }
    }
    const updates=decision==='approve'?{status:'approved',approvedAt:new Date(),approvedBy:auth.actor.id}:{status:'retired',retiredAt:new Date(),retiredBy:auth.actor.id};
    output=await model(conn).findOneAndUpdate({_id:prior._id,tenantId:auth.tenant._id,status:prior.status,revision:prior.revision},{$set:updates,$inc:{revision:1}},{session,new:true,runValidators:true}).lean();
@@ -143,6 +176,57 @@ async function decide(conn,tenant,actor,id,decision){
   return output;
  }finally{await session.endSession();}
 }
+// Owner authorization of checked-in provider tables is NOT a provider payout or
+// a customer fee collection. No teller retypes rates; two operations activate atomically.
+async function activatePublished(conn,tenant,actor,branch,input){
+ if(!input||typeof input!=='object'||Array.isArray(input)||
+   Object.keys(input).some(key=>!['network','scheduleKind','_csrf'].includes(key)))
+  throw fail('Only the provider and the sheet type may be selected');
+ if(!branch?._id)throw fail('Assign an active operating branch before using provider rates',409);
+ const {templates}=require('./publishedRateActivation');
+ const rateSheets=templates(String(input.network||''),String(input.scheduleKind||''));
+ await ensure(conn);
+ const session=await conn.startSession();
+ try{
+  let activated=0,alreadyActive=0;
+  await session.withTransaction(async()=>{
+   const auth=await treasury.access(conn,tenant,actor,{permission:'treasury.review',sourceType:'mobile_money',session,fence:true});
+   if(auth.actor.role!=='Tenant Owner')throw fail('Only the tenant owner can authorize published provider reference rates',403);
+   const activeBranch=await branchModel(conn).findOne({_id:branch._id,status:'active'}).session(session).lean();
+   if(!activeBranch||!require('../services/branchCurrency.service').supports(activeBranch,'UGX'))
+    throw fail('An active Uganda-shilling operating branch is required',409);
+   const now=new Date(),effectiveDay=businessTime.localDay(now,businessTime.forBranch(activeBranch));
+   for(const tpl of rateSheets){
+    const scope={tenantId:auth.tenant._id,branchId:activeBranch._id,
+     network:tpl.network,currency:tpl.currency,operation:tpl.operation,scheduleKind:tpl.scheduleKind};
+    const prior=await model(conn).findOne({...scope,status:{$in:['draft','approved']}}).session(session).lean();
+    if(prior?.status==='approved'){alreadyActive++;continue;}
+    if(prior?.status==='draft')
+     throw fail('An existing draft already covers '+tpl.network+' '+tpl.operation+'. Review the draft; do not create a duplicate.',409);
+    const last=await model(conn).findOne(scope).sort({version:-1}).session(session).lean();
+    const [created]=await model(conn).create([{
+     ...scope,version:(last?.version||0)+1,status:'approved',
+     tiers:tpl.tiers,evidenceReference:tpl.sourceUrl+' (checked '+tpl.checkedOn+')',
+     sourceKind:'published_reference',sourceUrl:tpl.sourceUrl,sourceCheckedOn:tpl.checkedOn,
+     providerConfirmed:false,effectiveFrom:new Date(effectiveDay+'T00:00:00.000Z'),
+     createdBy:auth.actor.id,approvedBy:auth.actor.id,approvedAt:now,revision:1
+    }],{session});
+    await auditEventModel(conn).create([{
+     actorId:auth.actor.id,action:'mobile_money.tariff.published_reference_activated',
+     targetId:created._id,metadata:{tenantId:String(auth.tenant._id),branchId:String(activeBranch._id),
+      network:tpl.network,currency:tpl.currency,scheduleKind:tpl.scheduleKind,operation:tpl.operation,
+      sourceUrl:tpl.sourceUrl,sourceCheckedOn:tpl.checkedOn,providerConfirmed:false,
+      nonPostingEstimate:true,ownerAuthorization:true}
+    }],{session});
+    activated++;
+   }
+  });
+  return {activated,alreadyActive,network:rateSheets[0].network,scheduleKind:rateSheets[0].scheduleKind};
+ }catch(e){
+  if(e.code===11000)throw fail('A rate sheet was activated concurrently. Reload the page.',409);
+  throw e;
+ }finally{await session.endSession();}
+}
 async function transactionEstimates(conn,tenant,branch,{network,currency,operation,amountMinor,at=new Date(),session=null}){
  const timestamp=new Date(at);
  if(!Number.isFinite(timestamp.getTime()))throw fail('Invalid operation date');
@@ -150,11 +234,17 @@ async function transactionEstimates(conn,tenant,branch,{network,currency,operati
  for(const scheduleKind of ['agent_commission','customer_network_fee']){
   const query=model(conn).findOne({
    tenantId:tenant._id,branchId:branch._id,network,currency,operation,scheduleKind,
-   status:'approved',effectiveFrom:{$lte:timestamp},$or:[{expiresAt:null},{expiresAt:{$gt:timestamp}}]
+   status:'approved',approvedAt:{$ne:null,$lte:timestamp}
   }).sort({version:-1});
   if(session)query.session(session);
   const rule=await query.lean();
   if(!rule)continue;
+  // The sheet's YYYY-MM-DD fields describe local business dates, not UTC
+  // instants. Compare their date keys against the branch's local transaction
+  // date; otherwise early local-morning transactions miss an effective sheet.
+  const localDate=businessTime.localDay(timestamp,businessTime.forBranch(branch));
+  if(rule.effectiveFrom?.toISOString().slice(0,10)>localDate||
+    (rule.expiresAt&&rule.expiresAt.toISOString().slice(0,10)<=localDate))continue;
   const quoted=preview(rule,String(amountMinor));
   if(quoted.status==='no_matching_band')continue;
   const amount=scheduleKind==='agent_commission'?quoted.grossCommissionEstimateMinor:quoted.customerNetworkChargeEstimateMinor;
@@ -174,4 +264,4 @@ function preview(schedule,amountMinor){
  }
  return calculated;
 }
-module.exports={parseLines,serializeLines,validateInput,read,propose,revise,decide,preview,transactionEstimates};
+module.exports={parseLines,serializeLines,validateInput,read,propose,proposeRevision,revise,decide,activatePublished,preview,transactionEstimates};

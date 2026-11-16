@@ -10,6 +10,7 @@ const {permissionsFor}=require('../../config/roles');
 const {tenantDbNameFromSlug}=require('../../config/tenantDatabaseName');
 const {hasPermission,hasModuleForUser}=require('./moduleAccess.service');
 const mobile=require('./mobileMoney.service');
+const businessTime=require('../../utils/businessTime');
 const cash=require('./cashDrawer.service');
 const branchCurrency=require('./branchCurrency.service');
 const OID=/^[a-f0-9]{24}$/i,UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -253,10 +254,12 @@ async function decideChange(conn,tenant,actor,expenseId,input={}){
   if(!record)throw fail('Expense changed concurrently',409);await audit(conn,session,actor,record,`${pending.kind}_${approved?'approved':'denied'}`);
  });return record;}finally{await session.endSession();}
 }
-async function list(conn,tenant,actor,query={}){
+async function list(conn,tenant,actor,query={},timeZone='UTC'){
  ({actor,tenant}=await access(conn,tenant,actor,'expenses.view'));const filters={from:String(query.from||''),to:String(query.to||''),status:String(query.status||'all')};
  if(!['all','pending_review','approved','rejected','voided'].includes(filters.status))throw fail('Invalid expense status');
- const match={...scopeFor(actor),createdAt:mobile.dateBounds(filters)};
+ const dateRange=businessTime.dayBounds(filters,timeZone);
+  filters.from=dateRange.from;filters.to=dateRange.to;
+  const match={...scopeFor(actor),createdAt:{$gte:dateRange.$gte,$lt:dateRange.$lt}};
  if(filters.status!=='all')match.status=filters.status;
  const position=mobile.decodeCursor(query.cursor);
  if(position)match.$or=[{createdAt:{$lt:position.at}},{createdAt:position.at,_id:{$lt:id(position.id)}}];
@@ -267,16 +270,16 @@ async function detail(conn,tenant,actor,expenseId){
  ({actor,tenant}=await access(conn,tenant,actor,'expenses.view'));const record=await expenseModel(conn).findOne({_id:id(expenseId),...scopeFor(actor)}).lean();
  if(!record)throw fail('Expense not found within your permissions',404);return record;
 }
-async function reportRows({conn,filters,scope={}}){
- const match={createdAt:mobile.dateBounds(filters),...require('../reporting/aggregateScope').branchMatch(scope,id)};
+async function reportRows({conn,filters,scope={},dateRange}){
+ const match={createdAt:dateRange||mobile.dateBounds(filters,filters.timeZone||'UTC'),...require('../reporting/aggregateScope').branchMatch(scope,id)};
  if(scope.operatorId)match.operatorId=id(scope.operatorId);
  const rows=await expenseModel(conn).aggregate([{$match:match},{$group:{_id:{currency:'$currency',status:'$status',method:'$paymentMethod'},
   count:{$sum:1},amount:{$sum:'$amountMinor'}}},{$sort:{'_id.currency':1,'_id.status':1,'_id.method':1}}]).option({maxTimeMS:5000});
  return rows.map(row=>({module:'Expenses',activity:row._id.method,status:row._id.status,currency:row._id.currency,count:row.count,
   amountMinor:String(row.amount),volume:mobile.formatMoneyMinor(row.amount,row._id.currency),fees:'N/A'}));
 }
-function csv(records){return '\uFEFF'+[['Recorded (UTC)','Expense record','Type','Currency','Amount minor units','Amount','Method','Vendor','Reference','Description','Status','Correction'],
- ...records.map(record=>[new Date(record.createdAt).toISOString(),record.recordReference,record.expenseType,record.currency,String(record.amountMinor),
+function csv(records,timeZone='UTC'){return '\uFEFF'+[['Recorded ('+timeZone+')','Expense record','Type','Currency','Amount minor units','Amount','Method','Vendor','Reference','Description','Status','Correction'],
+ ...records.map(record=>[businessTime.format(record.createdAt,timeZone,true),record.recordReference,record.expenseType,record.currency,String(record.amountMinor),
   mobile.formatMoneyMinor(record.amountMinor,record.currency),record.paymentMethod,record.vendor,record.reference,record.description,record.status,record.correctionState])]
  .map(row=>row.map(mobile.csvCell).join(',')).join('\r\n')+'\r\n';}
 module.exports={access,create,review,requestChange,decideChange,list,detail,reportRows,csv,scopeFor,values,snapshot,shiftFence,fundChoices,fundKind,fundId};

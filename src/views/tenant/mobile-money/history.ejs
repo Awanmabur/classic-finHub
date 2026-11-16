@@ -1,22 +1,29 @@
+<% const historyZone=typeof businessTimeZone==='string'?businessTimeZone:'UTC';
+   const historyLocalDate=typeof formatLocalDate==='function'?formatLocalDate:
+    (value=>new Date(value).toISOString().slice(0,16).replace('T',' ')); %>
 <section class="view show">
-  <section class="card"><div class="cardHead"><b>Transaction history</b><span>Records, not verified network settlement</span><div class="richActions"><a class="btn" href="/tenant/mobile-money/network-activity">Network activity</a><a class="btn" href="/tenant/mobile-money/report">Mobile money report</a><a class="btn" href="/tenant/mobile-money">Internal review</a></div></div>
+  <section class="card"><div class="cardHead"><b>Transaction history</b><span>Records, not verified network settlement</span><div class="richActions"><a class="btn" href="/tenant/mobile-money/network-activity">Network activity</a><a class="btn" href="/tenant/mobile-money/report">Mobile money report</a><a class="btn" href="/tenant/mobile-money">Record transaction</a></div></div>
     <div class="cardBody"><form method="get" action="/tenant/mobile-money/history" class="row3">
-      <label class="field">From (UTC)<input class="control" type="date" name="from" value="<%= data.records.from %>"></label>
-      <label class="field">To (UTC)<input class="control" type="date" name="to" value="<%= data.records.to %>"></label>
+      <label class="field">From (<%= historyZone %>)<input class="control" type="date" name="from" value="<%= data.records.from %>"></label>
+      <label class="field">To (<%= historyZone %>)<input class="control" type="date" name="to" value="<%= data.records.to %>"></label>
       <div class="rowBtns"><button class="btn btnPrimary" type="submit">Find records</button><a class="btn" href="/tenant/mobile-money/history">Today</a></div>
     </form><p class="tiny">Results are restricted to your role, assigned branch and any operator-only scope. Maximum custom range: 90 days. Use Next to explore older results without loading entire tenant histories.</p></div>
   </section>
   <section class="card" style="margin-top:14px"><div class="cardHead"><b>Recorded activity</b><span><%= data.records.items.length %> records on this page</span></div>
-    <div class="cardBody tableWrap"><table><thead><tr><th>Date UTC</th><th>Reference</th><th>Network</th><th>Operation</th><th>Entry source</th><th>Payment method</th><th>Amount</th><th>Fee / commission</th><th>Internal status</th><th>Correction</th></tr></thead><tbody>
-      <% if(!data.records.items.length){ %><tr><td colspan="10">No records in this date range.</td></tr><% } %>
+    <div class="cardBody tableWrap"><table><thead><tr><th>Date · <%= historyZone %></th><th>Reference</th><th>Network</th><th>Operation</th><th>Entry source</th><th>Payment method</th><th>Amount</th><th>Recorded fee</th><th>Agent commission estimate</th><th>Provider charge estimate</th><th>Internal record</th><th>Correction</th><th>Attention signals</th></tr></thead><tbody>
+      <% if(!data.records.items.length){ %><tr><td colspan="13">No records in this date range.</td></tr><% } %>
       <% data.records.items.forEach(t=>{ %><tr data-search-row>
-        <td><%= new Date(t.createdAt).toISOString().slice(0,16).replace('T',' ') %></td>
+        <td><%= historyLocalDate(t.createdAt) %></td>
         <td><a href="/tenant/mobile-money/<%= t._id %>"><%= t.networkReference %></a></td>
         <td><%= t.network %></td><td><%= t.operation === 'cash_in' ? 'Deposit' : 'Withdrawal' %></td><td><span class="tag"><%= t.entrySource==='sms'?'SMS capture':'Manual' %></span></td><td><%= t.paymentMethod || 'Cash' %></td>
         <td><%= money(t.currency,amountFromMinor(t.amountMinor,t.currency)) %></td>
         <td><%= money(t.currency,amountFromMinor(t.feeMinor,t.currency)) %></td>
-        <td><%= t.status.replaceAll('_',' ') %> / <%= (t.reviewState||'awaiting_review').replaceAll('_',' ') %></td>
-        <td><%= (t.correctionState||'none').replaceAll('_',' ') %></td>
+        <td><%= t.agentCommissionEstimate?money(t.currency,amountFromMinor(t.agentCommissionEstimate.amountMinor,t.currency))+' · approved v'+t.agentCommissionEstimate.version:
+         t.agentCommissionPublishedReference?money(t.currency,amountFromMinor(t.agentCommissionPublishedReference.amountMinor,t.currency))+' · published reference only':'—' %></td>
+        <td><%= t.customerNetworkFeeEstimate?money(t.currency,amountFromMinor(t.customerNetworkFeeEstimate.amountMinor,t.currency))+' · approved v'+t.customerNetworkFeeEstimate.version:
+          t.customerNetworkChargePublishedReference?money(t.currency,amountFromMinor(t.customerNetworkChargePublishedReference.amountMinor,t.currency))+' · published reference only':'—' %></td>
+        <td><%= t.status==='voided_internal'?'Voided internally':t.fundingState==='book_recorded'?'Recorded in books':t.status==='recorded'?'Recorded':t.status==='pending_verification'?'Historical entry · review evidence':t.status.replaceAll('_',' ') %></td>
+        <td><%= (t.correctionState||'none').replaceAll('_',' ') %></td><td><%= (t.riskSignals||[]).join(', ').replaceAll('_',' ')||'None' %></td>
       </tr><% }) %>
     </tbody></table></div>
     <% if(data.records.nextCursor){ %><div class="cardBody"><a class="btn" href="/tenant/mobile-money/history?from=<%= encodeURIComponent(data.records.from) %>&amp;to=<%= encodeURIComponent(data.records.to) %>&amp;cursor=<%= encodeURIComponent(data.records.nextCursor) %>">Next page</a></div><% } %>

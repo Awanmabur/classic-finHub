@@ -1,7 +1,9 @@
 <% const branchCurrencyOptions=typeof currencyOptions!=='undefined'?currencyOptions:[{code:'UGX',label:'UGX'},{code:'USD',label:'USD'},{code:'SSP',label:'SSP'},{code:'KES',label:'KSH'}];
    const labelCurrency=code=>typeof currencyLabel==='function'?currencyLabel(code):(code==='KES'?'KSH':code);
    const activeBranches=data.branches.filter(branch=>branch.status==='active');
-   const branchAssetVersion=typeof assetVersion==='undefined'?'1':assetVersion; %>
+   const branchAssetVersion=typeof assetVersion==='undefined'?'1':assetVersion;
+   const displayedZoneForBranch=typeof businessTimeZoneForBranch==='function'?businessTimeZoneForBranch:
+    (branch=>branch?.timeZone||(branch?.currency==='SSP'?'Africa/Juba':branch?.currency==='KES'?'Africa/Nairobi':'Africa/Kampala')); %>
 <link rel="stylesheet" href="/css/branches.css?v=<%= branchAssetVersion %>">
 <section class="view show branchWorkspace">
   <div class="grid3">
@@ -24,9 +26,9 @@
       <div class="branchList" role="list" aria-label="Branches">
         <% if(!data.branches.length){ %><p class="tiny branchEmpty">No branches yet. Create the first branch before inviting operational staff or recording transactions.</p><% } %>
         <% data.branches.forEach(branch=>{ const supported=branch.currencies||['UGX','USD','SSP','KES'];const currencyText=supported.map(labelCurrency).join(' · '); %>
-        <article class="branchRow" role="listitem" data-search-row data-branch-row data-branch-id="<%= branch._id %>" data-branch-name="<%= branch.name %>" data-branch-code="<%= branch.code %>" data-branch-address="<%= branch.address||'' %>" data-branch-currency="<%= branch.currency %>" data-branch-currencies="<%= supported.join(',') %>" data-branch-status="<%= branch.status %>">
+        <article class="branchRow" role="listitem" data-search-row data-branch-row data-branch-id="<%= branch._id %>" data-branch-name="<%= branch.name %>" data-branch-code="<%= branch.code %>" data-branch-address="<%= branch.address||'' %>" data-branch-currency="<%= branch.currency %>" data-branch-currencies="<%= supported.join(',') %>" data-branch-status="<%= branch.status %>" data-branch-time-zone="<%= displayedZoneForBranch(branch) %>">
           <div class="branchIdentity"><b class="branchName" title="<%= branch.name %>"><%= branch.name %></b><span class="tiny branchCode" title="Branch code: <%= branch.code %>"><%= branch.code %></span></div>
-          <span class="tiny branchAddress" title="<%= branch.address||'No address added' %>"><%= branch.address||'No address added' %></span>
+          <span class="tiny branchAddress" title="<%= branch.address||'No address added' %>"><%= branch.address||'No address added' %> · <%= displayedZoneForBranch(branch) %></span>
           <span class="tiny branchCurrencies" title="Operating currencies: <%= currencyText %>. Default: <%= labelCurrency(branch.currency) %>"><%= currencyText %></span>
           <span class="tag branchStatus <%= branch.status==='archived'?'branchStatusArchived':'' %>"><%= branch.status %></span>
           <div class="branchActions">
@@ -46,6 +48,7 @@
     </div>
   </section>
 </section>
+<datalist id="branchTimeZones"><option value="Africa/Kampala"><option value="Africa/Juba"><option value="Africa/Nairobi"><option value="Africa/Dar_es_Salaam"><option value="Africa/Kigali"><option value="Africa/Cairo"><option value="Europe/Berlin"><option value="UTC"></datalist>
 <% if(data.canManage){ %>
 <dialog id="branchCreateDialog" class="transactionDialog branchDialog" data-operation-dialog aria-labelledby="branchCreateTitle">
   <div class="sheet"><header class="sheetHead"><div><b id="branchCreateTitle">Create branch</b><br><span>Branch location and operating currencies</span></div><button class="btn btnIcon" type="button" data-branch-close aria-label="Close create branch">×</button></header>
@@ -54,6 +57,7 @@
       <div class="row2"><label class="field">Name<input class="control" name="name" required minlength="2" maxlength="100" placeholder="Kampala Main"></label><label class="field">Unique code<input class="control" name="code" required maxlength="32" pattern="[a-z0-9][a-z0-9\-]{1,30}" placeholder="kampala-main"></label></div>
       <label class="field">Default currency<select class="control" name="currency"><% branchCurrencyOptions.forEach(option=>{ %><option value="<%= option.code %>"><%= option.label %></option><% }) %></select></label>
       <label class="field">Business location / address<input class="control" name="address" maxlength="240"></label>
+      <label class="field">Local business timezone<input class="control" name="timeZone" list="branchTimeZones" value="Africa/Kampala" required maxlength="64" placeholder="Africa/Kampala"></label>
       <input type="hidden" name="currenciesConfigured" value="1"><fieldset class="formSection"><legend class="formSectionTitle">Operating currencies</legend><div class="branchCurrencyChoices"><% branchCurrencyOptions.forEach(option=>{ %><label class="branchCurrencyChoice"><input type="checkbox" name="currencies" value="<%= option.code %>" checked><span><%= option.label %></span></label><% }) %></div></fieldset>
       <p class="tiny">Keep separate accounts and verified cash shifts for each operating currency. The default only sets initial display and form selection.</p>
       <p class="tiny branchFormStatus" role="status" aria-live="polite" data-branch-form-status hidden></p>
@@ -67,6 +71,7 @@
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <div class="row2"><label class="field">Name<input class="control" name="name" required minlength="2" maxlength="100"></label><label class="field">Default currency<input class="control" data-branch-edit-default readonly aria-readonly="true"></label></div>
       <label class="field">Business location / address<input class="control" name="address" maxlength="240"></label>
+      <label class="field">Local business timezone<input class="control" name="timeZone" list="branchTimeZones" required maxlength="64" placeholder="Africa/Juba"></label>
       <input type="hidden" name="currenciesConfigured" value="1"><fieldset class="formSection"><legend class="formSectionTitle">Operating currencies</legend><div class="branchCurrencyChoices"><% branchCurrencyOptions.forEach(option=>{ %><label class="branchCurrencyChoice"><input type="checkbox" name="currencies" value="<%= option.code %>"><span><%= option.label %></span></label><% }) %></div></fieldset>
       <p class="tiny">Keep the default currency enabled. Currencies used by accounts or unfinished work must stay enabled.</p>
       <p class="tiny branchFormStatus" role="status" aria-live="polite" data-branch-form-status hidden></p>
@@ -77,7 +82,7 @@
 <% } %>
 <dialog id="branchDetailsDialog" class="transactionDialog branchDialog" data-operation-dialog aria-labelledby="branchDetailsTitle">
   <div class="sheet"><header class="sheetHead"><div><b id="branchDetailsTitle">Branch details</b><br><span data-branch-detail="name"></span></div><button class="btn btnIcon" type="button" data-branch-close aria-label="Close branch details">×</button></header>
-    <div class="sheetBody"><dl class="branchDetails"><dt>Branch code</dt><dd data-branch-detail="code"></dd><dt>Address</dt><dd data-branch-detail="address"></dd><dt>Operating currencies</dt><dd data-branch-detail="currencies"></dd><dt>Default currency</dt><dd data-branch-detail="currency"></dd><dt>Status</dt><dd data-branch-detail="status"></dd></dl></div>
+    <div class="sheetBody"><dl class="branchDetails"><dt>Branch code</dt><dd data-branch-detail="code"></dd><dt>Address</dt><dd data-branch-detail="address"></dd><dt>Operating currencies</dt><dd data-branch-detail="currencies"></dd><dt>Default currency</dt><dd data-branch-detail="currency"></dd><dt>Timezone</dt><dd data-branch-detail="timeZone"></dd><dt>Status</dt><dd data-branch-detail="status"></dd></dl></div>
     <footer class="sheetFoot"><button class="btn" type="button" data-branch-close>Close</button></footer>
   </div>
 </dialog>

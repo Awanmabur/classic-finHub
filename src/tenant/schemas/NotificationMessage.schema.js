@@ -10,7 +10,7 @@ const schema=new mongoose.Schema({
  templateCode:{type:String,required:true,immutable:true},templateVersion:{type:Number,required:true,immutable:true,min:1},
  subject:{type:String,required:true,immutable:true,maxlength:120},
  body:{type:String,required:true,immutable:true,maxlength:1000},
- source:{type:String,enum:['manual','approval_request'],default:'manual',immutable:true},
+ source:{type:String,enum:['manual','approval_request','risk_alert'],default:'manual',immutable:true},
  sourceId:{type:O,default:null,immutable:true},
  readAt:{type:Date,default:null},createdAt:{type:Date,default:Date.now,immutable:true},
  emailState:{type:String,enum:['not_requested','pending','processing','retry','accepted','dead','suppressed'],default:'not_requested'},

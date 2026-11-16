@@ -1,88 +1,80 @@
+<% const tariffZone=typeof businessTimeZone==='string'?businessTimeZone:'UTC';
+const tariffFormatDate=typeof formatLocalDate==='function'?formatLocalDate:value=>new Date(value).toISOString();
+const tariffToday=typeof businessToday==='string'?businessToday:new Date().toISOString().slice(0,10); %>
 <script src="/js/network-tariffs.js?v=<%= assetVersion %>" defer></script>
 <section class="view show workspaceStack networkTariffPage">
- <section class="card">
-  <div class="cardHead"><div><b>Agent network rate sheets</b><br><span>Deposit and withdrawal rates, editable sheets and verified wallet balances</span></div><a class="btn" href="/tenant/treasury">Cash &amp; float accounts</a></div>
+ <% const visibleProviderSheets=(data.providerSheets||[]).filter(sheet=>sheet.status==='approved');
+    const currentTariffBranch=String(data.selectedBranchId||'');
+    const hasActiveMtnWallet=(data.commissions?.wallets||[]).some(wallet=>wallet.network==='MTN'&&wallet.currency==='UGX'&&
+      (wallet.branchId?String(wallet.branchId)===currentTariffBranch:true));
+    const mtnFullyActivated=visibleProviderSheets.some(sheet=>sheet.network==='MTN'&&sheet.branchId===currentTariffBranch&&sheet.completeMTN);
+    const formattedRate=(rate,currency)=>!rate?'—':rate.kind==='basis_points'?(Number(rate.value)/100).toFixed(2)+'%':data.formatMinor(rate.value,currency); %>
+ <% if(visibleProviderSheets.length||(data.canActivatePublished&&hasActiveMtnWallet&&!mtnFullyActivated)){ %>
+ <section class="card" id="configured-network-sheets">
+  <div class="cardHead"><div><b>Provider rate sheets</b><span class="tiny">One sheet per network and branch · deposit and withdrawal fees together</span></div><div class="workspaceActions"><a class="btn" href="/tenant/mobile-money/network-activity">Activity</a><a class="btn" href="/tenant/mobile-money/report">Report</a></div></div>
   <div class="cardBody workspaceStack">
-   <p class="tiny">Agent commission schedules and customer network fee sheets are separate. A customer network charge is NOT an agent commission. Quotes never increase cash, float, income or profit. Only the network's actual, independently reconciled payout may enter the books.</p>
-   <p class="tiny">Tenant Owner controls what is configured. Fee collection is configured under Fees & commissions and the provider wallet's Treasury settings. For actual provider commission payouts, select the account that MTN/Airtel really credited: the approved main float wallet or a separately opened genuine commission wallet. An estimate never causes either credit. Until the posting gate is reviewed, payout evidence stays pending without creating revenue.</p>
-   <div class="workspaceActions"><a class="btn" href="/tenant/mobile-money/network-activity">Network activity</a><a class="btn" href="/tenant/mobile-money/report">Operations report</a><a class="btn" href="/tenant/workspace/pricing">Customer fees &amp; costs</a></div>
-  </div>
- </section>
- <section class="card networkAgentOverview">
-  <div class="cardHead"><div><b>Agent cash and float</b><br><span>Current book balances for your operating branch · not live provider balances</span></div><a class="btn" href="/tenant/treasury">Reconcile accounts</a></div>
-  <div class="cardBody">
-   <% const moneyAccounts=[...(data.funds?.paymentAccounts||[]).filter(a=>a.kind==='cash'),...(data.funds?.wallets||[])]; %>
-   <% if(moneyAccounts.length){ %>
-   <div class="networkBalanceGrid"><% moneyAccounts.forEach(account=>{ %>
-    <div class="networkBalanceStat">
-     <span><%= account.kind==='cash'?'Physical cash · book balance':'Electronic float · '+(account.network==='MTN SSD'?'MTN South Sudan':account.network) %></span>
-     <strong><%= account.expected||'Opening not approved' %></strong>
-     <small><%= account.name %> · <%= account.currency %> · <%= account.reconciliation==='matched'?'Reconciled':(account.reconciliation||'Not reconciled') %></small>
-    </div>
-   <% }) %></div>
-   <% }else{ %><p class="tiny">No scoped cash or float account is available here. Configure accounts and approve their opening balances in Treasury.</p><% } %>
-  </div>
- </section>
- <section class="card networkProviderDirectory">
-  <div class="cardHead"><div><b>Network rate sheets</b><br><span>Choose a provider to see its saved deposit and withdrawal commission schedules</span></div><span class="tag"><%= (data.allProviders||[]).length %> registered networks</span></div>
-  <div class="cardBody">
-   <div class="networkProviderGrid">
-    <% (data.allProviders||[]).forEach(p=>{const saved=data.schedules.filter(s=>s.network===p.key&&s.status==='approved').length;const pending=data.schedules.filter(s=>s.network===p.key&&s.status==='draft').length; %>
-     <div class="networkProviderCard">
-      <strong><%= p.displayName %></strong>
-      <span><%= p.currency||'Market configuration required' %></span>
-      <small><%= saved %> approved · <%= pending %> draft</small>
-      <div class="networkOperationList">
-       <% for(const op of [{key:'cash_in',name:'Deposit'},{key:'cash_out',name:'Withdrawal'}]){const count=data.schedules.filter(s=>s.network===p.key&&s.operation===op.key&&s.scheduleKind==='agent_commission'&&s.status==='approved').length; %>
-        <div class="networkOperationRow">
-         <span><%= op.name %></span>
-         <small><%= count?'Approved sheet available':'No approved sheet' %></small>
-         <% if(data.canPropose&&p.configured){ %><a href="#network-sheet-form" data-choose-provider="<%= p.key %>" data-choose-operation="<%= op.key %>"><%= count?'Add revision':'Add sheet' %></a><% } %>
-        </div>
+   <% visibleProviderSheets.forEach((sheet,index)=>{ %>
+   <details class="networkTariffRecord" <%- index===0?'open':'' %>>
+    <summary>
+     <span><b><%= sheet.displayName %></b><small><%= sheet.branchName %> · <%= sheet.currency %></small></span>
+     <span class="tag"><%= sheet.sourceKind==='published_reference'?'Owner-authorized estimates':'Approved rates' %></span>
+    </summary>
+    <div class="networkTariffRecordBody workspaceStack">
+     <% if(sheet.sourceKind==='published_reference'){ %><p class="tiny">Existing published provider rates, authorized for estimates. Commission is not income until the network actually pays it.</p><% } %>
+     <% sheet.operations.forEach(op=>{ %>
+      <div class="workspaceStack">
+       <b><%= op.label %> rates</b>
+       <div class="tableWrap networkTariffScroll" role="region" tabindex="0" aria-label="<%= sheet.displayName %> <%= op.label %> rate ranges">
+        <table>
+         <thead><tr><th>From</th><th>To</th><% if(op.hasCommission){ %><th>Agent commission</th><% } %><% if(op.hasCharge){ %><th>Customer network fee</th><% } %></tr></thead>
+         <tbody><% op.rows.forEach(row=>{ %><tr>
+          <td><%= data.formatMinor(row.minMinor,sheet.currency) %></td><td><%= data.formatMinor(row.maxMinor,sheet.currency) %></td>
+          <% if(op.hasCommission){ %><td><%= formattedRate(row.commission,sheet.currency) %></td><% } %>
+          <% if(op.hasCharge){ %><td><%= formattedRate(row.charge,sheet.currency) %></td><% } %>
+         </tr><% }) %></tbody>
+        </table>
+       </div>
+       <% if(data.canPropose){ %>
+       <button class="btn" type="button" data-copy-rate-template
+        data-copy-source-network="<%= sheet.network %>"
+        data-copy-source-currency="<%= sheet.currency %>"
+        data-copy-operation="<%= op.key %>"
+        data-copy-ranges="<%= JSON.stringify(op.rows.map(row=>({minMinor:row.minMinor,maxMinor:row.maxMinor}))) %>">
+         Use <%= op.label.toLowerCase() %> ranges as a template
+       </button>
        <% } %>
       </div>
-      <% if(!p.configured){ %><span class="tiny">Provider market is not identified. Set up a provider wallet with an independently approved opening balance before creating rates; none are assumed.</span><% } %>
-      <% if(!saved){ %><details class="networkExampleSheet">
-        <summary class="tiny">Show an editable example structure — not an official rate</summary>
-        <p class="tiny">Example only: From 1,000 to 5,000 units, fixed example commission of 100 units; from 5,001 to 10,000, example commission 1%. These are fabricated teaching values, not provider rates, and never apply automatically.</p>
-        <% if(data.canPropose&&p.configured){ %><a class="tiny" href="#network-sheet-form" data-choose-provider="<%= p.key %>" data-choose-operation="cash_in">Create my own draft from verified provider evidence</a><% }else{ %><a class="tiny" href="/tenant/treasury">Configure a verified network wallet before creating a rate sheet</a><% } %>
-       </details><% } %>
-     </div>
-    <% }) %>
-   </div>
-  </div>
- </section>
- <details class="card networkReferenceSection">
-  <summary class="cardHead"><b>Customer network charges (reference only)</b><span class="tiny">Open to view published provider charges · not agent commission</span></summary>
-  <div class="cardBody workspaceStack">
-   <p class="tiny">These provider tables are informational references. Customer network fees can include separate taxes, may be revised, and are charged by the provider — never automatically credited as agent income. The Airtel schedule below contains historical effective-date text.</p>
-   <% data.customerTariffReferences.forEach(source=>{ %>
-   <details class="networkTariffRecord">
-    <summary><span><b><%= source.label %></b><small><%= source.currency %> · Deposit: <%= data.formatMinor(source.depositFeeMinor,source.currency) %> network fee</small></span><span class="tag"><%= source.status==='published_reference'?'Published reference':'Historical — verify' %></span></summary>
-    <div class="networkTariffRecordBody">
-     <p class="tiny"><%= source.note %></p>
-     <div class="networkTariffMetadata"><span>Network <b><%= source.label %></b></span><span>Checked <b><%= source.checkedOn %></b></span><span>Source <a href="<%= source.source %>" target="_blank" rel="noopener noreferrer">View official provider table</a></span></div>
-     <div class="tableWrap networkTariffScroll" role="region" tabindex="0" aria-label="Scrollable network rate sheet"><table><thead><tr><th>Amount from</th><th>Amount to</th><% source.operations.forEach(op=>{ %><th><%= op.label %></th><% }) %></tr></thead><tbody>
-      <% source.bands.forEach(tier=>{ %><tr><td><%= data.formatMinor(tier.minMinor,source.currency) %></td><td><%= data.formatMinor(tier.maxMinor,source.currency) %></td>
-       <% source.operations.forEach(op=>{const charge=tier.charges[op.key];%><td><%= charge==null?'Not available':data.formatMinor(charge,source.currency) %></td><% }) %>
-      </tr><% }) %>
-     </tbody></table></div>
+     <% }) %>
+     <% if(sheet.hasDraft){ %><span class="tiny">A proposed rate update is awaiting review; the existing approved version remains active.</span><% } %>
     </div>
    </details>
    <% }) %>
-   <div class="workspaceNote"><b>MTN MoMo South Sudan, Africell and other markets:</b> A complete current public fee and agent-commission sheet has not been verified. Configure the provider market and independently review its genuine contract before any local quote is trusted. Missing rates remain unavailable; they are never invented.</div>
+   <% if(data.canActivatePublished&&hasActiveMtnWallet&&!mtnFullyActivated){ %>
+   <form method="post" action="/tenant/mobile-money/tariffs/published/activate" class="networkTariffActions">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="network" value="MTN">
+    <input type="hidden" name="scheduleKind" value="all">
+    <button class="btn btnPrimary" type="submit">Authorize existing MTN rates</button>
+    <span class="tiny">One action uses the saved deposit and withdrawal commission and network fee bands. No rate entry is needed.</span>
+   </form>
+   <% } %>
   </div>
- </details>
- <section class="card" id="configured-network-sheets">
-  <div class="cardHead"><b>Saved network schedules</b><span><%= data.schedules.length %> saved</span></div>
+ </section>
+ <% } %>
+ <% if((data.canPropose||data.canReview)&&((data.schedules||[]).length||(data.commissions?.wallets||[]).length)){ %>
+ <details class="card networkRateAdvanced" id="technical-rate-settings">
+  <summary class="cardHead"><b>Advanced rate maintenance</b><span class="tiny">Edit existing rates, review updates or deactivate a component</span></summary>
+  <div class="cardBody">
+ <section class="card" id="technical-rate-components">
+  <div class="cardHead"><b>Rate components</b><span class="tiny">Technical settings · not separate provider sheets</span></div>
   <div class="cardBody workspaceStack">
-   <% if(!data.schedules.length){ %><p class="tiny">No agent commission schedule has been entered. MTN South Sudan and other providers will show no automatic commission rather than an invented rate.</p><% } %>
+   
    <% data.schedules.forEach(schedule=>{ const branch=data.branches.find(b=>String(b._id)===String(schedule.branchId)); %>
    <details class="networkTariffRecord">
-    <summary><span><b><%= schedule.network==='MTN SSD'?'MTN MoMo South Sudan':schedule.network==='MTN'?'MTN MoMo Uganda':schedule.network %></b><small><%= branch?.name||'Assigned branch' %> · <%= schedule.currency %> · <%= ({cash_in:'Customer deposit',cash_out:'Customer withdrawal',send:'Send money',bill_payment:'Bill payment',airtime_sale:'Sell airtime',merchant_payment:'Merchant payment'})[schedule.operation]||schedule.operation %> · <%= schedule.scheduleKind==='customer_network_fee'?'Customer fee':'Agent commission' %> · Version <%= schedule.version %></small></span><span class="tag"><%= schedule.status==='approved'?'Approved for quoting':schedule.status==='retired'?'Retired':'Awaiting independent review' %></span></summary>
+    <summary><span><b><%= schedule.network==='MTN SSD'?'MTN MoMo South Sudan':schedule.network==='MTN'?'MTN MoMo Uganda':schedule.network %></b><small><%= branch?.name||'Assigned branch' %> · <%= schedule.currency %> · <%= ({cash_in:'Customer deposit',cash_out:'Customer withdrawal',send:'Send money',bill_payment:'Bill payment',airtime_sale:'Sell airtime',merchant_payment:'Merchant payment'})[schedule.operation]||schedule.operation %> · <%= schedule.scheduleKind==='customer_network_fee'?'Customer fee':'Agent commission' %> · Version <%= schedule.version %></small></span><span class="tag"><%= schedule.status==='approved'?(schedule.sourceKind==='published_reference'?'Owner-authorized reference estimate':'Approved for quoting'):schedule.status==='retired'?'Retired':'Awaiting independent review' %></span></summary>
     <div class="networkTariffRecordBody">
-     <div class="networkTariffMetadata"><span>Effective from <b><%= new Date(schedule.effectiveFrom).toISOString().slice(0,10) %></b></span><span>Source <b><%= schedule.evidenceReference %></b></span><span>Independent reviewer <b><%= schedule.approvedBy?'Recorded':'Pending' %></b></span></div>
-     <div class="tableWrap networkTariffScroll" role="region" tabindex="0" aria-label="Scrollable commission ranges"><table><thead><tr><th>Minimum (<%= schedule.currency %>)</th><th>Maximum</th><th>Commission type</th><th>Rate (minor units or bps)</th></tr></thead><tbody>
+     <div class="networkTariffMetadata"><span>Effective from <b><%= new Date(schedule.effectiveFrom).toISOString().slice(0,10) %></b></span><span>Source <b><%= schedule.evidenceReference %></b></span><span>Authorized by <b><%= schedule.approvedBy?(schedule.sourceKind==='published_reference'?'Tenant Owner (provider confirmation not implied)':'Independent reviewer'):'Pending' %></b></span></div>
+     <div class="tableWrap networkTariffScroll" role="region" tabindex="0" aria-label="Scrollable commission ranges"><table><thead><tr><th>Minimum (<%= schedule.currency %>)</th><th>Maximum</th><th>Rate method</th><th>Rate (minor units or bps)</th></tr></thead><tbody>
       <% schedule.tiers.forEach(tier=>{ %><tr><td><%= data.formatMinor(tier.minMinor,schedule.currency) %></td><td><%= data.formatMinor(tier.maxMinor,schedule.currency) %></td><td><%= tier.rate.kind==='flat'?'Fixed':'Percentage' %></td><td><%= tier.rate.value %><%= tier.rate.kind==='basis_points'?' bps':'' %></td></tr><% }) %>
      </tbody></table></div>
 
@@ -91,6 +83,23 @@
       <button class="btn" type="submit">Estimate commission</button>
       <span class="tiny">Reference estimate only — no money is posted.</span>
      </form>
+     <% if(data.canPropose&&schedule.status==='approved'&&(data.actorRole==='Tenant Owner'||String(schedule.branchId)===String(user.branchId))){ %>
+     <details class="networkTariffEdit"><summary>Edit approved sheet · prepare next version</summary>
+      <form class="networkTariffForm" method="post" data-editor-currency="<%= schedule.currency %>" action="/tenant/mobile-money/tariffs/<%= schedule._id %>/revise">
+       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+       <label class="field">Updated provider document or agreement<input class="control" name="evidenceReference" minlength="12" maxlength="350" required value="<%= schedule.evidenceReference %>"></label>
+       <div class="row2">
+        <label class="field">New effective date (branch-local)<input class="control" type="date" name="effectiveFrom" value="<%= tariffToday %>" required></label>
+        <label class="field">Expires on (optional)<input class="control" type="date" name="expiresAt" value="<%= schedule.expiresAt?new Date(schedule.expiresAt).toISOString().slice(0,10):'' %>"></label>
+       </div>
+       <% if(!data.allProviders.find(p=>p.key===schedule.network)?.currency){ %>
+        <label class="field">Verified wallet for this provider market<select class="control" name="walletAccountId" required><option value="">Choose wallet</option><% data.commissions.wallets.filter(w=>w.network===schedule.network&&w.currency===schedule.currency&&String(w.branchId)===String(schedule.branchId)).forEach(w=>{ %><option value="<%= w._id %>"><%= w.name %></option><% }) %></select></label>
+       <% } %>
+       <label class="field">Rate bands<textarea class="control networkTariffBands" name="bands" rows="7" data-rate-editor maxlength="30000" required><%= data.serializeLines(schedule.tiers) %></textarea></label>
+       <div class="networkTariffActions"><button class="btn btnPrimary" type="submit">Submit updated version for review</button><small>The current approved version stays active until its replacement is approved.</small></div>
+      </form>
+     </details>
+     <% } %>
      <% if(data.canPropose&&schedule.status==='draft'&&(data.actorRole==='Tenant Owner'||!data.actorRole||String(schedule.createdBy)===String(data.actorId))){ %>
      <details class="networkTariffEdit"><summary>Edit draft rates</summary>
       <form class="networkTariffForm" method="post" data-editor-currency="<%= schedule.currency %>" action="/tenant/mobile-money/tariffs/<%= schedule._id %>/edit">
@@ -107,7 +116,7 @@
        <form action="/tenant/mobile-money/tariffs/<%= schedule._id %>/approve" method="post"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btnPrimary">Approve rate sheet</button></form>
       </div>
      <% } %>
-     <% if(data.canReview&&schedule.status==='approved'&&String(schedule.createdBy)!==String(data.actorId||'')){ %>
+     <% if(data.canReview&&schedule.status==='approved'&&(String(schedule.createdBy)!==String(data.actorId||'')||(schedule.sourceKind==='published_reference'&&data.actorRole==='Tenant Owner'))){ %>
       <form action="/tenant/mobile-money/tariffs/<%= schedule._id %>/retire" method="post" class="networkTariffAction"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn">Retire rate sheet</button></form>
      <% } %>
      <p class="tiny">A schedule is an estimate. The provider balance or daily commission statement is required before recognizing actual commission revenue.</p>
@@ -118,7 +127,7 @@
  </section>
  <% if(data.canPropose){ %>
  <details class="card networkNewSheet" id="network-sheet-form">
-  <summary class="cardHead"><b>Add or edit agent rate ranges</b><span class="tiny">Open form · independent approval required</span></summary>
+  <summary class="cardHead"><b>Custom provider rates — only when the built-in sheet is unavailable or outdated</b><span class="tiny">Manual provider agreement · independent review</span></summary>
   <form class="cardBody networkTariffForm" method="post" action="/tenant/mobile-money/tariffs" autocomplete="off">
    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
    <div class="networkTariffFields">
@@ -130,33 +139,38 @@
     <% }else{ %><label class="field">Branch<select name="branchId" class="control" required><option value="">Choose branch</option><% data.branches.forEach(b=>{ %><option value="<%= b._id %>"><%= b.name %></option><% }) %></select></label><% } %>
     <label class="field">Schedule type<select name="scheduleKind" class="control" required><option value="agent_commission">Agent commission paid by provider</option><option value="customer_network_fee">Network charge paid by customer</option></select></label>
     <label class="field">Agent operation<select name="operation" class="control" required><option value="cash_in">Deposit</option><option value="cash_out">Withdrawal</option><option value="send">Send money</option><option value="bill_payment">Pay a bill</option><option value="airtime_sale">Sell airtime or bundles</option><option value="merchant_payment">Merchant payment</option></select></label>
-    <label class="field">Effective from (UTC)<input type="date" name="effectiveFrom" class="control" required></label>
+    <label class="field">Effective from (branch-local date)<input type="date" name="effectiveFrom" class="control" required></label>
     <label class="field">Expires (optional)<input type="date" name="expiresAt" class="control"></label>
    </div>
    <label class="field">Provider rate sheet, contract or statement reference<input name="evidenceReference" class="control" minlength="12" maxlength="350" required placeholder="Source document reference, issuer and revision date"><span class="tiny">A source reference records the document's identity; it does not automatically verify a provider-issued tariff.</span></label>
+   <p class="tiny" data-copy-rate-status aria-live="polite" hidden></p>
    <label class="field">Amount ranges and rates<textarea name="bands" class="control networkTariffBands" data-rate-editor rows="8" maxlength="30000" required spellcheck="false" placeholder="500, 2500, basis_points, 400&#10;2501, 5000, flat, 110"></textarea><span class="tiny">Enter transaction ranges and choose a fixed commission or percentage. The editor accepts normal currency amounts, checks for valid ranges, and requires independent approval before use. Without JavaScript, enter one line as: minimum minor units, maximum minor units, flat or basis_points, rate.</span></label>
    <div class="networkTariffActions"><button class="btn btnPrimary" type="submit">Submit for review</button><span class="tiny">This does not change customer fees or post any money.</span></div>
   </form>
  </details>
  <% } %>
+  </div>
+ </details>
+ <% } %>
 
+ <% if(data.postingEnabled||(data.commissions?.records||[]).length){ %>
  <section class="card">
   <div class="cardHead"><div><b>Received provider commissions</b><br><span>Statement-backed receipts, independent review and separate income posting</span></div><span class="tag"><%= data.postingEnabled?'Posting gate enabled':'Posting locked' %></span></div>
   <div class="cardBody workspaceStack">
    <% if(!data.postingEnabled){ %><p class="workspaceNote">Payout posting is disabled until historic wallet commission entries are reconciled and a staging release gate passes. Submissions are stored as evidence only, not treated as cash, float or profit.</p><% } %>
-   <% if(data.canSubmitPayout){ %>
+   <% if(data.canSubmitPayout&&(data.commissions?.wallets||[]).length){ %>
    <details class="networkTariffRecord"><summary><b>Record a provider commission credit</b><span class="tag">Requires statement evidence</span></summary>
     <form class="networkTariffRecordBody networkTariffForm" method="post" action="/tenant/mobile-money/tariffs/payouts">
      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
      <div class="networkTariffFields">
-      <label class="field">Receiving network wallet<select name="walletAccountId" class="control" data-payout-wallet required><option value="">Choose reconciled wallet</option><% data.commissions.wallets.forEach(wallet=>{ %><option value="<%= wallet._id %>" data-network="<%= wallet.network %>" data-currency="<%= wallet.currency %>"><%= wallet.name %> · <%= wallet.network==='MTN SSD'?'MTN South Sudan':wallet.network %> · <%= wallet.currency %></option><% }) %></select></label>
+      <label class="field">Receiving network wallet<select name="walletAccountId" class="control" data-payout-wallet required><option value="">Choose reconciled wallet</option><% data.commissions.wallets.forEach(wallet=>{ %><option value="<%= wallet._id %>" data-network="<%= wallet.network %>" data-currency="<%= wallet.currency %>" data-time-zone="<%= typeof businessTimeZoneForBranch==='function'?businessTimeZoneForBranch(data.branches.find(b=>String(b._id)===String(wallet.branchId))):tariffZone %>"><%= wallet.name %> · <%= wallet.network==='MTN SSD'?'MTN South Sudan':wallet.network %> · <%= wallet.currency %></option><% }) %></select></label>
       <div class="field"><span>Network and currency</span><div class="networkReadOnly" data-payout-market>Choose a wallet to identify its network and currency</div><input type="hidden" name="network" data-payout-network><input type="hidden" name="currency" data-payout-currency></div>
       <label class="field">Net commission actually credited<input name="amount" class="control" type="text" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" placeholder="0.00" required></label>
       <label class="field">Gross commission before deductions<input name="grossAmount" class="control" type="text" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" placeholder="0.00" required></label>
       <label class="field">Tax withheld by provider<input name="taxWithheld" class="control" type="text" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" value="0" required></label>
       <label class="field">Provider commission deduction / cost<input name="providerCost" class="control" type="text" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" value="0" required></label>
       <label class="field">Provider commission credit reference<input name="providerReference" class="control" minlength="6" maxlength="120" placeholder="Unique credit or statement reference" required></label>
-      <label class="field">Actual provider credit time (UTC)<input name="creditedAt" class="control" type="datetime-local" required></label>
+      <label class="field">Actual provider credit time (<span data-credit-time-zone><%= tariffZone %></span> local)<input name="creditedAt" class="control" type="datetime-local" required></label>
      </div>
      <label class="field">Statement evidence and proof reference<input name="statementEvidence" class="control" minlength="12" maxlength="350" placeholder="Statement date, provider, account and trace ID" required></label>
      <div class="networkTariffActions"><button class="btn btnPrimary" type="submit">Submit credit for reconciliation</button><span class="tiny">No balance changes until independent review and a posting-enabled environment.</span></div>
@@ -166,7 +180,7 @@
    <% if(!data.commissions.records.length){ %><p class="tiny">No commission credits recorded for your permitted wallets.</p><% } %>
    <% data.commissions.records.forEach(payout=>{ %>
     <div class="networkTariffPayout">
-     <div class="networkTariffPayoutDetails"><b><%= payout.network==='MTN SSD'?'MTN South Sudan':payout.network %> — <%= data.formatMinor(payout.amountMinor,payout.currency) %></b><span><%= payout.providerReference %> · <%= new Date(payout.creditedAt).toISOString().slice(0,16).replace('T',' ') %> UTC</span><span class="tiny"><%= payout.statementEvidence %></span></div>
+     <div class="networkTariffPayoutDetails"><b><%= payout.network==='MTN SSD'?'MTN South Sudan':payout.network %> — <%= data.formatMinor(payout.amountMinor,payout.currency) %></b><span><%= payout.providerReference %> · <%= tariffFormatDate(payout.creditedAt) %> <%= tariffZone %></span><span class="tiny"><%= payout.statementEvidence %></span></div>
      <span class="tag"><%= payout.status==='posted'?'Posted income':payout.status==='rejected'?'Rejected':'Pending review' %></span>
      <% if(data.canReviewPayout&&payout.status==='pending_review'){ %>
      <form class="networkTariffReview" method="post" action="/tenant/mobile-money/tariffs/payouts/<%= payout._id %>/review">
@@ -181,5 +195,6 @@
    <% }) %>
   </div>
  </section>
+ <% } %>
 
 </section>

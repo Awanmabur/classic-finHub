@@ -1,6 +1,7 @@
 const { mobileTransactionModel, auditEventModel, branchModel, ensureTenantIndexes } = require('../models');
 const {currencies}=require('../../config/currencies');
 const {networks}=require('../../config/mobileNetworks');
+const businessTime=require('../../utils/businessTime');
 const MAX_MINOR = 10000000000;
 function toMinor(value, currency, allowZero = false) {
   if(typeof currency!=='string'||!Object.hasOwn(currencies,currency))throw bad('Enter a supported currency');
@@ -118,9 +119,18 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
       // Immutable informational reference only. Approved network tariff quotes
       // never change principal cash/float, customer fee, provider settlement
       // or recognized income. Missing or out-of-band rates remain unknown.
+      const quoteAt=smsAuthorization?.receivedAt||new Date();
       const tariffEstimates=await require('../pricing/networkTariffService').transactionEstimates(
         conn,authorization.tenant,branch,{network:values.network,currency:values.currency,
-          operation,amountMinor:values.amountMinor,at:smsAuthorization?.receivedAt||new Date(),session});
+          operation,amountMinor:values.amountMinor,at:quoteAt,session});
+      const publicReferences=require('../pricing/publishedReference.service').quote({
+        network:values.network,currency:values.currency,operation,
+        amountMinor:values.amountMinor,at:quoteAt
+      });
+      // Persist one preferred quote per category: approved tenant sheet first,
+      // public or historical provider reference only when no approved sheet applies.
+      if(tariffEstimates.agentCommissionEstimate)publicReferences.agentCommissionPublishedReference=null;
+      if(tariffEstimates.customerNetworkFeeEstimate)publicReferences.customerNetworkChargePublishedReference=null;
       await require('../../platform/services/commercial.service').reserveUsage(authorization.tenant,'mobile_money_records',session);
       // Wallet and bank are declared receipt methods, not verified integrations.
       // Only physical Cash records may change a verified drawer or join a shift.
@@ -132,11 +142,14 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
       // belong on the wallets page; an SMS can still attach its dated balance.
       const funding=tracking?await funds.apply(conn,session,authorization,{...values,branchId:branch._id},{receivedAt:smsAuthorization?.receivedAt,feeTreatmentSpecified,expectedFeeTreatment,useConfiguredPolicy:options.requireFunds===true}):{};
       const cashSessionId=values.paymentMethod==='Cash'?await require('./cashDrawer.service').attachRecord(conn,session,authorization.actor,branch._id,values.currency,operation,BigInt(values.amountMinor),{...(smsAuthorization?{receivedAt:smsAuthorization.receivedAt}:{}),bookManaged:tracking}):null;
-      [created] = await Model.create([{ ...values, ...source,...tariffEstimates,...funding, cashSessionId, branchId:branch._id, amountMinor: String(values.amountMinor), feeMinor: String(values.feeMinor), operatorId: operator.id, status: 'pending_verification' }], { session });
+      const risk=require('./mobileMoneyRisk.service');
+      const riskSignals=await risk.assess(conn,session,Model,values,branch._id,funding);
+      [created] = await Model.create([{ ...values, ...source,...tariffEstimates,...publicReferences,...funding, cashSessionId, branchId:branch._id, amountMinor: String(values.amountMinor), feeMinor: String(values.feeMinor), operatorId: operator.id, status: 'recorded', reviewState: 'not_required',riskSignals }], { session });
       await Audit.create([{
         action: `mobile_money.${operation}.recorded`, actorId: operator.id, targetId: created._id,
-        metadata: { currency: values.currency, amountMinor: values.amountMinor, network: values.network, paymentMethod:values.paymentMethod, branchId: String(created.branchId) }
+        metadata: { currency: values.currency, amountMinor: values.amountMinor, network: values.network, paymentMethod:values.paymentMethod, branchId: String(created.branchId),riskSignals }
       }], { session });
+      // Owner alerts are dispatched by the independent worker after commit.
     });
     return { created, duplicate: false };
   } catch (e) {
@@ -219,7 +232,7 @@ async function requestVoid(conn,actor,recordId,note){
   try{
     let record;
     await session.withTransaction(async()=>{
-      record=await Model.findOneAndUpdate({_id:recordId,operatorId:actor.id,status:'pending_verification',
+      record=await Model.findOneAndUpdate({_id:recordId,operatorId:actor.id,status:{$in:['recorded','pending_verification']},
         correctionState:{$in:['none','denied',null]},
         $or:[{correctionAttempts:{$lt:5}},{correctionAttempts:{$exists:false}}],...(actor.role==='Tenant Owner'?{}:{branchId:actor.branchId||null})},
         {$set:{correctionState:'requested',correctionReason:reason,correctionRequestedAt:new Date(),correctionRequestedBy:actor.id,
@@ -244,7 +257,7 @@ async function decideVoid(conn,reviewer,recordId,decision,note){
   try{
     let record;
     await session.withTransaction(async()=>{
-      record=await Model.findOneAndUpdate({_id:recordId,status:'pending_verification',correctionState:'requested',
+      record=await Model.findOneAndUpdate({_id:recordId,status:{$in:['recorded','pending_verification']},correctionState:'requested',
         operatorId:{$ne:reviewer.id},correctionRequestedBy:{$ne:reviewer.id},
         ...(reviewer.role==='Tenant Owner'?{}:{branchId:reviewer.branchId||null})},
         {$set:{correctionState:decision==='approve'?'voided':'denied',
@@ -269,22 +282,19 @@ async function decideVoid(conn,reviewer,recordId,decision,note){
 }
 async function getVoidQueue(conn,reviewerId,max=25,branchId=null){
   const take=Number.isSafeInteger(max)&&max>=1&&max<=100?max:25;
-  return mobileTransactionModel(conn).find({status:'pending_verification',correctionState:'requested',
+  return mobileTransactionModel(conn).find({status:{$in:['recorded','pending_verification']},correctionState:'requested',
     operatorId:{$ne:reviewerId},correctionRequestedBy:{$ne:reviewerId},...(branchId?{branchId}:{})})
     .sort({correctionRequestedAt:1}).limit(take).lean();
 }
-function dateBounds({ from, to } = {}) {
-  if (!from && !to) {
-    const start = new Date(); start.setUTCHours(0,0,0,0);
-    return { $gte: start, $lt: new Date(start.getTime() + 86400000) };
-  }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(from || '') || !/^\d{4}-\d{2}-\d{2}$/.test(to || '')) throw bad('Use valid start and end dates');
-  const a = new Date(`${from}T00:00:00Z`), b = new Date(`${to}T00:00:00Z`);
-  if (!Number.isFinite(a.getTime()) || !Number.isFinite(b.getTime()) || a.toISOString().slice(0,10) !== from || b.toISOString().slice(0,10) !== to || b < a || b-a > 90*86400000) throw bad('Report dates must be valid and within 90 days');
-  return { $gte: a, $lt: new Date(b.getTime()+86400000) };
+function dateBounds({from,to}={},timeZone='UTC'){
+ try{
+  const { $gte,$lt }=businessTime.dayBounds({from,to},timeZone,90);
+  return {$gte,$lt};
+ }catch(error){throw bad(error.message==='Report date range is invalid or too long'?'Report dates must be valid and within 90 days':error.message);}
 }
-async function getTransactions(conn, { from, to, limit = 60, operatorId, branchId } = {}) {
-  const bounds = dateBounds({ from, to });
+
+async function getTransactions(conn, { from, to, limit = 60, operatorId, branchId, timeZone } = {}) {
+  const bounds = dateBounds({ from, to },timeZone);
   const Model = mobileTransactionModel(conn);
   const scope = { ...(operatorId ? {operatorId} : {}), ...(branchId ? {branchId} : {}) };
   const requested = Number(limit);
@@ -313,8 +323,8 @@ function decodeCursor(raw){
     return {at:new Date(values[0]),id:values[1]};
   }catch{throw bad('Invalid history cursor');}
 }
-async function getTransactionPage(conn,{from,to,cursor,operatorId,branchId,limit=40}={}){
-  const dateRange=dateBounds({from,to}),position=decodeCursor(cursor);
+async function getTransactionPage(conn,{from,to,cursor,operatorId,branchId,timeZone,limit=40}={}){
+  const dateRange=dateBounds({from,to},timeZone),position=decodeCursor(cursor);
   const n=Number(limit),take=Number.isSafeInteger(n)&&n>0&&n<=100?n:40;
   const {Types}=require('mongoose');
   const scope={...(operatorId?{operatorId:new Types.ObjectId(operatorId)}:{}),
@@ -324,7 +334,9 @@ async function getTransactionPage(conn,{from,to,cursor,operatorId,branchId,limit
     {createdAt:position.at,_id:{$lt:new Types.ObjectId(position.id)}}];
   const results=await mobileTransactionModel(conn).find(query).sort({createdAt:-1,_id:-1}).limit(take+1).lean();
   const hasMore=results.length>take,items=results.slice(0,take);
-  return {items,nextCursor:hasMore?encodeCursor(items.at(-1)):null,from:from||'',to:to||''};
+  return {items,nextCursor:hasMore?encodeCursor(items.at(-1)):null,
+  from:from||businessTime.localDay(new Date(),timeZone||'UTC'),
+  to:to||businessTime.localDay(new Date(),timeZone||businessTime.DEFAULT_TIME_ZONE)};
 }
 function visibleRecordForRole(record,role){
   if(role!=='Viewer')return record;
@@ -344,8 +356,8 @@ async function getRecordDetails(conn,recordId,scope={}){
   if(!record)throw bad('Record not found within your access scope',404);
   return record;
 }
-async function getSummary(conn, { from, to, operatorId, branchId } = {}) {
-  const bounds = dateBounds({ from, to });
+async function getSummary(conn, { from, to, operatorId, branchId, timeZone } = {}) {
+  const bounds = dateBounds({ from, to },timeZone);
   const Model = mobileTransactionModel(conn);
   const {Types}=require('mongoose');
   const scope = { ...(operatorId ? {operatorId:new Types.ObjectId(operatorId)} : {}), ...(branchId ? {branchId:new Types.ObjectId(branchId)} : {}) };
@@ -373,11 +385,11 @@ function csvCell(value) {
   return '"'+s.replace(/"/g,'""')+'"';
 }
 function toCsv(items) {
-  const rows = [['Date (UTC)','Operation','Customer','Network','Reference','Currency','Amount','Fee','Operational Record Status','Internal Review','Correction State','Reviewed At (UTC)','Review Note']];
+  const rows = [['Date (UTC)','Operation','Customer','Network','Reference','Currency','Amount','Fee','Operational Record Status','Internal Review','Correction State','Risk Signals','Reviewed At (UTC)','Review Note']];
   for (const r of items) rows.push([
     new Date(r.createdAt).toISOString(), r.operation, r.customer, r.network, r.networkReference,
     r.currency, fromMinor(r.amountMinor,r.currency).toFixed(currencies[r.currency]),
-    fromMinor(r.feeMinor,r.currency).toFixed(currencies[r.currency]),r.status, r.reviewState || 'awaiting_review',r.correctionState||'none', r.reviewedAt ? new Date(r.reviewedAt).toISOString() : '', r.reviewNote || ''
+    fromMinor(r.feeMinor,r.currency).toFixed(currencies[r.currency]),r.status, r.reviewState || 'not_required',r.correctionState||'none',(r.riskSignals||[]).join(' | '), r.reviewedAt ? new Date(r.reviewedAt).toISOString() : '', r.reviewNote || ''
   ]);
   return rows.map(row=>row.map(csvCell).join(',')).join('\r\n')+'\r\n';
 }

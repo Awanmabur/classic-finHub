@@ -117,7 +117,8 @@ test('Standalone Forex reporting excludes customer details and uses branch-scope
 test('Forex UI uses existing card layout, CSRF protection, independent controls and escapes user values',async()=>{
  const html=await ejs.renderFile(path.join(__dirname,'../src/views/tenant/forex/index.ejs'),{
   user:{role:'Forex Operator'},csrfToken:'test-csrf',data:{canPropose:true,canQuote:true,canRateReview:false,canQuoteReview:false,
-   selectedBranchId:branch,branches:[{_id:branch,name:'Test',currency:'UGX'}],rates:[],records:{items:[]},rateQueue:[],quoteQueue:[],idempotencyKey:crypto.randomUUID(),amountLabel:fx.amountLabel}
+   selectedBranchId:branch,branches:[{_id:branch,name:'Test',currency:'UGX'}],
+    currencyChoices:[{code:'UGX'},{code:'USD'},{code:'SSP'},{code:'KES'}],rates:[],records:{items:[]},rateQueue:[],quoteQueue:[],idempotencyKey:crypto.randomUUID(),amountLabel:fx.amountLabel}
  });
  assert.match(html,/forex\/quotes/);assert.match(html,/forex\/rates/);assert.match(html,/name="_csrf" value="test-csrf"/);
  assert.doesNotMatch(html,/name="decision"/);assert.match(html,/record the actual exchange against opened foreign currency and settlement accounts for independent review/);
@@ -134,4 +135,24 @@ test('Expiry worker cannot enumerate tenants without an authorized cursor',async
  await assert.rejects(run(),/cursor/);
  await assert.rejects(run({tenants:[],connectionForTenant:()=>({})}),/cursor/);
  await assert.rejects(fx.expireDue({},'not-a-date'),{status:400});
+});
+
+test('missing approved Forex rates show enabled currencies and useful setup action rather than dead controls',async()=>{
+ const fs=require('node:fs');
+ const template=path.join(__dirname,'../src/views/tenant/forex/_entry-form.ejs');
+ const locals={
+  currentBranchId:branch,user:actor('Forex Operator'),
+  data:{formRates:[],rates:[],workspaceOperation:'buy',currencyChoices:[{code:'UGX'},{code:'USD'},{code:'KES'}],idempotencyKey:crypto.randomUUID()}
+ };
+ const html=await ejs.renderFile(template,locals);
+ assert.match(html,/No active Forex rate is approved/);
+ assert.match(html,/UGX, USD, KSH/);
+ assert.match(html,/href="\/tenant\/forex"/);
+ assert.doesNotMatch(html,/name="rateId"/);
+ assert.doesNotMatch(html,/data-forex-total/);
+ const view=fs.readFileSync(path.join(__dirname,'../src/views/tenant/forex/index.ejs'),'utf8');
+ assert.match(view,/actualForexCurrencies/);
+ assert.match(view,/i===1\?'selected'/);
+ const route=fs.readFileSync(path.join(__dirname,'../src/tenant/routes/forex.routes.js'),'utf8');
+ assert.match(route,/currencyChoices:selected\?require\('\.\.\/services\/branchCurrency.service'\)\.options\(selected\):\[\]/);
 });

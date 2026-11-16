@@ -50,7 +50,7 @@ test('history and details render without exposing unescaped financial notes',asy
     data:d,csrfToken:'csrf-token',money:(currency,amount)=>`${currency} ${amount}`,amountFromMinor:mobile.fromMinor});
   const list=await render('history.ejs',data);
   assert.match(list,/Next page/);
-  assert.match(list,/voided internal/);
+  assert.match(list,/Voided internally/);
   const detail=await render('detail.ejs',{record:row});
   assert.match(detail,/Correction decisions/);
   const actionable=await render('detail.ejs',{record:row,canRequestCorrection:true});

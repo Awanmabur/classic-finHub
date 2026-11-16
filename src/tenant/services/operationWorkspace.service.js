@@ -4,6 +4,7 @@
 const crypto=require('node:crypto');
 const mongoose=require('mongoose');
 const mobile=require('./mobileMoney.service');
+const businessTime=require('../../utils/businessTime');
 const {hasPermission,hasModuleForUser}=require('./moduleAccess.service');
 const models=require('../models');
 const {currencyCodes,forexCurrencyCodes}=require('../../config/currencies');
@@ -42,15 +43,15 @@ function scalar(query,key){
  if(typeof value!=='string'||value.length>120)throw fail(`Invalid ${key} filter`);
  return value;
 }
-function filtersFor(key,query={}){
- const spec=definition(key),today=new Date();
- const end=today.toISOString().slice(0,10),start=new Date(today.getTime()-29*86400000).toISOString().slice(0,10);
+function filtersFor(key,query={},timeZone='UTC'){
+ const spec=definition(key),end=businessTime.localDay(new Date(),timeZone),
+  start=businessTime.addDays(end,-29);
  const from=scalar(query,'from')||start,to=scalar(query,'to')||end;
  const status=scalar(query,'status'),currency=scalar(query,'currency'),kind=scalar(query,'kind');
  if(status&&!spec.statuses.includes(status))throw fail('Invalid operation status');
  if(currency&&!spec.currencies.includes(currency))throw fail('Unsupported operation currency');
  if(kind&&!spec.kinds.includes(kind))throw fail('Invalid operation type');
- return {from,to,status,currency,kind,dateBounds:mobile.dateBounds({from,to})};
+ return {from,to,status,currency,kind,dateBounds:mobile.dateBounds({from,to},timeZone)};
 }
 function queryFor(actor,key,filters){
  const scope=scopeFor(actor,key);
@@ -72,18 +73,18 @@ function describe(key,row){
   target:key==='forex'?formatAmount(row.targetMinor?.toString()||'0',row.toCurrency):null,
   href:`/tenant/${spec.path}/${row._id}`};
 }
-async function records(conn,tenant,actor,key,query={}){
+async function records(conn,tenant,actor,key,query={},timeZone='UTC'){
  authorize(tenant,actor,key);
- const spec=definition(key),filters=filtersFor(key,query),filter=queryFor(actor,key,filters),cursor=mobile.decodeCursor(scalar(query,'cursor'));
+ const spec=definition(key),filters=filtersFor(key,query,timeZone),filter=queryFor(actor,key,filters),cursor=mobile.decodeCursor(scalar(query,'cursor'));
  if(cursor)filter.$or=[{createdAt:{$lt:cursor.at}},{createdAt:cursor.at,_id:{$lt:new mongoose.Types.ObjectId(cursor.id)}}];
  const found=await spec.model(conn).find(filter).sort({createdAt:-1,_id:-1}).limit(41).lean();
  const visible=found.slice(0,40);
  return {items:visible.map(row=>describe(key,row)),nextCursor:found.length>40?mobile.encodeCursor(visible.at(-1)):null,filters};
 }
-async function report(conn,tenant,actor,key,query={}){
+async function report(conn,tenant,actor,key,query={},timeZone='UTC'){
  authorize(tenant,actor,key);
- const spec=definition(key),filters=filtersFor(key,query),match=queryFor(actor,key,filters);
- const group={day:{$dateToString:{date:'$createdAt',format:'%Y-%m-%d',timezone:'UTC'}},status:'$status',
+ const spec=definition(key),filters=filtersFor(key,query,timeZone),match=queryFor(actor,key,filters);
+ const group={day:{$dateToString:{date:'$createdAt',format:'%Y-%m-%d',timezone:timeZone}},status:'$status',
   currency:key==='forex'?'$fromCurrency':'$currency',kind:key==='forex'?{$ifNull:['$operation','quote']}:key==='banking'?'$kind':{$literal:'transfer_request'}};
  if(key==='forex')group.targetCurrency='$toCurrency';
  const values={_id:group,count:{$sum:1},volume:{$sum:`$${spec.amount}`}};
@@ -96,14 +97,14 @@ async function report(conn,tenant,actor,key,query={}){
   volume:formatAmount(row.volume?.toString()||'0',row._id.currency),
   fees:spec.fees?formatAmount(row.fees?.toString()||'0',row._id.currency):'',
   target:key==='forex'?formatAmount(row.target?.toString()||'0',row._id.targetCurrency):''}));
- return {moduleKey:key,label:spec.label,currencies:spec.currencies,filters,rows,total:rows.reduce((sum,row)=>sum+row.count,0),
+ return {moduleKey:key,label:spec.label,currencies:spec.currencies,filters,rows,timeZone,total:rows.reduce((sum,row)=>sum+row.count,0),
   canExport:hasPermission(actor,`${key}.report`)||hasPermission(actor,'reports.export'),
   note:key==='forex'?'Quotations remain separate from posted manual exchanges. Reviewed manual movements update the foreign stock and settlement books; check the cash movement report for physical drawer effects.':
    key==='banking'?'Pending instructions remain separate from posted manual operations. Reviewed manual movements update the selected funds and internal customer accounts together.':
     'Pending requests remain separate from collected and paid-out manual transfers. Independently reviewed collection posts the funds and payable, then enables one-time PIN access; provider settlement remains separate.'};
 }
 function csv(report){
- const headers=['Date (UTC)','Operation','Status','Currency','Records','Requested / quoted amount','Proposed fees','Target currency','Target quoted amount'];
+ const headers=['Date ('+(report.timeZone||'UTC')+')','Operation','Status','Currency','Records','Requested / quoted amount','Proposed fees','Target currency','Target quoted amount'];
  return '\uFEFF'+[headers,...report.rows.map(row=>[row.day,row.kind,row.status,row.currency,row.count,row.volume,row.fees,row.targetCurrency,row.target])]
   .map(row=>row.map(mobile.csvCell).join(',')).join('\r\n')+'\r\n';
 }

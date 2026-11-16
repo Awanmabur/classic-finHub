@@ -42,12 +42,12 @@ test('Administrator MFA pending sessions expire and enforce attempt cap',()=>{
 test('Production crawler rules allow public pages and do not advertise private URLs',()=>{
   const exec=spawnSync(process.execPath,['-e',"process.stdout.write(JSON.stringify(require('./src/config/seo')))"] ,{
     cwd:require('node:path').join(__dirname,'..'),
-    env:{...process.env,NODE_ENV:'production',APP_URL:'https://fin.example',TRUST_PROXY:'1',SEO_INDEXING_ENABLED:'true',SESSION_SECRET:'z'.repeat(64),MFA_ENCRYPTION_KEY:KEY},encoding:'utf8'
+    env:{...process.env,NODE_ENV:'production',APP_URL:'https://fin.example',TRUST_PROXY:'1',SEO_INDEXING_ENABLED:'true',SESSION_SECRET:'z'.repeat(64),MFA_ENCRYPTION_KEY:KEY,MONGO_PLATFORM_URI:'mongodb://127.0.0.1:27017/classicfin_isolated_test',PLATFORM_DB_URI:'',MONGO_URI_BASE:''},encoding:'utf8'
   });
   assert.equal(exec.status,0,exec.stderr);
   // JSON.stringify skips functions, so re-run their results in a separate child.
   const page=spawnSync(process.execPath,['-e',"const s=require('./src/config/seo');process.stdout.write(JSON.stringify({robots:s.robotsTxt(),sitemap:s.sitemapXml(),llms:s.llmsTxt()}))"],{
-    cwd:require('node:path').join(__dirname,'..'),env:{...process.env,NODE_ENV:'production',APP_URL:'https://fin.example',TRUST_PROXY:'1',SEO_INDEXING_ENABLED:'true',SESSION_SECRET:'z'.repeat(64),MFA_ENCRYPTION_KEY:KEY},encoding:'utf8'
+    cwd:require('node:path').join(__dirname,'..'),env:{...process.env,NODE_ENV:'production',APP_URL:'https://fin.example',TRUST_PROXY:'1',SEO_INDEXING_ENABLED:'true',SESSION_SECRET:'z'.repeat(64),MFA_ENCRYPTION_KEY:KEY,MONGO_PLATFORM_URI:'mongodb://127.0.0.1:27017/classicfin_isolated_test',PLATFORM_DB_URI:'',MONGO_URI_BASE:''},encoding:'utf8'
   });
   assert.equal(page.status,0,page.stderr);
   const {robots,sitemap,llms}=JSON.parse(page.stdout);

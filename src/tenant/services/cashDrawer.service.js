@@ -26,7 +26,9 @@ async function open(conn,tenant,actor,input={}){
  const branch=await branchModel(conn).findOne({_id:branchId,status:'active'}).lean();
  if(!branch)throw fail('Active branch required',409);
  const currency=require('./branchCurrency.service').resolve(branch,input.currency);
- const opening=mobile.toMinor(input.openingCash,currency,true);
+ const useBookCount=input.openingFromBook==='on';
+ if(useBookCount&&input.physicalCountConfirmed!=='on')throw fail('Count physical cash and confirm it matches the current book before starting a shift',400);
+ const manuallyCounted=useBookCount?null:mobile.toMinor(input.openingCash,currency,true);
  const tx=await conn.startSession();let created;
  try{await tx.withTransaction(async()=>{
    const touched=await branchModel(conn).findOneAndUpdate({_id:branchId,status:'active'},{$inc:{revision:1}},{new:true,session:tx});
@@ -34,6 +36,9 @@ async function open(conn,tenant,actor,input={}){
    require('./branchCurrency.service').resolve(touched,currency);
    if(await cashSessionModel(conn).exists({...activeFilter(branchId,operatorId,currency),status:{$in:['pending_open','open','submitted','disputed']}}).session(tx))throw fail('An unfinished cash shift already exists for this operator, branch and currency',409);
    const funds=require('../treasury/service'),fund=await funds.findAccount(conn,tx,{branchId,kind:'cash',currency,operatorId:actor.id});
+   if(useBookCount&&(!fund||fund.openingBalanceMinor===null||!fund.openingApprovedAt||fund.status!=='active'||fund.reconciliationState!=='matched'))
+    throw fail('An active, reconciled cash drawer is required to reuse the automatic book balance',409);
+   const opening=useBookCount?String(fund.bookBalanceMinor):manuallyCounted;
    if(fund&&fund.openingBalanceMinor!==null){
     if(fund.status!=='active'||fund.reconciliationState!=='matched')throw fail('Reconcile the actual cash account before opening another day',409);
     await funds.assertBookIntegrity(conn,tx,fund);
@@ -147,9 +152,9 @@ async function submit(conn,tenant,actor,shiftId,input={}){
    const Money=mobileTransactionModel(conn);
    const outstanding=await Money.countDocuments({cashSessionId:result._id,$nor:[
      {status:'voided_internal',correctionState:'voided'},
-     {status:'pending_verification',reviewState:'accepted',correctionState:{$nin:['requested','voided']}}
+     {status:{$in:['recorded','pending_verification']},correctionState:{$nin:['requested','voided']}}
    ]}).session(tx);
-   if(outstanding)throw fail(`Review or void ${outstanding} unresolved records before closing`,409);
+   if(outstanding)throw fail(`Resolve ${outstanding} outstanding record corrections before closing`,409);
    const counted=await Money.countDocuments({cashSessionId:result._id}).session(tx);
    if(counted!==result.recordCount)throw fail('Cash shift record count mismatch',409);
    const Expenses=require('../models/expenses').expenseModel(conn);
@@ -172,8 +177,11 @@ async function submit(conn,tenant,actor,shiftId,input={}){
     const fund=await require('../treasury/models').models(conn).account.findOne({_id:result.treasuryAccountId,branchId:result.branchId,operatorId:result.operatorId,currency:result.currency}).session(tx).lean();
     if(!fund||minor(fund.bookBalanceMinor)!==minor(result.openingMinor)+minor(result.provisionalMovementMinor))throw fail('Cash drawer and treasury book do not reconcile',409);
    }else if(computed!==minor(result.provisionalMovementMinor))throw fail('Cash shift movement does not reconcile with original records',409);
-   const declared=BigInt(mobile.toMinor(input.countedCash,result.currency,true));
    const expected=minor(result.openingMinor)+minor(result.provisionalMovementMinor);
+   const useBookCount=input.closingFromBook==='on';
+   if(useBookCount&&input.physicalCountConfirmed!=='on')
+    throw fail('Count physical closing cash and confirm it matches the book amount before submitting',400);
+   const declared=useBookCount?expected:BigInt(mobile.toMinor(input.countedCash,result.currency,true));
    if(expected<0n)throw fail('Invalid estimated cash balance',409);
    const variance=declared-expected, reason=note(input.note||'',variance!==0n);
    let treasuryObservationId=null;
@@ -231,8 +239,8 @@ async function detail(conn,tenant,actor,shiftId){
  const found=await cashSessionModel(conn).findOne({_id:id(shiftId),...visibleScope(actor)}).lean();
  if(!found)throw fail('Cash shift not found within your permissions',404);return found;
 }
-async function reportRows({conn,filters,scope:filter}){
- const match={createdAt:mobile.dateBounds({from:filters.from,to:filters.to}),
+async function reportRows({conn,filters,scope:filter,dateRange}){
+ const match={createdAt:dateRange||mobile.dateBounds({from:filters.from,to:filters.to},filters.timeZone||'UTC'),
   // Aggregation pipelines do not apply Mongoose schema casting. CashSession
   // stores branchId as ObjectId, so a string would silently produce zero rows.
   ...require('../reporting/aggregateScope').branchMatch(filter, value=>new Types.ObjectId(value))};

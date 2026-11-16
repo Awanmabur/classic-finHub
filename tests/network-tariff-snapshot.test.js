@@ -24,7 +24,8 @@ test('immutable reference quote schema is separate from actual cash/float or fee
  assert.match(snapshot,/scheduleId:.*immutable:true/);
  assert.match(model,/agentCommissionEstimate:.*immutable:true/);
  assert.match(model,/customerNetworkFeeEstimate:.*immutable:true/);
- assert.match(service,/effectiveFrom:\{\$lte:timestamp\}/);
+ assert.match(service,/businessTime\.localDay\(timestamp,businessTime\.forBranch\(branch\)\)/);
+ assert.match(service,/rule\.effectiveFrom\?\.toISOString\(\)\.slice\(0,10\)>localDate/);
  assert.match(service,/status:'approved'/);
  assert.doesNotMatch(service,/treasury\.applyMovements\(|ensureCounterAccount\(/);
 });

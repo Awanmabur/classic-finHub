@@ -4,6 +4,7 @@
 const {Types}=require('mongoose');
 const reports=require('./operationsReports.service');
 const mobile=require('./mobileMoney.service');
+const businessTime=require('../../utils/businessTime');
 const {hasPermission}=require('./moduleAccess.service');
 const adapters=require('../reporting/registry');
 const {cashSessionModel,mobileTransactionModel}=require('../models');
@@ -91,12 +92,11 @@ function currencyTotals(rows){
  return [...result.values()].filter(row=>Object.hasOwn(mobile.currencies,row.currency)).map(row=>({currency:row.currency,
   recordedFeesMinor:String(row.recordedFeesMinor),approvedExpensesMinor:String(row.approvedExpensesMinor)}));
 }
-async function generate(conn,tenant,actor,key,query={}){
+async function generate(conn,tenant,actor,key,query={},timeZone='UTC'){
  if(!tenant||conn.name!==require('../../config/tenantDatabaseName').tenantDbNameFromSlug(tenant.slug))throw fail('Tenant database context does not match this workspace',403);
  const page=pages[key];if(!page)throw fail('Unknown report page',404);
  const sources=reports.sourcesFor(tenant,actor);if(!sources.length)throw fail('Operations Reports subscription and reporting permission required',403);
- const filters=reports.parseFilters({from:query.from,to:query.to,source:'all'},sources),scope=scopeFor(actor);
- filters.from=filters.dateRange.$gte.toISOString().slice(0,10);filters.to=new Date(filters.dateRange.$lt-1).toISOString().slice(0,10);
+ const filters=reports.parseFilters({from:query.from,to:query.to,source:'all'},sources,timeZone),scope=scopeFor(actor);
  const sourceAvailable=!page.source||sources.some(source=>source.key===page.source),transactionKeys=['money_transfer','mobile_money','banking','forex'];
  const requested=sources.filter(source=>page.source?source.key===page.source:transactionKeys.includes(source.key)||(key==='daily'&&source.key==='expenses'));
  let rows=[];
@@ -112,16 +112,16 @@ async function generate(conn,tenant,actor,key,query={}){
   hasExpenses&&key==='expenses'?expenseItems(conn,actor,scope,filters.dateRange):null,
   sourceAvailable&&!['opening','closing'].includes(key)?postedCash(conn,tenant,scope,filters.dateRange,requested.map(source=>source.key)):[]
  ]);
- return {key,page,filters,sources,scope,sourceAvailable,rows,cash,impact,postedCash:cashMovements,expenses,income:currencyTotals(rows),format:require('./forex.service').amountLabel,
+ return {key,page,filters,timeZone,sources,scope,sourceAvailable,rows,cash,impact,postedCash:cashMovements,expenses,income:currencyTotals(rows),format:require('./forex.service').amountLabel,
   note:'Each source describes its own internal evidence. Amounts and currencies remain separate. Pending requests and recorded fees do not prove provider settlement, available funds, or realized income.'};
 }
 function csv(report){
  let rows;
- if(report.key==='expenses'&&report.expenses) return require('./expenses.service').csv(report.expenses);
+ if(report.key==='expenses'&&report.expenses) return require('./expenses.service').csv(report.expenses,report.timeZone||'UTC');
  if(['opening','closing'].includes(report.key)&&report.cash){
-  rows=[['Opened (UTC)','Shift','Currency','Status','Opening minor units','Opening verified','Expected minor units','Counted minor units','Variance minor units'],
-   ...report.cash.items.map(shift=>[new Date(shift.createdAt).toISOString(),String(shift._id),shift.currency,shift.status,String(shift.openingMinor),
-    shift.openingVerifiedAt?new Date(shift.openingVerifiedAt).toISOString():'',shift.expectedClosingMinor==null?'':String(shift.expectedClosingMinor),
+  rows=[['Opened ('+(report.timeZone||'UTC')+')','Shift','Currency','Status','Opening minor units','Opening verified','Expected minor units','Counted minor units','Variance minor units'],
+   ...report.cash.items.map(shift=>[businessTime.format(shift.createdAt,report.timeZone||'UTC',true),String(shift._id),shift.currency,shift.status,String(shift.openingMinor),
+    shift.openingVerifiedAt?businessTime.format(shift.openingVerifiedAt,report.timeZone||'UTC',true):'',shift.expectedClosingMinor==null?'':String(shift.expectedClosingMinor),
     shift.declaredClosingMinor==null?'':String(shift.declaredClosingMinor),shift.varianceMinor==null?'':String(shift.varianceMinor)])];
  }else rows=[['Source','Activity','Status','Currency','Count','Volume label','Fees label','Amount minor units','Fees minor units','Quoted target currency','Quoted target amount minor units','Net cash movement minor units','Cash movement evidence'],
   ...report.rows.map(row=>[row.module,row.activity,row.status,row.currency,row.count,row.volume,row.fees,row.amountMinor??'',row.feesMinor??'',row.targetCurrency??'',row.targetAmountMinor??'','','']),

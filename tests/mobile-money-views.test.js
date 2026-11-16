@@ -6,7 +6,7 @@ const path = require('node:path');
 const {fromMinor} = require('../src/tenant/services/mobileMoney.service');
 const views = path.resolve(__dirname,'../src/views/tenant/mobile-money');
 const requestKey = '1b7db353-c630-4d62-b2c4-c396751ef77d';
-const record = {_id:'507f1f77bcf86cd799439011',customer:'Customer <script>',customerPhone:'+256771234567',customerNote:'Receipt checked',network:'MTN',networkReference:'MTN-TEST1',operation:'cash_in',entrySource:'sms',currency:'UGX',amountMinor:'5000',feeMinor:'100',paymentMethod:'Cash',status:'pending_verification',reviewState:'awaiting_review',correctionState:'none',createdAt:new Date('2026-11-03T12:00:00Z')};
+const record = {_id:'507f1f77bcf86cd799439011',customer:'Customer <script>',customerPhone:'+256771234567',customerNote:'Receipt checked',network:'MTN',networkReference:'MTN-TEST1',operation:'cash_in',entrySource:'sms',currency:'UGX',amountMinor:'5000',feeMinor:'100',paymentMethod:'Cash',fundingState:'book_recorded',status:'pending_verification',reviewState:'awaiting_review',correctionState:'none',createdAt:new Date('2026-11-03T12:00:00Z')};
 function options(overrides={}) {
   return {
     user:{id:'507f1f77bcf86cd799439012',role:'Mobile Money Operator',permissions:['mobile_money.view','mobile_money.cash_in','mobile_money.cash_out'],branchId:'aaaaaaaaaaaaaaaaaaaaaaaa'},
@@ -39,7 +39,7 @@ test('approved mobile money entry preserves the protected server contract and as
   assert.match(html,/name="_csrf" value="protected-csrf"/);
   assert.match(html,new RegExp(`name="idempotencyKey" value="${requestKey}"`));
   for(const field of ['customer','customerPhone','network','networkReference','customerNote','amount','fee','currency','paymentMethod']) assert.match(html,new RegExp(`name="${field}"`));
-  for(const label of ['Customer and network','Customer phone','Customer name','Network transaction reference','Customer ID / note','Amount and accounts','Configured transaction fee','Physical cash received from customer','Record deposit']) assert.ok(html.includes(label),label);
+  for(const label of ['Customer and network','Customer phone','Customer name','Network transaction reference','Customer ID / note','Amount and accounts','Additional agent service fee','Physical cash received from customer','Record deposit']) assert.ok(html.includes(label),label);
   assert.match(html,/<option value="Africell" data-market-currency=""(?: selected| disabled)*>Africell<\/option>/);
   assert.match(html,/name="paymentMethod" value="Cash"/);
   assert.doesNotMatch(html,/<option value="Wallet Balance">/);
@@ -51,8 +51,8 @@ test('approved mobile money entry preserves the protected server contract and as
   const transactionForm = html.match(/<form[^>]+data-mobile-money-form[\s\S]*?<\/form>/)[0];
   assert.doesNotMatch(transactionForm,/<(?:select|input)[^>]+name="branchId"/);
   assert.doesNotMatch(html,/name="branchId"/);
-  assert.match(html,/Saved records and verification status/);
-  assert.match(html,/pending verification/);
+  assert.match(html,/Recorded operations/);
+  assert.match(html,/Recorded in books/);
   assert.match(html,/Customer &lt;script&gt;/);
   assert.doesNotMatch(html,/Customer <script>/);
 });
@@ -84,7 +84,8 @@ test('network activity and report use supplied totals, retained status, filters 
   for(const header of ['Network','Customer deposits','Customer withdrawals','Transaction volume','Recorded fees (not profit)']) assert.ok(network.includes(`<th>${header}</th>`));
   assert.match(network,/UGX 5,000/);
   assert.match(network,/SMS capture/);
-  assert.match(network,/pending verification/);
+  assert.match(network,/Recorded in books/);
+  assert.match(network,/Network settlement is not independently confirmed/);
   assert.match(network,/network=MTN/);
   assert.match(network,/entrySource=sms/);
   assert.match(network,/cursor=next-key/);
@@ -136,7 +137,7 @@ test('deposit and withdrawal entry displays scoped actual book balances and netw
  const context=options();
  context.data.networksAvailable=[...require('../src/config/mobileNetworks').networks];
  context.operationBranch.currencies=['UGX','SSP'];
- context.data.funds={wallets:[{id:'wa',name:'MTN South Sudan float',kind:'wallet',network:'MTN SSD',currency:'SSP',expected:'SSP 250.00',reconciliation:'matched'}],paymentAccounts:[{id:'ca',name:'Agent drawer',kind:'cash',network:'',currency:'SSP',expected:'SSP 550.00',reconciliation:'matched'}],customerAccounts:[]};
+ context.data.funds={wallets:[{id:'wa',name:'MTN South Sudan float',kind:'wallet',network:'MTN SSD',currency:'SSP',expected:'SSP 250.00',expectedMinor:'25000',state:'active',reconciliation:'matched'}],paymentAccounts:[{id:'ca',name:'Agent drawer',kind:'cash',network:'',currency:'SSP',expected:'SSP 550.00',expectedMinor:'55000',state:'active',reconciliation:'matched'}],customerAccounts:[]};
  const html=await render('entry',context);
  assert.match(html,/data-market-currency="SSP"/);
  assert.match(html,/data-mobile-currency-field/);
@@ -150,8 +151,8 @@ test('deposit and withdrawal entry displays scoped actual book balances and netw
 test('main Mobile Money workspace shows genuine scoped cash and float book balance cards',async()=>{
  const locals=options();
  locals.data.funds={
-  paymentAccounts:[{id:'cash1',kind:'cash',name:'Assigned cash drawer',currency:'UGX',expected:'UGX 120,000',reconciliation:'matched'}],
-  wallets:[{id:'float1',kind:'wallet',name:'MTN Uganda wallet',network:'MTN',currency:'UGX',expected:'UGX 450,000',reconciliation:'matched'}],
+  paymentAccounts:[{id:'cash1',kind:'cash',name:'Assigned cash drawer',currency:'UGX',expected:'UGX 120,000',expectedMinor:'120000',state:'active',reconciliation:'matched'}],
+  wallets:[{id:'float1',kind:'wallet',name:'MTN Uganda wallet',network:'MTN',currency:'UGX',expected:'UGX 450,000',expectedMinor:'450000',state:'active',reconciliation:'matched'}],
   customerAccounts:[]
  };
  locals.data.reviewQueue=[];locals.data.voidQueue=[];locals.data.summary.recent=[];

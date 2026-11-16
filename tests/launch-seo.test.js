@@ -2,7 +2,9 @@
 const test=require('node:test'),assert=require('node:assert/strict'),crypto=require('node:crypto');
 const {spawnSync}=require('node:child_process');
 const seo=require('../src/config/seo'),createApp=require('../src/app'),env=require('../src/config/env');
-const productionEnv=()=>({...process.env,NODE_ENV:'production',APP_URL:'https://fin.example',TRUST_PROXY:'1',SEO_INDEXING_ENABLED:'true',SESSION_SECRET:crypto.randomBytes(48).toString('hex'),MFA_ENCRYPTION_KEY:crypto.randomBytes(32).toString('hex')});
+// The child only renders SEO/catalogue output; it must pass real production
+// configuration validation without contacting or using live MongoDB.
+const productionEnv=()=>({...process.env,NODE_ENV:'production',APP_URL:'https://fin.example',TRUST_PROXY:'1',SEO_INDEXING_ENABLED:'true',SESSION_SECRET:crypto.randomBytes(48).toString('hex'),MFA_ENCRYPTION_KEY:crypto.randomBytes(32).toString('hex'),MONGO_PLATFORM_URI:'mongodb://127.0.0.1:27017/classicfin_isolated_test',PLATFORM_DB_URI:'',MONGO_URI_BASE:''});
 function productionResult(script){const result=spawnSync(process.execPath,['-e',script],{cwd:require('node:path').join(__dirname,'..'),env:productionEnv(),encoding:'utf8'});assert.equal(result.status,0,result.stderr);return JSON.parse(result.stdout);}
 let server,base;
 test.before(async()=>{server=await new Promise(resolve=>{const value=createApp().listen(0,()=>resolve(value));});base='http://127.0.0.1:'+server.address().port;});

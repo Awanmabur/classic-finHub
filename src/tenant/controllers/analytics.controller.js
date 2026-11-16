@@ -1,11 +1,13 @@
 'use strict';
 const service=require('../services/analytics.service');
+const reportTimeZone=require('../services/reportTimeZone.service');
 // Controller is factory-injected with existing dashboard renderer to preserve
 // the application's approved layout and noindex/private caching rules.
 module.exports=function controller({renderTenant}){
  return {
   async index(req,res,next){try{
-   const insights=await service.generate(req.tenantDb,req.tenant,req.user,req.query);
+   const timeZone=await reportTimeZone.forRequest(req);
+   const insights=await service.generate(req.tenantDb,req.tenant,req.user,req.query,new Date(),timeZone);
    res.setHeader('Cache-Control','private, no-store');
    renderTenant(req,res,'analytics/index','Advanced Analytics',
     'Independent operational insights from assigned and subscribed sources.',
@@ -13,7 +15,8 @@ module.exports=function controller({renderTenant}){
      require('../services/moduleAccess.service').hasPermission(req.user,'analytics.export')});
   }catch(e){next(e);}},
   async exportCsv(req,res,next){try{
-   const insights=await service.generate(req.tenantDb,req.tenant,req.user,req.query);
+   const timeZone=await reportTimeZone.forRequest(req);
+   const insights=await service.generate(req.tenantDb,req.tenant,req.user,req.query,new Date(),timeZone);
    res.setHeader('Content-Type','text/csv; charset=utf-8');
    res.setHeader('Content-Disposition','attachment; filename="classicfin-analytics.csv"');
    res.setHeader('Cache-Control','private, no-store');

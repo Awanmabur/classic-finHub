@@ -43,9 +43,43 @@
       label.value=code;
       label.placeholder=needsWallet?'Select a reconciled provider wallet':'Select a network first';
     };
-    provider.addEventListener('change',setMarket);
-    branch?.addEventListener('change',setMarket);
-    marketWallet?.addEventListener('change',setMarket);
+    // Reuse only the amount-band layout. Never reuse another network's fees,
+    // commission, approval, currency, effective date, or provider agreement.
+    let template=null;
+    const copyStatus=draftForm.querySelector('[data-copy-rate-status]');
+    const applyCopy=()=>{
+      if(!template)return;
+      const target=provider.value,targetCurrency=curr.value;
+      const sameMarket=target===template.sourceNetwork;
+      const canReuse=target&&targetCurrency===template.sourceCurrency&&!sameMarket;
+      const ranges=canReuse?template.ranges:[];
+      draftForm.querySelector('[data-rate-editor]')?.dispatchEvent(
+        new CustomEvent('classicfin:copy-bands',{detail:{ranges}}));
+      if(copyStatus){
+        copyStatus.hidden=false;
+        copyStatus.textContent=!target?'Choose a DIFFERENT network, then enter its real published fees and provider evidence.':
+          sameMarket?'Choose another network; the existing provider has its own rates already.':
+          !targetCurrency?'Choose a verified provider wallet to determine the currency.':
+          !canReuse?'Currencies differ. Only the editor structure was copied; enter the target market’s actual amount bands and verified charges.':
+          'Amount ranges copied as an editable layout. ALL provider fees and commissions are blank: enter the target network’s genuine rates and evidence before submitting a new draft.';
+      }
+    };
+    root.querySelectorAll('[data-copy-rate-template]').forEach(button=>button.addEventListener('click',()=>{
+      let ranges=[];try{ranges=JSON.parse(button.dataset.copyRanges||'[]');}catch{return;}
+      if(!Array.isArray(ranges)||ranges.length<1||ranges.length>250||
+         !ranges.every(row=>/^[1-9]\d{0,17}$/.test(String(row.minMinor))&&/^[1-9]\d{0,17}$/.test(String(row.maxMinor))))return;
+      template={ranges,sourceNetwork:button.dataset.copySourceNetwork,sourceCurrency:button.dataset.copySourceCurrency};
+      const advanced=root.querySelector('#technical-rate-settings');if(advanced)advanced.open=true;
+      const formDisclosure=root.querySelector('#network-sheet-form');if(formDisclosure)formDisclosure.open=true;
+      provider.value='';
+      const operation=draftForm.elements.namedItem('operation');if(operation)operation.value=button.dataset.copyOperation;
+      const kind=draftForm.elements.namedItem('scheduleKind');if(kind)kind.value='customer_network_fee';
+      const evidence=draftForm.elements.namedItem('evidenceReference');if(evidence)evidence.value='';
+      setMarket();applyCopy();provider.focus();
+    }));
+    provider.addEventListener('change',()=>{setMarket();applyCopy();});
+    branch?.addEventListener('change',()=>{setMarket();applyCopy();});
+    marketWallet?.addEventListener('change',()=>{setMarket();applyCopy();});
     setMarket();
     root.querySelectorAll('[data-choose-provider]').forEach(link=>link.addEventListener('click',()=>{
       const formDisclosure=root.querySelector('#network-sheet-form');
@@ -64,12 +98,14 @@
     const network=parent?.querySelector('[data-payout-network]');
     const currency=parent?.querySelector('[data-payout-currency]');
     const readOnly=parent?.querySelector('[data-payout-market]');
+    const timeZoneLabel=parent?.querySelector('[data-credit-time-zone]');
     const syncWallet=()=>{
       const option=payoutWallet.selectedOptions[0];
       const chosenNetwork=option?.dataset.network||'';
       const chosenCurrency=option?.dataset.currency||'';
       if(network)network.value=chosenNetwork;
       if(currency)currency.value=chosenCurrency;
+      if(timeZoneLabel)timeZoneLabel.textContent=option?.dataset.timeZone||'Choose receiving wallet';
       if(readOnly)readOnly.textContent=chosenNetwork?chosenNetwork+' · '+chosenCurrency:'Choose a wallet to identify its network and currency';
     };
     payoutWallet.addEventListener('change',syncWallet);
@@ -167,6 +203,14 @@
     original.forEach(line=>{
       const parts=line.split(',').map(x=>x.trim());
       if(parts.length===4)append(parts);
+    });
+    textarea.addEventListener('classicfin:copy-bands',event=>{
+      const ranges=Array.isArray(event.detail?.ranges)?event.detail.ranges:[];
+      tbody.replaceChildren();
+      if(ranges.length){
+        ranges.slice(0,250).forEach(range=>append([String(range.minMinor),String(range.maxMinor),'flat','']));
+      }else append();
+      textarea.value=''; // requires user to enter provider-specific rates explicitly
     });
     if(!tbody.rows.length)append();
     add.addEventListener('click',()=>append());

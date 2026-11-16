@@ -8,36 +8,33 @@ const {model:payoutModel}=require('../pricing/commissionPayoutModels');
 const {hasModuleForUser,hasPermission}=require('./moduleAccess.service');
 const workspace=require('./mobileMoneyWorkspace.service');
 const mobile=require('./mobileMoney.service');
+const businessTime=require('../../utils/businessTime');
 function fail(message,status=400){return Object.assign(new Error(message),{status});}
 const periods=new Set(['today','week','month','quarter','year','custom']);
-function date(value){
- if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value))throw fail('Enter a valid calendar date (YYYY-MM-DD)');
- const parsed=new Date(value+'T00:00:00.000Z');
- if(!Number.isFinite(parsed.getTime())||parsed.toISOString().slice(0,10)!==value)throw fail('Enter a valid calendar date');
- return parsed;
-}
-function periodWindow(input={},now=new Date()){
+function periodWindow(input={},now=new Date(),timeZone='UTC'){
  if(!Number.isFinite(new Date(now).getTime()))throw fail('Invalid report date');
  const period=input.period||((input.from||input.to)?'custom':'today');
  if(!periods.has(period))throw fail('Choose today, week, month, quarter, year or custom');
- const t=new Date(now),year=t.getUTCFullYear(),month=t.getUTCMonth(),day=t.getUTCDate();
+ const today=businessTime.parseDay(businessTime.localDay(now,timeZone));
+ const year=today.getUTCFullYear(),month=today.getUTCMonth(),day=today.getUTCDate();
  const midnight=(y,m,d)=>new Date(Date.UTC(y,m,d));
+ const key=value=>value.toISOString().slice(0,10);
  let start,end;
  if(period==='custom'){
   if(!input.from||!input.to)throw fail('Custom reports require both start and end dates');
-  start=date(input.from);end=date(input.to);
+  try{start=businessTime.parseDay(input.from);end=businessTime.parseDay(input.to);}catch{throw fail('Enter valid calendar dates');}
  }else if(period==='today'){start=midnight(year,month,day);end=start;}
  else if(period==='week'){
-  const today=midnight(year,month,day);
-  start=new Date(today.getTime()-((today.getUTCDay()+6)%7)*86400000);
+  start=midnight(year,month,day);
+  start=new Date(start.getTime()-((start.getUTCDay()+6)%7)*86400000);
   end=new Date(start.getTime()+6*86400000);
  }else if(period==='month'){start=midnight(year,month,1);end=midnight(year,month+1,0);}
  else if(period==='quarter'){const q=Math.floor(month/3)*3;start=midnight(year,q,1);end=midnight(year,q+3,0);}
  else {start=midnight(year,0,1);end=midnight(year,11,31);}
  if(end<start||end.getTime()-start.getTime()>365*86400000)throw fail('Report range must not exceed one calendar year');
- const before=new Date(end.getTime()+86400000);
- return {key:period,from:start.toISOString().slice(0,10),to:end.toISOString().slice(0,10),
-  bounds:{$gte:start,$lt:before}};
+ const from=key(start),to=key(end);
+ const bounds=businessTime.dayBounds({from,to},timeZone,366);
+ return {key:period,from,to,bounds:{$gte:bounds.$gte,$lt:bounds.$lt},timeZone};
 }
 const whole=value=>BigInt(String(value??'0'));
 function blank(network,currency){
@@ -45,7 +42,8 @@ function blank(network,currency){
   pendingReviewCount:0,providerUnverifiedCount:0,voidedCount:0,
   depositMinor:0n,withdrawalMinor:0n,volumeMinor:0n,cashImpactMinor:0n,
   recordedFeeMinor:0n,collectedFeeMinor:0n,legacyWalletFeeMinor:0n,
-  estimatedCommissionMinor:0n,commissionMissingCount:0,customerNetworkChargeEstimateMinor:0n,configuredCostEstimateMinor:0n,receivedCommissionMinor:0n,grossCommissionMinor:0n,
+  estimatedCommissionMinor:0n,commissionMissingCount:0,customerNetworkChargeEstimateMinor:0n,
+  publishedCommissionReferenceMinor:0n,publishedCustomerChargeReferenceMinor:0n,configuredCostEstimateMinor:0n,receivedCommissionMinor:0n,grossCommissionMinor:0n,
   withheldTaxMinor:0n,providerCostMinor:0n};
 }
 const format=(amount,currency)=>mobile.formatMoneyMinor(amount,currency);
@@ -72,7 +70,7 @@ function summarize(transactionGroups,payoutGroups,expenseGroups){
    row[operation==='cash_in'?'depositCount':'withdrawalCount']+=group.count;
    row[entrySource==='sms'?'smsCount':'manualCount']+=group.count;
    if(reviewState==='awaiting_review')row.pendingReviewCount+=group.count;
-   if(status==='pending_verification')row.providerUnverifiedCount+=group.count;
+   if(status==='pending_verification'||status==='recorded')row.providerUnverifiedCount+=group.count;
    row[operation==='cash_in'?'depositMinor':'withdrawalMinor']+=amount;
    row.volumeMinor+=amount;
    row.cashImpactMinor+=whole(group.cashMovementMinor);
@@ -82,6 +80,8 @@ function summarize(transactionGroups,payoutGroups,expenseGroups){
    row.estimatedCommissionMinor+=whole(group.estimatedCommissionMinor);
    row.commissionMissingCount+=group.commissionMissingCount||0;
    row.customerNetworkChargeEstimateMinor+=whole(group.customerNetworkChargeEstimateMinor);
+   row.publishedCommissionReferenceMinor+=whole(group.publishedCommissionReferenceMinor);
+   row.publishedCustomerChargeReferenceMinor+=whole(group.publishedCustomerChargeReferenceMinor);
    row.configuredCostEstimateMinor+=whole(group.configuredCostEstimateMinor);
   }
  }
@@ -101,9 +101,9 @@ function summarize(transactionGroups,payoutGroups,expenseGroups){
   currencies:[...currencies.values()].sort((a,b)=>a.currency.localeCompare(b.currency)).map(renderRow),
   expenses:expenses.sort((a,b)=>a.currency.localeCompare(b.currency))};
 }
-async function generate(conn,tenant,actor,input={}){
+async function generate(conn,tenant,actor,input={},timeZone='UTC'){
  if(!workspace.canReport(actor))throw fail('Mobile Money reporting permission required',403);
- const window=periodWindow(input),scope=workspace.readScope(actor),match={...scope,createdAt:window.bounds};
+ const window=periodWindow(input,new Date(),timeZone),scope=workspace.readScope(actor),match={...scope,createdAt:window.bounds};
  if(input.network){if(!workspace.networks.includes(input.network))throw fail('Unknown network');match.network=input.network;}
  if(input.currency){if(!Object.hasOwn(mobile.currencies,input.currency))throw fail('Unknown currency');match.currency=input.currency;}
  // Each group keeps voids, methods, commissions, and review states distinct.
@@ -117,6 +117,8 @@ async function generate(conn,tenant,actor,input={}){
   estimatedCommissionMinor:{$sum:{$convert:{input:'$agentCommissionEstimate.amountMinor',to:'decimal',onError:0,onNull:0}}},
   commissionMissingCount:{$sum:{$cond:[{$ifNull:['$agentCommissionEstimate.scheduleId',false]},0,1]}},
   customerNetworkChargeEstimateMinor:{$sum:{$convert:{input:'$customerNetworkFeeEstimate.amountMinor',to:'decimal',onError:0,onNull:0}}},
+  publishedCommissionReferenceMinor:{$sum:{$convert:{input:'$agentCommissionPublishedReference.amountMinor',to:'decimal',onError:0,onNull:0}}},
+  publishedCustomerChargeReferenceMinor:{$sum:{$convert:{input:'$customerNetworkChargePublishedReference.amountMinor',to:'decimal',onError:0,onNull:0}}},
   configuredCostEstimateMinor:{$sum:{$convert:{input:'$pricing.costMinor',to:'decimal',onError:0,onNull:0}}}
  }}]).option({maxTimeMS:8000});
  const broad=['Tenant Owner','Reconciliation Officer','Branch Manager','Auditor'].includes(actor.role);
@@ -141,15 +143,15 @@ async function generate(conn,tenant,actor,input={}){
 function csv(report){
  const fields=['Network','Currency','Deposit count','Withdrawal count','Deposit principal','Withdrawal principal',
   'Net physical cash movement','Fees recorded (not income)','Explicitly collected agent fees',
-  'Legacy wallet fee recognition','Estimated agent commission (unreceived)','Transactions without approved agent commission rate','Estimated provider customer network charge','Configured operating cost estimate','Provider commission actually received',
+  'Legacy wallet fee recognition','Estimated agent commission (unreceived)','Transactions without approved agent commission rate','Estimated provider customer network charge (approved sheet)','Published agent commission reference (not a payout)','Published customer network charge (not agent revenue)','Configured operating cost estimate','Provider commission actually received',
   'Provider gross commission','Withheld tax','Provider deductions','Unreviewed records','Provider-unverified records','Voided records'];
  const rows=[fields,...report.networks.map(row=>[
   row.network,row.currency,row.depositCount,row.withdrawalCount,
   row.depositMinor,row.withdrawalMinor,row.cashImpactMinor,row.recordedFeeMinor,row.collectedFeeMinor,
-  row.legacyWalletFeeMinor,row.estimatedCommissionMinor,row.commissionMissingCount,row.customerNetworkChargeEstimateMinor,row.configuredCostEstimateMinor,row.receivedCommissionMinor,
+  row.legacyWalletFeeMinor,row.estimatedCommissionMinor,row.commissionMissingCount,row.customerNetworkChargeEstimateMinor,row.publishedCommissionReferenceMinor,row.publishedCustomerChargeReferenceMinor,row.configuredCostEstimateMinor,row.receivedCommissionMinor,
   row.grossCommissionMinor,row.withheldTaxMinor,row.providerCostMinor,row.pendingReviewCount,row.providerUnverifiedCount,row.voidedCount
  ].map(v=>typeof v==='bigint'?String(v):v)),
- ['Period UTC',report.window.from+' to '+report.window.to],
+ ['Business period ('+report.window.timeZone+')',report.window.from+' to '+report.window.to],
  ['Expenses scope','All approved branch expenses, not allocated by provider'],
  ...report.expenses.map(e=>['Approved expenses '+e.currency,e.amountMinor])
  ];

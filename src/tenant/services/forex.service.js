@@ -256,8 +256,8 @@ async function expireDue(conn,now=new Date(),limit=100){
  }
  return {expiredRates,expiredQuotes};
 }
-async function reportRows({conn,filters,scope}){
- const query={createdAt:mobile.dateBounds({from:filters.from,to:filters.to}),
+async function reportRows({conn,filters,scope,dateRange}){
+ const query={createdAt:dateRange||mobile.dateBounds({from:filters.from,to:filters.to},filters.timeZone||'UTC'),
   ...(scope.branchId?{branchId:new mongoose.Types.ObjectId(id(scope.branchId))}:{}),
   ...(scope.operatorId?{createdBy:new mongoose.Types.ObjectId(id(scope.operatorId))}:{})};
  const found=await forexQuoteModel(conn).aggregate([{$match:query},{$group:{_id:{from:'$fromCurrency',to:'$toCurrency',status:'$status'},

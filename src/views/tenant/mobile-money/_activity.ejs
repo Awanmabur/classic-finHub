@@ -1,10 +1,17 @@
+<% const activityZone=typeof businessTimeZone==='string'?businessTimeZone:'UTC';
+   const activityLocalDate=typeof formatLocalDate==='function'?formatLocalDate:
+    (value=>new Date(value).toISOString().slice(0,16).replace('T',' ')); %>
 <% const mobileActivity = activityRecords || {items:[]}; const activityFilters = data.filters || {}; %>
 <div class="txList">
   <% if(!mobileActivity.items.length){ %><p class="tiny">No mobile money records match this period and these filters.</p><% } %>
   <% mobileActivity.items.forEach(record=>{ %>
     <a class="tx mobileMoneyActivity" href="/tenant/mobile-money/<%= record._id %>" data-search-row>
-      <div class="txLeft"><span class="txDot <%= record.status === 'internally_voided' ? 'bad' : 'warn' %>" aria-hidden="true"></span><div class="txMeta"><b><%= record.operation === 'cash_in' ? 'Deposit' : 'Withdrawal' %> · <%= record.network %> · <%= record.customer %></b><span><%= record.networkReference %><% if(record.customerPhone){ %> · <%= record.customerPhone %><% } %> · <%= new Date(record.createdAt).toISOString().slice(0,16).replace('T',' ') %> UTC</span><span><%= record.entrySource === 'sms' ? 'SMS capture' : 'Manual' %> · <%= (record.reviewState || 'awaiting_review').replaceAll('_',' ') %> · Correction: <%= (record.correctionState || 'none').replaceAll('_',' ') %></span></div></div>
-      <div class="txAmt"><%= money(record.currency,amountFromMinor(record.amountMinor,record.currency)) %><small><%= record.status.replaceAll('_',' ') %></small></div>
+      <div class="txLeft"><span class="txDot <%= record.status === 'voided_internal' ? 'bad' : 'warn' %>" aria-hidden="true"></span><div class="txMeta"><b><%= record.operation === 'cash_in' ? 'Deposit' : 'Withdrawal' %> · <%= record.network %> · <%= record.customer %></b><span><%= record.networkReference %><% if(record.customerPhone){ %> · <%= record.customerPhone %><% } %> · <%= activityLocalDate(record.createdAt) %> <%= activityZone %></span><span><%= record.entrySource === 'sms' ? 'SMS capture' : 'Manual' %> · <%= (record.reviewState || 'awaiting_review').replaceAll('_',' ') %> · Correction: <%= (record.correctionState || 'none').replaceAll('_',' ') %></span></div></div>
+      <div class="txAmt"><%= money(record.currency,amountFromMinor(record.amountMinor,record.currency)) %>
+       <% const agentQuote=record.agentCommissionEstimate||record.agentCommissionPublishedReference;const networkQuote=record.customerNetworkFeeEstimate||record.customerNetworkChargePublishedReference; %>
+       <% if(agentQuote){ %><small><%= record.agentCommissionEstimate?'Commission estimate ':'Commission reference ' %><%= money(record.currency,amountFromMinor(agentQuote.amountMinor,record.currency)) %></small><% } %>
+       <% if(networkQuote){ %><small><%= record.customerNetworkFeeEstimate?'Network fee estimate ':'Network fee reference ' %><%= money(record.currency,amountFromMinor(networkQuote.amountMinor,record.currency)) %></small><% } %>
+       <small><%= record.status==='voided_internal'?'Voided internally':record.fundingState==='book_recorded'?'Recorded in books':record.status==='recorded'?'Recorded':record.status==='pending_verification'?'Historical entry · review evidence':record.status.replaceAll('_',' ') %></small></div>
     </a>
   <% }) %>
 </div>

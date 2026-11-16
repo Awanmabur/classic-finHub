@@ -3,6 +3,7 @@
 // cash. Full reports and review queues are built on their own pages only.
 const {hasModuleForUser,hasPermission}=require('./moduleAccess.service');
 const snapshot=require('./workspaceSnapshot.service');
+const businessTime=require('../../utils/businessTime');
 // Never add currencies together or use today transaction volume as a balance.
 // Only real funds books with approved openings contribute to these totals.
 function groupedBookTotals(accounts=[]){
@@ -42,7 +43,17 @@ async function overview(conn,tenant,user,options={}){
  const mobileMarket=mobileMarkets[0]||null;
  // Use the provider's actual currency in Mobile Money, independently of the
  // currency selected for unrelated Money Transfer, Banking and Forex cards.
- const overviewOptions={...options,mobileMarket};
+ const overviewOptions={...options,mobileMarket,
+  timeZone:businessTime.forBranch(options.viewBranch||options.operationBranch)};
+ if(options.viewBranchId==='all'){
+  // The trusted branch-view middleware already resolved active branches.
+  // Reuse its read-only list rather than making an extra database query.
+  const zones=[...new Set((options.viewBranches||[]).map(branch=>businessTime.forBranch(branch)))];
+  // No single local 'today' exists across branches in different timezones.
+  // Keep the dashboard responsive, but never fabricate a comparable daily total.
+  if(zones.length>1)overviewOptions.suppressTodayVolumes=true;
+  else if(zones.length===1)overviewOptions.timeZone=zones[0];
+ }
  // The first configured Mobile Money market is the default viewing currency
  // even when this tenant also subscribes to Money Transfer or other modules.
  // An explicit user-selected dashboard currency still wins for those modules;

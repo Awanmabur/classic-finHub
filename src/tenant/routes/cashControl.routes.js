@@ -12,8 +12,15 @@ module.exports=({renderTenant})=>{
    const [shifts,branches]=await Promise.all([cash.list(req.tenantDb,req.tenant,req.user,{cursor:req.query.cursor}),require('../services/branch.service').list(req.tenant)]);
    const operators=await require('../models').tenantUserModel(req.tenantDb).find({_id:{$in:shifts.items.map(row=>row.operatorId)}}).select('_id name').lean();
    const currencyPolicy=require('../services/branchCurrency.service'),branch=req.operationBranch;
+   // Never derive physical cash from a form. Show only verified, reconciled
+   // drawers owned by this operator; the POST re-reads the current ledger.
+   const openingBooks=branch&&cash.opener(req.user)?await require('../treasury/models').models(req.tenantDb).account.find({
+     tenantId:req.tenant._id,branchId:branch._id,kind:'cash',operatorId:req.user.id,
+     currency:{$in:currencyPolicy.supported(branch)},status:'active',
+     openingApprovedAt:{$ne:null},reconciliationState:'matched'
+   }).select('_id currency name bookBalanceMinor').sort({currency:1}).limit(10).lean():[];
    renderTenant(req,res,'mobile-money/shifts','Cash control review','Opening counts, fund balances and independent physical reconciliation.',{shifts,branches,
-    currencyOptions:branch?currencyPolicy.options(branch):[],selectedCurrency:branch?(currencyPolicy.supports(branch,req.query.currency)?req.query.currency:branch.currency):null,
+    openingBooks,currencyOptions:branch?currencyPolicy.options(branch):[],selectedCurrency:branch?(currencyPolicy.supports(branch,req.query.currency)?req.query.currency:branch.currency):null,
     branchNames:Object.fromEntries(branches.map(row=>[String(row._id),row.name])),operatorNames:Object.fromEntries(operators.map(row=>[String(row._id),row.name])),canOpen:cash.opener(req.user),canReview:cash.reviewer(req.user)});
   }catch(error){next(error);}
  });

@@ -30,7 +30,8 @@ test('agent transaction shows confirmed-rate estimates separately from configure
  assert.match(template,/data-mobile-provider-charge/);
  assert.match(template,/include\('\.\.\/partials\/operation-pricing'/);
  assert.match(quoteJs,/\/tenant\/mobile-money\/quote/);
- assert.match(quoteJs,/Not configured — request approved agent rate sheet/);
+ assert.match(quoteJs,/const hasCommission=Boolean\(data\.agentCommission\?\.amount\)/);
+ assert.match(quoteJs,/area\.hidden=true/);
  assert.doesNotThrow(()=>new Function(quoteJs));
  const routes=source('src/tenant/routes/mobileMoneyWorkspace.routes.js');
  const quote=routes.slice(routes.indexOf("router.get('/quote'"),routes.indexOf("router.get('/cash-in'"));
@@ -73,7 +74,13 @@ test('cash opening remains a real audited and independently reviewed action',()=
  const template=source('src/views/tenant/mobile-money/shifts.ejs');
  const routes=source('src/tenant/routes/cashControl.routes.js');
  const main=source('src/views/tenant/dashboard/index.ejs');
- assert.match(template,/name="openingCash"/);
+ assert.match(template,/name="openingFromBook" value="on"/);
+ assert.match(template,/name="physicalCountConfirmed" value="on"/);
+ assert.doesNotMatch(template,/name="openingCash"/,'do not duplicate the verified book amount');
+ const drawer=require('node:fs').readFileSync(path.join(root,'src/tenant/services/cashDrawer.service.js'),'utf8');
+ assert.match(drawer,/openingFromBook==='on'/);
+ assert.match(drawer,/physicalCountConfirmed!=='on'/);
+ assert.match(drawer,/assertBookIntegrity/);
  assert.match(template,/action="\/tenant\/day\/open"/);
  assert.match(routes,/router\.post\('\/day\/open'/);
  assert.match(main,/visiblePaths\.has\('\/tenant\/cash\/shifts'\)/);

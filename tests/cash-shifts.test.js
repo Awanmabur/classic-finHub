@@ -68,12 +68,22 @@ test('cash shift views have real server-backed actions and escape notes',async()
   reviewNote:'<script>alert(1)</script>',closeHistory:[{at:new Date(),declaredMinor:'9000',expectedMinor:'10000',varianceMinor:'-1000',note:'Cash short during shift'}]};
  const base=path.join(__dirname,'../src/views/tenant/mobile-money');
  const rendered=await ejs.renderFile(path.join(base,'shifts.ejs'),{formatMoneyMinor:mobile.formatMoneyMinor,data:{shifts:{items:[item],nextCursor:'a-valid-token'},canOpen:true,
-  canReview:true,branches:[{_id:branchId,currency:'UGX',name:'Main',status:'active'}]},user:{role:'Tenant Owner',branchId},csrfToken:'csrf'});
- assert.match(rendered,/action="\/tenant\/day\/open"/);assert.match(rendered,/href="\/tenant\/cash\/shifts\?cursor=/);assert.match(rendered,/Next page/);assert.match(rendered,/name="_csrf" value="csrf"/);
+  canReview:true,openingBooks:[{currency:'UGX',name:'Main Cash Drawer',bookBalanceMinor:'10000'}],
+  branches:[{_id:branchId,currency:'UGX',name:'Main',status:'active'}]},user:{role:'Tenant Owner',branchId},csrfToken:'csrf'});
+ assert.match(rendered,/action="\/tenant\/day\/open"/);assert.match(rendered,/name="openingFromBook" value="on"/);
+ assert.match(rendered,/name="physicalCountConfirmed" value="on"/);
+ assert.doesNotMatch(rendered,/name="openingCash"/);
+ assert.match(rendered,/href="\/tenant\/cash\/shifts\?cursor=/);assert.match(rendered,/Next page/);assert.match(rendered,/name="_csrf" value="csrf"/);
  const detail=await ejs.renderFile(path.join(base,'shift-detail.ejs'),{formatMoneyMinor:mobile.formatMoneyMinor,data:{shift:item,canSubmit:false,canReview:true},csrfToken:'csrf'});
  assert.match(detail,/name="decision" value="approve"/);assert.doesNotMatch(detail,/<script>/);assert.match(detail,/&lt;script&gt;/);
  const noActions=await ejs.renderFile(path.join(base,'shift-detail.ejs'),{formatMoneyMinor:mobile.formatMoneyMinor,data:{shift:item,canSubmit:false,canReview:false},csrfToken:'csrf'});
  assert.doesNotMatch(noActions,/name="decision"|name="countedCash"/);
+ const openShift={...item,status:'open',submittedAt:null};
+ const openView=await ejs.renderFile(path.join(base,'shift-detail.ejs'),{formatMoneyMinor:mobile.formatMoneyMinor,data:{shift:openShift,canSubmit:true,canReview:false},csrfToken:'csrf'});
+ assert.match(openView,/name="closingFromBook" value="on"/);
+ assert.match(openView,/name="physicalCountConfirmed" value="on"/);
+ assert.match(openView,/Cash differs from the system amount/);
+ assert.match(openView,/name="countedCash"/,'real discrepancies must still be possible');
  const ack=await ejs.renderFile(path.join(base,'acknowledgement.ejs'),{record:{_id:shiftId,createdAt:new Date(),operation:'cash_in',network:'MTN',networkReference:'REF-123',
   customer:'<script>alert(1)</script>',status:'pending_verification',reviewState:'accepted',correctionState:'none'},
   amount:'UGX 10000',fee:'UGX 0',reference:'CFH-ACK-TEST'});
@@ -92,7 +102,7 @@ test('independent opening approval and variance review enforce role and branch b
  const audits={createIndexes:async()=>{},create:async(entries,opts)=>{assert(opts.session);actions.push(entries[0]);}};
  const models={SecureTenantUser:noop,SecureStaffInvite:noop,SecureBranch:noop,SecureCashSession:shifts,
    SecureMobileTransaction:noop,SecureAuditEvent:audits,LedgerAccountV2:noop,LedgerJournalV2:noop,LedgerPostingV2:noop,
-   FinancialOperationV1:noop,VerifiedFinancialEvidenceV1:noop,FinancialExceptionV1:noop,TransferContactV1:noop,TransferOrderV1:noop,BankReferenceV1:noop,BankingRequestV1:noop,ForexRateV1:noop,ForexQuoteV1:noop,ApprovalPolicyV1:noop,ApprovalRequestV1:noop,NotificationMessageV1:noop,NotificationTemplateV1:noop,NotificationPreferenceV1:noop,SmsInboxV1:noop,TransferSmsDeliveryV1:noop};
+   FinancialOperationV1:noop,VerifiedFinancialEvidenceV1:noop,FinancialExceptionV1:noop,TransferContactV1:noop,TransferOrderV1:noop,BankReferenceV1:noop,BankingRequestV1:noop,ForexRateV1:noop,ForexQuoteV1:noop,ApprovalPolicyV1:noop,ApprovalRequestV1:noop,NotificationMessageV1:noop,RiskAlertDispatchCursorV1:noop,NotificationTemplateV1:noop,NotificationPreferenceV1:noop,SmsInboxV1:noop,TransferSmsDeliveryV1:noop};
  const conn={models,startSession:async()=>({withTransaction:async fn=>fn(),endSession:async()=>{}})};
  const manager={id:id(),branchId,role:'Branch Manager',allowedModules:['mobile_money']};
  await assert.rejects(cash.decideOpening(conn,tenant,{...manager,id:operatorId},shiftId,{decision:'approve',note:'Self verification forbidden'}),{status:409});

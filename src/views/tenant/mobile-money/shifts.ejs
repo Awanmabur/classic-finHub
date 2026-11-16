@@ -1,30 +1,61 @@
+<% const regionalZone=typeof businessTimeZone==='string'?businessTimeZone:'UTC';
+ const regionalTime=typeof formatLocalDate==='function'?formatLocalDate:(v=>new Date(v).toISOString()); %>
 <% const cashLabel=(value,currency)=>typeof formatMoneyMinor==='function'?formatMoneyMinor(value,currency):money(currency,amountFromMinor(value,currency)); %>
 <% const currentBranch = typeof operationBranch !== 'undefined' ? operationBranch : (data.branches || []).find(b => String(b._id) === String(user.transactionBranchId || user.branchId || data.selectedBranchId || '') && b.status !== 'archived');
    const currentBranchId = currentBranch ? String(currentBranch._id) : null;
-   const branchProblem = typeof operationBranchError === 'string' && operationBranchError ? operationBranchError : 'An active operating branch must be assigned to your account before creating records.'; %>
+   const branchProblem = typeof operationBranchError === 'string' && operationBranchError ? operationBranchError : 'An active operating branch must be assigned to your account before creating records.';
+   const selectedShiftCurrency=data.selectedCurrency||currentBranch?.currency||'';
+   const unfinishedShift=(data.shifts?.items||[]).find(shift=>String(shift.operatorId)===String(user.id)&&String(shift.branchId)===String(currentBranchId)&&shift.currency===selectedShiftCurrency&&['pending_open','open','submitted','disputed'].includes(shift.status));
+   const shiftStateLabel=state=>({pending_open:'Opening count needs verification',open:'Open · recording',submitted:'Closing count awaiting review',approved:'Closed and reconciled',opening_rejected:'Opening rejected',disputed:'Count disputed'})[state]||String(state).replaceAll('_',' '); %>
 <section class="view show">
  <%- include('../../partials/operation-branch', {currentBranch, branchProblem, user}) %>
   <section class="card">
     <div class="cardHead"><b>Physical cash reconciliation</b><span>Per operator · branch · currency</span></div>
     <div class="cardBody">
-      <p class="tiny">An independent supervisor verifies the opening count. The expected drawer includes posted cash movements from mobile money, banking, forex, transfers and expenses, including explicitly collected cash fees. Compare it with the physical count before closing.</p>
-      <% if(data.canOpen && currentBranch){ %>
-      <form method="post" action="/tenant/day/open" data-cash-open-form>
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-
-        <div class="formSection"><div class="formSectionTitle">Opening drawer by currency</div><div class="row2"><label class="field">Currency<select class="control" name="currency" required><% (data.currencyOptions||((typeof currencyOptions!=='undefined'?currencyOptions:[{code:'UGX',label:'UGX'},{code:'USD',label:'USD'},{code:'SSP',label:'SSP'},{code:'KES',label:'KSH'}]).filter(option=>(currentBranch.currencies||['UGX','USD','SSP','KES']).includes(option.code)))).forEach(option=>{ %><option value="<%= option.code %>" <%= option.code===(data.selectedCurrency||currentBranch.currency)?'selected':'' %>><%= option.label %></option><% }) %></select></label><label class="field">Counted opening cash<input class="control" name="openingCash" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" required placeholder="0"></label></div></div>
-        <div class="rowBtns"><button class="btn btnPrimary" type="submit">Open day with these balances</button></div>
-      </form>
+      <p class="tiny">Start a cash shift only when taking responsibility for real physical cash. Count the existing notes and coins in your assigned drawer; opening a shift never creates or adds money. A different authorized person verifies the opening count.</p>
+      <details class="logicNote"><summary>What do the cash control amounts mean?</summary>
+       <p><b>Cash drawer:</b> Your assigned physical cash account, not the provider's electronic float.</p>
+       <p><b>Opening cash:</b> Physical money counted at the start, checked against the existing cash book.</p>
+       <p><b>Cash movement:</b> Deposits increase cash; withdrawals and paid expenses decrease it.</p>
+       <p><b>Expected closing:</b> Opening count plus posted cash movements, not commission estimates.</p>
+       <p><b>Count variance:</b> The difference between real closing cash and the expected cash. A supervisor reviews it.</p>
+      </details>
+      <% if(data.canOpen&&currentBranch){ %>
+      <% const books=data.openingBooks||[]; %>
+      <% if(books.length){ %>
+       <% books.forEach(account=>{const existing=(data.shifts?.items||[]).find(shift=>String(shift.operatorId)===String(user.id)&&String(shift.branchId)===String(currentBranchId)&&shift.currency===account.currency&&['pending_open','open','submitted','disputed'].includes(shift.status)); %>
+       <div class="summary">
+        <div class="sumRow"><span><%= account.name %> · <%= account.currency==='KES'?'KSH':account.currency %></span><b><%= cashLabel(account.bookBalanceMinor,account.currency) %></b></div>
+       </div>
+       <% if(existing){ %>
+        <a class="btn" href="/tenant/cash/shifts/<%= existing._id %>">Continue current <%= account.currency %> shift</a>
+       <% }else{ %>
+        <form method="post" action="/tenant/day/open" data-cash-open-form>
+         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+         <input type="hidden" name="currency" value="<%= account.currency %>">
+         <input type="hidden" name="openingFromBook" value="on">
+         <label class="field"><input type="checkbox" name="physicalCountConfirmed" value="on" required> I counted my physical <%= account.currency %> cash and it matches the displayed book balance.</label>
+         <div class="rowBtns"><button class="btn btnPrimary" type="submit">Start <%= account.currency %> shift</button></div>
+        </form>
+       <% } %>
+       <% }) %>
+      <% }else if(unfinishedShift){ %>
+       <p class="tiny">Your existing shift is available below; you do not need to open another one.</p>
+       <a class="btn" href="/tenant/cash/shifts/<%= unfinishedShift._id %>">View current shift</a>
+      <% }else{ %>
+       <p class="tiny">No active reconciled physical cash drawer is assigned to your operator account. Open and verify a real cash account in Treasury first; do not enter an invented starting amount.</p>
+       <a class="btn" href="/tenant/treasury">Prepare cash drawer</a>
+      <% } %>
       <% } %>
     </div>
   </section>
   <section class="card" style="margin-top:14px">
     <div class="cardHead"><b>Cash shift history</b><span>Chronological history, scoped to your access</span></div>
-    <div class="cardBody tableWrap"><table><thead><tr><th>Opened (UTC)</th><th>Branch</th><th>Operator</th><th>Status</th><th>Currency</th><th>Opening cash</th><th>Records</th><th>Details</th></tr></thead><tbody>
+    <div class="cardBody tableWrap"><table><thead><tr><th>Opened (local)</th><th>Branch</th><th>Operator</th><th>Status</th><th>Currency</th><th>Opening cash</th><th>Records</th><th>Details</th></tr></thead><tbody>
       <% if(!data.shifts.items.length){ %><tr><td colspan="8">No cash shifts in your permitted scope.</td></tr><% } %>
       <% data.shifts.items.forEach(shift=>{ %><tr data-search-row>
-        <td><%= new Date(shift.createdAt).toISOString() %></td><td><%= data.branchNames?.[String(shift.branchId)] || shift.branchId %></td><td><%= data.operatorNames?.[String(shift.operatorId)] || shift.operatorId %></td>
-        <td><span class="tag"><%= shift.status %></span></td><td><%= shift.currency %></td>
+        <td><%= regionalTime(shift.createdAt,shift.branchId) %></td><td><%= data.branchNames?.[String(shift.branchId)] || shift.branchId %></td><td><%= data.operatorNames?.[String(shift.operatorId)] || shift.operatorId %></td>
+        <td><span class="tag"><%= shiftStateLabel(shift.status) %></span></td><td><%= shift.currency %></td>
         <td><%= cashLabel(shift.openingMinor,shift.currency) %></td><td><%= shift.recordCount %></td>
         <td><a class="btn" href="/tenant/cash/shifts/<%= shift._id %>">View shift</a></td>
       </tr><% }) %>

@@ -1,7 +1,8 @@
+<% const insightsZone=typeof businessTimeZone==='string'?businessTimeZone:'UTC'; %>
 <section class="view show">
   <section class="card"><div class="cardHead"><b>Advanced operational analytics</b><span>Independently subscribed · authorization checked per source</span></div>
     <div class="cardBody"><form method="get" action="/tenant/analytics" class="row3">
-      <label class="field">Comparison window (UTC)<select class="control" name="days">
+      <label class="field">Comparison window (local)<select class="control" name="days">
         <% [7,14,30].forEach(n=>{ %><option value="<%= n %>" <%= data.insights.filters.days===n?'selected':'' %>>Last <%= n %> days vs preceding <%= n %> days</option><% }) %>
       </select></label>
       <label class="field">Permitted source<select class="control" name="source">
@@ -9,11 +10,11 @@
         <% data.insights.sources.forEach(s=>{ %><option value="<%= s.key %>" <%= data.insights.filters.source===s.key?'selected':'' %>><%= s.label %></option><% }) %>
       </select></label>
       <div class="rowBtns"><button class="btn btnPrimary" type="submit">Compare periods</button><a class="btn" href="/tenant/analytics">Reset</a></div>
-    </form><p class="tiny">Current: <%= data.insights.from %> to <%= data.insights.to %> · Previous: <%= data.insights.previousFrom %> to <%= data.insights.previousTo %> (UTC)</p></div>
+    </form><p class="tiny">Current: <%= data.insights.from %> to <%= data.insights.to %> · Previous: <%= data.insights.previousFrom %> to <%= data.insights.previousTo %> (<%= insightsZone %>)</p></div>
   </section>
   <div class="grid3" style="margin-top:14px">
     <div class="stat"><div class="k">Available source assignments</div><div class="v"><%= data.insights.sources.length %></div><div class="s"><span class="dot"></span>Analytics entitlement required</div></div>
-    <div class="stat"><div class="k">Comparison period</div><div class="v"><%= data.insights.filters.days %> days</div><div class="s"><span class="dot"></span>Complete UTC days only</div></div>
+    <div class="stat"><div class="k">Comparison period</div><div class="v"><%= data.insights.filters.days %> days</div><div class="s"><span class="dot"></span>Complete local business days only</div></div>
     <div class="stat"><div class="k">Export access</div><div class="v"><%= data.canExport?'CSV':'View only' %></div><div class="s"><span class="dot warn"></span>Aggregate counts only</div></div>
   </div>
   <section class="card" style="margin-top:14px"><div class="cardHead"><b>Period-over-period comparisons</b><span>Recorded activity, not money movement</span>
@@ -24,7 +25,7 @@
   </tbody></table></div></section>
   <% if(data.insights.workspaceTrend.length){ %>
     <section class="card" style="margin-top:14px"><div class="cardHead"><b>Daily workspace audit activity</b><span>Counts of logged events, not total financial transactions</span></div>
-      <div class="cardBody"><div class="tableWrap"><table><thead><tr><th>Date (UTC)</th><th>Audit events</th><th>Relative volume</th></tr></thead><tbody>
+      <div class="cardBody"><div class="tableWrap"><table><thead><tr><th>Date (local)</th><th>Audit events</th><th>Relative volume</th></tr></thead><tbody>
         <% data.insights.workspaceTrend.forEach(d=>{ %><tr><td><%= d.date %></td><td><%= d.count %></td><td style="min-width:120px"><div style="background:currentColor;opacity:.55;height:7px;width:<%= d.percent %>%;max-width:100%;border-radius:4px" role="img" aria-label="<%= d.count %> logged events"></div></td></tr><% }) %>
       </tbody></table></div></div>
     </section>

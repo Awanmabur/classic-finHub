@@ -7,7 +7,7 @@
       <% data.networks.forEach(network=>{ %><tr data-search-row><td><%= network.network==='MTN SSD'?'MTN MoMo South Sudan':network.network==='MTN'?'MTN MoMo Uganda':network.network %> · <%= network.currency %></td><td><%= network.cashInCount %></td><td><%= network.cashOutCount %></td><td><%= network.formatted.volume %></td><td><%= network.formatted.fees %></td></tr><% }) %>
     </tbody></table></div>
     <%- include('_activity',{activityRecords:data.records,activityPath:'/tenant/mobile-money/network-activity'}) %>
-    <p class="tiny">Totals cover active records in the selected period. Voided originals remain in the activity trail. Provider settlement remains pending verification.</p>
+    <p class="tiny">Totals cover active records in the selected period. Voided originals remain in the activity trail. Network settlement is not independently confirmed in FinHub; internal cash and float records are posted separately.</p>
   </div></section>
 
 <% if(data.funds){const accounts=[...(data.funds.paymentAccounts||[]).filter(a=>a.kind==='cash'),...(data.funds.wallets||[])]; %>

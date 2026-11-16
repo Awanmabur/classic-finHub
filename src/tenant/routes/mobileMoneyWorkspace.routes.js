@@ -5,12 +5,15 @@ const requireModule=require('../../middleware/requireModule');
 const {hasPermission}=require('../services/moduleAccess.service');
 const branchService=require('../services/branch.service');
 const workspace=require('../services/mobileMoneyWorkspace.service');
+const businessTime=require('../../utils/businessTime');
+const reportTimeZone=require('../services/reportTimeZone.service');
 module.exports=function routes({renderTenant}){
  const router=require('express').Router();
  router.use(requireModule('mobile_money'),requirePermission('mobile_money.view'));
  async function render(req,res,next,{view,title,subtitle,operation,report=false}){
   try{
    if(report&&!workspace.canReport(req.user))return res.status(403).send('Mobile money report permission is required.');
+   const reportZone=operation?businessTime.forBranch(req.operationBranch):await reportTimeZone.forRequest(req);
    const funds=req.operationBranch?await require('../services/mobileMoneyFunds.service').context(
     req.tenantDb,req.tenant,req.user,req.operationBranch):null;
    const market=require('../services/mobileMoneyMarket.service');
@@ -18,9 +21,9 @@ module.exports=function routes({renderTenant}){
    const marketOptions=market.markets(realWallets);
    const filters=market.withDefaultFilters(req.query,realWallets);
    const reportData=report?await require('../services/mobileMoneyUnifiedReport.service').generate(
-    req.tenantDb,req.tenant,req.user,filters):null;
+    req.tenantDb,req.tenant,req.user,filters,reportZone):null;
    const [data,branches,pricingContext]=await Promise.all([
-    workspace.workspace(req.tenantDb,req.user,report?{}:filters,{operation}),branchService.list(req.tenant),
+    workspace.workspace(req.tenantDb,req.user,report?{}:filters,{operation,timeZone:reportZone}),branchService.list(req.tenant),
     operation?require('../pricing/presentation').context(req.tenantDb,req.tenant,req.operationBranch,'mobile_money'):[]
    ]);
    const commissionReceived=view==='network'&&hasPermission(req.user,'treasury.view')?
@@ -117,13 +120,16 @@ module.exports=function routes({renderTenant}){
    const customerNetworkCharge=quotes.customerNetworkFeeEstimate?
     {amount:fmt(quotes.customerNetworkFeeEstimate.amountMinor,currency),
      version:quotes.customerNetworkFeeEstimate.version,status:'estimate_only',source:'approved_tenant_sheet'}:
-    networkReference?.customerFeeMinor!=null&&networkReference.status==='published_reference'?
+    networkReference?.customerFeeMinor!=null&&['published_reference','historical_source_unverified'].includes(networkReference.status)?
     {amount:fmt(networkReference.customerFeeMinor,currency),
-     status:'reference_only',source:'published_reference'}:null;
+     status:networkReference.status==='published_reference'?'reference_only':'historical_unverified',
+     source:networkReference.status==='published_reference'?'published_reference':'historical_reference'}:null;
    res.set('Cache-Control','private, no-store').json({
     network,currency,operation,agentCommission,customerNetworkCharge,
-    note:agentCommission?.source==='published_reference'||customerNetworkCharge?.source==='published_reference'?
-      'Published provider reference only, not an approved tenant rate or guaranteed agent payout. Have the Tenant Owner configure these bands for independent approval before expecting commission estimates on saved transactions. No additional customer charge, funds or income is posted.':
+    note:customerNetworkCharge?.source==='historical_reference'?
+      'This provider table contains historical rates. Confirm the current provider fee before relying on this amount; it is reference only and never posted as income.':
+     agentCommission?.source==='published_reference'||customerNetworkCharge?.source==='published_reference'?
+      'Published provider reference only, not an approved tenant rate or guaranteed agent payout. The tenant owner can authorize these existing rates for branch estimates without entering them again. No additional customer charge, funds or income is posted.':
       'Rates from independently approved tenant schedules are estimates. The provider must separately confirm the actual payout; no customer fee or commission income is posted automatically.'
    });
   }catch(e){next(e);}
@@ -140,8 +146,9 @@ module.exports=function routes({renderTenant}){
    const service=require('../services/mobileMoneyUnifiedReport.service');
    const funds=req.operationBranch?await require('../services/mobileMoneyFunds.service').context(
     req.tenantDb,req.tenant,req.user,req.operationBranch):null;
+   const reportZone=await reportTimeZone.forRequest(req);
    const report=await service.generate(req.tenantDb,req.tenant,req.user,
-    require('../services/mobileMoneyMarket.service').withDefaultFilters(req.query,funds?.wallets||[]));
+    require('../services/mobileMoneyMarket.service').withDefaultFilters(req.query,funds?.wallets||[]),reportZone);
    res.set({'Content-Type':'text/csv; charset=utf-8',
     'Content-Disposition':`attachment; filename="mobile-money-unified-${report.window.from}-${report.window.to}.csv"`,
     'Cache-Control':'private, no-store'});
@@ -150,7 +157,8 @@ module.exports=function routes({renderTenant}){
  });
  router.get('/report/export.csv',async(req,res,next)=>{
   try{
-   const result=await workspace.exportCsv(req.tenantDb,req.user,req.query);
+   const reportZone=await reportTimeZone.forRequest(req);
+   const result=await workspace.exportCsv(req.tenantDb,req.user,req.query,reportZone);
    res.set({'Content-Type':'text/csv; charset=utf-8','Content-Disposition':`attachment; filename="mobile-money-${result.filters.from}-${result.filters.to}.csv"`,'Cache-Control':'private, no-store'});
    res.send(result.csv);
   }catch(error){next(error);}

@@ -2,6 +2,7 @@
 const routerFactory=require('express').Router;
 const requirePermission=require('../../middleware/requirePermission');
 const workspace=require('../services/operationWorkspace.service');
+const reportTimeZone=require('../services/reportTimeZone.service');
 const specs=Object.freeze({
  money_transfer:{recordTitle:'Money transfer record',reportTitle:'Transfer report summary',forms:[['/send','Send money / Generate PIN','']]},
  banking:{recordTitle:'Account movements',reportTitle:'Banking report summary',forms:[['/deposit','Deposit','deposit_request'],['/withdraw','Withdraw','withdrawal_request'],['/transfer','Account transfer','transfer_request']]},
@@ -12,9 +13,10 @@ module.exports=function operationWorkspaceRoutes({renderTenant,moduleKey}){
  router.use(requirePermission(`${moduleKey}.view`));
  const render=async(req,res,next,view,title,options={})=>{
   try{
-   const data=await workspace.report(req.tenantDb,req.tenant,req.user,moduleKey,req.query);
+   const timeZone=await reportTimeZone.forRequest(req);
+   const data=await workspace.report(req.tenantDb,req.tenant,req.user,moduleKey,req.query,timeZone);
    Object.assign(data,{basePath:`/tenant/${definition.path}`,title,...options});
-   if(options.records)data.records=await workspace.records(req.tenantDb,req.tenant,req.user,moduleKey,req.query);
+   if(options.records)data.records=await workspace.records(req.tenantDb,req.tenant,req.user,moduleKey,req.query,timeZone);
    renderTenant(req,res,`${definition.path}/${view}`,title,'Filter and review records in your authorized workspace.',data);
   }catch(error){next(error);}
  };
@@ -31,7 +33,8 @@ module.exports=function operationWorkspaceRoutes({renderTenant,moduleKey}){
  router.get('/report',(req,res,next)=>render(req,res,next,'workspace',spec.reportTitle,{mode:'report'}));
  router.get('/report/export.csv',async(req,res,next)=>{
   try{
-   const report=await workspace.report(req.tenantDb,req.tenant,req.user,moduleKey,req.query);
+   const timeZone=await reportTimeZone.forRequest(req);
+   const report=await workspace.report(req.tenantDb,req.tenant,req.user,moduleKey,req.query,timeZone);
    if(!report.canExport)throw workspace.fail('Report export permission required',403);
    res.setHeader('Cache-Control','private, no-store');
    res.attachment(`${definition.path}-report-${report.filters.from}-${report.filters.to}.csv`).type('text/csv').send(workspace.csv(report));
@@ -43,8 +46,9 @@ module.exports=function operationWorkspaceRoutes({renderTenant,moduleKey}){
    // Only independently reviewed collections are eligible for manual PIN payout.
    try{
     const filters={...req.query,status:'collected_manual'};
-    const data=await workspace.report(req.tenantDb,req.tenant,req.user,moduleKey,filters);
-    data.records=await workspace.records(req.tenantDb,req.tenant,req.user,moduleKey,filters);
+    const timeZone=await reportTimeZone.forRequest(req);
+    const data=await workspace.report(req.tenantDb,req.tenant,req.user,moduleKey,filters,timeZone);
+    data.records=await workspace.records(req.tenantDb,req.tenant,req.user,moduleKey,filters,timeZone);
     Object.assign(data,{basePath:'/tenant/money-transfer',title:'Pending payout queue',mode:'pending'});
     renderTenant(req,res,'money-transfer/workspace',data.title,'Independently reviewed manual collections awaiting receiver verification and payout.',data);
    }catch(error){next(error);}

@@ -11,6 +11,8 @@ const UsageCounter=require('../../platform/models/UsageCounter');
 const { hasPermission,hasModuleForUser } = require('../services/moduleAccess.service');
 const branchService=require('../services/branch.service');
 const phoneCountry=require('../../utils/phoneCountry');
+const businessTime=require('../../utils/businessTime');
+const reportTimeZone=require('../services/reportTimeZone.service');
 const staffService=require('../services/staff.service');
 const staffPolicy=require('../services/staffPolicy');
 router.use(require('./offline.routes'));
@@ -38,7 +40,15 @@ function renderTenant(req, res, view, pageTitle, pageSub, data) {
   res.render('layouts/dashboard', {
     context:'tenant', offlineIdentity:require('../services/offlineIdentity')(req), offlineContext:require('../services/offlineIdentity').context(req,res.locals.phoneDefaults), offlineCacheable:req.method==='GET', currentPath:tenantNavigationPath(req.baseUrl + req.path), pageTitle, pageSub,
     tenant:{...req.tenant,name:req.workspaceIdentity?.name||req.tenant.name}, user:req.user, menu:tenantMenu(req.tenant,req.user),
-    view:`../tenant/${view}`, data, flash:consumeFlash(req), money, formatUtcDate, amountFromMinor:mobile.fromMinor
+    view:`../tenant/${view}`, data, flash:consumeFlash(req), money, formatUtcDate,
+    businessTimeZone:businessTime.forBranch(req.viewBranch||req.operationBranch),
+    businessToday:businessTime.localDay(new Date(),businessTime.forBranch(req.viewBranch||req.operationBranch)),
+    businessTimeZoneForBranch:businessTime.forBranch,
+    formatLocalDate:(value,branchId)=>{
+      const branch=branchId&&(res.locals.viewBranches||[]).find(b=>String(b._id)===String(branchId));
+      return businessTime.format(value,businessTime.forBranch(branch||req.viewBranch||req.operationBranch));
+    },
+    amountFromMinor:mobile.fromMinor
   });
 }
 router.use('/backups',require('../backups/routes')({renderTenant}));
@@ -57,18 +67,18 @@ router.get('/dashboard', requirePermission('dashboard.view'), async (req,res,nex
   try {
     // Indexes are prepared by provisioning and awaited by mutation services.
     // Reading an overview must not start collection/index DDL after a restart.
-    const overview=await require('../services/dashboardOverview.service').overview(req.tenantDb,req.tenant,req.user,{operationBranch:req.operationBranch,currency:req.query.currency,viewBranch:req.viewBranch,viewBranchId:req.viewBranchId});
+    const overview=await require('../services/dashboardOverview.service').overview(req.tenantDb,req.tenant,req.user,{operationBranch:req.operationBranch,currency:req.query.currency,viewBranch:req.viewBranch,viewBranchId:req.viewBranchId,viewBranches:res.locals.viewBranches});
     renderTenant(req,res,'dashboard/index','Overview','Money transfer, mobile money, banking, forex, tenants, roles, reports, analytics, and daily controls.',overview);
   } catch(e) { next(e); }
 });
 router.get('/mobile-money', requireModule('mobile_money'), requirePermission('mobile_money.view'), async (req,res,next)=>{
   try {
+    const reportZone=await reportTimeZone.forRequest(req);
     const canReview=hasPermission(req.user,'mobile_money.review')&&(req.user.role==='Tenant Owner'||req.user.branchId);
     const reviewBranch=req.user.role==='Tenant Owner'?(require('../services/branchView.service').readScope(req.user).branchId||null):req.user.branchId;
-    const [summary,branches,reviewQueue,voidQueue,funds,pricingContext]=await Promise.all([
-      mobile.getSummary(req.tenantDb,recordScope(req)),
+    const [summary,branches,voidQueue,funds,pricingContext]=await Promise.all([
+      mobile.getSummary(req.tenantDb,{...recordScope(req),timeZone:reportZone}),
       branchService.list(req.tenant),
-      canReview?mobile.getReviewQueue(req.tenantDb,req.user.id,25,reviewBranch):[],
       canReview?mobile.getVoidQueue(req.tenantDb,req.user.id,25,reviewBranch):[],
       req.operationBranch?require('../services/mobileMoneyFunds.service').context(req.tenantDb,req.tenant,req.user,req.operationBranch):null,
       require('../pricing/presentation').context(req.tenantDb,req.tenant,req.operationBranch,'mobile_money')
@@ -76,7 +86,7 @@ router.get('/mobile-money', requireModule('mobile_money'), requirePermission('mo
     renderTenant(req,res,'mobile-money/index','Mobile Money','Record agent transactions. Provider settlement remains unverified until reconciled.',{
       entryCurrency:req.operationBranch?require('../services/branchCurrency.service').resolve(req.operationBranch,req.query.currency):null,
       entryCurrencies:req.operationBranch?require('../services/branchCurrency.service').options(req.operationBranch):[],
-      summary,branches:branches.filter(b=>b.status==='active' && (req.user.role==='Tenant Owner' || String(b._id)===String(req.user.branchId))),reviewQueue,voidQueue,funds,pricingContext,
+      summary,branches:branches.filter(b=>b.status==='active' && (req.user.role==='Tenant Owner' || String(b._id)===String(req.user.branchId))),voidQueue,funds,pricingContext,
       canReview: hasPermission(req.user,'mobile_money.review'), idempotencyKey:randomUUID(),
       canRecord: hasPermission(req.user,'mobile_money.cash_in') || hasPermission(req.user,'mobile_money.cash_out')
     });
@@ -86,20 +96,12 @@ for (const [path,op,permission] of [['cash-in','cash_in','mobile_money.cash_in']
   router.post(`/mobile-money/${path}`, requireModule('mobile_money'),requirePermission(permission),require('../../platform/services/actionThrottle.service').financial,async(req,res,next)=>{
     try {
       const result = await mobile.recordMobileMoney(req.tenantDb,req.user,req.body,op,req.tenant,null,{requireFunds:true});
-      flash(req,'good',result.duplicate ? 'This request was already recorded. No duplicate created.' : 'Transaction recorded for verification. No provider settlement has been claimed.');
+      flash(req,'good',result.duplicate ? 'This request was already recorded. No duplicate created.' : 'Transaction recorded as final in FinHub. Provider settlement remains independently unverified.');
       require('../services/branchView.service').followRecord(req,result.created);
       res.redirect(303,'/tenant/mobile-money');
     } catch(e) { next(e); }
   });
 }
-router.post('/mobile-money/:id/review', requireModule('mobile_money'), requirePermission('mobile_money.review'),
-  require('../../platform/services/actionThrottle.service').financial, async(req,res,next)=>{
-  try {
-    await mobile.reviewMobileMoney(req.tenantDb, req.user, req.params.id, req.body.decision, req.body.note);
-    flash(req,'good','Independent review saved and audited. Provider settlement is still unverified.');
-    res.redirect(303,'/tenant/mobile-money');
-  } catch(e) { next(e); }
-});
 router.post('/mobile-money/:id/request-void',requireModule('mobile_money'),requirePermission('mobile_money.view'),
   require('../../platform/services/actionThrottle.service').financial,async(req,res,next)=>{
   try{
@@ -116,20 +118,30 @@ router.post('/mobile-money/:id/decide-void',requireModule('mobile_money'),requir
     res.redirect(303,'/tenant/mobile-money');
   }catch(e){next(e);}
 });
+router.get('/mobile-money/alerts',requireModule('mobile_money'),requirePermission('mobile_money.view'),async(req,res,next)=>{
+  try{
+    if(req.user.role!=='Tenant Owner'){const e=new Error('Owner permission required');e.status=403;throw e;}
+    const alerts=await require('../models').notificationMessageModel(req.tenantDb)
+      .find({recipientId:req.user.id,source:'risk_alert'}).select('_id branchId subject body sourceId createdAt readAt emailState')
+      .sort({createdAt:-1,_id:-1}).limit(100).lean();
+    renderTenant(req,res,'mobile-money/alerts','Transaction Alerts','Owner-only anomaly signals. No transaction approval required.',{alerts});
+  }catch(e){next(e);}
+});
+router.post('/mobile-money/alerts/:id/read',requireModule('mobile_money'),requirePermission('mobile_money.view'),require('../../platform/services/actionThrottle.service').financial,async(req,res,next)=>{
+  try{
+    if(req.user.role!=='Tenant Owner'){const e=new Error('Owner permission required');e.status=403;throw e;}
+    if(!/^[a-f0-9]{24}$/i.test(req.params.id)){const e=new Error('Invalid alert identifier');e.status=400;throw e;}
+    await require('../models').notificationMessageModel(req.tenantDb).updateOne({_id:req.params.id,recipientId:req.user.id,source:'risk_alert',readAt:null},{$set:{readAt:new Date()}});
+    res.redirect(303,'/tenant/mobile-money/alerts');
+  }catch(e){next(e);}
+});
 // Physical cash count shifts are internal operational evidence, not provider float.
 const cash=require('../services/cashDrawer.service');
 const financialThrottle=require('../../platform/services/actionThrottle.service').financial;
-router.get('/mobile-money/shifts',requireModule('mobile_money'),requirePermission('mobile_money.view'),async(req,res,next)=>{
-  try{
-    const [shifts,branches]=await Promise.all([cash.list(req.tenantDb,req.tenant,req.user,{cursor:req.query.cursor}),branchService.list(req.tenant)]);
-    const operators=await require('../models').tenantUserModel(req.tenantDb)
-      .find({_id:{$in:shifts.items.map(x=>x.operatorId)}}).select('_id name').lean();
-    const branchNames=Object.fromEntries(branches.map(x=>[String(x._id),x.name]));
-    const operatorNames=Object.fromEntries(operators.map(x=>[String(x._id),x.name]));
-    renderTenant(req,res,'mobile-money/shifts','Physical Cash Shifts','Operator cash counts and independent branch reconciliation; not electronic float or provider settlement.',
-      {shifts,branchNames,operatorNames,branches:branches.filter(b=>b.status==='active'&&(req.user.role==='Tenant Owner'||String(b._id)===String(req.user.branchId))),
-        canOpen:cash.opener(req.user),canReview:cash.reviewer(req.user)});
-  }catch(e){next(e);}
+// Keep one operating cash control page across Mobile Money and other modules.
+router.get('/mobile-money/shifts',requireModule('mobile_money'),requirePermission('mobile_money.view'),(req,res)=>{
+ const cursor=typeof req.query.cursor==='string'&&req.query.cursor.length<=200?'?cursor='+encodeURIComponent(req.query.cursor):'';
+ res.redirect(303,'/tenant/cash/shifts'+cursor);
 });
 router.post('/mobile-money/shifts/open',requireModule('mobile_money'),requirePermission('mobile_money.view'),financialThrottle,async(req,res,next)=>{
   try{const shift=await cash.open(req.tenantDb,req.tenant,req.user,req.body);
@@ -151,26 +163,22 @@ router.post('/mobile-money/shifts/:id/decide',requireModule('mobile_money'),requ
     flash(req,'good','Cash reconciliation decision saved and audited.');require('../services/branchView.service').followRecord(req,shift);res.redirect(303,'/tenant/mobile-money/shifts');
   }catch(e){next(e);}
 });
-router.get('/mobile-money/shifts/:id',requireModule('mobile_money'),requirePermission('mobile_money.view'),async(req,res,next)=>{
-  try{
-    const shift=await cash.detail(req.tenantDb,req.tenant,req.user,req.params.id);
-    renderTenant(req,res,'mobile-money/shift-detail','Cash Shift Detail','Internal physical cash reconciliation history. No provider float or cleared balance claims.',
-     {shift,canSubmit:cash.opener(req.user)&&String(shift.operatorId)===String(req.user.id)&&['open','disputed'].includes(shift.status),
-      canReview:cash.reviewer(req.user)&&String(shift.operatorId)!==String(req.user.id)&&shift.status==='submitted',
-      canReviewOpening:cash.reviewer(req.user)&&String(shift.operatorId)!==String(req.user.id)&&shift.status==='pending_open',
-      canApprove:shift.varianceMinor==null||String(shift.varianceMinor)==='0'||req.user.role!=='Branch Manager'});
-  }catch(e){next(e);}
+router.get('/mobile-money/shifts/:id',requireModule('mobile_money'),requirePermission('mobile_money.view'),(req,res)=>{
+ res.redirect(303,'/tenant/cash/shifts/'+encodeURIComponent(req.params.id));
 });
 router.get('/mobile-money/:id/acknowledgement',requireModule('mobile_money'),requirePermission('mobile_money.view'),async(req,res,next)=>{
   try{
     const record=await mobile.getRecordDetails(req.tenantDb,req.params.id,recordScope(req));
     res.set('Cache-Control','private, no-store');res.set('X-Robots-Tag','noindex, nofollow');
-    res.render('tenant/mobile-money/acknowledgement',{...require('../services/receipt.service').acknowledgement(mobile.visibleRecordForRole(record,req.user.role)),identity:req.workspaceIdentity,flash:consumeFlash(req)});
+    const timeZone=businessTime.forBranch((res.locals.viewBranches||[]).find(b=>String(b._id)===String(record.branchId))||req.operationBranch);
+    res.render('tenant/mobile-money/acknowledgement',{...require('../services/receipt.service').acknowledgement(mobile.visibleRecordForRole(record,req.user.role)),identity:req.workspaceIdentity,flash:consumeFlash(req),
+      businessTimeZone:timeZone,formatLocalDate:value=>businessTime.format(value,timeZone)});
   }catch(e){next(e);}
 });
 router.get('/mobile-money/history', requireModule('mobile_money'),requirePermission('mobile_money.view'),async(req,res,next)=>{
   try{
-    const records=await mobile.getTransactionPage(req.tenantDb,{...recordScope(req),from:req.query.from,to:req.query.to,cursor:req.query.cursor});
+    const reportZone=await reportTimeZone.forRequest(req);
+    const records=await mobile.getTransactionPage(req.tenantDb,{...recordScope(req),from:req.query.from,to:req.query.to,cursor:req.query.cursor,timeZone:reportZone});
     renderTenant(req,res,'mobile-money/history','Mobile Money History',
       'Tenant and branch-scoped operational records, with auditable correction status.',{records});
   }catch(e){next(e);}
@@ -185,10 +193,10 @@ router.get('/mobile-money/:id',requireModule('mobile_money'),requirePermission('
       _id:record.walletObservationId,tenantId:req.tenant._id,branchId:record.branchId,accountId:record.walletAccountId
     }).select('status observedAt actualMinor expectedMinorAtRequest varianceMinorAtRequest expectedMinorAtReview varianceMinorAtReview evidenceType evidenceReference reviewedAt').lean():null;
     const canRequestCorrection=['Tenant Owner','Mobile Money Operator'].includes(req.user.role)&&
-      String(record.operatorId)===String(req.user.id)&&record.status==='pending_verification'&&
+      String(record.operatorId)===String(req.user.id)&&['recorded','pending_verification'].includes(record.status)&&
       ['none','denied',null,undefined].includes(record.correctionState)&&(record.correctionAttempts||0)<5;
     const canReviewCorrection=['Tenant Owner','Reconciliation Officer'].includes(req.user.role)&&
-      String(record.operatorId)!==String(req.user.id)&&record.status==='pending_verification'&&record.correctionState==='requested';
+      String(record.operatorId)!==String(req.user.id)&&['recorded','pending_verification'].includes(record.status)&&record.correctionState==='requested';
     renderTenant(req,res,'mobile-money/detail','Mobile Money Record',
       'Historical evidence and internal correction decisions. No status claims external settlement.',
       {record:visible,canRequestCorrection,canReviewCorrection,canViewFunds,walletObservation,formatMoneyMinor:mobile.formatMoneyMinor});
@@ -208,7 +216,8 @@ router.use('/approvals',requireModule('approval_workflows'),require('./approvals
 router.use('/notifications',requireModule('notifications'),require('./notification.routes')({renderTenant}));
 router.get('/reports', requireModule('reports'), requirePermission('reports.view'), async(req,res,next)=>{
   try{
-    const report=await require('../services/operationsReports.service').generate(req.tenantDb,req.tenant,req.user,req.query);
+    const timeZone=await reportTimeZone.forRequest(req);
+    const report=await require('../services/operationsReports.service').generate(req.tenantDb,req.tenant,req.user,req.query,timeZone);
     renderTenant(req,res,'reports/index','Operations Reports','Standalone, access-controlled reporting across subscribed modules.',{
       report,canExport:hasPermission(req.user,'reports.export')
     });
@@ -217,7 +226,8 @@ router.get('/reports', requireModule('reports'), requirePermission('reports.view
 router.get('/reports/export.csv', requireModule('reports'), requirePermission('reports.export'), async(req,res,next)=>{
   try{
     const reporting=require('../services/operationsReports.service');
-    const report=await reporting.generate(req.tenantDb,req.tenant,req.user,req.query);
+    const timeZone=await reportTimeZone.forRequest(req);
+    const report=await reporting.generate(req.tenantDb,req.tenant,req.user,req.query,timeZone);
     res.setHeader('Content-Type','text/csv; charset=utf-8');
     res.setHeader('Content-Disposition','attachment; filename="classicfin-operations-report.csv"');
     res.setHeader('Cache-Control','private, no-store');

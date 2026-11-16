@@ -30,7 +30,8 @@ test('agent transaction shows confirmed-rate estimates separately from configure
  assert.match(template,/data-mobile-provider-charge/);
  assert.match(template,/include\('\.\.\/partials\/operation-pricing'/);
  assert.match(quoteJs,/\/tenant\/mobile-money\/quote/);
- assert.match(quoteJs,/Not configured — request approved agent rate sheet/);
+ assert.match(quoteJs,/const hasCommission=Boolean\(data\.agentCommission\?\.amount\)/);
+ assert.match(quoteJs,/area\.hidden=true/);
  assert.doesNotThrow(()=>new Function(quoteJs));
  const routes=source('src/tenant/routes/mobileMoneyWorkspace.routes.js');
  const quote=routes.slice(routes.indexOf("router.get('/quote'"),routes.indexOf("router.get('/cash-in'"));

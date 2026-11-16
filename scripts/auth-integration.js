@@ -179,10 +179,14 @@ async function main() {
     const record=await post('/tenant/mobile-money/cash-in',operator.cookie,csrf(moneyHtml),recordFields);
     assert.equal(record.status,303);
     const created=await require('../src/tenant/models').mobileTransactionModel(tenantDb).findOne({networkReference:ref}).lean();
-    assert(created); assert.equal(created.status,'pending_verification');assert.equal(created.fundingState,'book_recorded');
+    assert(created); assert.equal(created.status,'recorded');assert.equal(created.reviewState,'not_required');assert.equal(created.fundingState,'book_recorded');
     assert.equal(String((await treasuryModels.models(tenantDb).account.findById(walletFund._id)).bookBalanceMinor),'880000');
     assert.equal(String((await treasuryModels.models(tenantDb).account.findById(cashFund._id)).bookBalanceMinor),'120100');
     assert.equal((await treasuryModels.models(tenantDb).observation.findById(created.walletObservationId)).status,'pending_review');
+    // Keep a genuine pre-upgrade pending-review sample for the authenticated HTTP test.
+    // New book-recorded transactions remain final without operator approval.
+    await require('../src/tenant/models').mobileTransactionModel(tenantDb).collection.updateOne({_id:created._id},
+      {$set:{status:'pending_verification',reviewState:'awaiting_review'}});
     const reviewer=await signIn('reviewer');
     const reviewerFull=await finishMfa('reviewer',reviewer,'challenge');
     const reviewPage=await fetch(`${base}/tenant/mobile-money`,{headers:{cookie:reviewerFull.cookie}});

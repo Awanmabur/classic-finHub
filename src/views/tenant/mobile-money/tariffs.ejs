@@ -130,7 +130,7 @@
     <% }else{ %><label class="field">Branch<select name="branchId" class="control" required><option value="">Choose branch</option><% data.branches.forEach(b=>{ %><option value="<%= b._id %>"><%= b.name %></option><% }) %></select></label><% } %>
     <label class="field">Schedule type<select name="scheduleKind" class="control" required><option value="agent_commission">Agent commission paid by provider</option><option value="customer_network_fee">Network charge paid by customer</option></select></label>
     <label class="field">Agent operation<select name="operation" class="control" required><option value="cash_in">Deposit</option><option value="cash_out">Withdrawal</option><option value="send">Send money</option><option value="bill_payment">Pay a bill</option><option value="airtime_sale">Sell airtime or bundles</option><option value="merchant_payment">Merchant payment</option></select></label>
-    <label class="field">Effective from (UTC)<input type="date" name="effectiveFrom" class="control" required></label>
+    <label class="field">Effective from (branch-local date)<input type="date" name="effectiveFrom" class="control" required></label>
     <label class="field">Expires (optional)<input type="date" name="expiresAt" class="control"></label>
    </div>
    <label class="field">Provider rate sheet, contract or statement reference<input name="evidenceReference" class="control" minlength="12" maxlength="350" required placeholder="Source document reference, issuer and revision date"><span class="tiny">A source reference records the document's identity; it does not automatically verify a provider-issued tariff.</span></label>
@@ -166,7 +166,7 @@
    <% if(!data.commissions.records.length){ %><p class="tiny">No commission credits recorded for your permitted wallets.</p><% } %>
    <% data.commissions.records.forEach(payout=>{ %>
     <div class="networkTariffPayout">
-     <div class="networkTariffPayoutDetails"><b><%= payout.network==='MTN SSD'?'MTN South Sudan':payout.network %> — <%= data.formatMinor(payout.amountMinor,payout.currency) %></b><span><%= payout.providerReference %> · <%= new Date(payout.creditedAt).toISOString().slice(0,16).replace('T',' ') %> UTC</span><span class="tiny"><%= payout.statementEvidence %></span></div>
+     <div class="networkTariffPayoutDetails"><b><%= payout.network==='MTN SSD'?'MTN South Sudan':payout.network %> — <%= data.formatMinor(payout.amountMinor,payout.currency) %></b><span><%= payout.providerReference %> · <%= formatLocalDate(payout.creditedAt) %> <%= businessTimeZone %></span><span class="tiny"><%= payout.statementEvidence %></span></div>
      <span class="tag"><%= payout.status==='posted'?'Posted income':payout.status==='rejected'?'Rejected':'Pending review' %></span>
      <% if(data.canReviewPayout&&payout.status==='pending_review'){ %>
      <form class="networkTariffReview" method="post" action="/tenant/mobile-money/tariffs/payouts/<%= payout._id %>/review">

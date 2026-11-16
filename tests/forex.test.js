@@ -135,3 +135,23 @@ test('Expiry worker cannot enumerate tenants without an authorized cursor',async
  await assert.rejects(run({tenants:[],connectionForTenant:()=>({})}),/cursor/);
  await assert.rejects(fx.expireDue({},'not-a-date'),{status:400});
 });
+
+test('missing approved Forex rates show enabled currencies and useful setup action rather than dead controls',async()=>{
+ const fs=require('node:fs');
+ const template=path.join(__dirname,'../src/views/tenant/forex/_entry-form.ejs');
+ const locals={
+  currentBranchId:branch,user:actor('Forex Operator'),
+  data:{formRates:[],rates:[],workspaceOperation:'buy',currencyChoices:[{code:'UGX'},{code:'USD'},{code:'KES'}],idempotencyKey:crypto.randomUUID()}
+ };
+ const html=await ejs.renderFile(template,locals);
+ assert.match(html,/No active Forex rate is approved/);
+ assert.match(html,/UGX, USD, KSH/);
+ assert.match(html,/href="\/tenant\/forex"/);
+ assert.doesNotMatch(html,/name="rateId"/);
+ assert.doesNotMatch(html,/data-forex-total/);
+ const view=fs.readFileSync(path.join(__dirname,'../src/views/tenant/forex/index.ejs'),'utf8');
+ assert.match(view,/actualForexCurrencies/);
+ assert.match(view,/i===1\?'selected'/);
+ const route=fs.readFileSync(path.join(__dirname,'../src/tenant/routes/forex.routes.js'),'utf8');
+ assert.match(route,/currencyChoices:selected\?require\('\.\.\/services\/branchCurrency.service'\)\.options\(selected\):\[\]/);
+});

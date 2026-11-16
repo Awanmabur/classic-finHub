@@ -111,7 +111,7 @@ module.exports=function factory({renderTenant}){
  });
  router.post('/:id/:action',throttle,async(req,res,next)=>{
   try{
-   await service.decide(req.tenantDb,req.tenant,req.user,req.params.id,req.params.action);
+   await service.decide(req.tenantDb,req.tenant,req.user,req.params.id,req.params.action,req.body);
    flash(req,'good','Commission schedule decision recorded and audited. No funds or income were posted.');
    res.redirect(303,'/tenant/mobile-money/tariffs');
   }catch(e){next(e);}

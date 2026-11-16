@@ -42,6 +42,8 @@ const moneySchema = new mongoose.Schema({
   customer: { type: String, required: true, maxlength: 120, immutable: true },
   customerPhone:{type:String,default:'',maxlength:16,immutable:true},
   customerNote:{type:String,default:'',maxlength:400,immutable:true},
+  // Machine-generated attention flags are not a financial verdict.
+  riskFlags:{type:[String],enum:['large_relative_to_float','rapid_repeat'],default:[],immutable:true},
   paymentMethod:{type:String,enum:['Cash','Wallet Balance','Bank'],default:'Cash',immutable:true},
   network: { type: String, enum: require('../../config/mobileNetworks').networks, required: true, immutable: true },
   networkReference: { type: String, required: true, maxlength: 100, immutable: true },

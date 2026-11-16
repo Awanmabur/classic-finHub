@@ -1,6 +1,7 @@
 <% const adminZone=typeof businessTimeZone==='string'?businessTimeZone:'UTC';
    const adminLocalDate=typeof formatLocalDate==='function'?formatLocalDate:
-    (value=>new Date(value).toISOString()); %>
+    (value=>typeof formatUtcDate==='function'?formatUtcDate(value):
+     (value&&Number.isFinite(new Date(value).getTime())?new Date(value).toISOString():'Unknown date')); %>
 <section class="view show">
   <section class="card"><div class="cardHead"><div><b>Platform snapshot</b><br><span>Workspaces and onboarding</span></div></div><div class="cardBody"><div class="grid3">
     <div class="stat"><div class="k">Total workspaces</div><div class="v"><%= data.totalTenants %></div><div class="s"><span class="dot"></span>Across your platform</div></div>

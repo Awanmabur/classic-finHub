@@ -25,13 +25,14 @@
     form.elements.namedItem('address').value = row.dataset.branchAddress;
     edit.querySelector('[data-branch-edit-code]').textContent = row.dataset.branchCode;
     edit.querySelector('[data-branch-edit-default]').value = currencyLabel(row.dataset.branchCurrency);
+    form.elements.namedItem('timeZone').value = row.dataset.branchTimeZone;
     const enabled = row.dataset.branchCurrencies.split(',');
     form.querySelectorAll('[name="currencies"]').forEach(input => { input.checked = enabled.includes(input.value); });
     show(edit, button);
   }));
   document.querySelectorAll('[data-branch-details]').forEach(button => button.addEventListener('click', () => {
     const row = button.closest('[data-branch-row]'); if (!row || !details) return;
-    const values = {name: row.dataset.branchName, code: row.dataset.branchCode, address: row.dataset.branchAddress || 'No address added', currencies: row.dataset.branchCurrencies.split(',').map(currencyLabel).join(' · '), currency: currencyLabel(row.dataset.branchCurrency), status: row.dataset.branchStatus};
+    const values = {name: row.dataset.branchName, code: row.dataset.branchCode, address: row.dataset.branchAddress || 'No address added', currencies: row.dataset.branchCurrencies.split(',').map(currencyLabel).join(' · '), currency: currencyLabel(row.dataset.branchCurrency), timeZone: row.dataset.branchTimeZone, status: row.dataset.branchStatus};
     details.querySelectorAll('[data-branch-detail]').forEach(node => { node.textContent = values[node.dataset.branchDetail] || ''; });
     show(details, button);
   }));
@@ -43,6 +44,16 @@
       const bounds = dialog.getBoundingClientRect();
       if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) dialog.close();
     });
+  });
+  const createForm=document.getElementById('branchCreateForm');
+  const currencyPicker=createForm?.elements.namedItem('currency');
+  const zonePicker=createForm?.elements.namedItem('timeZone');
+  currencyPicker?.addEventListener('change',()=>{
+    if(!zonePicker)return;
+    const suggested={UGX:'Africa/Kampala',SSP:'Africa/Juba',KES:'Africa/Nairobi'};
+    const current=zonePicker.value;
+    if(!current||['Africa/Kampala','Africa/Juba','Africa/Nairobi'].includes(current))
+      zonePicker.value=suggested[currencyPicker.value]||'Africa/Kampala';
   });
   const submitting = new WeakSet();
   document.querySelectorAll('form[data-branch-write]').forEach(form => form.addEventListener('submit', async event => {

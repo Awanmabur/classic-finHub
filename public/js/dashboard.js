@@ -272,7 +272,7 @@
         const notice=form.querySelector('[data-momo-account-notice]');
         const problem=wallet.value&&!resolved?
           (validAccounts.length===0?
-            'No approved cash drawer is assigned to this login. Sherikat’s UGX drawer belongs to its assigned operator; sign in as that operator to record transactions. Do not create another drawer.':
+            'No approved cash drawer belongs to this login. Sign in as the operator assigned to the physical drawer and verified cash shift; do not create another drawer.':
             configuredDrawer?
               'This wallet is linked to a drawer that is unavailable to this operator. The Tenant Owner should check the account mapping.':
               'More than one approved drawer is available. The Tenant Owner must link this wallet to the correct physical drawer once in Treasury.'):'';

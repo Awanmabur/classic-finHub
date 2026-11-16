@@ -20,11 +20,25 @@ module.exports=function factory({renderTenant}){
     req.operationBranch&&(['Tenant Owner','Mobile Money Operator','Reconciliation Officer','Branch Manager'].includes(req.user.role))?
       require('../services/mobileMoneyFunds.service').context(req.tenantDb,req.tenant,req.user,req.operationBranch):Promise.resolve(null)
    ]);
+   const allowedBranches=branches.filter(b=>b.status==='active'&&
+    (req.user.role==='Tenant Owner'||String(b._id)===String(req.user.branchId)));
+   // The directory represents actual tenant markets, never the entire product
+   // catalog. Missing/archived networks remain available in historical audit.
+   const market=require('../services/mobileMoneyMarket.service');
+   const currentMarkets=market.markets(funds?.wallets||[]);
+   const activeNetworks=new Set(currentMarkets.map(m=>m.network));
+   const providerChoices=currentMarkets.map(m=>({key:m.network,...NETWORKS[m.network],currency:m.currency,configured:true}));
+   const scopedSchedules=schedules.filter(rule=>activeNetworks.has(rule.network));
+   const scopedWallets=commissions.wallets.filter(w=>activeNetworks.has(w.network));
+   const scopedCommissions={...commissions,wallets:scopedWallets,
+    records:commissions.records.filter(record=>activeNetworks.has(record.network))};
    renderTenant(req,res,'mobile-money/tariffs','Network commission sheets',
     'Deposit and withdrawal commission schedules, cash and float, and independent review.',
-    {schedules,commissions,funds,allProviders:Object.entries(NETWORKS).map(([key,meta])=>({key,...meta,configured:!!meta.currency||commissions.wallets.some(w=>w.network===key)})),customerTariffReferences:require('../pricing/customerNetworkFees').TABLES,branches:branches.filter(b=>b.status==='active'&&(req.user.role==='Tenant Owner'||String(b._id)===String(req.user.branchId))),
-     actorId:String(req.user.id),actorRole:req.user.role,
-     providerChoices:Object.entries(NETWORKS).filter(([key,meta])=>Boolean(meta.currency)||commissions.wallets.some(w=>w.network===key)).map(([key,meta])=>({key,...meta})),
+    {schedules:scopedSchedules,commissions:scopedCommissions,funds,
+     allProviders:providerChoices,
+     customerTariffReferences:require('../pricing/customerNetworkFees').TABLES.filter(ref=>activeNetworks.has(ref.network)),
+     branches:allowedBranches,networkMarkets:currentMarkets,
+     actorId:String(req.user.id),actorRole:req.user.role,providerChoices,
      canPropose:['Tenant Owner','Mobile Money Operator'].includes(req.user.role),
      canReview:['Tenant Owner','Reconciliation Officer'].includes(req.user.role),
      canSubmitPayout:['Tenant Owner','Mobile Money Operator'].includes(req.user.role),
@@ -32,6 +46,22 @@ module.exports=function factory({renderTenant}){
      postingEnabled:process.env.ENABLE_MOMO_COMMISSION_POSTING==='true',
      serializeLines:service.serializeLines,
      formatMinor:require('../services/mobileMoney.service').formatMoneyMinor});
+  }catch(e){next(e);}
+ });
+ router.post('/existing-reference',throttle,async(req,res,next)=>{
+  try{
+   const result=await service.importExistingReferences(req.tenantDb,req.tenant,req.user,req.body);
+   flash(req,'good',result.created.length?
+    'Existing MTN sheets prepared with their original rate bands. A different authorized reviewer must approve them before they govern transactions.':
+    'These MTN rate sheets are already saved; no duplicate was created.');
+   res.redirect(303,'/tenant/mobile-money/tariffs');
+  }catch(e){next(e);}
+ });
+ router.post('/:id/start-revision',throttle,async(req,res,next)=>{
+  try{
+   await service.editApprovedVersion(req.tenantDb,req.tenant,req.user,req.params.id);
+   flash(req,'good','Editable revision prepared from the existing approved sheet. Review the changes, then submit it for independent approval.');
+   res.redirect(303,'/tenant/mobile-money/tariffs');
   }catch(e){next(e);}
  });
  router.post('/',throttle,async(req,res,next)=>{

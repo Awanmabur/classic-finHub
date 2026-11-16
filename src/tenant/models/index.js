@@ -28,6 +28,8 @@ const moneySchema = new mongoose.Schema({
   pricing:{type:require('../pricing/snapshot').schema,default:undefined,immutable:true},
   agentCommissionEstimate:{type:require('../pricing/networkTariffSnapshot').schema,default:undefined,immutable:true},
   customerNetworkFeeEstimate:{type:require('../pricing/networkTariffSnapshot').schema,default:undefined,immutable:true},
+  agentCommissionPublishedReference:{type:require('../pricing/publishedReferenceSnapshot').schema,default:undefined,immutable:true},
+  customerNetworkChargePublishedReference:{type:require('../pricing/publishedReferenceSnapshot').schema,default:undefined,immutable:true},
   fundingState:{type:String,enum:['legacy_untracked','book_recorded'],default:'legacy_untracked',immutable:true},
   walletAccountId:{type:mongoose.Schema.Types.ObjectId,default:null,immutable:true},paymentAccountId:{type:mongoose.Schema.Types.ObjectId,default:null,immutable:true},customerAccountId:{type:mongoose.Schema.Types.ObjectId,default:null,immutable:true},
   feeTreatment:{type:String,enum:['record_only','payment_collected','wallet_commission'],default:'record_only',immutable:true},

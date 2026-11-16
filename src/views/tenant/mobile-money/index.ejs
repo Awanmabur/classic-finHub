@@ -13,10 +13,14 @@
    const visibleCashAccounts=cashCandidates.filter(a=>!allowedMarkets||mappedDrawers.has(a.id)||
     cashCandidates.filter(x=>x.currency===a.currency).length===1);
    const pendingFunds=[...visibleCashAccounts,...visibleWalletAccounts].filter(a=>a.expectedMinor===null||a.expectedMinor===undefined||a.state!=='active'||a.reconciliation!=='matched');
-   const needsOnboarding=!currentBranch||!visibleCashAccounts.length||!visibleWalletAccounts.length||pendingFunds.length>0; %>
+   const needsOnboarding=!currentBranch||!visibleCashAccounts.length||!visibleWalletAccounts.length||pendingFunds.length>0;
+   const canUseAssignedDrawer=visibleCashAccounts.some(a=>a.assignedToOperator&&
+    a.state==='active'&&a.reconciliation==='matched'&&a.expectedMinor!==null);
+   const cashierReady=Boolean(data.canRecord&&canUseAssignedDrawer); %>
 <section class="view show mobileMoneyPage">
  <%- include('../../partials/operation-branch', {currentBranch, branchProblem, user}) %>
 
+ <% if(needsOnboarding){ %>
  <section class="card" data-mobile-onboarding aria-label="Mobile Money start and opening checklist">
   <div class="cardHead"><div><b><%= needsOnboarding?'Start Mobile Money — cash and float setup':'Mobile Money operational setup' %></b><br><span><%= currentBranch?'Operating branch: '+currentBranch.name:'Operating branch not assigned' %> · actual balances only</span></div><div class="rowBtns"><a class="btn" href="/tenant/mobile-money/onboarding">Onboarding manual</a><a class="btn" href="/tenant/mobile-money/readiness">Check readiness</a></div></div>
   <div class="cardBody">
@@ -58,13 +62,14 @@
     <% }else{ %><p class="tiny">No active cash drawer or mobile network wallet is assigned to this operating branch. Configure accounts and approve their opening balances in Treasury. Opening a cash shift alone does not create a treasury wallet.</p><% } %>
    </div>
   </section>
+  <% } %>
   <div class="richActions" style="margin-top:14px">
-    <% if(user.permissions.includes('*') || user.permissions.includes('mobile_money.cash_in')){ %><a class="btn" href="/tenant/mobile-money/cash-in" data-transaction-kind="cash_in">Deposit</a><% } %>
-    <% if(user.permissions.includes('*') || user.permissions.includes('mobile_money.cash_out')){ %><a class="btn" href="/tenant/mobile-money/cash-out" data-transaction-kind="cash_out">Withdrawal</a><% } %>
+    <% if(canUseAssignedDrawer&&(user.permissions.includes('*') || user.permissions.includes('mobile_money.cash_in'))){ %><a class="btn" href="/tenant/mobile-money/cash-in" data-transaction-kind="cash_in">Deposit</a><% } %>
+    <% if(canUseAssignedDrawer&&(user.permissions.includes('*') || user.permissions.includes('mobile_money.cash_out'))){ %><a class="btn" href="/tenant/mobile-money/cash-out" data-transaction-kind="cash_out">Withdrawal</a><% } %>
     <a class="btn" href="/tenant/mobile-money/network-activity">Network activity</a><a class="btn" href="/tenant/mobile-money/cash-impact">Cash impact</a><% if((user.permissions||[]).includes('*')||(user.permissions||[]).includes('treasury.view')){ %><a class="btn" href="/tenant/mobile-money/tariffs">Agent rate sheets</a><% } %><% if((user.permissions||[]).some(permission=>['*','mobile_money.report','reports.view'].includes(permission))){ %><a class="btn" href="/tenant/mobile-money/report">Mobile money report</a><% } %>
   </div>
   <div class="grid">
-    <% if (data.canRecord && currentBranch) { %>
+    <% if (cashierReady && currentBranch) { %>
     <%- include('_entry-form',{currentBranch,operation:(user.permissions.includes('*') || user.permissions.includes('mobile_money.cash_in')) ? 'cash_in' : 'cash_out'}) %>
     <% } %>
 

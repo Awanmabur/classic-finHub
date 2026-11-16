@@ -12,6 +12,7 @@ const { hasPermission,hasModuleForUser } = require('../services/moduleAccess.ser
 const branchService=require('../services/branch.service');
 const phoneCountry=require('../../utils/phoneCountry');
 const businessTime=require('../../utils/businessTime');
+const reportTimeZone=require('../services/reportTimeZone.service');
 const staffService=require('../services/staff.service');
 const staffPolicy=require('../services/staffPolicy');
 router.use(require('./offline.routes'));
@@ -40,10 +41,10 @@ function renderTenant(req, res, view, pageTitle, pageSub, data) {
     context:'tenant', offlineIdentity:require('../services/offlineIdentity')(req), offlineContext:require('../services/offlineIdentity').context(req,res.locals.phoneDefaults), offlineCacheable:req.method==='GET', currentPath:tenantNavigationPath(req.baseUrl + req.path), pageTitle, pageSub,
     tenant:{...req.tenant,name:req.workspaceIdentity?.name||req.tenant.name}, user:req.user, menu:tenantMenu(req.tenant,req.user),
     view:`../tenant/${view}`, data, flash:consumeFlash(req), money, formatUtcDate,
-    businessTimeZone:businessTime.forBranch(req.operationBranch),
-    businessToday:businessTime.localDay(new Date(),businessTime.forBranch(req.operationBranch)),
+    businessTimeZone:businessTime.forBranch(req.viewBranch||req.operationBranch),
+    businessToday:businessTime.localDay(new Date(),businessTime.forBranch(req.viewBranch||req.operationBranch)),
     businessTimeZoneForBranch:businessTime.forBranch,
-    formatLocalDate:value=>businessTime.format(value,businessTime.forBranch(req.operationBranch)),
+    formatLocalDate:value=>businessTime.format(value,businessTime.forBranch(req.viewBranch||req.operationBranch)),
     amountFromMinor:mobile.fromMinor
   });
 }
@@ -69,10 +70,11 @@ router.get('/dashboard', requirePermission('dashboard.view'), async (req,res,nex
 });
 router.get('/mobile-money', requireModule('mobile_money'), requirePermission('mobile_money.view'), async (req,res,next)=>{
   try {
+    const reportZone=await reportTimeZone.forRequest(req);
     const canReview=hasPermission(req.user,'mobile_money.review')&&(req.user.role==='Tenant Owner'||req.user.branchId);
     const reviewBranch=req.user.role==='Tenant Owner'?(require('../services/branchView.service').readScope(req.user).branchId||null):req.user.branchId;
     const [summary,branches,reviewQueue,voidQueue,funds,pricingContext]=await Promise.all([
-      mobile.getSummary(req.tenantDb,{...recordScope(req),timeZone:businessTime.forBranch(req.operationBranch)}),
+      mobile.getSummary(req.tenantDb,{...recordScope(req),timeZone:reportZone}),
       branchService.list(req.tenant),
       canReview?mobile.getReviewQueue(req.tenantDb,req.user.id,25,reviewBranch):[],
       canReview?mobile.getVoidQueue(req.tenantDb,req.user.id,25,reviewBranch):[],
@@ -176,7 +178,8 @@ router.get('/mobile-money/:id/acknowledgement',requireModule('mobile_money'),req
 });
 router.get('/mobile-money/history', requireModule('mobile_money'),requirePermission('mobile_money.view'),async(req,res,next)=>{
   try{
-    const records=await mobile.getTransactionPage(req.tenantDb,{...recordScope(req),from:req.query.from,to:req.query.to,cursor:req.query.cursor,timeZone:businessTime.forBranch(req.operationBranch)});
+    const reportZone=await reportTimeZone.forRequest(req);
+    const records=await mobile.getTransactionPage(req.tenantDb,{...recordScope(req),from:req.query.from,to:req.query.to,cursor:req.query.cursor,timeZone:reportZone});
     renderTenant(req,res,'mobile-money/history','Mobile Money History',
       'Tenant and branch-scoped operational records, with auditable correction status.',{records});
   }catch(e){next(e);}

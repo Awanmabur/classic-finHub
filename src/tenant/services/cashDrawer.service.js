@@ -147,7 +147,7 @@ async function submit(conn,tenant,actor,shiftId,input={}){
    const Money=mobileTransactionModel(conn);
    const outstanding=await Money.countDocuments({cashSessionId:result._id,$nor:[
      {status:'voided_internal',correctionState:'voided'},
-     {status:{$in:['recorded','pending_verification']},reviewState:{$in:['not_required','accepted']},correctionState:{$nin:['requested','voided']}}
+     {status:{$in:['recorded','pending_verification']},correctionState:{$nin:['requested','voided']}}
    ]}).session(tx);
    if(outstanding)throw fail(`Resolve ${outstanding} outstanding record corrections before closing`,409);
    const counted=await Money.countDocuments({cashSessionId:result._id}).session(tx);

@@ -26,14 +26,23 @@
           <div class="rowBtns"><button class="btn btnPrimary" name="decision" value="approve">Verify and open shift</button><button class="btn" name="decision" value="reject">Reject opening count</button></div>
         </form>
       <% } %>
-      <% if(data.canSubmit){ %>
-        <form method="post" action="/tenant/cash/shifts/<%= data.shift._id %>/submit" style="margin-top:16px">
+      <% if(data.canSubmit){ const expectedNow=BigInt(String(data.shift.openingMinor))+BigInt(String(data.shift.provisionalMovementMinor)); %>
+        <div class="summary"><div class="sumRow"><span>System closing cash from posted movements</span><b><%= cashLabel(String(expectedNow),data.shift.currency) %></b></div></div>
+        <form method="post" action="/tenant/cash/shifts/<%= data.shift._id %>/submit" style="margin-top:14px">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-          <p class="tiny">Recorded transactions already affect the internal cash book. Resolve any open correction requests or other unsettled cash operations, then physically count the drawer. This count excludes network e-float and unreceived provider commission.</p>
-          <label class="field">Physically counted closing cash<input class="control" name="countedCash" required inputmode="decimal" placeholder="Enter physical count"></label>
-          <label class="field">Count explanation (required when there is a variance)<textarea class="control" name="note" maxlength="400" rows="2" placeholder="Explain shortages, surpluses or counting evidence"></textarea></label>
-          <div class="rowBtns"><button class="btn btnPrimary" type="submit">Submit shift for independent review</button></div>
+          <input type="hidden" name="closingFromBook" value="on">
+          <label class="field"><input type="checkbox" name="physicalCountConfirmed" value="on" required> I counted the physical cash and it matches the system closing amount.</label>
+          <div class="rowBtns"><button class="btn btnPrimary" type="submit">Submit matching closing count</button></div>
         </form>
+        <details class="logicNote"><summary>Cash differs from the system amount?</summary>
+          <p>Enter the real counted cash, not an adjusted system figure. A supervisor must investigate the difference.</p>
+          <form method="post" action="/tenant/cash/shifts/<%= data.shift._id %>/submit">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <label class="field">Actual physical closing cash<input class="control" name="countedCash" required inputmode="decimal" placeholder="Physical cash count"></label>
+            <label class="field">Reason for difference<textarea class="control" name="note" maxlength="400" minlength="12" rows="2" required></textarea></label>
+            <div class="rowBtns"><button class="btn" type="submit">Submit cash difference for review</button></div>
+          </form>
+        </details>
       <% } %>
       <% if(data.canReview){ %>
         <form method="post" action="/tenant/cash/shifts/<%= data.shift._id %>/decide" style="margin-top:16px">

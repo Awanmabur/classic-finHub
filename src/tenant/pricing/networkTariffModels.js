@@ -21,7 +21,7 @@ const schema=new mongoose.Schema({
  evidenceReference:{type:String,required:true,maxlength:350},
  sourceKind:{type:String,enum:['custom','published_reference'],default:'custom',immutable:true},
  sourceUrl:{type:String,maxlength:300,default:null,immutable:true},
- sourceCheckedOn:{type:String,match:/^\\d{4}-\\d{2}-\\d{2}$/,default:null,immutable:true},
+ sourceCheckedOn:{type:String,match:/^\d{4}-\d{2}-\d{2}$/,default:null,immutable:true},
  providerConfirmed:{type:Boolean,default:false,immutable:true},
  effectiveFrom:{type:Date,required:true,immutable:true},
  expiresAt:{type:Date,default:null,immutable:true},

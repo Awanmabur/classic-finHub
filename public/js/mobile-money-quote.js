@@ -1,9 +1,12 @@
 'use strict';
 (() => {
-  const fields=document.querySelectorAll('[data-mobile-money-form]');
-  for(const form of fields){
+  // Modal forms are inserted after script load. Initialize each form once.
+  const bindings=new WeakSet();
+  function initialise(form){
+    if(!form?.matches?.('[data-mobile-money-form]')||bindings.has(form))return;
+    bindings.add(form);
     const area=form.querySelector('[data-mobile-provider-quote]');
-    if(!area)continue;
+    if(!area)return;
     const commission=area.querySelector('[data-mobile-agent-commission]');
     const charge=area.querySelector('[data-mobile-provider-charge]');
     const note=area.querySelector('[data-mobile-quote-note]');
@@ -58,4 +61,6 @@
     observer.observe(form,{attributes:true,attributeFilter:['data-operation']});
     preview();
   }
+  window.ClassicFinMobileQuote=Object.freeze({initialise});
+  document.querySelectorAll('[data-mobile-money-form]').forEach(initialise);
 })();

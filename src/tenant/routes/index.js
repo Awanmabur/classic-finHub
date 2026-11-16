@@ -118,6 +118,23 @@ router.post('/mobile-money/:id/decide-void',requireModule('mobile_money'),requir
     res.redirect(303,'/tenant/mobile-money');
   }catch(e){next(e);}
 });
+router.get('/mobile-money/alerts',requireModule('mobile_money'),requirePermission('mobile_money.view'),async(req,res,next)=>{
+  try{
+    if(req.user.role!=='Tenant Owner'){const e=new Error('Owner permission required');e.status=403;throw e;}
+    const alerts=await require('../models').notificationMessageModel(req.tenantDb)
+      .find({recipientId:req.user.id,source:'risk_alert'}).select('_id branchId subject body sourceId createdAt readAt emailState')
+      .sort({createdAt:-1,_id:-1}).limit(100).lean();
+    renderTenant(req,res,'mobile-money/alerts','Transaction Alerts','Owner-only anomaly signals. No transaction approval required.',{alerts});
+  }catch(e){next(e);}
+});
+router.post('/mobile-money/alerts/:id/read',requireModule('mobile_money'),requirePermission('mobile_money.view'),require('../../platform/services/actionThrottle.service').financial,async(req,res,next)=>{
+  try{
+    if(req.user.role!=='Tenant Owner'){const e=new Error('Owner permission required');e.status=403;throw e;}
+    if(!/^[a-f0-9]{24}$/i.test(req.params.id)){const e=new Error('Invalid alert identifier');e.status=400;throw e;}
+    await require('../models').notificationMessageModel(req.tenantDb).updateOne({_id:req.params.id,recipientId:req.user.id,source:'risk_alert',readAt:null},{$set:{readAt:new Date()}});
+    res.redirect(303,'/tenant/mobile-money/alerts');
+  }catch(e){next(e);}
+});
 // Physical cash count shifts are internal operational evidence, not provider float.
 const cash=require('../services/cashDrawer.service');
 const financialThrottle=require('../../platform/services/actionThrottle.service').financial;

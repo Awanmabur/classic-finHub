@@ -62,12 +62,12 @@
     <%- include('_entry-form',{currentBranch,operation:(user.permissions.includes('*') || user.permissions.includes('mobile_money.cash_in')) ? 'cash_in' : 'cash_out'}) %>
     <% } %>
 
-    <section class="card"><div class="cardHead"><b>Network activity</b><span><%= data.summary.total %> records in selected business period</span><a class="btn" href="/tenant/mobile-money/history">All history</a></div><div class="cardBody txList">
+    <section class="card"><div class="cardHead"><b>Network activity</b><span><%= data.summary.total %> records in selected business period</span><a class="btn" href="/tenant/mobile-money/history">All history</a><% if(user.role==='Tenant Owner'){ %><a class="btn" href="/tenant/mobile-money/alerts">Owner alerts</a><% } %></div><div class="cardBody txList">
       <% if (!data.summary.recent.length) { %><p class="tiny">No records yet. The list uses this tenant's database, not demonstration data.</p><% } %>
       <% data.summary.recent.forEach(t => { %>
         <div class="tx" data-search-row>
           <div class="txMeta"><b><a href="/tenant/mobile-money/<%= t._id %>"><%= t.network %> · <%= t.networkReference %></a></b>
-            <span><%= t.customer %> · <%= t.entrySource === 'sms' ? 'SMS capture' : 'Manual' %> · <%= t.operation === 'cash_in' ? 'Deposit' : 'Withdrawal' %> · <%= t.status.replace(/_/g,' ') %> · Correction: <%= (t.correctionState || 'none').replace(/_/g,' ') %></span>
+            <span><%= t.customer %> · <%= t.entrySource === 'sms' ? 'SMS capture' : 'Manual' %> · <%= t.operation === 'cash_in' ? 'Deposit' : 'Withdrawal' %> · <%= t.status.replace(/_/g,' ') %> · Correction: <%= (t.correctionState || 'none').replace(/_/g,' ') %><% if((t.riskSignals||[]).length){ %> · Attention: <%= t.riskSignals.join(', ').replaceAll('_',' ') %><% } %></span>
           </div><b><%= money(t.currency, amountFromMinor(t.amountMinor,t.currency)) %></b>
         </div>
         <% if(data.canRecord && String(t.operatorId)===String(user.id) && ['recorded','pending_verification'].includes(t.status) && ['none','denied',null,undefined].includes(t.correctionState) && (t.correctionAttempts||0)<5){ %>

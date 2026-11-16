@@ -16,9 +16,9 @@
     <p><b>Amount:</b> <%= money(data.record.currency,amountFromMinor(data.record.amountMinor,data.record.currency)) %></p>
     <p><b><%= data.record.feeTreatment==='payment_collected'?'Customer fee collected':data.record.feeTreatment==='wallet_commission'?'Wallet commission recorded':'Recorded fee (not confirmed as income)' %>:</b> <%= money(data.record.currency,amountFromMinor(data.record.feeMinor,data.record.currency)) %></p>
     <p><b>Recorded (<%= detailZone %>):</b> <%= detailLocalDate(data.record.createdAt) %></p>
-    <p><b>Internal review:</b> <%= (data.record.reviewState||'awaiting_review').replaceAll('_',' ') %></p>
+    <% if(data.record.reviewState&&data.record.reviewState!=='not_required'){ %><p><b>Legacy internal review:</b> <%= data.record.reviewState.replaceAll('_',' ') %></p><% } %>
     <p><b>Correction:</b> <%= (data.record.correctionState||'none').replaceAll('_',' ') %></p>
-    <p><b>Record status:</b> <%= data.record.status.replaceAll('_',' ') %></p>
+    <p><b>Record status:</b> <%= data.record.status.replaceAll('_',' ') %></p><% if((data.record.riskSignals||[]).length){ %><p><b>Attention signals:</b> <%= data.record.riskSignals.join(', ').replaceAll('_',' ') %></p><% } %>
   </div><p class="tiny">An internally voided entry is retained for investigation and reporting. It does not reverse any provider transaction, refund a customer or settle a balance.</p></div></section>
   <% if(data.record){ %>
   <section class="card" style="margin-top:14px"><div class="cardHead"><div><b>Saved network rate estimates</b><br><span>Captured from approved rate sheets or clearly labelled published references at transaction time</span></div><a class="btn" href="/tenant/mobile-money/tariffs">Rate sheets</a></div>

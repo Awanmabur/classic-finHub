@@ -380,11 +380,11 @@ function csvCell(value) {
   return '"'+s.replace(/"/g,'""')+'"';
 }
 function toCsv(items) {
-  const rows = [['Date (UTC)','Operation','Customer','Network','Reference','Currency','Amount','Fee','Operational Record Status','Internal Review','Correction State','Reviewed At (UTC)','Review Note']];
+  const rows = [['Date (UTC)','Operation','Customer','Network','Reference','Currency','Amount','Fee','Operational Record Status','Internal Review','Correction State','Risk Signals','Reviewed At (UTC)','Review Note']];
   for (const r of items) rows.push([
     new Date(r.createdAt).toISOString(), r.operation, r.customer, r.network, r.networkReference,
     r.currency, fromMinor(r.amountMinor,r.currency).toFixed(currencies[r.currency]),
-    fromMinor(r.feeMinor,r.currency).toFixed(currencies[r.currency]),r.status, r.reviewState || 'awaiting_review',r.correctionState||'none', r.reviewedAt ? new Date(r.reviewedAt).toISOString() : '', r.reviewNote || ''
+    fromMinor(r.feeMinor,r.currency).toFixed(currencies[r.currency]),r.status, r.reviewState || 'not_required',r.correctionState||'none',(r.riskSignals||[]).join(' | '), r.reviewedAt ? new Date(r.reviewedAt).toISOString() : '', r.reviewNote || ''
   ]);
   return rows.map(row=>row.map(csvCell).join(',')).join('\r\n')+'\r\n';
 }

@@ -1,0 +1,18 @@
+<section class="view show">
+  <section class="card">
+    <div class="cardHead"><div><b>Transaction alerts</b><br><span>Owner-only anomaly notices. An alert never blocks, approves or reverses a recorded operation.</span></div><a class="btn" href="/tenant/mobile-money/history">Transaction history</a></div>
+    <div class="cardBody tableWrap"><table>
+      <thead><tr><th>Time</th><th>Alert</th><th>Record</th><th>Read</th><th>Email</th></tr></thead><tbody>
+      <% if(!(data.alerts||[]).length){ %><tr><td colspan="5">No flagged transactions among the latest 100 notices.</td></tr><% } %>
+      <% (data.alerts||[]).forEach(a=>{ %><tr>
+        <td><%= typeof formatLocalDate==='function'?formatLocalDate(a.createdAt,a.branchId):new Date(a.createdAt).toISOString() %></td>
+        <td><strong><%= a.subject %></strong><p class="tiny"><%= a.body %></p></td>
+        <td><a href="/tenant/mobile-money/<%= a.sourceId %>">Open record</a></td>
+        <td><% if(a.readAt){ %>Read<% }else{ %><form method="post" action="/tenant/mobile-money/alerts/<%= a._id %>/read">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn" type="submit">Mark read</button></form><% } %></td>
+        <td><%= a.emailState==='accepted'?'Email provider accepted':a.emailState==='dead'?'Email failed':a.emailState==='not_requested'?'In-app only':a.emailState==='suppressed'?'Not sent':'Queued / retrying' %></td>
+      </tr><% }) %>
+      </tbody>
+    </table></div>
+  </section>
+</section>

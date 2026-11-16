@@ -10,8 +10,8 @@
     </form><p class="tiny">Results are restricted to your role, assigned branch and any operator-only scope. Maximum custom range: 90 days. Use Next to explore older results without loading entire tenant histories.</p></div>
   </section>
   <section class="card" style="margin-top:14px"><div class="cardHead"><b>Recorded activity</b><span><%= data.records.items.length %> records on this page</span></div>
-    <div class="cardBody tableWrap"><table><thead><tr><th>Date · <%= historyZone %></th><th>Reference</th><th>Network</th><th>Operation</th><th>Entry source</th><th>Payment method</th><th>Amount</th><th>Recorded fee</th><th>Agent commission estimate</th><th>Provider charge estimate</th><th>Internal status</th><th>Correction</th></tr></thead><tbody>
-      <% if(!data.records.items.length){ %><tr><td colspan="12">No records in this date range.</td></tr><% } %>
+    <div class="cardBody tableWrap"><table><thead><tr><th>Date · <%= historyZone %></th><th>Reference</th><th>Network</th><th>Operation</th><th>Entry source</th><th>Payment method</th><th>Amount</th><th>Recorded fee</th><th>Agent commission estimate</th><th>Provider charge estimate</th><th>Record status</th><th>Correction</th><th>Attention signals</th></tr></thead><tbody>
+      <% if(!data.records.items.length){ %><tr><td colspan="13">No records in this date range.</td></tr><% } %>
       <% data.records.items.forEach(t=>{ %><tr data-search-row>
         <td><%= historyLocalDate(t.createdAt) %></td>
         <td><a href="/tenant/mobile-money/<%= t._id %>"><%= t.networkReference %></a></td>
@@ -23,7 +23,7 @@
         <td><%= t.customerNetworkFeeEstimate?money(t.currency,amountFromMinor(t.customerNetworkFeeEstimate.amountMinor,t.currency))+' · approved v'+t.customerNetworkFeeEstimate.version:
           t.customerNetworkChargePublishedReference?money(t.currency,amountFromMinor(t.customerNetworkChargePublishedReference.amountMinor,t.currency))+' · published reference only':'No saved rate' %></td>
         <td><%= t.status.replaceAll('_',' ') %></td>
-        <td><%= (t.correctionState||'none').replaceAll('_',' ') %></td>
+        <td><%= (t.correctionState||'none').replaceAll('_',' ') %></td><td><%= (t.riskSignals||[]).join(', ').replaceAll('_',' ')||'None' %></td>
       </tr><% }) %>
     </tbody></table></div>
     <% if(data.records.nextCursor){ %><div class="cardBody"><a class="btn" href="/tenant/mobile-money/history?from=<%= encodeURIComponent(data.records.from) %>&amp;to=<%= encodeURIComponent(data.records.to) %>&amp;cursor=<%= encodeURIComponent(data.records.nextCursor) %>">Next page</a></div><% } %>

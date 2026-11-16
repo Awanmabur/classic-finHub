@@ -171,3 +171,26 @@
 #workspaceContent .networkReferenceSection>summary::-webkit-details-marker{display:none}
 #workspaceContent .networkReferenceSection[open]>summary{border-bottom:1px solid var(--border)}
 #workspaceContent .networkReferenceSection>summary .tiny{color:var(--muted)}
+
+/* Mobile Money: preserve approved dashboard visual system. Form controls stay
+   pill-shaped; content, summary and rate cards match main .stat (24px). */
+#workspaceContent :is(.mobileMoneyPage,.mobileMoneyEntry,.networkTariffPage) :is(
+ .networkBalanceStat,.networkProviderCard,.networkTariffRecord,
+ .networkTariffPayout,.networkTariffMetadata>span,
+ .networkTariffScroll,.networkTariffEdit .networkTariffForm,
+ .networkTariffQuoteResult>div,.networkRateEditor,.summary
+){border-radius:24px!important}
+#workspaceContent .mobileEntryBalances>.networkBalanceStat{border-radius:24px!important}
+#workspaceContent .networkTariffPage :is(input.control,select.control, .networkReadOnly){
+ border-radius:var(--pill,999px)!important
+}
+#workspaceContent .networkTariffPage textarea.control{border-radius:28px!important}
+#workspaceContent .networkTariffPage .networkTariffActions{
+ display:flex;align-items:center;gap:10px;flex-wrap:wrap
+}
+#workspaceContent .networkTariffPage .networkTariffActions .field{
+ min-width:min(100%,180px);flex:0 1 240px
+}
+#workspaceContent .networkTariffPage :is(.networkBalanceGrid,.networkProviderGrid){
+ grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))
+}

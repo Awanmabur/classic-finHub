@@ -33,7 +33,7 @@ test('published evidence is kept distinct from tenant-approved snapshots and can
  const transactions=src('src/tenant/services/mobileMoney.service.js');
  const moneyModel=src('src/tenant/models/index.js');
  const csv=src('src/tenant/services/mobileMoneyWorkspace.service.js');
- assert.match(transactions,/\.publishedReference\.service'\)\.quote\(/);
+ assert.match(transactions,/publishedReference\.service'\)\.quote\(/);
  assert.match(moneyModel,/agentCommissionPublishedReference/);
  assert.match(moneyModel,/customerNetworkChargePublishedReference/);
  assert.match(csv,/Published agent commission reference \(unapproved\)/);

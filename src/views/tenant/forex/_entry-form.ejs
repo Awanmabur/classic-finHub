@@ -4,6 +4,11 @@
    const firstRate=availableRates[0];
    const initialMaxValidity=firstRate?Math.min(60,Math.max(5,Math.floor((new Date(firstRate.expiresAt).getTime()-formTime-1000)/60000))):60;
    const initialValidity=Math.min(15,initialMaxValidity); %>
+<% if(!availableRates.length){ %>
+ <p class="tiny">No active Forex rate is approved for this operating branch and the currencies available for this operation.</p>
+ <p class="tiny">Enabled currencies: <%= operatingCurrencies.length?operatingCurrencies.map(c=>c==='KES'?'KSH':c).join(', '):'none' %>. A separately approved, unexpired exchange rate is required before recording a quote or operation.</p>
+ <a class="btn" href="/tenant/forex">Configure a real exchange rate</a>
+<% }else{ %>
 <div class="formSection"><div class="formSectionTitle">Customer and operation</div>
  <div class="row2"><label class="field">Operation<input class="control" value="<%= operation==='buy'?'Buy forex from customer':operation==='sell'?'Sell forex to customer':'Indicative quotation' %>" readonly></label><label class="field">Customer name<input name="customerLabel" class="control" minlength="2" maxlength="120" placeholder="Customer full name" required></label></div>
  <label class="field">Customer phone<input class="control" name="customerPhone" type="tel" required maxlength="16" placeholder="+211..."></label>
@@ -21,4 +26,4 @@
 <div class="summary"><div class="sumRow"><span><%= operation==='sell'?'Customer pays':operation==='buy'?'Customer receives':'Quoted settlement' %></span><b data-forex-total>—</b></div><div class="sumRow"><span>Drawer effect</span><b>Pending reviewed execution</b></div><div class="sumRow"><span>Reference</span><b class="mono"><%= data.idempotencyKey %></b></div></div>
 <input type="hidden" name="validMinutes" value="<%= initialValidity %>"><p class="tiny" id="approvedRateHelp">Your approved branch rate and quotation window are applied automatically.</p>
 <button type="submit" class="btn btnPrimary" <%= availableRates.length?'':'disabled' %>>Post forex operation</button>
-<% if(!availableRates.length){ %><p class="logicNote">Obtain approval for a rate valid beyond the quotation window first.</p><% } %>
+<% } %>

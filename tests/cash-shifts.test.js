@@ -78,6 +78,12 @@ test('cash shift views have real server-backed actions and escape notes',async()
  assert.match(detail,/name="decision" value="approve"/);assert.doesNotMatch(detail,/<script>/);assert.match(detail,/&lt;script&gt;/);
  const noActions=await ejs.renderFile(path.join(base,'shift-detail.ejs'),{formatMoneyMinor:mobile.formatMoneyMinor,data:{shift:item,canSubmit:false,canReview:false},csrfToken:'csrf'});
  assert.doesNotMatch(noActions,/name="decision"|name="countedCash"/);
+ const openShift={...item,status:'open',submittedAt:null};
+ const openView=await ejs.renderFile(path.join(base,'shift-detail.ejs'),{formatMoneyMinor:mobile.formatMoneyMinor,data:{shift:openShift,canSubmit:true,canReview:false},csrfToken:'csrf'});
+ assert.match(openView,/name="closingFromBook" value="on"/);
+ assert.match(openView,/name="physicalCountConfirmed" value="on"/);
+ assert.match(openView,/Cash differs from the system amount/);
+ assert.match(openView,/name="countedCash"/,'real discrepancies must still be possible');
  const ack=await ejs.renderFile(path.join(base,'acknowledgement.ejs'),{record:{_id:shiftId,createdAt:new Date(),operation:'cash_in',network:'MTN',networkReference:'REF-123',
   customer:'<script>alert(1)</script>',status:'pending_verification',reviewState:'accepted',correctionState:'none'},
   amount:'UGX 10000',fee:'UGX 0',reference:'CFH-ACK-TEST'});

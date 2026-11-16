@@ -68,7 +68,11 @@
         <div class="tx" data-search-row>
           <div class="txMeta"><b><a href="/tenant/mobile-money/<%= t._id %>"><%= t.network %> · <%= t.networkReference %></a></b>
             <span><%= t.customer %> · <%= t.entrySource === 'sms' ? 'SMS capture' : 'Manual' %> · <%= t.operation === 'cash_in' ? 'Deposit' : 'Withdrawal' %> · <%= t.status.replace(/_/g,' ') %> · Correction: <%= (t.correctionState || 'none').replace(/_/g,' ') %><% if((t.riskSignals||[]).length){ %> · Attention: <%= t.riskSignals.join(', ').replaceAll('_',' ') %><% } %></span>
-          </div><b><%= money(t.currency, amountFromMinor(t.amountMinor,t.currency)) %></b>
+          </div><div class="txAmt"><b><%= money(t.currency, amountFromMinor(t.amountMinor,t.currency)) %></b>
+            <% const commission=t.agentCommissionEstimate||t.agentCommissionPublishedReference; const customerCharge=t.customerNetworkFeeEstimate||t.customerNetworkChargePublishedReference; %>
+            <small><%= commission?(t.agentCommissionEstimate?'Approved commission estimate: ':'Published commission reference: ')+money(t.currency,amountFromMinor(commission.amountMinor,t.currency)):'No matching agent commission sheet' %></small>
+            <small><%= customerCharge?(t.customerNetworkFeeEstimate?'Approved customer network charge: ':'Published customer network charge: ')+money(t.currency,amountFromMinor(customerCharge.amountMinor,t.currency)):'No matching customer network fee sheet' %></small>
+          </div>
         </div>
         <% if(data.canRecord && String(t.operatorId)===String(user.id) && ['recorded','pending_verification'].includes(t.status) && ['none','denied',null,undefined].includes(t.correctionState) && (t.correctionAttempts||0)<5){ %>
           <details style="margin:8px 0 12px"><summary class="tiny">Request correction</summary>

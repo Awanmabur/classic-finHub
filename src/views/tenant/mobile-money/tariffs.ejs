@@ -1,3 +1,6 @@
+<% const tariffZone=typeof businessTimeZone==='string'?businessTimeZone:'UTC';
+const tariffFormatDate=typeof formatLocalDate==='function'?formatLocalDate:value=>new Date(value).toISOString();
+const tariffToday=typeof businessToday==='string'?businessToday:new Date().toISOString().slice(0,10); %>
 <script src="/js/network-tariffs.js?v=<%= assetVersion %>" defer></script>
 <section class="view show workspaceStack networkTariffPage">
  <section class="card">
@@ -95,7 +98,7 @@
        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
        <label class="field">Updated provider document or agreement<input class="control" name="evidenceReference" minlength="12" maxlength="350" required value="<%= schedule.evidenceReference %>"></label>
        <div class="row2">
-        <label class="field">New effective date (branch-local)<input class="control" type="date" name="effectiveFrom" value="<%= businessToday %>" required></label>
+        <label class="field">New effective date (branch-local)<input class="control" type="date" name="effectiveFrom" value="<%= tariffToday %>" required></label>
         <label class="field">Expires on (optional)<input class="control" type="date" name="expiresAt" value="<%= schedule.expiresAt?new Date(schedule.expiresAt).toISOString().slice(0,10):'' %>"></label>
        </div>
        <% if(!data.allProviders.find(p=>p.key===schedule.network)?.currency){ %>
@@ -164,14 +167,14 @@
     <form class="networkTariffRecordBody networkTariffForm" method="post" action="/tenant/mobile-money/tariffs/payouts">
      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
      <div class="networkTariffFields">
-      <label class="field">Receiving network wallet<select name="walletAccountId" class="control" data-payout-wallet required><option value="">Choose reconciled wallet</option><% data.commissions.wallets.forEach(wallet=>{ %><option value="<%= wallet._id %>" data-network="<%= wallet.network %>" data-currency="<%= wallet.currency %>"><%= wallet.name %> · <%= wallet.network==='MTN SSD'?'MTN South Sudan':wallet.network %> · <%= wallet.currency %></option><% }) %></select></label>
+      <label class="field">Receiving network wallet<select name="walletAccountId" class="control" data-payout-wallet required><option value="">Choose reconciled wallet</option><% data.commissions.wallets.forEach(wallet=>{ %><option value="<%= wallet._id %>" data-network="<%= wallet.network %>" data-currency="<%= wallet.currency %>" data-time-zone="<%= typeof businessTimeZoneForBranch==='function'?businessTimeZoneForBranch(data.branches.find(b=>String(b._id)===String(wallet.branchId))):tariffZone %>"><%= wallet.name %> · <%= wallet.network==='MTN SSD'?'MTN South Sudan':wallet.network %> · <%= wallet.currency %></option><% }) %></select></label>
       <div class="field"><span>Network and currency</span><div class="networkReadOnly" data-payout-market>Choose a wallet to identify its network and currency</div><input type="hidden" name="network" data-payout-network><input type="hidden" name="currency" data-payout-currency></div>
       <label class="field">Net commission actually credited<input name="amount" class="control" type="text" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" placeholder="0.00" required></label>
       <label class="field">Gross commission before deductions<input name="grossAmount" class="control" type="text" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" placeholder="0.00" required></label>
       <label class="field">Tax withheld by provider<input name="taxWithheld" class="control" type="text" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" value="0" required></label>
       <label class="field">Provider commission deduction / cost<input name="providerCost" class="control" type="text" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" value="0" required></label>
       <label class="field">Provider commission credit reference<input name="providerReference" class="control" minlength="6" maxlength="120" placeholder="Unique credit or statement reference" required></label>
-      <label class="field">Actual provider credit time (UTC)<input name="creditedAt" class="control" type="datetime-local" required></label>
+      <label class="field">Actual provider credit time (<span data-credit-time-zone><%= tariffZone %></span> local)<input name="creditedAt" class="control" type="datetime-local" required></label>
      </div>
      <label class="field">Statement evidence and proof reference<input name="statementEvidence" class="control" minlength="12" maxlength="350" placeholder="Statement date, provider, account and trace ID" required></label>
      <div class="networkTariffActions"><button class="btn btnPrimary" type="submit">Submit credit for reconciliation</button><span class="tiny">No balance changes until independent review and a posting-enabled environment.</span></div>
@@ -181,7 +184,7 @@
    <% if(!data.commissions.records.length){ %><p class="tiny">No commission credits recorded for your permitted wallets.</p><% } %>
    <% data.commissions.records.forEach(payout=>{ %>
     <div class="networkTariffPayout">
-     <div class="networkTariffPayoutDetails"><b><%= payout.network==='MTN SSD'?'MTN South Sudan':payout.network %> — <%= data.formatMinor(payout.amountMinor,payout.currency) %></b><span><%= payout.providerReference %> · <%= formatLocalDate(payout.creditedAt) %> <%= businessTimeZone %></span><span class="tiny"><%= payout.statementEvidence %></span></div>
+     <div class="networkTariffPayoutDetails"><b><%= payout.network==='MTN SSD'?'MTN South Sudan':payout.network %> — <%= data.formatMinor(payout.amountMinor,payout.currency) %></b><span><%= payout.providerReference %> · <%= tariffFormatDate(payout.creditedAt) %> <%= tariffZone %></span><span class="tiny"><%= payout.statementEvidence %></span></div>
      <span class="tag"><%= payout.status==='posted'?'Posted income':payout.status==='rejected'?'Rejected':'Pending review' %></span>
      <% if(data.canReviewPayout&&payout.status==='pending_review'){ %>
      <form class="networkTariffReview" method="post" action="/tenant/mobile-money/tariffs/payouts/<%= payout._id %>/review">

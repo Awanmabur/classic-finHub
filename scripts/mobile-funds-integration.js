@@ -37,9 +37,55 @@ async function main(){
   'Cashier cannot override the mapped physical drawer');
  assert.equal(await balance(wallet),'1000000');
  assert.equal(await balance(drawer),'500000');
+ // Import the published MTN reference tables once; an independent Owner
+ // must approve all four drafts before they enter any financial quote.
+ const rates=require('../src/tenant/pricing/networkTariffService');
+ const firstImport=await rates.importExistingReferences(conn,tenant,operator,
+  {network:'MTN',branchId:String(branch._id)});
+ assert.equal(firstImport.created.length,4);
+ const again=await rates.importExistingReferences(conn,tenant,operator,
+  {network:'MTN',branchId:String(branch._id)});
+ assert.equal(again.created.length,0);
+ assert.equal(again.alreadyPresent.length,4);
+ const drafts=await rates.read(conn,tenant,owner);
+ for(const sheet of drafts.filter(item=>item.status==='draft')){
+  await assert.rejects(rates.decide(conn,tenant,operator,String(sheet._id),'approve'),{status:403});
+  await rates.decide(conn,tenant,owner,String(sheet._id),'approve');
+ }
+ const inQuote=await rates.transactionEstimates(conn,tenant,branch,{network:'MTN',currency:'UGX',
+  operation:'cash_in',amountMinor:'250000'});
+ const outQuote=await rates.transactionEstimates(conn,tenant,branch,{network:'MTN',currency:'UGX',
+  operation:'cash_out',amountMinor:'250000'});
+ assert.equal(inQuote.agentCommissionEstimate?.amountMinor,'500');
+ assert.equal(inQuote.customerNetworkFeeEstimate?.amountMinor,'0');
+ assert.equal(outQuote.agentCommissionEstimate?.amountMinor,'1000');
+ assert.equal(outQuote.customerNetworkFeeEstimate?.amountMinor,'3575');
+ assert.equal(await balance(wallet),'1000000');
+ assert.equal(await balance(drawer),'500000');
  const firstInput=request('cash_in',10000,990000,{fee:'100',feeTreatment:'payment_collected'}),first=await record(firstInput);
  assert.equal(first.created.fundingState,'book_recorded');assert.equal(String(first.created.physicalCashMovementMinor),'10100');assert.equal(await balance(wallet),'990000');assert.equal(await balance(drawer),'510100');assert.equal((await record(firstInput)).duplicate,true);
+ assert.equal(first.created.agentCommissionEstimate?.amountMinor,'175');
+ assert.equal(first.created.customerNetworkFeeEstimate?.amountMinor,'0');
  await assert.rejects(record({...firstInput,feeTreatment:'record_only'}),{status:409});await accept(first);
+ const liveSheet=(await rates.read(conn,tenant,owner)).find(x=>x.status==='approved'&&
+  x.scheduleKind==='agent_commission'&&x.operation==='cash_in');
+ const revisionDraft=await rates.editApprovedVersion(conn,tenant,operator,String(liveSheet._id));
+ const changed=revisionDraft.tiers.map(t=>({minMinor:t.minMinor,maxMinor:t.maxMinor,
+  rate:{kind:t.rate.kind,value:t.rate.value}}));
+ changed[0].rate.value='401';
+ await rates.revise(conn,tenant,operator,String(revisionDraft._id),{
+  revision:String(revisionDraft.revision),bands:rates.serializeLines(changed),
+  evidenceReference:'Verified provider amendment for operator commission effective November 2026'
+ });
+ assert.equal((await rates.read(conn,tenant,owner)).filter(x=>x.status==='approved'&&
+  x.scheduleKind==='agent_commission'&&x.operation==='cash_in').length,1);
+ await rates.decide(conn,tenant,owner,String(revisionDraft._id),'approve');
+ const afterRevision=await rates.read(conn,tenant,owner);
+ assert.equal(afterRevision.find(x=>String(x._id)===String(liveSheet._id)).status,'retired');
+ assert.equal(afterRevision.filter(x=>x.status==='approved'&&
+  x.scheduleKind==='agent_commission'&&x.operation==='cash_in').length,1);
+ assert.equal(first.created.agentCommissionEstimate?.version,liveSheet.version);
+
  const firstObservation=await funds.models(conn).observation.findById(first.created.walletObservationId).lean();assert.equal(firstObservation.status,'approved');assert.equal(String(firstObservation.varianceMinorAtReview),'0');
  await assert.rejects(treasury.configureAccount(conn,tenant,owner,wallet._id,{name:wallet.name,isDefault:'true',feeTreatment:'wallet_commission'}),{status:400},'Speculative commission policies cannot be enabled for new transactions');
  const second=await record(request('cash_out',5000,995000,{fee:'0',feeTreatment:'payment_collected'}));await accept(second);assert.equal(await balance(wallet),'995000');assert.equal(await balance(drawer),'505100');

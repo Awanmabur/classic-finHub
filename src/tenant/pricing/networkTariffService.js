@@ -175,6 +175,57 @@ async function decide(conn,tenant,actor,id,decision){
   return output;
  }finally{await session.endSession();}
 }
+// Owner authorization of checked-in provider tables is NOT a provider payout or
+// a customer fee collection. No teller retypes rates; two operations activate atomically.
+async function activatePublished(conn,tenant,actor,branch,input){
+ if(!input||typeof input!=='object'||Array.isArray(input)||
+   Object.keys(input).some(key=>!['network','scheduleKind','_csrf'].includes(key)))
+  throw fail('Only the provider and the sheet type may be selected');
+ if(!branch?._id)throw fail('Assign an active operating branch before using provider rates',409);
+ const {templates}=require('./publishedRateActivation');
+ const rateSheets=templates(String(input.network||''),String(input.scheduleKind||''));
+ await ensure(conn);
+ const session=await conn.startSession();
+ try{
+  let activated=0,alreadyActive=0;
+  await session.withTransaction(async()=>{
+   const auth=await treasury.access(conn,tenant,actor,{permission:'treasury.review',sourceType:'mobile_money',session,fence:true});
+   if(auth.actor.role!=='Tenant Owner')throw fail('Only the tenant owner can authorize published provider reference rates',403);
+   const activeBranch=await branchModel(conn).findOne({_id:branch._id,status:'active'}).session(session).lean();
+   if(!activeBranch||!require('../services/branchCurrency.service').supports(activeBranch,'UGX'))
+    throw fail('An active Uganda-shilling operating branch is required',409);
+   const now=new Date(),effectiveDay=businessTime.localDay(now,businessTime.forBranch(activeBranch));
+   for(const tpl of rateSheets){
+    const scope={tenantId:auth.tenant._id,branchId:activeBranch._id,
+     network:tpl.network,currency:tpl.currency,operation:tpl.operation,scheduleKind:tpl.scheduleKind};
+    const prior=await model(conn).findOne({...scope,status:{$in:['draft','approved']}}).session(session).lean();
+    if(prior?.status==='approved'){alreadyActive++;continue;}
+    if(prior?.status==='draft')
+     throw fail('An existing draft already covers '+tpl.network+' '+tpl.operation+'. Review the draft; do not create a duplicate.',409);
+    const last=await model(conn).findOne(scope).sort({version:-1}).session(session).lean();
+    const [created]=await model(conn).create([{
+     ...scope,version:(last?.version||0)+1,status:'approved',
+     tiers:tpl.tiers,evidenceReference:tpl.sourceUrl+' (checked '+tpl.checkedOn+')',
+     sourceKind:'published_reference',sourceUrl:tpl.sourceUrl,sourceCheckedOn:tpl.checkedOn,
+     providerConfirmed:false,effectiveFrom:new Date(effectiveDay+'T00:00:00.000Z'),
+     createdBy:auth.actor.id,approvedBy:auth.actor.id,approvedAt:now,revision:1
+    }],{session});
+    await auditEventModel(conn).create([{
+     actorId:auth.actor.id,action:'mobile_money.tariff.published_reference_activated',
+     targetId:created._id,metadata:{tenantId:String(auth.tenant._id),branchId:String(activeBranch._id),
+      network:tpl.network,currency:tpl.currency,scheduleKind:tpl.scheduleKind,operation:tpl.operation,
+      sourceUrl:tpl.sourceUrl,sourceCheckedOn:tpl.checkedOn,providerConfirmed:false,
+      nonPostingEstimate:true,ownerAuthorization:true}
+    }],{session});
+    activated++;
+   }
+  });
+  return {activated,alreadyActive,network:rateSheets[0].network,scheduleKind:rateSheets[0].scheduleKind};
+ }catch(e){
+  if(e.code===11000)throw fail('A rate sheet was activated concurrently. Reload the page.',409);
+  throw e;
+ }finally{await session.endSession();}
+}
 async function transactionEstimates(conn,tenant,branch,{network,currency,operation,amountMinor,at=new Date(),session=null}){
  const timestamp=new Date(at);
  if(!Number.isFinite(timestamp.getTime()))throw fail('Invalid operation date');
@@ -212,4 +263,4 @@ function preview(schedule,amountMinor){
  }
  return calculated;
 }
-module.exports={parseLines,serializeLines,validateInput,read,propose,proposeRevision,revise,decide,preview,transactionEstimates};
+module.exports={parseLines,serializeLines,validateInput,read,propose,proposeRevision,revise,decide,activatePublished,preview,transactionEstimates};

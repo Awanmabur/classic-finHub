@@ -13,42 +13,55 @@ test('risk comparisons preserve integer precision for large amounts',()=>{
 });
 
 
-// The committed record is the retry source; notification failures never
-// change cash/float bookkeeping or the result returned to the operator.
-function cursor(rows){return {select(){return this;},sort(){return this;},limit(){return this;},async lean(){return rows;}};}
+// The notification worker never mutates cash, float or financial transactions.
+function rows(items){return {select(){return this;},sort(){return this;},limit(){return this;},async lean(){return items;}};}
 function fixture({fail=false}={}){
+ const at=new Date('2026-11-16T10:00:00Z');
  const record={_id:'507f1f77bcf86cd799439011',operatorId:'507f1f77bcf86cd799439012',
-  branchId:'507f1f77bcf86cd799439013',network:'MTN',riskSignals:['rapid_repeat']};
+  branchId:'507f1f77bcf86cd799439013',network:'MTN',riskSignals:['rapid_repeat'],createdAt:at};
  const owner={_id:'507f1f77bcf86cd799439014'};
- const state={synced:false,notices:new Map(),updates:0};
+ const state={cursor:null,notices:new Map(),financialWrites:0};
  const tenantModels={
-  mobileTransactionModel:()=>({find:()=>cursor(state.synced?[]:[record]),
-   updateOne:async()=>{state.synced=true;state.updates++;}}),
-  tenantUserModel:()=>({find:()=>cursor([owner])}),
+  mobileTransactionModel:()=>({find:()=>rows(state.cursor?[]:[record]),
+   updateOne:async()=>{state.financialWrites++;}}),
+  tenantUserModel:()=>({find:()=>rows([owner])}),
+  riskAlertDispatchCursorModel:()=>({
+   findOne:()=>({lean:async()=>state.cursor}),
+   create:async()=>{state.cursor={lastCreatedAt:at,lastId:record._id};},
+   updateOne:async()=>({matchedCount:1})
+  }),
   notificationMessageModel:()=>({exists:async()=>null,
-   updateOne:async(filter,update)=>{
-    if(fail)throw new Error('Notification store temporarily unavailable');
-    if(!state.notices.has(filter.dedupeKey))state.notices.set(filter.dedupeKey,update.$setOnInsert);
+   updateOne:async(filter,change)=>{
+    if(fail)throw Error('Notification storage unavailable');
+    if(!state.notices.has(filter.dedupeKey))state.notices.set(filter.dedupeKey,change.$setOnInsert);
    }})
  };
  return {state,tenantModels};
 }
-test('anomaly worker creates one owner notice and finishes the durable outbox task',async()=>{
+test('risk worker upserts owner notice and only updates notification-owned checkpoint',async()=>{
  const {dispatchPending}=require('../src/tenant/services/mobileMoneyRisk.service');
- const {state,tenantModels}=fixture();
- assert.equal(await dispatchPending(null,{tenantModels}),1);
- assert.equal(state.updates,1);
+ const {state,tenantModels}=fixture(),now=new Date('2026-11-16T10:05:00Z');
+ assert.equal(await dispatchPending(null,{tenantModels,now}),1);
+ assert.equal(state.financialWrites,0);
  assert.equal(state.notices.size,1);
- assert.equal(await dispatchPending(null,{tenantModels}),0);
- const notice=[...state.notices.values()][0];
- assert.equal(notice.source,'risk_alert');
- assert.equal(notice.emailState,'pending');
- assert.match(notice.body,/does not prove external provider settlement/);
+ assert(state.cursor);
+ assert.equal(await dispatchPending(null,{tenantModels,now}),0);
+ const alert=[...state.notices.values()][0];
+ assert.equal(alert.source,'risk_alert');
+ assert.equal(alert.emailState,'pending');
+ assert.match(alert.body,/does not prove external provider settlement/);
 });
-test('anomaly alert storage outage leaves the original risk record pending',async()=>{
+test('notification storage failure leaves pending source and retry position unchanged',async()=>{
  const {dispatchPending}=require('../src/tenant/services/mobileMoneyRisk.service');
  const {state,tenantModels}=fixture({fail:true});
- await assert.rejects(dispatchPending(null,{tenantModels}),/temporarily unavailable/);
- assert.equal(state.synced,false);
- assert.equal(state.updates,0);
+ await assert.rejects(dispatchPending(null,{tenantModels,now:new Date('2026-11-16T10:05:00Z')}),/Notification storage unavailable/);
+ assert.equal(state.cursor,null);
+ assert.equal(state.financialWrites,0);
+});
+test('new risk alerts are dispatched without advancing a potentially unsafe cursor',async()=>{
+ const {dispatchPending}=require('../src/tenant/services/mobileMoneyRisk.service');
+ const {state,tenantModels}=fixture();
+ assert.equal(await dispatchPending(null,{tenantModels,now:new Date('2026-11-16T10:00:20Z')}),1);
+ assert.equal(state.notices.size,1);
+ assert.equal(state.cursor,null);
 });

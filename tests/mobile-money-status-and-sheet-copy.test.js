@@ -44,7 +44,12 @@ test('cash shifts label counted existing cash and do not require separate approv
  const detail=src('src/views/tenant/mobile-money/shift-detail.ejs');
  const close=src('src/views/tenant/workflow/close-day.ejs');
  assert.match(shifts,/opening a shift never creates or adds money/i);
- assert.match(shifts,/Counted cash already in your drawer/);
+ assert.match(shifts,/name="openingFromBook" value="on"/);
+ assert.match(shifts,/I counted my physical/);
+ assert.doesNotMatch(shifts,/name="openingCash"/);
+ assert.match(detail,/name="closingFromBook" value="on"/);
+ assert.match(detail,/Cash differs from the system amount/);
+ assert.match(close,/name="closingFromBook" value="on"/);
  assert.match(detail,/Recorded transactions already affect the internal cash book/);
  assert.match(close,/Transactions themselves are recorded immediately/);
 });

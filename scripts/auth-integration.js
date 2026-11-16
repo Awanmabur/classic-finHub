@@ -192,7 +192,8 @@ async function main() {
     const reviewPage=await fetch(`${base}/tenant/mobile-money`,{headers:{cookie:reviewerFull.cookie}});
     assert.equal(reviewPage.status,200);
     const reviewHtml=await reviewPage.text();
-    assert.match(reviewHtml,/Independent internal review/);
+    assert.match(reviewHtml,/Mobile Money/);
+    assert.doesNotMatch(reviewHtml,/Independent internal review/,'the normal UI must not demand transaction approval');
     const reviewPost=await fetch(`${base}/tenant/mobile-money/${created._id}/review`,{method:'POST',redirect:'manual',
       headers:{cookie:reviewerFull.cookie,'content-type':'application/x-www-form-urlencoded'},
       body:new URLSearchParams({_csrf:csrf(reviewHtml),decision:'accepted',note:'Evidence checked by different staff member'}).toString()});

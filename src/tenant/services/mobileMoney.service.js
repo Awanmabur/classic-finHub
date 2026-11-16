@@ -126,6 +126,10 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
         network:values.network,currency:values.currency,operation,
         amountMinor:values.amountMinor,at:smsAuthorization?.receivedAt||new Date()
       });
+      // Persist one preferred quote per category: approved tenant sheet first,
+      // public or historical provider reference only when no approved sheet applies.
+      if(tariffEstimates.agentCommissionEstimate)publicReferences.agentCommissionPublishedReference=null;
+      if(tariffEstimates.customerNetworkFeeEstimate)publicReferences.customerNetworkChargePublishedReference=null;
       await require('../../platform/services/commercial.service').reserveUsage(authorization.tenant,'mobile_money_records',session);
       // Wallet and bank are declared receipt methods, not verified integrations.
       // Only physical Cash records may change a verified drawer or join a shift.

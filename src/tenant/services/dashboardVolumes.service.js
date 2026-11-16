@@ -9,7 +9,7 @@ const mobile=require('./mobileMoney.service');
 const businessTime=require('../../utils/businessTime');
 const sources=Object.freeze({
  money_transfer:{flag:'hasTransfer',model:'transferOrderModel',creator:'Money Transfer Operator',states:['requested','approved_pending_provider','collected_manual','paid_out_manual'],amount:'amountMinor',currency:'currency'},
- mobile_money:{flag:'hasMobileMoney',model:'mobileTransactionModel',creator:'Mobile Money Operator',states:['pending_verification','verified'],amount:'amountMinor',currency:'currency'},
+ mobile_money:{flag:'hasMobileMoney',model:'mobileTransactionModel',creator:'Mobile Money Operator',states:['recorded','pending_verification','verified'],amount:'amountMinor',currency:'currency'},
  banking:{flag:'hasBanking',model:'bankingRequestModel',creator:'Banking Operator',states:['requested','approved_pending_bank','posted_manual'],amount:'amountMinor',currency:'currency'},
  forex:{flag:'hasForex',model:'forexQuoteModel',creator:'Forex Operator',states:['quoted','approved_pending_execution','posted_manual'],amount:'sourceMinor',currency:'fromCurrency'}
 });

@@ -84,7 +84,7 @@ async function main(){
   const pythonExit=await new Promise((resolve,reject)=>{python.once('error',reject);python.once('close',resolve);});
   assert.equal(pythonExit,0,'Android relay process completes');assert.deepEqual(JSON.parse(pythonOutput),{status:200,accepted:true},'Python relay signs bytes accepted by the real server and retries remain idempotent');
   const inboxId=accepted.json.id,record=await models.mobileTransactionModel(conn).findOne().lean();
-  assert.equal(record.entrySource,'sms');assert.equal(String(record.smsInboxId),inboxId);assert.equal(record.status,'pending_verification');
+  assert.equal(record.entrySource,'sms');assert.equal(String(record.smsInboxId),inboxId);assert.equal(record.status,'recorded');assert.equal(record.reviewState,'not_required');
   assert.equal(String(record.branchId),String(branch._id));assert.equal(String(record.operatorId),operator.id);
   assert.equal((await deliver(first)).json.duplicate,true);assert.equal(await models.mobileTransactionModel(conn).countDocuments(),1);
   assert.equal((await deliver({...first,body:first.body+' changed'})).status,409);

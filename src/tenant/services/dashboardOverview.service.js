@@ -43,7 +43,11 @@ async function overview(conn,tenant,user,options={}){
  // Use the provider's actual currency in Mobile Money, independently of the
  // currency selected for unrelated Money Transfer, Banking and Forex cards.
  const overviewOptions={...options,mobileMarket};
- if(mobileMarket&&!hasTransfer&&!hasBanking&&!hasForex&&!options.currency)
+ // The first configured Mobile Money market is the default viewing currency
+ // even when this tenant also subscribes to Money Transfer or other modules.
+ // An explicit user-selected dashboard currency still wins for those modules;
+ // MoMo volume remains independently scoped to its network currency.
+ if(mobileMarket&&!options.currency)
   overviewOptions.currency=mobileMarket.currency;
  const workspaceSnapshot=await snapshot.snapshot(conn,tenant,user,flags,options.operationBranch,overviewOptions);
  const displayWallets=mobileMarket?(mobileFunds?.wallets||[]).filter(a=>a.network===mobileMarket.network&&a.currency===mobileMarket.currency):(mobileFunds?.wallets||[]);

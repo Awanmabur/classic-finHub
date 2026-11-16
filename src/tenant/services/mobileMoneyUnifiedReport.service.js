@@ -42,7 +42,7 @@ function periodWindow(input={},now=new Date()){
 const whole=value=>BigInt(String(value??'0'));
 function blank(network,currency){
  return {network,currency,depositCount:0,withdrawalCount:0,manualCount:0,smsCount:0,
-  pendingReviewCount:0,providerUnverifiedCount:0,voidedCount:0,
+  pendingReviewCount:0,providerUnverifiedCount:0,voidedCount:0,flaggedCount:0,
   depositMinor:0n,withdrawalMinor:0n,volumeMinor:0n,cashImpactMinor:0n,
   recordedFeeMinor:0n,collectedFeeMinor:0n,legacyWalletFeeMinor:0n,
   estimatedCommissionMinor:0n,commissionMissingCount:0,customerNetworkChargeEstimateMinor:0n,configuredCostEstimateMinor:0n,receivedCommissionMinor:0n,grossCommissionMinor:0n,
@@ -73,6 +73,7 @@ function summarize(transactionGroups,payoutGroups,expenseGroups){
    row[entrySource==='sms'?'smsCount':'manualCount']+=group.count;
    if(reviewState==='awaiting_review')row.pendingReviewCount+=group.count;
    if(status==='pending_verification')row.providerUnverifiedCount+=group.count;
+   row.flaggedCount+=group.flaggedCount||0;
    row[operation==='cash_in'?'depositMinor':'withdrawalMinor']+=amount;
    row.volumeMinor+=amount;
    row.cashImpactMinor+=whole(group.cashMovementMinor);
@@ -112,6 +113,7 @@ async function generate(conn,tenant,actor,input={}){
    feeTreatment:{$ifNull:['$feeTreatment','record_only']},reviewState:{$ifNull:['$reviewState','awaiting_review']},status:'$status',
    voided:{$or:[{$eq:['$status','voided_internal']},{$eq:['$correctionState','voided']}]}},
   count:{$sum:1},amountMinor:{$sum:'$amountMinor'},feeMinor:{$sum:'$feeMinor'},
+  flaggedCount:{$sum:{$cond:[{$gt:[{$size:{$ifNull:['$riskFlags',[]]}},0]},1,0]}},
   cashMovementMinor:{$sum:{$cond:[{$eq:[{$ifNull:['$paymentMethod','Cash']},'Cash']},
     {$ifNull:['$physicalCashMovementMinor',{$cond:[{$eq:['$operation','cash_in']},'$amountMinor',{$multiply:['$amountMinor',-1]}]}]},0]}},
   estimatedCommissionMinor:{$sum:{$convert:{input:'$agentCommissionEstimate.amountMinor',to:'decimal',onError:0,onNull:0}}},
@@ -142,12 +144,12 @@ function csv(report){
  const fields=['Network','Currency','Deposit count','Withdrawal count','Deposit principal','Withdrawal principal',
   'Net physical cash movement','Fees recorded (not income)','Explicitly collected agent fees',
   'Legacy wallet fee recognition','Estimated agent commission (unreceived)','Transactions without approved agent commission rate','Estimated provider customer network charge','Configured operating cost estimate','Provider commission actually received',
-  'Provider gross commission','Withheld tax','Provider deductions','Unreviewed records','Provider-unverified records','Voided records'];
+  'Provider gross commission','Withheld tax','Provider deductions','Unreviewed records','Provider-unverified records','Attention-flagged records','Voided records'];
  const rows=[fields,...report.networks.map(row=>[
   row.network,row.currency,row.depositCount,row.withdrawalCount,
   row.depositMinor,row.withdrawalMinor,row.cashImpactMinor,row.recordedFeeMinor,row.collectedFeeMinor,
   row.legacyWalletFeeMinor,row.estimatedCommissionMinor,row.commissionMissingCount,row.customerNetworkChargeEstimateMinor,row.configuredCostEstimateMinor,row.receivedCommissionMinor,
-  row.grossCommissionMinor,row.withheldTaxMinor,row.providerCostMinor,row.pendingReviewCount,row.providerUnverifiedCount,row.voidedCount
+  row.grossCommissionMinor,row.withheldTaxMinor,row.providerCostMinor,row.pendingReviewCount,row.providerUnverifiedCount,row.flaggedCount,row.voidedCount
  ].map(v=>typeof v==='bigint'?String(v):v)),
  ['Period UTC',report.window.from+' to '+report.window.to],
  ['Expenses scope','All approved branch expenses, not allocated by provider'],

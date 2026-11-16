@@ -62,11 +62,14 @@ function branchFor(actor,input){return require('./transactionBranch.service').as
 function rateInput(input){
  const fromCurrency=currency(input?.fromCurrency),toCurrency=currency(input?.toCurrency);
  if(fromCurrency===toCurrency)throw fail('Exchange currencies must differ');
+ const side=input?.side===undefined?'quote':input.side;
+ if(!['buy','sell','quote'].includes(side))throw fail('Choose a Buy, Sell or indicative rate');
+ if(side!=='quote'&&(!currencyCodes.includes(fromCurrency)||!currencyCodes.includes(toCurrency)))throw fail('Buy/Sell requires currencies supported by funds books');
  const rateDecimal=text(input?.rateDecimal,'rate',1,24);rateScaled(rateDecimal);
  const validHours=Number(input?.validHours??24);
  if(!Number.isSafeInteger(validHours)||validHours<1||validHours>72)throw fail('Rate validity must be 1–72 hours');
  const note=text(input?.note,'rate justification',12,400);
- return {fromCurrency,toCurrency,rateDecimal,validHours,note};
+ return {fromCurrency,toCurrency,side,rateDecimal,validHours,note};
 }
 function quoteInput(input){
  const operation=input?.operation||'quote';
@@ -89,10 +92,10 @@ async function proposeRate(conn,tenant,actor,input){
   const branch=await branchModel(conn).findOneAndUpdate({_id:branchId,status:'active'},{$inc:{revision:1}},{session,new:true});
   if(!branch)throw fail('The assigned branch must be active',409);
   enabledPair(branch,v.fromCurrency,v.toCurrency);
-  [rate]=await forexRateModel(conn).create([{branchId,fromCurrency:v.fromCurrency,toCurrency:v.toCurrency,
+  [rate]=await forexRateModel(conn).create([{branchId,fromCurrency:v.fromCurrency,toCurrency:v.toCurrency,side:v.side,
    rateDecimal:v.rateDecimal,expiresAt:new Date(Date.now()+v.validHours*3600000),note:v.note,proposedBy:actor.id}],{session});
   await auditEventModel(conn).create([{action:'forex.rate.proposed',actorId:actor.id,targetId:rate._id,
-   metadata:{branchId,pair:`${v.fromCurrency}/${v.toCurrency}`,rate:v.rateDecimal}}],{session});
+   metadata:{branchId,pair:`${v.fromCurrency}/${v.toCurrency}`,side:v.side,rate:v.rateDecimal}}],{session});
  });return rate;}finally{await session.endSession();}
 }
 async function decideRate(conn,tenant,actor,rateId,input){
@@ -109,10 +112,19 @@ async function decideRate(conn,tenant,actor,rateId,input){
    const branch=await branchModel(conn).findOneAndUpdate({_id:current.branchId,status:'active'},{$inc:{revision:1}},{session,new:true});
    if(!branch)throw fail('The assigned branch must be active',409);
    enabledPair(branch,current.fromCurrency,current.toCurrency);
+   const side=current.side||'quote';
+   // An old rate without side is indicative; never infer a trade direction.
+   const sameSide=side==='quote'?{side:{$in:['quote',null]}}:{side};
+   if(side==='buy'||side==='sell'){
+    const opposite=await Rate.findOne({branchId:current.branchId,fromCurrency:current.fromCurrency,toCurrency:current.toCurrency,
+     side:side==='buy'?'sell':'buy',status:'active',expiresAt:{$gt:new Date()}}).session(session).lean();
+    if(opposite&&(side==='buy'?rateScaled(current.rateDecimal)>=rateScaled(opposite.rateDecimal):rateScaled(current.rateDecimal)<=rateScaled(opposite.rateDecimal)))
+     throw fail('Buying rate must be lower than selling rate for the same currency pair',409);
+   }
    const newer=await Rate.exists({branchId:current.branchId,fromCurrency:current.fromCurrency,toCurrency:current.toCurrency,
-    status:'active',createdAt:{$gt:current.createdAt}}).session(session);
+    ...sameSide,status:'active',createdAt:{$gt:current.createdAt}}).session(session);
    if(newer)throw fail('A newer indicative rate is already active; review the latest proposal instead',409);
-   await Rate.updateMany({branchId:current.branchId,fromCurrency:current.fromCurrency,toCurrency:current.toCurrency,status:'active'},
+   await Rate.updateMany({branchId:current.branchId,fromCurrency:current.fromCurrency,toCurrency:current.toCurrency,...sameSide,status:'active'},
     {$set:{status:'superseded'},$inc:{revision:1}},{session});
   }
   updated=await Rate.findOneAndUpdate({_id:current._id,status:'pending_review',revision:current.revision,expiresAt:{$gt:new Date()}},
@@ -120,7 +132,7 @@ async function decideRate(conn,tenant,actor,rateId,input){
    {session,new:true});
   if(!updated)throw fail('Rate changed during review',409);
   await auditEventModel(conn).create([{action:`forex.rate.${decision==='approve'?'approved':'rejected'}`,actorId:actor.id,
-   targetId:updated._id,metadata:{branchId:String(updated.branchId),pair:`${updated.fromCurrency}/${updated.toCurrency}`}}],{session});
+   targetId:updated._id,metadata:{branchId:String(updated.branchId),pair:`${updated.fromCurrency}/${updated.toCurrency}`,side:updated.side||'quote'}}],{session});
  });return updated;}
  catch(e){if(e.code===11000)throw fail('Another active rate was approved concurrently. Refresh.',409);throw e;}
  finally{await session.endSession();}
@@ -156,9 +168,9 @@ async function createQuote(conn,tenant,actor,input){
  try{await session.withTransaction(async()=>{
   const authorization=await financialAuth.fenceAction(conn,session,actor,tenant,'forex','forex.quotes.create',{branchId});
   const Rate=forexRateModel(conn);const now=new Date();
-  const rate=await Rate.findOneAndUpdate({_id:v.rateId,branchId,status:'active',expiresAt:{$gt:new Date(now.getTime()+v.validMinutes*60000)}},
+  const rate=await Rate.findOneAndUpdate({_id:v.rateId,branchId,status:'active',...(v.operation==='quote'?{}:{side:v.operation}),expiresAt:{$gt:new Date(now.getTime()+v.validMinutes*60000)}},
    {$inc:{revision:1}},{session,new:true});
-  if(!rate)throw fail('The approved rate is unavailable or expires before this quote',409);
+  if(!rate)throw fail('The approved rate is unavailable, expires too soon, or does not match the Buy/Sell operation',409);
   const {sourceMinor,targetMinor}=quoteEconomics(v,rate);
   const pricing=await require('../pricing/apply').resolve(conn,authorization.tenant,branchId,input,{operation:'forex.'+v.operation,currency:rate.toCurrency,amountMinor:targetMinor,providedMinor:require('./operationCapture.service').commissionMinor(v.capture,rate.toCurrency),field:'commission',session});
   if(pricing){v.pricing=pricing;v.capture.commission=require('../pricing/apply').decimal(pricing.feeMinor,rate.toCurrency);quoteEconomics(v,rate);}

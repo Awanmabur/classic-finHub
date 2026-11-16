@@ -176,7 +176,9 @@ router.get('/mobile-money/:id/acknowledgement',requireModule('mobile_money'),req
   try{
     const record=await mobile.getRecordDetails(req.tenantDb,req.params.id,recordScope(req));
     res.set('Cache-Control','private, no-store');res.set('X-Robots-Tag','noindex, nofollow');
-    res.render('tenant/mobile-money/acknowledgement',{...require('../services/receipt.service').acknowledgement(mobile.visibleRecordForRole(record,req.user.role)),identity:req.workspaceIdentity,flash:consumeFlash(req)});
+    const timeZone=businessTime.forBranch((res.locals.viewBranches||[]).find(b=>String(b._id)===String(record.branchId))||req.operationBranch);
+    res.render('tenant/mobile-money/acknowledgement',{...require('../services/receipt.service').acknowledgement(mobile.visibleRecordForRole(record,req.user.role)),identity:req.workspaceIdentity,flash:consumeFlash(req),
+      businessTimeZone:timeZone,formatLocalDate:value=>businessTime.format(value,timeZone)});
   }catch(e){next(e);}
 });
 router.get('/mobile-money/history', requireModule('mobile_money'),requirePermission('mobile_money.view'),async(req,res,next)=>{

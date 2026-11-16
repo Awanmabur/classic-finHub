@@ -21,7 +21,8 @@ async function main(){
  const started=Date.now();await Promise.all(legacyModels.map(Model=>Model.createIndexes()));const legacyMs=Date.now()-started;
  const batchStarted=Date.now();await core.ensureTenantIndexes(batch);const batchMs=Date.now()-batchStarted;
  assert.equal(counts[legacyName],declared,'baseline command count must reflect every declared index');
- assert.equal(counts[batchName],Object.keys(batch.models).length,'ordinary batched models need one command each');
+ const indexedModels=Object.values(batch.models).filter(Model=>Model.schema.indexes().length>0);
+ assert.equal(counts[batchName],indexedModels.length,'ordinary batched models with declared indexes need one command each');
  assert(counts[batchName]<counts[legacyName]);
  assert.deepEqual(await actualIndexes(batch),await actualIndexes(connection),'batched indexes must exactly match Mongoose output');
  const User=core.tenantUserModel(batch),row={name:'Index Probe',email:'batch-probe@example.invalid',passwordHash:'synthetic-not-a-password-hash',role:'Tenant Owner'};

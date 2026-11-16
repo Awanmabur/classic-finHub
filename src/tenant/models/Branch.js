@@ -5,6 +5,7 @@ const schema = new mongoose.Schema({
   code: { type: String, required:true, trim:true, lowercase:true, immutable:true, match:/^[a-z0-9][a-z0-9-]{1,30}$/ },
   name: { type:String, required:true, trim:true, maxlength:100 },
   address: { type:String, default:'', trim:true, maxlength:240 },
+  timeZone: {type:String,default:function(){return require('../../utils/businessTime').defaultZone(this.currency);},validate:{validator:require('../../utils/businessTime').validTimeZone,message:'Choose an IANA regional timezone'}},
   currency: { type:String, enum:currencyCodes, required:true, immutable:true },
   currencies: {type:[String],enum:currencyCodes,default:()=>[...currencyCodes],validate:{validator:value=>Array.isArray(value)&&value.length>0&&new Set(value).size===value.length&&value.every(code=>currencyCodes.includes(code)),message:'Choose supported operating currencies'}},
   status: { type:String, enum:['active','archived'], default:'active', required:true },

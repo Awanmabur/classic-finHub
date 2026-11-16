@@ -6,7 +6,7 @@ const path = require('node:path');
 const {fromMinor} = require('../src/tenant/services/mobileMoney.service');
 const views = path.resolve(__dirname,'../src/views/tenant/mobile-money');
 const requestKey = '1b7db353-c630-4d62-b2c4-c396751ef77d';
-const record = {_id:'507f1f77bcf86cd799439011',customer:'Customer <script>',customerPhone:'+256771234567',customerNote:'Receipt checked',network:'MTN',networkReference:'MTN-TEST1',operation:'cash_in',entrySource:'sms',currency:'UGX',amountMinor:'5000',feeMinor:'100',paymentMethod:'Cash',status:'pending_verification',reviewState:'awaiting_review',correctionState:'none',createdAt:new Date('2026-11-03T12:00:00Z')};
+const record = {_id:'507f1f77bcf86cd799439011',customer:'Customer <script>',customerPhone:'+256771234567',customerNote:'Receipt checked',network:'MTN',networkReference:'MTN-TEST1',operation:'cash_in',entrySource:'sms',currency:'UGX',amountMinor:'5000',feeMinor:'100',paymentMethod:'Cash',fundingState:'book_recorded',status:'pending_verification',reviewState:'awaiting_review',correctionState:'none',createdAt:new Date('2026-11-03T12:00:00Z')};
 function options(overrides={}) {
   return {
     user:{id:'507f1f77bcf86cd799439012',role:'Mobile Money Operator',permissions:['mobile_money.view','mobile_money.cash_in','mobile_money.cash_out'],branchId:'aaaaaaaaaaaaaaaaaaaaaaaa'},
@@ -52,7 +52,7 @@ test('approved mobile money entry preserves the protected server contract and as
   assert.doesNotMatch(transactionForm,/<(?:select|input)[^>]+name="branchId"/);
   assert.doesNotMatch(html,/name="branchId"/);
   assert.match(html,/Saved records and verification status/);
-  assert.match(html,/pending verification/);
+  assert.match(html,/Recorded in books/);
   assert.match(html,/Customer &lt;script&gt;/);
   assert.doesNotMatch(html,/Customer <script>/);
 });
@@ -84,7 +84,8 @@ test('network activity and report use supplied totals, retained status, filters 
   for(const header of ['Network','Customer deposits','Customer withdrawals','Transaction volume','Recorded fees (not profit)']) assert.ok(network.includes(`<th>${header}</th>`));
   assert.match(network,/UGX 5,000/);
   assert.match(network,/SMS capture/);
-  assert.match(network,/pending verification/);
+  assert.match(network,/Recorded in books/);
+  assert.match(network,/Network settlement is not independently confirmed/);
   assert.match(network,/network=MTN/);
   assert.match(network,/entrySource=sms/);
   assert.match(network,/cursor=next-key/);

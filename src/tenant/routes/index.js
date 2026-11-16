@@ -65,18 +65,19 @@ router.get('/mobile-money', requireModule('mobile_money'), requirePermission('mo
   try {
     const canReview=hasPermission(req.user,'mobile_money.review')&&(req.user.role==='Tenant Owner'||req.user.branchId);
     const reviewBranch=req.user.role==='Tenant Owner'?(require('../services/branchView.service').readScope(req.user).branchId||null):req.user.branchId;
-    const [summary,branches,reviewQueue,voidQueue,funds,pricingContext]=await Promise.all([
+    const [summary,branches,voidQueue,funds,pricingContext,riskAlerts]=await Promise.all([
       mobile.getSummary(req.tenantDb,recordScope(req)),
       branchService.list(req.tenant),
-      canReview?mobile.getReviewQueue(req.tenantDb,req.user.id,25,reviewBranch):[],
+
       canReview?mobile.getVoidQueue(req.tenantDb,req.user.id,25,reviewBranch):[],
       req.operationBranch?require('../services/mobileMoneyFunds.service').context(req.tenantDb,req.tenant,req.user,req.operationBranch):null,
-      require('../pricing/presentation').context(req.tenantDb,req.tenant,req.operationBranch,'mobile_money')
+      require('../pricing/presentation').context(req.tenantDb,req.tenant,req.operationBranch,'mobile_money'),
+       require('../services/mobileMoneyRisk.service').ownerAlerts(req.tenantDb,req.user,10)
     ]);
     renderTenant(req,res,'mobile-money/index','Mobile Money','Record agent transactions. Provider settlement remains unverified until reconciled.',{
-      entryCurrency:req.operationBranch?require('../services/branchCurrency.service').resolve(req.operationBranch,req.query.currency):null,
+      entryCurrency:req.operationBranch?require('../services/mobileMoneyMarket.service').preferred(funds?.wallets||[])?.currency||require('../services/branchCurrency.service').resolve(req.operationBranch,req.query.currency):null,
       entryCurrencies:req.operationBranch?require('../services/branchCurrency.service').options(req.operationBranch):[],
-      summary,branches:branches.filter(b=>b.status==='active' && (req.user.role==='Tenant Owner' || String(b._id)===String(req.user.branchId))),reviewQueue,voidQueue,funds,pricingContext,
+      summary,branches:branches.filter(b=>b.status==='active' && (req.user.role==='Tenant Owner' || String(b._id)===String(req.user.branchId))),voidQueue,funds,pricingContext,riskAlerts,
       canReview: hasPermission(req.user,'mobile_money.review'), idempotencyKey:randomUUID(),
       canRecord: hasPermission(req.user,'mobile_money.cash_in') || hasPermission(req.user,'mobile_money.cash_out')
     });
@@ -86,12 +87,22 @@ for (const [path,op,permission] of [['cash-in','cash_in','mobile_money.cash_in']
   router.post(`/mobile-money/${path}`, requireModule('mobile_money'),requirePermission(permission),require('../../platform/services/actionThrottle.service').financial,async(req,res,next)=>{
     try {
       const result = await mobile.recordMobileMoney(req.tenantDb,req.user,req.body,op,req.tenant,null,{requireFunds:true});
-      flash(req,'good',result.duplicate ? 'This request was already recorded. No duplicate created.' : 'Transaction recorded for verification. No provider settlement has been claimed.');
+      flash(req,'good',result.duplicate ? 'This request was already recorded. No duplicate created.' : 'Transaction recorded in the cash and float books. Provider confirmation remains separate.');
       require('../services/branchView.service').followRecord(req,result.created);
       res.redirect(303,'/tenant/mobile-money');
     } catch(e) { next(e); }
   });
 }
+router.post('/mobile-money/alerts/:id/read',requireModule('mobile_money'),requirePermission('mobile_money.view'),
+ require('../../platform/services/actionThrottle.service').financial,async(req,res,next)=>{
+  try{
+   if(req.user.role!=='Tenant Owner')return res.status(403).send('Only Tenant Owners can acknowledge operational alerts.');
+   const result=await require('../services/mobileMoneyRisk.service').acknowledge(req.tenantDb,req.user,req.params.id);
+   if(!result)return res.status(404).send('Attention notice not found');
+   flash(req,'good','Attention notice acknowledged. No financial record was changed.');
+   res.redirect(303,'/tenant/mobile-money');
+  }catch(e){next(e);}
+});
 router.post('/mobile-money/:id/review', requireModule('mobile_money'), requirePermission('mobile_money.review'),
   require('../../platform/services/actionThrottle.service').financial, async(req,res,next)=>{
   try {

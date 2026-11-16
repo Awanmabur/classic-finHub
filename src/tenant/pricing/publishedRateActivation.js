@@ -7,6 +7,10 @@ function error(message,status=409){return Object.assign(new Error(message),{stat
 const currency='UGX';
 const operations=['cash_in','cash_out'];
 function templates(network,scheduleKind){
+ if(scheduleKind==='all'){
+  if(network!=='MTN')throw error('A complete currently approved built-in sheet is only available for MTN Uganda');
+  return [...templates(network,'agent_commission'),...templates(network,'customer_network_fee')];
+ }
  if(scheduleKind==='customer_network_fee'){
   const table=customer.TABLES.find(row=>row.network===network&&row.currency===currency);
   if(!table)throw error('No built-in provider customer fee sheet is available for this market');

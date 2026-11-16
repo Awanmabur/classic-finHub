@@ -9,13 +9,20 @@
   <section class="card">
     <div class="cardHead"><b>Physical cash reconciliation</b><span>Per operator · branch · currency</span></div>
     <div class="cardBody">
-      <p class="tiny">An independent supervisor verifies the opening count. The expected drawer includes posted cash movements from mobile money, banking, forex, transfers and expenses, including explicitly collected cash fees. Compare it with the physical count before closing.</p>
+      <p class="tiny">Start a cash shift only when taking responsibility for real physical cash. Count the existing notes and coins in your assigned drawer; opening a shift never creates or adds money. A different authorized person verifies the opening count.</p>
+      <details class="logicNote"><summary>What do the cash control amounts mean?</summary>
+       <p><b>Cash drawer:</b> Your assigned physical cash account, not the provider's electronic float.</p>
+       <p><b>Opening cash:</b> Physical money counted at the start, checked against the existing cash book.</p>
+       <p><b>Cash movement:</b> Deposits increase cash; withdrawals and paid expenses decrease it.</p>
+       <p><b>Expected closing:</b> Opening count plus posted cash movements, not commission estimates.</p>
+       <p><b>Count variance:</b> The difference between real closing cash and the expected cash. A supervisor reviews it.</p>
+      </details>
       <% if(data.canOpen && currentBranch){ %>
       <form method="post" action="/tenant/day/open" data-cash-open-form>
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
-        <div class="formSection"><div class="formSectionTitle">Opening drawer by currency</div><div class="row2"><label class="field">Currency<select class="control" name="currency" required><% (data.currencyOptions||((typeof currencyOptions!=='undefined'?currencyOptions:[{code:'UGX',label:'UGX'},{code:'USD',label:'USD'},{code:'SSP',label:'SSP'},{code:'KES',label:'KSH'}]).filter(option=>(currentBranch.currencies||['UGX','USD','SSP','KES']).includes(option.code)))).forEach(option=>{ %><option value="<%= option.code %>" <%= option.code===(data.selectedCurrency||currentBranch.currency)?'selected':'' %>><%= option.label %></option><% }) %></select></label><label class="field">Counted opening cash<input class="control" name="openingCash" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" required placeholder="0"></label></div></div>
-        <div class="rowBtns"><button class="btn btnPrimary" type="submit">Open day with these balances</button></div>
+        <div class="formSection"><div class="formSectionTitle">Opening drawer by currency</div><div class="row2"><label class="field">Currency<select class="control" name="currency" required><% (data.currencyOptions||((typeof currencyOptions!=='undefined'?currencyOptions:[{code:'UGX',label:'UGX'},{code:'USD',label:'USD'},{code:'SSP',label:'SSP'},{code:'KES',label:'KSH'}]).filter(option=>(currentBranch.currencies||['UGX','USD','SSP','KES']).includes(option.code)))).forEach(option=>{ %><option value="<%= option.code %>" <%= option.code===(data.selectedCurrency||currentBranch.currency)?'selected':'' %>><%= option.label %></option><% }) %></select></label><label class="field">Counted cash already in your drawer<input class="control" name="openingCash" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" required placeholder="0"></label></div></div>
+        <div class="rowBtns"><button class="btn btnPrimary" type="submit">Submit opening cash count</button></div>
       </form>
       <% } %>
     </div>

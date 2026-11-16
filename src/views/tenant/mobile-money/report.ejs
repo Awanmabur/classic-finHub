@@ -20,6 +20,7 @@
     <div class="sumRow"><span>Manual / SMS records</span><b><%= count('manualCount') %> / <%= count('smsCount') %></b></div>
     <div class="sumRow"><span>Awaiting independent review</span><b><%= count('pendingReviewCount') %></b></div>
     <div class="sumRow"><span>Provider-unverified recorded entries</span><b><%= count('providerUnverifiedCount') %></b></div>
+    <div class="sumRow"><span>Unusual activity requiring attention</span><b><%= count('flaggedCount') %></b></div>
     <div class="sumRow"><span>Voided originals (excluded from active totals)</span><b><%= count('voidedCount') %></b></div>
    </div>
   </div>
@@ -54,15 +55,15 @@
  <section class="card">
   <div class="cardHead"><b>Network and currency breakdown</b><span>MTN Uganda, Airtel, South Sudan and other configured providers remain distinct</span></div>
   <div class="cardBody tableWrap" tabindex="0" role="region" aria-label="Mobile Money network and currency reporting">
-   <table><thead><tr><th>Network · Currency</th><th>Deposits</th><th>Withdrawals</th><th>Principal volume</th><th>Cash impact</th><th>Collected agent fees</th><th>Commission estimated</th><th>Provider charge estimate</th><th>Configured cost estimate</th><th>Commission received</th></tr></thead>
-    <tbody><% if(!groups.length){ %><tr><td colspan="10">No recorded activity in this period.</td></tr><% } %>
+   <table><thead><tr><th>Network · Currency</th><th>Deposits</th><th>Withdrawals</th><th>Principal volume</th><th>Cash impact</th><th>Collected agent fees</th><th>Commission estimated</th><th>Provider charge estimate</th><th>Configured cost estimate</th><th>Commission received</th><th>Attention flags</th></tr></thead>
+    <tbody><% if(!groups.length){ %><tr><td colspan="11">No recorded activity in this period.</td></tr><% } %>
      <% groups.forEach(row=>{ %><tr data-search-row>
       <td><b><%= row.network %></b> · <%= row.currency==='KES'?'KSH':row.currency %></td>
       <td><%= row.depositCount %></td><td><%= row.withdrawalCount %></td>
       <td><%= row.volumeMinorFormatted %></td><td><%= row.cashImpactMinorFormatted %></td>
       <td><%= row.collectedFeeMinorFormatted %></td><td><%= row.commissionMissingCount&&String(row.estimatedCommissionMinor)==='0'?'Not configured':row.estimatedCommissionMinorFormatted %><% if(row.commissionMissingCount){ %><small><%= row.commissionMissingCount %> missing sheet</small><% } %></td>
       <td><%= row.customerNetworkChargeEstimateMinorFormatted %></td><td><%= row.configuredCostEstimateMinorFormatted %></td>
-      <td><%= row.receivedCommissionMinorFormatted %></td>
+      <td><%= row.receivedCommissionMinorFormatted %></td><td><%= row.flaggedCount||0 %></td>
      </tr><% }) %></tbody>
    </table>
   </div>

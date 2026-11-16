@@ -4,8 +4,14 @@
    const canSetupFunds=(user.permissions||[]).includes('*')||(user.permissions||[]).includes('treasury.manage');
    const canObserveFunds=(user.permissions||[]).includes('*')||(user.permissions||[]).includes('treasury.observe');
    const canReviewFunds=(user.permissions||[]).includes('*')||(user.permissions||[]).includes('treasury.review');
-   const visibleCashAccounts=(data.funds?.paymentAccounts||[]).filter(a=>a.kind==='cash');
-   const visibleWalletAccounts=data.funds?.wallets||[];
+   const allowedMarkets=Array.isArray(data.networkMarkets)?data.networkMarkets:null;
+   const activeMarketKeys=allowedMarkets?new Set(allowedMarkets.map(m=>m.network+'|'+m.currency)):null;
+   const visibleWalletAccounts=(data.funds?.wallets||[]).filter(w=>!activeMarketKeys||activeMarketKeys.has(w.network+'|'+w.currency));
+   const mappedDrawers=new Set(visibleWalletAccounts.map(w=>w.cashDrawerAccountId).filter(Boolean));
+   const cashCandidates=(data.funds?.paymentAccounts||[]).filter(a=>a.kind==='cash'&&
+    (!allowedMarkets||allowedMarkets.some(m=>m.currency===a.currency)));
+   const visibleCashAccounts=cashCandidates.filter(a=>!allowedMarkets||mappedDrawers.has(a.id)||
+    cashCandidates.filter(x=>x.currency===a.currency).length===1);
    const pendingFunds=[...visibleCashAccounts,...visibleWalletAccounts].filter(a=>a.expectedMinor===null||a.expectedMinor===undefined||a.state!=='active'||a.reconciliation!=='matched');
    const needsOnboarding=!currentBranch||!visibleCashAccounts.length||!visibleWalletAccounts.length||pendingFunds.length>0; %>
 <section class="view show mobileMoneyPage">
@@ -33,7 +39,7 @@
     <% } %>
   </div>
  </section>
-  <% const overviewAccounts=[...(data.funds?.paymentAccounts||[]).filter(a=>a.kind==='cash'),...(data.funds?.wallets||[])]; %>
+  <% const overviewAccounts=[...visibleCashAccounts,...visibleWalletAccounts]; %>
   <section class="card mobileAgentBalances" aria-label="Agent cash and electronic float">
    <div class="cardHead"><div><b>Cash and float balances</b><br><span>Book balances for your assigned branch; verify against physical cash and provider records</span></div><% if((user.permissions||[]).some(p=>p==='*'||p==='treasury.view')){ %><a class="btn" href="/tenant/treasury">Reconcile accounts</a><% } %></div>
    <div class="cardBody">

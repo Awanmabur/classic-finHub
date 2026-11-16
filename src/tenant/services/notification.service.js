@@ -203,13 +203,18 @@ async function processOne(conn,tenant,workerId,mailer=sendMail){
  const {row,leaseToken}=claimed,Model=models.notificationMessageModel(conn);
  const filter={_id:row._id,emailState:'processing',leaseToken};
  try{
-  if(!hasModuleForUser(tenant,{role:'Tenant Owner'},'notifications')){
+  const coreRisk=row.source==='financial_exception'&&row.templateCode==='system_momo_exception';
+  if(!coreRisk&&!hasModuleForUser(tenant,{role:'Tenant Owner'},'notifications')){
    await Model.updateOne(filter,{$set:{emailState:'suppressed',leaseToken:null,leaseUntil:null,failureCode:'MODULE_UNAVAILABLE'}});
    return {state:'suppressed'};
   }
   const recipient=await models.tenantUserModel(conn).findOne({_id:row.recipientId,status:'active'}).select('email role branchId allowedModules status').lean();
-  const opt=recipient?await models.notificationPreferenceModel(conn).findOne({userId:recipient._id}).lean():null;
-  if(!recipient||!hasModuleForUser(tenant,recipient,'notifications')||!opt?.emailOptIn){
+  const opt=!coreRisk&&recipient?await models.notificationPreferenceModel(conn).findOne({userId:recipient._id}).lean():null;
+  // Owner risk alerts are core financial safety notices, not marketing
+  // messages or an optional paid messaging addon. Check role at dispatch.
+  const eligible=coreRisk?recipient?.role==='Tenant Owner':
+   recipient&&hasModuleForUser(tenant,recipient,'notifications')&&opt?.emailOptIn;
+  if(!eligible){
    await Model.updateOne(filter,{$set:{emailState:'suppressed',leaseToken:null,leaseUntil:null,failureCode:'RECIPIENT_UNAVAILABLE'}});
    return {state:'suppressed'};
   }

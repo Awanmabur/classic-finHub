@@ -29,10 +29,10 @@ test('operator sees a functional record form but not the review or audit control
   assert.doesNotMatch(html,/Independent internal review/);
   assert.doesNotMatch(html,/href="\/tenant\/audit"/);
 });
-test('reconciliation officer sees review form but not an unusable record form',async()=>{
+test('reconciliation officer sees exception-only workflow and no routine transaction approval form',async()=>{
   const html=await page('Reconciliation Officer','mobile-money',{summary,canRecord:false,canReview:true,reviewQueue:[record],idempotencyKey:'123'});
-  assert.match(html,/Independent internal review/);
-  assert.match(html,/name="decision" value="accepted"/);
+  assert.doesNotMatch(html,/Independent internal review/);
+  assert.doesNotMatch(html,/name="decision" value="accepted"/);
   assert.doesNotMatch(html,/Record deposit/);
   assert.match(html,/href="\/tenant\/audit"/);
 });

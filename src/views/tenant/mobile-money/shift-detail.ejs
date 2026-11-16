@@ -1,3 +1,5 @@
+<% const regionalZone=typeof businessTimeZone==='string'?businessTimeZone:'UTC';
+ const regionalTime=typeof formatLocalDate==='function'?formatLocalDate:(v=>new Date(v).toISOString()); %>
 <% const cashLabel=(value,currency)=>typeof formatMoneyMinor==='function'?formatMoneyMinor(value,currency):money(currency,amountFromMinor(value,currency)); %>
 <section class="view show">
   <section class="card">
@@ -44,9 +46,9 @@
     </div>
   </section>
   <section class="card" style="margin-top:14px"><div class="cardHead"><b>Closing count history</b><span>Preserved across disputed and resubmitted counts</span></div>
-    <div class="cardBody tableWrap"><table><thead><tr><th>UTC</th><th>Declared</th><th>Estimated</th><th>Difference</th><th>Explanation</th></tr></thead><tbody>
+    <div class="cardBody tableWrap"><table><thead><tr><th>Local time</th><th>Declared</th><th>Estimated</th><th>Difference</th><th>Explanation</th></tr></thead><tbody>
       <% if(!data.shift.closeHistory.length){ %><tr><td colspan="5">Shift has not been submitted.</td></tr><% } %>
-      <% data.shift.closeHistory.forEach(entry=>{ %><tr><td><%= new Date(entry.at).toISOString() %></td><td><%= entry.declaredMinor %></td><td><%= entry.expectedMinor %></td><td><%= entry.varianceMinor %></td><td><%= entry.note %></td></tr><% }) %>
+      <% data.shift.closeHistory.forEach(entry=>{ %><tr><td><%= regionalTime(entry.at,data.shift?.branchId) %></td><td><%= entry.declaredMinor %></td><td><%= entry.expectedMinor %></td><td><%= entry.varianceMinor %></td><td><%= entry.note %></td></tr><% }) %>
     </tbody></table></div>
   </section>
 </section>

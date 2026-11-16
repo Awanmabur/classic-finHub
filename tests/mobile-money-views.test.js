@@ -136,7 +136,7 @@ test('deposit and withdrawal entry displays scoped actual book balances and netw
  const context=options();
  context.data.networksAvailable=[...require('../src/config/mobileNetworks').networks];
  context.operationBranch.currencies=['UGX','SSP'];
- context.data.funds={wallets:[{id:'wa',name:'MTN South Sudan float',kind:'wallet',network:'MTN SSD',currency:'SSP',expected:'SSP 250.00',reconciliation:'matched'}],paymentAccounts:[{id:'ca',name:'Agent drawer',kind:'cash',network:'',currency:'SSP',expected:'SSP 550.00',reconciliation:'matched'}],customerAccounts:[]};
+ context.data.funds={wallets:[{id:'wa',name:'MTN South Sudan float',kind:'wallet',network:'MTN SSD',currency:'SSP',expected:'SSP 250.00',expectedMinor:'25000',state:'active',reconciliation:'matched'}],paymentAccounts:[{id:'ca',name:'Agent drawer',kind:'cash',network:'',currency:'SSP',expected:'SSP 550.00',expectedMinor:'55000',state:'active',reconciliation:'matched'}],customerAccounts:[]};
  const html=await render('entry',context);
  assert.match(html,/data-market-currency="SSP"/);
  assert.match(html,/data-mobile-currency-field/);
@@ -150,8 +150,8 @@ test('deposit and withdrawal entry displays scoped actual book balances and netw
 test('main Mobile Money workspace shows genuine scoped cash and float book balance cards',async()=>{
  const locals=options();
  locals.data.funds={
-  paymentAccounts:[{id:'cash1',kind:'cash',name:'Assigned cash drawer',currency:'UGX',expected:'UGX 120,000',reconciliation:'matched'}],
-  wallets:[{id:'float1',kind:'wallet',name:'MTN Uganda wallet',network:'MTN',currency:'UGX',expected:'UGX 450,000',reconciliation:'matched'}],
+  paymentAccounts:[{id:'cash1',kind:'cash',name:'Assigned cash drawer',currency:'UGX',expected:'UGX 120,000',expectedMinor:'120000',state:'active',reconciliation:'matched'}],
+  wallets:[{id:'float1',kind:'wallet',name:'MTN Uganda wallet',network:'MTN',currency:'UGX',expected:'UGX 450,000',expectedMinor:'450000',state:'active',reconciliation:'matched'}],
   customerAccounts:[]
  };
  locals.data.reviewQueue=[];locals.data.voidQueue=[];locals.data.summary.recent=[];

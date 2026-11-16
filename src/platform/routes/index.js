@@ -11,14 +11,33 @@ const { consumeFlash, flash, money, formatUtcDate } = require('../../utils/view'
 const { provisionTenant,regenerateOwnerInvite } = require('../services/tenantProvisioning.service');
 const { changeStatus, updateProfile }=require('../services/tenantAdmin.service');
 const {list: platformAudit}=require('../services/platformAudit.service');
+const businessTime=require('../../utils/businessTime');
+const PlatformAdmin=require('../models/PlatformAdmin');
 function renderPlatform(req,res,view,pageTitle,pageSub,data={}){
   res.render('layouts/dashboard', {
     context:'platform',currentPath:req.baseUrl + req.path,pageTitle,pageSub,tenant:null,user:req.platformUser,menu:platformMenu(req.platformUser),
-    view:`../platform/${view}`,data,flash:consumeFlash(req),money,formatUtcDate
+    view:`../platform/${view}`,data,flash:consumeFlash(req),money,formatUtcDate,
+    businessTimeZone:businessTime.validTimeZone(req.platformUser?.timeZone)?req.platformUser.timeZone:businessTime.DEFAULT_TIME_ZONE,
+    formatLocalDate:value=>businessTime.format(value,businessTime.validTimeZone(req.platformUser?.timeZone)?req.platformUser.timeZone:businessTime.DEFAULT_TIME_ZONE)
   });
 }
 router.use((req,res,next)=>req.platformUser.permissions.includes('*')?next():res.status(403).send('Insufficient permissions'));
 router.get('/',(req,res)=>res.redirect(303,'/platform/dashboard'));
+router.get('/settings',(req,res)=>renderPlatform(req,res,'settings/index','System settings',
+ 'Platform timezone, operational configuration and security controls.'));
+router.post('/settings/timezone',async(req,res,next)=>{
+ try{
+  if(!req.body||Object.keys(req.body).some(key=>!['_csrf','timeZone'].includes(key))||
+     !businessTime.validTimeZone(req.body.timeZone))
+   return res.status(400).send('Choose a valid regional timezone, such as Africa/Kampala or Africa/Juba.');
+  const updated=await PlatformAdmin.findOneAndUpdate({_id:req.platformUser.id,status:'active'},
+    {$set:{timeZone:req.body.timeZone}},{new:true,runValidators:true});
+  if(!updated)return res.status(403).send('Active platform account required.');
+  await require('../services/platformAudit.service').log(req.platformUser,'platform.timezone.changed','settings',String(updated._id));
+  flash(req,'good','Your timezone preference has been saved for platform administration screens.');
+  res.redirect(303,'/platform/settings');
+ }catch(error){next(error);}
+});
 router.get('/dashboard',async(req,res,next)=>{
   try{
     const [tenants,appointmentCount,totalTenants,activeTenants,suspendedTenants,recentAudits]=await Promise.all([Tenant.find({}).sort({createdAt:-1}).limit(30).lean(),Appointment.countDocuments(),Tenant.countDocuments(),Tenant.countDocuments({status:'active'}),Tenant.countDocuments({status:'suspended'}),platformAudit(6)]);

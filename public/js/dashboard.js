@@ -269,10 +269,15 @@
         payment.disabled=!resolved;
         payment.required=false;
         paymentField.hidden=true;
-        const help=form.querySelector('[data-drawer-help]');
-        if(help)help.hidden=true;
-        wallet.setCustomValidity(wallet.value&&!resolved?
-          'The Tenant Owner must map this network wallet to your approved physical cash drawer.': '');
+        const notice=form.querySelector('[data-momo-account-notice]');
+        const problem=wallet.value&&!resolved?
+          (validAccounts.length===0?
+            'No approved cash drawer is assigned to this login. Sherikat’s UGX drawer belongs to its assigned operator; sign in as that operator to record transactions. Do not create another drawer.':
+            configuredDrawer?
+              'This wallet is linked to a drawer that is unavailable to this operator. The Tenant Owner should check the account mapping.':
+              'More than one approved drawer is available. The Tenant Owner must link this wallet to the correct physical drawer once in Treasury.'):'';
+        wallet.setCustomValidity(problem);
+        if(notice){notice.textContent=problem;notice.hidden=!problem;}
       }
       const chosenCash=payment?.value||'';
       const chosenWallet=wallet.value||'';

@@ -76,5 +76,5 @@ test('published provider fee-sheet references appear in reports but never become
  const csv=reporting.csv({networks:result.networks,window:{timeZone:'Africa/Kampala',from:'2026-11-16',to:'2026-11-16'},expenses:[]});
  assert.match(csv,/Published agent commission reference/);
  assert.match(csv,/Published customer network charge/);
- assert.match(csv,/,325,1500,/);
+ assert.match(csv,/"325","1500"/);
 });

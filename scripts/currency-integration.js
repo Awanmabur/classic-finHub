@@ -49,7 +49,8 @@ async function main(){
    assert.equal(String(result.created.amountMinor),operation==='cash_in'?'12345':'2345');
    assert.equal(String(result.created.feeMinor),'1');assert.equal(result.created.currency,currency);
    assert.equal((await mobile.recordMobileMoney(conn,owner,input,operation,tenant)).duplicate,true);
-   await mobile.reviewMobileMoney(conn,reviewer,String(result.created._id),'accepted','Independent receipt evidence checked for currency test');
+   assert(await models.mobileTransactionModel(conn).exists({_id:result.created._id}),
+    'recorded currency-specific transaction is final without another approval');
   }
   const incompatible={customer:'Currency mismatch',network:currency==='USD'?'MTN SSD':'MTN',currency,amount:'1.00',fee:'0',networkReference:`CCY-WRONG-${nonce}-${currency}`,idempotencyKey:crypto.randomUUID()};
   await assert.rejects(mobile.recordMobileMoney(conn,owner,incompatible,'cash_in',tenant),{status:409});

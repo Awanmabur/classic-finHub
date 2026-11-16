@@ -18,7 +18,7 @@
    <div class="summary">
     <div class="sumRow"><span>UTC period</span><b><%= report.window.from %> to <%= report.window.to %></b></div>
     <div class="sumRow"><span>Manual / SMS records</span><b><%= count('manualCount') %> / <%= count('smsCount') %></b></div>
-    <div class="sumRow"><span>Awaiting independent review</span><b><%= count('pendingReviewCount') %></b></div>
+    <% if(count('pendingReviewCount')){ %><div class="sumRow"><span>Legacy records awaiting review</span><b><%= count('pendingReviewCount') %></b></div><% } %>
     <div class="sumRow"><span>Provider-unverified recorded entries</span><b><%= count('providerUnverifiedCount') %></b></div>
     <div class="sumRow"><span>Unusual activity requiring attention</span><b><%= count('flaggedCount') %></b></div>
     <div class="sumRow"><span>Voided originals (excluded from active totals)</span><b><%= count('voidedCount') %></b></div>
@@ -70,6 +70,43 @@
  </section>
  <% } %>
  <section class="card">
+  <div class="cardHead">
+   <div><b>Recorded transactions</b><br><span>Immediately in the books · latest 25 for the selected period</span></div>
+   <a class="btn" href="/tenant/mobile-money/history">Full transaction history</a>
+  </div>
+  <div class="cardBody tableWrap" tabindex="0" role="region" aria-label="Mobile Money transactions for the selected report period">
+   <table><thead><tr>
+    <th>Recorded UTC</th><th>Network</th><th>Operation</th><th>Reference</th>
+    <th>Amount</th><th>Recorded fee</th><th>Agent commission estimate</th><th>Source</th><th>State</th>
+   </tr></thead><tbody>
+    <% if(!(report.recentRecords||[]).length){ %><tr><td colspan="9">No transactions in this period.</td></tr><% } %>
+    <% (report.recentRecords||[]).forEach(item=>{ %>
+     <tr data-search-row>
+      <td><%= new Date(item.at).toISOString().slice(0,16).replace('T',' ') %></td>
+      <td><%= item.network %> · <%= item.currency %></td>
+      <td><%= item.operation==='cash_in'?'Deposit':'Withdrawal' %></td>
+      <td><a href="/tenant/mobile-money/<%= item.id %>"><%= item.reference %></a></td>
+      <td><%= item.amount %></td>
+      <td><%= item.recordedFee %></td>
+      <td><%= item.commission||'Rate not approved' %></td>
+      <td><%= item.source==='sms'?'SMS':'Manual' %></td>
+      <td>
+       <% if(item.correction==='voided'||item.providerStatus==='voided_internal'){ %>
+        <span class="tag">Voided internally</span>
+       <% }else{ %>
+        <span class="tag"><%= item.internalState==='recorded'?'Recorded':'Legacy review: '+item.internalState.replaceAll('_',' ') %></span>
+        <% if(item.providerStatus==='pending_verification'){ %><small>Provider not verified</small><% } %>
+       <% } %>
+       <% if(item.correction==='requested'){ %><span class="tag">Correction requested</span><% } %>
+       <% if(item.flagged){ %><span class="tag">Attention flagged</span><% } %>
+      </td>
+     </tr>
+    <% }) %>
+   </tbody></table>
+  </div>
+  <% if(report.hasMoreRecords){ %><div class="cardBody"><p class="tiny">More records exist in this period. Open full history to view and export them; the dashboard does not silently treat 25 rows as a complete export.</p></div><% } %>
+ </section>
+ <section class="card">
   <div class="cardHead"><b>Approved operating expenses by currency</b><span>Shared branch costs are not arbitrarily allocated to networks</span></div>
   <div class="cardBody">
    <% if(!report.expensesAccessible){ %><p class="tiny">Expense totals unavailable: the Expenses module or reporting permissions are not assigned. A true net-profit figure cannot be established here.</p><% }
@@ -81,8 +118,8 @@
   </div>
  </section>
  <section class="card"><div class="cardHead"><b>Reporting and reconciliation controls</b></div>
-  <div class="cardBody"><p class="tiny"><%= report.note %></p><p class="tiny">This report is based on approved provider-payout receipts, recorded operations and eligible approved expenses. It is not a live network statement or audited annual financial statement. For detailed entries, use Mobile Money History or the independent review queue.</p>
-   <div class="rowBtns"><a class="btn" href="/tenant/mobile-money/history">Transaction history</a><a class="btn" href="/tenant/mobile-money">Independent review</a><a class="btn" href="/tenant/treasury">Cash and float reconciliation</a></div>
+  <div class="cardBody"><p class="tiny"><%= report.note %></p><p class="tiny">This report is based on approved provider-payout receipts, recorded operations and eligible approved expenses. It is not a live network statement or audited annual financial statement. For older entries, full details and pagination are in Mobile Money History. Only corrections and financial reconciliation need independent approval.</p>
+   <div class="rowBtns"><a class="btn" href="/tenant/mobile-money/history">Transaction history</a><a class="btn" href="/tenant/mobile-money">Alerts and corrections</a><a class="btn" href="/tenant/treasury">Cash and float reconciliation</a></div>
   </div>
  </section>
 </section>

@@ -466,6 +466,18 @@
     const description = transactionDialog.querySelector('#transactionDescription');
     const enabledKinds = new Set([...choices.querySelectorAll('[data-transaction-kind]')].map(button=>button.dataset.transactionKind));
     const groups = Object.freeze({transfer:'transfer',payout:'transfer',banking:'banking',banking_deposit:'banking',banking_withdrawal:'banking',banking_transfer:'banking',customer:'banking',account:'banking',cash_in:'mobile',cash_out:'mobile',forex:'forex',forex_buy:'forex',forex_sell:'forex',expense:'daily',cash_shift_open:'daily',cash_shift_close:'daily',approval:'daily'});
+    // The launcher can reuse a deposit form for a withdrawal (and vice versa).
+    // Keep the visible action, server endpoint, quote direction and total in sync.
+    const syncMobileOperation=(form,kind)=>{
+      if(!form?.matches?.('[data-mobile-money-form]')||!['cash_in','cash_out'].includes(kind))return;
+      const isWithdrawal=kind==='cash_out';
+      form.dataset.operation=kind;
+      const field=form.querySelector('[data-mobile-operation-label]');
+      if(field)field.value=isWithdrawal?'Withdrawal':'Deposit';
+      const button=form.querySelector('[data-mobile-submit-label]')||
+        [...form.querySelectorAll('button[type="submit"]')].find(button=>/^Record (deposit|withdrawal)$/.test(button.textContent.trim()));
+      if(button)button.textContent=isWithdrawal?'Record withdrawal':'Record deposit';
+    };
     const lastKinds = new Map();
     const quickKinds=new Set(['transfer','cash_in','cash_out','banking_deposit','banking_withdrawal','banking_transfer','forex_buy','forex_sell']);
     const templates=new Map();
@@ -536,8 +548,7 @@
       // Deposit/out share one immutable server-issued request key. Switching the
       // approved child tabs preserves entered details until the operation saves.
       if(present?.matches('[data-mobile-money-form]')&&['cash_in','cash_out'].includes(kind)){
-        selectKind(kind);present.action=operations[kind].action;present.dataset.operation=kind;
-        const label=present.querySelector('[data-mobile-operation-label]');if(label)label.value=kind==='cash_in'?'Deposit':'Withdrawal';
+        selectKind(kind);present.action=operations[kind].action;syncMobileOperation(present,kind);
         window.ClassicFinPricing?.initialise(present);
         window.ClassicFinMobileQuote?.initialise(present);
         present.elements.namedItem('amount')?.dispatchEvent(new Event('input',{bubbles:true}));message('');return;
@@ -560,7 +571,7 @@
             seed.querySelectorAll('button[type="submit"],button:not([type])').forEach(button=>{button.disabled=true;});
             const reference=seed.elements.namedItem('idempotencyKey');if(reference)reference.value=crypto.randomUUID();
             seed.addEventListener('submit',event=>{event.preventDefault();event.stopImmediatePropagation();});
-            formHost.append(seed);initialiseApprovedFields(seed);window.ClassicFinMobileQuote?.initialise(seed);const editSeed=event=>{if(event.target.matches('input:not([type="hidden"]):not([readonly]),select,textarea'))seed.dataset.operationDirty='true';};seed.addEventListener('input',editSeed);seed.addEventListener('change',editSeed);seed.querySelector('input:not([type="hidden"]):not([readonly])')?.focus();
+            formHost.append(seed);syncMobileOperation(seed,kind);initialiseApprovedFields(seed);window.ClassicFinMobileQuote?.initialise(seed);const editSeed=event=>{if(event.target.matches('input:not([type="hidden"]):not([readonly]),select,textarea'))seed.dataset.operationDirty='true';};seed.addEventListener('input',editSeed);seed.addEventListener('change',editSeed);seed.querySelector('input:not([type="hidden"]):not([readonly])')?.focus();
             message('Checking current branch choices and charges…');
           }
           const requestUrl=new URL(quickKinds.has(kind)?'/tenant/operation-form/'+kind:operation.page,location.origin);
@@ -598,7 +609,7 @@
         const submitButtons=[...form.querySelectorAll('button[type="submit"],button:not([type])')];
         const submitActions=document.createElement('div');submitActions.dataset.transactionSubmitActions='';
         submitButtons.forEach(button=>{button.setAttribute('form','transactionOperationForm');submitActions.append(button);});
-        form.querySelectorAll('.rowBtns').forEach(row=>{if(!row.children.length)row.remove();});form.append(submitActions);
+        form.querySelectorAll('.rowBtns').forEach(row=>{if(!row.children.length)row.remove();});form.append(submitActions);syncMobileOperation(form,kind);
         const ids=new Map();form.querySelectorAll('[id]').forEach(node=>{ids.set(node.id,'operation-'+node.id);node.id='operation-'+node.id;});
         form.querySelectorAll('[for],[list],[aria-describedby]').forEach(node=>{for(const attribute of ['for','list','aria-describedby']){const value=node.getAttribute(attribute);if(value)node.setAttribute(attribute,value.split(' ').map(id=>ids.get(id)||id).join(' '));}});
         initialiseApprovedFields(form);
@@ -658,7 +669,7 @@
       form.reset();form.dataset.operationDirty='false';form.querySelectorAll('[data-feedback-message],[data-offline-saved]').forEach(node=>node.remove());
       const reference=form.elements.namedItem('idempotencyKey');if(reference){const previous=reference.value;reference.value=reference.defaultValue=crypto.randomUUID();form.querySelectorAll('[data-mobile-reference],.summary .mono').forEach(label=>{if(label.hasAttribute('data-mobile-reference')||label.textContent.trim()===previous)label.textContent=reference.value;});}
       if(reload){load(currentKind,{refresh:true});return;}
-      if(form.matches('[data-mobile-money-form]')){form.dataset.operation=currentKind;const label=form.querySelector('[data-mobile-operation-label]');if(label)label.value=currentKind==='cash_in'?'Deposit':'Withdrawal';}
+      if(form.matches('[data-mobile-money-form]'))syncMobileOperation(form,currentKind);
       form.dispatchEvent(new Event('input',{bubbles:true}));form.elements.namedItem('amount')?.dispatchEvent(new Event('input',{bubbles:true}));form.dataset.operationDirty='false';message('');
     });
     transactionDialog.addEventListener('cancel',event=>{event.preventDefault();close();});

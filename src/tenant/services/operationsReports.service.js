@@ -2,6 +2,7 @@
 // Standalone reporting hub. Each operational module registers an adapter here;
 // the report engine never grants access to the source module itself.
 const mobile=require('./mobileMoney.service');
+const businessTime=require('../../utils/businessTime');
 const {hasPermission,hasModuleForUser,hasModule}=require('./moduleAccess.service');
 const MAX_ROWS=5000;
 const adapters=require('../reporting/registry');
@@ -19,22 +20,24 @@ function sourcesFor(tenant,user){
     .map(a=>({key:a.key,label:a.label,moduleKey:a.moduleKey,...(a.moduleKeys?{moduleKeys:a.moduleKeys}:{})}));
   return sources;
 }
-function parseFilters(query={},sources=[]){
+function parseFilters(query={},sources=[],timeZone='UTC'){
   const from=String(query.from||''),to=String(query.to||'');
-  const dateRange=mobile.dateBounds({from,to});
+  const dateRange=mobile.dateBounds({from,to},timeZone);
   const source=String(query.source||'all');
   if(source!=='all'&&!sources.some(s=>s.key===source))throw fail('Report source is not available for this account',403);
-  return {from,to,dateRange,source};
+  return {from:from||businessTime.localDay(dateRange.$gte,timeZone),
+  to:to||businessTime.localDay(new Date(dateRange.$lt.getTime()-1),timeZone),
+  dateRange,source,timeZone};
 }
 async function workspaceSource(conn,dateRange,scope){
   return adapters.find(a=>a.key==='workspace').rows({conn,dateRange,scope});
 }
 function normalizeMobile(summary){return summary.summaries.map(s=>({module:'Mobile Money',activity:`${s._id.network} · ${s._id.operation}`,
   status:`${s._id.status} / ${s._id.reviewState} / ${s._id.correctionState||'none'}`,currency:s._id.currency,count:s.count,volume:s.volumeFormatted,fees:s.feesFormatted}));}
-async function generate(conn,tenant,user,query={}){
+async function generate(conn,tenant,user,query={},timeZone='UTC'){
   const sources=sourcesFor(tenant,user);
   if(!sources.length)throw fail('Operations Reports subscription and reporting permission required',403);
-  const filters=parseFilters(query,sources),scope=scopeFor(user);
+  const filters=parseFilters(query,sources,timeZone),scope=scopeFor(user);
   const requested=sources.filter(s=>filters.source==='all'||s.key===filters.source);
   let rows=[];
   for(const src of requested){

@@ -26,7 +26,15 @@ async function main(){
  const base={customer:'Actual Customer',customerPhone:'+256700123456',network:'MTN',currency:'UGX',walletAccountId:String(wallet._id),paymentAccountId:String(drawer._id),paymentMethod:'Cash',fee:'0',feeTreatment:'record_only'};
  const request=(operation,amount,observed,extra={})=>({...base,operation,amount:String(amount),observedWalletBalance:String(observed),networkReference:'ACTUAL-'+crypto.randomBytes(8).toString('hex'),idempotencyKey:crypto.randomUUID(),...extra});
  async function record(input){return mobile.recordMobileMoney(conn,operator,input,input.operation,tenant,null,{requireFunds:true});}
- async function accept(recorded){return mobile.reviewMobileMoney(conn,reviewer,recorded.created._id,'accepted','Provider evidence, actual wallet and recorded payment checked independently');}
+ async function accept(recorded){
+  assert.equal(recorded.created.reviewState,'recorded','New transactions are internally final immediately');
+  assert.equal(recorded.created.status,'pending_verification','Provider settlement must remain separate');
+  if(recorded.created.walletObservationId)await treasury.reviewObservation(
+   conn,tenant,reviewer,recorded.created.walletObservationId,{
+    decision:'approve',note:'Independently examined actual provider balance evidence, not routine transaction approval'
+   });
+  return recorded.created;
+ }
  async function balance(account){return String((await funds.models(conn).account.findById(account._id).lean()).bookBalanceMinor);}
  await treasury.configureAccount(conn,tenant,owner,wallet._id,{name:wallet.name,isDefault:'true',
   feeTreatment:'payment_collected',cashDrawerAccountId:String(drawer._id)});
@@ -190,6 +198,28 @@ async function main(){
   confirmCode:wallet.code,reason:'Attempt to archive a funded operational wallet must be blocked'
  }),{status:409});
  assert(await core.auditEventModel(conn).exists({action:'treasury.account.archived',targetId:duplicate._id}));
+ // Verify core owner attention notices, independent of paid notification plans.
+ const risk=require('../src/tenant/services/mobileMoneyRisk.service');
+ assert.deepEqual(risk.classify({currency:'UGX',amountMinor:'500000',
+   priorFloatMinor:'900000',recentExactCount:2}),['large_relative_to_float','rapid_repeat']);
+ const session=await conn.startSession();
+ try{await session.withTransaction(async()=>{
+  assert.equal(await risk.queueOwnerAlerts(conn,session,first.created,operator,['rapid_repeat']),1);
+ });}finally{await session.endSession();}
+ const alerts=await risk.ownerAlerts(conn,owner,5);
+ assert.equal(alerts.length,1);
+ const delivered=[];
+ const status=await require('../src/tenant/services/notification.service').processOne(
+  conn,tenant,'isolated-core-alert-worker',async payload=>{
+   delivered.push(payload);return {status:'accepted',messageId:'isolated-provider-message'}
+  });
+ assert.equal(status.state,'accepted');
+ assert.equal(delivered.length,1);
+ assert.match(delivered[0].text,/unusual pattern/);
+ assert.doesNotMatch(delivered[0].text,/\+256700123456|Actual Customer/);
+ assert((await risk.acknowledge(conn,owner,String(alerts[0]._id))).readAt);
+ assert.equal(await balance(wallet),'991850','Alerts cannot change float');
+ assert.equal(await balance(drawer),'508200','Alerts cannot change cash');
  console.log('PASS: Agent cash/float journals, cash-only new operation policy, no speculative commissions, configured fees, idempotency, exact reconciliation, safe voids and shift closure.');
  console.log('PASS: One branch/operator posts USD and SSP independently; MTN SSD preserves its own network references, wallets, verified shifts, exact cents, scoped reports and reversal. Wrong currency/network accounts and disabled currencies are rejected without changing other books.');
 }

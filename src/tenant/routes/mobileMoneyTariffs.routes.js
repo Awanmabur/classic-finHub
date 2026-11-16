@@ -38,6 +38,10 @@ module.exports=function factory({renderTenant}){
      allProviders:providerChoices,
      customerTariffReferences:require('../pricing/customerNetworkFees').TABLES.filter(ref=>activeNetworks.has(ref.network)),
      branches:allowedBranches,networkMarkets:currentMarkets,
+     selectedBranchId:req.operationBranch?String(req.operationBranch._id):null,
+     agentReferenceRates:activeNetworks.has('MTN')?
+      {deposit:require('../pricing/networkTariffs').publicAgentReference('cash_in'),
+       withdrawal:require('../pricing/networkTariffs').publicAgentReference('cash_out')}:null,
      actorId:String(req.user.id),actorRole:req.user.role,providerChoices,
      canPropose:['Tenant Owner','Mobile Money Operator'].includes(req.user.role),
      canReview:['Tenant Owner','Reconciliation Officer'].includes(req.user.role),

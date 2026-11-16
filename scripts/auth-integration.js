@@ -183,10 +183,6 @@ async function main() {
     assert.equal(String((await treasuryModels.models(tenantDb).account.findById(walletFund._id)).bookBalanceMinor),'880000');
     assert.equal(String((await treasuryModels.models(tenantDb).account.findById(cashFund._id)).bookBalanceMinor),'120100');
     assert.equal((await treasuryModels.models(tenantDb).observation.findById(created.walletObservationId)).status,'pending_review');
-    // Keep a genuine pre-upgrade pending-review sample for the authenticated HTTP test.
-    // New book-recorded transactions remain final without operator approval.
-    await require('../src/tenant/models').mobileTransactionModel(tenantDb).collection.updateOne({_id:created._id},
-      {$set:{status:'pending_verification',reviewState:'awaiting_review'}});
     const reviewer=await signIn('reviewer');
     const reviewerFull=await finishMfa('reviewer',reviewer,'challenge');
     const reviewPage=await fetch(`${base}/tenant/mobile-money`,{headers:{cookie:reviewerFull.cookie}});
@@ -194,19 +190,19 @@ async function main() {
     const reviewHtml=await reviewPage.text();
     assert.match(reviewHtml,/Mobile Money/);
     assert.doesNotMatch(reviewHtml,/Independent internal review/,'the normal UI must not demand transaction approval');
-    const reviewPost=await fetch(`${base}/tenant/mobile-money/${created._id}/review`,{method:'POST',redirect:'manual',
+    const reviewPost=await fetch(`${base}/tenant/treasury/observations/${created.walletObservationId}/review`,{method:'POST',redirect:'manual',
       headers:{cookie:reviewerFull.cookie,'content-type':'application/x-www-form-urlencoded'},
-      body:new URLSearchParams({_csrf:csrf(reviewHtml),decision:'accepted',note:'Evidence checked by different staff member'}).toString()});
+      body:new URLSearchParams({_csrf:csrf(reviewHtml),decision:'approve',note:'Independent provider balance evidence checked by authorized second reviewer'}).toString()});
     assert.equal(reviewPost.status,303);
     const finalRecord=await require('../src/tenant/models').mobileTransactionModel(tenantDb).findById(created._id).lean();
-    assert.equal(finalRecord.reviewState,'accepted');
+    assert.equal(finalRecord.reviewState,'not_required');
     const walletObservation=await treasuryModels.models(tenantDb).observation.findById(created.walletObservationId).lean();assert.equal(walletObservation.status,'approved');assert.equal(String(walletObservation.varianceMinorAtReview),'0');
-    assert.equal(finalRecord.status,'pending_verification');
+    assert.equal(finalRecord.status,'recorded');
     const report=await fetch(`${base}/tenant/reports/export.csv`,{headers:{cookie:reviewerFull.cookie}});
     assert.equal(report.status,200);
     const csv=await report.text();
     assert(csv.replace(/^\uFEFF/,'').startsWith('"Module","Activity","Status","Currency","Count",'),'reports exports use the current aggregate contract');
-    assert.match(csv,/pending_verification \/ accepted \/ none/,'reviewed operation is present in the authorized source aggregate');
+    assert.match(csv,/recorded \/ not_required \/ none/,'finalized operation is present in the authorized source aggregate');
     assert.doesNotMatch(csv,/Auth Probe Customer/,'aggregate reports must not expose customer identities');
     assert.equal((await fetch(`${base}/tenant/audit`,{headers:{cookie:reviewerFull.cookie}})).status,200);
     const auditor=await signIn('auditor');

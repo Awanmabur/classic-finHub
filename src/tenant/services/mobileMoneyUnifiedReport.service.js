@@ -131,14 +131,30 @@ async function generate(conn,tenant,actor,input={}){
     grossMinor:{$sum:{$toDecimal:'$grossMinor'}},taxMinor:{$sum:{$toDecimal:'$taxWithheldMinor'}},
     costMinor:{$sum:{$toDecimal:'$providerCostMinor'}}}
   }]).option({maxTimeMS:8000}):Promise.resolve([]);
+ // Show a bounded, permission-scoped transaction table beside period summaries.
+ // No customer PII, unbounded dashboard scans, or cross-branch leakage.
+ const recentQuery=mobileTransactionModel(conn).find(match)
+  .select('_id createdAt operation network currency networkReference amountMinor feeMinor feeTreatment entrySource status reviewState correctionState agentCommissionEstimate riskFlags')
+  .sort({createdAt:-1,_id:-1}).limit(26).maxTimeMS(8000).lean();
  const expensesAccessible=hasModuleForUser(tenant,actor,'expenses')&&hasPermission(actor,'expenses.view');
  const expenseQuery=expensesAccessible?expenseModel(conn).aggregate([{$match:{
   ...scope,status:'approved',reviewedAt:window.bounds,...(input.currency?{currency:input.currency}:{})
  }},{$group:{_id:{currency:'$currency'},count:{$sum:1},amountMinor:{$sum:'$amountMinor'}}}]).option({maxTimeMS:8000}):Promise.resolve([]);
- const [transactions,payouts,expenses]=await Promise.all([txQuery,payoutQuery,expenseQuery]);
- return {window,...summarize(transactions,payouts,expenses),expensesAccessible,
+ const [transactions,payouts,expenses,recent]=await Promise.all([txQuery,payoutQuery,expenseQuery,recentQuery]);
+ return {window,...summarize(transactions,payouts,expenses),
+  recentRecords:recent.slice(0,25).map(row=>({
+   id:String(row._id),at:row.createdAt,operation:row.operation,network:row.network,currency:row.currency,
+   reference:row.networkReference,amount:format(row.amountMinor,row.currency),
+   recordedFee:format(row.feeMinor,row.currency),feeTreatment:row.feeTreatment||'record_only',
+   commission:row.agentCommissionEstimate?.amountMinor!=null?
+    format(row.agentCommissionEstimate.amountMinor,row.currency):null,
+   source:row.entrySource||'manual',providerStatus:row.status,
+   internalState:row.reviewState||'awaiting_review',correction:row.correctionState||'none',
+   flagged:Array.isArray(row.riskFlags)&&row.riskFlags.length>0
+  })),hasMoreRecords:recent.length>25,
+  expensesAccessible,
   payoutsAccessible:hasPayoutScope,
-  note:'Cash/float principal is not revenue. Recorded fees and provider commission estimates are not received income. Provider network charges are not agent revenue. Only posted provider payouts and explicitly collected agent fees are identified as received/collected. Expenses cover all approved branch costs and are not allocated to an individual network. Historical wallet-commission recognition is shown separately to detect double counting. Provider settlement is not established by an internal review.'};
+  note:'Cash and float principal are not revenue. The internal transaction is recorded immediately without routine approval; provider confirmation is a distinct external fact. Estimated commissions and provider customer charges are not agent income. Actual provider payouts and properly collected agent fees are reported separately. Expenses may include shared branch costs and are not automatically allocated to a network.'};
 }
 function csv(report){
  const fields=['Network','Currency','Deposit count','Withdrawal count','Deposit principal','Withdrawal principal',

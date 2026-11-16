@@ -18,7 +18,6 @@
    <div class="summary">
     <div class="sumRow"><span>Business period (<%= reportZoneLabel %>)</span><b><%= report.window.from %> to <%= report.window.to %></b></div>
     <div class="sumRow"><span>Manual / SMS records</span><b><%= count('manualCount') %> / <%= count('smsCount') %></b></div>
-    <div class="sumRow"><span>Awaiting independent review</span><b><%= count('pendingReviewCount') %></b></div>
     <div class="sumRow"><span>Provider-unverified recorded entries</span><b><%= count('providerUnverifiedCount') %></b></div>
     <div class="sumRow"><span>Voided originals (excluded from active totals)</span><b><%= count('voidedCount') %></b></div>
    </div>

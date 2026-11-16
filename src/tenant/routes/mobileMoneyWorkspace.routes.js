@@ -13,7 +13,7 @@ module.exports=function routes({renderTenant}){
  async function render(req,res,next,{view,title,subtitle,operation,report=false}){
   try{
    if(report&&!workspace.canReport(req.user))return res.status(403).send('Mobile money report permission is required.');
-   const reportZone=await reportTimeZone.forRequest(req);
+   const reportZone=operation?businessTime.forBranch(req.operationBranch):await reportTimeZone.forRequest(req);
    const funds=req.operationBranch?await require('../services/mobileMoneyFunds.service').context(
     req.tenantDb,req.tenant,req.user,req.operationBranch):null;
    const market=require('../services/mobileMoneyMarket.service');

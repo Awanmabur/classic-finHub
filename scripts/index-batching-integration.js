@@ -18,7 +18,7 @@ async function main(){
  batch=connection.useDb(batchName,{useCache:true});
  const counts={[legacyName]:0,[batchName]:0};connection.getClient().on('commandStarted',event=>{if(event.commandName==='createIndexes'&&Object.hasOwn(counts,event.databaseName))counts[event.databaseName]++;});
  const legacyModels=register(connection),declared=legacyModels.reduce((sum,Model)=>sum+Model.schema.indexes().length,0);
- const started=Date.now();await Promise.all(legacyModels.map(Model=>Model.createIndexes()));const legacyMs=Date.now()-started;
+ const started=Date.now();await Promise.all(legacyModels.map(Model=>Model.schema.indexes().length?Model.createIndexes():Model.createCollection()));const legacyMs=Date.now()-started;
  const batchStarted=Date.now();await core.ensureTenantIndexes(batch);const batchMs=Date.now()-batchStarted;
  assert.equal(counts[legacyName],declared,'baseline command count must reflect every declared index');
  const indexedModels=Object.values(batch.models).filter(Model=>Model.schema.indexes().length>0);

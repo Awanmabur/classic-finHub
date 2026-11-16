@@ -11,7 +11,7 @@ test('historical booked Mobile Money transactions no longer look like unposted a
  for(const view of [detail,index,activity]){
   assert.match(view,/fundingState==='book_recorded'/);
   assert.match(view,/Recorded in books|Recorded in cash and float books/);
-  assert.doesNotMatch(view,/status\.replaceAll\('_',' '\)/);
+  assert.match(view,/status==='pending_verification'/);
  }
  assert.match(detail,/Network settlement:/);
  assert.match(detail,/Not independently verified in FinHub/);

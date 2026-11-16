@@ -25,6 +25,8 @@ module.exports=function factory({renderTenant}){
     {schedules,commissions,funds,allProviders:Object.entries(NETWORKS).map(([key,meta])=>({key,...meta,configured:!!meta.currency||commissions.wallets.some(w=>w.network===key)})),customerTariffReferences:require('../pricing/customerNetworkFees').TABLES,branches:branches.filter(b=>b.status==='active'&&(req.user.role==='Tenant Owner'||String(b._id)===String(req.user.branchId))),
      actorId:String(req.user.id),actorRole:req.user.role,
      providerChoices:Object.entries(NETWORKS).filter(([key,meta])=>Boolean(meta.currency)||commissions.wallets.some(w=>w.network===key)).map(([key,meta])=>({key,...meta})),
+     canActivatePublished:req.user.role==='Tenant Owner'&&Boolean(req.operationBranch?._id),
+     publishedRateBranch:req.operationBranch?.name||null,
      canPropose:['Tenant Owner','Mobile Money Operator'].includes(req.user.role),
      canReview:['Tenant Owner','Reconciliation Officer'].includes(req.user.role),
      canSubmitPayout:['Tenant Owner','Mobile Money Operator'].includes(req.user.role),
@@ -33,6 +35,15 @@ module.exports=function factory({renderTenant}){
      serializeLines:service.serializeLines,
      formatMinor:require('../services/mobileMoney.service').formatMoneyMinor});
   }catch(e){next(e);}
+ });
+ router.post('/published/activate',requirePermission('treasury.review'),throttle,async(req,res,next)=>{
+  try{
+   const result=await service.activatePublished(req.tenantDb,req.tenant,req.user,req.operationBranch,req.body);
+   flash(req,'good',result.activated
+    ?'Existing provider table activated for '+result.activated+' operations in your branch. Rates are estimates only; no money was posted.'
+    :'The existing provider rate sheets are already active for this branch. No duplicate was created.');
+   res.redirect(303,'/tenant/mobile-money/tariffs#configured-network-sheets');
+  }catch(error){next(error);}
  });
  router.post('/',throttle,async(req,res,next)=>{
   try{

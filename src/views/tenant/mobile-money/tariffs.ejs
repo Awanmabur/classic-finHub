@@ -4,15 +4,15 @@
   <div class="cardHead"><div><b>Mobile Money rates</b><br><span>Use existing network sheets · approve once · edit when rates change</span></div><a class="btn" href="/tenant/treasury">Cash &amp; float accounts</a></div>
   <div class="cardBody workspaceStack">
    <p class="tiny">The existing provider sheets are the starting rates. Prepare missing MTN bands without retyping, then have a different authorized reviewer approve the tenant copy. Approved rates automatically calculate transaction estimates. Customer network charges never become agent income.</p>
-   <% if(data.networkMarkets.length===1){ %>
-    <p class="tiny"><b>Your network:</b> <%= data.networkMarkets[0].label %> · <%= data.networkMarkets[0].currency %></p>
+   <% if((data.networkMarkets||[]).length===1){ %>
+    <p class="tiny"><b>Your network:</b> <%= (data.networkMarkets||[])[0].label %> · <%= (data.networkMarkets||[])[0].currency %></p>
    <% } %>
    <% const selectedRateBranch=data.selectedBranchId||String(data.branches[0]?._id||'');
       const existingMtnKinds=['agent_commission:cash_in','agent_commission:cash_out','customer_network_fee:cash_in','customer_network_fee:cash_out'];
       const activeMtn=new Set(data.schedules.filter(rule=>rule.network==='MTN'&&rule.currency==='UGX'&&
        String(rule.branchId)===selectedRateBranch&&['approved','draft'].includes(rule.status))
        .map(rule=>rule.scheduleKind+':'+rule.operation));
-      const needMtnRates=data.networkMarkets.some(m=>m.network==='MTN')&&existingMtnKinds.some(key=>!activeMtn.has(key)); %>
+      const needMtnRates=(data.networkMarkets||[]).some(m=>m.network==='MTN')&&existingMtnKinds.some(key=>!activeMtn.has(key)); %>
    <% if(data.canPropose&&needMtnRates){ %>
     <form method="post" action="/tenant/mobile-money/tariffs/existing-reference" class="networkTariffActions">
      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
@@ -31,11 +31,11 @@
  <section class="card networkAgentOverview">
   <div class="cardHead"><div><b>Cash and float</b><br><span>Book balances for configured networks · not live provider balances</span></div><a class="btn" href="/tenant/treasury">Reconcile accounts</a></div>
   <div class="cardBody">
-   <% const markets=new Set(data.networkMarkets.map(m=>m.network+'|'+m.currency));
+   <% const markets=new Set((data.networkMarkets||[]).map(m=>m.network+'|'+m.currency));
       const scopedFloat=(data.funds?.wallets||[]).filter(w=>markets.has(w.network+'|'+w.currency)&&w.state==='active');
       const linkedCash=new Set(scopedFloat.map(w=>w.cashDrawerAccountId).filter(Boolean));
-      const compatibleCash=(data.funds?.paymentAccounts||[]).filter(a=>a.kind==='cash'&&data.networkMarkets.some(m=>m.currency===a.currency));
-      const scopedCash=compatibleCash.filter(a=>linkedCash.has(a.id)||(data.networkMarkets.length===1&&compatibleCash.length===1));
+      const compatibleCash=(data.funds?.paymentAccounts||[]).filter(a=>a.kind==='cash'&&(data.networkMarkets||[]).some(m=>m.currency===a.currency));
+      const scopedCash=compatibleCash.filter(a=>linkedCash.has(a.id)||((data.networkMarkets||[]).length===1&&compatibleCash.length===1));
       const moneyAccounts=[...scopedCash,...scopedFloat]; %>
    <% if(moneyAccounts.length){ %>
    <div class="networkBalanceGrid"><% moneyAccounts.forEach(account=>{ %>
@@ -158,7 +158,7 @@
    <% }) %>
   </div>
  </section>
- <% if(data.canPropose&&data.providerChoices.some(p=>p.key!=='MTN')){ %>
+ <% if(data.canPropose&&(data.providerChoices||[]).some(p=>p.key!=='MTN')){ %>
  <details class="card networkNewSheet" id="network-sheet-form">
   <summary class="cardHead"><b>Add or edit agent rate ranges</b><span class="tiny">Open form · independent approval required</span></summary>
   <form class="cardBody networkTariffForm" method="post" action="/tenant/mobile-money/tariffs" autocomplete="off">

@@ -40,7 +40,8 @@ async function main(){
   const amount=currency==='UGX'?'12':'12.34';
   const record=await mobile.recordMobileMoney(conn,owner,{customer:'Multicurrency customer',customerPhone:'+256700123456',network:currency==='SSP'?'MTN SSD':currency==='UGX'?'MTN':currency==='KES'?'M-Pesa':'Africell',currency,amount,fee:'0',networkReference:`MULTI-${nonce}-${currency}`,idempotencyKey:crypto.randomUUID()},'cash_in',tenant);
   assert.equal(String(record.created.cashSessionId),String(shift._id));assert.equal(record.created.currency,currency);assert.equal(String(record.created.amountMinor),currency==='UGX'?'12':'1234');
-  await mobile.reviewMobileMoney(conn,reviewer,record.created._id,'accepted','Independent provider receipt and currency evidence inspected');
+  assert.equal(record.created.reviewState,'recorded','No routine transaction approval required');
+   assert.equal(record.created.status,'pending_verification','Provider confirmation remains separate');
   for(const other of [...opened.keys()].filter(code=>code!==currency)){
    const unchanged=await core.cashSessionModel(conn).findById(opened.get(other)._id).lean();
    if(unchanged.recordCount===0)assert.equal(String(unchanged.provisionalMovementMinor),'0','another currency cash drawer must remain unchanged');

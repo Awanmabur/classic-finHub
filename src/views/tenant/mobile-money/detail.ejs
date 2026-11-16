@@ -32,7 +32,7 @@
     <div class="sumRow"><span>Published source checked</span><b><%= publicRate.checkedOn %> · <a href="<%= publicRate.sourceUrl %>" target="_blank" rel="noopener noreferrer">Provider source</a></b></div>
     <% } %>
     <% if(data.record.customerNetworkChargePublishedReference){const publicCharge=data.record.customerNetworkChargePublishedReference; %>
-    <div class="sumRow"><span>Published customer network charge</span><b><%= data.formatMoneyMinor(publicCharge.amountMinor,data.record.currency) %> · Paid to provider, not agent earnings</b></div>
+    <div class="sumRow"><span><%= publicCharge.status==='historical_unverified'?'Historical network customer charge (verify current provider rate)':'Published customer network charge' %></span><b><%= data.formatMoneyMinor(publicCharge.amountMinor,data.record.currency) %> · Provider charge reference, not agent earnings</b></div>
     <% } %>
     <% if(!data.record.agentCommissionEstimate&&!data.record.agentCommissionPublishedReference){ %><div class="sumRow"><span>Rate sheet status</span><b>No approved or published reference captured at recording</b></div><% } %>
     <div class="sumRow"><span>Commission actually received</span><b>Requires separate provider settlement evidence</b></div>

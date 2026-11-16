@@ -26,8 +26,14 @@ module.exports=function routes({renderTenant}){
    const commissionReceived=view==='network'&&hasPermission(req.user,'treasury.view')?
     await require('../pricing/commissionPayoutService').summary(req.tenantDb,req.tenant,req.user):[];
    const branchCurrency=require('../services/branchCurrency.service');
+   const selectedMarket=market.preferred(realWallets);
+   // Mobile Money currency follows the configured network, not the branch's
+   // unrelated default (Sherikat's branch default is USD, MTN UG uses UGX).
+   const mobileCurrency=req.operationBranch&&selectedMarket?
+    branchCurrency.resolve(req.operationBranch,selectedMarket.currency):
+    req.operationBranch&&operation?branchCurrency.resolve(req.operationBranch,req.query.currency):null;
    renderTenant(req,res,`mobile-money/${view}`,title,subtitle,{...data,reportData,networkMarkets:marketOptions,networksAvailable:marketOptions.length?[...new Set(marketOptions.map(x=>x.network))]:data.networksAvailable,filters:report?{...data.filters,network:filters.network||'',currency:filters.currency||'',from:reportData.window.from,to:reportData.window.to}:data.filters,operation,pricingContext,commissionReceived,formatMoneyMinor:require('../services/mobileMoney.service').formatMoneyMinor,idempotencyKey:randomUUID(),
-    entryCurrency:req.operationBranch&&operation?branchCurrency.resolve(req.operationBranch,req.query.currency):null,
+    entryCurrency:operation?mobileCurrency:null,mobileMoneySelectedCurrency:selectedMarket?.currency||null,
     entryCurrencies:req.operationBranch?branchCurrency.options(req.operationBranch):[],
     branches:branches.filter(branch=>branch.status==='active'&&(req.user.role==='Tenant Owner'||String(branch._id)===String(req.user.branchId))),
     selectedBranchId:req.operationBranch?String(req.operationBranch._id):null,

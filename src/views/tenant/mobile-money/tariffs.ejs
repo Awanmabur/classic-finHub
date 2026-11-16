@@ -3,13 +3,6 @@ const tariffFormatDate=typeof formatLocalDate==='function'?formatLocalDate:value
 const tariffToday=typeof businessToday==='string'?businessToday:new Date().toISOString().slice(0,10); %>
 <script src="/js/network-tariffs.js?v=<%= assetVersion %>" defer></script>
 <section class="view show workspaceStack networkTariffPage">
- <section class="card">
-  <div class="cardHead"><div><b>Provider rate sheets</b><br><span>Approved deposit and withdrawal rates, organized by network</span></div><a class="btn" href="/tenant/treasury">Cash &amp; float</a></div>
-  <div class="cardBody workspaceStack">
-   <p class="tiny">Provider charges and expected agent commissions appear together in each sheet, but remain separate in accounting. Rates are estimates; actual commission is recorded only when received.</p>
-   <div class="workspaceActions"><a class="btn" href="/tenant/mobile-money/network-activity">Network activity</a><a class="btn" href="/tenant/mobile-money/report">Operations report</a></div>
-  </div>
- </section>
  <% const visibleProviderSheets=(data.providerSheets||[]).filter(sheet=>sheet.status==='approved');
     const currentTariffBranch=String(data.selectedBranchId||'');
     const hasActiveMtnWallet=(data.commissions?.wallets||[]).some(wallet=>wallet.network==='MTN'&&wallet.currency==='UGX'&&
@@ -18,7 +11,7 @@ const tariffToday=typeof businessToday==='string'?businessToday:new Date().toISO
     const formattedRate=(rate,currency)=>!rate?'—':rate.kind==='basis_points'?(Number(rate.value)/100).toFixed(2)+'%':data.formatMinor(rate.value,currency); %>
  <% if(visibleProviderSheets.length||(data.canActivatePublished&&hasActiveMtnWallet&&!mtnFullyActivated)){ %>
  <section class="card" id="configured-network-sheets">
-  <div class="cardHead"><div><b>Network rate sheets</b><span class="tiny">One sheet per provider and branch · deposit and withdrawal rates together</span></div><span class="tag"><%= visibleProviderSheets.length %> active <%= visibleProviderSheets.length===1?'sheet':'sheets' %></span></div>
+  <div class="cardHead"><div><b>Provider rate sheets</b><span class="tiny">One sheet per network and branch · deposit and withdrawal fees together</span></div><div class="workspaceActions"><a class="btn" href="/tenant/mobile-money/network-activity">Activity</a><a class="btn" href="/tenant/mobile-money/report">Report</a></div></div>
   <div class="cardBody workspaceStack">
    <% visibleProviderSheets.forEach((sheet,index)=>{ %>
    <details class="networkTariffRecord" <%- index===0?'open':'' %>>

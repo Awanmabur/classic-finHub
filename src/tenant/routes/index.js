@@ -71,7 +71,7 @@ router.get('/mobile-money', requireModule('mobile_money'), requirePermission('mo
     const canReview=hasPermission(req.user,'mobile_money.review')&&(req.user.role==='Tenant Owner'||req.user.branchId);
     const reviewBranch=req.user.role==='Tenant Owner'?(require('../services/branchView.service').readScope(req.user).branchId||null):req.user.branchId;
     const [summary,branches,reviewQueue,voidQueue,funds,pricingContext]=await Promise.all([
-      mobile.getSummary(req.tenantDb,recordScope(req)),
+      mobile.getSummary(req.tenantDb,{...recordScope(req),timeZone:businessTime.forBranch(req.operationBranch)}),
       branchService.list(req.tenant),
       canReview?mobile.getReviewQueue(req.tenantDb,req.user.id,25,reviewBranch):[],
       canReview?mobile.getVoidQueue(req.tenantDb,req.user.id,25,reviewBranch):[],
@@ -175,7 +175,7 @@ router.get('/mobile-money/:id/acknowledgement',requireModule('mobile_money'),req
 });
 router.get('/mobile-money/history', requireModule('mobile_money'),requirePermission('mobile_money.view'),async(req,res,next)=>{
   try{
-    const records=await mobile.getTransactionPage(req.tenantDb,{...recordScope(req),from:req.query.from,to:req.query.to,cursor:req.query.cursor});
+    const records=await mobile.getTransactionPage(req.tenantDb,{...recordScope(req),from:req.query.from,to:req.query.to,cursor:req.query.cursor,timeZone:businessTime.forBranch(req.operationBranch)});
     renderTenant(req,res,'mobile-money/history','Mobile Money History',
       'Tenant and branch-scoped operational records, with auditable correction status.',{records});
   }catch(e){next(e);}

@@ -116,7 +116,7 @@ async function revise(conn,tenant,actor,id,input){
   return output;
  }finally{await session.endSession();}
 }
-async function decide(conn,tenant,actor,id,decision){
+async function decide(conn,tenant,actor,id,decision,input={}){
  if(!['approve','retire'].includes(decision))throw fail('Choose a valid tariff decision');
  await ensure(conn);
  const session=await conn.startSession();
@@ -128,7 +128,21 @@ async function decide(conn,tenant,actor,id,decision){
    const prior=await model(conn).findOne({_id:objectId(id),tenantId:auth.tenant._id}).session(session).lean();
    if(!prior)throw fail('Tariff not found',404);
    if(auth.actor.role!=='Tenant Owner'&&String(prior.branchId||'')!==String(auth.actor.branchId||''))throw fail('Reviewer belongs to a different branch',403);
-   if(String(prior.createdBy)===auth.actor.id)throw fail('The proposer cannot approve or retire their own schedule',403);
+   if(String(prior.createdBy)===auth.actor.id){
+    // A Tenant Owner may activate a pristine copy of our built-in published
+    // reference with an explicit evidence attestation. This approves estimates
+    // only: no customer charge or commission income is posted to funds.
+    const ref=builtInReference(prior.network,prior.scheduleKind,prior.operation);
+    const pristine=ref&&prior.origin==='published_reference'&&prior.revision===0&&
+     prior.evidenceReference===ref.evidenceReference&&
+     JSON.stringify(prior.tiers.map(t=>({
+      minMinor:t.minMinor,maxMinor:t.maxMinor,
+      rate:{kind:t.rate.kind,value:t.rate.value}
+     })))===JSON.stringify(ref.tiers);
+    if(!(auth.actor.role==='Tenant Owner'&&decision==='approve'&&pristine&&
+      input?.ownerAttestation==='I verified these provider rates for my business'))
+     throw fail('Only a Tenant Owner may approve their own unchanged published reference after confirming applicability. Custom or edited rates need an independent reviewer.',403);
+   }
    if(decision==='approve'&&prior.status!=='draft'||decision==='retire'&&prior.status!=='approved')throw fail('Tariff already processed or wrong status',409);
    if(decision==='approve'){
      validateTariff({network:prior.network,operation:prior.operation,currency:prior.currency,status:'draft',tiers:prior.tiers});
@@ -246,7 +260,7 @@ async function importExistingReferences(conn,tenant,actor,{network,branchId}){
      validateTariff({network:'MTN',currency:'UGX',operation,status:'draft',tiers:ref.tiers});
      const last=await model(conn).findOne(scope).sort({version:-1}).session(session).lean();
      const [created]=await model(conn).create([{
-      ...scope,version:(last?.version||0)+1,status:'draft',createdBy:auth.actor.id,
+      ...scope,version:(last?.version||0)+1,status:'draft',origin:'published_reference',createdBy:auth.actor.id,
       tiers:ref.tiers,evidenceReference:ref.evidenceReference,effectiveFrom:new Date()
      }],{session});
      result.created.push(key);

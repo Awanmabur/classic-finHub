@@ -8,7 +8,11 @@ const data={currencyChoices:require('../src/tenant/services/branchCurrency.servi
  canManage:true,canPropose:true,canQuote:true,canSubmit:true,canReview:false,canRateReview:false,
  canQuoteReview:false,canDecide:()=>false,summary:{total:0,recent:[],summaries:[]},records:{items:[]},
  shifts:{items:[]},contacts:[],references:[],institutions:[],policies:[],reviewQueue:[],voidQueue:[],
- rateQueue:[],quoteQueue:[],rates:[],queue:[],countryOptions:[],roles:[],categories:[],idempotencyKey:'test'};
+ rateQueue:[],quoteQueue:[],rates:[],queue:[],countryOptions:[],roles:[],categories:[],idempotencyKey:'test',
+ funds:{paymentAccounts:[{id:'cash01',name:'Owner-approved KES cash',kind:'cash',currency:'KES',
+  state:'active',reconciliation:'matched',expectedMinor:'250000',assignedToOperator:true}],
+  wallets:[{id:'mfloat01',name:'M-Pesa KES float',network:'M-Pesa',currency:'KES',
+   state:'active',reconciliation:'matched',expectedMinor:'400000',shared:true,cashDrawerAccountId:'cash01'}]}};
 const user={id:'507f1f77bcf86cd799439012',name:'Owner',role:'Tenant Owner',permissions:['*'],branchId:String(branch._id)};
 const files=['mobile-money/index','mobile-money/shifts','money-transfer/index','money-transfer/contacts',
  'banking/index','banking/accounts','forex/index','approvals/index'];

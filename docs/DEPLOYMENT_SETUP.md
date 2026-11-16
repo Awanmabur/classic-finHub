@@ -67,6 +67,8 @@ The notification worker's mail path reads `securetenantusers` and
 `notificationpreferencev1` and finds/updates `notificationmessagev1`. The transfer
 SMS path finds/updates `transfersmsdeliveryv1` and reads `fundedexecutionv1`,
 `transferorderv1` and `securebranches` to check that the collection remains valid.
+For Mobile Money anomaly alerts, grant the worker **find only** on `securemobiletransactions`; grant `find`, `insert` and `update` on the tenant-owned `riskalertdispatchcursorv1` collection. The worker stores alert progress outside financial books and must not receive `update` permission for `securemobiletransactions`. All permitted tenant databases must receive the necessary roles before notifications are considered healthy.
+
 Worker startup creates/checks heartbeat indexes. Run `npm run indexes` with the web/provisioning
 credential before starting workers; do not run index provisioning under a
 delivery-only account. No delivery worker needs permission to post financial

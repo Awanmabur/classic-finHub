@@ -142,6 +142,10 @@ test('transaction forms offer enabled account-branch currencies without client b
   assert.doesNotMatch(bankingHtml,/<(?:select|input)[^>]+name="branchId"/);
   assert.doesNotMatch(bankingHtml,/<select[^>]+name="currency"[^>]*>\s*<option value="UGX">UGX<\/option>/);
   const mobileHtml=await render('tenant/mobile-money/index.ejs',{data:{branches:[branch],canRecord:true,canReview:false,
+    funds:{paymentAccounts:[{id:'kescash',name:'Assigned KES drawer',kind:'cash',currency:'KES',
+     state:'active',reconciliation:'matched',expectedMinor:'90000',assignedToOperator:true}],
+     wallets:[{id:'kesfloat',name:'M-Pesa float',kind:'wallet',network:'M-Pesa',currency:'KES',
+      state:'active',reconciliation:'matched',expectedMinor:'120000',shared:true,cashDrawerAccountId:'kescash'}]},
     idempotencyKey:crypto.randomUUID(),summary:{total:0,recent:[]}},user:{...user,role:'Tenant Owner',permissions:['*']},
     money:()=>'',amountFromMinor:()=>'',csrfToken:'csrf'});
   const mobileCurrency=mobileHtml.match(/<select\b[^>]*name="currency"[^>]*>([\s\S]*?)<\/select>/);

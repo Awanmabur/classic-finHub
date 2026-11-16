@@ -119,12 +119,13 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
       // Immutable informational reference only. Approved network tariff quotes
       // never change principal cash/float, customer fee, provider settlement
       // or recognized income. Missing or out-of-band rates remain unknown.
+      const quoteAt=smsAuthorization?.receivedAt||new Date();
       const tariffEstimates=await require('../pricing/networkTariffService').transactionEstimates(
         conn,authorization.tenant,branch,{network:values.network,currency:values.currency,
-          operation,amountMinor:values.amountMinor,at:smsAuthorization?.receivedAt||new Date(),session});
+          operation,amountMinor:values.amountMinor,at:quoteAt,session});
       const publicReferences=require('../pricing/publishedReference.service').quote({
         network:values.network,currency:values.currency,operation,
-        amountMinor:values.amountMinor,at:smsAuthorization?.receivedAt||new Date()
+        amountMinor:values.amountMinor,at:quoteAt
       });
       // Persist one preferred quote per category: approved tenant sheet first,
       // public or historical provider reference only when no approved sheet applies.

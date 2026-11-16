@@ -123,15 +123,12 @@ for tenant in "${TENANTS[@]}"; do
     "$IMAGE" node scripts/forex-rate-side-migrate.js "--tenant=$tenant"
 done
 
-echo '=== 6. BEGIN CONTROLLED MAINTENANCE ==='
+# The installed Contabo backup service explicitly checks that the web
+# container is RUNNING. Obtain and rehearse the backup before stopping it.
+# Do not label this multi-database mongodump transactionally consistent:
+# it occurs with live services active. Quiesce Forex writes for cutover.
 PREV_BACKUP="$(ls -1t "$BACKUP_ROOT"/classicfin-full-*.gpg | head -1)"
-STOPPED=1
-docker stop --time 25 "$APP" "$WORKER" "$NOTIFY" >/dev/null
-for n in "$APP" "$WORKER" "$NOTIFY"; do
-  test "$(docker inspect -f '{{.State.Status}}' "$n")" = exited
-done
-
-echo '=== 7. CONSISTENT FRESH BACKUP ==='
+echo '=== 6. FRESH VERIFIED BACKUP (WEB MUST REMAIN RUNNING) ==='
 systemctl start classicfin-contabo-backup.service
 test "$(systemctl show classicfin-contabo-backup.service -p Result --value)" = success
 LATEST="$(ls -1t "$BACKUP_ROOT"/classicfin-full-*.gpg | head -1)"
@@ -141,7 +138,7 @@ gpg --batch --quiet --pinentry-mode loopback \
   --passphrase-file "$BACKUP_KEY" --decrypt "$LATEST" | gzip -t
 echo "Fresh verified backup: $LATEST"
 
-echo '=== 8. RESTORE FRESH BACKUP IN ISOLATION ==='
+echo '=== 7. RESTORE FRESH BACKUP IN ISOLATION ==='
 docker run -d --rm --name "$RESTORE" --network none \
   --memory 1024m --memory-swap 1024m --cpus 1 --pids-limit 128 \
   mongo:8.0 mongod --bind_ip 127.0.0.1 --wiredTigerCacheSizeGB 0.25 >/dev/null
@@ -179,6 +176,13 @@ print("RESTORE VERIFIED: "+total+" records")
 '
 docker rm -f "$RESTORE" >/dev/null
 rm -f "$RESTORE_LOG"
+
+echo '=== 8. BEGIN CONTROLLED MAINTENANCE AFTER BACKUP ==='
+STOPPED=1
+docker stop --time 25 "$APP" "$WORKER" "$NOTIFY" >/dev/null
+for n in "$APP" "$WORKER" "$NOTIFY"; do
+  test "$(docker inspect -f '{{.State.Status}}' "$n")" = exited
+done
 
 echo '=== 9. MIGRATE FOREX INDEXES WITH WRITES STOPPED ==='
 MIGRATION_STARTED=1

@@ -48,9 +48,11 @@ test('Only the tenant owner can activate the built-in sheet; the UI submits no b
  assert.match(service,/auth\.actor\.role!=='Tenant Owner'/);
  assert.match(service,/providerConfirmed:false/);
  assert.match(service,/permission:'treasury\.review',sourceType:'mobile_money',session,fence:true/);
- assert.match(view,/Approve these existing fees for estimates/);
- assert.match(view,/name="scheduleKind" value="customer_network_fee"/);
- assert.match(view,/name="scheduleKind" value="agent_commission"/);
+ assert.match(view,/Authorize existing MTN rates/);
+ assert.match(view,/name="scheduleKind" value="all"/);
+ assert.equal(templates('MTN','all').length,4);
+ assert.throws(()=>templates('Airtel','all'));
+ assert.match(view,/mtnFullyActivated/);
  const schema=require('../src/tenant/pricing/networkTariffModels').schema;
  assert.equal(schema.path('sourceKind').options.immutable,true);
  assert.equal(schema.path('providerConfirmed').options.default,false);

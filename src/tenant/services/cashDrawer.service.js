@@ -231,8 +231,8 @@ async function detail(conn,tenant,actor,shiftId){
  const found=await cashSessionModel(conn).findOne({_id:id(shiftId),...visibleScope(actor)}).lean();
  if(!found)throw fail('Cash shift not found within your permissions',404);return found;
 }
-async function reportRows({conn,filters,scope:filter}){
- const match={createdAt:mobile.dateBounds({from:filters.from,to:filters.to}),
+async function reportRows({conn,filters,scope:filter,dateRange}){
+ const match={createdAt:dateRange||mobile.dateBounds({from:filters.from,to:filters.to},filters.timeZone||'UTC'),
   // Aggregation pipelines do not apply Mongoose schema casting. CashSession
   // stores branchId as ObjectId, so a string would silently produce zero rows.
   ...require('../reporting/aggregateScope').branchMatch(filter, value=>new Types.ObjectId(value))};

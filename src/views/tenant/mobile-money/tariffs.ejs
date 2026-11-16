@@ -147,7 +147,7 @@ const tariffToday=typeof businessToday==='string'?businessToday:new Date().toISO
        <form action="/tenant/mobile-money/tariffs/<%= schedule._id %>/approve" method="post"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btnPrimary">Approve rate sheet</button></form>
       </div>
      <% } %>
-     <% if(data.canReview&&schedule.status==='approved'&&String(schedule.createdBy)!==String(data.actorId||'')){ %>
+     <% if(data.canReview&&schedule.status==='approved'&&(String(schedule.createdBy)!==String(data.actorId||'')||(schedule.sourceKind==='published_reference'&&data.actorRole==='Tenant Owner'))){ %>
       <form action="/tenant/mobile-money/tariffs/<%= schedule._id %>/retire" method="post" class="networkTariffAction"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn">Retire rate sheet</button></form>
      <% } %>
      <p class="tiny">A schedule is an estimate. The provider balance or daily commission statement is required before recognizing actual commission revenue.</p>

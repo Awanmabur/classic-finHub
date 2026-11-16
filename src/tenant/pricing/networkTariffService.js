@@ -182,14 +182,14 @@ async function transactionEstimates(conn,tenant,branch,{network,currency,operati
  for(const scheduleKind of ['agent_commission','customer_network_fee']){
   const query=model(conn).findOne({
    tenantId:tenant._id,branchId:branch._id,network,currency,operation,scheduleKind,
-   status:'approved'
+   status:'approved',approvedAt:{$ne:null,$lte:timestamp}
   }).sort({version:-1});
   if(session)query.session(session);
   const rule=await query.lean();
   if(!rule)continue;
   // The sheet's YYYY-MM-DD fields describe local business dates, not UTC
   // instants. Compare their date keys against the branch's local transaction
-  // date; otherwise 00:00–02:59 EAT transactions miss an effective sheet.
+  // date; otherwise early local-morning transactions miss an effective sheet.
   const localDate=businessTime.localDay(timestamp,businessTime.forBranch(branch));
   if(rule.effectiveFrom?.toISOString().slice(0,10)>localDate||
     (rule.expiresAt&&rule.expiresAt.toISOString().slice(0,10)<=localDate))continue;

@@ -76,8 +76,10 @@ router.get('/mobile-money', requireModule('mobile_money'), requirePermission('mo
     ]);
     renderTenant(req,res,'mobile-money/index','Mobile Money','Record agent transactions. Provider settlement remains unverified until reconciled.',{
       entryCurrency:req.operationBranch?require('../services/mobileMoneyMarket.service').preferred(funds?.wallets||[])?.currency||require('../services/branchCurrency.service').resolve(req.operationBranch,req.query.currency):null,
-      entryCurrencies:req.operationBranch?require('../services/branchCurrency.service').options(req.operationBranch):[],
+      entryCurrencies:req.operationBranch?require('../services/mobileMoneyMarket.service').markets(funds?.wallets||[]).map(m=>({code:m.currency,label:m.currency==='KES'?'KSH':m.currency}))
+        .filter((m,i,a)=>a.findIndex(x=>x.code===m.code)===i):[],
       summary,branches:branches.filter(b=>b.status==='active' && (req.user.role==='Tenant Owner' || String(b._id)===String(req.user.branchId))),voidQueue,funds,pricingContext,riskAlerts,
+       networkMarkets:require('../services/mobileMoneyMarket.service').markets(funds?.wallets||[]),
       canReview: hasPermission(req.user,'mobile_money.review'), idempotencyKey:randomUUID(),
       canRecord: hasPermission(req.user,'mobile_money.cash_in') || hasPermission(req.user,'mobile_money.cash_out')
     });

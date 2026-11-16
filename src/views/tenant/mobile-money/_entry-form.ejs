@@ -73,6 +73,6 @@
     </div>
     <details class="logicNote"><summary>Additional details</summary><div class="row2"><label class="field">Customer name<input class="control" name="customer" placeholder="Optional customer name" minlength="2" maxlength="120" autocomplete="name"></label><label class="field">Customer ID / note<input class="control" name="customerNote" placeholder="Optional verification or note" maxlength="400"></label></div></details>
     <p class="tiny">Only record a transaction after the official network confirms it and the real customer cash exchange has occurred. Internal posting is immediate; independent review is separate.</p>
-    <div class="rowBtns"><button class="btn btnPrimary" type="submit"><%= entryOperation==='cash_in'?'Record deposit':'Record withdrawal' %></button></div>
+    <div class="rowBtns"><button class="btn btnPrimary" type="submit" data-mobile-submit-label><%= entryOperation==='cash_in'?'Record deposit':'Record withdrawal' %></button></div>
   </div>
 </form>

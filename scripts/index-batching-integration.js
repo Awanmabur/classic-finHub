@@ -29,7 +29,7 @@ async function main(){
  const before=counts[batchName];await core.ensureTenantIndexes(batch);assert.equal(counts[batchName],before,'a successful same-process preflight is reused');
  console.log(JSON.stringify({event:'index-batching.verified',collections:Object.keys(batch.models).length,declaredIndexes:declared,legacyCommands:counts[legacyName],batchCommands:counts[batchName],localLegacyMs:legacyMs,localBatchMs:batchMs,equivalentIndexes:true,uniqueConstraintEnforced:true,scope:'Disposable local comparison; timings do not measure Atlas network latency.'}));
 }
-main().catch(error=>{console.error('Index batching integration failed:',error.name);process.exitCode=1;}).finally(async()=>{
+main().catch(error=>{console.error('Index batching integration failed:',error.stack||error.message||error.name);process.exitCode=1;}).finally(async()=>{
  if(connection?.readyState===1&&connection.name===legacyName&&/^cfh_index_legacy_[a-f0-9]{16}$/.test(legacyName)){
   if(batch?.name===batchName&&/^cfh_index_batch_[a-f0-9]{16}$/.test(batchName))await batch.db.dropDatabase();
   await connection.db.dropDatabase();

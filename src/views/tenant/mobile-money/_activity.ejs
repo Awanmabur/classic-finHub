@@ -11,7 +11,7 @@
        <% const agentQuote=record.agentCommissionEstimate||record.agentCommissionPublishedReference;const networkQuote=record.customerNetworkFeeEstimate||record.customerNetworkChargePublishedReference; %>
        <% if(agentQuote){ %><small><%= record.agentCommissionEstimate?'Commission estimate ':'Commission reference ' %><%= money(record.currency,amountFromMinor(agentQuote.amountMinor,record.currency)) %></small><% } %>
        <% if(networkQuote){ %><small><%= record.customerNetworkFeeEstimate?'Network fee estimate ':'Network fee reference ' %><%= money(record.currency,amountFromMinor(networkQuote.amountMinor,record.currency)) %></small><% } %>
-       <small><%= record.status.replaceAll('_',' ') %></small></div>
+       <small><%= record.status==='voided_internal'?'Voided internally':record.fundingState==='book_recorded'?'Recorded in books':record.status==='recorded'?'Recorded':record.status==='pending_verification'?'Historical entry · review evidence':record.status.replaceAll('_',' ') %></small></div>
     </a>
   <% }) %>
 </div>

@@ -263,7 +263,7 @@ async function expireDue(conn,now=new Date(),limit=100){
 }
 async function list(conn,tenant,actor,{cursor=null,status=null}={}){
  requireModuleAccess(tenant,actor,'money_transfer.view');
- if(status&&!['requested','approved_pending_provider','collected_manual','paid_out_manual','rejected','cancelled','expired'].includes(status))throw fail('Invalid transfer status');
+ if(status&&!['requested','approved_pending_provider','collected_manual','paid_out_manual','refunded_manual','rejected','cancelled','expired'].includes(status))throw fail('Invalid transfer status');
  const position=mobile.decodeCursor(cursor),query={$and:[orderReadScope(actor)],...(status?{status}:{})};
  if(position)query.$or=[{createdAt:{$lt:position.at}},{createdAt:position.at,_id:{$lt:id(position.id)}}];
  const found=await transferOrderModel(conn).find(query).sort({createdAt:-1,_id:-1}).limit(41).lean();

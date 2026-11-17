@@ -48,10 +48,33 @@ const costBook=new Schema({
  revision:{type:Number,default:0,min:0},lastSettlementId:{type:O,default:null}
 },{strict:'throw',timestamps:true});
 costBook.index({accountId:1},{unique:true,name:'one_cost_book_per_native_currency_account'});
+// Append-only evidence: a provider success and a physical handover are
+// independent facts. A request can never be marked executed by a quote alone.
+const event=new Schema({
+ tenantId:{type:O,required:true,immutable:true},settlementId:{type:O,required:true,immutable:true},
+ branchId:{type:O,required:true,immutable:true},
+ stage:{type:String,enum:['provider_confirmed','cash_collected','cash_paid','payout_confirmed','cost_basis_allocated','reversed'],required:true,immutable:true},
+ evidenceSource:{type:String,enum:['provider_api','provider_statement','verified_sms','cash_count','signed_receipt','internal_journal'],required:true,immutable:true},
+ evidenceDigest:{type:String,required:true,immutable:true,match:/^[a-f0-9]{64}$/i},
+ providerReference:{type:String,default:null,immutable:true,maxlength:120},
+ observedAt:{type:Date,required:true,immutable:true},
+ recordedBy:{type:O,required:true,immutable:true}
+},{strict:'throw',timestamps:{createdAt:true,updatedAt:false},versionKey:false});
+function immutableEvidence(schema){
+ schema.pre('save',function(next){next(this.isNew?null:new Error('Settlement evidence is append-only'));});
+ for(const op of ['updateOne','updateMany','replaceOne','findOneAndUpdate','findOneAndReplace','deleteOne','deleteMany','findOneAndDelete'])
+  schema.pre(op,function(next){next(new Error('Settlement evidence is append-only'));});
+}
+immutableEvidence(event);
+event.index({settlementId:1,stage:1},{unique:true,name:'one_verified_fact_per_stage'});
+event.index({tenantId:1,branchId:1,observedAt:-1});
+event.index({branchId:1,providerReference:1},{unique:true,partialFilterExpression:{providerReference:{$type:'string'}},name:'unique_settlement_provider_reference_per_branch'});
+
 function models(conn){
  return {
   settlement:conn.models.LinkedCurrencySettlementV1||conn.model('LinkedCurrencySettlementV1',settlement),
-  costBook:conn.models.FxWeightedCostBookV1||conn.model('FxWeightedCostBookV1',costBook)
+  costBook:conn.models.FxWeightedCostBookV1||conn.model('FxWeightedCostBookV1',costBook),
+  event:conn.models.LinkedCurrencyEvidenceV1||conn.model('LinkedCurrencyEvidenceV1',event)
  };
 }
-module.exports={models,settlementSchema:settlement,costBookSchema:costBook};
+module.exports={models,settlementSchema:settlement,costBookSchema:costBook,evidenceSchema:event};

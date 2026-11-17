@@ -30,13 +30,13 @@ async function preview(conn,tenant,actor,branch,input){
  const side=operation==='withdraw_provider_receive_cash'?'buy':'sell';
  const rate=await forexRateModel(conn).findOne({branchId:branch._id,fromCurrency:wallet.currency,
   toCurrency:cash.currency,side,status:'active',reviewedBy:{$ne:null},expiresAt:{$gt:new Date()}}).lean();
- if(!rate)throw fail('No active independently approved Buy/Sell rate for this currency direction');
+ if(!rate)throw fail('No active Buy/Sell rate for this currency direction. Ask the authorized owner to set the rate');
  const value=quote({operation,providerCurrency:wallet.currency,cashCurrency:cash.currency,
   providerAmountMinor:input.providerAmountMinor!==undefined?String(input.providerAmountMinor):String(require('../treasury/service').major(String(input.providerAmount||''),wallet.currency)),rateDecimal:rate.rateDecimal,
   rateSide:rate.side,rateId:String(rate._id),rateVersion:rate.revision,approved:true,
   expiresAt:new Date(rate.expiresAt).toISOString()});
  return {...value,branchId:String(branch._id),walletAccountId:walletId,cashAccountId:cashId,
   network:wallet.network,walletName:wallet.name,cashName:cash.name,rateExpiresAt:rate.expiresAt,
-  financialPosting:'disabled',providerVerification:'required'};
+  financialPosting:process.env.CLASSICFIN_MOMO_FX_POSTING_ENABLED==='true'?'authorization_required':'disabled',providerVerification:'required'};
 }
 module.exports={preview};

@@ -66,11 +66,12 @@ test('rejected courier handover keeps reserved banknotes until both signed retur
  assert.match(receiver,/Confirm signed return dispatch/);
  assert.match(receiver,/name="notesDispatched" value="confirmed"/);
  assert.match(receiver,/reserved from sending drawer/);
- const sender=await ejs.renderFile(view,values({
-  user:{id:'507f1f77bcf86cd799439013',role:'Money Transfer Operator'},
+ const senderData=values({
   canConfirm:false,canConfirmReturn:true,canRequest:false,canReview:false,
   reimbursements:[returned('return_dispatched')]
- }));
+ });
+ senderData.user={id:'507f1f77bcf86cd799439013',role:'Money Transfer Operator'};
+ const sender=await ejs.renderFile(view,senderData);
  assert.match(sender,/Confirm actual source-drawer cash returned/);
  assert.match(sender,/name="cashReturnedConfirmed" value="confirmed"/);
  const owner=await ejs.renderFile(view,values({

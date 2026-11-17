@@ -52,8 +52,10 @@ async function request(conn,tenant,actor,branch,input){
   const wallet=accounts.find(x=>String(x._id)===walletId&&x.kind==='wallet'&&x.network);
   const cash=accounts.find(x=>String(x._id)===cashId&&x.kind==='cash');
   if(!wallet||!cash||wallet.currency===cash.currency)throw fail('Choose a reconciled, independently opened wallet and a different-currency cash drawer',409);
-  for(const account of [wallet,cash])if(account.operatorId&&String(account.operatorId)!==String(a.actor.id))
-   throw fail('Choose accounts assigned to the submitting owner or shared authorized accounts',403);
+  // Tenant Owner configures authorizations for real cashiers as well as the
+  // owner. Custody must not silently bridge two different assigned operators.
+  if(wallet.operatorId&&cash.operatorId&&String(wallet.operatorId)!==String(cash.operatorId))
+   throw fail('Provider wallet and cash drawer belong to different cashiers; verify and correct their assignment',403);
   const scope={tenantId:tenant._id,branchId:branch._id,walletAccountId:wallet._id,cashAccountId:cash._id,
    providerNetwork:wallet.network,permittedCurrencyPair:wallet.currency+'/'+cash.currency};
   const previous=await grants(conn).findOne({...scope,status:{$in:['pending_review','approved']},expiresAt:{$gt:new Date()}}).session(session).lean();

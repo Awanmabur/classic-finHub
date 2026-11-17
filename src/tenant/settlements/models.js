@@ -32,6 +32,8 @@ const settlement=new Schema({
  payoutEvidenceId:{type:O,default:null},
  postingBatchIds:{type:[O],default:[]},realizedCostBasisEventId:{type:O,default:null},
  status:{type:String,enum:['quoted','pending_provider','collected','pending_payout','posted','reversed','disputed'],required:true,default:'quoted'},
+ // A posted internal book is not proof of provider acceptance or settlement.
+ providerState:{type:String,enum:['unverified','confirmed','disputed'],required:true,default:'unverified'},
  revision:{type:Number,default:0,min:0},
  occurredAt:{type:Date,default:null},postedAt:{type:Date,default:null},reversedAt:{type:Date,default:null},
  createdBy:{type:O,required:true,immutable:true}

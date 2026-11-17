@@ -42,7 +42,7 @@
  </div>
 </section>
 <details class="card" style="margin-top:14px"><summary class="cardHead"><b>Change workspace access status</b><span>Super Admin · audited</span></summary><div class="cardBody"><p class="tiny">A suspension blocks tenant operations. Status changes require a reason. Plan, pricing and subscription changes are deliberately separate from this control.</p>
-<form method="post" action="/platform/tenants/<%= data.tenant.id %>/status"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><label class="field">New status<select name="status" class="control" required><option value="">Choose status</option><% const options={trial:['active','suspended'],active:['past_due','suspended'],past_due:['active','suspended'],suspended:['active']}[data.tenant.status]||[];options.forEach(st=>{ %><option value="<%= st %>"><%= st %></option><% }) %></select></label><label class="field">Reason (12–400 characters)<textarea name="reason" class="control" required minlength="12" maxlength="400" rows="3"></textarea></label><button type="submit" class="btn btnPrimary">Update status</button></form></div></details>
+<form method="post" action="/platform/tenants/<%= data.tenant.id %>/status"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><p class="tiny">Current state: <strong><%= data.tenant.status %></strong>. Only choose a different state when you intend to change workspace access.</p><label class="field">Change to<select name="status" class="control" required><option value="" selected disabled>Current: <%= data.tenant.status %> — choose another state</option><% const options={trial:['active','suspended'],active:['past_due','suspended'],past_due:['active','suspended'],suspended:['active']}[data.tenant.status]||[];options.forEach(st=>{ %><option value="<%= st %>"><%= st %></option><% }) %></select></label><label class="field">Reason (12–400 characters)<textarea name="reason" class="control" required minlength="12" maxlength="400" rows="3"></textarea></label><button type="submit" class="btn btnPrimary">Update status</button></form></div></details>
 <details class="card" style="margin-top:14px"><summary class="cardHead"><b>Edit tenant profile</b><span>Display details only · audited</span></summary><div class="cardBody"><form method="post" action="/platform/tenants/<%= data.tenant.id %>/profile"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><div class="row2"><label class="field">Business name<input class="control" name="name" required minlength="2" maxlength="150" value="<%= data.tenant.name %>"></label><label class="field">Contact phone<input class="control" name="phone" maxlength="40" value="<%= data.tenant.phone||'' %>"></label></div><label class="field">Reason (12–400 characters)<textarea class="control" name="reason" required minlength="12" maxlength="400" rows="2"></textarea></label><button type="submit" class="btn">Save profile</button></form><p class="tiny">Owner email, tenant slug, financial records, plan entitlements, subscription charges and audit history are not editable through this form.</p></div></details>
 <details class="card" style="margin-top:14px"><summary class="cardHead"><b>Subscription access &amp; limits</b><span>Plan terms and usage</span></summary><div class="cardBody">
   <% const sub=data.tenant.subscription; %>
@@ -54,7 +54,7 @@
   <p class="tiny">Manual grants change module access and quotas and are fully audited. They are support-authorized entitlements, not proof of an invoice, collection, or settlement. Suspended tenants must be reactivated through the separate status workflow.</p>
   <form method="post" action="/platform/tenants/<%= data.tenant.id %>/subscription/grant">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-    <div class="row2"><label class="field">Published plan<select class="control" name="planCode" required><option value="">Choose published plan</option><% const uniquePlans=new Set();data.published.forEach(v=>{if(!uniquePlans.has(v.code)){uniquePlans.add(v.code);%><option value="<%= v.code %>"><%= v.name %> (latest published)</option><% }}); %></select></label>
+    <div class="row2"><label class="field">Published plan<select class="control" name="planCode" required><option value="" selected disabled><%= currentSub?`Current: ${currentSub.planName||currentSub.planCode} — select a plan to change or renew`:"Choose a published plan" %></option><% const uniquePlans=new Set();data.published.forEach(v=>{if(!uniquePlans.has(v.code)){uniquePlans.add(v.code);%><option value="<%= v.code %>"><%= v.name %><%= currentSub?.planCode===v.code?" — current plan (renew)":" — new plan" %></option><% }}); %></select></label>
     <label class="field">Duration in days (1–366)<input class="control" type="number" name="days" min="1" max="366" required value="30"></label></div>
     <label class="field">Change justification (20–600 characters)<textarea class="control" name="reason" required minlength="20" maxlength="600" rows="3"></textarea></label>
     <button type="submit" class="btn btnPrimary">Grant / renew subscription</button>
@@ -67,17 +67,34 @@
 </div></details>
 
 <details class="card" style="margin-top:14px"><summary class="cardHead"><b>Independent module subscriptions</b><span>Super Admin · audited manual entitlement · no payment collected</span></summary><div class="cardBody">
-  <div class="summary"><% grants.forEach(g=>{ %><div class="sumRow"><span><%= g.moduleKey %> (<%= g.status %>)</span><b><%= formatUtcDate(g.periodEnd).split('T')[0] %></b></div><% }) %></div>
+  <div class="summary">
+    <div class="sumRow"><span>Effective modules now</span><b><%= effectiveKeys.size %></b></div>
+    <div class="sumRow"><span>Available through current plan</span><b><%= activePlanModules.length %></b></div>
+    <div class="sumRow"><span>Available through independent grants</span><b><%= activeAddonGrants.length %></b></div>
+  </div>
+  <% if(effectiveKeys.size){ %><div class="seg" aria-label="Modules currently enabled">
+    <% [...effectiveKeys].sort().forEach(key=>{ %><span class="chip active"><%= moduleLabel(key) %> · enabled</span><% }); %>
+  </div><% } %>
+  <% if(grants.length){ %><h3>Independent grant history</h3><div class="summary">
+    <% grants.forEach(g=>{ %><div class="sumRow"><span><%= g.moduleKey %> (<%= g.status %>)</span><b><%= formatUtcDate(g.periodEnd).split('T')[0] %></b></div><% }) %>
+  </div><% } %>
+  <h3>Grant or renew access</h3>
   <form method="post" action="/platform/tenants/<%= data.tenant.id %>/modules/grant">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>"><div class="row3">
       <label class="field">Independent module / add-on<select class="control" name="moduleKey" required data-module-record-allocation>
-        <option value="" selected disabled>Choose a standalone module or optional add-on</option>
-        <% const standaloneModules=data.independentModules||[]; %>
-        <optgroup label="Core and standalone operational modules">
-        <% standaloneModules.filter(m=>m.category!=='Addon').forEach(m=>{ %><option value="<%= m.key %>" data-requires-records="<%= m.requiresRecords===true %>"><%= m.name %> · USD <%= m.priceMonthly %>/mo</option><% }) %>
+        <option value="" selected disabled>Select a new module or renew an existing grant</option>
+        <% const standaloneModules=data.independentModules||[];
+           const independentlyActiveKeys=new Set(activeAddonGrants.map(g=>g.moduleKey)); %>
+        <% if(standaloneModules.some(m=>independentlyActiveKeys.has(m.key))){ %>
+        <optgroup label="Already active — select only to renew">
+          <% standaloneModules.filter(m=>independentlyActiveKeys.has(m.key)).forEach(m=>{ %>
+          <option value="<%= m.key %>" data-requires-records="<%= m.requiresRecords===true %>"><%= m.name %> · ACTIVE · renew</option><% }); %>
+        </optgroup><% } %>
+        <optgroup label="Available standalone modules">
+          <% standaloneModules.filter(m=>m.category!=='Addon'&&!effectiveKeys.has(m.key)).forEach(m=>{ %><option value="<%= m.key %>" data-requires-records="<%= m.requiresRecords===true %>"><%= m.name %> · USD <%= m.priceMonthly %>/mo</option><% }); %>
         </optgroup>
-        <optgroup label="Optional add-ons">
-        <% standaloneModules.filter(m=>m.category==='Addon').forEach(m=>{ %><option value="<%= m.key %>" data-requires-records="<%= m.requiresRecords===true %>"><%= m.name %> · USD <%= m.priceMonthly %>/mo</option><% }) %>
+        <optgroup label="Available optional add-ons">
+          <% standaloneModules.filter(m=>m.category==='Addon'&&!effectiveKeys.has(m.key)).forEach(m=>{ %><option value="<%= m.key %>" data-requires-records="<%= m.requiresRecords===true %>"><%= m.name %> · USD <%= m.priceMonthly %>/mo</option><% }); %>
         </optgroup>
       </select><span class="tiny">Standalone access remains separate from the saved plan and does not collect payment automatically.</span></label>
       <label class="field">Days<input class="control" type="number" name="days" min="1" max="366" value="30" required></label>

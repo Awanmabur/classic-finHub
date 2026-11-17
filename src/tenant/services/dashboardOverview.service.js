@@ -60,11 +60,19 @@ async function overview(conn,tenant,user,options={}){
  // MoMo volume remains independently scoped to its network currency.
  if(mobileMarket&&!options.currency)
   overviewOptions.currency=mobileMarket.currency;
- const workspaceSnapshot=await snapshot.snapshot(conn,tenant,user,flags,options.operationBranch,overviewOptions);
+ const [workspaceSnapshot,financeOverview]=await Promise.all([
+  snapshot.snapshot(conn,tenant,user,flags,options.operationBranch,overviewOptions),
+  require('./financeOverview.service').overview(conn,tenant,user,{
+   ...overviewOptions,operationBranch:options.operationBranch,viewBranch:options.viewBranch
+  }).catch(error=>{
+   console.warn(JSON.stringify({event:'finance.overview_unavailable',errorCode:String(error.code||error.name||'UNKNOWN').slice(0,80)}));
+   return {available:false,reason:'Financial totals temporarily unavailable. Check Treasury and reports.'};
+  })
+ ]);
  const displayWallets=mobileMarket?(mobileFunds?.wallets||[]).filter(a=>a.network===mobileMarket.network&&a.currency===mobileMarket.currency):(mobileFunds?.wallets||[]);
  const {accounts:displayCash,requiresMapping:cashMappingRequired}=marketService.cashForMarket(mobileFunds||{},mobileMarket);
  const mobileBookTotals={cash:groupedBookTotals(displayCash),float:groupedBookTotals(displayWallets)};
- const data={...flags,mobileFunds,mobileMarkets,mobileMarket,cashMappingRequired,
+ const data={...flags,financeOverview,mobileFunds,mobileMarkets,mobileMarket,cashMappingRequired,
   mobileDisplayCashIds:displayCash.map(a=>a.id),mobileBookTotals,mobileFundsState:!hasMobileMoney?'unavailable':wideRead&&options.viewBranchId==='all'?'all_branches':fundsBranch?'resolved':'branch_required',summary:{recent:mobileRows},bankingRecords:{items:bankingRows},forexRecords:{items:forexRows},transferRecords:{items:transferRows}};
  return {...data,workspaceSnapshot:{...workspaceSnapshot,...snapshot.activity(data)}};
 }

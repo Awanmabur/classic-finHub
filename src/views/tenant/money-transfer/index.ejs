@@ -3,6 +3,7 @@
    const branchProblem = typeof operationBranchError === 'string' && operationBranchError ? operationBranchError : 'An active operating branch must be assigned to your account before creating records.'; %>
 <section class="view show">
  <%- include('../../partials/operation-branch', {currentBranch, branchProblem, user}) %>
+ <%- include('../partials/module-finance',{moduleKey:'money_transfer'}) %>
  <section class="card"><div class="cardHead"><b><%= data.workspaceTitle||'Transfer requests — internal operations' %></b><span>Reviewed manual collection and payout</span><a class="btn" href="/tenant/money-transfer/records">Money transfer record</a></div>
   <div class="cardBody">
    <p class="tiny">Save sender and receiver details, record the actual collection against opened funds accounts, and obtain independent review to generate the payout PIN.</p>

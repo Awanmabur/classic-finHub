@@ -59,7 +59,7 @@ async function overview(conn,tenant,user,options={}){
   const m=byModule.get(key);
   m.set(currency,(m.get(currency)||0n)+BigInt(String(account.bookBalanceMinor)));
  }
- return {available:true,
+ return {available:true,periodLabel:options.from&&options.to?`${options.from} to ${options.to}`:'today',
   bookAssets:rowsOf(assetMap),
   byModule:[...byModule].sort(([a],[b])=>a.localeCompare(b))
     .map(([moduleKey,totals])=>({moduleKey,totals:rowsOf(totals)})),
@@ -74,7 +74,7 @@ async function overview(conn,tenant,user,options={}){
 async function postedEarnings(conn,scope,options={}){
  const result={income:[],expenses:[],net:[]};
  if(options.suppressTodayVolumes)return result;
- const {$gte,$lt}=businessTime.dayBounds({},options.timeZone||'UTC',90,options.now||new Date());
+ const {$gte,$lt}=businessTime.dayBounds({from:options.from,to:options.to},options.timeZone||'UTC',90,options.now||new Date());
  const startEnd={$gte,$lt};
  const accountModel=models.ledgerAccountModel(conn);
  const postings=models.ledgerPostingModel(conn);
@@ -103,7 +103,7 @@ async function postedEarnings(conn,scope,options={}){
 // module. This is posted LEDGER contribution, not FX dealing profit or margin.
 async function postedEarningsByModule(conn,tenant,scope,options={}){
  if(options.suppressTodayVolumes)return [];
- const {$gte,$lt}=businessTime.dayBounds({},options.timeZone||'UTC',90,options.now||new Date());
+ const {$gte,$lt}=businessTime.dayBounds({from:options.from,to:options.to},options.timeZone||'UTC',90,options.now||new Date());
  const batches=await fundsModels(conn).batch.find({
   tenantId:tenant._id,...scope,sourceType:{$in:MODULES},createdAt:{$gte,$lt}
  }).select('sourceType journalIds').limit(2001).maxTimeMS(2500).lean();
@@ -147,10 +147,11 @@ async function postedEarningsByModule(conn,tenant,scope,options={}){
 // Module pages always report their operating branch, not a silent tenant-wide
 // mixture of branches or currencies. A failed optional summary must not block
 // record entry or successful customer transactions.
-async function moduleOverview(conn,tenant,user,branch){
+async function moduleOverview(conn,tenant,user,branch,period={}){
  try{
   return await overview(conn,tenant,user,{
-   operationBranch:branch,timeZone:businessTime.forBranch(branch)
+   operationBranch:branch,timeZone:period.timeZone||businessTime.forBranch(branch),
+   from:period.from,to:period.to
   });
  }catch(error){
   console.warn(JSON.stringify({event:'finance.module_overview_unavailable',code:String(error.code||error.name||'UNKNOWN').slice(0,80)}));

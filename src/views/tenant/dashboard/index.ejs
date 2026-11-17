@@ -2,6 +2,7 @@
 <% const snapshot=data.workspaceSnapshot||{};
    const volumes=snapshot.todayVolumes||{};
    const byCurrency=snapshot.todayByCurrency||{};
+   const finance=data.financeOverview||{};
    const financialActions=quickActions.filter(action=>['transfer','mobile_money','forex_buy','banking_deposit'].includes(action.kind));
    const opener=quickActions.find(action=>action.kind==='cash_shift_open');
    const overviewCurrencies=typeof currencyOptions==='undefined'?[{code:'UGX',label:'UGX'},{code:'USD',label:'USD'},{code:'SSP',label:'SSP'},{code:'KES',label:'KSH'}]:currencyOptions;
@@ -48,7 +49,49 @@
         </div>
         <% }) %>
         <% } %>
-      </div><% } else { %><p>Your workspace is ready.</p><p class="tiny"><%= visiblePaths.has('/tenant/modules')?'Choose the modules your team needs to start recording activity.':'Your administrator can enable the modules you need to get started.' %></p><% if(visiblePaths.has('/tenant/modules')){ %><a class="btn" href="/tenant/modules">Explore modules</a><% } %><% } %>
+      </div>
+      <% if(finance.available){ %>
+      <div class="grid3 overviewStatsGrid financialOverviewStats" aria-label="Posted earnings and operating book assets" style="margin-top:12px">
+        <div class="stat">
+          <div class="k">Posted net income · today</div>
+          <% if(finance.mixedRegion){ %><div class="v">Choose a branch</div>
+          <% } else if(!(finance.postedNet||[]).length){ %><div class="v">No posted income or expense</div>
+          <% } else { %><div class="overviewCurrencyLines">
+            <% finance.postedNet.forEach(row=>{ %><div class="overviewCurrencyLine"><span><%= row.currency==='KES'?'KSH':row.currency %></span><b><%= row.formatted.replace(/^KES /,'KSH ') %></b></div><% }); %>
+          </div><% } %><div class="s">Posted income less posted expenses; excludes unmeasured FX trading gains</div>
+        </div>
+        <div class="stat">
+          <div class="k">Posted income · today</div>
+          <% if(finance.mixedRegion){ %><div class="v">Choose a branch</div>
+          <% } else if(!(finance.postedIncome||[]).length){ %><div class="v">No posted income</div>
+          <% } else { %><div class="overviewCurrencyLines">
+            <% finance.postedIncome.forEach(row=>{ %><div class="overviewCurrencyLine"><span><%= row.currency==='KES'?'KSH':row.currency %></span><b><%= row.formatted.replace(/^KES /,'KSH ') %></b></div><% }); %>
+          </div><% } %><div class="s">Only accounting income entries, not network fee estimates</div>
+        </div>
+        <div class="stat">
+          <div class="k">Operating assets · book balances</div>
+          <% if(!(finance.bookAssets||[]).length){ %><div class="v">No approved asset openings</div>
+          <% } else { %><div class="overviewCurrencyLines">
+            <% finance.bookAssets.forEach(row=>{ %><div class="overviewCurrencyLine"><span><%= row.currency==='KES'?'KSH':row.currency %></span><b><%= row.formatted.replace(/^KES /,'KSH ') %></b></div><% }); %>
+          </div><% } %><div class="s">Cash, float, bank and FX stock; not owner equity or live network balances</div>
+        </div>
+        <div class="stat">
+          <div class="k">Forex trading profit</div>
+          <div class="v">Not yet measurable</div>
+          <div class="s">Actual purchase cost basis and matched sales are needed before realized profit can be reported.</div>
+        </div>
+      </div>
+      <% if(finance.byModule?.length){ %>
+      <details class="financialModuleBalances" style="margin-top:12px"><summary><strong>Operating assets by module and currency</strong></summary>
+        <div class="summary">
+          <% finance.byModule.forEach(module=>{module.totals.forEach(row=>{ %>
+            <div class="sumRow"><span><%= module.moduleKey==='shared'?'Shared treasury':module.moduleKey.replaceAll('_',' ') %> · <%= row.currency==='KES'?'KSH':row.currency %></span>
+              <b><%= row.formatted.replace(/^KES /,'KSH ') %></b></div>
+          <% });}); %>
+        </div><p class="tiny">Shared physical drawers are shown once, not attributed to every connected module.</p>
+      </details><% } %>
+      <% } %>
+      <% } else { %><p>Your workspace is ready.</p><p class="tiny"><%= visiblePaths.has('/tenant/modules')?'Choose the modules your team needs to start recording activity.':'Your administrator can enable the modules you need to get started.' %></p><% if(visiblePaths.has('/tenant/modules')){ %><a class="btn" href="/tenant/modules">Explore modules</a><% } %><% } %>
       <% if(financialActions.length||visiblePaths.has('/tenant/reports')||visiblePaths.has('/tenant/cash/shifts')){ %><div class="rowBtns" style="margin-top:12px">
         <% financialActions.forEach((action,index)=>{ %><a class="btn <%= index===0?'btnPrimary':'' %>" href="<%= action.href %>" data-transaction-kind="<%= action.kind %>"><%= action.label %></a><% }) %>
         <% if(visiblePaths.has('/tenant/reports')){ %><a class="btn" href="/tenant/reports">View reports</a><% } %>

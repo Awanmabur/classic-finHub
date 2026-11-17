@@ -280,7 +280,8 @@ function normalizeMovement(input){
 async function postingAuthorization(conn,session,authorization,value,internal={}){
  if(internal.branchTransferExecutionId){
   const {execution,source,collection}=await require('../funded/branchTransfer').validate(conn,session,authorization.tenant,authorization.actor,internal.branchTransferExecutionId);
-  const counter=await models(conn).counter.findOne({branchId:source.branchId,currency:source.currency,purpose:'interbranch_payable'}).session(session).lean();
+  const purpose=String(source.branchId)===String(execution.branchId)?'settlement_clearing':'interbranch_payable';
+  const counter=await models(conn).counter.findOne({branchId:source.branchId,currency:source.currency,purpose}).session(session).lean();
   if(value.sourceType!=='money_transfer'||value.sourceRef!==`BRANCH_PAYOUT:${execution._id}:ORIGIN`||value.branchId!==String(source.branchId)||value.operatingActorId!==String(collection.createdBy)||value.legs.length!==1||value.legs[0].accountId!==String(collection.accounts.clearingAccountId)||value.legs[0].deltaMinor!==`-${source.amountMinor}`||value.ledgerLines.length!==1||!counter||value.ledgerLines[0].accountId!==String(counter.ledgerAccountId)||value.ledgerLines[0].currency!==source.currency||value.ledgerLines[0].side!=='credit'||value.ledgerLines[0].amountMinor!==String(source.amountMinor))throw fail('Only the exact originating transfer payable may be reclassified',403);
   const current=await access(conn,authorization.tenant,authorization.actor,{permission:'money_transfer.review',session,fence:true,sourceType:'money_transfer'});
   const branch=await core.branchModel(conn).findOneAndUpdate({_id:source.branchId,status:'active'},{$inc:{revision:1}},{session,new:true}).lean();
@@ -346,15 +347,15 @@ async function applyMovements(conn,session,authorization,input,internal={}){
  return {batch,movements,journalIds,duplicate:false};
 }
 async function postBranchTransferPayout(conn,session,authorization,payoutId){
- const {execution,source,collection}=await require('../funded/branchTransfer').validate(conn,session,authorization.tenant,authorization.actor,payoutId);
+ const {execution,source,collection,sameBranch}=await require('../funded/branchTransfer').validate(conn,session,authorization.tenant,authorization.actor,payoutId);
  const payoutCurrency=source.payoutCurrency||source.currency;
  const payoutMinor=String(source.payoutMinor||source.amountMinor);
  if(source.payoutCurrency&&process.env.CLASSICFIN_LINKED_CURRENCY_POSTING!=='enabled')
   throw fail('Cross-currency transfer payouts have not been enabled',403);
  if(source.payoutCurrency&&(!source.fxRateId||!source.fxRateDecimal||!source.fxRateApprovedBy))
   throw fail('The original cross-currency transfer is missing immutable approved pricing evidence',409);
- const payable=await ensureCounterAccount(conn,session,{tenantId:authorization.tenant._id,branchId:source.branchId,currency:source.currency,purpose:'interbranch_payable',actorId:authorization.actor.id});
- const receivable=await ensureCounterAccount(conn,session,{tenantId:authorization.tenant._id,branchId:execution.branchId,currency:payoutCurrency,purpose:'interbranch_receivable',actorId:authorization.actor.id});
+ const payable=await ensureCounterAccount(conn,session,{tenantId:authorization.tenant._id,branchId:source.branchId,currency:source.currency,purpose:sameBranch?'settlement_clearing':'interbranch_payable',actorId:authorization.actor.id});
+ const receivable=await ensureCounterAccount(conn,session,{tenantId:authorization.tenant._id,branchId:execution.branchId,currency:payoutCurrency,purpose:sameBranch?'settlement_clearing':'interbranch_receivable',actorId:authorization.actor.id});
  const origin=await applyMovements(conn,session,authorization,{sourceType:'money_transfer',sourceRef:`BRANCH_PAYOUT:${execution._id}:ORIGIN`,branchId:String(source.branchId),operatingActorId:String(collection.createdBy),legs:[{accountId:String(collection.accounts.clearingAccountId),deltaMinor:`-${source.amountMinor}`}],ledgerLines:[{currency:source.currency,accountId:String(payable.ledgerAccountId),side:'credit',amountMinor:String(source.amountMinor)}],evidenceRef:execution.evidenceReference,description:execution.note},{branchTransferExecutionId:execution._id});
  const destination=await applyMovements(conn,session,authorization,{sourceType:'money_transfer',sourceRef:`FUNDED:${execution._id}`,branchId:String(execution.branchId),operatingActorId:String(execution.createdBy),legs:[{accountId:String(execution.accounts.payoutAccountId),deltaMinor:`-${payoutMinor}`}],ledgerLines:[{currency:payoutCurrency,accountId:String(receivable.ledgerAccountId),side:'debit',amountMinor:payoutMinor}],evidenceRef:execution.evidenceReference,description:execution.note});
  return {...destination,originBatchId:origin.batch._id,journalIds:[...origin.journalIds,...destination.journalIds]};

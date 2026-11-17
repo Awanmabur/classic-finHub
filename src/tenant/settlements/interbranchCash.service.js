@@ -121,10 +121,10 @@ async function request(conn,tenant,actor,transferId,input={}){
   },{$inc:{revision:1}},{session,new:true}).lean();
   if(!source)throw fail('The original transfer has not been paid out');
   const pair=await authoritativePair(conn,session,source);
-  if(authorization.actor.role!=='Tenant Owner'&&
-     (String(authorization.actor.branchId)!==pair.branchId||
-      String(authorization.actor.id)!==pair.collectionActorId))
-   throw fail('Only the actual sending cashier or tenant owner may request a cash reimbursement',403);
+  if(authorization.actor.role!=='Money Transfer Operator'||
+   String(authorization.actor.branchId)!==pair.branchId||
+   String(authorization.actor.id)!==pair.collectionActorId)
+   throw fail('Only the original sending cashier may request reimbursement; a different tenant owner must independently review it',403);
   const existing=await Model.findOne({tenantId:tenant._id,transferId:source._id,
    activeKey:{$type:'string'}}).session(session).lean();
   if(existing)throw fail('A reimbursement is already pending or posted for this transfer');

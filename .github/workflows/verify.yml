@@ -40,5 +40,7 @@ jobs:
       - name: Verify atomic approved tariff schedule supersession
         run: node scripts/tariff-supersede-integration.js
       - run: npm run catalog:publish -- --apply
+      - name: Verify guarded two-currency financial posting in isolated MongoDB
+        run: node scripts/momo-fx-settlement-integration.js
       - name: Run scratch-only production-gate integration tests
         run: npm run release:gate

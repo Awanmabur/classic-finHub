@@ -31,6 +31,16 @@ module.exports=function operationWorkspaceRoutes({renderTenant,moduleKey}){
   router.get(path,async(req,res,next)=>{
    try{
     const data=await workspace.formContext(req.tenantDb,req.tenant,req.user,moduleKey,req.operationBranch,req.query);
+    if(moduleKey==='money_transfer'){
+      data.crossCurrencyEnabled=process.env.CLASSICFIN_LINKED_CURRENCY_POSTING==='enabled'&&
+       require('../services/moduleAccess.service').hasModule(req.tenant,'forex');
+      data.approvedFxRates=data.crossCurrencyEnabled&&req.operationBranch?
+       await require('../models').forexRateModel(req.tenantDb).find({
+        branchId:req.operationBranch._id,status:'active',
+        side:'sell',reviewedBy:{$ne:null},reviewedAt:{$ne:null},
+        expiresAt:{$gt:new Date()}
+       }).select('_id fromCurrency toCurrency rateDecimal expiresAt').sort({createdAt:-1}).limit(100).lean():[];
+    }
     data.financeOverview=await require('../services/financeOverview.service').moduleOverview(
      req.tenantDb,req.tenant,req.user,req.operationBranch,{viewBranchId:req.viewBranchId,viewBranch:req.viewBranch});
     Object.assign(data,{workspaceTitle:title,workspaceOperation:operation});

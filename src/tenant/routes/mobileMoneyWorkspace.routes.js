@@ -79,7 +79,7 @@ module.exports=function routes({renderTenant}){
    const eligible=row=>row.state==='active'&&row.reconciliation==='matched'&&row.expectedMinor!=null;
    const wallets=funds.wallets.filter(eligible),drawers=funds.paymentAccounts.filter(row=>row.kind==='cash'&&eligible(row));
    let result=null,error=null;
-   if(req.query.walletAccountId||req.query.cashAccountId||req.query.providerAmountMinor){
+   if(req.query.walletAccountId||req.query.cashAccountId||req.query.providerAmountMinor||req.query.providerAmount){
     try{result=await require('../services/momoFxPreview.service').preview(req.tenantDb,req.tenant,req.user,branch,req.query);}
     catch(e){error=e.message;}
    }

@@ -44,6 +44,16 @@ test('a posted payout with a still-collected source is flagged as a stop-and-inv
  assert.match(result.explanation,/STOP/);
  assert.match(result.explanation,/Do not pay again or refund/);
 });
+test('refund review takes priority over suggesting a new PIN payout for still-collected sender cash',()=>{
+ const r=recovery.classify(sample,{status:'rejected'},now,true);
+ assert.equal(r.state,'refund_under_review');
+ assert.equal(r.needsAttention,true);
+ assert.match(r.explanation,/Do not issue a recipient payout/);
+ const conflicting=recovery.classify(sample,{status:'pending_review'},now,true);
+ assert.equal(conflicting.state,'conflicting_refund_and_payout');
+ assert.match(conflicting.explanation,/STOP/);
+ assert.match(conflicting.explanation,/neither may be treated as paid/);
+});
 test('ordinary same-currency transfer preserves its native denomination and cannot be confused with FX',()=>{
  const result=recovery.classify({...sample,currency:'UGX',payoutCurrency:null,payoutMinor:null,amountMinor:'25000'},null,now);
  assert.equal(result.senderCollected,'UGX 25,000');

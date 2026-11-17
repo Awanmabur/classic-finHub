@@ -37,6 +37,13 @@ test('rejected payout keeps collected money outstanding and requires a fresh PIN
  assert.match(result.explanation,/do not create a duplicate transfer/);
  assert.match(result.explanation,/No recipient cash was posted/);
 });
+test('a posted payout with a still-collected source is flagged as a stop-and-investigate inconsistency',()=>{
+ const result=recovery.classify(sample,{status:'posted_manual'},now);
+ assert.equal(result.state,'inconsistent_paid_status');
+ assert.equal(result.needsAttention,true);
+ assert.match(result.explanation,/STOP/);
+ assert.match(result.explanation,/Do not pay again or refund/);
+});
 test('ordinary same-currency transfer preserves its native denomination and cannot be confused with FX',()=>{
  const result=recovery.classify({...sample,currency:'UGX',payoutCurrency:null,payoutMinor:null,amountMinor:'25000'},null,now);
  assert.equal(result.senderCollected,'UGX 25,000');

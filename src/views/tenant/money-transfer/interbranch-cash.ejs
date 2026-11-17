@@ -1,0 +1,72 @@
+<section class="view show">
+<section class="card">
+ <div class="cardHead"><b>Branch cash reimbursement</b>
+  <span><%= data.order.reference %> · <%= data.order.status.replaceAll('_',' ') %></span></div>
+ <div class="cardBody">
+  <p class="tiny">This follows the original transfer's real sending and receiving cashiers. Reimbursement is **not** a second customer payout. Cash is deducted from the actual sending drawer, received into the original payout cashier's drawer, and the corresponding same-currency interbranch balances are cleared only when both branches' signed proof is independently approved.</p>
+  <div class="summary">
+   <div class="sumRow"><span>Collected in sending branch</span><b><%= data.formatMoneyMinor(data.order.amountMinor,data.order.currency) %></b></div>
+   <div class="sumRow"><span>Recipient currency</span><b><%= data.formatMoneyMinor(data.order.payoutMinor||data.order.amountMinor,data.order.payoutCurrency||data.order.currency) %></b></div>
+   <div class="sumRow"><span>Sending branch</span><b><%= data.order.originBranchName||'Original branch' %></b></div>
+   <div class="sumRow"><span>Receiving branch</span><b><%= data.order.destinationBranchName||'Receiving branch' %></b></div>
+  </div>
+  <% if(data.crossCurrency){ %>
+  <p class="tiny"><strong>Different-currency obligation:</strong> this transfer cannot be cleared using a same-currency cash movement. A separately verified actual exchange, cost basis and native-currency branch reimbursement are required. SSP payable cannot simply be offset against USD receivable.</p>
+  <% } %>
+  <% if(!data.enabled){ %>
+  <p class="tiny"><strong>Interbranch posting is disabled on this deployment.</strong> No cash will be moved or shown as settled until the production approval and real physical custody checks are completed.</p>
+  <% } %>
+  <div class="rowBtns"><a class="btn" href="/tenant/money-transfer/<%= data.order._id %>">Back to transfer</a>
+  <a class="btn" href="/tenant/money-transfer/branch-balances">View native-currency branch dues</a></div>
+ </div>
+</section>
+<% if(data.canRequest){ %>
+<form class="card" style="margin-top:14px" method="post" action="/tenant/money-transfer/<%= data.order._id %>/interbranch-cash/request">
+ <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+ <input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
+ <div class="cardHead"><b>Record sender branch cash handover</b><span>Original cashier · independent review required</span></div>
+ <div class="cardBody">
+  <p class="tiny">This creates a request only. The receiving cashier must independently acknowledge actually receiving the SAME currency and exact principal amount. Customer transfer fees are not an additional interbranch reimbursement.</p>
+  <label class="field">Sending cashier signed handover reference (8–120 characters)
+   <input class="control" name="evidenceReference" minlength="8" maxlength="120" required></label>
+  <label class="field">Cash transport and handover explanation (12–400 characters)
+   <textarea class="control" name="note" rows="3" minlength="12" maxlength="400" required></textarea></label>
+  <button class="btn btnPrimary" type="submit">Request independent branch reimbursement review</button>
+ </div>
+</form>
+<% } %>
+<section class="card" style="margin-top:14px"><div class="cardHead"><b>Actual cash reimbursement history</b><span>Original linked transfer</span></div>
+<div class="cardBody">
+ <% if(!data.reimbursements.length){ %><p class="tiny">No original-currency cash reimbursement has been requested or recorded for this transfer.</p><% } %>
+ <% data.reimbursements.forEach(item=>{ %>
+ <div class="summary">
+  <div class="sumRow"><span>Review status</span><b><%= item.status.replaceAll('_',' ') %></b></div>
+  <div class="sumRow"><span>Physical cash principal</span><b><%= item.amount %></b></div>
+  <div class="sumRow"><span>Request explanation</span><b><%= item.note %></b></div>
+  <% if(item.reviewNote){ %><div class="sumRow"><span>Independent finance decision</span><b><%= item.reviewNote %></b></div><% } %>
+  <% if(item.status==='posted'){ %>
+   <div class="sumRow"><span>Signed sending-branch handover</span><b><%= item.senderHandoverReference||'Evidence missing — investigate' %></b></div>
+   <div class="sumRow"><span>Signed receiving-branch acceptance</span><b><%= item.receiverReceiptReference||'Evidence missing — investigate' %></b></div>
+   <div class="sumRow"><span>Origin Treasury batch</span><b><%= item.originBatchId||'Missing — investigate' %></b></div>
+   <div class="sumRow"><span>Destination Treasury batch</span><b><%= item.destinationBatchId||'Missing — investigate' %></b></div>
+  <% } %>
+ </div>
+ <% if(data.canReview&&item.status==='pending_review'&&item.requestedBy!==String(user.id)){ %>
+ <form method="post" style="margin:12px 0" action="/tenant/money-transfer/<%= data.order._id %>/interbranch-cash/<%= item.id %>/review">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <label class="field">Independent review rationale (12–400 characters)
+   <textarea class="control" name="note" rows="3" minlength="12" maxlength="400" required></textarea></label>
+  <label class="field">Original sender's signed handover reference (8–120 characters)
+   <input class="control" name="senderHandoverReference" minlength="8" maxlength="120"></label>
+  <label class="field">Actual receiver's separately signed cash receipt (8–120 characters)
+   <input class="control" name="receiverReceiptReference" minlength="8" maxlength="120"></label>
+  <label class="field"><input type="checkbox" name="bothBranchesVerified" value="confirmed">
+   I independently verified both signed receipts, the real cash movement and matching original currency and amount</label>
+  <p class="tiny">Approval creates BOTH Treasury custody entries atomically and clears the corresponding branch dues. Rejection does not move money.</p>
+  <div class="rowBtns"><button class="btn btnPrimary" name="decision" value="approve" type="submit">Approve verified interbranch cash reimbursement</button>
+  <button class="btn" name="decision" value="reject" type="submit">Reject reimbursement</button></div>
+ </form>
+ <% } %>
+ <% }) %>
+</div></section>
+</section>

@@ -96,3 +96,21 @@ test('transfer preview uses native SSP collection and real destination USD drawe
  assert.equal(result.display.collectionStatus,'not_posted');
  assert.equal(result.display.payoutStatus,'not_posted');
 });
+
+test('Mobile Money-only tenant can quote KES/SSP without separately buying Forex, but standalone transfer conversion remains gated',async()=>{
+ const owner={...actor,allowedModules:['mobile_money']};
+ const momoTenant=entitledTenant({plan:'agent',_id:tenant._id,slug:tenant.slug,
+   dbName:tenant.dbName,enabledModules:['mobile_money']});
+ const kWallet=account(ids.wallet,ids.branch,'KES','wallet',{network:'M-Pesa'});
+ const e=environment({wallet:kWallet,rateFrom:'KES',rateTo:'SSP'});
+ const out=await preview.mobileMoney(e.conn,momoTenant,owner,branch,{
+  operation:'cash_out',walletAccountId:ids.wallet,cashCurrency:'SSP',
+  providerPrincipalMinor:'100000',rateId:ids.rate});
+ assert.equal(out.quote.providerCurrency,'KES');
+ assert.equal(out.quote.cashCurrency,'SSP');
+ assert.equal(out.quote.custodyLegs[1].deltaMinor,'-90000');
+ await assert.rejects(preview.transfer(e.conn,momoTenant,owner,branch,{
+  originCashAccountId:ids.cash,collectionCurrency:'SSP',
+  destinationBranchId:ids.dest,destinationPayoutAccountId:ids.payout,
+  payoutCurrency:'USD',payoutMinor:'10000',rateId:ids.rate}),{status:403});
+});

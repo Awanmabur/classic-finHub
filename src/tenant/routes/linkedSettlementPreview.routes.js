@@ -8,7 +8,7 @@ const preview=require('../settlements/preview');
 // Never accept the originating branch or a user-supplied exchange rate.
 router.use((req,res,next)=>{
  res.set('Cache-Control','private, no-store').set('X-Robots-Tag','noindex, nofollow');
- if(!hasModule(req.tenant,'forex'))return res.status(403).json({error:'Approved Forex subscription required for cross-currency quotes'});
+ if(!hasModule(req.tenant,'mobile_money')&&!hasModule(req.tenant,'forex'))return res.status(403).json({error:'An active financial module is required for currency quotes'});
  if(!req.operationBranch)return res.status(409).json({error:req.operationBranchError||'Assign an operating branch'});
  next();
 });

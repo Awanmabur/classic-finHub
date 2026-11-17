@@ -58,6 +58,7 @@ router.use('/settlements/preview',require('./linkedSettlementPreview.routes'));
 router.use('/funded',require('./fundedOperations.routes')({renderTenant}));
 router.use(require('./cashControl.routes')({renderTenant}));
 router.use(require('./dayControl.routes')({renderTenant,recordScope}));
+router.use('/mobile-money/currency-rates',require('./mobileMoneyCurrencyRates.routes')({renderTenant}));
 router.use('/mobile-money',require('./mobileMoneyWorkspace.routes')({renderTenant}));
 router.use('/mobile-money/tariffs',require('./mobileMoneyTariffs.routes')({renderTenant}));
 router.use(require('../customerAccounts/routes')({renderTenant}));

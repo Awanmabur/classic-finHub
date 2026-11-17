@@ -98,6 +98,13 @@ async function main(){
  });
  const rejectedCash=(await physical.request(conn,tenant,teller,source._id,settlementInput('REJECT'))).reimbursement;
  assert.equal(rejectedCash.status,'pending_receiver');
+ assert.equal(String((await treasury.models(conn).account.findById(drawer._id)).reservedCashMinor),'10000');
+ const blockedSnapshot=await treasury.balanceSnapshot(conn,tenant,owner,{branchId:String(branch._id),currency:'UGX'});
+ const blockedOrigin=blockedSnapshot.accounts.find(x=>String(x._id)===String(drawer._id));
+ assert(blockedOrigin,'The original cashier drawer must be visible in the authenticated Treasury balance');
+ assert.equal(blockedOrigin.reservedCashMinor,'10000');
+ assert.equal(BigInt(blockedOrigin.availableMinor),
+  originalUGX-10000n,'Cash physically handed over is unavailable to concurrent payments');
  const rejectedReceiving=await physical.confirmReceipt(conn,tenant,receivingTeller,rejectedCash._id,{
   receiverReceiptReference:'DEST-REJECTED-UGX-'+nonce,
   receiverNote:'Actual receiving cashier counted original rejected reimbursement evidence',
@@ -106,13 +113,48 @@ async function main(){
  assert.equal(rejectedReceiving.reimbursement.status,'pending_review');
  const refused=await physical.review(conn,tenant,owner,rejectedCash._id,{
   decision:'reject',note:'Receiving-branch signed cash proof had not yet arrived'},source._id);
- assert.equal(refused.reimbursement.status,'rejected');
+ assert.equal(refused.reimbursement.status,'return_pending');
+ assert.equal(String((await treasury.models(conn).account.findById(drawer._id)).reservedCashMinor),'10000',
+  'A rejected physical handover cannot release cashier funds without actual returned banknotes');
+ await assert.rejects(physical.request(conn,tenant,teller,source._id,settlementInput('FINAL')),
+  {status:409},'Sender cannot spend or rebook disputed in-transit funds until verified physical return');
+ await assert.rejects(physical.releaseReturned(conn,tenant,owner,rejectedCash._id,{
+  note:'Owner cannot release cash never physically returned',returnVerified:'confirmed'
+ },source._id),{status:409});
+ const dispatched=await physical.returnDispatch(conn,tenant,receivingTeller,rejectedCash._id,{
+  returnDispatchReference:'RECEIVER-DISPATCH-RETURN-'+nonce,
+  returnDispatchNote:'Original receiver returned counted physical UGX to sending branch',
+  notesDispatched:'confirmed'
+ },source._id);
+ assert.equal(dispatched.reimbursement.status,'return_dispatched');
+ await assert.rejects(physical.confirmReturned(conn,tenant,receivingTeller,rejectedCash._id,{
+  returnReference:'SENDER-RETURN-RECEIPT-'+nonce,
+  returnNote:'Other branch teller cannot claim source cash receipt',
+  cashReturnedConfirmed:'confirmed'
+ },source._id),{status:409});
+ const receivedBack=await physical.confirmReturned(conn,tenant,teller,rejectedCash._id,{
+  returnReference:'SENDER-RETURN-RECEIPT-'+nonce,
+  returnNote:'Original sending cashier counted and signed for real returned UGX banknotes',
+  cashReturnedConfirmed:'confirmed'
+ },source._id);
+ assert.equal(receivedBack.reimbursement.status,'return_verified');
+ const released=await physical.releaseReturned(conn,tenant,owner,rejectedCash._id,{
+  note:'Both sender and receiver actual cash-return receipts independently verified',
+  returnVerified:'confirmed'
+ },source._id);
+ assert.equal(released.reimbursement.status,'returned');
+ assert.equal(String((await treasury.models(conn).account.findById(drawer._id)).reservedCashMinor),'0');
+ await assert.rejects(physical.releaseReturned(conn,tenant,owner,rejectedCash._id,{
+  note:'A returned cash reservation must never release twice',
+  returnVerified:'confirmed'
+ },source._id),{status:409});
  await assert.rejects(physical.request(conn,tenant,teller,source._id,settlementInput('REJECT')),
-  {status:409},'An original cashier signed handover must not be reused for another settlement request');
+  {status:409},'An original signed handover must not be reused for another settlement request');
  assert.equal(await amount(drawer._id),String(originalUGX));
  assert.equal(await amount(destinationCash._id),String(receiverUGX));
  const actual=(await physical.request(conn,tenant,teller,source._id,settlementInput('FINAL'))).reimbursement;
  assert.equal(actual.status,'pending_receiver');
+ assert.equal(String((await treasury.models(conn).account.findById(drawer._id)).reservedCashMinor),'10000');
  await assert.rejects(physical.request(conn,tenant,teller,source._id,settlementInput('EXTRA')),{status:409});
  await assert.rejects(physical.review(conn,tenant,owner,actual._id,{
   decision:'approve',note:'Without confirmed receiving cash no posting is allowed',
@@ -163,6 +205,8 @@ async function main(){
  const done=realResults.find(x=>x.status==='fulfilled').value.reimbursement;
  assert.equal(done.status,'posted');
  assert(done.originBatchId&&done.destinationBatchId);
+ assert.equal(String((await treasury.models(conn).account.findById(drawer._id)).reservedCashMinor),'0',
+  'Final paired cash journal consumes the physical transit hold atomically');
  assert.equal(await amount(drawer._id),String(originalUGX-10000n));
  assert.equal(await amount(destinationCash._id),String(receiverUGX+10000n));
  assert.equal((await core.transferOrderModel(conn).findById(source._id)).status,'paid_out_manual',

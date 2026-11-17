@@ -77,8 +77,7 @@
   </div><% } %>
   <% if(grants.length){ %><h3>Independent grant history</h3><div class="summary">
     <% grants.forEach(g=>{const live=activeAddonGrants.some(a=>a.moduleKey===g.moduleKey);%>
-    <div class="sumRow"><span><%= moduleLabel(g.moduleKey) %> · <%= live?'active':g.status %></span>
-      <b><%= g.periodEnd?formatUtcDate(g.periodEnd).split('T')[0]:'No expiry saved' %></b></div><% }); %>
+    <div class="sumRow"><span><%= g.moduleKey %> (<%= g.status %>)</span><b><%= formatUtcDate(g.periodEnd).split('T')[0] %></b></div><% }); %>
   </div><% } %>
   <h3>Grant or renew access</h3>
   <form method="post" action="/platform/tenants/<%= data.tenant.id %>/modules/grant">

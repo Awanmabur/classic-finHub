@@ -8,6 +8,29 @@ test('launch configuration supports real multi-host TLS Mongo URIs without expos
  const output=JSON.stringify(report);for(const secret of [input.SESSION_SECRET,input.MFA_ENCRYPTION_KEY,input.RESEND_API_KEY,'private-web','private-worker','private-notify'])assert(!output.includes(secret));
  for(const bad of [{APP_URL:'https://replace.example'},{APP_URL:'https://example.com'},{APP_URL:'https://127.0.0.1'},{NODE_ENV:'development'},{MONGO_PLATFORM_URI:'mongodb://web:secret@db/platform?tls=false'},{MONGO_WORKER_URI:input.MONGO_PLATFORM_URI},{REAL_MONEY_ENABLED:'true'},{TRUST_PROXY:'0'},{MONGO_PLATFORM_URI:'mongodb://db/'},{MFA_ENCRYPTION_KEY:'0'.repeat(64)}])assert(readiness.configurationChecks({...input,...bad}).checks.some(check=>!check.passed));
 });
+test('launch readiness accepts configured Gmail OAuth without requiring Resend, and rejects invalid sender or missing OAuth credentials',()=>{
+ const base=config();
+ const gmail={...base,MAIL_PROVIDER:'gmail',MAIL_FROM:'info@classictechgroup.com',
+  GMAIL_CLIENT_ID:'real-oauth-client-id-format',
+  GMAIL_CLIENT_SECRET:'secret-only-in-private-env',
+  GMAIL_REFRESH_TOKEN:'refresh-only-in-private-env'};
+ delete gmail.RESEND_API_KEY;
+ const checks=readiness.configurationChecks(gmail).checks;
+ assert(checks.every(c=>c.passed),JSON.stringify(checks));
+ for(const mutation of [
+  {GMAIL_CLIENT_ID:''},{GMAIL_CLIENT_SECRET:''},{GMAIL_REFRESH_TOKEN:''},
+  {MAIL_FROM:'ClassicFin <info@classictechgroup.com>'},
+  {MAIL_PROVIDER:'unsupported'}
+ ]){
+  const invalid=readiness.configurationChecks({...gmail,...mutation}).checks;
+  assert(invalid.some(c=>c.name==='recovery_mail_configured'&&!c.passed),JSON.stringify(mutation));
+ }
+ const resend={...base,MAIL_PROVIDER:'resend',RESEND_API_KEY:undefined};
+ assert(readiness.configurationChecks(resend).checks.some(c=>c.name==='recovery_mail_configured'&&!c.passed));
+ const report=JSON.stringify(readiness.configurationChecks(gmail));
+ for(const value of [gmail.GMAIL_CLIENT_SECRET,gmail.GMAIL_REFRESH_TOKEN])
+  assert(!report.includes(value),'Readiness output cannot leak provider secrets');
+});
 test('configuration-only checks cannot claim live launch verification',async()=>{
  const report=await readiness.inspect(config(),{live:false,connect:()=>{throw Error('must not connect');}});
  assert.equal(report.automatedChecksPassed,true);assert.equal(report.liveChecksCompleted,false);assert.equal(report.productionCertification,false);assert(report.manualVerificationRequired.length>=4);

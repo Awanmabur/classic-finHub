@@ -7,7 +7,7 @@ const rates=require('../src/tenant/settlements/mobileMoneyRates.service');
 test('Mobile Money cash conversion rate proposal requires two distinct currencies, explicit buy/sell, exact positive rate and documented evidence',()=>{
  const good={fromCurrency:'KES',toCurrency:'SSP',side:'buy',rateDecimal:'13.50',
   validHours:'24',note:'Actual documented branch cash rate'};
- assert.deepEqual(rates.proposal(good),{...good,hours:24,note:good.note,rateDecimal:'13.50',fromCurrency:'KES',toCurrency:'SSP'});
+ assert.deepEqual(rates.proposal(good),{fromCurrency:'KES',toCurrency:'SSP',side:'buy',rateDecimal:'13.50',hours:24,note:good.note});
  for(const bad of [
   {fromCurrency:'KES',toCurrency:'KES'},
   {fromCurrency:'BTC'},{side:'quote'},{side:'BUY'},

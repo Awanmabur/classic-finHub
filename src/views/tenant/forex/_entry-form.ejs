@@ -9,6 +9,10 @@
  <p class="tiny">Enabled currencies: <%= operatingCurrencies.length?operatingCurrencies.map(c=>c==='KES'?'KSH':c).join(', '):'none' %>. A separately approved, unexpired exchange rate is required before recording a quote or operation.</p>
  <a class="btn" href="/tenant/forex">Configure a real exchange rate</a>
 <% }else{ %>
+<input type="hidden" name="originModule" value="<%= data.originModule||'forex' %>">
+<% if(data.originModule&&data.originModule!=='forex'){ %>
+ <p class="tiny">Started from <%= data.originModule.replaceAll('_',' ') %>. This exchange posts actual currency stock and settlement balances, but does not itself send funds through a bank, telecom network or remittance provider.</p>
+<% } %>
 <div class="formSection"><div class="formSectionTitle">Customer and operation</div>
  <div class="row2"><label class="field">Operation<input class="control" value="<%= operation==='buy'?'Buy forex from customer':operation==='sell'?'Sell forex to customer':'Indicative quotation' %>" readonly></label><label class="field">Customer name<input name="customerLabel" class="control" minlength="2" maxlength="120" placeholder="Customer full name" required></label></div>
  <label class="field">Customer phone<input class="control" name="customerPhone" type="tel" required maxlength="16" placeholder="+211..."></label>
@@ -23,7 +27,7 @@
  <div class="row2"><label class="field">Rate source<input class="control" name="rateSource" maxlength="120" value="Internal rate board" placeholder="Internal rate board / market quote"></label><label class="field">External reference<input class="control" name="externalReference" maxlength="120" placeholder="Slip, receipt, or optional ref"></label></div>
  <label class="field">Note / narration<input name="note" class="control" maxlength="400" placeholder="Optional teller note"></label>
 </div></details>
-<div class="summary"><div class="sumRow"><span><%= operation==='sell'?'Customer pays':operation==='buy'?'Customer receives':'Quoted settlement' %></span><b data-forex-total>—</b></div><div class="sumRow"><span>Drawer effect</span><b>Pending reviewed execution</b></div><div class="sumRow"><span>Reference</span><b class="mono"><%= data.idempotencyKey %></b></div></div>
+<div class="summary"><div class="sumRow"><span><%= operation==='sell'?'Customer pays':operation==='buy'?'Customer receives':'Quoted settlement' %></span><b data-forex-total>—</b></div><div class="sumRow"><span>Drawer effect</span><b>Finalize after cashier confirmation</b></div><div class="sumRow"><span>Reference</span><b class="mono"><%= data.idempotencyKey %></b></div></div>
 <input type="hidden" name="validMinutes" value="<%= initialValidity %>"><p class="tiny" id="approvedRateHelp">Your approved branch rate and quotation window are applied automatically. Saving this quote does not exchange physical cash or post a ledger movement.</p>
 <button type="submit" class="btn btnPrimary">Save <%= operation==='buy'?'buy':operation==='sell'?'sell':'exchange' %> quote</button>
 <% } %>

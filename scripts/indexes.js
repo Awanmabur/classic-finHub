@@ -35,6 +35,9 @@ async function main() {
     await require('../src/tenant/treasury/models').ensure(conn);
     // Prebuild idempotency/source/event uniqueness indexes before FX posting is enabled.
     await require('../src/tenant/settlements/models').ensure(conn);
+    if(process.env.CLASSICFIN_INTERBRANCH_CASH_SETTLEMENT==='enabled'||
+       process.env.CLASSICFIN_PREPARE_INTERBRANCH_INDEXES==='true')
+      await require('../src/tenant/settlements/interbranchCash.models').ensure(conn);
     // Refund indexes are opt-in to avoid consuming tenant Atlas quotas before
     // the separately reviewed cash-refund feature is enabled.
     if(process.env.CLASSICFIN_LINKED_CURRENCY_REFUNDS==='enabled'||

@@ -14,7 +14,11 @@ const Tenant=require('../src/platform/models/Tenant'),pricing=require('../src/te
 let connections=[];
 async function main(){
  await mongo.connectPlatformMongo();require('../src/config/mongoTopology').verifyReplicaPrimary(await mongoose.connection.db.admin().command({hello:1}));
- await Tenant.createIndexes();connections=slugs.map(mongo.getTenantConnection);await Promise.all(connections.map(core.ensureTenantIndexes));
+ await Tenant.createIndexes();connections=slugs.map(mongo.getTenantConnection);
+ // Each tenant has many independent index definitions. Both tenants share one
+ // bounded MongoClient pool; bootstrap each disposable DB before the next to
+ // avoid saturating its checkout queue with competing DDL commands.
+ for(const connection of connections)await core.ensureTenantIndexes(connection);
  const terms=commerce.planSnapshot({...commerce.asPlanVersion(require('../src/data/store').plans.find(row=>row.code==='enterprise')),status:'published'}),tenants=[],owners=[];
  for(let index=0;index<connections.length;index++){
   const conn=connections[index],tenant=await Tenant.create({name:'Pricing Rules '+index,slug:slugs[index],dbName:conn.name,owner:'Pricing Owner',email:'pricing-'+index+'-'+nonce+'@example.invalid',plan:terms.planCode,status:'active',setupStatus:'complete',enabledModules:terms.modules,seatsReserved:2,branchCount:2,

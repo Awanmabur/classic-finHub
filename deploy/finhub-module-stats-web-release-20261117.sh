@@ -97,12 +97,14 @@ for i in $(seq 1 35); do
  sleep 2
 done
 test "$READY" = 1
-echo '=== VERIFY SERVED DESKTOP GRID CSS BEFORE CUTOVER ==='
-CSS="$(mktemp /tmp/classicfin-summary-css-XXXXXX)"
-curl -fsS --max-time 10 http://127.0.0.1:3601/css/dashboard-layout.css -o "$CSS"
-grep -Fq ':not(.overviewStatsGrid):not(.moduleStatsGrid)' "$CSS"
-grep -Fq 'repeat(4,minmax(0,1fr))!important' "$CSS"
-rm -f "$CSS"
+echo '=== VERIFY CANARY HOSTNAME SECURITY WITHOUT BYPASS ==='
+# FinHub intentionally rejects direct localhost requests to protected/static routes.
+# The health endpoint is explicitly exempt; verify the expected 421 rather than
+# weakening canonical-origin checks to make a canary URL work.
+STATUS="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' \
+  http://127.0.0.1:3601/css/dashboard-layout.css)"
+test "$STATUS" = 421
+echo 'Canonical hostname protection: PASS (421 expected on localhost)'
 docker rm -f "$CANARY" >/dev/null
 
 echo '=== 6. WEB-ONLY CUTOVER (DATABASE AND WORKERS UNCHANGED) ==='
@@ -130,6 +132,16 @@ for name in classicfin-worker classicfin-notifications; do
  test "$(docker inspect -f '{{.State.Health.Status}}' "$name")" = healthy
 done
 curl -fsS --max-time 15 https://classicfinhub.com/health/ready >/dev/null
+echo '=== VERIFY PUBLIC CSS FROM CANONICAL HTTPS ORIGIN ==='
+CSS="$(mktemp /tmp/classicfin-public-css-XXXXXX)"
+trap 'rm -f "$CSS"; recover $?' ERR
+curl -fsS --max-time 20 -H 'Cache-Control: no-cache' \
+ "https://classicfinhub.com/css/dashboard-layout.css?release=${SHA}" -o "$CSS"
+grep -Fq ':not(.overviewStatsGrid):not(.moduleStatsGrid)' "$CSS"
+grep -Fq 'repeat(4,minmax(0,1fr))!important' "$CSS"
+rm -f "$CSS"
+trap 'recover $?' ERR
+echo 'Public production stylesheet: PASS'
 DONE=1
 trap - ERR INT TERM
 echo "WEB RELEASE LIVE: $SHA"

@@ -1,0 +1,73 @@
+<section class="view show mobileMoneyPage">
+  <section class="card">
+    <div class="cardHead"><div><b>Mobile Money cash exchange rates</b><br>
+      <span>Operating branch: <%= data.branch.name %> · Mobile Money subscription includes these rates</span>
+    </div><a class="btn" href="/tenant/mobile-money/cash-in">Back to transactions</a></div>
+    <div class="cardBody">
+      <p class="tiny">Use the actual currency of your provider float and the actual banknotes in your shared cashier drawer. A rate is proposed by one authorized person and approved by a different person. Buy means you pay cash to acquire provider float; Sell means you receive cash when selling provider float. No money moves merely by approving a rate.</p>
+      <% if(data.canPropose){ %>
+      <form method="post" action="/tenant/mobile-money/currency-rates" autocomplete="off">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div class="row2">
+          <label class="field">Provider wallet currency
+            <select class="control" name="fromCurrency" required>
+              <% data.currencies.forEach(code=>{ %><option value="<%= code %>" <%= code==='KES'?'selected':'' %>><%= code==='KES'?'KES (KSh)':code %></option><% }) %>
+            </select>
+          </label>
+          <label class="field">Physical cash currency
+            <select class="control" name="toCurrency" required>
+              <% data.currencies.forEach(code=>{ %><option value="<%= code %>" <%= code==='SSP'?'selected':'' %>><%= code %></option><% }) %>
+            </select>
+          </label>
+          <label class="field">Agent's rate side
+            <select class="control" name="side" required>
+              <option value="buy">Buy provider float (cash paid out)</option>
+              <option value="sell">Sell provider float (cash received)</option>
+            </select>
+          </label>
+          <label class="field">Cash units per 1 provider currency unit
+            <input class="control" name="rateDecimal" inputmode="decimal" pattern="(?:0|[1-9][0-9]{0,9})(?:\.[0-9]{1,8})?" placeholder="Approved business exchange price" required maxlength="24">
+          </label>
+          <label class="field">Valid for hours (1–72)
+            <input class="control" type="number" name="validHours" value="24" min="1" max="72" required>
+          </label>
+          <label class="field">Rate evidence and reason
+            <input class="control" name="note" minlength="12" maxlength="400" required placeholder="Source, agreed business price and date">
+          </label>
+        </div>
+        <p class="tiny">Rates are never fetched from an unknown market automatically. The independently approved value is locked in each transaction's immutable source record.</p>
+        <button class="btn btnPrimary" type="submit">Propose currency rate</button>
+      </form>
+      <% } %>
+    </div>
+  </section>
+  <section class="card">
+    <div class="cardHead"><div><b>Approved and pending rates</b><br><span>Current branch · use an independently approved rate when recording a transaction</span></div></div>
+    <div class="cardBody">
+      <% if(!data.records.length){ %><p class="tiny">No currency rate exists for this branch yet. Propose the provider/cash pair used in your actual operation.</p><% } %>
+      <% data.records.forEach(rate=>{ %>
+        <div class="tx">
+          <div class="txMeta">
+            <b><%= rate.fromCurrency %> → <%= rate.toCurrency %> · <%= rate.side %> · <%= rate.rateDecimal %></b>
+            <span><%= rate.status.replaceAll('_',' ') %> · Valid until <%= new Date(rate.expiresAt).toISOString().slice(0,16).replace('T',' ') %> UTC</span>
+            <% if(rate.status==='pending_review'&&String(rate.proposedBy)===String(user.id)){ %>
+             <span>Awaiting a different reviewer</span>
+            <% } %>
+          </div>
+          <% if(data.canReview&&rate.status==='pending_review'&&String(rate.proposedBy)!==String(user.id)){ %>
+            <form method="post" action="/tenant/mobile-money/currency-rates/<%= rate._id %>/review">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <label class="field">Review evidence
+                <input class="control" name="note" minlength="12" maxlength="400" required placeholder="Verified actual branch price and evidence">
+              </label>
+              <div class="rowBtns">
+                <button class="btn btnPrimary" name="decision" value="approve" type="submit">Approve rate</button>
+                <button class="btn" name="decision" value="reject" type="submit">Reject rate</button>
+              </div>
+            </form>
+          <% } %>
+        </div>
+      <% }) %>
+    </div>
+  </section>
+</section>

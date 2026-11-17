@@ -11,7 +11,12 @@
 <dt>Network</dt><dd><%= record.network %></dd>
 <dt>Network reference (unverified)</dt><dd><%= record.networkReference %></dd>
 <dt>Customer</dt><dd><%= record.customer %></dd>
-<dt>Recorded amount</dt><dd><%= amount %></dd>
+<dt>Provider wallet principal</dt><dd><%= amount %></dd>
+<% if(record.linkedSettlementId&&record.cashCurrency&&record.fxCashMinor!==null){ %>
+<dt>Actual physical cash <%= record.operation==='cash_out'?'paid':'received' %></dt><dd><%= require('../../tenant/services/mobileMoney.service').formatMoneyMinor(record.fxCashMinor,record.cashCurrency) %></dd>
+<dt>Approved Forex rate</dt><dd><%= record.fxRateSide %> · <%= record.fxRateDecimal %> <%= record.cashCurrency %> per <%= record.currency %></dd>
+<dt>Linked internal settlement ID</dt><dd><%= record.linkedSettlementId %></dd>
+<% } %>
 <dt>Recorded fee</dt><dd><%= fee %></dd>
 <dt>Internal record</dt><dd><%= record.status==='voided_internal'?'Voided internally':record.fundingState==='book_recorded'?'Recorded in cash and float books':record.status==='recorded'?'Recorded':record.status==='pending_verification'?'Historical entry · book posting not established':record.status.replaceAll('_',' ') %></dd>
 <dt>Network settlement</dt><dd>Not independently verified in FinHub</dd>

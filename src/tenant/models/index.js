@@ -140,6 +140,8 @@ function ensureTenantIndexes(conn) {
       // provisioned tenant DBs. Never create these within a cash transaction.
       ...(process.env.CLASSICFIN_LINKED_CURRENCY_POSTING==='enabled'?
        [require('../settlements/models').ensure(conn)]:[]),
+      ...(process.env.CLASSICFIN_INTERBRANCH_CASH_SETTLEMENT==='enabled'?
+       [require('../settlements/interbranchCash.models').ensure(conn)]:[]),
       ...(process.env.CLASSICFIN_LINKED_CURRENCY_REFUNDS==='enabled'?
        [require('../refunds/models').ensure(conn)]:[]),
       ensureModelIndexes(model(conn, 'SecureTenantUser',userSchema)),

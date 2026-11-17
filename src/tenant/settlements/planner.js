@@ -68,6 +68,23 @@ function quote({channel,operation,branchId,providerCurrency,cashCurrency,provide
   feeTreatment:'separate_provider_evidence'
  });
 }
+function transferTerms({originBranchId,destinationBranchId,collectionCurrency,payoutCurrency,payoutMinor,rate,at}={}){
+ const origin=objectId(originBranchId,'origin branch'),destination=objectId(destinationBranchId,'destination branch');
+ currency(collectionCurrency);currency(payoutCurrency);
+ if(collectionCurrency===payoutCurrency)throw fail('Use the existing same-currency transfer workflow',400);
+ const recipient=integer(payoutMinor,'recipient payout');
+ // The agent sells the payout currency against the collection currency.
+ const approved=rateSnapshot(rate,{branchId:origin,fromCurrency:payoutCurrency,
+  toCurrency:collectionCurrency,side:'sell',at});
+ const collection=converted(recipient,payoutCurrency,collectionCurrency,BigInt(approved.rateScaled));
+ if(collection<=0n)throw fail('Approved Forex quote rounds collection to zero',409);
+ return Object.freeze({
+  originBranchId:origin,destinationBranchId:destination,
+  collectionCurrency,payoutCurrency,recipientPayoutMinor:String(recipient),
+  collectionCashMinor:String(collection),rateSnapshot:approved,
+  quoteStatus:'awaiting_actual_collection'
+ });
+}
 function transferPlan({originBranchId,destinationBranchId,originCashAccountId,destinationPayoutAccountId,
  collectionCurrency,payoutCurrency,payoutMinor,rate,at}={}){
  const origin=objectId(originBranchId,'origin branch'),destination=objectId(destinationBranchId,'destination branch');
@@ -76,10 +93,9 @@ function transferPlan({originBranchId,destinationBranchId,originCashAccountId,de
  currency(collectionCurrency);currency(payoutCurrency);
  if(collectionCurrency===payoutCurrency)
   throw fail('Use the existing same-currency transfer workflow',400);
- const amount=integer(payoutMinor,'recipient payout');
- // Selling foreign payout currency for locally collected cash.
- const approved=rateSnapshot(rate,{branchId:origin,fromCurrency:payoutCurrency,toCurrency:collectionCurrency,side:'sell',at});
- const cash=converted(amount,payoutCurrency,collectionCurrency,BigInt(approved.rateScaled));
+ const terms=transferTerms({originBranchId:origin,destinationBranchId:destination,collectionCurrency,payoutCurrency,payoutMinor,rate,at});
+ const approved=terms.rateSnapshot;
+ const amount=BigInt(terms.recipientPayoutMinor),cash=BigInt(terms.collectionCashMinor);
  return Object.freeze({
   channel:'money_transfer',operation:'transfer_cross_currency',
   originBranchId:origin,destinationBranchId:destination,rateSnapshot:approved,
@@ -119,4 +135,4 @@ function weightedAverageAcquisition({holdingMinor='0',acquisitionCostFunctionalM
   acquiredMinor:String(acquired),documentedPurchaseCostFunctionalMinor:String(paid),
   grossProfitNotRecognized:true});
 }
-module.exports={fail,currency,integer,objectId,rateSnapshot,quote,transferPlan,weightedAverageDisposal,weightedAverageAcquisition};
+module.exports={fail,currency,integer,objectId,rateSnapshot,quote,transferTerms,transferPlan,weightedAverageDisposal,weightedAverageAcquisition};

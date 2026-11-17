@@ -62,4 +62,10 @@ function transferStages(plan){
    event:'verified_beneficiary_paid',status:'not_posted'})
  ]);
 }
-module.exports={linesForMoMo,assertBalanced,transferStages};
+function reversalEntries(postedEntries){
+ if(!assertBalanced(postedEntries))throw fail('Unbalanced original transaction cannot be reversed');
+ const reversed=postedEntries.map(line=>Object.freeze({...line,side:line.side==='debit'?'credit':'debit'}));
+ assertBalanced(reversed);
+ return Object.freeze(reversed);
+}
+module.exports={linesForMoMo,assertBalanced,transferStages,reversalEntries};

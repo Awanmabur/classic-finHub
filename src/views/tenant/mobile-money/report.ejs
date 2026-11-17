@@ -8,6 +8,7 @@
    const count=key=>groups.reduce((sum,row)=>sum+(row[key]||0),0);
    const format=(minor,currency)=>data.formatMoneyMinor(minor,currency); %>
 <section class="view show mobileMoneyPage workspaceStack" aria-label="Mobile Money consolidated reporting">
+ <%- include('../partials/module-finance',{moduleKey:'mobile_money'}) %>
  <section class="card">
   <div class="cardHead"><div><b>Mobile Money business report</b><br><span>One view · provider, currency, verified income, cash movements and expenses</span></div>
    <% if(data.canExport){ %><a class="btn" href="/tenant/mobile-money/report/unified.csv?<%= exportParams.toString() %>">Export consolidated CSV</a><% } %>

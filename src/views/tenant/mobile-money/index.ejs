@@ -75,7 +75,8 @@
         <div class="tx" data-search-row>
           <div class="txMeta"><b><a href="/tenant/mobile-money/<%= t._id %>"><%= t.network %> · <%= t.networkReference %></a></b>
             <span><%= t.customer %> · <%= t.entrySource === 'sms' ? 'SMS capture' : 'Manual' %> · <%= t.operation === 'cash_in' ? 'Deposit' : 'Withdrawal' %> · <%= t.status==='voided_internal'?'Voided internally':t.fundingState==='book_recorded'?'Recorded in books':t.status==='recorded'?'Recorded':t.status==='pending_verification'?'Historical entry · review evidence':'Unknown state' %> · Correction: <%= (t.correctionState || 'none').replace(/_/g,' ') %><% if((t.riskSignals||[]).length){ %> · Attention: <%= t.riskSignals.join(', ').replaceAll('_',' ') %><% } %></span>
-          </div><div class="txAmt"><b><%= money(t.currency, amountFromMinor(t.amountMinor,t.currency)) %></b>
+          </div><div class="txAmt"><b>Float: <%= money(t.currency, amountFromMinor(t.amountMinor,t.currency)) %></b>
+             <small>Cash <%= t.operation==='cash_in'?'received':'paid' %>: <%= money(t.settlementCurrency||t.currency,amountFromMinor(t.settlementAmountMinor??t.amountMinor,t.settlementCurrency||t.currency)) %></small>
             <% const commission=t.agentCommissionEstimate||t.agentCommissionPublishedReference; const customerCharge=t.customerNetworkFeeEstimate||t.customerNetworkChargePublishedReference; %>
             <% if(commission){ %><small><%= (t.agentCommissionEstimate?'Commission estimate: ':'Published commission reference: ')+money(t.currency,amountFromMinor(commission.amountMinor,t.currency)) %></small><% } %>
             <% if(customerCharge){ %><small><%= (t.customerNetworkFeeEstimate?'Network fee estimate: ':'Published network fee reference: ')+money(t.currency,amountFromMinor(customerCharge.amountMinor,t.currency)) %></small><% } %>

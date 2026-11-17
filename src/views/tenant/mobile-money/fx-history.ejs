@@ -6,7 +6,7 @@
     <p>No verified cross-currency settlements have been posted for this branch.</p>
    <% }else{ %>
     <div class="tableWrap"><table>
-     <thead><tr><th>Recorded</th><th>Network reference</th><th>Direction</th><th>Wallet change</th><th>Cash change</th><th>Rate</th><th>Income status</th></tr></thead>
+     <thead><tr><th>Recorded</th><th>Network reference</th><th>Direction</th><th>Wallet change</th><th>Cash change</th><th>Rate</th><th>Provider evidence</th><th>Income status</th></tr></thead>
      <tbody>
       <% data.records.forEach(r=>{ %>
        <tr>
@@ -16,6 +16,7 @@
         <td><%= data.formatMoneyMinor(r.walletDeltaMinor,r.providerCurrency) %></td>
         <td><%= data.formatMoneyMinor(r.cashDeltaMinor,r.cashCurrency) %></td>
         <td><%= r.rateSide.toUpperCase() %> <%= r.rateDecimal %></td>
+        <td><%= r.providerSettlementState==='verified'?'Externally verified':'Cashier-confirmed · external settlement unverified' %></td>
         <td>Unmeasured FX profit — cost basis required</td>
        </tr>
       <% }); %>

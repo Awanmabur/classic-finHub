@@ -36,7 +36,8 @@ function branchScope(user,options={}){
 async function overview(conn,tenant,user,options={}){
  // Confidential capital and earnings cannot leak through dashboards to staff
  // lacking Treasury/financial permissions.
- if(!hasPermission(user,'treasury.view'))return {available:false,reason:'Treasury access required'};
+ if(!hasPermission(user,'treasury.view')||!['Tenant Owner','Branch Manager','Reconciliation Officer','Auditor'].includes(user.role))
+  return {available:false,reason:'Financial totals are available to authorized financial supervisors'};
  const scope=branchScope(user,options);
  if(scope===null)return {available:false,reason:'Choose an operating branch'};
  const Account=fundsModels(conn).account;

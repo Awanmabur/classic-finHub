@@ -48,7 +48,7 @@ function transferStages(plan){
  if(plan?.channel!=='money_transfer'||plan.status!=='quote_only_no_funds_posted')
   throw fail('A staged transfer plan is required');
  const collection=plan.collectionStage,payout=plan.payoutStage;
- if(collection.currency===payout.currency||collection.branchId===payout.branchId||
+ if(collection.currency===payout.currency||collection.accountId===payout.accountId||
     BigInt(collection.deltaMinor)<=0n||BigInt(payout.deltaMinor)>=0n)
   throw fail('Expected distinct collection and destination payout obligations');
  // Neither stage may move funds until provider evidence and the specific

@@ -33,6 +33,9 @@ async function main() {
     await require('../src/tenant/models/expenses').ensureExpenseIndexes(conn);
     await require('../src/tenant/workspace/models').ensure(conn);
     await require('../src/tenant/treasury/models').ensure(conn);
+    // Native-currency settlements require unique source/evidence indexes before activation.
+    if(process.env.CLASSICFIN_LINKED_CURRENCY_POSTING==='enabled'||process.env.CLASSICFIN_PREPARE_LINKED_CURRENCY_INDEXES==='true')
+      await require('../src/tenant/settlements/models').ensure(conn);
     await require('../src/tenant/treasury/funding.models').ensureIndexes(conn);
     await require('../src/tenant/funded/models').ensureIndexes(conn);
     await require('../src/tenant/transferSms/models').ensureIndexes(conn);

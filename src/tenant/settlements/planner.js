@@ -109,4 +109,14 @@ function weightedAverageDisposal({holdingMinor,acquisitionCostFunctionalMinor,di
   status:'cost_basis_matched',netProfitNotComputed:true
  });
 }
-module.exports={fail,currency,integer,objectId,rateSnapshot,quote,transferPlan,weightedAverageDisposal};
+function weightedAverageAcquisition({holdingMinor='0',acquisitionCostFunctionalMinor='0',acquiredMinor,paidFunctionalMinor}={}){
+ const holding=integer(holdingMinor,'prior holding',{allowZero:true});
+ const cost=integer(acquisitionCostFunctionalMinor,'prior acquisition cost',{allowZero:true});
+ const acquired=integer(acquiredMinor,'acquired foreign units');
+ const paid=integer(paidFunctionalMinor,'documented purchase cost',{allowZero:true});
+ if(cost===0n&&holding!==0n)throw fail('Cannot value an existing foreign holding without a verified opening acquisition cost');
+ return Object.freeze({holdingMinor:String(holding+acquired),costFunctionalMinor:String(cost+paid),
+  acquiredMinor:String(acquired),documentedPurchaseCostFunctionalMinor:String(paid),
+  grossProfitNotRecognized:true});
+}
+module.exports={fail,currency,integer,objectId,rateSnapshot,quote,transferPlan,weightedAverageDisposal,weightedAverageAcquisition};

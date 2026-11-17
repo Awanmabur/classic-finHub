@@ -28,5 +28,5 @@ const schema=new mongoose.Schema({
 },{strict:'throw',timestamps:true,versionKey:false});
 schema.index({reference:1},{unique:true});schema.index({idempotencyKey:1},{unique:true});
 schema.index({branchId:1,createdAt:-1,_id:-1});schema.index({createdBy:1,createdAt:-1,_id:-1});
-schema.index({branchId:1,status:1,createdAt:1});schema.index({status:1,expiresAt:1});
+schema.index({branchId:1,status:1,createdAt:1});schema.index({branchId:1,originModule:1,status:1,manualPostedAt:-1});schema.index({status:1,expiresAt:1});
 module.exports=schema;

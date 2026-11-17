@@ -90,6 +90,12 @@ module.exports=function routes({renderTenant}){
   require('../../utils/view').flash(req,'good','Authorization decision recorded; refresh the exchange quote.');
   res.redirect(303,'/tenant/mobile-money/fx/authorizations');
  }catch(e){next(e);}});
+ router.post('/fx/authorizations/:id/suspend',require('../../platform/services/actionThrottle.service').financial,async(req,res,next)=>{try{
+  if(!req.operationBranch)return res.status(409).send('Choose an operating branch');
+  await require('../services/momoFxAuthorization.service').suspend(req.tenantDb,req.tenant,req.user,req.operationBranch,req.params.id,req.body);
+  require('../../utils/view').flash(req,'good','Currency authorization suspended. Future financial postings are blocked for this pair.');
+  res.redirect(303,'/tenant/mobile-money/fx/authorizations');
+ }catch(e){next(e);}});
  router.get('/fx/history',async(req,res,next)=>{
   try{
    if(!req.operationBranch||!hasPermission(req.user,'treasury.view')||

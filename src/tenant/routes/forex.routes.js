@@ -23,7 +23,7 @@ module.exports=function routes({renderTenant}){
     fx.listQuotes(req.tenantDb,req.tenant,req.user),
     fx.reviewer(req.user)&&hasPermission(req.user,'forex.rate_review')?fx.rateReviewQueue(req.tenantDb,req.tenant,req.user):[],
     fx.reviewer(req.user)&&hasPermission(req.user,'forex.quotes.review')?fx.quoteReviewQueue(req.tenantDb,req.tenant,req.user):[]]);
-   renderTenant(req,res,'forex/index','Forex Rates & Quotes','Approved rates, customer quotations and independently reviewed manual exchanges.',{
+   renderTenant(req,res,'forex/index','Forex Rates & Quotes','Active rates, customer quotations and cashier-confirmed manual exchanges.',{
     financeOverview:await require('../services/financeOverview.service').moduleOverview(req.tenantDb,req.tenant,req.user,req.operationBranch),
      branches:branchList,formRates:formRates.filter(rate=>fx.enabledRate(selected,rate)),rates,records,rateQueue,quoteQueue,selectedBranchId:selected?selectedId:null,
     currencyChoices:selected?require('../services/branchCurrency.service').options(selected):[],
@@ -36,8 +36,14 @@ module.exports=function routes({renderTenant}){
   }catch(e){next(e);}
  });
  router.post('/rates',requirePermission('forex.rate_manage'),financial,async(req,res,next)=>{
-  try{await fx.proposeRate(req.tenantDb,req.tenant,req.user,req.body);
-   flash(req,'good','Indicative rate proposed. A different authorized reviewer must approve it.');res.redirect(303,'/tenant/forex');
+  try{
+   const proposed=await fx.proposeRate(req.tenantDb,req.tenant,req.user,req.body);
+   if(req.user.role==='Tenant Owner'&&hasPermission(req.user,'forex.rate_review')){
+    await fx.decideRate(req.tenantDb,req.tenant,req.user,String(proposed._id),{
+     decision:'approve',note:'Authorized owner activated branch exchange rate'});
+    flash(req,'good','Buy/Sell rate activated and audited. Cashier trades no longer wait for routine approval.');
+   }else flash(req,'good','Rate submitted for authorized review.');
+   res.redirect(303,'/tenant/forex');
   }catch(e){next(e);}
  });
  router.post('/rates/:id/review',requirePermission('forex.rate_review'),financial,async(req,res,next)=>{

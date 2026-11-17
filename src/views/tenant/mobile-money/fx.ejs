@@ -54,7 +54,7 @@
      <form class="card" method="POST" action="/tenant/mobile-money/fx/record" autocomplete="off">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
-      <% ['operation','walletAccountId','cashAccountId','providerCurrency','cashCurrency','providerAmountMinor','cashAmountMinor','rateId','rateVersion','rateDecimal'].forEach(field=>{ %>
+      <% ['operation','network','walletAccountId','cashAccountId','providerCurrency','cashCurrency','providerAmountMinor','cashAmountMinor','rateId','rateVersion','rateDecimal'].forEach(field=>{ %>
        <input type="hidden" name="<%= field %>" value="<%= q[field] %>">
       <% }); %>
       <div class="cardBody">

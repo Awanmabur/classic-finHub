@@ -15,6 +15,7 @@ const filterQuery=new URLSearchParams();
 const reportMode=!['records','pending','payout'].includes(data.mode);
 %>
 <section class="view show">
+ <%- include('partials/module-finance',{moduleKey}) %>
  <section class="card">
   <div class="cardHead"><b><%= data.title %></b><span><%= data.total %> internal record<%= data.total===1?'':'s' %> in range</span></div>
   <div class="cardBody">

@@ -95,4 +95,28 @@ async function decide(conn,tenant,actor,branch,grantId,input){
   return updated;
  });}finally{await session.endSession();}
 }
-module.exports={context,request,decide,fail,ref,expires};
+async function suspend(conn,tenant,actor,branch,grantId,input={}){
+ await access(conn,tenant,actor,branch);
+ if(!['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(actor.role)||
+  !hasPermission(actor,'treasury.review')&&actor.role!=='Tenant Owner')
+  throw fail('Only branch financial supervisors may suspend currency authorization',403);
+ const note=String(input.note||'').trim();
+ if(note.length<12||note.length>500)throw fail('Explain why the grant is being suspended (12–500 characters)');
+ await ensure(conn);
+ const session=await conn.startSession();
+ try{return await session.withTransaction(async()=>{
+  const a=await auth.fenceAction(conn,session,actor,tenant,'mobile_money','mobile_money.view',{branchId:String(branch._id)});
+  if(!hasModuleForUser(a.tenant,a.actor,'forex')||
+   !['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(a.actor.role)||
+   !hasPermission(a.actor,'treasury.review')&&a.actor.role!=='Tenant Owner')
+   throw fail('Suspension permission changed',403);
+  const row=await grants(conn).findOneAndUpdate({
+   _id:id(grantId),tenantId:tenant._id,branchId:branch._id,status:'approved'
+  },{$set:{status:'suspended',reviewNote:note}},{session,new:true}).lean();
+  if(!row)throw fail('Only an active approved currency pair can be suspended',409);
+  await auditEventModel(conn).create([{action:'mobile_money.fx.authorization.suspended',actorId:a.actor.id,targetId:row._id,
+   metadata:{branchId:String(branch._id),network:row.providerNetwork,pair:row.permittedCurrencyPair}}],{session});
+  return row;
+ });}finally{await session.endSession();}
+}
+module.exports={context,request,decide,suspend,fail,ref,expires};

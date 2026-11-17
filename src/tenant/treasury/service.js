@@ -319,6 +319,9 @@ async function applyMovements(conn,session,authorization,input,internal={}){
   if(occurredAt<new Date(account.openingObservedAt))throw fail('This operation predates the reviewed opening. Preserve it as historical evidence rather than counting it twice.',409);
   await assertBookIntegrity(conn,session,account);
   const before=BigInt(String(account.bookBalanceMinor)),delta=BigInt(leg.deltaMinor),after=before+delta;
+  const reserved=BigInt(String(account.reservedCashMinor??'0'));
+  if(account.kind==='cash'&&(reserved<0n||reserved>before||after<reserved))
+   throw fail('Cash is reserved for physical interbranch transit and is not available for another payment',409);
   if(after<0n&&!internal.allowNegative)throw fail(`Insufficient ${account.currency} funds in ${account.name}`,409);
   if(after>MAX||after< -MAX)throw fail('Funds book exceeds supported exact limits',409);
   if(account.kind==='cash')await require('../services/cashDrawer.service').bindFundAccount(conn,session,account,String(before),{allowNoActiveShift:Boolean(internal.allowSuspense)});
@@ -397,7 +400,10 @@ async function assertBookIntegrity(conn,session,account){
  let balance=0n;for(const entry of entries)balance+=BigInt(String(entry.amount))*(entry._id===normalSide(account.kind)?1n:-1n);
  const movements=await models(conn).movement.aggregate([{$match:{accountId:account._id}},{$group:{_id:null,amount:{$sum:'$deltaMinor'},count:{$sum:1}}}]).session(session);
  const sum=BigInt(String(account.openingBalanceMinor))+BigInt(String(movements[0]?.amount||'0'));
- if(balance!==BigInt(String(account.bookBalanceMinor))||sum!==balance||Number(movements[0]?.count||0)!==account.sequence)throw fail('Funds book integrity check failed. Suspend transactions and investigate the immutable ledger and movement history.',503);
+ if((account.kind==='cash'&&(
+  BigInt(String(account.reservedCashMinor??'0'))<0n||
+  BigInt(String(account.reservedCashMinor??'0'))>BigInt(String(account.bookBalanceMinor))))||
+  balance!==BigInt(String(account.bookBalanceMinor))||sum!==balance||Number(movements[0]?.count||0)!==account.sequence)throw fail('Funds book integrity check failed. Suspend transactions and investigate the immutable ledger and movement history.',503);
 }
 async function balanceSnapshot(conn,tenant,actor,filters={}){
  return transaction(conn,async session=>{
@@ -410,7 +416,11 @@ async function balanceSnapshot(conn,tenant,actor,filters={}){
     expectedMinor:account.openingBalanceMinor===null?null:String(account.bookBalanceMinor),expectedFormatted:account.openingBalanceMinor===null?'Opening not verified':format(account.bookBalanceMinor,account.currency),
     observedMinor:account.lastObservedMinor===null?null:String(account.lastObservedMinor),observedFormatted:account.lastObservedMinor===null?'No verified observation':format(account.lastObservedMinor,account.currency),
     varianceMinor:account.lastVarianceMinor===null?null:String(account.lastVarianceMinor),varianceFormatted:account.lastVarianceMinor===null?'—':format(account.lastVarianceMinor,account.currency),
-    availableMinor:account.status==='active'&&account.reconciliationState==='matched'&&BigInt(String(account.bookBalanceMinor))>0n?String(account.bookBalanceMinor):'0',
+    // Book cash and spendable physical cash differ while banknotes are in transit.
+    reservedCashMinor:String(account.reservedCashMinor??'0'),
+    reservedCashFormatted:format(account.reservedCashMinor??'0',account.currency),
+    availableMinor:account.status==='active'&&account.reconciliationState==='matched'?
+     String((v=>v>0n?v:0n)(BigInt(String(account.bookBalanceMinor))-BigInt(String(account.reservedCashMinor??'0')))):'0',
     actualSource:'independently reviewed manual evidence',actualIsLive:false});
   }
   return {accounts:rows,checkedAt:new Date(),note:'Expected balance is derived from the posted ledger. Actual balance is the last independently reviewed observation at its stated time; it is not a live provider query.'};

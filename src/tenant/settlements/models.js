@@ -27,7 +27,11 @@ const settlement=new Schema({
  providerPrincipalMinor:{type:D,required:true,immutable:true},physicalCashMinor:{type:D,required:true,immutable:true},
  rateSnapshot:{type:rate,required:true,immutable:true},
  walletAccountId:{type:O,default:null,immutable:true},cashAccountId:{type:O,required:true,immutable:true},
- destinationBranchId:{type:O,default:null,immutable:true},destinationPayoutAccountId:{type:O,default:null,immutable:true},
+ destinationBranchId:{type:O,default:null,immutable:true},
+ // Known only after PIN verification and payout review. Set exactly once by the
+ // transactional settlement transition; immutable:true would silently strip
+ // a findOneAndUpdate and lose the receiver's actual cash drawer reference.
+ destinationPayoutAccountId:{type:O,default:null},
  // FinHub never guesses network fees/commission. This is a link to separately
  // verified pricing/commission evidence (not automatically recognized income).
  providerEvidenceId:{type:O,default:null},collectionEvidenceId:{type:O,default:null},

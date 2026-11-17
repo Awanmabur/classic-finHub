@@ -35,6 +35,14 @@ test('approved layout uses original sender SSP, not USD payout currency, and dis
  assert.match(html,/&lt;script&gt;/);
  assert.doesNotMatch(html,/<script>/);
 });
+test('posted cash refund shows independently signed sender receipt and exact Treasury compensation',async()=>{
+ const record={...refund,status:'posted_refund',reviewNote:'Signed refund handover verified',
+  signedReceiptReference:'SIGNED-SSP-REFUND-2026',compensationBatch:'507f1f77bcf86cd799439019'};
+ const html=await ejs.renderFile(template,context({refunds:[record],canReview:false}));
+ assert.match(html,/SIGNED-SSP-REFUND-2026/);
+ assert.match(html,/507f1f77bcf86cd799439019/);
+ assert.doesNotMatch(html,/Approve verified cash refund/);
+});
 test('disabled refunds show a real blocker and cannot submit a refund or review',async()=>{
  const html=await ejs.renderFile(template,context({enabled:false,canRequest:false,canReview:false}));
  assert.match(html,/Refund posting is disabled/);

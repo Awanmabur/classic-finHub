@@ -26,7 +26,7 @@
  <input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
  <div class="cardHead"><b>Record sender branch cash handover</b><span>Original cashier · independent review required</span></div>
  <div class="cardBody">
-  <p class="tiny">This creates a request only. The receiving cashier must independently acknowledge the SAME currency and exact principal amount. Customer transfer fees are not part of branch reimbursement. Important: this development workflow does not yet reserve cash in transit, so the sending drawer may appear spendable until final approval. Do not use this on live branch money until cash reservation and return controls are implemented.</p>
+  <p class="tiny">Recording an actual signed cash handover reserves that exact original-currency amount in the sending cashier's Treasury drawer; the banknotes cannot be spent again or used to close the shift while in transit. The original receiver must separately count and sign the same physical cash, and the owner independently approves settlement. Customer fees are not part of branch reimbursement. Production remains blocked pending full operational acceptance.</p>
   <label class="field">Sending cashier signed handover reference (8–120 characters)
    <input class="control" name="evidenceReference" minlength="8" maxlength="120" required></label>
   <label class="field">Cash transport and handover explanation (12–400 characters)
@@ -43,10 +43,14 @@
   <div class="sumRow"><span>Review status</span><b><%= item.status.replaceAll('_',' ') %></b></div>
   <div class="sumRow"><span>Physical cash principal</span><b><%= item.amount %></b></div>
   <div class="sumRow"><span>Request explanation</span><b><%= item.note %></b></div>
+  <% if(['pending_receiver','pending_review','return_pending','return_dispatched','return_verified'].includes(item.status)){ %><div class="sumRow"><span>Cash in transit</span><b><%= item.amount %> reserved from sending drawer — not available for other payouts</b></div><% } %>
   <div class="sumRow"><span>Original sender's signed handover</span><b><%= item.senderOriginalEvidence||'Evidence missing — investigate' %></b></div>
   <% if(item.receiverNote){ %><div class="sumRow"><span>Actual receiving cashier's count note</span><b><%= item.receiverNote %></b></div><% } %>
   <% if(item.receiverReceiptReference){ %><div class="sumRow"><span>Receiving cashier's signed receipt</span><b><%= item.receiverReceiptReference %></b></div><% } %>
   <% if(item.reviewNote){ %><div class="sumRow"><span>Independent finance decision</span><b><%= item.reviewNote %></b></div><% } %>
+  <% if(item.returnDispatchReference){ %><div class="sumRow"><span>Original receiver's signed return dispatch</span><b><%= item.returnDispatchReference %></b></div><% } %>
+  <% if(item.returnReference){ %><div class="sumRow"><span>Original sender's counted returned cash receipt</span><b><%= item.returnReference %></b></div><% } %>
+  <% if(item.returnApprovalNote){ %><div class="sumRow"><span>Owner return release decision</span><b><%= item.returnApprovalNote %></b></div><% } %>
   <% if(item.status==='posted'){ %>
    <div class="sumRow"><span>Signed sending-branch handover</span><b><%= item.senderHandoverReference||'Evidence missing — investigate' %></b></div>
    <div class="sumRow"><span>Signed receiving-branch acceptance</span><b><%= item.receiverReceiptReference||'Evidence missing — investigate' %></b></div>
@@ -78,9 +82,55 @@
    <input class="control" name="receiverReceiptReference" minlength="8" maxlength="120"></label>
   <label class="field"><input type="checkbox" name="bothBranchesVerified" value="confirmed">
    I independently verified both signed receipts, the real cash movement and matching original currency and amount</label>
-  <p class="tiny">Approval creates BOTH Treasury custody entries atomically and clears the corresponding branch dues. Rejection does not move money.</p>
+  <p class="tiny">Approval consumes the reserved sending cash and creates both Treasury custody entries atomically. Rejection retains the reservation until the original recipient cashier dispatches a return, the source cashier counts the actual returned money, and the owner independently releases it.</p>
   <div class="rowBtns"><button class="btn btnPrimary" name="decision" value="approve" type="submit">Approve verified interbranch cash reimbursement</button>
   <button class="btn" name="decision" value="reject" type="submit">Reject reimbursement</button></div>
+ </form>
+ <% } %>
+ <% if(data.canReview&&item.status==='pending_receiver'){ %>
+ <form method="post" style="margin:12px 0" action="/tenant/money-transfer/<%= data.order._id %>/interbranch-cash/<%= item.id %>/review">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <label class="field">Reason to stop an unconfirmed receiving-side delivery
+   <textarea class="control" name="note" rows="3" minlength="12" maxlength="400" required></textarea></label>
+  <p class="tiny">The source cashier's physical cash remains reserved. A receiving cashier who never accepted the delivery cannot certify returning it; escalate to a documented custody investigation rather than releasing funds.</p>
+  <button class="btn" name="decision" value="reject" type="submit">Stop handover for custody investigation</button>
+ </form>
+ <% } %>
+ <% if(data.canConfirm&&item.status==='return_pending'&&item.receivedBy===String(user.id)){ %>
+ <form method="post" style="margin:12px 0" action="/tenant/money-transfer/<%= data.order._id %>/interbranch-cash/<%= item.id %>/return-dispatch">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <p class="tiny">Only the original receiving cashier may sign physical cash returned to the sending cashier. This does not release the original cash reservation.</p>
+  <label class="field">Signed physical return dispatch reference
+   <input class="control" name="returnDispatchReference" minlength="8" maxlength="120" required></label>
+  <label class="field">Actual cash returned, amount counted, and transport note
+   <textarea class="control" name="returnDispatchNote" rows="3" minlength="12" maxlength="400" required></textarea></label>
+  <label class="field"><input type="checkbox" name="notesDispatched" value="confirmed">
+   I physically dispatched the entire original-currency cash back to the sending cashier</label>
+  <button class="btn btnPrimary" type="submit">Confirm signed return dispatch</button>
+ </form>
+ <% } %>
+ <% if(data.canConfirmReturn&&item.status==='return_dispatched'&&item.requestedBy===String(user.id)){ %>
+ <form method="post" style="margin:12px 0" action="/tenant/money-transfer/<%= data.order._id %>/interbranch-cash/<%= item.id %>/return-receive">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <p class="tiny">Only the original sending cashier may confirm that the actual banknotes have returned. The owner must independently approve releasing the cash reservation.</p>
+  <label class="field">Separate signed returned-cash receipt reference
+   <input class="control" name="returnReference" minlength="8" maxlength="120" required></label>
+  <label class="field">Original-currency cash recount and signed receipt note
+   <textarea class="control" name="returnNote" rows="3" minlength="12" maxlength="400" required></textarea></label>
+  <label class="field"><input type="checkbox" name="cashReturnedConfirmed" value="confirmed">
+   I actually received and recounted every returned banknote in the original currency</label>
+  <button class="btn btnPrimary" type="submit">Confirm actual source-drawer cash returned</button>
+ </form>
+ <% } %>
+ <% if(data.canReview&&item.status==='return_verified'){ %>
+ <form method="post" style="margin:12px 0" action="/tenant/money-transfer/<%= data.order._id %>/interbranch-cash/<%= item.id %>/return-release">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <p class="tiny">The two cashiers separately signed dispatch and receipt. This decision only releases the original reserved cash for further use. No customer payout or duplicate accounting movement is created.</p>
+  <label class="field">Independent reviewer evidence and decision (12–400 characters)
+   <textarea class="control" name="note" rows="3" minlength="12" maxlength="400" required></textarea></label>
+  <label class="field"><input type="checkbox" name="returnVerified" value="confirmed">
+   I independently checked both signed physical cash-return records and the original drawer count</label>
+  <button class="btn btnPrimary" type="submit">Release independently verified returned cash</button>
  </form>
  <% } %>
  <% }) %>

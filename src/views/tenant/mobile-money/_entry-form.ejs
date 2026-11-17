@@ -42,6 +42,29 @@
         <label class="field" data-mobile-currency-field <%= entryVerifiedMarket(selectedEntryNetwork)?'hidden':'' %>>Currency (derived from network)<select class="control" name="currency" data-mobile-currency required><% entryCurrencyOptions.forEach(option=>{ %><option value="<%= option.code %>" <%= option.code===entryCurrency?'selected':'' %>><%= option.label %></option><% }) %></select></label>
         <label class="field">Amount (<span data-mobile-currency-label><%= entryCurrency %></span>)<input class="control" type="text" inputmode="decimal" name="amount" placeholder="0" pattern="<%= entryAmountPattern %>" required></label>
       </div>
+      <div class="row2 mobileSettlementFields" data-mobile-settlement-fields>
+        <label class="field">Physical cash currency
+          <select class="control" name="settlementCurrency" data-mobile-settlement-currency required>
+            <% entryCurrencyOptions.forEach(option=>{ %>
+              <option value="<%= option.code %>" <%= option.code===entryCurrency?'selected':'' %>><%= option.label %></option>
+            <% }); %>
+          </select>
+          <span class="tiny">Which currency will actually change hands? An MTN Uganda float can be UGX while the customer's cash is SSP.</span>
+        </label>
+        <label class="field" data-mobile-fx-rate-field hidden>Approved customer exchange rate
+          <select class="control" name="forexRateId" data-mobile-fx-rate disabled>
+            <option value="">Select approved rate</option>
+            <% (data.settlementRates||[]).forEach(rate=>{ %>
+              <option value="<%= rate._id %>" data-from="<%= rate.fromCurrency %>" data-to="<%= rate.toCurrency %>" data-side="<%= rate.side %>" data-rate="<%= rate.rateDecimal %>" data-expires="<%= new Date(rate.expiresAt).toISOString() %>"><%= rate.side==='buy'?'Buy':'Sell' %> <%= rate.fromCurrency %> → <%= rate.toCurrency %> · <%= rate.rateDecimal %></option>
+            <% }); %>
+          </select>
+          <span class="tiny">The Tenant Owner must have an active, independently approved rate for this currency pair. Ordinary transactions post immediately.</span>
+        </label>
+        <label class="field" data-mobile-settlement-amount-field hidden>Physical cash amount (<span data-mobile-settlement-label><%= entryCurrency %></span>)
+          <input class="control" name="settlementAmount" data-mobile-settlement-amount inputmode="decimal" disabled placeholder="Calculated using approved rate" required>
+          <span class="tiny">Confirm the customer received or paid this exact physical amount. A different amount requires a revised approved rate before recording.</span>
+        </label>
+      </div>
       <input type="hidden" name="paymentMethod" value="Cash">
       <p class="tiny" data-momo-account-notice hidden aria-live="polite"></p>
       <%- include('_funds-context') %>
@@ -69,6 +92,7 @@
 
     <div class="summary">
       <div class="sumRow"><span data-mobile-total-label><%= entryOperation==='cash_out'?'Physical cash paid to customer':'Physical cash received from customer' %></span><b data-mobile-total>—</b></div>
+      <div class="sumRow"><span>Provider electronic float</span><b data-mobile-provider-total>—</b></div>
       <div class="sumRow"><span>Reference</span><b class="mono mobileRequestReference" data-mobile-reference><%= data.idempotencyKey %></b></div>
     </div>
     <details class="logicNote"><summary>Additional details</summary><div class="row2"><label class="field">Customer name<input class="control" name="customer" placeholder="Optional customer name" minlength="2" maxlength="120" autocomplete="name"></label><label class="field">Customer ID / note<input class="control" name="customerNote" placeholder="Optional verification or note" maxlength="400"></label></div></details>

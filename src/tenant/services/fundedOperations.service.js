@@ -209,7 +209,7 @@ async function review(conn,tenant,actor,executionId,input={},options={}){
  await prepareIndexes(conn);const Execution=fundedModels(conn).execution,initial=await Execution.findById(id(executionId)).lean();if(!initial)throw fail('Manual movement not found',404);
  const current=await context(conn,tenant,actor,initial.sourceType,directForex?'forex.quotes.create':permission(initial.sourceType,true,initial.action));
  if(directForex){
-  if(initial.sourceType!=='forex'||initial.action!=='forex'||!['Tenant Owner','Forex Operator'].includes(current.actor.role)||
+  if(initial.sourceType!=='forex'||initial.action!=='forex'||!['Tenant Owner','Forex Operator','Banking Operator','Money Transfer Operator'].includes(current.actor.role)||
     String(initial.createdBy)!==String(current.actor.id)||
     input.confirmFundsExchanged!=='yes'||input.confirmEvidenceChecked!=='yes')
    throw fail('The originating Forex cashier must confirm actual receipt, payout and evidence before final posting',403);
@@ -295,7 +295,7 @@ async function detail(conn,tenant,actor,executionId){
  const smsRetryLimited=(sms?.redrives||0)>=3;
  const smsRetryCooling=!!smsRetryAt&&smsRetryAt>new Date();
  return {execution,source,sms,smsRetryAt,smsRetryLimited,smsRetryCooling,canRetrySms:execution.action==='transfer_collect'&&execution.status==='posted_manual'&&source?.status==='collected_manual'&&current.actor.role==='Tenant Owner'&&['dead','not_configured'].includes(sms?.state)&&smsRetryConfigured&&!smsRetryLimited&&!smsRetryCooling,canFinalizeForex:execution.sourceType==='forex'&&execution.status==='pending_review'&&
-  String(execution.createdBy)===current.actor.id&&['Tenant Owner','Forex Operator'].includes(current.actor.role)&&
+  String(execution.createdBy)===current.actor.id&&['Tenant Owner','Forex Operator','Banking Operator','Money Transfer Operator'].includes(current.actor.role)&&
   hasPermission(current.actor,'forex.quotes.create'),
   canReview:execution.status==='pending_review'&&String(execution.createdBy)!==current.actor.id&&hasPermission(current.actor,permission(execution.sourceType,true,execution.action)),canRevealPin:execution.action==='transfer_collect'&&execution.status==='posted_manual'&&source?.status==='collected_manual'&&!execution.pinShownAt&&(current.actor.role==='Tenant Owner'||String(execution.createdBy)===current.actor.id)};
 }

@@ -403,7 +403,8 @@
         payment.value=resolved?.value||'';
         payment.disabled=!crossCurrency&&!resolved;
         payment.required=crossCurrency&&validAccounts.length>1;
-        paymentField.hidden=!crossCurrency||validAccounts.length<=1;
+        paymentField.hidden=true;
+        if(crossCurrency&&validAccounts.length>1)paymentField.hidden=false;
         const notice=form.querySelector('[data-momo-account-notice]');
         const problem=wallet.value&&!resolved?
           (validAccounts.length===0?

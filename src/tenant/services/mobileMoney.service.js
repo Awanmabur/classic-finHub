@@ -385,7 +385,7 @@ async function getSummary(conn, { from, to, operatorId, branchId, timeZone } = {
 }
 async function recent(conn,{operatorId,branchId}={}){
  const {Types}=require('mongoose'),scope={...(operatorId?{operatorId:new Types.ObjectId(operatorId)}:{}),...(branchId?{branchId:new Types.ObjectId(branchId)}:{})};
- return mobileTransactionModel(conn).find({createdAt:dateBounds(),...scope}).select('operation customer networkReference customerPhone network amountMinor currency createdAt status').sort({createdAt:-1,_id:-1}).limit(14).lean();
+ return mobileTransactionModel(conn).find({createdAt:dateBounds(),...scope}).select('operation customer networkReference customerPhone network amountMinor currency settlementCurrency settlementAmountMinor crossCurrency createdAt status').sort({createdAt:-1,_id:-1}).limit(14).lean();
 }
 // CSV content is escaped so spreadsheet apps cannot evaluate attacker-supplied formulae.
 function csvCell(value) {
@@ -394,10 +394,13 @@ function csvCell(value) {
   return '"'+s.replace(/"/g,'""')+'"';
 }
 function toCsv(items) {
-  const rows = [['Date (UTC)','Operation','Customer','Network','Reference','Currency','Amount','Fee','Operational Record Status','Internal Review','Correction State','Risk Signals','Reviewed At (UTC)','Review Note']];
+  const rows = [['Date (UTC)','Operation','Customer','Network','Reference','Provider Currency','Provider Amount','Physical Cash Currency','Physical Cash Amount','Approved Rate Side','Approved Rate','Fee','Operational Record Status','Internal Review','Correction State','Risk Signals','Reviewed At (UTC)','Review Note']];
   for (const r of items) rows.push([
     new Date(r.createdAt).toISOString(), r.operation, r.customer, r.network, r.networkReference,
     r.currency, fromMinor(r.amountMinor,r.currency).toFixed(currencies[r.currency]),
+    r.settlementCurrency||r.currency,
+    fromMinor(r.settlementAmountMinor??r.amountMinor,r.settlementCurrency||r.currency).toFixed(currencies[r.settlementCurrency||r.currency]),
+    r.forexSide||'',r.forexRateDecimal||'',
     fromMinor(r.feeMinor,r.currency).toFixed(currencies[r.currency]),r.status, r.reviewState || 'not_required',r.correctionState||'none',(r.riskSignals||[]).join(' | '), r.reviewedAt ? new Date(r.reviewedAt).toISOString() : '', r.reviewNote || ''
   ]);
   return rows.map(row=>row.map(csvCell).join(',')).join('\r\n')+'\r\n';

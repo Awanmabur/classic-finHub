@@ -172,6 +172,27 @@ async function postedForexActivity(conn,tenant,user,branch,period={}){
  }
  return {limited:false,count,bought:rowsOf(bought),sold:rowsOf(sold)};
 }
+async function postedOriginFxActivity(conn,tenant,user,branch,period={}){
+ if(!['banking','money_transfer'].includes(period.moduleKey))return null;
+ if(!hasModuleForUser(tenant,user,'forex'))return null;
+ const scope=branchScope(user,{operationBranch:branch,viewBranchId:period.viewBranchId,viewBranch:period.viewBranch});
+ if(scope===null)return null;
+ const {$gte,$lt}=businessTime.dayBounds({from:period.from,to:period.to},
+  period.timeZone||businessTime.forBranch(branch),366,period.now||new Date());
+ const rows=await models.forexQuoteModel(conn).find({...scope,originModule:period.moduleKey,
+  status:'posted_manual',manualPostedAt:{$gte,$lt}}).select('operation fromCurrency sourceMinor')
+  .limit(1001).maxTimeMS(3000).lean();
+ if(rows.length>1000)return {limited:true,count:null,bought:[],sold:[]};
+ const bought=new Map(),sold=new Map();
+ for(const x of rows){
+  if(!['buy','sell'].includes(x.operation)||!currencyCodes.includes(x.fromCurrency))continue;
+  const amount=String(x.sourceMinor||'');
+  if(!/^\d+$/.test(amount))continue;
+  const map=x.operation==='buy'?bought:sold;
+  map.set(x.fromCurrency,(map.get(x.fromCurrency)||0n)+BigInt(amount));
+ }
+ return {limited:false,count:rows.length,bought:rowsOf(bought),sold:rowsOf(sold)};
+}
 async function moduleOverview(conn,tenant,user,branch,period={}){
  try{
   const result=await overview(conn,tenant,user,{
@@ -181,10 +202,12 @@ async function moduleOverview(conn,tenant,user,branch,period={}){
   });
   if(result.available&&period.moduleKey==='forex')
    result.forexActivity=await postedForexActivity(conn,tenant,user,branch,period);
+  if(result.available&&['banking','money_transfer'].includes(period.moduleKey))
+   result.crossModuleFxActivity=await postedOriginFxActivity(conn,tenant,user,branch,period);
   return result;
  }catch(error){
   console.warn(JSON.stringify({event:'finance.module_overview_unavailable',code:String(error.code||error.name||'UNKNOWN').slice(0,80)}));
   return {available:false,reason:'Financial overview temporarily unavailable; core transactions remain available'};
  }
 }
-module.exports={ASSET_KINDS,MODULES,groupMoney,rowsOf,branchScope,postedEarnings,postedEarningsByModule,postedForexActivity,overview,moduleOverview};
+module.exports={ASSET_KINDS,MODULES,groupMoney,rowsOf,branchScope,postedEarnings,postedEarningsByModule,postedForexActivity,postedOriginFxActivity,overview,moduleOverview};

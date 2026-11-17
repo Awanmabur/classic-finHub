@@ -18,7 +18,7 @@ const sms=require('../src/tenant/transferSms/service'),smsModels=require('../src
 const commerce=require('../src/platform/services/commercial.service'),{permissionsFor}=require('../src/config/roles');
 const {transferQueueCounts}=require('./notification-doctor');
 let conn;
-const oid=()=>String(new mongoose.Types.ObjectId()),owner={id:oid(),role:'Tenant Owner',permissions:['*'],allowedModules:['money_transfer'],authVersion:0},teller={id:oid(),role:'Money Transfer Operator',permissions:permissionsFor('Money Transfer Operator'),allowedModules:['money_transfer'],authVersion:0};
+const oid=()=>String(new mongoose.Types.ObjectId()),owner={id:oid(),role:'Tenant Owner',permissions:['*'],allowedModules:['money_transfer','forex'],authVersion:0},teller={id:oid(),role:'Money Transfer Operator',permissions:permissionsFor('Money Transfer Operator'),allowedModules:['money_transfer'],authVersion:0};
 const decision={decision:'approve',note:'Independent source evidence and actual counted funds reviewed'};
 const input=()=>({idempotencyKey:crypto.randomUUID(),evidenceReference:'ACTUAL-COUNT-'+nonce,note:'Actual collected cash and signed transfer instruction inspected'});
 const delivered=[];
@@ -27,17 +27,17 @@ function workerCredentials(){process.env.TWILIO_ACCOUNT_SID='AC'+'1'.repeat(32);
 async function main(){
  await connectPlatformMongo();require('../src/config/mongoTopology').verifyReplicaPrimary(await mongoose.connection.db.admin().command({hello:1}));
  await Tenant.createIndexes();await require('../src/platform/models/LoginThrottle').createIndexes();conn=getTenantConnection(slug);await funded.prepareIndexes(conn);
- const terms=commerce.planSnapshot({...commerce.asPlanVersion({...require('../src/data/store').plans.find(plan=>plan.code==='enterprise'),code:'transfer_sms_probe',modules:['money_transfer']}),status:'published'});
- const tenant=await Tenant.create({name:'SMS transfer proof',slug,dbName:conn.name,owner:'Owner',email:`${nonce}@example.invalid`,plan:terms.planCode,status:'active',setupStatus:'complete',enabledModules:['money_transfer'],seatsReserved:2,branchCount:1,subscription:{...terms,status:'granted',source:'manual_admin_grant',generation:1,periodStart:new Date(Date.now()-60000),periodEnd:new Date(Date.now()+86400000)}});
+ const terms=commerce.planSnapshot({...commerce.asPlanVersion({...require('../src/data/store').plans.find(plan=>plan.code==='enterprise'),code:'transfer_sms_probe',modules:['money_transfer','forex']}),status:'published'});
+ const tenant=await Tenant.create({name:'SMS transfer proof',slug,dbName:conn.name,owner:'Owner',email:`${nonce}@example.invalid`,plan:terms.planCode,status:'active',setupStatus:'complete',enabledModules:['money_transfer','forex'],seatsReserved:2,branchCount:1,subscription:{...terms,status:'granted',source:'manual_admin_grant',generation:1,periodStart:new Date(Date.now()-60000),periodEnd:new Date(Date.now()+86400000)}});
  const branch=await core.branchModel(conn).create({name:'Main payout office',code:'main',currency:'UGX',createdBy:owner.id,updatedBy:owner.id});
  owner.branchId=teller.branchId=String(branch._id);
- for(const actor of [owner,teller])await core.tenantUserModel(conn).create({_id:actor.id,name:actor.role,email:`${actor.id}@example.invalid`,passwordHash:'isolated-test-only',role:actor.role,branchId:branch._id,allowedModules:['money_transfer'],authVersion:0,...(actor===owner?{mfaEnabledAt:new Date()}: {})});
+ for(const actor of [owner,teller])await core.tenantUserModel(conn).create({_id:actor.id,name:actor.role,email:`${actor.id}@example.invalid`,passwordHash:'isolated-test-only',role:actor.role,branchId:branch._id,allowedModules:actor.allowedModules,authVersion:0,...(actor===owner?{mfaEnabledAt:new Date()}: {})});
  async function opened(kind,code,balance,operatorId){const account=await treasury.createAccount(conn,tenant,owner,{kind,code,name:code,currency:'UGX',isDefault:true,...(operatorId?{operatorId}:{})});const observation=await treasury.requestObservation(conn,tenant,teller,account._id,{kind:'opening',actualBalance:balance,observedAt:new Date(Date.now()-1000).toISOString(),evidenceType:kind==='cash'?'cash_count':'transfer_register',evidenceReference:'OPEN-'+code,note:'Actual original balances independently counted before operating',idempotencyKey:crypto.randomUUID()});await treasury.reviewObservation(conn,tenant,owner,observation.observation._id,decision);return account;}
  const drawer=await opened('cash','TELLER_CASH','1000000',teller.id),payable=await opened('transfer_clearing','TRANSFER_PAYABLE','0');
  const shift=await cash.open(conn,tenant,teller,{openingCash:'1000000'});await cash.decideOpening(conn,tenant,owner,shift._id,decision);
 
 
- const destination=await core.branchModel(conn).create({name:'Receiving branch',code:'receiving',currency:'UGX',currencies:['UGX','SSP'],createdBy:owner.id,updatedBy:owner.id});
+ const destination=await core.branchModel(conn).create({name:'Receiving branch',code:'receiving',currency:'UGX',currencies:['UGX','SSP','USD'],createdBy:owner.id,updatedBy:owner.id});
  const receivingTeller={...teller,id:oid(),branchId:String(destination._id)},manager={id:oid(),role:'Branch Manager',permissions:permissionsFor('Branch Manager'),allowedModules:['money_transfer'],branchId:String(destination._id),authVersion:0};
  for(const actor of [receivingTeller,manager])await core.tenantUserModel(conn).create({_id:actor.id,name:actor.role,email:`${actor.id}@example.invalid`,passwordHash:'test-only',role:actor.role,branchId:actor.branchId,allowedModules:actor.allowedModules,authVersion:0,...(actor===manager?{mfaEnabledAt:new Date()}: {})});
  const destinationCash=await treasury.createAccount(conn,tenant,owner,{kind:'cash',code:'DESTINATION_CASH',name:'Receiving teller drawer',currency:'UGX',operatorId:receivingTeller.id,isDefault:true},{configurationBranchId:String(destination._id)});

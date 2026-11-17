@@ -35,6 +35,8 @@ async function main() {
     await require('../src/tenant/treasury/models').ensure(conn);
     // Prebuild idempotency/source/event uniqueness indexes before FX posting is enabled.
     await require('../src/tenant/settlements/models').ensure(conn);
+    // Sender cash refunds require their own immutable source/retry uniqueness.
+    await require('../src/tenant/refunds/models').ensure(conn);
     await require('../src/tenant/treasury/funding.models').ensureIndexes(conn);
     await require('../src/tenant/funded/models').ensureIndexes(conn);
     await require('../src/tenant/transferSms/models').ensureIndexes(conn);

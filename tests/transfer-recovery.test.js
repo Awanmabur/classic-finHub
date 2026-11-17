@@ -62,8 +62,10 @@ test('recovery queue is tenant- and branch-authorized, never available to teller
  assert.throws(()=>recovery.assertScope({name:'other_db'},tenant,actor,{}),{status:403});
  assert.throws(()=>recovery.assertScope(conn,tenant,{...actor,role:'Money Transfer Operator'},{}),{status:403});
  assert.throws(()=>recovery.assertScope(conn,tenant,{...actor,role:'Branch Manager'},{}),{status:403});
- assert.doesNotThrow(()=>recovery.assertScope(conn,tenant,{...actor,role:'Branch Manager'},
+ assert.doesNotThrow(()=>recovery.assertScope(conn,tenant,{...actor,role:'Branch Manager',branchId:id},
   {branchId:id}));
+ assert.throws(()=>recovery.assertScope(conn,tenant,{...actor,role:'Branch Manager',branchId:id},
+  {branchId:'507f1f77bcf86cd799439011'}),{status:403});
  assert.throws(()=>recovery.assertScope(conn,tenant,actor,{branchId:{$ne:null}}),{status:403});
  assert.equal(recovery.LIMIT,50);
 });

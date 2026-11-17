@@ -70,10 +70,10 @@ test('Forex operator sees real report counters even without restricted Treasury 
   user:{role:'Forex Operator'},businessTimeZone:'Africa/Juba',currencyLabel:code=>code
  });
  assert.match(html,/Forex operational report statistics/);
- assert.match(html,/Records in selected period<\\/div><div class="v">6<\\/div>/);
- assert.match(html,/Awaiting next step<\\/div><div class="v">2<\\/div>/);
- assert.match(html,/Posted \\/ paid out internally<\\/div><div class="v">3<\\/div>/);
- assert.match(html,/Currencies represented<\\/div><div class="v">2<\\/div>/);
+ assert.match(html,/Records in selected period<\/div><div class="v">6<\/div>/);
+ assert.match(html,/Awaiting next step<\/div><div class="v">2<\/div>/);
+ assert.match(html,/Posted \/ paid out internally<\/div><div class="v">3<\/div>/);
+ assert.match(html,/Currencies represented<\/div><div class="v">2<\/div>/);
  assert.doesNotMatch(html,/Operating assets · book/,'restricted Treasury totals must not leak');
 });
 test('Money Transfer collected funds remain pending until internal payout, not marked completed',async()=>{
@@ -90,7 +90,7 @@ test('Money Transfer collected funds remain pending until internal payout, not m
    financeOverview:{available:false,reason:'Treasury permission required'}},
   user:{role:'Money Transfer Operator'},businessTimeZone:'Africa/Juba',currencyLabel:code=>code
  });
- assert.match(html,/Awaiting next step<\\/div><div class="v">3<\\/div>/);
- assert.match(html,/Posted \\/ paid out internally<\\/div><div class="v">1<\\/div>/);
+ assert.match(html,/Awaiting next step<\/div><div class="v">3<\/div>/);
+ assert.match(html,/Posted \/ paid out internally<\/div><div class="v">1<\/div>/);
  assert.match(html,/not proof of provider settlement/);
 });

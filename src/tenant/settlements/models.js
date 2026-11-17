@@ -1,8 +1,10 @@
 'use strict';
-// Opt-in future settlement collections. No automatic index creation on web reads.
+// Opt-in financial settlement collections. Install unique indexes before any financial posting.
+// Lazy startup via tenant index ensure and explicit index migration; never within a transaction.
 // A quote is never a completed payment. All events must be audit-tracked and
 // balance-affecting transitions executed with the source transaction in MongoDB.
 const {Schema}=require('mongoose');
+const {ensureModelIndexes}=require('../../config/ensureModelIndexes');
 const {currencyCodes}=require('../../config/currencies');
 const O=Schema.Types.ObjectId,D=Schema.Types.Decimal128;
 const rate=new Schema({
@@ -64,9 +66,9 @@ const event=new Schema({
  recordedBy:{type:O,required:true,immutable:true}
 },{strict:'throw',timestamps:{createdAt:true,updatedAt:false},versionKey:false});
 function immutableEvidence(schema){
- schema.pre('save',function(next){next(this.isNew?null:new Error('Settlement evidence is append-only'));});
+ schema.pre('save',function(){if(!this.isNew)throw new Error('Settlement evidence is append-only');});
  for(const op of ['updateOne','updateMany','replaceOne','findOneAndUpdate','findOneAndReplace','deleteOne','deleteMany','findOneAndDelete'])
-  schema.pre(op,function(next){next(new Error('Settlement evidence is append-only'));});
+  schema.pre(op,function(){throw new Error('Settlement evidence is append-only');});
 }
 immutableEvidence(event);
 event.index({settlementId:1,stage:1},{unique:true,name:'one_verified_fact_per_stage'});
@@ -80,4 +82,13 @@ function models(conn){
   event:conn.models.LinkedCurrencyEvidenceV1||conn.model('LinkedCurrencyEvidenceV1',event)
  };
 }
-module.exports={models,settlementSchema:settlement,costBookSchema:costBook,evidenceSchema:event};
+const initialized=new WeakMap();
+function ensure(conn){
+ if(!initialized.has(conn)){
+  const job=Promise.all(Object.values(models(conn)).map(ensureModelIndexes))
+   .catch(error=>{initialized.delete(conn);throw error;});
+  initialized.set(conn,job);
+ }
+ return initialized.get(conn);
+}
+module.exports={models,ensure,settlementSchema:settlement,costBookSchema:costBook,evidenceSchema:event};

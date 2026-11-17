@@ -24,7 +24,6 @@ const refund=new Schema({
 refund.index({tenantId:1,sourceId:1,createdAt:-1});
 refund.index({idempotencyKey:1},{unique:true,name:'unique_refund_request_retry'});
 refund.index({activeKey:1},{unique:true,partialFilterExpression:{activeKey:{$type:'string'}},name:'single_pending_or_posted_cash_refund'});
-refund.index({branchId:1,status:1,createdAt:-1});
 function model(conn){return conn.models.ManualTransferRefundV1||conn.model('ManualTransferRefundV1',refund);}
 const ready=new WeakMap();
 function ensure(conn){

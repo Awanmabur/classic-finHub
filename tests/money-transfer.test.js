@@ -30,7 +30,7 @@ test('Money Transfer activates as independent internal module but does not enabl
  assert.throws(()=>service.sendMoney({amount:1}),{status:501});
  assert.throws(()=>service.payoutByPin({pin:'0000'}),{status:501});
  const schema=require('../src/tenant/schemas/TransferOrder.schema');
- assert.deepEqual(schema.path('status').enumValues,['requested','approved_pending_provider','collected_manual','paid_out_manual','rejected','cancelled','expired']);
+ assert.deepEqual(schema.path('status').enumValues,['requested','approved_pending_provider','collected_manual','paid_out_manual','refunded_manual','rejected','cancelled','expired']);
  assert(!schema.path('status').enumValues.includes('settled'));
 });
 test('Transfer contact validation requires proper sender/beneficiary and international phone',()=>{

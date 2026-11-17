@@ -6,6 +6,7 @@
    const approvedForexRates=(data.formRates||data.rates||[]).filter(rate=>rate.status==='active'&&new Date(rate.expiresAt)>new Date()); %>
 <section class="view show">
  <%- include('../../partials/operation-branch', {currentBranch, branchProblem, user}) %>
+ <%- include('../partials/module-finance',{moduleKey:'forex'}) %>
  <section class="card"><div class="cardHead"><b><%= data.workspaceTitle||'Forex rate board and quotations' %></b><span>Approved rates · reviewed manual posting</span></div>
   <div class="cardBody"><p class="tiny">Use an approved rate to record a quotation, then record the actual exchange against opened foreign currency and settlement accounts for independent review.</p>
    <div class="rowBtns"><a class="btn" href="/tenant/funded">Manual movements &amp; review</a><a class="btn" href="/tenant/treasury">Balances &amp; reconciliation</a><a class="btn" href="/tenant/forex/buy">Buy forex from customer</a><a class="btn" href="/tenant/forex/sell">Sell forex to customer</a><a class="btn" href="/tenant/forex/rates">Active rate board</a><a class="btn" href="/tenant/forex/cash-impact">Forex cash impact</a><a class="btn" href="/tenant/forex/records">Forex operation records</a><a class="btn" href="/tenant/forex/report">Forex report summary</a></div>

@@ -179,7 +179,7 @@ async function main(){
    await treasury.models(conn).account.findById(account._id).lean());
  const postedEvidence=await physical.detail(conn,tenant,owner,source._id);
  assert.equal(postedEvidence[0].status,'posted');
- assert.equal(postedEvidence[0].receiverReceiptReference,postedCashDecision.receiverReceiptReference);
+ assert.equal(postedEvidence[0].receiverReceiptReference,postedCashDecision.receiverReceiptReference.toUpperCase());
  await assert.rejects(physical.review(conn,tenant,owner,actual._id,postedCashDecision,source._id),
   {status:409});
  process.env.CLASSICFIN_INTERBRANCH_CASH_SETTLEMENT='disabled';

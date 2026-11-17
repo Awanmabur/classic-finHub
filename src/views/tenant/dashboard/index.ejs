@@ -1,6 +1,7 @@
 <% const dashboardZone=typeof businessTimeZone==='string'?businessTimeZone:'UTC'; %>
 <% const snapshot=data.workspaceSnapshot||{};
    const volumes=snapshot.todayVolumes||{};
+   const byCurrency=snapshot.todayByCurrency||{};
    const financialActions=quickActions.filter(action=>['transfer','mobile_money','forex_buy','banking_deposit'].includes(action.kind));
    const opener=quickActions.find(action=>action.kind==='cash_shift_open');
    const overviewCurrencies=typeof currencyOptions==='undefined'?[{code:'UGX',label:'UGX'},{code:'USD',label:'USD'},{code:'SSP',label:'SSP'},{code:'KES',label:'KSH'}]:currencyOptions;
@@ -17,8 +18,13 @@
   <div class="card"><div class="cardHead"><div><b>Today snapshot</b><br><span>Core modules plus daily control · <%= dashboardZone %></span></div><span class="mono" id="terminalCode"><%= snapshot.terminalCode||tenant.slug||'—' %></span></div>
     <div class="cardBody">
       <% if(snapshot.mixedRegion){ %><p class="tiny">Branches use different timezones. Select a branch from the dashboard header to view accurate local-day transaction totals; cash and float accounts remain independently scoped.</p><% } %>
-      <% if(hasSources){ %><div class="grid3">
-        <% cards.forEach(([flag,key,label,id,sub])=>{if(!data[flag])return;const value=volumes[key]; %><div class="stat" title="Today's active recorded <%= key.replaceAll('_',' ') %> operations and instructions. This total is separate from verified external balances."><div class="k"><%= label %></div><div class="v" id="<%= id %>"><%= value?.formatted||'—' %></div><div class="s"><span class="dot <%= key==='forex'?'warn':'' %>"></span><span><%= key==='mobile_money'&&data.mobileMarket?data.mobileMarket.label+' · '+data.mobileMarket.currency:sub %></span></div></div><% }) %>
+      <% if(hasSources){ %><div class="grid3 overviewStatsGrid">
+        <% cards.forEach(([flag,key,label,id,sub])=>{if(!data[flag])return;const value=volumes[key]; %><div class="stat" title="Today's active recorded <%= key.replaceAll('_',' ') %> operations and instructions. This total is separate from verified external balances."><div class="k"><%= label %></div><div class="v" id="<%= id %>"><%= value?.formatted||'—' %></div><div class="s"><span class="dot <%= key==='forex'?'warn':'' %>"></span><span><%= key==='mobile_money'&&data.mobileMarket?data.mobileMarket.label+' · '+data.mobileMarket.currency:sub %></span></div>
+           <% const currencyDetail=byCurrency[key]||[];if(currencyDetail.length){ %>
+           <div class="overviewCurrencyLines" aria-label="<%= label %> by original currency">
+             <% currencyDetail.forEach(item=>{ %><div class="overviewCurrencyLine"><span><%= item.currency==='KES'?'KSH':item.currency %> · <%= item.count %> transaction<%= item.count===1?'':'s' %></span><b><%= item.formatted.replace(/^KES /,'KSH ') %></b></div><% }); %>
+           </div>
+           <% } %></div><% }) %>
         <% if(data.hasMobileMoney){ %>
         <% [['cash',cashFunds,'Physical cash · book balance','ovCash'],['float',floatFunds,'Electronic float · wallet balance','ovFloat']].forEach(([type,accounts,label,id])=>{const totals=(data.mobileBookTotals?.[type]||[]);const unapproved=accounts.filter(a=>a.expectedMinor===null||a.expectedMinor===undefined); %>
         <div class="stat" data-dashboard-fund-stat="<%= type %>" title="Approved opening balances plus recorded internal funds movements, not live provider balances.">

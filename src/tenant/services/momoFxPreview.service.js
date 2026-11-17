@@ -32,7 +32,7 @@ async function preview(conn,tenant,actor,branch,input){
   toCurrency:cash.currency,side,status:'active',reviewedBy:{$ne:null},expiresAt:{$gt:new Date()}}).lean();
  if(!rate)throw fail('No active independently approved Buy/Sell rate for this currency direction');
  const value=quote({operation,providerCurrency:wallet.currency,cashCurrency:cash.currency,
-  providerAmountMinor:String(input.providerAmountMinor||''),rateDecimal:rate.rateDecimal,
+  providerAmountMinor:input.providerAmountMinor!==undefined?String(input.providerAmountMinor):String(require('../treasury/service').major(String(input.providerAmount||''),wallet.currency)),rateDecimal:rate.rateDecimal,
   rateSide:rate.side,rateId:String(rate._id),rateVersion:rate.revision,approved:true,
   expiresAt:new Date(rate.expiresAt).toISOString()});
  return {...value,branchId:String(branch._id),walletAccountId:walletId,cashAccountId:cashId,

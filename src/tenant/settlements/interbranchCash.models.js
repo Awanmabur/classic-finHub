@@ -31,6 +31,7 @@ const schema=new Schema({
  returnConfirmedAt:{type:Date,default:null},
  returnApprovedBy:{type:O,default:null},
  returnApprovedAt:{type:Date,default:null},
+ returnApprovalNote:{type:String,maxlength:400,default:null},
  reviewedBy:{type:O,default:null},
  reviewedAt:{type:Date,default:null},
  reviewNote:{type:String,maxlength:400,default:null},

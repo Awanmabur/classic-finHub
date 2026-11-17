@@ -9,7 +9,7 @@ const cashRoles=new Set(['Tenant Owner',...cashOperators,'Branch Manager','Recon
 const cashModules=['mobile_money','money_transfer','banking','forex','expenses'];
 function recentRow(route,row){
  if(route==='mobile-money')return {kind:'mobile_money',label:`${row.operation==='cash_in'?'Deposit':'Withdrawal'} • ${row.customer}`,
-  subtitle:`${row.networkReference} • ${row.customerPhone||row.network}`,amountLabel:formatMoneyMinor(row.amountMinor,row.currency),
+  subtitle:`${row.networkReference} • ${row.customerPhone||row.network} • Cash ${row.operation==='cash_in'?'received':'paid'}: ${formatMoneyMinor(row.settlementAmountMinor??row.amountMinor,row.settlementCurrency||row.currency)}`,amountLabel:formatMoneyMinor(row.amountMinor,row.currency),
   href:`/tenant/mobile-money/${row._id}/acknowledgement`,createdAt:row.createdAt,status:(row.status||'pending_verification').replaceAll('_',' '),acknowledgement:true};
  const forex=route==='forex',amount=forex?row.sourceMinor:row.amountMinor,currency=forex?row.fromCurrency:row.currency;
  const label=forex?`${row.operation==='sell'?'Sell forex':row.operation==='buy'?'Buy forex':'Forex quote'} • ${row.customerLabel}`:

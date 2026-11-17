@@ -14,11 +14,11 @@ test('SSP drawer payment is not misreported as UGX cash or commission income',()
  ],[],[]);
  const provider=outcome.currencies.find(row=>row.currency==='UGX');
  assert(provider);
- assert.equal(provider.volumeMinor,'300000');
- assert.equal(provider.cashImpactMinor,'0');
+ assert.equal(provider.volumeMinor,300000n);
+ assert.equal(provider.cashImpactMinor,0n);
  assert.equal(provider.withdrawalCount,1);
  assert.equal(provider.depositCount,1);
- assert.equal(provider.receivedCommissionMinor,'0');
+ assert.equal(provider.receivedCommissionMinor,0n);
  const cash=outcome.cashMovements.find(row=>row.network==='MTN'&&row.currency==='SSP');
  assert(cash);
  assert.equal(cash.amountMinor,'13000000');
@@ -27,8 +27,8 @@ test('SSP drawer payment is not misreported as UGX cash or commission income',()
 test('KES float turnover and SSP drawer custody remain two independent native currencies',()=>{
  const outcome=report.summarize([group('M-Pesa','KES','SSP','cash_out','100000','-1350000')],[],[]);
  assert.equal(outcome.currencies[0].currency,'KES');
- assert.equal(outcome.currencies[0].volumeMinor,'100000');
- assert.equal(outcome.currencies[0].cashImpactMinor,'0');
+ assert.equal(outcome.currencies[0].volumeMinor,100000n);
+ assert.equal(outcome.currencies[0].cashImpactMinor,0n);
  assert.equal(outcome.cashMovements[0].currency,'SSP');
  assert.equal(outcome.cashMovements[0].amountMinor,'-1350000');
  const csv=report.csv({window:{timeZone:'Africa/Juba',from:'2026-11-01',to:'2026-11-17'},
@@ -38,6 +38,6 @@ test('KES float turnover and SSP drawer custody remain two independent native cu
 });
 test('ordinary same-currency mobile money keeps the existing cash movement reporting contract',()=>{
  const outcome=report.summarize([group('MTN SSD','SSP','SSP','cash_in','30000','30000')],[],[]);
- assert.equal(outcome.currencies[0].cashImpactMinor,'30000');
+ assert.equal(outcome.currencies[0].cashImpactMinor,30000n);
  assert.equal(outcome.cashMovements[0].amountMinor,'30000');
 });

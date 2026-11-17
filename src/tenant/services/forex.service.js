@@ -47,7 +47,7 @@ function amountLabel(value,ccy){const n=BigInt(String(value?.toString?.()??value
 function moduleAccess(tenant,actor,permission){
  if(!hasModuleForUser(tenant,actor,'forex')||!hasPermission(actor,permission))throw fail('Forex subscription or role permission unavailable',403);
 }
-function operator(actor){return ['Tenant Owner','Forex Operator'].includes(actor?.role);}
+function operator(actor){return ['Tenant Owner','Forex Operator','Banking Operator','Money Transfer Operator'].includes(actor?.role);}
 function reviewer(actor){return ['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(actor?.role);}
 function branchScope(actor){
  if(['Tenant Owner','Auditor'].includes(actor?.role))return require('./branchView.service').readScope(actor);
@@ -55,7 +55,7 @@ function branchScope(actor){
  return {branchId:id(actor.branchId)};
 }
 function quoteScope(actor){const scope=branchScope(actor);
- if(actor?.role==='Forex Operator')scope.createdBy=id(actor.id);
+ if(['Forex Operator','Banking Operator','Money Transfer Operator'].includes(actor?.role))scope.createdBy=id(actor.id);
  return scope;
 }
 function branchFor(actor,input){return require('./transactionBranch.service').assignedBranchId(actor,input);}

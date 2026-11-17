@@ -100,6 +100,7 @@ async function recordPayout(conn,session,tenant,actor,source,execution,posting){
  const settled=await Linked.settlement.findOneAndUpdate({
   tenantId:tenant._id,sourceModule:'money_transfer',sourceId:source._id,
   status:'collected',destinationBranchId:source.destinationBranchId||source.branchId,
+  destinationPayoutAccountId:null, // first verified payout only
   'rateSnapshot.rateId':source.fxRateId,cashCurrency:source.currency,
   providerCurrency:source.payoutCurrency
  },{$set:{status:'posted',postedAt:now,

@@ -260,7 +260,7 @@ async function detail(conn,tenant,actor,quoteId){
 }
 async function quoteReviewQueue(conn,tenant,actor){
  moduleAccess(tenant,actor,'forex.quotes.review');if(!reviewer(actor))throw fail('Reviewer role required',403);
- return forexQuoteModel(conn).find({status:'quoted',createdBy:{$ne:id(actor.id)},expiresAt:{$gt:new Date()},...branchScope(actor)}).sort({createdAt:1}).limit(30).lean();
+ return forexQuoteModel(conn).find({status:'quoted',operation:'quote',createdBy:{$ne:id(actor.id)},expiresAt:{$gt:new Date()},...branchScope(actor)}).sort({createdAt:1}).limit(30).lean();
 }
 async function expireDue(conn,now=new Date(),limit=100){
  if(!(now instanceof Date)||!Number.isFinite(now.getTime())||!Number.isSafeInteger(limit)||limit<1||limit>200)throw fail('Invalid expiry sweep');

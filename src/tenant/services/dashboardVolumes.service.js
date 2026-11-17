@@ -61,11 +61,27 @@ function executionMatch(user,key,operationBranch,currency,now,timeZone='UTC'){
  return {...scopeFor(user,key,operationBranch),sourceType:key,status:'posted_manual',reviewedAt:bounds(now,timeZone),
   ...(key==='forex'?{$or:[{'sourceSnapshot.fromCurrency':currency},{'sourceSnapshot.toCurrency':currency}]}:{'sourceSnapshot.currency':currency})};
 }
+// Reporting breakdown keeps currencies separate. Forex volume uses the
+// original SOURCE currency once, avoiding double-counting its two legs.
+// Transaction turnover is not profit, capital or an external wallet balance.
+async function breakdown(conn,user,key,operationBranch,now,timeZone='UTC'){
+ const match=key==='mobile_money'
+  ?{...activeMatch(user,key,operationBranch,now,timeZone),fundingState:'book_recorded'}
+  :{...scopeFor(user,key,operationBranch),sourceType:key,status:'posted_manual',reviewedAt:bounds(now,timeZone)};
+ const Model=key==='mobile_money'?models.mobileTransactionModel(conn):require('../funded/models').models(conn).execution;
+ const currencyField=key==='mobile_money'?'$currency':key==='forex'?'$sourceSnapshot.fromCurrency':'$sourceSnapshot.currency';
+ const amountField=key==='mobile_money'?'$amountMinor':key==='forex'?{$toDecimal:'$sourceSnapshot.sourceMinor'}:{$toDecimal:'$sourceSnapshot.amountMinor'};
+ const groups=await Model.aggregate([
+  {$match:match},
+  {$group:{_id:{currency:currencyField,status:'$status'},count:{$sum:1},amountMinor:{$sum:amountField}}}
+ ]).option({maxTimeMS:2500});
+ return currencyCodes.map(code=>totalFor(groups,code)).filter(row=>row.count>0);
+}
 async function volumes(conn,tenant,user,input={},operationBranch=null,overview={}){
  const currency=selectedCurrency(input.currency,operationBranch),now=input.now||new Date(),
-  timeZone=input.timeZone||'UTC',result={};
+  timeZone=input.timeZone||'UTC',result={},todayByCurrency={};
  if(input.suppressTodayVolumes===true)return {selectedCurrency:currency,currencyOptions:currencyCodes.map(code=>({code,label:currencyLabel(code)})),
-  todayVolumes:{},date:businessTime.localDay(now,timeZone),mixedRegion:true};
+  todayVolumes:{},todayByCurrency:{},date:businessTime.localDay(now,timeZone),mixedRegion:true};
  await Promise.all(Object.entries(sources).map(async([key,spec])=>{
   if(overview[spec.flag]===false||!hasModuleForUser(tenant,user,key)||!hasPermission(user,`${key}.view`))return;
   const market=key==='mobile_money'?input.mobileMarket:null;
@@ -73,13 +89,17 @@ async function volumes(conn,tenant,user,input={},operationBranch=null,overview={
   const match=key==='mobile_money'?{...activeMatch(user,key,operationBranch,now,timeZone),fundingState:'book_recorded',
    ...(market?.network?{network:market.network}:{})}:executionMatch(user,key,operationBranch,currency,now,timeZone);
   const Model=key==='mobile_money'?models.mobileTransactionModel(conn):require('../funded/models').models(conn).execution;
-  const grouped=await Model.aggregate([
-   {$match:match},
-   {$group:{_id:{currency:key==='mobile_money'?'$currency':{$literal:currency},status:'$status'},count:{$sum:1},amountMinor:{$sum:key==='mobile_money'?'$amountMinor':executionAmount(key,currency)}}}
-  ]).option({maxTimeMS:2500});
+  const [grouped,allCurrencies]=await Promise.all([
+   Model.aggregate([
+    {$match:match},
+    {$group:{_id:{currency:key==='mobile_money'?'$currency':{$literal:currency},status:'$status'},count:{$sum:1},amountMinor:{$sum:key==='mobile_money'?'$amountMinor':executionAmount(key,currency)}}}
+   ]).option({maxTimeMS:2500}),
+   breakdown(conn,user,key,operationBranch,now,timeZone)
+  ]);
+  todayByCurrency[key]=allCurrencies;
   result[key]={...totalFor(grouped,effectiveCurrency),basis:key==='mobile_money'?'posted funds book movements':'independently reviewed posted manual movements',
    ...(market?{network:market.network,networkLabel:market.label}:{})};
  }));
- return {selectedCurrency:currency,currencyOptions:currencyCodes.map(code=>({code,label:currencyLabel(code)})),todayVolumes:result,date:businessTime.localDay(now,timeZone)};
+ return {selectedCurrency:currency,currencyOptions:currencyCodes.map(code=>({code,label:currencyLabel(code)})),todayVolumes:result,todayByCurrency,date:businessTime.localDay(now,timeZone)};
 }
-module.exports={volumes,sources,selectedCurrency,scopeFor,activeMatch,executionMatch,executionAmount,bounds,totalFor,money,fail};
+module.exports={volumes,sources,selectedCurrency,scopeFor,activeMatch,executionMatch,executionAmount,bounds,totalFor,breakdown,money,fail};

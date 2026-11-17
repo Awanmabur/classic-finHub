@@ -174,11 +174,68 @@
       if (!match || (match[2] || '').length > decimals) return null;
       return BigInt(match[1]) * (10n ** BigInt(decimals)) + BigInt((match[2] || '').padEnd(decimals, '0') || '0');
     };
+    const settlementCurrency=form.elements.namedItem('settlementCurrency');
+    const settlementAmount=form.elements.namedItem('settlementAmount');
+    const fxRate=form.elements.namedItem('forexRateId');
+    const fxRateField=form.querySelector('[data-mobile-fx-rate-field]');
+    const settlementAmountField=form.querySelector('[data-mobile-settlement-amount-field]');
+    const settlementLabel=form.querySelector('[data-mobile-settlement-label]');
+    let previousProviderCurrency=currencyControl?.value||form.dataset.currency;
+    const syncSettlement=(providerAmountMinor)=>{
+      const from=selectedCurrency();
+      if(settlementCurrency&&from!==previousProviderCurrency&&settlementCurrency.value===previousProviderCurrency)
+        settlementCurrency.value=from;
+      previousProviderCurrency=from;
+      const to=settlementCurrency?.value||from,cross=to!==from;
+      if(fxRateField)fxRateField.hidden=!cross;
+      if(settlementAmountField)settlementAmountField.hidden=!cross;
+      if(settlementLabel)settlementLabel.textContent=to==='KES'?'KSH':to;
+      if(fxRate)fxRate.disabled=!cross;
+      if(settlementAmount)settlementAmount.disabled=!cross;
+      if(!cross){
+        if(fxRate)fxRate.value='';
+        if(settlementAmount)settlementAmount.value='';
+        settlementCurrency?.setCustomValidity('');
+        return {cross:false,currency:from,amountMinor:providerAmountMinor};
+      }
+      const side=form.dataset.operation==='cash_out'?'buy':'sell',valid=[];
+      for(const option of fxRate?.options||[]){
+        if(!option.value)continue;
+        const match=option.dataset.from===from&&option.dataset.to===to&&option.dataset.side===side&&
+          Number.isFinite(Date.parse(option.dataset.expires||''))&&Date.parse(option.dataset.expires)>Date.now();
+        option.disabled=!match;option.hidden=!match;
+        if(match)valid.push(option);
+      }
+      if(!valid.some(option=>option.value===fxRate.value))fxRate.value=valid.length===1?valid[0].value:'';
+      const rate=fxRate?.selectedOptions?.[0]?.dataset.rate||'';
+      settlementCurrency?.setCustomValidity(!rate?'The Tenant Owner must approve a '+side.toUpperCase()+' '+from+' → '+to+' rate before this cash settlement.':'');
+      if(!rate||providerAmountMinor===null||providerAmountMinor<=0n){
+        if(settlementAmount)settlementAmount.value='';
+        return {cross:true,currency:to,amountMinor:null};
+      }
+      const [whole,frac='']=rate.split('.');
+      if(!/^(?:0|[1-9]\\d{0,9})$/.test(whole)||!/^(?:\\d{1,8})?$/.test(frac)){
+        if(settlementAmount)settlementAmount.value='';
+        settlementCurrency?.setCustomValidity('Invalid approved exchange rate; contact the Tenant Owner.');
+        return {cross:true,currency:to,amountMinor:null};
+      }
+      const scale=10n**8n,fromScale=from==='UGX'?1n:100n,toScale=to==='UGX'?1n:100n;
+      const scaled=BigInt(whole)*scale+BigInt(frac.padEnd(8,'0')||'0');
+      const denom=scale*fromScale;
+      const amountMinor=(providerAmountMinor*scaled*toScale+denom/2n)/denom;
+      const digits=to==='UGX'?0:2,base=10n**BigInt(digits);
+      if(settlementAmount)settlementAmount.value=(amountMinor/base).toString()+(digits?'.'+(amountMinor%base).toString().padStart(digits,'0'):'');
+      return {cross:true,currency:to,amountMinor};
+    };
     const updateTotal = () => {
       const currency=selectedCurrency(),decimals=currency==='UGX'?0:2;
       form.dataset.currency=currency;form.dataset.currencyLabel=currency==='KES'?'KSH':currency;
       const pattern=decimals?'[0-9]{1,11}([.][0-9]{1,2})?':'[0-9]{1,11}';amount.pattern=pattern;fee.pattern=pattern;
       const amountMinor = toMinor(amount.value,decimals), feeMinor = toMinor(fee.value,decimals);
+      const settlement=syncSettlement(amountMinor);
+      const providerTotal=form.querySelector('[data-mobile-provider-total]');
+      if(providerTotal)providerTotal.textContent=amountMinor!==null&&amountMinor>0n?
+        (currency==='KES'?'KSH':currency)+' '+(Number(amountMinor)/10**decimals).toLocaleString('en-US',{minimumFractionDigits:decimals,maximumFractionDigits:decimals}):'—';
       fee.setCustomValidity(amountMinor !== null && feeMinor !== null && feeMinor > amountMinor ? 'Fee / commission cannot exceed the amount.' : '');
       const total = form.querySelector('[data-mobile-total]');
       if (!total) return;
@@ -187,11 +244,17 @@
       if (amountMinor === null || amountMinor <= 0n || feeMinor === null || feeMinor > amountMinor) { total.textContent = '—'; return; }
       const collected=(form.elements.namedItem('feeTreatment')?.value||form.querySelector('[data-wallet-account]')?.selectedOptions[0]?.dataset.feeTreatment)==='payment_collected';
       const totalMinor = amountMinor + (collected?(form.dataset.operation === 'cash_in' ? feeMinor : -feeMinor):0n);
-      total.textContent = (form.dataset.currencyLabel || currency) + ' ' + (Number(totalMinor) / 10 ** decimals).toLocaleString('en-US', {minimumFractionDigits:decimals, maximumFractionDigits:decimals});
+      const cashCurrency=settlement.cross?settlement.currency:currency;
+      const cashDigits=cashCurrency==='UGX'?0:2;
+      const physical=settlement.cross?settlement.amountMinor:totalMinor;
+      total.textContent=physical===null?'—':(cashCurrency==='KES'?'KSH':cashCurrency)+' '+
+        (Number(physical)/10**cashDigits).toLocaleString('en-US',{minimumFractionDigits:cashDigits,maximumFractionDigits:cashDigits});
     };
     amount.addEventListener('input', updateTotal);
     fee.addEventListener('input', updateTotal);
     currencyControl?.addEventListener('change',updateTotal);
+    settlementCurrency?.addEventListener('change',updateTotal);
+    fxRate?.addEventListener('change',updateTotal);
     form.addEventListener('reset',()=>queueMicrotask(updateTotal));
     form.querySelectorAll('[data-mobile-operation]').forEach(tab => tab.addEventListener('click', event => {
       if (!onOperationChange) return; // Real page links remain usable without a dialog.
@@ -223,6 +286,75 @@
     const scale=code==='UGX'?0:2,factor=10n**BigInt(scale),n=amount<0n?-amount:amount;
     return `${code==='KES'?'KSH':code} ${amount<0n?'-':''}${(n/factor).toString().replace(/\B(?=(\d{3})+(?!\d))/g,',')}${scale?'.'+(n%factor).toString().padStart(scale,'0'):''}`;
   };
+  // SMS captures contain the provider-side amount only; cash denomination
+  // and the actual exchange settlement must be confirmed explicitly.
+  const initialiseSmsSettlement=root=>{
+    const form=root.closest('form');if(!form)return;
+    const provider=form.elements.namedItem('currency');
+    const cash=form.elements.namedItem('settlementCurrency');
+    const amount=form.elements.namedItem('amount');
+    const operation=form.elements.namedItem('operation');
+    const rate=form.elements.namedItem('forexRateId');
+    const cashAmount=form.elements.namedItem('settlementAmount');
+    const rateField=root.querySelector('[data-sms-fx-rate-field]');
+    const cashField=root.querySelector('[data-sms-fx-amount-field]');
+    const preview=root.querySelector('[data-sms-cash-preview]');
+    const providerPreview=root.querySelector('[data-sms-provider-preview]');
+    const format=(minor,code)=>minor===null?'—':operationAmount(minor,code);
+    const sync=()=>{
+      const from=provider?.value||'',to=cash?.value||'',cross=Boolean(from&&to&&from!==to);
+      const numeric=String(amount?.value||'').match(/^(?:0|[1-9]\\d{0,10})(?:\\.\\d{1,2})?$/);
+      const decimal=from==='UGX'?0:2;
+      const minor=numeric?operationMinor(amount.value,decimal):null;
+      if(providerPreview)providerPreview.textContent=format(minor,from);
+      if(rateField)rateField.hidden=!cross;
+      if(cashField)cashField.hidden=!cross;
+      if(rate)rate.disabled=!cross;
+      if(cashAmount)cashAmount.disabled=!cross;
+      if(!cross){
+        if(rate)rate.value='';
+        if(cashAmount)cashAmount.value='';
+        if(preview)preview.textContent=format(minor,from);
+        cash?.setCustomValidity('');
+        return;
+      }
+      const side=operation?.value==='cash_out'?'buy':operation?.value==='cash_in'?'sell':null;
+      const options=[];
+      for(const o of rate?.options||[]){
+        if(!o.value)continue;
+        const valid=o.dataset.from===from&&o.dataset.to===to&&o.dataset.side===side&&Date.parse(o.dataset.expires)>Date.now();
+        o.hidden=!valid;o.disabled=!valid;
+        if(valid)options.push(o);
+      }
+      if(!options.some(o=>o.value===rate.value))rate.value=options.length===1?options[0].value:'';
+      const price=rate?.selectedOptions?.[0]?.dataset.rate||'';
+      if(!price||minor===null||minor<=0n){
+        if(cashAmount)cashAmount.value='';
+        if(preview)preview.textContent='—';
+        cash?.setCustomValidity('A valid approved exchange rate and positive provider amount are required before recording cash in another currency.');
+        return;
+      }
+      const [whole,frac='']=price.split('.');
+      if(!/^(?:0|[1-9]\\d{0,9})$/.test(whole)||!/^(?:\\d{1,8})?$/.test(frac)){
+        cash?.setCustomValidity('Approved exchange rate is invalid. Ask the owner to revise it.');
+        if(cashAmount)cashAmount.value='';
+        if(preview)preview.textContent='—';
+        return;
+      }
+      const scale=10n**8n,denom=scale*(from==='UGX'?1n:100n),targetScale=to==='UGX'?1n:100n;
+      const scaled=BigInt(whole)*scale+BigInt(frac.padEnd(8,'0')||'0');
+      const cashMinor=(minor*scaled*targetScale+denom/2n)/denom;
+      const digits=to==='UGX'?0:2,base=10n**BigInt(digits);
+      if(cashAmount)cashAmount.value=(cashMinor/base).toString()+(digits?'.'+(cashMinor%base).toString().padStart(digits,'0'):'');
+      if(preview)preview.textContent=format(cashMinor,to);
+      cash?.setCustomValidity('');
+    };
+    for(const el of [provider,cash,amount,operation,rate]){
+      el?.addEventListener('change',sync);el?.addEventListener('input',sync);
+    }
+    sync();
+  };
+  document.querySelectorAll('[data-sms-settlement]').forEach(initialiseSmsSettlement);
   const mobileFundsBindings=new WeakSet();
   const initialiseMobileFunds=form=>{
     if(!form?.matches('[data-mobile-money-form]')||mobileFundsBindings.has(form))return;
@@ -230,13 +362,15 @@
     if(!wallet)return;mobileFundsBindings.add(form);
     const network=form.elements.namedItem('network'),method=form.elements.namedItem('paymentMethod'),amount=form.elements.namedItem('amount'),fee=form.elements.namedItem('fee'),currencyControl=form.elements.namedItem('currency');
     const selectedCurrency=()=>currencyControl?.value||form.dataset.currency;
+    const cashCurrencyControl=form.elements.namedItem('settlementCurrency');
+    const selectedCashCurrency=()=>cashCurrencyControl?.value||selectedCurrency();
     const parse=value=>{
       const scale=selectedCurrency()==='UGX'?0:2;
       const match=String(value||'').match(/^(\d{1,11})(?:\.(\d{1,2}))?$/);if(!match||(match[2]||'').length>scale)return null;
       return BigInt(match[1])*10n**BigInt(scale)+BigInt((match[2]||'').padEnd(scale,'0')||'0');
     };
     const refresh=()=>{
-      const currency=selectedCurrency(),current=wallet.value,available=[];
+      const currency=selectedCurrency(),cashCurrency=selectedCashCurrency(),crossCurrency=cashCurrency!==currency,current=wallet.value,available=[];
       for(const option of wallet.options){if(!option.value)continue;const visible=option.dataset.network===network.value&&option.dataset.currency===currency;option.hidden=!visible;option.disabled=!visible||option.dataset.state!=='active'||option.dataset.reconciliation!=='matched'||!/^\d{1,34}$/.test(option.dataset.expectedMinor||'');if(!option.disabled)available.push(option);}
       if(!available.some(option=>option.value===current)){
         const own=available.filter(option=>option.dataset.assigned==='true'),eligible=own.length?own:available,defaults=eligible.filter(option=>option.dataset.default==='true');
@@ -253,27 +387,32 @@
         for(const option of payment.options){
           if(!option.value)continue;
           const eligible=option.dataset.method==='Cash'&&option.dataset.assigned==='true'&&
-            option.dataset.currency===currency&&option.dataset.state==='active'&&
+            option.dataset.currency===cashCurrency&&option.dataset.state==='active'&&
             option.dataset.reconciliation==='matched'&&option.dataset.opened==='true';
           option.disabled=!eligible;option.hidden=!eligible;
           if(eligible)validAccounts.push(option);
         }
         const configuredDrawer=wallet.selectedOptions?.[0]?.dataset.cashDrawer||'';
+        const effectiveDrawer=crossCurrency?'':configuredDrawer;
         // Never allow the teller to choose a cash drawer. Server independently
         // recomputes the mapping, checks branch, operator, approval and shift.
-        const mapped=configuredDrawer?validAccounts.filter(option=>option.value===configuredDrawer):[];
-        const resolved=configuredDrawer?
-          (mapped.length===1?mapped[0]:null):
-          (validAccounts.length===1?validAccounts[0]:null);
+        const mapped=effectiveDrawer?validAccounts.filter(option=>option.value===configuredDrawer):[];
+        const previous=validAccounts.find(option=>option.value===payment.value);
+        const resolved=crossCurrency?
+          (previous||(validAccounts.length===1?validAccounts[0]:null)):
+          (effectiveDrawer?(mapped.length===1?mapped[0]:null):(validAccounts.length===1?validAccounts[0]:null));
         payment.value=resolved?.value||'';
-        payment.disabled=!resolved;
-        payment.required=false;
+        payment.disabled=!crossCurrency&&!resolved;
+        payment.required=crossCurrency&&validAccounts.length>1;
         paymentField.hidden=true;
+        if(crossCurrency&&validAccounts.length>1)paymentField.hidden=false;
         const notice=form.querySelector('[data-momo-account-notice]');
         const problem=wallet.value&&!resolved?
           (validAccounts.length===0?
-            'No approved cash drawer belongs to this login. Sign in as the operator assigned to the physical drawer and verified cash shift; do not create another drawer.':
-            configuredDrawer?
+            'No approved '+cashCurrency+' cash drawer belongs to this login. Sign in as the operator assigned to the physical drawer and verified cash shift; do not create a duplicate cash drawer.':
+            crossCurrency?
+              'Choose the actual '+cashCurrency+' drawer used for this cash settlement.':
+            effectiveDrawer?
               'This wallet is linked to a drawer that is unavailable to this operator. The Tenant Owner should check the account mapping.':
               'More than one approved drawer is available. The Tenant Owner must link this wallet to the correct physical drawer once in Treasury.'):'';
         wallet.setCustomValidity(problem);
@@ -282,7 +421,7 @@
       const chosenCash=payment?.value||'';
       const chosenWallet=wallet.value||'';
       for(const stat of form.querySelectorAll('[data-balance-kind]')){
-        stat.hidden=stat.dataset.balanceCurrency!==currency||
+        stat.hidden=stat.dataset.balanceCurrency!==(stat.dataset.balanceKind==='cash'?cashCurrency:currency)||
           (stat.dataset.balanceKind==='wallet'&&stat.dataset.balanceAccount!==chosenWallet)||
           (stat.dataset.balanceKind==='cash'&&stat.dataset.balanceAccount!==chosenCash);
       }
@@ -295,10 +434,21 @@
       const after=before!==null&&value!==null&&charge!==null?before+(form.dataset.operation==='cash_in'?-value:value)+(treatment==='wallet_commission'?charge:0n):null;
       amount.setCustomValidity(value!==null&&value<=0n?'Enter an amount greater than zero.':after!==null&&after<0n?'The selected wallet has insufficient funds.':'');
       const label=form.querySelector('[data-mobile-total-label]');if(label)label.textContent=form.dataset.operation==='cash_out'?'Total customer receives':'Total customer pays';
-      const total=form.querySelector('[data-mobile-total]');if(total)total.textContent=value!==null&&value>0n&&charge!==null&&charge<=value?operationAmount(value+(treatment==='payment_collected'?(form.dataset.operation==='cash_in'?charge:-charge):0n),currency):'—';
+      const cashCurrency=selectedCashCurrency(),cross=cashCurrency!==currency;
+      const cashText=form.elements.namedItem('settlementAmount')?.value||'';
+      const cashScale=cashCurrency==='UGX'?0:2;
+      const cashMatch=cashText.match(/^(\\d+)(?:\\.(\\d{1,2}))?$/);
+      const cashMinor=cross&&cashMatch&&(!cashMatch[2]||cashMatch[2].length<=cashScale)?
+        BigInt(cashMatch[1])*10n**BigInt(cashScale)+BigInt((cashMatch[2]||'').padEnd(cashScale,'0')||'0'):null;
+      const total=form.querySelector('[data-mobile-total]');
+      if(total)total.textContent=cross?
+        (cashMinor!==null?operationAmount(cashMinor,cashCurrency):'—'):
+        (value!==null&&value>0n&&charge!==null&&charge<=value?
+          operationAmount(value+(treatment==='payment_collected'?(form.dataset.operation==='cash_in'?charge:-charge):0n),currency):'—');
     };
     network.addEventListener('change',()=>{refresh();update();});method.addEventListener('change',()=>{refresh();update();});
     currencyControl?.addEventListener('change',()=>{refresh();update();});
+    cashCurrencyControl?.addEventListener('change',()=>{refresh();update();});
     form.addEventListener('input',update);form.addEventListener('change',update);form.addEventListener('reset',()=>queueMicrotask(()=>{refresh();update();}));
     refresh();update();
   };

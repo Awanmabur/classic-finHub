@@ -13,7 +13,12 @@
     <p><b>Customer phone:</b> <%= data.record.customerPhone || 'Not provided' %></p>
     <p><b>Customer ID / note:</b> <%= data.record.customerNote || 'Not provided' %></p>
     <p><b>Payment method:</b> <%= data.record.paymentMethod || 'Cash' %></p>
-    <p><b>Amount:</b> <%= money(data.record.currency,amountFromMinor(data.record.amountMinor,data.record.currency)) %></p>
+    <p><b>Provider electronic float (<%= data.record.currency %>):</b> <%= money(data.record.currency,amountFromMinor(data.record.amountMinor,data.record.currency)) %></p>
+    <p><b>Physical cash <%= data.record.operation==='cash_in'?'received':'paid' %> (<%= data.record.settlementCurrency||data.record.currency %>):</b>
+      <%= money(data.record.settlementCurrency||data.record.currency,amountFromMinor(data.record.settlementAmountMinor??data.record.amountMinor,data.record.settlementCurrency||data.record.currency)) %></p>
+    <% if(data.record.crossCurrency){ %>
+    <p><b>Approved rate snapshot:</b> <%= data.record.forexSide||'—' %> · 1 <%= data.record.currency %> = <%= data.record.forexRateDecimal||'—' %> <%= data.record.settlementCurrency %></p>
+    <% } %>
     <p><b><%= data.record.feeTreatment==='payment_collected'?'Customer fee collected':data.record.feeTreatment==='wallet_commission'?'Wallet commission recorded':'Recorded fee (not confirmed as income)' %>:</b> <%= money(data.record.currency,amountFromMinor(data.record.feeMinor,data.record.currency)) %></p>
     <p><b>Recorded (<%= detailZone %>):</b> <%= detailLocalDate(data.record.createdAt) %></p>
     <% if(['accepted','disputed'].includes(data.record.reviewState)){ %><p><b>Historical review outcome:</b> <%= data.record.reviewState.replaceAll('_',' ') %></p><% } %>

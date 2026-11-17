@@ -301,6 +301,9 @@ async function postingAuthorization(conn,session,authorization,value,internal={}
 async function applyMovements(conn,session,authorization,input,internal={}){
  if(!session?.inTransaction())throw fail('Funds movements must share the business transaction',409);
  const value=normalizeMovement(input),current=await postingAuthorization(conn,session,authorization,value,internal),fingerprint=stableHash({...value,actorId:current.actor.id,reversesBatchId:internal.reversesBatchId?String(internal.reversesBatchId):null});
+ const crossCurrencyMobileMoney=internal.crossCurrencyMobileMoney===true;
+ if(crossCurrencyMobileMoney&&(value.sourceType!=='mobile_money'||value.legs.length!==2||value.ledgerLines.length||!/^MM:[0-9a-f-]{36}$/i.test(value.sourceRef)))
+  throw fail('Cross-currency Mobile Money requires one linked wallet and cash movement with no unverified fee lines',409);
  const {batch:Batch,movement:Movement,account:Account}=models(conn),prior=await Batch.findOne({sourceType:value.sourceType,sourceRef:value.sourceRef}).session(session).lean();
  if(prior){if(prior.fingerprint!==fingerprint||String(prior.tenantId)!==String(current.tenant._id))throw fail('Funds source reference reused with different movement details',409);return {batch:prior,movements:await Movement.find({batchId:prior._id}).session(session).lean(),journalIds:prior.journalIds,duplicate:true};}
  const occurredAt=value.occurredAt?new Date(value.occurredAt):new Date(),batchId=new mongoose.Types.ObjectId(),accounts=new Map(),updates=[],linesByCurrency=new Map();
@@ -328,6 +331,12 @@ async function applyMovements(conn,session,authorization,input,internal={}){
   const chart=await core.ledgerAccountModel(conn).findOne({_id:account.ledgerAccountId,branchId:value.branchId,currency:account.currency,code:account.ledgerCode}).session(session).lean();if(!chart||chart.category!==(account.kind==='transfer_clearing'?'liability':'asset'))throw fail('Funds account ledger mapping is invalid',503);
   accounts.set(String(account._id),account);updates.push({account:changed,delta,balanceAfter:after});addLine(account.currency,account.ledgerCode,delta>0n?normalSide(account.kind):opposite(normalSide(account.kind)),delta<0n?-delta:delta);
  }
+ if(crossCurrencyMobileMoney){
+  const selected=[...accounts.values()];
+  const kinds=selected.map(account=>account.kind).sort();
+  if(kinds.join(',')!=='cash,wallet'||selected[0].currency===selected[1].currency)
+   throw fail('A cross-currency Mobile Money settlement requires a provider wallet and an actual cash drawer in different currencies',409);
+ }
  const fundLedgerIds=new Set([...accounts.values()].map(account=>String(account.ledgerAccountId)));
  for(const line of value.ledgerLines){if(!current.historicalCorrection)require('../services/branchCurrency.service').resolve(current.operatingBranch,line.currency);if(fundLedgerIds.has(line.accountId))throw fail('A fund account cannot be supplied again as a counterparty ledger line');const chart=await core.ledgerAccountModel(conn).findOne({_id:line.accountId,branchId:value.branchId,currency:line.currency}).session(session).lean();if(!chart)throw fail('Counterparty ledger account belongs to a different branch or currency',409);addLine(line.currency,chart.code,line.side,BigInt(line.amountMinor));}
  const journalIds=[],journalByCurrency=new Map();
@@ -335,7 +344,7 @@ async function applyMovements(conn,session,authorization,input,internal={}){
   const grouped=new Map();for(const line of raw){const amount=BigInt(line.amountMinor)*(line.side==='debit'?1n:-1n);grouped.set(line.accountCode,(grouped.get(line.accountCode)||0n)+amount);}
   let lines=[...grouped].filter(([,amount])=>amount!==0n).map(([accountCode,amount])=>({accountCode,side:amount>0n?'debit':'credit',amountMinor:String(amount<0n?-amount:amount)}));
   const net=lines.reduce((sum,line)=>sum+BigInt(line.amountMinor)*(line.side==='debit'?1n:-1n),0n);
-  if(net!==0n){if(value.sourceType!=='forex'&&!internal.allowSuspense)throw fail('Funds and counterparty lines must balance exactly in each currency');const counter=await ensureCounterAccount(conn,session,{tenantId:current.tenant._id,branchId:value.branchId,currency,purpose:internal.allowSuspense?'reconciliation_suspense':'settlement_clearing',actorId:current.actor.id});lines.push({accountCode:counter.ledgerCode,side:net>0n?'credit':'debit',amountMinor:String(net<0n?-net:net)});}
+  if(net!==0n){if(value.sourceType!=='forex'&&!crossCurrencyMobileMoney&&!internal.allowSuspense)throw fail('Funds and counterparty lines must balance exactly in each currency');const counter=await ensureCounterAccount(conn,session,{tenantId:current.tenant._id,branchId:value.branchId,currency,purpose:internal.allowSuspense?'reconciliation_suspense':'settlement_clearing',actorId:current.actor.id});lines.push({accountCode:counter.ledgerCode,side:net>0n?'credit':'debit',amountMinor:String(net<0n?-net:net)});}
   if(!lines.length)continue;
   const journal=current.branchTransfer?await ledger.writeBranchTransferJournalInSession(conn,{branchId:value.branchId,currency,sourceRef:`BRANCH:${internal.branchTransferExecutionId}:ORIGIN`,lines,actorId:current.actor.id,sourceType:'treasury'},session,internal.branchTransferExecutionId,current.tenant,current.actor):await writeTreasuryJournal(conn,session,current,{branchId:value.branchId,currency,sourceRef:`TRS:${batchId}:${currency}`,lines});journalIds.push(journal._id);journalByCurrency.set(currency,journal._id);
  }

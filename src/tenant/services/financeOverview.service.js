@@ -151,7 +151,8 @@ async function moduleOverview(conn,tenant,user,branch,period={}){
  try{
   return await overview(conn,tenant,user,{
    operationBranch:branch,timeZone:period.timeZone||businessTime.forBranch(branch),
-   from:period.from,to:period.to
+   from:period.from,to:period.to,
+   viewBranchId:period.viewBranchId,viewBranch:period.viewBranch
   });
  }catch(error){
   console.warn(JSON.stringify({event:'finance.module_overview_unavailable',code:String(error.code||error.name||'UNKNOWN').slice(0,80)}));

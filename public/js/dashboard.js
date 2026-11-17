@@ -286,6 +286,75 @@
     const scale=code==='UGX'?0:2,factor=10n**BigInt(scale),n=amount<0n?-amount:amount;
     return `${code==='KES'?'KSH':code} ${amount<0n?'-':''}${(n/factor).toString().replace(/\B(?=(\d{3})+(?!\d))/g,',')}${scale?'.'+(n%factor).toString().padStart(scale,'0'):''}`;
   };
+  // SMS captures contain the provider-side amount only; cash denomination
+  // and the actual exchange settlement must be confirmed explicitly.
+  const initialiseSmsSettlement=root=>{
+    const form=root.closest('form');if(!form)return;
+    const provider=form.elements.namedItem('currency');
+    const cash=form.elements.namedItem('settlementCurrency');
+    const amount=form.elements.namedItem('amount');
+    const operation=form.elements.namedItem('operation');
+    const rate=form.elements.namedItem('forexRateId');
+    const cashAmount=form.elements.namedItem('settlementAmount');
+    const rateField=root.querySelector('[data-sms-fx-rate-field]');
+    const cashField=root.querySelector('[data-sms-fx-amount-field]');
+    const preview=root.querySelector('[data-sms-cash-preview]');
+    const providerPreview=root.querySelector('[data-sms-provider-preview]');
+    const format=(minor,code)=>minor===null?'—':operationAmount(minor,code);
+    const sync=()=>{
+      const from=provider?.value||'',to=cash?.value||'',cross=Boolean(from&&to&&from!==to);
+      const numeric=String(amount?.value||'').match(/^(?:0|[1-9]\\d{0,10})(?:\\.\\d{1,2})?$/);
+      const decimal=from==='UGX'?0:2;
+      const minor=numeric?operationMinor(amount.value,decimal):null;
+      if(providerPreview)providerPreview.textContent=format(minor,from);
+      if(rateField)rateField.hidden=!cross;
+      if(cashField)cashField.hidden=!cross;
+      if(rate)rate.disabled=!cross;
+      if(cashAmount)cashAmount.disabled=!cross;
+      if(!cross){
+        if(rate)rate.value='';
+        if(cashAmount)cashAmount.value='';
+        if(preview)preview.textContent=format(minor,from);
+        cash?.setCustomValidity('');
+        return;
+      }
+      const side=operation?.value==='cash_out'?'buy':operation?.value==='cash_in'?'sell':null;
+      const options=[];
+      for(const o of rate?.options||[]){
+        if(!o.value)continue;
+        const valid=o.dataset.from===from&&o.dataset.to===to&&o.dataset.side===side&&Date.parse(o.dataset.expires)>Date.now();
+        o.hidden=!valid;o.disabled=!valid;
+        if(valid)options.push(o);
+      }
+      if(!options.some(o=>o.value===rate.value))rate.value=options.length===1?options[0].value:'';
+      const price=rate?.selectedOptions?.[0]?.dataset.rate||'';
+      if(!price||minor===null||minor<=0n){
+        if(cashAmount)cashAmount.value='';
+        if(preview)preview.textContent='—';
+        cash?.setCustomValidity('A valid approved exchange rate and positive provider amount are required before recording cash in another currency.');
+        return;
+      }
+      const [whole,frac='']=price.split('.');
+      if(!/^(?:0|[1-9]\\d{0,9})$/.test(whole)||!/^(?:\\d{1,8})?$/.test(frac)){
+        cash?.setCustomValidity('Approved exchange rate is invalid. Ask the owner to revise it.');
+        if(cashAmount)cashAmount.value='';
+        if(preview)preview.textContent='—';
+        return;
+      }
+      const scale=10n**8n,denom=scale*(from==='UGX'?1n:100n),targetScale=to==='UGX'?1n:100n;
+      const scaled=BigInt(whole)*scale+BigInt(frac.padEnd(8,'0')||'0');
+      const cashMinor=(minor*scaled*targetScale+denom/2n)/denom;
+      const digits=to==='UGX'?0:2,base=10n**BigInt(digits);
+      if(cashAmount)cashAmount.value=(cashMinor/base).toString()+(digits?'.'+(cashMinor%base).toString().padStart(digits,'0'):'');
+      if(preview)preview.textContent=format(cashMinor,to);
+      cash?.setCustomValidity('');
+    };
+    for(const el of [provider,cash,amount,operation,rate]){
+      el?.addEventListener('change',sync);el?.addEventListener('input',sync);
+    }
+    sync();
+  };
+  document.querySelectorAll('[data-sms-settlement]').forEach(initialiseSmsSettlement);
   const mobileFundsBindings=new WeakSet();
   const initialiseMobileFunds=form=>{
     if(!form?.matches('[data-mobile-money-form]')||mobileFundsBindings.has(form))return;

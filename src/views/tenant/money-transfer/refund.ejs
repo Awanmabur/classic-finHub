@@ -35,6 +35,7 @@
  <div class="sumRow"><span>Amount, original sender currency</span><b><%= refund.amount %></b></div>
  <div class="sumRow"><span>Reason</span><b><%= refund.reason %></b></div>
  <% if(refund.reviewNote){ %><div class="sumRow"><span>Independent review</span><b><%= refund.reviewNote %></b></div><% } %>
+ <% if(refund.status==='posted_refund'){ %><div class="sumRow"><span>Signed sender cash receipt</span><b><%= refund.signedReceiptReference||'Receipt reference unavailable — investigate' %></b></div><div class="sumRow"><span>Compensation entry</span><b><%= refund.compensationBatch||'Missing Treasury batch — investigate' %></b></div><% } %>
  </div>
  <% if(data.canReview&&refund.status==='pending_review'&&String(refund.requestedBy)!==String(user.id)){ %>
  <form method="post" action="/tenant/money-transfer/<%= data.order._id %>/refund/<%= refund.id %>/review" style="margin:12px 0">

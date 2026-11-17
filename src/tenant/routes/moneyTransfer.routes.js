@@ -33,6 +33,7 @@ function routes({renderTenant}){
      currencyChoices:require('../services/branchCurrency.service').options(req.operationBranch),selectedCurrency:req.operationBranch?require('../services/branchCurrency.service').resolve(req.operationBranch,req.query.currency):null,
     records,queue,destinationBranches:(await branchService.list(req.tenant)).filter(branch=>branch.status==='active'&&String(branch._id)!==branchId),branches:availableBranches,selectedBranchId:selected?branchId:null,countryOptions:require('../../utils/selectionOptions').countryOptions(),
     canCreate:writeRoles.has(req.user.role)&&hasPermission(req.user,'money_transfer.create'),
+    canFx:require('../services/moduleAccess.service').hasModuleForUser(req.tenant,req.user,'forex')&&hasPermission(req.user,'forex.quotes.create'),
     canReview:reviewerRoles.has(req.user.role)&&hasPermission(req.user,'money_transfer.review'),
     idempotencyKey:crypto.randomUUID(),formatMoneyMinor
    });

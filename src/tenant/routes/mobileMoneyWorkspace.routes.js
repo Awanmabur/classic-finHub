@@ -74,13 +74,19 @@ module.exports=function routes({renderTenant}){
     return res.status(403).send('Cross-currency reporting access is required');
    const scope={tenantId:req.tenant._id,branchId:req.operationBranch._id};
    if(!['Tenant Owner','Branch Manager','Reconciliation Officer','Auditor'].includes(req.user.role))
-    scope.actorId=req.user.id;
-   const records=await require('../schemas/MomoFxSettlement').records(req.tenantDb)
-    .find(scope).sort({settledAt:-1,_id:-1}).limit(100).lean();
+    scope.actorId=new (require('mongoose').Types.ObjectId)(String(req.user.id));
+   const FxRecords=require('../schemas/MomoFxSettlement').records(req.tenantDb);
+   const [records,summary]=await Promise.all([
+    FxRecords.find(scope).sort({settledAt:-1,_id:-1}).limit(100).lean(),
+    FxRecords.aggregate([{$match:scope},{$group:{
+     _id:{network:'$network',operation:'$operation',providerCurrency:'$providerCurrency',cashCurrency:'$cashCurrency'},
+     count:{$sum:1},providerMinor:{$sum:'$providerAmountMinor'},cashMinor:{$sum:'$cashAmountMinor'}
+    }},{$sort:{'_id.network':1,'_id.providerCurrency':1,'_id.cashCurrency':1}}])
+   ]);
    res.set('Cache-Control','private, no-store');
    renderTenant(req,res,'mobile-money/fx-history','Cross-currency history',
      'Immutable completed cross-currency operations; each pair of native-currency journals belongs to one customer operation.',
-     {records,formatMoneyMinor:require('../services/mobileMoney.service').formatMoneyMinor});
+     {records,summary,formatMoneyMinor:require('../services/mobileMoney.service').formatMoneyMinor});
   }catch(e){next(e);}
  });
  router.get('/fx',async(req,res,next)=>{

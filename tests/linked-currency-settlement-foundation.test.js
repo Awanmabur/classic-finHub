@@ -119,3 +119,31 @@ test('staged transfer returns two unposted events in independent branches',()=>{
  assert.equal(stages[1].currency,'UGX');
  assert.notEqual(stages[0].branchId,stages[1].branchId);
 });
+
+test('acquisition adds foreign float cost, rather than recognizing principal as income',()=>{
+ const bought=planner.weightedAverageAcquisition({holdingMinor:'0',acquisitionCostFunctionalMinor:'0',
+  acquiredMinor:'100000',paidFunctionalMinor:'9000000'});
+ assert.equal(bought.holdingMinor,'100000');
+ assert.equal(bought.costFunctionalMinor,'9000000');
+ assert.equal(bought.grossProfitNotRecognized,true);
+ const sold=planner.weightedAverageDisposal({holdingMinor:bought.holdingMinor,
+  acquisitionCostFunctionalMinor:bought.costFunctionalMinor,
+  disposedMinor:'100000',proceedsFunctionalMinor:'11000000'});
+ assert.equal(sold.grossRealizedResultFunctionalMinor,'2000000');
+ assert.throws(()=>planner.weightedAverageAcquisition({holdingMinor:'1000',acquisitionCostFunctionalMinor:'0',
+  acquiredMinor:'1000',paidFunctionalMinor:'5000'}),/opening acquisition cost/);
+});
+test('correction journal reverses exact native currency lines without editing the original',()=>{
+ const j=require('../src/tenant/settlements/journalPlan');
+ const plan=planner.quote({channel:'mobile_money',operation:'cash_out',branchId:b,
+  providerCurrency:'UGX',cashCurrency:'SSP',providerPrincipalMinor:'100000',
+  walletAccountId:e,cashAccountId:f,rate:rate('buy','0.9')});
+ const original=j.linesForMoMo(plan),reversed=j.reversalEntries(original);
+ assert.equal(j.assertBalanced(reversed),true);
+ for(let i=0;i<original.length;i++){
+  assert.equal(reversed[i].amountMinor,original[i].amountMinor);
+  assert.notEqual(reversed[i].side,original[i].side);
+  assert.equal(reversed[i].currency,original[i].currency);
+ }
+ assert.equal(original[0].side,'debit');
+});

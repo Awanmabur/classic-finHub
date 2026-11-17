@@ -51,6 +51,23 @@ module.exports=function routes({renderTenant}){
     recordPath:hasPermission(req.user,'mobile_money.cash_in')?'/tenant/mobile-money/cash-in':'/tenant/mobile-money/cash-out'});
   }catch(error){next(error);}
  }
+ router.get('/fx/history',async(req,res,next)=>{
+  try{
+   if(!req.operationBranch||!hasPermission(req.user,'treasury.view')||
+      !hasPermission(req.user,'forex.view')||
+      !require('../services/moduleAccess.service').hasModuleForUser(req.tenant,req.user,'forex'))
+    return res.status(403).send('Cross-currency reporting access is required');
+   const scope={tenantId:req.tenant._id,branchId:req.operationBranch._id};
+   if(!['Tenant Owner','Branch Manager','Reconciliation Officer','Auditor'].includes(req.user.role))
+    scope.actorId=req.user.id;
+   const records=await require('../schemas/MomoFxSettlement').records(req.tenantDb)
+    .find(scope).sort({settledAt:-1,_id:-1}).limit(100).lean();
+   res.set('Cache-Control','private, no-store');
+   renderTenant(req,res,'mobile-money/fx-history','Cross-currency history',
+     'Immutable completed cross-currency operations; each pair of native-currency journals belongs to one customer operation.',
+     {records,formatMoneyMinor:require('../services/mobileMoney.service').formatMoneyMinor});
+  }catch(e){next(e);}
+ });
  router.get('/fx',async(req,res,next)=>{
   try{
    if(!req.operationBranch)return res.status(409).send('Select an operating branch');

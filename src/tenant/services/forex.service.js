@@ -106,7 +106,11 @@ async function decideRate(conn,tenant,actor,rateId,input){
  try{await session.withTransaction(async()=>{
   const authorization=await financialAuth.fenceAction(conn,session,actor,tenant,'forex','forex.rate_review');
   const Rate=forexRateModel(conn);
-  const current=await Rate.findOne({_id:id(rateId),status:'pending_review',proposedBy:{$ne:id(actor.id)},expiresAt:{$gt:new Date()},...branchScope(actor)}).session(session);
+  // An authorized Tenant Owner may activate their own operational rate;
+  // staff-proposed rates still need an independent authorized reviewer.
+  const current=await Rate.findOne({_id:id(rateId),status:'pending_review',
+   ...(actor.role==='Tenant Owner'?{}:{proposedBy:{$ne:id(actor.id)}}),
+   expiresAt:{$gt:new Date()},...branchScope(actor)}).session(session);
   if(!current)throw fail('Rate expired, already reviewed, outside your branch, or proposed by you',409);
   if(decision==='approve'){
    const branch=await branchModel(conn).findOneAndUpdate({_id:current.branchId,status:'active'},{$inc:{revision:1}},{session,new:true});
@@ -228,7 +232,9 @@ async function listRates(conn,tenant,actor,{status=null,branchId=null}={}){
 }
 async function rateReviewQueue(conn,tenant,actor){
  moduleAccess(tenant,actor,'forex.rate_review');if(!reviewer(actor))throw fail('Independent reviewer required',403);
- return forexRateModel(conn).find({status:'pending_review',proposedBy:{$ne:id(actor.id)},expiresAt:{$gt:new Date()},...branchScope(actor)}).sort({createdAt:1}).limit(30).lean();
+ return forexRateModel(conn).find({status:'pending_review',
+  ...(actor.role==='Tenant Owner'?{}:{proposedBy:{$ne:id(actor.id)}}),
+  expiresAt:{$gt:new Date()},...branchScope(actor)}).sort({createdAt:1}).limit(30).lean();
 }
 async function listQuotes(conn,tenant,actor,{status=null,cursor=null}={}){
  moduleAccess(tenant,actor,'forex.view');

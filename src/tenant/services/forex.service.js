@@ -1,6 +1,6 @@
 'use strict';
-// INTERNAL INDICATIVE RATES AND QUOTATIONS ONLY. No currency is bought,
-// sold, held, delivered, posted to a ledger, or settled in this module.
+// Rates and quotations are immutable trading instructions. Actual physical
+// Forex exchanges post via fundedOperations and the shared Treasury ledger.
 const crypto=require('node:crypto');
 const financialAuth=require('./financialAuthorization.service');
 const mongoose=require('mongoose');

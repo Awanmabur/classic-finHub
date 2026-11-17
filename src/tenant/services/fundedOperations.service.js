@@ -66,7 +66,9 @@ function payoutLookup(input={}){
  return {phone:pin.normalPhone(sender||legacy),version:sender?'sender_v2':'receiver_v1'};
 }
 function transferMessage(source,branch,payoutPin){
- const amount=require('./mobileMoney.service').formatMoneyMinor(source.amountMinor,source.currency);
+ const money=require('./mobileMoney.service').formatMoneyMinor;
+ const amount=money(source.payoutMinor||source.amountMinor,source.payoutCurrency||source.currency);
+ // Payees must see the actual payout currency, not the sender's collection currency.
  // This immutable message is encrypted in its own outbox, never audit metadata.
  return `ClassicFin Hub transfer ${source.reference}. Amount ${amount}. Sender ${source.sender.name}, ${source.sender.phone}. Payout PIN ${payoutPin}. Collect at ${source.destinationBranchName||branch.name} with this PIN, sender phone and your ID. Keep the PIN private. Cash payout requires teller verification.`;
 }

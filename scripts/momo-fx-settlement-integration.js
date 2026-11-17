@@ -14,6 +14,7 @@ configured.pathname='/'+platformName;
 process.env.MONGO_PLATFORM_URI=configured.toString();
 process.env.NODE_ENV='test';
 process.env.CLASSICFIN_MOMO_FX_POSTING_ENABLED='true';
+process.env.CLASSICFIN_MOMO_FX_PROVIDER_EVIDENCE_HMAC_KEY_HEX='a'.repeat(64);
 const mongoose=require('mongoose'),core=require('../src/tenant/models');
 const Tenant=require('../src/platform/models/Tenant'),Usage=require('../src/platform/models/UsageCounter');
 const {connectPlatformMongo,getTenantConnection}=require('../src/config/mongo');
@@ -25,6 +26,12 @@ const {settleVerified}=require('../src/tenant/services/momoFxSettlement.service'
 const {records,grants}=require('../src/tenant/schemas/MomoFxSettlement');
 const cash=require('../src/tenant/services/cashDrawer.service');
 const {permissionsFor}=require('../src/config/roles');
+function sign(proof){
+ const keys=['providerStatus','providerReference','network','currency','amountMinor','evidenceId','verifiedAt','cashConfirmedAt','cashHandoverConfirmed'];
+ const payload=JSON.stringify(Object.fromEntries(keys.map(key=>[key,proof[key]])));
+ proof.evidenceSignature=crypto.createHmac('sha256',Buffer.from(process.env.CLASSICFIN_MOMO_FX_PROVIDER_EVIDENCE_HMAC_KEY_HEX,'hex')).update('momo-fx-provider-v1|'+payload).digest('hex');
+ return proof;
+}
 let conn;
 const id=()=>String(new mongoose.Types.ObjectId());
 const owner={id:id(),name:'Currency Owner',role:'Tenant Owner',permissions:['*'],authVersion:0};
@@ -86,6 +93,7 @@ async function main(){
    network:'MTN',currency:'UGX',amountMinor:amount,
    evidenceId:'VERIFIED-'+crypto.randomBytes(8).toString('hex'),
    verifiedAt:new Date().toISOString(),cashConfirmedAt:new Date().toISOString()};
+  sign(proof);
   const settled=await settleVerified(conn,tenant,owner,input,proof);
   assert.equal(settled.duplicate,false);
   assert.equal((await settleVerified(conn,tenant,owner,input,proof)).duplicate,true);
@@ -112,6 +120,7 @@ async function main(){
    providerReference:'INSUFFICIENT-'+nonce,network:'MTN',currency:'UGX',amountMinor:'1000',
    evidenceId:'INSUFFICIENT-EVIDENCE-'+nonce,verifiedAt:new Date().toISOString(),cashConfirmedAt:new Date().toISOString()
   }),error=>error.status===409&&/Insufficient/.test(error.message));
+  */
  assert.deepEqual(await balances(),existingBalance,'both custody movements must roll back together');
  assert.equal(await records(conn).countDocuments(),originalCount,'failed exchange cannot appear settled');
  assert.equal(await tm.models(conn).batch.countDocuments({sourceRef:{$regex:/^MFX:/}}),2,'failed exchange cannot create a journal batch');

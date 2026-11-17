@@ -76,6 +76,19 @@ test('posting is disabled on deployments until real branch custody checks are ap
  finally{if(old===undefined)delete process.env.CLASSICFIN_INTERBRANCH_CASH_SETTLEMENT;
   else process.env.CLASSICFIN_INTERBRANCH_CASH_SETTLEMENT=old;}
 });
+test('production remains fail-closed even if someone mistakenly sets the feature flag',()=>{
+ const oldNode=process.env.NODE_ENV,oldFlag=process.env.CLASSICFIN_INTERBRANCH_CASH_SETTLEMENT;
+ process.env.NODE_ENV='production';
+ process.env.CLASSICFIN_INTERBRANCH_CASH_SETTLEMENT='enabled';
+ try{assert.throws(()=>settlement.feature(),{
+  status:403,message:/cash-in-transit reservations/
+ });}
+ finally{
+  if(oldNode===undefined)delete process.env.NODE_ENV;else process.env.NODE_ENV=oldNode;
+  if(oldFlag===undefined)delete process.env.CLASSICFIN_INTERBRANCH_CASH_SETTLEMENT;
+  else process.env.CLASSICFIN_INTERBRANCH_CASH_SETTLEMENT=oldFlag;
+ }
+});
 test('one active linked reimbursement and one retry key are enforced at the database index level',()=>{
  assert(schema.indexes().some(([fields,opt])=>fields.idempotencyKey===1&&opt.unique));
  assert(schema.indexes().some(([fields,opt])=>fields.activeKey===1&&opt.unique));

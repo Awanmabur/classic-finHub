@@ -269,6 +269,19 @@ async function main(){
   assert.equal((await ledger.trialBalance(conn,{branchId:String(site._id),currency})).balanced,true);
  // Receiving branch sees native USD due and the original SSP collection;
  // neither becomes "settled" simply because the cash payout journal balanced.
+ // A successfully PAID cross-currency transfer cannot be "settled"
+ // by pretending its original SSP payable equals a USD cash receivable.
+ process.env.CLASSICFIN_INTERBRANCH_CASH_SETTLEMENT='enabled';
+ const beforeBlockedSSP=await amount(sspDrawer._id);
+ const beforeBlockedUSD=await amount(usdDrawer._id);
+ await assert.rejects(physical.request(conn,tenant,teller,xOrder._id,{
+  idempotencyKey:crypto.randomUUID(),
+  evidenceReference:'CROSS-CURRENCY-BLOCK-'+nonce,
+  note:'An SSP payable must not be settled by inventing USD'
+ }),{status:409},'SSP and USD cannot be settled as the same cash currency');
+ assert.equal(await amount(sspDrawer._id),beforeBlockedSSP);
+ assert.equal(await amount(usdDrawer._id),beforeBlockedUSD);
+ process.env.CLASSICFIN_INTERBRANCH_CASH_SETTLEMENT='disabled';
  const reviewed=await transfer.branchBalances(conn,tenant,manager);
  const linkedItem=reviewed.reconciliation.items.find(item=>item.sourceId===String(xOrder._id));
  assert(linkedItem,'The receiving branch should see linked-currency payout evidence');

@@ -29,3 +29,15 @@ test('all cross-currency financial records are append-only',()=>{
  for(const op of ['updateOne','updateMany','findOneAndUpdate','deleteOne','deleteMany'])
   assert(middleware._pres.get(op)?.length,op+' must reject direct mutation');
 });
+
+test('cross-currency grant uses pending independent document verification before activation',()=>{
+ const grant=models.grantSchema;
+ assert(grant.path('status').enumValues.includes('pending_review'));
+ assert.equal(grant.path('requestedBy').options.immutable,true);
+ assert.equal(grant.path('providerAuthorizationReference').isRequired,true);
+ assert.equal(grant.path('regulatoryAuthorizationReference').isRequired,true);
+ const auth=require('../src/tenant/services/momoFxAuthorization.service');
+ assert.equal(auth.ref('LICENSE-VALID-1234','licence'),'LICENSE-VALID-1234');
+ assert.throws(()=>auth.ref('fake','licence'),{status:400});
+ assert.throws(()=>auth.expires('2020-01-01'),{status:400});
+});

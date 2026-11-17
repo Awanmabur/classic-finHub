@@ -5,7 +5,12 @@ const localWhen=typeof formatLocalDate==='function'?formatLocalDate:
 <% if(data.order.status==='paid_out_manual'){ %><p class="tiny">Collection and payout were independently reviewed and posted to the manual funds book. The linked movements retain the supporting evidence and reviewer decisions.</p><% }else if(data.order.status==='collected_manual'){ %><p class="tiny">The manual collection was independently reviewed and posted. A payout PIN is available from the collection movement; payout requires receiver verification and a different reviewer.</p><% }else{ %><p class="tiny">This transfer instruction has not changed the funds book. Record the actual collection and obtain independent review to issue the payout PIN.</p><% } %>
 <div class="summary">
 <div class="sumRow"><span>From branch</span><b><%= data.order.originBranchName||'Original operating branch' %></b></div><div class="sumRow"><span>To branch</span><b><%= data.order.destinationBranchName||data.order.originBranchName||'Original operating branch' %></b></div>
-<div class="sumRow"><span>Requested amount</span><b><%= data.formatMoneyMinor(data.order.amountMinor,data.order.currency) %></b></div>
+<div class="sumRow"><span>Sender currency and amount to collect</span><b><%= data.formatMoneyMinor(data.order.amountMinor,data.order.currency) %></b></div>
+<% if(data.order.payoutCurrency){ %>
+<div class="sumRow"><span>Recipient currency and exact cash payout</span><b><%= data.formatMoneyMinor(data.order.payoutMinor,data.order.payoutCurrency) %></b></div>
+<div class="sumRow"><span>Approved Forex rate (selling recipient currency)</span><b><%= data.order.fxRateDecimal %> <%= data.order.currency %> per <%= data.order.payoutCurrency %></b></div>
+<div class="sumRow"><span>Locked rate validity at request</span><b><%= localWhen(data.order.fxRateExpiresAt) %></b></div>
+<% } %>
 <div class="sumRow"><span>Proposed fee</span><b><%= data.formatMoneyMinor(data.order.feeMinor,data.order.currency) %></b></div>
 <div class="sumRow"><span>Sender</span><b><%= data.order.sender.name %> · <%= data.order.sender.country %></b></div>
 <div class="sumRow"><span>Sender phone</span><b><%= data.order.sender.phone %></b></div>

@@ -392,14 +392,15 @@
           option.disabled=!eligible;option.hidden=!eligible;
           if(eligible)validAccounts.push(option);
         }
-        const configuredDrawer=crossCurrency?'':wallet.selectedOptions?.[0]?.dataset.cashDrawer||'';
+        const configuredDrawer=wallet.selectedOptions?.[0]?.dataset.cashDrawer||'';
+        const effectiveDrawer=crossCurrency?'':configuredDrawer;
         // Never allow the teller to choose a cash drawer. Server independently
         // recomputes the mapping, checks branch, operator, approval and shift.
-        const mapped=configuredDrawer?validAccounts.filter(option=>option.value===configuredDrawer):[];
+        const mapped=effectiveDrawer?validAccounts.filter(option=>option.value===configuredDrawer):[];
         const previous=validAccounts.find(option=>option.value===payment.value);
         const resolved=crossCurrency?
           (previous||(validAccounts.length===1?validAccounts[0]:null)):
-          (configuredDrawer?(mapped.length===1?mapped[0]:null):(validAccounts.length===1?validAccounts[0]:null));
+          (effectiveDrawer?(mapped.length===1?mapped[0]:null):(validAccounts.length===1?validAccounts[0]:null));
         payment.value=resolved?.value||'';
         payment.disabled=!crossCurrency&&!resolved;
         payment.required=crossCurrency&&validAccounts.length>1;
@@ -408,10 +409,10 @@
         const notice=form.querySelector('[data-momo-account-notice]');
         const problem=wallet.value&&!resolved?
           (validAccounts.length===0?
-            'No approved '+cashCurrency+' cash drawer belongs to this operator. Open and verify a real '+cashCurrency+' drawer first.':
+            'No approved '+cashCurrency+' cash drawer belongs to this login. Sign in as the operator assigned to the physical drawer and verified cash shift; do not create a duplicate cash drawer.':
             crossCurrency?
               'Choose the actual '+cashCurrency+' drawer used for this cash settlement.':
-            configuredDrawer?
+            effectiveDrawer?
               'This wallet is linked to a drawer that is unavailable to this operator. The Tenant Owner should check the account mapping.':
               'More than one approved drawer is available. The Tenant Owner must link this wallet to the correct physical drawer once in Treasury.'):'';
         wallet.setCustomValidity(problem);

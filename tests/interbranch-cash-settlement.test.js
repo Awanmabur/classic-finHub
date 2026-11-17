@@ -61,6 +61,14 @@ test('reimbursement request uses a real sender evidence reference and idempotenc
  assert.throws(()=>settlement.requestInput({...good,evidenceReference:'<svg/>'}),{status:400});
  assert.throws(()=>settlement.requestInput({...good,note:'short'}),{status:400});
 });
+test('physical sender and receiver signed receipt references are canonical and cannot evade anti-replay by letter case',()=>{
+ assert.equal(settlement.receipt('sender-ugx-2026','sending receipt'),'SENDER-UGX-2026');
+ assert.equal(settlement.receipt('RECEIVER-SSP:001','receiving receipt'),'RECEIVER-SSP:001');
+ for(const value of ['=HYPERLINK(1,2)','<svg/onload=1>','seven','WRONG RECEIPT'])
+  assert.throws(()=>settlement.receipt(value,'cash receipt'),{status:400});
+ assert(schema.indexes().some(([fields,opt])=>fields.evidenceReference===1&&opt.unique));
+ assert(schema.indexes().some(([fields,opt])=>fields.receiverReceiptReference===1&&opt.unique));
+});
 test('posting is disabled on deployments until real branch custody checks are approved',()=>{
  const old=process.env.CLASSICFIN_INTERBRANCH_CASH_SETTLEMENT;
  delete process.env.CLASSICFIN_INTERBRANCH_CASH_SETTLEMENT;

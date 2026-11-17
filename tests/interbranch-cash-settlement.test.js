@@ -92,6 +92,11 @@ test('production remains fail-closed even if someone mistakenly sets the feature
 test('one active linked reimbursement and one retry key are enforced at the database index level',()=>{
  assert(schema.indexes().some(([fields,opt])=>fields.idempotencyKey===1&&opt.unique));
  assert(schema.indexes().some(([fields,opt])=>fields.activeKey===1&&opt.unique));
- assert(schema.path('status').enumValues.includes('rejected'));
+ assert(schema.path('status').enumValues.includes('return_pending'));
+ assert(schema.path('status').enumValues.includes('return_verified'));
+ assert(schema.path('status').enumValues.includes('returned'));
  assert(schema.path('status').enumValues.includes('posted'));
+ assert(!schema.path('status').enumValues.includes('rejected'));
+ assert(schema.indexes().some(([fields,opt])=>fields.returnReference===1&&opt.unique));
+ assert(schema.indexes().some(([fields,opt])=>fields.returnDispatchReference===1&&opt.unique));
 });

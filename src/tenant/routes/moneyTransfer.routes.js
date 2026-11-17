@@ -128,12 +128,20 @@ function routes({renderTenant}){
     String(order.branchId)===String(req.user.branchId)&&
     hasPermission(req.user,'treasury.observe')&&
     !reimbursements.some(x=>['pending_review','posted'].includes(x.status));
+   const payout=order.manualPayoutExecutionId?
+    await require('../funded/models').models(req.tenantDb).execution
+     .findById(order.manualPayoutExecutionId).select('createdBy branchId').lean():null;
+   const canConfirm=enabled&&differentBranches&&!crossCurrency&&
+    order.status==='paid_out_manual'&&req.user.role==='Money Transfer Operator'&&
+    hasPermission(req.user,'money_transfer.payout')&&
+    String(req.user.id)===String(payout?.createdBy||'')&&
+    String(req.user.branchId)===String(order.destinationBranchId||'');
    const canReview=enabled&&differentBranches&&!crossCurrency&&
     req.user.role==='Tenant Owner'&&
     hasPermission(req.user,'money_transfer.review')&&hasPermission(req.user,'treasury.review');
    renderTenant(req,res,'money-transfer/interbranch-cash','Branch cash reimbursement',
     'Original-currency cash custody, independently reviewed branch reimbursement and retained evidence.',{
-     order,enabled,crossCurrency,canRequest,canReview,reimbursements,
+     order,enabled,crossCurrency,canRequest,canConfirm,canReview,reimbursements,
      idempotencyKey:crypto.randomUUID(),formatMoneyMinor
     });
   }catch(error){next(error);}
@@ -143,6 +151,14 @@ function routes({renderTenant}){
    await require('../settlements/interbranchCash.service').request(
     req.tenantDb,req.tenant,req.user,req.params.id,req.body);
    flash(req,'good','Cash handover request recorded. No Treasury balances changed; independent receiving-branch proof and owner review are required.');
+   res.redirect(303,`/tenant/money-transfer/${req.params.id}/interbranch-cash`);
+  }catch(error){next(error);}
+ });
+ router.post('/:id/interbranch-cash/:settlementId/receive',requirePermission('money_transfer.payout'),financial,async(req,res,next)=>{
+  try{
+   await require('../settlements/interbranchCash.service').confirmReceipt(
+    req.tenantDb,req.tenant,req.user,req.params.settlementId,req.body,req.params.id);
+   flash(req,'good','Actual receiving cashier receipt saved. No funds have moved in Treasury yet; owner approval is required.');
    res.redirect(303,`/tenant/money-transfer/${req.params.id}/interbranch-cash`);
   }catch(error){next(error);}
  });

@@ -147,16 +147,44 @@ async function postedEarningsByModule(conn,tenant,scope,options={}){
 // Module pages always report their operating branch, not a silent tenant-wide
 // mixture of branches or currencies. A failed optional summary must not block
 // record entry or successful customer transactions.
+// Cashier-confirmed and independently reviewed Forex exchanges are both
+// settled fund movements. Report their real posted volume separately from
+// ledger fees, operating assets and unknown inventory/trading profit.
+async function postedForexActivity(conn,tenant,user,branch,period={}){
+ const timeZone=period.timeZone||businessTime.forBranch(branch);
+ const scope=branchScope(user,{operationBranch:branch,viewBranchId:period.viewBranchId,viewBranch:period.viewBranch});
+ if(scope===null)return null;
+ const bounds=businessTime.dayBounds({from:period.from,to:period.to},timeZone,366,period.now||new Date());
+ const Execution=require('../funded/models').models(conn).execution;
+ const executions=await Execution.find({sourceType:'forex',status:'posted_manual',...scope,reviewedAt:bounds})
+  .select('sourceSnapshot reviewedAt').sort({reviewedAt:-1,_id:-1}).limit(1001).lean();
+ if(executions.length>1000)return {limited:true,count:null,bought:[],sold:[]};
+ const bought=new Map(),sold=new Map();let count=0;
+ for(const trade of executions){
+  const snap=trade.sourceSnapshot||{};
+  if(!['buy','sell'].includes(snap.operation)||!currencyCodes.includes(snap.fromCurrency)||
+   !currencyCodes.includes(snap.toCurrency))continue;
+  const amount=String(snap.sourceMinor||'');
+  if(!/^\\d+$/.test(amount))continue;
+  const target=snap.operation==='buy'?bought:sold;
+  target.set(snap.fromCurrency,(target.get(snap.fromCurrency)||0n)+BigInt(amount));
+  count++;
+ }
+ return {limited:false,count,bought:rowsOf(bought),sold:rowsOf(sold)};
+}
 async function moduleOverview(conn,tenant,user,branch,period={}){
  try{
-  return await overview(conn,tenant,user,{
+  const result=await overview(conn,tenant,user,{
    operationBranch:branch,timeZone:period.timeZone||businessTime.forBranch(branch),
    from:period.from,to:period.to,
    viewBranchId:period.viewBranchId,viewBranch:period.viewBranch
   });
+  if(result.available&&period.moduleKey==='forex')
+   result.forexActivity=await postedForexActivity(conn,tenant,user,branch,period);
+  return result;
  }catch(error){
   console.warn(JSON.stringify({event:'finance.module_overview_unavailable',code:String(error.code||error.name||'UNKNOWN').slice(0,80)}));
   return {available:false,reason:'Financial overview temporarily unavailable; core transactions remain available'};
  }
 }
-module.exports={ASSET_KINDS,MODULES,groupMoney,rowsOf,branchScope,postedEarnings,postedEarningsByModule,overview,moduleOverview};
+module.exports={ASSET_KINDS,MODULES,groupMoney,rowsOf,branchScope,postedEarnings,postedEarningsByModule,postedForexActivity,overview,moduleOverview};

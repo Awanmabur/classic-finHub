@@ -1,0 +1,56 @@
+<section class="view show mobileMoneyPage">
+ <section class="card">
+  <div class="cardHead"><div><b>Cross-currency Mobile Money</b><br><span>Real provider wallet and physical cash drawer · approved branch Buy/Sell rates</span></div><a class="btn" href="/tenant/mobile-money">Back to Mobile Money</a></div>
+  <div class="cardBody">
+   <p class="tiny">This is an exact calculation preview, not a completed transfer. Provider confirmation and legally permitted settlement are required before balances can be posted. All money shown is in its own currency.</p>
+   <% if(data.error){ %><p role="alert"><%= data.error %></p><% } %>
+   <% if(!data.wallets.length || !data.drawers.length){ %>
+    <p>Set up and reconcile an actual electronic wallet and physical cash drawer before quoting.</p>
+    <a class="btn" href="/tenant/treasury">Manage cash and float</a>
+   <% }else{ %>
+   <form method="GET" action="/tenant/mobile-money/fx">
+    <div class="formGrid">
+     <label>Transaction direction
+      <select name="operation" required>
+       <option value="withdraw_provider_receive_cash" <%= data.input.operation==='withdraw_provider_receive_cash'?'selected':'' %>>Customer withdraws electronic money and receives cash</option>
+       <option value="deposit_cash_send_provider" <%= data.input.operation==='deposit_cash_send_provider'?'selected':'' %>>Customer deposits cash and receives electronic money</option>
+      </select>
+     </label>
+     <label>Provider wallet
+      <select name="walletAccountId" required>
+       <option value="">Select actual provider wallet</option>
+       <% data.wallets.forEach(wallet=>{ %>
+        <option value="<%= wallet.id %>" <%= data.input.walletAccountId===wallet.id?'selected':'' %>><%= wallet.name %> — <%= wallet.network %> · <%= wallet.currency %></option>
+       <% }); %>
+      </select>
+     </label>
+     <label>Physical cash drawer
+      <select name="cashAccountId" required>
+       <option value="">Select actual cash drawer</option>
+       <% data.drawers.forEach(drawer=>{ %>
+        <option value="<%= drawer.id %>" <%= data.input.cashAccountId===drawer.id?'selected':'' %>><%= drawer.name %> · <%= drawer.currency %></option>
+       <% }); %>
+      </select>
+     </label>
+     <label>Provider amount (integer minor units)
+      <input name="providerAmountMinor" inputmode="numeric" pattern="[1-9][0-9]*" value="<%= data.input.providerAmountMinor||'' %>" required>
+     </label>
+    </div>
+    <button class="btn primary" type="submit">Calculate approved quote</button>
+   </form>
+   <% } %>
+   <% if(data.result){ const q=data.result; %>
+    <section class="card" aria-label="Cross-currency preview">
+     <div class="cardHead"><b>Approved Buy/Sell preview</b><span><%= q.rateSide.toUpperCase() %> · rate <%= q.rateDecimal %> <%= q.cashCurrency %> per 1 <%= q.providerCurrency %></span></div>
+     <div class="cardBody">
+      <p><strong>Provider wallet:</strong> <%= q.walletName %> (<%= q.providerCurrency %>) · signed change <%= q.walletDeltaMinor %> minor units</p>
+      <p><strong>Physical drawer:</strong> <%= q.cashName %> (<%= q.cashCurrency %>) · signed change <%= q.cashDeltaMinor %> minor units</p>
+      <p><strong>Customer cash amount:</strong> <%= q.cashAmountMinor %> <%= q.cashCurrency %> minor units</p>
+      <p><strong>Rate expiration:</strong> <%= new Date(q.rateExpiresAt).toLocaleString('en-GB') %></p>
+      <p class="tiny">Preview only: no provider settlement, bank or cash movement has been posted. No profit is inferred from this exchange quote.</p>
+     </div>
+    </section>
+   <% } %>
+  </div>
+ </section>
+</section>

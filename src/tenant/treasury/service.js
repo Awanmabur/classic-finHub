@@ -347,10 +347,16 @@ async function applyMovements(conn,session,authorization,input,internal={}){
 }
 async function postBranchTransferPayout(conn,session,authorization,payoutId){
  const {execution,source,collection}=await require('../funded/branchTransfer').validate(conn,session,authorization.tenant,authorization.actor,payoutId);
+ const payoutCurrency=source.payoutCurrency||source.currency;
+ const payoutMinor=String(source.payoutMinor||source.amountMinor);
+ if(source.payoutCurrency&&process.env.CLASSICFIN_LINKED_CURRENCY_POSTING!=='enabled')
+  throw fail('Cross-currency transfer payouts have not been enabled',403);
+ if(source.payoutCurrency&&(!source.fxRateId||!source.fxRateDecimal||!source.fxRateApprovedBy))
+  throw fail('The original cross-currency transfer is missing immutable approved pricing evidence',409);
  const payable=await ensureCounterAccount(conn,session,{tenantId:authorization.tenant._id,branchId:source.branchId,currency:source.currency,purpose:'interbranch_payable',actorId:authorization.actor.id});
- const receivable=await ensureCounterAccount(conn,session,{tenantId:authorization.tenant._id,branchId:execution.branchId,currency:source.currency,purpose:'interbranch_receivable',actorId:authorization.actor.id});
+ const receivable=await ensureCounterAccount(conn,session,{tenantId:authorization.tenant._id,branchId:execution.branchId,currency:payoutCurrency,purpose:'interbranch_receivable',actorId:authorization.actor.id});
  const origin=await applyMovements(conn,session,authorization,{sourceType:'money_transfer',sourceRef:`BRANCH_PAYOUT:${execution._id}:ORIGIN`,branchId:String(source.branchId),operatingActorId:String(collection.createdBy),legs:[{accountId:String(collection.accounts.clearingAccountId),deltaMinor:`-${source.amountMinor}`}],ledgerLines:[{currency:source.currency,accountId:String(payable.ledgerAccountId),side:'credit',amountMinor:String(source.amountMinor)}],evidenceRef:execution.evidenceReference,description:execution.note},{branchTransferExecutionId:execution._id});
- const destination=await applyMovements(conn,session,authorization,{sourceType:'money_transfer',sourceRef:`FUNDED:${execution._id}`,branchId:String(execution.branchId),operatingActorId:String(execution.createdBy),legs:[{accountId:String(execution.accounts.payoutAccountId),deltaMinor:`-${source.amountMinor}`}],ledgerLines:[{currency:source.currency,accountId:String(receivable.ledgerAccountId),side:'debit',amountMinor:String(source.amountMinor)}],evidenceRef:execution.evidenceReference,description:execution.note});
+ const destination=await applyMovements(conn,session,authorization,{sourceType:'money_transfer',sourceRef:`FUNDED:${execution._id}`,branchId:String(execution.branchId),operatingActorId:String(execution.createdBy),legs:[{accountId:String(execution.accounts.payoutAccountId),deltaMinor:`-${payoutMinor}`}],ledgerLines:[{currency:payoutCurrency,accountId:String(receivable.ledgerAccountId),side:'debit',amountMinor:payoutMinor}],evidenceRef:execution.evidenceReference,description:execution.note});
  return {...destination,journalIds:[...origin.journalIds,...destination.journalIds]};
 }
 async function reverseMovements(conn,session,authorization,input){

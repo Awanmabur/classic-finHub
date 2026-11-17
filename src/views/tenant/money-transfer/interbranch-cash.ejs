@@ -26,7 +26,7 @@
  <input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
  <div class="cardHead"><b>Record sender branch cash handover</b><span>Original cashier · independent review required</span></div>
  <div class="cardBody">
-  <p class="tiny">This creates a request only. The receiving cashier must independently acknowledge actually receiving the SAME currency and exact principal amount. Customer transfer fees are not an additional interbranch reimbursement.</p>
+  <p class="tiny">This creates a request only. The receiving cashier must independently acknowledge the SAME currency and exact principal amount. Customer transfer fees are not part of branch reimbursement. Important: this development workflow does not yet reserve cash in transit, so the sending drawer may appear spendable until final approval. Do not use this on live branch money until cash reservation and return controls are implemented.</p>
   <label class="field">Sending cashier signed handover reference (8–120 characters)
    <input class="control" name="evidenceReference" minlength="8" maxlength="120" required></label>
   <label class="field">Cash transport and handover explanation (12–400 characters)

@@ -146,9 +146,7 @@ function routes({renderTenant}){
  router.post('/:id/refund/:refundId/review',requirePermission('money_transfer.review'),financial,async(req,res,next)=>{
   try{
    const result=await require('../refunds/service').review(
-    req.tenantDb,req.tenant,req.user,req.params.refundId,req.body);
-   if(String(result.refund.sourceId)!==String(req.params.id))
-    throw Object.assign(new Error('Refund belongs to a different transfer'),{status:403});
+    req.tenantDb,req.tenant,req.user,req.params.refundId,req.body,req.params.id);
    flash(req,'good',result.refund.status==='posted_refund'?
     'Reviewed original-currency cash refund posted and recipient PIN closed.':
     'Refund request rejected. Collected funds and recipient obligation are unchanged.');

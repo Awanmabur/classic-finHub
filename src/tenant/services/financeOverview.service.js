@@ -70,7 +70,8 @@ async function overview(conn,tenant,user,options={}){
 async function postedEarnings(conn,scope,options={}){
  const result={income:[],expenses:[],net:[]};
  if(options.suppressTodayVolumes)return result;
- const startEnd=businessTime.dayBounds({},options.timeZone||'UTC',90,options.now||new Date());
+ const {$gte,$lt}=businessTime.dayBounds({},options.timeZone||'UTC',90,options.now||new Date());
+ const startEnd={$gte,$lt};
  const accountModel=models.ledgerAccountModel(conn);
  const postings=models.ledgerPostingModel(conn);
  const groups=await postings.aggregate([

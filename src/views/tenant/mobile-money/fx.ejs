@@ -69,7 +69,8 @@
       </div>
      </form>
     <% }else{ %>
-     <p class="tiny" role="status">Financial posting is unavailable until this branch, provider and currency pair pass the required authorization checks and cross-currency release gate. This preview does not move any money.</p>
+     <p class="tiny" role="status">Posting is not available for this wallet/drawer pair yet. Verify that the branch has an active Buy/Sell rate, reconciled balances, your required permissions, and an independently checked provider and regulatory authorization. No money is moved by this preview.</p>
+     <a class="btn" href="/tenant/mobile-money/fx/authorizations">Check or request provider authorization</a>
     <% } %>
    <% } %>
   </div>

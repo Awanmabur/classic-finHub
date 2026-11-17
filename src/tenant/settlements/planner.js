@@ -26,7 +26,7 @@ function objectId(value,label){
 function rateSnapshot(rate,{branchId,fromCurrency,toCurrency,side,at=new Date()}){
  if(!rate||rate.side!==side||rate.fromCurrency!==currency(fromCurrency)||
   rate.toCurrency!==currency(toCurrency)||String(rate.branchId)!==String(branchId)||
-  rate.status!=='active'||!rate.approvedBy||!OID.test(String(rate._id||''))||
+  rate.status!=='active'||!rate.reviewedBy||!rate.reviewedAt||String(rate.reviewedBy)===String(rate.proposedBy)||!OID.test(String(rate._id||''))||
   !rate.expiresAt||new Date(rate.expiresAt).getTime()<=new Date(at).getTime()||
   !Number.isFinite(new Date(rate.expiresAt).getTime()))
   throw fail('A matching, independently approved, unexpired currency rate is required');
@@ -35,7 +35,7 @@ function rateSnapshot(rate,{branchId,fromCurrency,toCurrency,side,at=new Date()}
  return Object.freeze({
   rateId:objectId(rate._id,'approved exchange rate'),
   fromCurrency,toCurrency,side,rateDecimal:value,rateScaled:String(scaled),
-  approvedBy:objectId(rate.approvedBy,'rate reviewer'),branchId:objectId(branchId,'rate branch'),
+  approvedBy:objectId(rate.reviewedBy,'rate reviewer'),branchId:objectId(branchId,'rate branch'),
   expiresAt:new Date(rate.expiresAt).toISOString()
  });
 }

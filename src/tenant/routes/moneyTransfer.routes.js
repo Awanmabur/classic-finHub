@@ -118,7 +118,8 @@ function routes({renderTenant}){
    const finance=require('../settlements/interbranchCash.service');
    const order=await transfer.detail(req.tenantDb,req.tenant,req.user,req.params.id);
    const reimbursements=await finance.detail(req.tenantDb,req.tenant,req.user,order._id);
-   const enabled=process.env.CLASSICFIN_INTERBRANCH_CASH_SETTLEMENT==='enabled';
+   const enabled=process.env.CLASSICFIN_INTERBRANCH_CASH_SETTLEMENT==='enabled'&&
+    process.env.NODE_ENV!=='production';
    const differentBranches=Boolean(order.destinationBranchId)&&
     String(order.branchId)!==String(order.destinationBranchId);
    const crossCurrency=Boolean(order.payoutCurrency&&order.payoutCurrency!==order.currency);

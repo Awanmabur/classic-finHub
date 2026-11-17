@@ -19,8 +19,8 @@
 .navGroup::before{left:calc(var(--navigation-inset) + 13px)}
 .navGroup .subitem.active,.navGroup .subitem:hover,.navGroup .subitem:focus-visible{transform:none!important}
 
-/* Two statistics per row at every viewport size; long balances remain legible. */
-#workspaceContent :has(>.stat){display:grid;grid-template-columns:repeat(2,minmax(0,1fr))!important}
+/* Default legacy stat groups stay two-column. The approved overview and module summary use dedicated responsive 4/2/1 grids. */
+#workspaceContent :has(>.stat):not(.overviewStatsGrid):not(.moduleStatsGrid){display:grid;grid-template-columns:repeat(2,minmax(0,1fr))!important}
 .stat .k,.stat .s{line-height:1.45;overflow-wrap:anywhere}
 .stat .v{white-space:normal;overflow-wrap:anywhere;text-overflow:clip}
 .stat .s{align-items:flex-start}
@@ -282,3 +282,27 @@ form[method="get"] .field>.control{min-width:0;width:100%}
 #workspaceContent .financialModuleOverview .overviewCurrencyLine b{font-size:11px;font-weight:650;white-space:nowrap;text-align:right}
 @media(max-width:980px){#workspaceContent .financialModuleOverview .moduleStatsGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){#workspaceContent .financialModuleOverview .moduleStatsGrid{grid-template-columns:minmax(0,1fr)}}
+
+/* Financial statistics: four per desktop row, two for compact tablets, one
+   on mobile. Explicit priority avoids legacy grid3 and historic !important. */
+@media (min-width:900px) {
+ #workspaceContent #view-overview .overviewStatsGrid,
+ #workspaceContent .financialModuleOverview .moduleStatsGrid {
+  display:grid!important;
+  grid-template-columns:repeat(4,minmax(0,1fr))!important;
+ }
+}
+@media (min-width:600px) and (max-width:899.98px) {
+ #workspaceContent #view-overview .overviewStatsGrid,
+ #workspaceContent .financialModuleOverview .moduleStatsGrid {
+  display:grid!important;
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+ }
+}
+@media (max-width:599.98px) {
+ #workspaceContent #view-overview .overviewStatsGrid,
+ #workspaceContent .financialModuleOverview .moduleStatsGrid {
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr)!important;
+ }
+}

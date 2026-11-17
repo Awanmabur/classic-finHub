@@ -218,6 +218,11 @@ async function main(){
  });
  const rejectedRequest=await refundService.request(conn,tenant,teller,refundOrder._id,refundInput());
  assert.equal(rejectedRequest.refund.status,'pending_review');
+ const underReview=await transfer.branchBalances(conn,tenant,owner);
+ const refundQueueItem=underReview.recovery.items.find(item=>item.sourceId===String(refundOrder._id));
+ assert(refundQueueItem,'A cash refund request must appear in the supervisor queue');
+ assert.equal(refundQueueItem.state,'refund_under_review');
+ assert.match(refundQueueItem.explanation,/Do not issue a recipient payout/);
  await assert.rejects(refundService.request(conn,tenant,teller,refundOrder._id,refundInput()),{status:409});
  const rejected=await refundService.review(conn,tenant,owner,rejectedRequest.refund._id,{
   decision:'reject',note:'Original customer cash refund evidence not yet sufficient'});

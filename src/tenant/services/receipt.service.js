@@ -10,6 +10,8 @@ function acknowledgement(record){
  }
  return {record,reference:`CFH-ACK-${String(record._id).toUpperCase()}`,
    amount:mobile.formatMoneyMinor(record.amountMinor,record.currency),
-   fee:mobile.formatMoneyMinor(record.feeMinor,record.currency)};
+   fee:mobile.formatMoneyMinor(record.feeMinor,record.currency),
+   physicalCash:record.linkedSettlementId&&record.cashCurrency&&record.fxCashMinor!=null?
+     mobile.formatMoneyMinor(record.fxCashMinor,record.cashCurrency):null};
 }
 module.exports={acknowledgement};

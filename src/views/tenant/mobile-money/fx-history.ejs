@@ -2,6 +2,23 @@
  <section class="card">
   <div class="cardHead"><div><b>Cross-currency transaction history</b><br><span>One operation, two native-currency custody legs. No currency totals are mixed.</span></div><div class="rowBtns"><a class="btn" href="/tenant/mobile-money/fx">Exchange preview</a><a class="btn" href="/tenant/mobile-money">Mobile Money</a></div></div>
   <div class="cardBody">
+   <% if(data.summary.length){ %>
+    <div class="tableWrap"><table aria-label="All posted cross-currency operation totals">
+     <thead><tr><th>Network</th><th>Operation</th><th>Transactions</th><th>Electronic amount</th><th>Physical cash amount</th></tr></thead>
+     <tbody>
+      <% data.summary.forEach(row=>{ %>
+       <tr>
+        <td><%= row._id.network %></td>
+        <td><%= row._id.operation==='withdraw_provider_receive_cash'?'Electronic withdrawal':'Electronic deposit' %></td>
+        <td><%= row.count %></td>
+        <td><%= data.formatMoneyMinor(row.providerMinor,row._id.providerCurrency) %></td>
+        <td><%= data.formatMoneyMinor(row.cashMinor,row._id.cashCurrency) %></td>
+       </tr>
+      <% }); %>
+     </tbody>
+    </table></div>
+    <p class="tiny">These totals cover all matching finalized operations. Provider and cash amounts stay in separate currency columns; each customer transaction is counted once.</p>
+   <% } %>
    <% if(!data.records.length){ %>
     <p>No verified cross-currency settlements have been posted for this branch.</p>
    <% }else{ %>

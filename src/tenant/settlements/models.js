@@ -56,6 +56,7 @@ const event=new Schema({
  stage:{type:String,enum:['provider_confirmed','cash_collected','cash_paid','payout_confirmed','cost_basis_allocated','reversed'],required:true,immutable:true},
  evidenceSource:{type:String,enum:['provider_api','provider_statement','verified_sms','cash_count','signed_receipt','internal_journal'],required:true,immutable:true},
  evidenceDigest:{type:String,required:true,immutable:true,match:/^[a-f0-9]{64}$/i},
+ providerAccountId:{type:O,required:function(){return this.providerReference!==null&&this.providerReference!==undefined;},default:null,immutable:true},
  providerReference:{type:String,default:null,immutable:true,maxlength:120},
  observedAt:{type:Date,required:true,immutable:true},
  recordedBy:{type:O,required:true,immutable:true}
@@ -68,7 +69,7 @@ function immutableEvidence(schema){
 immutableEvidence(event);
 event.index({settlementId:1,stage:1},{unique:true,name:'one_verified_fact_per_stage'});
 event.index({tenantId:1,branchId:1,observedAt:-1});
-event.index({branchId:1,providerReference:1},{unique:true,partialFilterExpression:{providerReference:{$type:'string'}},name:'unique_settlement_provider_reference_per_branch'});
+event.index({branchId:1,providerAccountId:1,providerReference:1},{unique:true,partialFilterExpression:{providerReference:{$type:'string'}},name:'unique_settlement_provider_reference_per_account'});
 
 function models(conn){
  return {

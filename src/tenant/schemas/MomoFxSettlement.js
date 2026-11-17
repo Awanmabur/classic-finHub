@@ -1,5 +1,6 @@
 'use strict';
 const {Schema}=require('mongoose');
+const {ensureModelIndexes}=require('../../config/ensureModelIndexes');
 const O=Schema.Types.ObjectId;
 const S=Schema.Types;
 const recordSchema=new Schema({
@@ -56,8 +57,12 @@ const grantSchema=new Schema({
 },{timestamps:true,strict:'throw'});
 grantSchema.index({tenantId:1,branchId:1,walletAccountId:1,cashAccountId:1,status:1});
 const model=(conn,name,schema)=>conn.models[name]||conn.model(name,schema);
-module.exports={
- records:conn=>model(conn,'MomoFxCrossCurrencyRecordV1',recordSchema),
- grants:conn=>model(conn,'MomoFxComplianceGrantV1',grantSchema),
- recordSchema,grantSchema
-};
+function records(conn){return model(conn,'MomoFxCrossCurrencyRecordV1',recordSchema);}
+function grants(conn){return model(conn,'MomoFxComplianceGrantV1',grantSchema);}
+const pending=new WeakMap();
+function ensure(conn){
+ if(!pending.has(conn))pending.set(conn,Promise.all([ensureModelIndexes(records(conn)),ensureModelIndexes(grants(conn))])
+  .catch(error=>{pending.delete(conn);throw error;}));
+ return pending.get(conn);
+}
+module.exports={records,grants,ensure,recordSchema,grantSchema};

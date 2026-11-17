@@ -11,6 +11,7 @@ const businessTime=require('../../utils/businessTime');
 const format=require('./mobileMoney.service').formatMoneyMinor;
 const OID=/^[a-f0-9]{24}$/i;
 const ASSET_KINDS=['cash','wallet','bank','forex_stock'];
+const MODULES=['mobile_money','forex','banking','money_transfer','expenses'];
 function groupMoney(rows,key,sign=1n){
  const groups=new Map();
  for(const row of rows){
@@ -41,11 +42,12 @@ async function overview(conn,tenant,user,options={}){
  const scope=branchScope(user,options);
  if(scope===null)return {available:false,reason:'Choose an operating branch'};
  const Account=fundsModels(conn).account;
- const [assets,recognized]=await Promise.all([
+ const [assets,recognized,moduleEarnings]=await Promise.all([
   Account.find({tenantId:tenant._id,...scope,kind:{$in:ASSET_KINDS},
    status:{$in:['active','held']},openingBalanceMinor:{$ne:null}})
    .select('currency kind moduleKey bookBalanceMinor').limit(1001).lean(),
-  postedEarnings(conn,scope,options)
+  postedEarnings(conn,scope,options),
+  postedEarningsByModule(conn,tenant,scope,options)
  ]);
  if(assets.length>1000)return {available:false,reason:'Too many capital accounts for one overview. Select a branch.'};
  const visibleAssets=assets.filter(account=>account.moduleKey==='shared'||['Tenant Owner','Auditor'].includes(user.role)||hasModuleForUser(tenant,user,account.moduleKey));
@@ -62,6 +64,7 @@ async function overview(conn,tenant,user,options={}){
   byModule:[...byModule].sort(([a],[b])=>a.localeCompare(b))
     .map(([moduleKey,totals])=>({moduleKey,totals:rowsOf(totals)})),
   postedIncome:recognized.income,postedExpenses:recognized.expenses,postedNet:recognized.net,
+  moduleEarnings:moduleEarnings.filter(entry=>['Tenant Owner','Auditor'].includes(user.role)||hasModuleForUser(tenant,user,entry.moduleKey)),
   // Never present spread or operating assets as realized profit/capital funding.
   forexProfit:{available:false,reason:'Cannot calculate realized Forex profit until purchase cost basis and disposal lots are recorded'},
   capitalDefinition:'Operating cash, float, bank and Forex stock book assets; not invested owner equity or verified provider balances',
@@ -96,4 +99,49 @@ async function postedEarnings(conn,scope,options={}){
  result.income=rowsOf(income);result.expenses=rowsOf(expenses);result.net=rowsOf(net);
  return result;
 }
-module.exports={ASSET_KINDS,groupMoney,rowsOf,branchScope,postedEarnings,overview};
+// Journal-to-batch linkage attributes fee/expense postings to the underlying
+// module. This is posted LEDGER contribution, not FX dealing profit or margin.
+async function postedEarningsByModule(conn,tenant,scope,options={}){
+ if(options.suppressTodayVolumes)return [];
+ const {$gte,$lt}=businessTime.dayBounds({},options.timeZone||'UTC',90,options.now||new Date());
+ const batches=await fundsModels(conn).batch.find({
+  tenantId:tenant._id,...scope,sourceType:{$in:MODULES},createdAt:{$gte,$lt}
+ }).select('sourceType journalIds').limit(2001).maxTimeMS(2500).lean();
+ if(batches.length>2000)throw new Error('TOO_MANY_FINANCIAL_BATCHES');
+ const journalModules=new Map(),journalIds=[];
+ for(const batch of batches){
+  for(const journalId of batch.journalIds||[]){
+   const key=String(journalId);
+   if(journalModules.has(key)&&journalModules.get(key)!==batch.sourceType)
+    throw new Error('UNEXPECTED_JOURNAL_REUSE');
+   if(!journalModules.has(key))journalIds.push(journalId);
+   journalModules.set(key,batch.sourceType);
+  }
+ }
+ if(!journalIds.length)return [];
+ const accounts=models.ledgerAccountModel(conn),Posting=models.ledgerPostingModel(conn);
+ const postings=await Posting.aggregate([
+  {$match:{journalId:{$in:journalIds},...scope}},
+  {$lookup:{from:accounts.collection.name,localField:'accountId',foreignField:'_id',as:'ledgerAccount'}},
+  {$unwind:'$ledgerAccount'},
+  {$match:{'ledgerAccount.category':{$in:['income','expense']},
+    $expr:{$and:[{$eq:['$ledgerAccount.branchId','$branchId']},{$eq:['$ledgerAccount.currency','$currency']}]}}},
+  {$group:{_id:{journalId:'$journalId',currency:'$currency',category:'$ledgerAccount.category',side:'$side'},amount:{$sum:'$amountMinor'}}}
+ ]).option({maxTimeMS:3500});
+ const result=new Map();
+ for(const row of postings){
+  const moduleKey=journalModules.get(String(row._id.journalId)),currency=row._id.currency;
+  if(!MODULES.includes(moduleKey)||!currencyCodes.includes(currency))continue;
+  if(!result.has(moduleKey))result.set(moduleKey,{income:new Map(),expenses:new Map()});
+  const category=row._id.category,map=result.get(moduleKey)[category==='income'?'income':'expenses'];
+  const positive=category==='income'?row._id.side==='credit':row._id.side==='debit';
+  const delta=BigInt(String(row.amount))*(positive?1n:-1n);
+  map.set(currency,(map.get(currency)||0n)+delta);
+ }
+ return [...result].sort(([a],[b])=>a.localeCompare(b)).map(([moduleKey,row])=>{
+  const net=new Map(row.income);
+  for(const [currency,amount] of row.expenses)net.set(currency,(net.get(currency)||0n)-amount);
+  return {moduleKey,income:rowsOf(row.income),expenses:rowsOf(row.expenses),net:rowsOf(net)};
+ });
+}
+module.exports={ASSET_KINDS,MODULES,groupMoney,rowsOf,branchScope,postedEarnings,postedEarningsByModule,overview};

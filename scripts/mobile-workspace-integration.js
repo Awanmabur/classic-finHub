@@ -40,7 +40,12 @@ async function main(){
  const voided=(await mobile.recordMobileMoney(conn,operator,input('1.00'),'cash_out',tenant)).created;
  await mobile.requestVoid(conn,operator,String(voided._id),'Incorrect source amount needs independent correction');
  await mobile.decideVoid(conn,reviewer,String(voided._id),'approve','Receipt confirms the recorded amount was incorrect');
- const today=new Date().toISOString().slice(0,10),yesterday=new Date(Date.now()-86400000).toISOString().slice(0,10);
+  // Reports use the tenant's local calendar day (Africa/Kampala default), not UTC;
+  // UTC midnight can otherwise exclude freshly posted transactions after 03:00 local midnight.
+  const businessTime=require('../src/utils/businessTime');
+  const zone=businessTime.DEFAULT_TIME_ZONE;
+  const today=businessTime.localDay(new Date(),zone);
+  const yesterday=businessTime.addDays(today,-1);
  const fixture=(extra={})=>({idempotencyKey:crypto.randomUUID(),operation:'cash_in',customer:'Fixture receipt',network:'MTN',networkReference:`FIX-${nonce}-${++sequence}`,currency:'KES',amountMinor:'735',feeMinor:'5',operatorId:operator.id,branchId:branch._id,...extra});
  await models.mobileTransactionModel(conn).create(fixture({entrySource:'sms',smsInboxId:id()}));
  const otherOperator=id();

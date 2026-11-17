@@ -403,6 +403,9 @@ async function requestPayout(conn,tenant,actor,input={}){
   const collection=await Execution.findOne({_id:verification.collectionExecutionId,action:'transfer_collect',status:'posted_manual'}).session(session).lean();
   const source=collection?await models.transferOrderModel(conn).findOne({_id:collection.sourceId,status:'collected_manual',manualCollectionExecutionId:collection._id}).session(session).lean():null;
   if(!source||String(source.destinationBranchId||source.branchId)!==String(branch._id))throw fail('This transfer was paid, changed or belongs to another receiving branch',409);
+  const pendingRefund=await require('../refunds/models').model(conn).exists({
+   sourceId:source._id,status:'pending_review'}).session(session);
+  if(pendingRefund)throw fail('Sender refund is awaiting independent review. Resolve that request before issuing a recipient payout.',409);
   const snapshot=sourceSnapshot('money_transfer',source);
   branchCurrency.resolve(branch,snapshot.payoutCurrency||snapshot.currency);
   const available=await availableAccounts(conn,authorization.tenant,authorization.actor,branch._id,'money_transfer');

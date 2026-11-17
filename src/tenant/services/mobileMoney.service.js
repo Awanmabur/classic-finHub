@@ -61,15 +61,19 @@ function validate(input, operation) {
     selected[key]=value||null;
   }
   const feeTreatment=input.feeTreatment||'record_only';if(!['record_only','payment_collected','wallet_commission'].includes(feeTreatment))throw bad('Choose a valid fee treatment');
+ const settlement=require('./mobileMoneySettlement.service').normalize(input,currency);
   const observedWalletBalance=input.observedWalletBalance||'',observationEvidenceReference=input.observationEvidenceReference||'';
   if(typeof observedWalletBalance!=='string'||observedWalletBalance.length>32||typeof observationEvidenceReference!=='string'||observationEvidenceReference.length>120||/[\u0000-\u001f\u007f]/.test(observationEvidenceReference))throw bad('Enter a valid actual balance and evidence reference');
-  return { operation, customer, customerPhone, customerNote, paymentMethod, network, networkReference, currency, amountMinor, feeMinor, idempotencyKey,...selected,feeTreatment,observedWalletBalance:observedWalletBalance.trim(),observationEvidenceReference:observationEvidenceReference.trim() };
+  return { operation, customer, customerPhone, customerNote, paymentMethod, network, networkReference, currency, amountMinor, feeMinor, idempotencyKey,...selected,...settlement,feeTreatment,observedWalletBalance:observedWalletBalance.trim(),observationEvidenceReference:observationEvidenceReference.trim() };
 }
 function sameDetails(record,values,{feeTreatmentSpecified=true}={}){
   return ['amountMinor','feeMinor','currency','customer','network','networkReference','customerPhone','customerNote','paymentMethod']
     .every(key=>String(record[key]??(key==='paymentMethod'?'Cash':key==='customerPhone'||key==='customerNote'?'':undefined))===String(values[key])) &&
     (!feeTreatmentSpecified||String(record.feeTreatment||'record_only')===String(values.feeTreatment||'record_only')) &&
     ['walletAccountId','paymentAccountId','customerAccountId'].every(key=>!values[key]||String(record[key]||'')===String(values[key])) &&
+     String(record.settlementCurrency||record.currency)===values.settlementCurrency &&
+     String(record.settlementAmountMinor??record.amountMinor)===String(values.settlementAmountMinor??values.amountMinor) &&
+     (!values.forexRateId||String(record.forexRateId||'')===values.forexRateId) &&
     (!values.observedWalletBalance||String(record.observedWalletBalance||'')===values.observedWalletBalance);
 }
 async function recordMobileMoney(conn, operator, input, operation, tenant, sourceContext = null, options = {}) {
@@ -112,8 +116,13 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
       const branch=await branchModel(conn).findOneAndUpdate({_id:requestedBranchId,status:'active'},{$inc:{revision:1}},{session,new:true});
       if(!branch)throw bad('Assigned branch is inactive or unavailable',409);
       require('./branchCurrency.service').resolve(branch,values.currency);
+   require('./branchCurrency.service').resolve(branch,values.settlementCurrency);
+   // Capture and validate an immutable price while the same transaction holds
+   // the branch write fence. A rate cannot be changed by a crafted form POST.
+   const settlement=await require('./mobileMoneySettlement.service').resolve(conn,session,branch._id,values);
+   Object.assign(values,settlement);
       if(smsAuthorization?.receivedAt)
-        await require('./cashDrawer.service').assertSmsWithinShift(conn,session,authorization.actor,branch._id,values.currency,smsAuthorization.receivedAt);
+        await require('./cashDrawer.service').assertSmsWithinShift(conn,session,authorization.actor,branch._id,values.settlementCurrency,smsAuthorization.receivedAt);
       const pricing=await require('../pricing/apply').resolve(conn,authorization.tenant,branch,input,{operation:'mobile_money.'+operation,currency:values.currency,amountMinor:values.amountMinor,network:values.network,providedMinor:values.feeMinor,session,source:sourceContext?'sms':'manual'});
       if(pricing){values.pricing=pricing;values.feeMinor=BigInt(pricing.feeMinor);if(values.feeMinor>values.amountMinor)throw bad('Configured fee cannot exceed the amount',409);}
       // Immutable informational reference only. Approved network tariff quotes
@@ -141,13 +150,13 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
       // Daily transactions use the configured funds book. Actual balance checks
       // belong on the wallets page; an SMS can still attach its dated balance.
       const funding=tracking?await funds.apply(conn,session,authorization,{...values,branchId:branch._id},{receivedAt:smsAuthorization?.receivedAt,feeTreatmentSpecified,expectedFeeTreatment,useConfiguredPolicy:options.requireFunds===true}):{};
-      const cashSessionId=values.paymentMethod==='Cash'?await require('./cashDrawer.service').attachRecord(conn,session,authorization.actor,branch._id,values.currency,operation,BigInt(values.amountMinor),{...(smsAuthorization?{receivedAt:smsAuthorization.receivedAt}:{}),bookManaged:tracking}):null;
+      const cashSessionId=values.paymentMethod==='Cash'?await require('./cashDrawer.service').attachRecord(conn,session,authorization.actor,branch._id,values.settlementCurrency,operation,BigInt(values.settlementAmountMinor),{...(smsAuthorization?{receivedAt:smsAuthorization.receivedAt}:{}),bookManaged:tracking}):null;
       const risk=require('./mobileMoneyRisk.service');
       const riskSignals=await risk.assess(conn,session,Model,values,branch._id,funding);
       [created] = await Model.create([{ ...values, ...source,...tariffEstimates,...publicReferences,...funding, cashSessionId, branchId:branch._id, amountMinor: String(values.amountMinor), feeMinor: String(values.feeMinor), operatorId: operator.id, status: 'recorded', reviewState: 'not_required',riskSignals }], { session });
       await Audit.create([{
         action: `mobile_money.${operation}.recorded`, actorId: operator.id, targetId: created._id,
-        metadata: { currency: values.currency, amountMinor: values.amountMinor, network: values.network, paymentMethod:values.paymentMethod, branchId: String(created.branchId),riskSignals }
+        metadata: { currency: values.currency, amountMinor: values.amountMinor, settlementCurrency:values.settlementCurrency,settlementAmountMinor:String(values.settlementAmountMinor),network: values.network, paymentMethod:values.paymentMethod, branchId: String(created.branchId),riskSignals }
       }], { session });
       // Owner alerts are dispatched by the independent worker after commit.
     });

@@ -126,7 +126,7 @@ async function request(conn,tenant,actor,sourceId,input={}){
  }catch(error){if(error.code===11000)throw fail('This transfer has an existing refund request or a conflicting retry');throw error;}
  finally{await session.endSession();}
 }
-async function review(conn,tenant,actor,refundId,input={}){
+async function review(conn,tenant,actor,refundId,input={},expectedSourceId=null){
  await context(conn,tenant,actor,'money_transfer.review');
  if(!['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(actor.role)||
   !hasPermission(actor,'treasury.review'))throw fail('A separate Treasury-qualified transfer reviewer is required',403);
@@ -140,6 +140,8 @@ async function review(conn,tenant,actor,refundId,input={}){
  await Promise.all([ensure(conn),core.ensureTenantIndexes(conn),funded.ensureIndexes(conn),treasury.ensure(conn),sms.ensureIndexes(conn)]);
  const Refund=model(conn),initial=await Refund.findById(id(refundId)).lean();
  if(!initial)throw fail('Refund request not found',404);
+ if(expectedSourceId&&String(initial.sourceId)!==id(expectedSourceId))
+  throw fail('Refund does not belong to the requested transfer',403);
  const session=await conn.startSession();let result;
  try{await session.withTransaction(async()=>{
   const authorization=await auth.fenceAction(conn,session,actor,tenant,'money_transfer','money_transfer.review');
@@ -151,7 +153,8 @@ async function review(conn,tenant,actor,refundId,input={}){
   if(authorization.actor.role!=='Tenant Owner'&&String(authorization.actor.branchId)!==String(initial.branchId))
    throw fail('Refund reviewer must supervise the actual sending branch',403);
   const pending=await Refund.findOneAndUpdate({_id:initial._id,status:'pending_review',
-   tenantId:tenant._id,requestedBy:{$ne:authorization.actor.id}},
+   tenantId:tenant._id,...(expectedSourceId?{sourceId:id(expectedSourceId)}:{}),
+   requestedBy:{$ne:authorization.actor.id}},
    {$inc:{revision:1}},{session,new:true}).lean();
   if(!pending)throw fail('Refund already reviewed, changed or outside your tenant');
   if(decision==='reject'){

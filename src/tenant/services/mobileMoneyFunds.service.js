@@ -39,10 +39,10 @@ async function shouldTrack(conn,tenant,values,required){
  if(required||values.walletAccountId)return true;
  return !!await fundsModels.models(conn).account.exists({tenantId:tenant._id,kind:'wallet',network:values.network,currency:values.currency,status:{$ne:'archived'}});
 }
-async function selectFund(conn,session,authorization,values,kind,explicitId){
+async function selectFund(conn,session,authorization,values,kind,explicitId,accountCurrency=values.currency){
  let account;
- if(explicitId)account=await fundsModels.models(conn).account.findOne({_id:oid(explicitId),tenantId:authorization.tenant._id,branchId:values.branchId,kind,currency:values.currency,...(kind==='wallet'?{network:values.network}:{})}).session(session).lean();
- else account=await treasury.findAccount(conn,session,{branchId:values.branchId,kind,network:kind==='wallet'?values.network:'',currency:values.currency,operatorId:authorization.actor.id});
+ if(explicitId)account=await fundsModels.models(conn).account.findOne({_id:oid(explicitId),tenantId:authorization.tenant._id,branchId:values.branchId,kind,currency:accountCurrency,...(kind==='wallet'?{network:values.network}:{})}).session(session).lean();
+ else account=await treasury.findAccount(conn,session,{branchId:values.branchId,kind,network:kind==='wallet'?values.network:'',currency:accountCurrency,operatorId:authorization.actor.id});
  if(!account)throw fail(`Set up and independently confirm the ${kind==='wallet'?values.network+' wallet':kind+' account'} opening balance before processing.`);
  if(account.operatorId&&String(account.operatorId)!==String(authorization.actor.id))throw fail('Use the funds account assigned to your own operating drawer',403);
  if(account.status!=='active'||account.openingBalanceMinor===null)throw fail('This funds account needs opening approval or reconciliation before use.');
@@ -65,6 +65,10 @@ async function customerCounter(conn,session,authorization,values,delta){
 async function apply(conn,session,authorization,values,{requireObservation=false,receivedAt=null,feeTreatmentSpecified=true,expectedFeeTreatment=null,useConfiguredPolicy=false}={}){
  await fundsModels.ensure(conn);
  const amount=BigInt(values.amountMinor),fee=BigInt(values.feeMinor),sign=values.operation==='cash_in'?-1n:1n;
+ const cashCurrency=values.settlementCurrency||values.currency,cashAmount=BigInt(values.settlementAmountMinor??values.amountMinor);
+ const crossCurrency=cashCurrency!==values.currency;
+ if(crossCurrency&&values.paymentMethod!=='Cash')throw fail('A cross-currency settlement requires physical cash',400);
+ if(crossCurrency&&values.feeTreatment!=='record_only')throw fail('Customer charges and commissions require separate verified currency-specific entries',409);
  const wallet=await selectFund(conn,session,authorization,values,'wallet',values.walletAccountId);
  if(expectedFeeTreatment!==null&&expectedFeeTreatment!==undefined){
   if(!['record_only','payment_collected','wallet_commission'].includes(expectedFeeTreatment))throw fail('Reload the transaction form to obtain valid wallet settings.',400);
@@ -77,7 +81,7 @@ async function apply(conn,session,authorization,values,{requireObservation=false
  const configuredPolicy=wallet.feeTreatment||'record_only';
  if(useConfiguredPolicy&&feeTreatmentSpecified&&values.feeTreatment!==configuredPolicy)throw fail('Use the fee policy configured on the Wallets page.',409);
  const feeTreatment=useConfiguredPolicy||!feeTreatmentSpecified?configuredPolicy:values.feeTreatment;
- let walletDelta=sign*amount,paymentDelta=-sign*amount;
+ let walletDelta=sign*amount,paymentDelta=-sign*cashAmount;
  if(feeTreatment==='wallet_commission')walletDelta+=fee;
  if(feeTreatment==='payment_collected')paymentDelta+=fee;
  const legs=[{accountId:wallet._id,deltaMinor:String(walletDelta)}],ledgerLines=[];
@@ -86,26 +90,31 @@ async function apply(conn,session,authorization,values,{requireObservation=false
   const counter=await customerCounter(conn,session,authorization,values,-paymentDelta);customer=counter.account;if(counter.line.amountMinor!=='0')ledgerLines.push(counter.line);
  }else{
   if(useConfiguredPolicy&&values.paymentMethod==='Cash'){
-   // A cashier cannot override network-to-drawer custody with a posted ID.
-   // Match this provider wallet to the assigned, independently approved drawer.
+   // Only the same-currency case reuses the wallet's stored drawer link.
+   // A cross-currency operation selects an operator-owned physical cash
+   // account in the ACTUAL settlement currency.
    const cashQuery={tenantId:authorization.tenant._id,branchId:values.branchId,
-    kind:'cash',currency:values.currency,operatorId:authorization.actor.id,
+    kind:'cash',currency:cashCurrency,operatorId:authorization.actor.id,
     status:'active',reconciliationState:'matched',openingApprovedAt:{$ne:null}};
    let drawer;
-   if(wallet.cashDrawerAccountId){
+   if(!crossCurrency&&wallet.cashDrawerAccountId){
     drawer=await fundsModels.models(conn).account.findOne({...cashQuery,_id:wallet.cashDrawerAccountId}).session(session).lean();
     if(!drawer)throw fail('This provider wallet is linked to another operator or an unavailable cash drawer. Ask the Tenant Owner to review its mapping.',409);
+   }else if(crossCurrency&&values.paymentAccountId){
+    drawer=await fundsModels.models(conn).account.findOne({...cashQuery,_id:values.paymentAccountId}).session(session).lean();
+    if(!drawer)throw fail('Choose an approved cash drawer in the settlement currency assigned to this operator.',409);
    }else{
     const eligible=await fundsModels.models(conn).account.find(cashQuery).limit(2).session(session).lean();
     if(eligible.length!==1)throw fail(eligible.length?
-     'More than one physical drawer qualifies. The Tenant Owner must map the network wallet to the real drawer in Treasury.':
-     'There is no approved cash drawer assigned to this login. Record the transaction using the actual drawer operator’s account and approved cash shift; do not create a duplicate cash drawer.',409);
+     crossCurrency?'Choose which physical cash drawer holds this settlement currency.':
+      'More than one physical drawer qualifies. The Tenant Owner must map the provider wallet to the correct drawer.':
+     'There is no approved physical cash drawer in the settlement currency assigned to this operator and branch.',409);
     drawer=eligible[0];
    }
    if(values.paymentAccountId&&String(values.paymentAccountId)!==String(drawer._id))
-    throw fail('The supplied cash drawer does not match this network wallet. Reload; the drawer is assigned automatically.',409);
-   payment=await selectFund(conn,session,authorization,values,'cash',drawer._id);
-  }else payment=await selectFund(conn,session,authorization,values,values.paymentMethod==='Cash'?'cash':'bank',values.paymentAccountId);
+    throw fail('The supplied cash drawer does not match the actual settlement drawer.',409);
+   payment=await selectFund(conn,session,authorization,values,'cash',drawer._id,cashCurrency);
+  }else payment=await selectFund(conn,session,authorization,values,values.paymentMethod==='Cash'?'cash':'bank',values.paymentAccountId,cashCurrency);
   legs.push({accountId:payment._id,deltaMinor:String(paymentDelta)});
  }
  if(fee>0n&&feeTreatment!=='record_only'){
@@ -115,7 +124,7 @@ async function apply(conn,session,authorization,values,{requireObservation=false
  const occurredAt=receivedAt?new Date(receivedAt):new Date();
  if(requireObservation&&(typeof values.observedWalletBalance!=='string'||!values.observedWalletBalance.trim()))throw fail('Enter the actual wallet balance shown after this transaction.',400);
  const applied=await treasury.applyMovements(conn,session,authorization,{sourceType:'mobile_money',sourceRef:`MM:${values.idempotencyKey}`,branchId:values.branchId,legs:legs.filter(leg=>BigInt(leg.deltaMinor)!==0n),ledgerLines,
-  description:`${values.network} ${values.operation==='cash_in'?'Cash-in':'Cash-out'} ${values.networkReference}`,evidenceReference:values.networkReference,occurredAt});
+  description:`${values.network} ${values.operation==='cash_in'?'Cash-in':'Cash-out'} ${values.networkReference}`,evidenceReference:values.networkReference,occurredAt},{crossCurrencyMobileMoney:crossCurrency});
  let observation=null;
  if(values.observedWalletBalance){
   const response=await treasury.requestObservationInSession(conn,session,authorization,wallet._id,{kind:'checkpoint',actualBalance:values.observedWalletBalance,observedAt:occurredAt.toISOString(),evidenceType:receivedAt?'provider_sms':'provider_app',

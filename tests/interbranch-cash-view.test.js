@@ -31,6 +31,20 @@ test('sending/receiving balances remain in original UGX; separate signed receipt
  assert.match(html,/&lt;img src=x onerror=alert\(1\)&gt;/);
  assert.doesNotMatch(html,/<img src=x onerror/);
 });
+test('receiving cashier, not sender or owner, gets a real independent cash count confirmation form',async()=>{
+ const data=values({
+  canRequest:false,canConfirm:true,canReview:false,
+  reimbursements:[{id:ids.review,status:'pending_receiver',amount:'UGX 10,000',
+   requestedBy:'507f1f77bcf86cd799439013',note:'Original sender signed handover',
+   senderOriginalEvidence:'SOURCE-HANDOVER-REFERENCE'}]
+ });
+ const html=await ejs.renderFile(view,data);
+ assert.match(html,/Confirm counted branch cash receipt/);
+ assert.match(html,/name="receiverReceiptReference"/);
+ assert.match(html,/name="cashCountConfirmed" value="confirmed"/);
+ assert.doesNotMatch(html,/Approve verified interbranch cash reimbursement/);
+ assert.match(html,/SOURCE-HANDOVER-REFERENCE/);
+});
 test('different SSP/USD recipient currency cannot render a posting form',async()=>{
  const html=await ejs.renderFile(view,values({
   crossCurrency:true,canRequest:false,canReview:false,

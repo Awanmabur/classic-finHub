@@ -101,6 +101,73 @@ async function main(){
  await assert.rejects(funded.requestPayout(conn,tenant,owner,{...payoutInput,idempotencyKey:crypto.randomUUID()}),{status:409},'verification is consumed once');
  await funded.review(conn,tenant,reviewer,payout.execution._id,reviewData);assert.equal(await book(cashFund),988850n);assert.equal(await book(clearing),0n);assert.equal((await core.transferOrderModel(conn).findById(transferSource._id)).status,'paid_out_manual');
  await assert.rejects(funded.review(conn,tenant,reviewer,payout.execution._id,reviewData),{status:409});await assert.rejects(funded.checkPayout(conn,tenant,owner,{pin:revealed.pin,senderPhone:'+256700111222'}),{status:404});
+
+ // Cross-currency real MongoDB: one UGX sender drawer, original teller's UGX
+ // payable and a DIFFERENT cashier's USD drawer in the SAME branch.
+ process.env.CLASSICFIN_LINKED_CURRENCY_POSTING='enabled';
+ await require('../src/tenant/settlements/models').ensure(conn);
+ const fxReceiver={id:String(new mongoose.Types.ObjectId()),name:'USD payout cashier',
+  role:'Money Transfer Operator',branchId:String(branch._id),
+  permissions:permissionsFor('Money Transfer Operator'),allowedModules:['money_transfer'],authVersion:0};
+ await core.tenantUserModel(conn).create({_id:fxReceiver.id,name:fxReceiver.name,
+  email:`usd-payout-${nonce}@example.invalid`,passwordHash:'scratch-not-a-real-password',
+  role:fxReceiver.role,branchId:fxReceiver.branchId,allowedModules:fxReceiver.allowedModules,
+  status:'active',authVersion:0});
+ const usdCash=await treasury.createAccount(conn,tenant,owner,{code:'USD_CASH_PAYOUT',
+  name:'Actual counted USD payout drawer',kind:'cash',currency:'USD',
+  operatorId:fxReceiver.id,isDefault:true});
+ const usdOpening=await treasury.requestObservation(conn,tenant,owner,usdCash._id,{
+  kind:'opening',actualBalance:'100.00',observedAt:new Date(Date.now()-1000).toISOString(),
+  evidenceType:'cash_count',evidenceReference:'OPEN-USD-'+nonce,
+  note:'USD banknotes physically counted for actual recipient cash payout',
+  idempotencyKey:crypto.randomUUID()});
+ await treasury.reviewObservation(conn,tenant,reviewer,usdOpening.observation._id,{
+  decision:'approve',note:'Independently confirmed USD notes in the receiving cashier drawer'});
+ const usdShift=await cash.open(conn,tenant,fxReceiver,{currency:'USD',openingCash:'100.00'});
+ await cash.decideOpening(conn,tenant,reviewer,usdShift._id,{
+  decision:'approve',note:'Independently counted the open USD physical payout drawer'});
+ const fxOrder=(await transfer.createRequest(conn,tenant,owner,{
+  senderId:String(sender._id),beneficiaryId:String(receiver._id),
+  destinationBranchId:String(branch._id),currency:'UGX',amount:'18500',
+  payoutCurrency:'USD',payoutAmount:'5.00',fxRateId:String(sellRate._id),
+  transferMethod:'Cash',fee:'0',idempotencyKey:crypto.randomUUID(),validDays:7
+ })).order;
+ assert.equal(fxOrder.payoutCurrency,'USD');
+ assert.equal(String(fxOrder.payoutMinor),'500');
+ assert.equal(String(fxOrder.amountMinor),'18500');
+ const fxCollection=await manual('money_transfer',fxOrder,{
+  collectionAccountId:String(cashFund._id),clearingAccountId:String(clearing._id)});
+ const beforeCollectionCash=await book(cashFund);
+ await funded.review(conn,tenant,reviewer,fxCollection.execution._id,reviewData);
+ assert.equal(await book(cashFund),beforeCollectionCash+18500n);
+ assert.equal(await book(clearing),18500n);
+ const afterCollection=await require('../src/tenant/settlements/models').models(conn)
+  .settlement.findOne({sourceId:fxOrder._id}).lean();
+ assert.equal(afterCollection.status,'collected');
+ assert.equal(afterCollection.cashCurrency,'UGX');
+ assert.equal(afterCollection.providerCurrency,'USD');
+ const fxPin=await funded.revealPin(conn,tenant,owner,fxCollection.execution._id);
+ assert.match(fxPin.pin,/^\d{6}$/);
+ const verifiedReceiver=await funded.checkPayout(conn,tenant,fxReceiver,{
+  pin:fxPin.pin,senderPhone:'+256700111222',receiverNameCheck:'Verified receiver',
+  identityDocument:'ACTUAL-RECEIVER-ID'});
+ const fxPayout=await funded.requestPayout(conn,tenant,fxReceiver,requestData({
+  verificationToken:verifiedReceiver.token,payoutAccountId:String(usdCash._id)}));
+ assert.equal(await book(usdCash),10000n);
+ const originBeforePayout=await book(cashFund);
+ await funded.review(conn,tenant,reviewer,fxPayout.execution._id,reviewData);
+ assert.equal(await book(usdCash),9500n,'Only actual USD banknotes leave recipient drawer');
+ assert.equal(await book(cashFund),originBeforePayout,'The UGX sender cash is not paid out a second time');
+ assert.equal(await book(clearing),0n,'Original teller UGX payable must be fully released');
+ const finished=await require('../src/tenant/settlements/models').models(conn)
+  .settlement.findOne({sourceId:fxOrder._id}).lean();
+ assert.equal(finished.status,'posted');
+ assert.equal(finished.postingBatchIds.length,3);
+ assert.equal((await core.transferOrderModel(conn).findById(fxOrder._id)).status,'paid_out_manual');
+ await assert.rejects(funded.review(conn,tenant,reviewer,fxPayout.execution._id,reviewData),{status:409});
+ await treasury.assertBookIntegrity(conn,null,await treasuryModels(conn).account.findById(usdCash._id).lean());
+ process.env.CLASSICFIN_LINKED_CURRENCY_POSTING='disabled';
+
  for(let i=0;i<10;i++)await assert.rejects(funded.checkPayout(conn,tenant,owner,{pin:'123456',senderPhone:'+256700199999'}),{status:404});
  await assert.rejects(funded.checkPayout(conn,tenant,owner,{pin:'123456',senderPhone:'+256700199999'}),{status:429},'same phone and branch guesses are limited across database-backed attempts');
  const expiredChecked=await treasuryModels(conn).account.findById(cashFund._id).lean();assert.equal(String(expiredChecked.lastObservedMinor),originalObserved,'expected book movement cannot pretend the last external/counted observation changed live');
@@ -140,7 +207,7 @@ async function main(){
  await cash.open(conn,tenant,pendingActor,{openingCash:'5000'});
  const pendingSnapshot=await workspace.snapshot(conn,tenant,pendingActor,emptyOverview,branch);assert.deepEqual(pendingSnapshot.cash,[]);assert.equal(pendingSnapshot.currentCashShift,null);assert.equal(pendingSnapshot.dayStatus,'PENDING');
  const logs=JSON.stringify(await core.auditEventModel(conn).find({}).lean());assert(!logs.includes(revealed.pin),'audit must never contain payout PIN');
- console.log('PASS: actual manual banking deposits/withdrawals/internal transfers, customer liability balances, FX stock/settlement/explicit fees, legacy same-branch transfer collection/payable/PIN once-only verification/payout, maker-checker, cash closing, ledger integrity, concurrency/idempotency, insufficient-fund rollback, privacy, revocation and role-scoped cash dashboard snapshots across all four operator modules.');
+ console.log('PASS: real cross-currency same-branch UGX collection -> separate cashier USD PIN payout and linked journals; actual manual banking deposits/withdrawals/internal transfers, customer liability balances, FX stock/settlement/explicit fees, legacy same-branch transfer collection/payable/PIN once-only verification/payout, maker-checker, cash closing, ledger integrity, concurrency/idempotency, insufficient-fund rollback, privacy, revocation and role-scoped cash dashboard snapshots across all four operator modules.');
 }
 async function cleanup(){if(mongoose.connection.readyState===1&&mongoose.connection.name===platformName&&/^cfh_funded_probe_[a-f0-9]{16}$/.test(platformName)){for(const connection of connections)await connection.db.dropDatabase();await mongoose.connection.db.dropDatabase();}await mongoose.disconnect();}
 main().catch(error=>{console.error('FUNDED OPERATIONS INTEGRATION FAILED:',error.stack||error.message);process.exitCode=1;}).finally(()=>cleanup().catch(error=>{console.error('Funded scratch cleanup failed:',error.message);process.exitCode=1;}));

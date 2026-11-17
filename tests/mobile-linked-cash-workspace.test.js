@@ -51,8 +51,8 @@ test('Mobile Money CSV exports the physical cash amount with its original SSP de
  const csv=workspace.toCsv([record],'Africa/Juba');
  assert.match(csv,/Provisional cash impact \(native cash currency\)/);
  assert.match(csv,/Actual cash currency/);
- assert.match(csv,/,"-11000\.00","SSP"\r\n$/);
- assert.doesNotMatch(csv,/,"-11000\.00","KES"\r\n$/);
+ assert.match(csv,/,"'-11000\.00","SSP"\r\n$/);
+ assert.doesNotMatch(csv,/,"'-11000\.00","KES"\r\n$/);
 });
 test('the actual cash page renders SSP in the existing cards without counting unverified provider fees as cash',async()=>{
  const result=workspace.summarize([group({currency:'KES',cashCurrency:'SSP',amountMinor:'10000',cashMovementMinor:'-1100000'})]);

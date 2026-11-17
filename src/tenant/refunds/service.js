@@ -259,6 +259,8 @@ async function detail(conn,tenant,actor,sourceId){
  return rows.map(row=>({
   id:String(row._id),status:row.status,reason:row.reason,requestedBy:String(row.requestedBy),
   requestedAt:row.createdAt,reviewedAt:row.reviewedAt,reviewNote:row.reviewNote,
+  signedReceiptReference:row.status==='posted_refund'?row.refundReceiptReference:null,
+  compensationBatch:row.status==='posted_refund'?String(row.reversalBatchId||''):null,
   currency:row.currency,amount:formatMoneyMinor(
    String(BigInt(String(row.principalMinor))+BigInt(String(row.feeMinor))),row.currency)
  }));

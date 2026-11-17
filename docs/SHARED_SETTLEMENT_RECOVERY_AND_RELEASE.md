@@ -44,6 +44,23 @@ If banknotes have physically changed hands but the database commit fails, the ca
 6. Verify rejection, crash-after-commit, duplicate submission, concurrency, revoked operator, insufficient funds, held drawer, missing proof, foreign currency mismatch and provider timeout with real replica-set tests.
 7. The gated, two-person **cash-only** interface exists. Expand beyond it only after separate bank/wallet provider confirmation, interbranch liquidity custody, irreversible payout dispute controls, operational receipt preservation, and verified customer handover procedures.
 
+## Real same-currency interbranch cash reimbursement — development-only
+
+**Implemented behind `CLASSICFIN_INTERBRANCH_CASH_SETTLEMENT=enabled` (OFF by default)** on the existing paid Money Transfer record. It is a physical custody movement; it is NOT a second payout, and it does not recognize a commission or trading profit.
+
+1. A paid, different-branch transfer must have an actual independently reviewed collection and an actual independently reviewed recipient payout, **in the same currency**. The service derives the original source and destination drawers from those original immutable execution IDs. It never accepts arbitrary account IDs.
+2. The **original sending cashier** records a signed handover reference and explanation. This request changes NO balance. A tenant-owner request cannot self-approve by bypassing the original cashier.
+3. The **original receiving cashier** signs in to their assigned branch, counts the *real banknotes*, and submits a **different, unique receiving receipt reference**. The receiving confirmation changes NO balance.
+4. An **independent tenant owner** matches both signed references, verifies the currency and amount, the actual physical handover, both cashier assignments, active cash shifts, matched account balances, and original payable/receivable. Same reviewer cannot impersonate the maker or recipient.
+5. A **single MongoDB transaction** credits the sending drawer out, debits the original interbranch payable, debits the original recipient drawer in, and credits the receiving branch's original interbranch receivable. The two original-currency journals balance independently. Transfer remains `paid_out_manual` because reimbursement is not customer payout.
+6. Immutable cash movement batches, per-transfer unique review reference, signed evidence and audit IDs remain visible on the transfer. Concurrent approvals must produce one pair of journal batches; reject/hold/short-cash never makes a balance change.
+
+**No arbitrary SSP → USD netting:** a South Sudan sender may collect SSP while the recipient receives USD. The SSP origin payable and USD recipient receivable remain unmatched until independently verified *real FX conversion*, actual funding cost basis, and currency-specific interbranch reimbursement are implemented. Merely entering an exchange rate and pressing "Settle" is forbidden.
+
+Before optional reimbursement indexes are created for any tenant, run the existing authorized index preflight with `CLASSICFIN_PREPARE_INTERBRANCH_INDEXES=true`. They are not installed for unrelated tenants by default, conserving Atlas index limits.
+
+**Physical custody exception:** if banknotes move but MongoDB commit fails, stop and reconcile both actual drawers; do not blindly repeat the handover. Keep signed transport/receiving evidence, owner incident record, and reviewed Treasury adjustment. Receipt evidence is human-verified; this workflow does not authenticate a bank or courier or claim external cash movement itself.
+
 ## Daily financial reconciliation
 
 For each branch, cashier, provider and currency separately:

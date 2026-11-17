@@ -297,7 +297,8 @@ module.exports={createAccount,postJournal,reverseJournal,trialBalance,inspectJou
     const {execution,source,collection}=await require('../funded/branchTransfer').validate(conn,session,tenant,actor,payoutId);
     const treasury=require('../treasury/models').models(conn);
     const clearing=await treasury.account.findOne({_id:collection.accounts.clearingAccountId,tenantId:tenant._id,branchId:source.branchId,kind:'transfer_clearing',currency:source.currency}).session(session).lean();
-    const payable=await treasury.counter.findOne({tenantId:tenant._id,branchId:source.branchId,currency:source.currency,purpose:'interbranch_payable'}).session(session).lean();
+    const purpose=String(source.branchId)===String(execution.branchId)?'settlement_clearing':'interbranch_payable';
+    const payable=await treasury.counter.findOne({tenantId:tenant._id,branchId:source.branchId,currency:source.currency,purpose}).session(session).lean();
     if(!clearing||!payable)throw error('Branch transfer ledger mappings are unavailable',409);
     const expected=validateJournal({branchId:String(source.branchId),currency:source.currency,sourceRef:`BRANCH:${execution._id}:ORIGIN`,actorId:actor.id,sourceType:'treasury',lines:[{accountCode:clearing.ledgerCode,side:'debit',amountMinor:String(source.amountMinor)},{accountCode:payable.ledgerCode,side:'credit',amountMinor:String(source.amountMinor)}]});
     const request=validateJournal(input);if(request.fingerprint!==expected.fingerprint)throw error('Branch transfer journal must exactly reclassify its collected payable',403);

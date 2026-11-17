@@ -3,7 +3,7 @@
  <div class="cardHead"><b>Branch cash reimbursement</b>
   <span><%= data.order.reference %> · <%= data.order.status.replaceAll('_',' ') %></span></div>
  <div class="cardBody">
-  <p class="tiny">This follows the original transfer's real sending and receiving cashiers. Reimbursement is **not** a second customer payout. Cash is deducted from the actual sending drawer, received into the original payout cashier's drawer, and the corresponding same-currency interbranch balances are cleared only when both branches' signed proof is independently approved.</p>
+  <p class="tiny">This follows the original transfer's real sending and receiving cashiers. Reimbursement is not a second customer payout. Cash is deducted from the actual sending drawer, received into the original payout cashier's drawer, and the corresponding same-currency interbranch balances are cleared only when both branches' signed proof is independently approved.</p>
   <div class="summary">
    <div class="sumRow"><span>Collected in sending branch</span><b><%= data.formatMoneyMinor(data.order.amountMinor,data.order.currency) %></b></div>
    <div class="sumRow"><span>Recipient currency</span><b><%= data.formatMoneyMinor(data.order.payoutMinor||data.order.amountMinor,data.order.payoutCurrency||data.order.currency) %></b></div>

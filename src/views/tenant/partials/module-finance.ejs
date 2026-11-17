@@ -27,6 +27,24 @@
    <div class="s"><%= card.note %></div>
   </div><% }); %>
  </div>
+ <% if(['banking','money_transfer'].includes(moduleKey) && moduleFinance.crossModuleFxActivity){ const activity=moduleFinance.crossModuleFxActivity; %>
+ <section class="card" style="margin-top:12px" aria-label="Module-origin currency exchanges">
+  <div class="cardHead"><b>Currency exchanges started from <%= moduleKey.replaceAll('_',' ') %></b><span>Completed Treasury postings, not bank or remittance settlements</span></div>
+  <div class="cardBody">
+   <% if(activity.limited){ %><p class="tiny">More than 1,000 exchanges. Narrow the date range.</p>
+   <% }else{ %>
+    <strong><%= activity.count %> posted exchange<%= activity.count===1?'':'s' %></strong>
+    <div class="row2" style="margin-top:10px">
+     <div><b>Bought</b><% if(!activity.bought.length){ %><p class="tiny">None posted</p><% } %>
+      <% activity.bought.forEach(line=>{ %><p><%= line.formatted %></p><% }) %></div>
+     <div><b>Sold</b><% if(!activity.sold.length){ %><p class="tiny">None posted</p><% } %>
+      <% activity.sold.forEach(line=>{ %><p><%= line.formatted %></p><% }) %></div>
+    </div>
+    <p class="tiny">These are independently attributable Forex inventory movements. They do not prove that an external bank transfer or beneficiary payout was completed.</p>
+   <% } %>
+  </div>
+ </section>
+ <% } %>
  <% if(moduleKey==='forex' && moduleFinance.forexActivity){ const activity=moduleFinance.forexActivity; %>
  <section class="card" style="margin-top:12px" aria-label="Posted Forex exchange activity">
   <div class="cardHead"><b>Actual Forex exchanges · posted</b><span>Real book movements, not pending quotations</span></div>

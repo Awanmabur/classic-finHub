@@ -1,0 +1,27 @@
+<% const moduleFinance=typeof data.financeOverview==='object'&&data.financeOverview?data.financeOverview:{};
+   const modulePosting=(moduleFinance.moduleEarnings||[]).find(item=>item.moduleKey===moduleKey)||{};
+   const moduleAssets=(moduleFinance.byModule||[]).find(item=>item.moduleKey===moduleKey)?.totals||[];
+   const financialCards=[
+    {title:'Operating assets · book',items:moduleAssets,empty:'No module-specific asset account',note:'Shared cash is counted once in Treasury, not attributed to every module.'},
+    {title:'Posted income · today',items:modulePosting.income||[],empty:'No posted income',note:'Only recognized ledger postings, not estimates or customer fees charged by a provider.'},
+    {title:'Posted expenses · today',items:modulePosting.expenses||[],empty:'No posted expenses',note:'Only approved, actually posted ledger expenses.'},
+    {title:'Posted net income · today',items:modulePosting.net||[],empty:'No posted income or expenses',note:moduleKey==='forex'?'Excludes trading profit until purchase cost basis and sales can be matched.':'Posted income less posted expenses; not a valuation of unmeasured costs.'}
+   ]; %>
+<% if(moduleFinance.available){ %>
+<section class="financialModuleOverview" aria-label="Financial summary for this module" style="margin-top:12px">
+ <div class="grid3 overviewStatsGrid moduleStatsGrid">
+  <% financialCards.forEach(card=>{ %>
+  <div class="stat" title="<%= card.note %>">
+   <div class="k"><%= card.title %></div>
+   <% if(!card.items.length){ %><div class="v"><%= card.empty %></div>
+   <% }else{ %><div class="overviewCurrencyLines">
+    <% card.items.forEach(row=>{ %><div class="overviewCurrencyLine">
+      <span><%= row.currency==='KES'?'KSH':row.currency %></span>
+      <b><%= row.formatted.replace(/^KES /,'KSH ') %></b>
+    </div><% }); %>
+   </div><% } %>
+   <div class="s"><%= card.note %></div>
+  </div><% }); %>
+ </div>
+</section>
+<% } %>

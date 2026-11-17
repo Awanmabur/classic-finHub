@@ -34,7 +34,7 @@ test('KES float turnover and SSP drawer custody remain two independent native cu
  const csv=report.csv({window:{timeZone:'Africa/Juba',from:'2026-11-01',to:'2026-11-17'},
   networks:outcome.networks,cashMovements:outcome.cashMovements,expenses:[]});
  assert.match(csv,/Physical cash currency/);
- assert.match(csv,/SSP,M-Pesa,-1350000/);
+ assert.match(csv,/SSP\",\"M-Pesa\",\"'-1350000/);
 });
 test('ordinary same-currency mobile money keeps the existing cash movement reporting contract',()=>{
  const outcome=report.summarize([group('MTN SSD','SSP','SSP','cash_in','30000','30000')],[],[]);

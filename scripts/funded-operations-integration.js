@@ -201,7 +201,11 @@ async function main(){
   }
   const foreign=await workspace.snapshot(conn,tenant,actor,emptyOverview,{...branch.toObject(),_id:new mongoose.Types.ObjectId()});assert.deepEqual(foreign.cash,[]);assert.equal(foreign.currentCashShift,null);
  }
- const branchCash=await workspace.snapshot(conn,tenant,reviewer,emptyOverview,branch);assert.equal(branchCash.cash[0].shiftCount,4);assert.equal(branchCash.cash[0].expectedFormatted,'UGX 100,000');
+ const branchCash=await workspace.snapshot(conn,tenant,reviewer,emptyOverview,branch);
+ const originalUgx=branchCash.cash.find(row=>row.currency==='UGX');
+ assert(originalUgx,'Original UGX cashier shifts must remain visible after USD/FX testing');
+ assert.equal(originalUgx.shiftCount,4);assert.equal(originalUgx.expectedFormatted,'UGX 100,000');
+ assert(branchCash.cash.some(row=>row.currency==='USD'),'Separate USD shift must appear by its own actual currency');
  const pendingActor={...operatorDrawers[0].actor,id:String(new mongoose.Types.ObjectId())};
  await core.tenantUserModel(conn).create({_id:pendingActor.id,name:'Pending operator',email:`${pendingActor.id}@example.invalid`,passwordHash:'scratch-not-a-real-password',role:pendingActor.role,branchId:pendingActor.branchId,allowedModules:pendingActor.allowedModules,status:'active',authVersion:0});
  await cash.open(conn,tenant,pendingActor,{openingCash:'5000'});

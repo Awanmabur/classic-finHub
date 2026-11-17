@@ -44,4 +44,13 @@ async function quoteTransfer(conn,session,{rateId,...params}){
  });
  return planner.transferPlan({...params,rate:approved.rate});
 }
-module.exports={loadApprovedRate,quoteMoMo,quoteTransfer};
+async function quoteTransferTerms(conn,session,{rateId,tenant,originBranchId,destinationBranchId,
+ collectionCurrency,payoutCurrency,payoutMinor,at}={}){
+ const approved=await loadApprovedRate(conn,session,{
+  tenant,rateId,branchId:originBranchId,fromCurrency:payoutCurrency,
+  toCurrency:collectionCurrency,side:'sell',at
+ });
+ return planner.transferTerms({originBranchId,destinationBranchId,
+  collectionCurrency,payoutCurrency,payoutMinor,rate:approved.rate,at});
+}
+module.exports={loadApprovedRate,quoteMoMo,quoteTransfer,quoteTransferTerms};

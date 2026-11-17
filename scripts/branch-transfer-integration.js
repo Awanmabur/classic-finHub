@@ -129,6 +129,12 @@ async function main(){
  await funded.review(conn,tenant,owner,collect._id,decision);
  assert.equal(await amount(sspDrawer._id),'265000');
  assert.equal(await amount(sspPayable._id),'65000');
+ const recoveryBefore=await transfer.branchBalances(conn,tenant,manager);
+ const outstanding=recoveryBefore.recovery.items.find(item=>item.sourceId===String(xOrder._id));
+ assert(outstanding,'The destination branch must see the collected, still-unpaid source');
+ assert.equal(outstanding.senderCollected,'SSP 650.00');
+ assert.equal(outstanding.recipientDue,'USD 5.00');
+ assert.equal(outstanding.state,'awaiting_recipient');
  const claim=await funded.revealPin(conn,tenant,teller,collect._id);
  const verified=await funded.checkPayout(conn,tenant,receivingTeller,{
   pin:claim.pin,senderPhone:sourceInput.senderPhone,receiverNameCheck:sourceInput.receiverName});
@@ -162,6 +168,8 @@ async function main(){
  const due=reviewed.rows.find(row=>row.currency==='USD');
  assert(due,'Native USD receivable must appear separately');
  assert.equal(due.receivable,'USD 5.00');
+ assert.equal(reviewed.recovery.items.some(item=>item.sourceId===String(xOrder._id)),false,
+  'Once recipient is paid, the original must leave the unpaid recovery queue');
  await assert.rejects(transfer.branchBalances(conn,tenant,receivingTeller),{status:403});
  process.env.CLASSICFIN_LINKED_CURRENCY_POSTING='disabled';
 

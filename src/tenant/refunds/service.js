@@ -65,6 +65,22 @@ async function sourceChecks(conn,session,tenant,source,collection){
  }
  return batch;
 }
+function assertReadyRefundDrawers(source,collection,accounts){
+ const cash=accounts.find(x=>String(x._id)===String(collection.accounts.collectionAccountId));
+ const liability=accounts.find(x=>String(x._id)===String(collection.accounts.clearingAccountId));
+ if(!cash||!liability||cash.kind!=='cash'||liability.kind!=='transfer_clearing'||
+  cash.currency!==source.currency||liability.currency!==source.currency||
+  String(cash.branchId)!==String(source.branchId)||String(liability.branchId)!==String(source.branchId)||
+  String(cash.operatorId||'')!==String(collection.createdBy)||
+  [cash,liability].some(x=>x.status!=='active'||x.reconciliationState!=='matched'||
+   x.openingBalanceMinor==null||!x.openingApprovedAt))
+  throw fail('Original cashier drawer or transfer payable is unavailable or not independently reconciled');
+ const gross=BigInt(String(source.amountMinor))+BigInt(String(source.feeMinor));
+ if(BigInt(String(cash.bookBalanceMinor))<gross||
+  BigInt(String(liability.bookBalanceMinor))<BigInt(String(source.amountMinor)))
+  throw fail('Insufficient actual original-currency cash or outstanding payable to refund this sender');
+ return {cash,liability,gross:String(gross)};
+}
 function requestInput(input={}){
  if(!UUID.test(String(input.idempotencyKey||'')))throw fail('Reload the refund form for a new request reference',400);
  return {idempotencyKey:String(input.idempotencyKey).toLowerCase(),
@@ -177,6 +193,11 @@ async function review(conn,tenant,actor,refundId,input={},expectedSourceId=null)
    String(pending.principalMinor)!==facts.principalMinor||String(pending.feeMinor)!==facts.feeMinor)
    throw fail('Refund is no longer identical to the original collected cash and fee');
   await sourceChecks(conn,session,authorization.tenant,source,collection);
+  const accounts=await treasury.models(conn).account.find({
+   _id:{$in:[collection.accounts.collectionAccountId,collection.accounts.clearingAccountId]},
+   tenantId:tenant._id,branchId:source.branchId
+  }).session(session).lean();
+  assertReadyRefundDrawers(source,collection,accounts);
   // One authoritative reversal of the original collection: physical cash,
   // transfer payable and any fee-income credit move back together.
   const returned=await treasury.reverseMovements(conn,session,authorization,{
@@ -242,4 +263,4 @@ async function detail(conn,tenant,actor,sourceId){
    String(BigInt(String(row.principalMinor))+BigInt(String(row.feeMinor))),row.currency)
  }));
 }
-module.exports={fail,cashMethod,requestInput,request,review,detail,sourceChecks};
+module.exports={fail,cashMethod,assertReadyRefundDrawers,requestInput,request,review,detail,sourceChecks};

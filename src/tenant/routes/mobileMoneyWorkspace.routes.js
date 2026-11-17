@@ -51,6 +51,21 @@ module.exports=function routes({renderTenant}){
     recordPath:hasPermission(req.user,'mobile_money.cash_in')?'/tenant/mobile-money/cash-in':'/tenant/mobile-money/cash-out'});
   }catch(error){next(error);}
  }
+ router.post('/fx/record',requirePermission('treasury.observe'),
+  require('../../platform/services/actionThrottle.service').financial,
+  async(req,res,next)=>{
+   try{
+    if(!req.operationBranch)return res.status(409).send('Choose an operating branch');
+    // The service re-reads branch, rate, wallet, drawer and grants in the SAME
+    // database transaction. Form snapshots are never trusted for posting.
+    const result=await require('../services/momoFxSettlement.service').settleManuallyConfirmed(
+     req.tenantDb,req.tenant,req.user,{...req.body,branchId:String(req.operationBranch._id)});
+    require('../../utils/view').flash(req,'good',result.duplicate?
+     'This exchange was already recorded; no duplicate posted.':
+     'Exchange finalized in FinHub cash and float books. External provider settlement remains unverified.');
+    res.redirect(303,'/tenant/mobile-money/fx/history');
+   }catch(e){next(e);}
+  });
  router.get('/fx/history',async(req,res,next)=>{
   try{
    if(!req.operationBranch||!hasPermission(req.user,'treasury.view')||
@@ -86,7 +101,7 @@ module.exports=function routes({renderTenant}){
    res.set('Cache-Control','private, no-store');
    renderTenant(req,res,'mobile-money/fx','Cross-currency Mobile Money',
     'Approved exchange-rate preview using actual wallet and cash balances; no provider transaction is executed.',
-    {wallets,drawers,result,error,input:req.query,selectedBranchId:String(branch._id),formatMoneyMinor:require('../services/mobileMoney.service').formatMoneyMinor});
+    {wallets,drawers,result,error,input:req.query,idempotencyKey:randomUUID(),selectedBranchId:String(branch._id),formatMoneyMinor:require('../services/mobileMoney.service').formatMoneyMinor});
   }catch(e){next(e);}
  });
  router.get('/fx/preview',async(req,res,next)=>{

@@ -47,12 +47,14 @@ const grantSchema=new Schema({
  walletAccountId:{type:O,required:true,immutable:true},
  cashAccountId:{type:O,required:true,immutable:true},
  providerNetwork:{type:String,required:true,immutable:true},
- status:{type:String,enum:['approved','suspended','revoked'],required:true},
+ status:{type:String,enum:['pending_review','approved','rejected','suspended','revoked'],required:true,default:'pending_review'},
+ requestedBy:{type:O,default:null,immutable:true},requestedAt:{type:Date,default:Date.now,immutable:true},
+ verificationNote:{type:String,maxlength:500,default:''},
  permittedCurrencyPair:{type:String,required:true,immutable:true},
  providerAuthorizationReference:{type:String,required:true,maxlength:200},
  regulatoryAuthorizationReference:{type:String,required:true,maxlength:200},
- approvedBy:{type:O,required:true,immutable:true},
- reviewedAt:{type:Date,required:true},
+ approvedBy:{type:O,default:null},
+ reviewedAt:{type:Date,default:null},reviewNote:{type:String,maxlength:500,default:''},
  expiresAt:{type:Date,required:true}
 },{timestamps:true,strict:'throw'});
 grantSchema.index({tenantId:1,branchId:1,walletAccountId:1,cashAccountId:1,status:1});

@@ -66,6 +66,30 @@ module.exports=function routes({renderTenant}){
     res.redirect(303,'/tenant/mobile-money/fx/history');
    }catch(e){next(e);}
   });
+ router.get('/fx/authorizations',async(req,res,next)=>{try{
+  if(!req.operationBranch)return res.status(409).send('Choose an operating branch');
+  const service=require('../services/momoFxAuthorization.service');
+  const [context,funds]=await Promise.all([
+   service.context(req.tenantDb,req.tenant,req.user,req.operationBranch),
+   require('../services/mobileMoneyFunds.service').context(req.tenantDb,req.tenant,req.user,req.operationBranch)]);
+  const eligible=row=>row.state==='active'&&row.reconciliation==='matched'&&row.expectedMinor!=null;
+  renderTenant(req,res,'mobile-money/fx-authorizations','Cross-currency provider authorization',
+   'One-time provider and regulatory evidence checks, not per-transaction review.',
+   {...context,branchId:String(req.operationBranch._id),wallets:funds.wallets.filter(eligible),
+    drawers:funds.paymentAccounts.filter(row=>row.kind==='cash'&&eligible(row))});
+ }catch(e){next(e);}});
+ router.post('/fx/authorizations',require('../../platform/services/actionThrottle.service').financial,async(req,res,next)=>{try{
+  if(!req.operationBranch)return res.status(409).send('Choose an operating branch');
+  await require('../services/momoFxAuthorization.service').request(req.tenantDb,req.tenant,req.user,req.operationBranch,req.body);
+  require('../../utils/view').flash(req,'good','Authorization submitted for independent document verification.');
+  res.redirect(303,'/tenant/mobile-money/fx/authorizations');
+ }catch(e){next(e);}});
+ router.post('/fx/authorizations/:id/decide',require('../../platform/services/actionThrottle.service').financial,async(req,res,next)=>{try{
+  if(!req.operationBranch)return res.status(409).send('Choose an operating branch');
+  await require('../services/momoFxAuthorization.service').decide(req.tenantDb,req.tenant,req.user,req.operationBranch,req.params.id,req.body);
+  require('../../utils/view').flash(req,'good','Authorization decision recorded; refresh the exchange quote.');
+  res.redirect(303,'/tenant/mobile-money/fx/authorizations');
+ }catch(e){next(e);}});
  router.get('/fx/history',async(req,res,next)=>{
   try{
    if(!req.operationBranch||!hasPermission(req.user,'treasury.view')||

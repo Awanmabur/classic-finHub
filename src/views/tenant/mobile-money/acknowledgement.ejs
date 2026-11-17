@@ -12,8 +12,8 @@
 <dt>Network reference (unverified)</dt><dd><%= record.networkReference %></dd>
 <dt>Customer</dt><dd><%= record.customer %></dd>
 <dt>Provider electronic amount</dt><dd><%= amount %></dd>
-<dt>Actual customer cash (<%= record.settlementCurrency||record.currency %>)</dt><dd><%= cashSettlement %></dd>
-<% if(exchangeRate){ %><dt>Approved exchange rate used</dt><dd><%= exchangeRate %></dd><% } %>
+<dt>Actual customer cash (<%= record.settlementCurrency||record.currency||'' %>)</dt><dd><%= typeof cashSettlement==='string'?cashSettlement:amount %></dd>
+<% if(typeof exchangeRate==='string'&&exchangeRate){ %><dt>Approved exchange rate used</dt><dd><%= exchangeRate %></dd><% } %>
 <dt>Recorded fee</dt><dd><%= fee %></dd>
 <dt>Internal record</dt><dd><%= record.status==='voided_internal'?'Voided internally':record.fundingState==='book_recorded'?'Recorded in cash and float books':record.status==='recorded'?'Recorded':record.status==='pending_verification'?'Historical entry · book posting not established':record.status.replaceAll('_',' ') %></dd>
 <dt>Network settlement</dt><dd>Not independently verified in FinHub</dd>

@@ -71,7 +71,7 @@ async function settleVerified(conn,tenant,actor,input,proof){
   throw fail('Invalid cross-currency operation identifiers',400);
  expectedOperation(input.operation);
  if(!hasModuleForUser(tenant,actor,'mobile_money')||!hasModuleForUser(tenant,actor,'forex')||
-    !hasPermission(actor,'treasury.observe')||!hasPermission(actor,'forex.view')||
+    !hasPermission(actor,'treasury.observe')||!(hasPermission(actor,'forex.view')||actor.role==='Mobile Money Operator')||
     !hasPermission(actor,'mobile_money.view'))throw fail('Missing cross-currency module or treasury permission',403);
  // Do not import signed external float movements from user supplied balances.
  const evidence=proof?.mode==='operator_attested_unverified'?

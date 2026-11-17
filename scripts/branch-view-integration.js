@@ -47,7 +47,13 @@ async function main(){
  async function client(person){let cookie='';async function request(path,values){const response=await fetch(base+path,{method:values?'POST':'GET',redirect:'manual',headers:{...(cookie?{cookie}:{}),...(values?{'content-type':'application/x-www-form-urlencoded'}:{})},...(values?{body:new URLSearchParams(values).toString()}:{})});cookie=response.headers.get('set-cookie')?.split(';')[0]||cookie;return {response,html:await response.text()};}
   const sign=await request('/signin'),signed=await request('/signin',{email:person.email,password,_csrf:csrf(sign.html)});assert.equal(signed.response.status,303,signed.html);if(signed.response.headers.get('location').includes('/mfa/')){const challenge=await request('/mfa/challenge'),done=await request('/mfa/challenge',{code:mfa.counterCode(secret,Math.floor(Date.now()/30000)),_csrf:csrf(challenge.html)});assert.equal(done.response.status,303,done.html);}return request;}
  const owner=await client(people[0]),operator=await client(people[1]),auditor=await client(people[3]);
- const today=new Date().toISOString().slice(0,10),yesterday=new Date(Date.now()-86400000).toISOString().slice(0,10),filter=`from=${yesterday}&to=${today}`;
+  // Report date filters are branch-local, not UTC. A UTC midnight test fails
+  // when it is already the next business day in Africa/Juba or Africa/Kampala.
+  const businessTime=require('../src/utils/businessTime');
+  const zone=businessTime.forBranch(mainBranch);
+  const today=businessTime.localDay(new Date(),zone);
+  const yesterday=businessTime.localDay(new Date(Date.now()-86400000),zone);
+  const filter=`from=${yesterday}&to=${today}`;
  async function switchTo(request,branchId){const page=await request('/tenant/dashboard');assert.equal(page.response.status,200,page.html);return request('/tenant/view-branch',{viewBranchId:String(branchId),returnTo:`/tenant/mobile-money/network-activity?${filter}&network=MTN&currency=UGX&cursor=stale`,_csrf:csrf(page.html)});}
  async function expectPage(request,path,present,absent,tableOnly=false){const page=await request(path);assert.equal(page.response.status,200,path+': '+page.html.slice(0,500));const content=tableOnly?page.html.match(/<tbody>[\s\S]*?<\/tbody>/)?.[0]||'':page.html;assert(content.includes(present),path+' missing '+present);if(absent)assert(!content.includes(absent),path+' leaked '+absent);return page;}
  const initial=await owner('/tenant/dashboard');assert.equal(initial.response.status,200,initial.html);assert(initial.html.includes(`value="${mainId}" selected`),'initial owner view defaults to main');

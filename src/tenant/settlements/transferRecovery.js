@@ -26,9 +26,10 @@ function classify(order,latest,now=new Date()){
  if(!order||order.status!=='collected_manual')throw fail('Only actually collected, unpaid transfers can enter this queue',409);
  const since=order.manualPostedAt||order.createdAt;
  const age=since?Math.max(0,Math.floor((now-new Date(since))/3600000)):null;
- const state=latest?.status==='pending_review'?'awaiting_payout_review':
+ const state=latest?.status==='posted_manual'?'inconsistent_paid_status':
+  latest?.status==='pending_review'?'awaiting_payout_review':
   latest?.status==='rejected'?'payout_rejected':'awaiting_recipient';
- const needsAttention=state==='payout_rejected'||age===null||age>=ATTENTION_HOURS;
+ const needsAttention=['payout_rejected','inconsistent_paid_status'].includes(state)||age===null||age>=ATTENTION_HOURS;
  return {
   sourceId:String(order._id),reference:order.reference,
   senderCollected:formatMoneyMinor(order.amountMinor,order.currency),
@@ -37,7 +38,9 @@ function classify(order,latest,now=new Date()){
   // A failed payout attempt has NOT returned collected cash to the sender.
   // Original PIN verification can be retried; any refund needs its own
   // independently reviewed real-cash adjustment, which is not yet automated.
-  explanation:state==='payout_rejected'?
+  explanation:state==='inconsistent_paid_status'?
+   'STOP. A payout execution appears posted but the transfer remains marked unpaid. Do not pay again or refund. Reconcile its journal and source status with an independent supervisor.':
+   state==='payout_rejected'?
    'Payout review rejected. No recipient cash was posted by that attempt. Re-check the original PIN and receiver identity before a new payout request; do not create a duplicate transfer.':
    state==='awaiting_payout_review'?
     'A payout request awaits independent finance review; recipient cash has not been posted.':

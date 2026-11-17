@@ -11,7 +11,7 @@ function fail(message,status=409){return Object.assign(new Error(message),{statu
 async function preview(conn,tenant,actor,branch,input){
  if(!branch||branch.status!=='active')throw fail('Select an active operating branch');
  if(!hasModuleForUser(tenant,actor,'mobile_money')||!hasModuleForUser(tenant,actor,'forex')||
-    !hasPermission(actor,'mobile_money.view')||!hasPermission(actor,'forex.view')||
+    !hasPermission(actor,'mobile_money.view')||!(hasPermission(actor,'forex.view')||actor.role==='Mobile Money Operator')||
     !hasPermission(actor,'treasury.view'))throw fail('This preview requires Mobile Money, Forex and Treasury access',403);
  if(actor.role!=='Tenant Owner'&&String(actor.branchId)!==String(branch._id))throw fail('Cannot access another branch',403);
  const walletId=String(input.walletAccountId||''),cashId=String(input.cashAccountId||'');

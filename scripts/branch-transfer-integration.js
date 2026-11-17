@@ -105,6 +105,30 @@ async function main(){
  assert.equal(blockedOrigin.reservedCashMinor,'10000');
  assert.equal(BigInt(blockedOrigin.availableMinor),
   originalUGX-10000n,'Cash physically handed over is unavailable to concurrent payments');
+ // Try to double-spend the original cashier's physically dispatched notes
+ // through the SAME Treasury posting engine used by cash, forex and payments.
+ const overspendSession=await conn.startSession();
+ try{
+  await assert.rejects(overspendSession.withTransaction(async()=>{
+   const authz=await treasury.access(conn,tenant,owner,{
+    permission:'treasury.review',session:overspendSession,fence:true
+   });
+   const counter=await treasury.models(conn).counter.findOne({
+    branchId:branch._id,currency:'UGX',purpose:'interbranch_payable'
+   }).session(overspendSession).lean();
+   assert(counter,'Origin interbranch payable ledger must exist');
+   await treasury.applyMovements(conn,overspendSession,authz,{
+    sourceType:'treasury_funding',sourceRef:'RESERVED-DOUBLE-SPEND:'+nonce,
+    branchId:String(branch._id),operatingActorId:String(teller.id),
+    legs:[{accountId:String(drawer._id),deltaMinor:String(-originalUGX)}],
+    ledgerLines:[{currency:'UGX',accountId:String(counter.ledgerAccountId),
+     side:'debit',amountMinor:String(originalUGX)}],
+    description:'Deliberate unauthorized second spend of original physical cash',
+    evidenceReference:'BLOCKED-RESERVED-CASH-'+nonce
+   });
+  }),{status:409},'Shared Treasury must reject a second cash debit consuming notes in transit');
+ }finally{await overspendSession.endSession();}
+ assert.equal(await amount(drawer._id),String(originalUGX));
  const rejectedReceiving=await physical.confirmReceipt(conn,tenant,receivingTeller,rejectedCash._id,{
   receiverReceiptReference:'DEST-REJECTED-UGX-'+nonce,
   receiverNote:'Actual receiving cashier counted original rejected reimbursement evidence',

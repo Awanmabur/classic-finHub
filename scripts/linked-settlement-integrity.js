@@ -37,7 +37,7 @@ async function main(){
   cashCurrency:'SSP',providerPrincipalMinor:'100000',
   physicalCashMinor:'1300000',walletAccountId:walletId,cashAccountId:drawerId,
   rateSnapshot:{rateId,side:'buy',fromCurrency:'UGX',toCurrency:'SSP',
-   rateDecimal:'130',approvedBy:reviewer,expiresAt:new Date('2030-01-01')},
+   rateDecimal:'0.13',approvedBy:reviewer,expiresAt:new Date('2030-01-01')},
   postingBatchIds:[id()],status:'posted',providerState:'unverified',
   occurredAt:new Date(),postedAt:new Date(),createdBy:maker
  };

@@ -79,6 +79,7 @@ async function apply(conn,session,authorization,values,{requireObservation=false
  if(useConfiguredPolicy&&wallet.feeTreatment==='wallet_commission')
   throw fail('Legacy wallet commission is disabled for new agent transactions. Set wallet treatment to Record only and independently reconcile actual provider payouts.',409);
  const configuredPolicy=wallet.feeTreatment||'record_only';
+ if(crossCurrency&&configuredPolicy!=='record_only')throw fail('Set the provider wallet fee policy to Record only before cross-currency settlement. Do not convert unverified commission estimates into cash income.',409);
  if(useConfiguredPolicy&&feeTreatmentSpecified&&values.feeTreatment!==configuredPolicy)throw fail('Use the fee policy configured on the Wallets page.',409);
  const feeTreatment=useConfiguredPolicy||!feeTreatmentSpecified?configuredPolicy:values.feeTreatment;
  let walletDelta=sign*amount,paymentDelta=-sign*cashAmount;

@@ -161,7 +161,18 @@ async function main(){
  assert.deepEqual(await balances(),existingBalance,'both custody movements must roll back together');
  assert.equal(await records(conn).countDocuments(),originalCount,'failed exchange cannot appear settled');
  assert.equal(await tm.models(conn).batch.countDocuments({sourceRef:{$regex:/^MFX:/}}),3,'failed exchange cannot create a journal batch');
- console.log('PASS: approved bid/ask quote, opposite UGX/SSP cash directions, atomic native-currency journals, no duplicate settlement, insufficient-cash rollback, and truthful unmeasured FX profit.');
+ const suspended=await authorization.suspend(conn,tenant,owner,branch,approvedGrant._id,{
+  note:'Synthetic provider authorization suspended for live grant safety verification'});
+ assert.equal(suspended.status,'suspended');
+ const afterSuspendQuote=await preview(conn,tenant,owner,branch,{operation:'withdraw_provider_receive_cash',
+  walletAccountId:String(wallet._id),cashAccountId:String(drawer._id),providerAmountMinor:'1'});
+ await assert.rejects(settleManuallyConfirmed(conn,tenant,owner,{
+  ...afterSuspendQuote,branchId:String(branch._id),idempotencyKey:crypto.randomUUID(),
+  providerReference:'SUSPENDED-'+nonce,providerAppConfirmed:'yes',cashHandoverConfirmed:'yes'
+ }),error=>error.status===403&&/authorization/.test(error.message),
+ 'suspended provider grant must prevent all future cross-currency postings');
+ assert.deepEqual(await balances(),existingBalance,'suspended authorization must not move money');
+ console.log('PASS: approved bid/ask quote, opposite UGX/SSP cash directions, atomic native-currency journals, no duplicate settlement, insufficient-cash rollback, independently reviewed grant onboarding, safe suspension and truthful unmeasured FX profit.');
 }
 async function cleanup(){
  if(mongoose.connection.readyState===1&&mongoose.connection.name===platformName&&/^cfh_momofx_[a-f0-9]{14}$/.test(platformName)){

@@ -3,6 +3,7 @@
 // Only call after a trusted integration verifies the provider event and cash
 // handover. Arbitrary browser-supplied references are NOT verification.
 const mongoose=require('mongoose');
+const crypto=require('node:crypto');
 const {records,grants}=require('../schemas/MomoFxSettlement');
 const {models:treasuryModels,ensure:ensureTreasury}=require('../treasury/models');
 const treasury=require('../treasury/service');
@@ -16,6 +17,20 @@ function expectedOperation(value){
  if(!['withdraw_provider_receive_cash','deposit_cash_send_provider'].includes(value))throw fail('Invalid exchange direction',400);
  return value;
 }
+function evidencePayload(proof){
+ const {providerStatus,providerReference,network,currency,amountMinor,evidenceId,verifiedAt,cashConfirmedAt,cashHandoverConfirmed}=proof;
+ return JSON.stringify({providerStatus,providerReference,network,currency,amountMinor,evidenceId,verifiedAt,cashConfirmedAt,cashHandoverConfirmed});
+}
+function requireEvidenceSignature(proof){
+ const key=process.env.CLASSICFIN_MOMO_FX_PROVIDER_EVIDENCE_HMAC_KEY_HEX;
+ if(typeof key!=='string'||!/^[a-f0-9]{64}$/i.test(key))
+  throw fail('Verified provider evidence signer is not configured',503);
+ if(typeof proof.evidenceSignature!=='string'||!/^[a-f0-9]{64}$/i.test(proof.evidenceSignature))
+  throw fail('Authenticated provider evidence signature is required',403);
+ const actual=crypto.createHmac('sha256',Buffer.from(key,'hex')).update('momo-fx-provider-v1|'+evidencePayload(proof)).digest();
+ const supplied=Buffer.from(proof.evidenceSignature,'hex');
+ if(!crypto.timingSafeEqual(actual,supplied))throw fail('Provider evidence signature is invalid',403);
+}
 function verifiedEvidence(proof,input){
  // The caller must be a trusted, internal provider-verification integration.
  // The HTTP layer must never construct proof from req.body.
@@ -28,6 +43,7 @@ function verifiedEvidence(proof,input){
     !Number.isFinite(new Date(proof.verifiedAt).getTime())||
     !Number.isFinite(new Date(proof.cashConfirmedAt).getTime()))
   throw fail('Confirmed external provider evidence and physical cash handover are required');
+ requireEvidenceSignature(proof);
  const verifiedAt=new Date(proof.verifiedAt),cashConfirmedAt=new Date(proof.cashConfirmedAt);
  if(verifiedAt>Date.now()+60000||cashConfirmedAt>Date.now()+60000||
     Date.now()-verifiedAt>86400000||Date.now()-cashConfirmedAt>86400000)

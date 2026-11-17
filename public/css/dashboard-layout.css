@@ -271,3 +271,14 @@ form[method="get"] .field>.control{min-width:0;width:100%}
 @media(max-width:600px){
  #workspaceContent #view-overview .overviewStatsGrid{grid-template-columns:minmax(0,1fr)}
 }
+
+/* Financial module summaries inherit the approved stat cards and show four
+   equal columns on PCs without affecting existing transaction forms. */
+#workspaceContent .financialModuleOverview .moduleStatsGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+#workspaceContent .financialModuleOverview .moduleStatsGrid > .stat{min-width:0;overflow-wrap:anywhere}
+#workspaceContent .financialModuleOverview .overviewCurrencyLines{display:grid;gap:5px;margin-top:10px;padding-top:8px;border-top:1px solid var(--border)}
+#workspaceContent .financialModuleOverview .overviewCurrencyLine{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:11px;line-height:1.4}
+#workspaceContent .financialModuleOverview .overviewCurrencyLine span{color:var(--muted);min-width:0}
+#workspaceContent .financialModuleOverview .overviewCurrencyLine b{font-size:11px;font-weight:650;white-space:nowrap;text-align:right}
+@media(max-width:980px){#workspaceContent .financialModuleOverview .moduleStatsGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){#workspaceContent .financialModuleOverview .moduleStatsGrid{grid-template-columns:minmax(0,1fr)}}

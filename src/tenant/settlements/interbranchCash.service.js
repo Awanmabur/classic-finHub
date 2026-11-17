@@ -66,6 +66,10 @@ async function authoritativePair(conn,session,source){
   funded.models(conn).execution.findById(source.manualCollectionExecutionId).session(session).lean(),
   funded.models(conn).execution.findById(source.manualPayoutExecutionId).session(session).lean()
  ]);
+ const expected=require('../services/fundedOperations.service');
+ if(!collection?.journalIds?.length||!payout?.journalIds?.length||
+  !expected.sourceMatches(collection,source)||!expected.sourceMatches(payout,source))
+  throw fail('The original reviewed collection/payout journals or immutable economic fingerprints disagree');
  return sourcePair(source,collection,payout);
 }
 function readyAccounts(pair,accounts){

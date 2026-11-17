@@ -50,6 +50,16 @@ function verifiedEvidence(proof,input){
   throw fail('Provider or cash confirmation is stale');
  return {verifiedAt,cashConfirmedAt};
 }
+function operatorEvidence(proof,input,actor){
+ // An authenticated cashier confirms both actual custody legs. This is a
+ // finalized INTERNAL book entry; it never attests external provider settlement.
+ if(!proof||proof.mode!=='operator_attested_unverified'||
+    proof.actorId!==String(actor.id)||proof.providerReference!==input.providerReference||
+    proof.providerAppConfirmed!==true||proof.cashHandoverConfirmed!==true)
+  throw fail('Confirm the actual provider-app transaction and cash handover before recording',400);
+ return {verifiedAt:null,cashConfirmedAt:new Date(),
+  evidenceId:'OP:'+input.idempotencyKey,evidenceKind:'operator_attested',settlementState:'unverified'};
+}
 function dec(value){return mongoose.Types.Decimal128.fromString(String(value));}
 async function settleVerified(conn,tenant,actor,input,proof){
  // Application-level kill switch, independent of tenant and branch grants.
@@ -64,7 +74,10 @@ async function settleVerified(conn,tenant,actor,input,proof){
     !hasPermission(actor,'treasury.observe')||!hasPermission(actor,'forex.view')||
     !hasPermission(actor,'mobile_money.view'))throw fail('Missing cross-currency module or treasury permission',403);
  // Do not import signed external float movements from user supplied balances.
- const evidence=verifiedEvidence(proof,input);
+ const evidence=proof?.mode==='operator_attested_unverified'?
+  operatorEvidence(proof,input,actor):
+  {...verifiedEvidence(proof,input),evidenceId:proof.evidenceId,
+   evidenceKind:'signed_provider',settlementState:'verified'};
  const Record=records(conn),Grant=grants(conn);
  await Promise.all([ensureTreasury(conn),Record.init(),Grant.init()]);
  const existing=await Record.findOne({tenantId:tenant._id,idempotencyKey:input.idempotencyKey}).lean();
@@ -134,7 +147,8 @@ async function settleVerified(conn,tenant,actor,input,proof){
     providerAmountMinor:dec(q.providerAmountMinor),cashAmountMinor:dec(q.cashAmountMinor),
     walletDeltaMinor:dec(q.walletDeltaMinor),cashDeltaMinor:dec(q.cashDeltaMinor),
     rateId:rate._id,rateVersion:rate.revision,rateSide:rate.side,rateDecimal:rate.rateDecimal,
-    providerEvidenceId:proof.evidenceId,providerVerifiedAt:evidence.verifiedAt,
+    providerEvidenceId:evidence.evidenceId,providerVerifiedAt:evidence.verifiedAt,
+    providerEvidenceKind:evidence.evidenceKind,providerSettlementState:evidence.settlementState,
     cashConfirmedAt:evidence.cashConfirmedAt,complianceGrantId:grant._id,
     journalBatchId:posting.batch._id,fxProfitState:'unmeasured_cost_basis',settledAt:new Date()
    }],{session});
@@ -149,4 +163,13 @@ async function settleVerified(conn,tenant,actor,input,proof){
   throw error;
  }finally{await session.endSession();}
 }
-module.exports={settleVerified};
+async function settleManuallyConfirmed(conn,tenant,actor,input){
+ const proof={mode:'operator_attested_unverified',actorId:String(actor?.id||''),
+  providerReference:input?.providerReference,
+  providerAppConfirmed:input?.providerAppConfirmed==='yes',
+  cashHandoverConfirmed:input?.cashHandoverConfirmed==='yes'};
+ if(!hasPermission(actor,input?.operation==='withdraw_provider_receive_cash'?'mobile_money.cash_out':'mobile_money.cash_in'))
+  throw fail('Mobile Money transaction permission is required',403);
+ return settleVerified(conn,tenant,actor,input,proof);
+}
+module.exports={settleVerified,settleManuallyConfirmed};

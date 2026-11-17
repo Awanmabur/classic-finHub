@@ -10,6 +10,28 @@
 <label class="field">Provider reference<input class="control" name="networkReference" value="<%= f.networkReference||'' %>" minlength="5" maxlength="100" required></label>
 <label class="field">Currency<select class="control" name="currency" required><% ['UGX','USD','SSP','KES'].forEach(currency=>{ %><option value="<%= currency %>" <%= f.currency===currency?'selected':'' %>><%= currency==='KES'?'KSH':currency %></option><% }) %></select></label>
 <label class="field">Amount<input class="control" name="amount" value="<%= f.amount||'' %>" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" required></label>
+<section data-sms-settlement class="formSection" data-default-settlement="<%= data.cashCurrency||f.currency||'' %>">
+ <h3>Physical cash settlement</h3>
+ <p class="tiny">The SMS confirms provider float only. Confirm the actual cash currency and amount paid to or received from the customer before recording. Never guess the cash amount from an Uganda network SMS.</p>
+ <label class="field">Physical cash currency<select class="control" name="settlementCurrency" data-sms-settlement-currency required>
+  <% (data.cashCurrencies||[]).forEach(currency=>{ %>
+   <option value="<%= currency %>" <%= currency===(f.settlementCurrency||data.cashCurrency||f.currency)?'selected':'' %>><%= currency==='KES'?'KSH':currency %></option>
+  <% }); %>
+ </select></label>
+ <label class="field" data-sms-fx-rate-field hidden>Approved cash exchange rate<select class="control" name="forexRateId" data-sms-fx-rate disabled>
+   <option value="">Choose approved Buy or Sell rate</option>
+   <% (data.settlementRates||[]).forEach(rate=>{ %>
+    <option value="<%= rate._id %>" data-from="<%= rate.fromCurrency %>" data-to="<%= rate.toCurrency %>" data-side="<%= rate.side %>" data-rate="<%= rate.rateDecimal %>" data-expires="<%= new Date(rate.expiresAt).toISOString() %>" <%= String(f.forexRateId||'')===String(rate._id)?'selected':'' %>>
+      <%= rate.side==='buy'?'Buy':'Sell' %> · <%= rate.fromCurrency %> → <%= rate.toCurrency %> · <%= rate.rateDecimal %>
+    </option>
+   <% }); %>
+  </select></label>
+ <label class="field" data-sms-fx-amount-field hidden>Confirmed physical cash amount
+   <input class="control" name="settlementAmount" data-sms-fx-amount inputmode="decimal" value="<%= f.settlementAmount||'' %>" readonly disabled required>
+   <span class="tiny">Calculated from the currently approved rate. The operator must verify that actual customer cash matches before recording.</span>
+ </label>
+ <div class="summary"><div class="sumRow"><span>Provider amount</span><b data-sms-provider-preview>—</b></div><div class="sumRow"><span>Physical customer cash</span><b data-sms-cash-preview>—</b></div></div>
+</section>
 <label class="field">Fee<input class="control" name="fee" value="<%= f.fee||'' %>" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" required></label>
 <label class="field">Actual agent wallet balance after transaction<input class="control" name="observedWalletBalance" value="<%= f.observedWalletBalance||'' %>" inputmode="decimal" placeholder="Only the agent wallet balance shown in the original receipt"></label><input type="hidden" name="observationEvidenceReference" value="<%= f.observationEvidenceReference||f.networkReference||'' %>">
 <p class="tiny">The transaction uses your account’s operating branch and verified cash shift. Provider reference checks prevent duplicate recordings.</p><button class="btn btnPrimary" type="submit">Record for verification</button></form></div></section><% }else if(editable){ %><p class="tiny">The device’s assigned operator must review and record this SMS using their own verified cash shift.</p><% } %>

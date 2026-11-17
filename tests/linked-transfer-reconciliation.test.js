@@ -62,6 +62,10 @@ test('scoped reconciliation rejects cross-tenant data, weak roles and unassigned
  assert.throws(()=>authorized(conn,ownTenant,{...owner,role:'Branch Manager'},{}),{status:403});
  assert.throws(()=>authorized(conn,ownTenant,{...owner,role:'Branch Manager'},
   {branchId:'not-an-id'}),{status:403});
+ assert.throws(()=>authorized(conn,ownTenant,{...owner,role:'Branch Manager',branchId:ID.origin},
+  {branchId:ID.destination}),{status:403});
+ assert.doesNotThrow(()=>authorized(conn,ownTenant,{...owner,role:'Branch Manager',branchId:ID.origin},
+  {branchId:ID.origin}));
  assert.equal(LIMIT,50);
 });
 

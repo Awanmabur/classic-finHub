@@ -144,4 +144,17 @@ async function postedEarningsByModule(conn,tenant,scope,options={}){
   return {moduleKey,income:rowsOf(row.income),expenses:rowsOf(row.expenses),net:rowsOf(net)};
  });
 }
-module.exports={ASSET_KINDS,MODULES,groupMoney,rowsOf,branchScope,postedEarnings,postedEarningsByModule,overview};
+// Module pages always report their operating branch, not a silent tenant-wide
+// mixture of branches or currencies. A failed optional summary must not block
+// record entry or successful customer transactions.
+async function moduleOverview(conn,tenant,user,branch){
+ try{
+  return await overview(conn,tenant,user,{
+   operationBranch:branch,timeZone:businessTime.forBranch(branch)
+  });
+ }catch(error){
+  console.warn(JSON.stringify({event:'finance.module_overview_unavailable',code:String(error.code||error.name||'UNKNOWN').slice(0,80)}));
+  return {available:false,reason:'Financial overview temporarily unavailable; core transactions remain available'};
+ }
+}
+module.exports={ASSET_KINDS,MODULES,groupMoney,rowsOf,branchScope,postedEarnings,postedEarningsByModule,overview,moduleOverview};

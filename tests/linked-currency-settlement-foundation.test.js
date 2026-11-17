@@ -149,3 +149,31 @@ test('correction journal reverses exact native currency lines without editing th
  }
  assert.equal(original[0].side,'debit');
 });
+
+
+test('same-branch currency exchange transfer still separates SSP collection from USD payout',()=>{
+ const fxRate={...rate('sell','0.002'),fromCurrency:'USD',toCurrency:'SSP'};
+ const plan=planner.transferPlan({originBranchId:b,destinationBranchId:b,
+  originCashAccountId:e,destinationPayoutAccountId:f,collectionCurrency:'SSP',
+  payoutCurrency:'USD',payoutMinor:'10000',rate:fxRate});
+ const stages=require('../src/tenant/settlements/journalPlan').transferStages(plan);
+ assert.equal(stages.length,2);
+ assert.equal(stages[0].branchId,stages[1].branchId);
+ assert.equal(stages[0].currency,'SSP');
+ assert.equal(stages[1].currency,'USD');
+ assert.equal(stages[0].status,'not_posted');
+ assert.equal(stages[1].status,'not_posted');
+ assert.notEqual(stages[0].cashAccountId,stages[1].payoutAccountId);
+});
+test('KEN mobile float can settle into the same physical SSP drawer used by other modules',()=>{
+ const kesRate={...rate('buy','13.5'),fromCurrency:'KES',toCurrency:'SSP'};
+ const withdrawal=planner.quote({channel:'mobile_money',operation:'cash_out',branchId:b,
+  providerCurrency:'KES',cashCurrency:'SSP',providerPrincipalMinor:'100000',
+  walletAccountId:e,cashAccountId:f,rate:kesRate});
+ assert.equal(withdrawal.custodyLegs[0].currency,'KES');
+ assert.equal(withdrawal.custodyLegs[0].deltaMinor,'100000');
+ assert.equal(withdrawal.custodyLegs[1].currency,'SSP');
+ assert.equal(withdrawal.custodyLegs[1].deltaMinor,'-1350000');
+ assert.equal(require('../src/tenant/settlements/journalPlan').assertBalanced(
+  require('../src/tenant/settlements/journalPlan').linesForMoMo(withdrawal)),true);
+});

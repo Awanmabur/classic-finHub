@@ -248,3 +248,26 @@ form[method="get"] .field>.control{min-width:0;width:100%}
 #dashboardSignoutDialog strong{font-size:16px;line-height:1.4}
 #dashboardSignoutDialog p{font-size:13px;line-height:1.5;margin:0;color:var(--muted)}
 #dashboardSignoutDialog .signoutProgressIcon{margin:0 0 4px}
+
+/* Approved dashboard cards: four across on desktop; no layout shift from
+   longer currency values. Reuse established theme surfaces and corner radii. */
+#workspaceContent #view-overview .overviewStatsGrid{
+ display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;
+}
+#workspaceContent #view-overview .overviewStatsGrid > .stat{min-width:0;overflow-wrap:anywhere;}
+#workspaceContent #view-overview .overviewCurrencyLines{
+ display:grid;gap:5px;margin-top:10px;padding-top:8px;
+ border-top:1px solid var(--border);
+}
+#workspaceContent #view-overview .overviewCurrencyLine{
+ display:flex;align-items:baseline;justify-content:space-between;gap:8px;
+ font-size:11px;line-height:1.4;
+}
+#workspaceContent #view-overview .overviewCurrencyLine span{color:var(--muted);min-width:0;}
+#workspaceContent #view-overview .overviewCurrencyLine b{font-size:11px;font-weight:650;text-align:right;white-space:nowrap;}
+@media(max-width:980px){
+ #workspaceContent #view-overview .overviewStatsGrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:600px){
+ #workspaceContent #view-overview .overviewStatsGrid{grid-template-columns:minmax(0,1fr)}
+}

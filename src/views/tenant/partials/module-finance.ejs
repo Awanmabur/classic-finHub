@@ -27,6 +27,28 @@
    <div class="s"><%= card.note %></div>
   </div><% }); %>
  </div>
+ <% if(moduleKey==='forex' && moduleFinance.forexActivity){ const activity=moduleFinance.forexActivity; %>
+ <section class="card" style="margin-top:12px" aria-label="Posted Forex exchange activity">
+  <div class="cardHead"><b>Actual Forex exchanges · posted</b><span>Real book movements, not pending quotations</span></div>
+  <div class="cardBody">
+   <% if(activity.limited){ %><p class="tiny">Too many exchanges for this summary. Narrow the report period.</p>
+   <% }else{ %>
+    <strong><%= activity.count %> completed exchange<%= activity.count===1?'':'s' %></strong>
+    <div class="row2" style="margin-top:10px">
+     <div><b>Foreign currency bought</b>
+      <% if(!activity.bought.length){ %><p class="tiny">No purchases posted</p><% } %>
+      <% activity.bought.forEach(line=>{ %><p><%= line.formatted %></p><% }) %>
+     </div>
+     <div><b>Foreign currency sold</b>
+      <% if(!activity.sold.length){ %><p class="tiny">No sales posted</p><% } %>
+      <% activity.sold.forEach(line=>{ %><p><%= line.formatted %></p><% }) %>
+     </div>
+    </div>
+    <p class="tiny">Volumes come from posted Forex movements only. They are not net income or realized trading profit. Rates and received/paid settlement currencies remain visible in individual transaction records.</p>
+   <% } %>
+  </div>
+ </section>
+ <% } %>
 </section>
 <% } else if(typeof user==='object'&&user&&['Tenant Owner','Branch Manager','Reconciliation Officer','Auditor'].includes(user.role)){ %>
 <section class="card financialModuleOverview" aria-label="Financial statistics availability">

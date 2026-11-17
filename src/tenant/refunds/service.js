@@ -102,12 +102,18 @@ async function request(conn,tenant,actor,sourceId,input={}){
  const v=requestInput(input),sourceKey=id(sourceId);
  await Promise.all([ensure(conn),core.ensureTenantIndexes(conn),funded.ensureIndexes(conn),
   treasury.ensure(conn),sms.ensureIndexes(conn)]);
- const Refund=model(conn),prior=await Refund.findOne({idempotencyKey:v.idempotencyKey}).lean();
- if(prior){if(!equivalent(prior,sourceKey,actor,v))throw fail('Refund reference reused with different data');
-  return {refund:prior,duplicate:true};}
+ const Refund=model(conn);
  const session=await conn.startSession();let result;
  try{await session.withTransaction(async()=>{
   const authorization=await auth.fenceAction(conn,session,actor,tenant,'money_transfer','money_transfer.create');
+  const prior=await Refund.findOne({tenantId:authorization.tenant._id,
+   idempotencyKey:v.idempotencyKey}).session(session).lean();
+  if(prior){
+   if(!equivalent(prior,sourceKey,authorization.actor,v)||
+    String(prior.branchId)!==String(authorization.actor.branchId||''))
+    throw fail('Refund reference reused or the original cashier branch assignment changed',403);
+   result={refund:prior,duplicate:true};return;
+  }
   const source=await core.transferOrderModel(conn).findOneAndUpdate({_id:sourceKey,status:'collected_manual',
    createdBy:authorization.actor.id},{$inc:{revision:1}},{new:true,session}).lean();
   if(!source)throw fail('Only the originating cashier may request refund of an actually collected and unpaid transfer');

@@ -83,6 +83,72 @@ async function main(){
  await require('../src/tenant/settlements/models').ensure(conn);
  await core.tenantUserModel(conn).updateOne({_id:teller.id},{$set:{status:'active'}});
  teller.authVersion=1;
+ // Real same-currency cross-branch custody reimbursement. The collecting
+ // cashier sends original UGX banknotes to the teller who already paid UGX.
+ // Both real cash accounts and interbranch dues must change atomically.
+ process.env.CLASSICFIN_INTERBRANCH_CASH_SETTLEMENT='enabled';
+ const physical=require('../src/tenant/settlements/interbranchCash.service');
+ await require('../src/tenant/settlements/interbranchCash.models').ensure(conn);
+ const originalUGX=BigInt(await amount(drawer._id));
+ const receiverUGX=BigInt(await amount(destinationCash._id));
+ const settlementInput=()=>({
+  idempotencyKey:crypto.randomUUID(),
+  evidenceReference:'SENDER-UGX-HANDOVER-'+nonce,
+  note:'Origin cashier presents counted UGX notes for independent branch reimbursement'
+ });
+ const rejectedCash=(await physical.request(conn,tenant,teller,source._id,settlementInput())).reimbursement;
+ assert.equal(rejectedCash.status,'pending_review');
+ const refused=await physical.review(conn,tenant,owner,rejectedCash._id,{
+  decision:'reject',note:'Receiving-branch signed cash proof had not yet arrived'},source._id);
+ assert.equal(refused.reimbursement.status,'rejected');
+ assert.equal(await amount(drawer._id),String(originalUGX));
+ assert.equal(await amount(destinationCash._id),String(receiverUGX));
+ const actual=(await physical.request(conn,tenant,teller,source._id,settlementInput())).reimbursement;
+ assert.equal(actual.status,'pending_review');
+ await assert.rejects(physical.request(conn,tenant,teller,source._id,settlementInput()),{status:409});
+ const postedCashDecision={
+  decision:'approve',note:'Both branches signed for exact counted original UGX handover',
+  senderHandoverReference:'SENDER-SIGNED-'+nonce,
+  receiverReceiptReference:'DESTINATION-SIGNED-'+nonce,
+  bothBranchesVerified:'confirmed'
+ };
+ await assert.rejects(physical.review(conn,tenant,teller,actual._id,postedCashDecision,source._id),
+  {status:403},'The collecting teller cannot approve their own physical reimbursement');
+ await assert.rejects(physical.review(conn,tenant,owner,actual._id,{
+  ...postedCashDecision,receiverReceiptReference:postedCashDecision.senderHandoverReference
+ },source._id),{status:400},'Sender and receiver need distinct independently signed proof');
+ await assert.rejects(physical.review(conn,tenant,owner,actual._id,postedCashDecision,oid()),
+  {status:403},'An unrelated transfer URL cannot redirect a cash reimbursement');
+ const realResults=await Promise.allSettled([
+  physical.review(conn,tenant,owner,actual._id,postedCashDecision,source._id),
+  physical.review(conn,tenant,owner,actual._id,postedCashDecision,source._id)
+ ]);
+ assert.equal(realResults.filter(x=>x.status==='fulfilled').length,1,
+  'Concurrent physical settlement approvals may post exactly one pair of custody batches');
+ assert.equal(realResults.filter(x=>x.status==='rejected').length,1);
+ const done=realResults.find(x=>x.status==='fulfilled').value.reimbursement;
+ assert.equal(done.status,'posted');
+ assert(done.originBatchId&&done.destinationBatchId);
+ assert.equal(await amount(drawer._id),String(originalUGX-10000n));
+ assert.equal(await amount(destinationCash._id),String(receiverUGX+10000n));
+ assert.equal((await core.transferOrderModel(conn).findById(source._id)).status,'paid_out_manual',
+  'Interbranch reimbursement never changes the actual customer payout history');
+ const checked=await transfer.branchBalances(conn,tenant,owner);
+ const netUg=checked.rows.filter(x=>x.currency==='UGX');
+ assert(netUg.every(x=>/UGX 0\b/.test(x.payable)&&/UGX 0\b/.test(x.receivable)),
+  'The actual same-currency payable and receivable must both be fully cleared');
+ for(const branchKey of [branch,destination])
+  assert.equal((await ledger.trialBalance(conn,{
+   branchId:String(branchKey._id),currency:'UGX'})).balanced,true);
+ for(const account of [drawer,destinationCash])
+  await treasury.assertBookIntegrity(conn,null,
+   await treasury.models(conn).account.findById(account._id).lean());
+ const postedEvidence=await physical.detail(conn,tenant,owner,source._id);
+ assert.equal(postedEvidence[0].status,'posted');
+ assert.equal(postedEvidence[0].receiverReceiptReference,postedCashDecision.receiverReceiptReference);
+ await assert.rejects(physical.review(conn,tenant,owner,actual._id,postedCashDecision,source._id),
+  {status:409});
+ process.env.CLASSICFIN_INTERBRANCH_CASH_SETTLEMENT='disabled';
  const fxReviewer={id:oid(),role:'Reconciliation Officer',branchId:String(branch._id),
   permissions:permissionsFor('Reconciliation Officer'),allowedModules:['forex'],authVersion:0};
  await core.tenantUserModel(conn).create({_id:fxReviewer.id,name:'Independent Forex reviewer',

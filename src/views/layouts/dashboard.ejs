@@ -110,6 +110,6 @@
   <% if(context === 'tenant'){ %><%- include('../partials/offline-queue') %><script src="/js/offline-workspace.js?v=<%= assetVersion %>" defer></script><script src="/js/customer-accounts.js?v=<%= assetVersion %>" defer></script><% } %>
   <script src="/js/operation-pricing.js?v=<%= assetVersion %>" defer></script>
   <script src="/js/dashboard.js?v=<%= assetVersion %>" defer></script>
-  <% if(context==='tenant'){ %><script src="/js/mobile-money-quote.js?v=<%= assetVersion %>" defer></script><script src="/js/linked-settlement.js?v=<%= assetVersion %>" defer></script><% } %>
+  <% if(context==='tenant'){ %><script src="/js/mobile-money-quote.js?v=<%= assetVersion %>" defer></script><script src="/js/linked-settlement.js?v=<%= assetVersion %>" defer></script><script src="/js/linked-transfer.js?v=<%= assetVersion %>" defer></script><% } %>
 </body>
 </html>

@@ -143,6 +143,49 @@ async function request(conn,tenant,actor,transferId,input={}){
  });}catch(error){if(error.code===11000)throw fail('This transfer has an existing cash reimbursement or conflicting retry');throw error;}
  finally{await session.endSession();}
 }
+async function confirmReceipt(conn,tenant,actor,reimbursementId,input={},expectedTransferId=null){
+ context(conn,tenant,actor);feature();
+ const evidenceReference=text(input.receiverReceiptReference,'actual receiving cashier signed receipt',8,120);
+ const note=text(input.receiverNote,'receiving cashier counted-cash note',12,400);
+ if(input.cashCountConfirmed!=='confirmed')
+  throw fail('The actual receiving cashier must confirm the counted banknotes received',400);
+ await Promise.all([core.ensureTenantIndexes(conn),funded.ensureIndexes(conn),ensure(conn)]);
+ const Model=model(conn),initial=await Model.findById(id(reimbursementId)).lean();
+ if(!initial)throw fail('Interbranch cash handover not found',404);
+ if(expectedTransferId&&String(initial.transferId)!==id(expectedTransferId))
+  throw fail('Interbranch receipt is for a different transfer',403);
+ if(evidenceReference===initial.evidenceReference)
+  throw fail('The receiving branch must provide separate original receipt evidence');
+ const session=await conn.startSession();
+ try{return await session.withTransaction(async()=>{
+  const authorization=await auth.fenceAction(conn,session,actor,tenant,'money_transfer','money_transfer.payout');
+  if(authorization.actor.role!=='Money Transfer Operator'||
+   String(authorization.actor.branchId)!==String(initial.destinationBranchId))
+   throw fail('The independently recorded receiving teller must confirm their own actual branch cash',403);
+  const source=await core.transferOrderModel(conn).findOneAndUpdate({
+   _id:initial.transferId,status:'paid_out_manual',branchId:initial.branchId,
+   destinationBranchId:initial.destinationBranchId
+  },{$inc:{revision:1}},{session,new:true}).lean();
+  if(!source)throw fail('Original transfer changed before receiving cashier acceptance');
+  const pair=await authoritativePair(conn,session,source);
+  if(pair.payoutActorId!==String(authorization.actor.id)||
+   pair.destinationCashAccountId!==String(initial.destinationCashAccountId)||
+   pair.currency!==initial.currency||pair.amountMinor!==String(initial.amountMinor))
+   throw fail('Only the original paid-out cashier may confirm the exact original cash receipt',403);
+  const changed=await Model.findOneAndUpdate({
+   _id:initial._id,tenantId:tenant._id,status:'pending_receiver',
+   receiverReceiptReference:null,
+   ...(expectedTransferId?{transferId:id(expectedTransferId)}:{})
+  },{$set:{status:'pending_review',receivedBy:authorization.actor.id,
+   receiverConfirmedAt:new Date(),receiverReceiptReference:evidenceReference,
+   receiverNote:note},$inc:{revision:1}},{session,new:true}).lean();
+  if(!changed)throw fail('Receiving cash was already confirmed, rejected or changed');
+  await writeAudit(conn,session,authorization.actor,changed,'receiver_confirmed');
+  return {reimbursement:changed,duplicate:false};
+ });}catch(error){if(error.code===11000)
+  throw fail('This receiving-branch receipt was already used for another cash reimbursement');throw error;
+ }finally{await session.endSession();}
+}
 async function counterBalance(conn,session,account,currency,branchId,normalSide){
  const sums=await core.ledgerPostingModel(conn).aggregate([
   {$match:{accountId:account,currency,branchId}},
@@ -177,10 +220,14 @@ async function review(conn,tenant,actor,reimbursementId,input={},expectedTransfe
    String(authorization.actor.id)===String(initial.requestedBy))
    throw fail('A different tenant owner must independently verify both physical branches',403);
   const locked=await Model.findOneAndUpdate({_id:initial._id,tenantId:tenant._id,
-   status:'pending_review',requestedBy:{$ne:authorization.actor.id},
+   status:'pending_review',receiverConfirmedAt:{$ne:null},
+   receiverReceiptReference:{$type:'string'},requestedBy:{$ne:authorization.actor.id},
    ...(expectedTransferId?{transferId:id(expectedTransferId)}:{})},
    {$inc:{revision:1}},{new:true,session}).lean();
   if(!locked)throw fail('Reimbursement already decided or outside your tenant');
+  if(String(locked.receivedBy||'')===String(locked.requestedBy)||
+   String(locked.receivedBy||'')===String(authorization.actor.id))
+   throw fail('Sender, receiver and financial reviewer must be different authenticated people',403);
   if(!confirmed){
    const rejected=await Model.findOneAndUpdate({_id:locked._id,status:'pending_review'},
     {$set:{status:'rejected',reviewedBy:authorization.actor.id,reviewedAt:new Date(),
@@ -188,6 +235,9 @@ async function review(conn,tenant,actor,reimbursementId,input={},expectedTransfe
    await writeAudit(conn,session,authorization.actor,rejected,'rejected');
    return {reimbursement:rejected,duplicate:false};
   }
+  if(senderReference!==locked.evidenceReference||
+   receiverReference!==locked.receiverReceiptReference)
+   throw fail('Independent review must use the same signed sender and receiver evidence previously recorded');
   const source=await core.transferOrderModel(conn).findOneAndUpdate({
    _id:locked.transferId,status:'paid_out_manual',
    branchId:locked.branchId,destinationBranchId:locked.destinationBranchId
@@ -260,7 +310,10 @@ async function detail(conn,tenant,actor,transferId){
   id:String(x._id),status:x.status,
   origin:String(x.branchId),destination:String(x.destinationBranchId),
   currency:x.currency,amount:formatMoneyMinor(x.amountMinor,x.currency),
-  requestedBy:String(x.requestedBy),reviewedBy:x.reviewedBy?String(x.reviewedBy):null,
+  requestedBy:String(x.requestedBy),
+  receivedBy:x.receivedBy?String(x.receivedBy):null,
+  receiverConfirmedAt:x.receiverConfirmedAt||null,
+  reviewedBy:x.reviewedBy?String(x.reviewedBy):null,
   note:x.note,reviewNote:x.reviewNote||null,
   senderHandoverReference:x.senderHandoverReference||null,
   receiverReceiptReference:x.receiverReceiptReference||null,
@@ -268,4 +321,4 @@ async function detail(conn,tenant,actor,transferId){
   destinationBatchId:x.destinationBatchId?String(x.destinationBatchId):null
  }));
 }
-module.exports={sourcePair,readyAccounts,requestInput,request,review,detail,feature,fail};
+module.exports={sourcePair,readyAccounts,requestInput,request,confirmReceipt,review,detail,feature,fail};

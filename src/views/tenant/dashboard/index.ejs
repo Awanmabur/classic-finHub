@@ -49,6 +49,16 @@
         <% }) %>
         <% } %>
       </div><% } else { %><p>Your workspace is ready.</p><p class="tiny"><%= visiblePaths.has('/tenant/modules')?'Choose the modules your team needs to start recording activity.':'Your administrator can enable the modules you need to get started.' %></p><% if(visiblePaths.has('/tenant/modules')){ %><a class="btn" href="/tenant/modules">Explore modules</a><% } %><% } %>
+      <% if((snapshot.fundsByCurrency||[]).length){ %>
+      <div class="summary overviewWorkingFunds" role="group" aria-label="Approved working funds by currency">
+        <div class="sumRow"><span><b>Working funds in custody</b> <small>· actual book accounts, not turnover</small></span><b><%= snapshot.fundsByCurrency.length %> currenc<%= snapshot.fundsByCurrency.length===1?'y':'ies' %></b></div>
+        <% snapshot.fundsByCurrency.forEach(fund=>{ %>
+        <div class="sumRow"><span><%= fund.currency==='KES'?'KSH':fund.currency %> · <%= fund.accountCount %> approved account<%= fund.accountCount===1?'':'s' %>
+          <small><%= Object.keys(fund.kinds||{}).map(kind=>kind==='wallet'?'Electronic float':kind==='forex_stock'?'FX stock':kind).join(' + ') %></small></span><b><%= fund.formatted %></b></div>
+        <% }); %>
+        <p class="tiny">Balances represent approved, matched cash, float, bank and FX-stock books, counted once per account. This is working liquidity, not owner-invested capital or verified Forex profit. Different currencies are not added together without a dated valuation basis.</p>
+      </div>
+      <% } %>
       <% if(financialActions.length||visiblePaths.has('/tenant/reports')||visiblePaths.has('/tenant/cash/shifts')){ %><div class="rowBtns" style="margin-top:12px">
         <% financialActions.forEach((action,index)=>{ %><a class="btn <%= index===0?'btnPrimary':'' %>" href="<%= action.href %>" data-transaction-kind="<%= action.kind %>"><%= action.label %></a><% }) %>
         <% if(visiblePaths.has('/tenant/reports')){ %><a class="btn" href="/tenant/reports">View reports</a><% } %>

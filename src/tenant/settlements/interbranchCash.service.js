@@ -102,6 +102,41 @@ function readyAccounts(pair,accounts){
   throw fail('Sending branch has insufficient actual cash for full reimbursement');
  return {source,destination};
 }
+// Reservation is a spendable-cash hold, not a ledger movement. Treasury
+// continues to report the original book balance; every cash debit checks the
+// hold, and cash shift closing/opening are blocked while notes are in transit.
+async function changeReserve(conn,session,tenant,pair,mode){
+ if(!session?.inTransaction())throw fail('Physical cash reservation requires a database transaction');
+ if(!['hold','release'].includes(mode))throw fail('Invalid cash reservation operation');
+ const Account=treasury.models(conn).account;
+ const original=await Account.findOneAndUpdate({
+  _id:pair.sourceCashAccountId,tenantId:tenant._id,
+  branchId:pair.branchId,currency:pair.currency,kind:'cash',
+  operatorId:pair.collectionActorId
+ },{$inc:{revision:1}},{session,new:true}).lean();
+ if(!original||original.status!=='active'||original.reconciliationState!=='matched'||
+  !original.openingApprovedAt||original.openingBalanceMinor==null)
+  throw fail('Actual sending drawer is held, unverified or not assigned to original cashier');
+ const book=BigInt(String(original.bookBalanceMinor));
+ const reserved=BigInt(String(original.reservedCashMinor??'0'));
+ const amount=BigInt(pair.amountMinor);
+ if(book<0n||reserved<0n||reserved>book||amount<=0n)
+  throw fail('Existing Treasury reserved cash or book balance is inconsistent');
+ if(mode==='hold'){
+  if(book-reserved<amount)
+   throw fail('Source cashier cannot hand over more physical cash than their unreserved balance');
+  await require('../services/cashDrawer.service').bindFundAccount(
+   conn,session,original,String(book));
+ }else if(reserved<amount)
+  throw fail('The original physical cash custody reservation is missing or already released');
+ const next=mode==='hold'?reserved+amount:reserved-amount;
+ const updated=await Account.findOneAndUpdate({
+  _id:original._id,revision:original.revision
+ },{$set:{reservedCashMinor:require('mongoose').Types.Decimal128.fromString(String(next))},
+  $inc:{revision:1}},{session,new:true}).lean();
+ if(!updated)throw fail('Original cash reservation was modified concurrently');
+ return updated;
+}
 function requestInput(input={}){
  if(!UUID.test(String(input.idempotencyKey||'')))throw fail('Reload the form for a fresh reimbursement reference',400);
  return {
@@ -151,6 +186,7 @@ async function request(conn,tenant,actor,transferId,input={}){
   const existing=await Model.findOne({tenantId:tenant._id,transferId:source._id,
    activeKey:{$type:'string'}}).session(session).lean();
   if(existing)throw fail('A reimbursement is already pending or posted for this transfer');
+  await changeReserve(conn,session,authorization.tenant,pair,'hold');
   const [created]=await Model.create([{
    tenantId:tenant._id,transferId:source._id,branchId:pair.branchId,
    destinationBranchId:pair.destinationBranchId,
@@ -159,7 +195,7 @@ async function request(conn,tenant,actor,transferId,input={}){
    currency:pair.currency,amountMinor:pair.amountMinor,
    requestedBy:authorization.actor.id,idempotencyKey:value.idempotencyKey,
    evidenceReference:value.evidenceReference,note:value.note,
-   activeKey:'IB-CASH:'+String(source._id)
+   activeKey:'IB-CASH:'+String(source._id),reservedAt:new Date()
   }],{session});
   await writeAudit(conn,session,authorization.actor,created,'requested');
   return {reimbursement:created.toObject(),duplicate:false};
@@ -345,4 +381,4 @@ async function detail(conn,tenant,actor,transferId){
   destinationBatchId:x.destinationBatchId?String(x.destinationBatchId):null
  }));
 }
-module.exports={sourcePair,readyAccounts,requestInput,receipt,request,confirmReceipt,review,detail,feature,fail};
+module.exports={sourcePair,readyAccounts,changeReserve,requestInput,receipt,request,confirmReceipt,review,detail,feature,fail};

@@ -16,8 +16,10 @@ const schema=new Schema({
  idempotencyKey:{type:String,required:true,immutable:true,match:/^[a-f0-9-]{36}$/i},
  evidenceReference:{type:String,required:true,immutable:true,maxlength:120},
  note:{type:String,required:true,immutable:true,maxlength:400},
- status:{type:String,enum:['pending_review','rejected','posted'],default:'pending_review',required:true},
+ status:{type:String,enum:['pending_receiver','pending_review','rejected','posted'],default:'pending_receiver',required:true},
  activeKey:{type:String,maxlength:100},
+ receivedBy:{type:O,default:null},receiverConfirmedAt:{type:Date,default:null},
+ receiverNote:{type:String,maxlength:400,default:null},
  reviewedBy:{type:O,default:null},
  reviewedAt:{type:Date,default:null},
  reviewNote:{type:String,maxlength:400,default:null},
@@ -31,6 +33,11 @@ schema.index({idempotencyKey:1},{unique:true,name:'unique_branch_cash_settlement
 schema.index({activeKey:1},{unique:true,partialFilterExpression:{activeKey:{$type:'string'}},
  name:'one_pending_or_posted_branch_cash_reimbursement'});
 schema.index({branchId:1,createdAt:-1});
+schema.index({tenantId:1,branchId:1,evidenceReference:1},
+ {unique:true,name:'unique_sender_handover_receipt_per_branch'});
+schema.index({tenantId:1,receiverReceiptReference:1},
+ {unique:true,partialFilterExpression:{receiverReceiptReference:{$type:'string'}},
+  name:'unique_actual_receiving_cashier_receipt'});
 function model(conn){return conn.models.InterbranchCashReimbursementV1||
  conn.model('InterbranchCashReimbursementV1',schema);}
 const ready=new WeakMap();

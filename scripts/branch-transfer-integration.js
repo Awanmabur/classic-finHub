@@ -77,7 +77,82 @@ async function main(){
  for(const account of [drawer,payable,destinationCash])await treasury.assertBookIntegrity(conn,null,await treasury.models(conn).account.findById(account._id).lean());
  await assert.rejects(funded.checkPayout(conn,tenant,receivingTeller,{pin:secret.pin,senderPhone:sourceInput.senderPhone}),{status:404});
  assert.equal((await transfer.detail(conn,tenant,receivingTeller,source._id)).reference,source.reference);
- console.log('PASS: destination-bound branch PINs, real destination cash, balanced interbranch receivable/payable journals, revoked sender, rollback, concurrent single payout, branch isolation and book integrity. No live SMS sent.');
+
+ // Real cross-branch SSP -> USD, separate physical drawers and currency books.
+ process.env.CLASSICFIN_LINKED_CURRENCY_POSTING='enabled';
+ await require('../src/tenant/settlements/models').ensure(conn);
+ await core.tenantUserModel(conn).updateOne({_id:teller.id},{$set:{status:'active'}});
+ teller.authVersion=1;
+ const fxReviewer={id:oid(),role:'Reconciliation Officer',branchId:String(branch._id),
+  permissions:permissionsFor('Reconciliation Officer'),allowedModules:['forex'],authVersion:0};
+ await core.tenantUserModel(conn).create({_id:fxReviewer.id,name:'Independent Forex reviewer',
+  email:'fx-'+nonce+'@example.invalid',passwordHash:'scratch-only',role:fxReviewer.role,
+  branchId:fxReviewer.branchId,allowedModules:fxReviewer.allowedModules,
+  status:'active',authVersion:0,mfaEnabledAt:new Date()});
+ const forex=require('../src/tenant/services/forex.service');
+ const proposed=await forex.proposeRate(conn,tenant,owner,{fromCurrency:'USD',toCurrency:'SSP',
+  side:'sell',rateDecimal:'130',validHours:24,
+  note:'Independently reviewed scratch SSP per USD recipient price'});
+ const fxRate=await forex.decideRate(conn,tenant,fxReviewer,proposed._id,decision);
+ async function openCurrency(kind,code,currency,balance,operator,reviewer,branchId){
+  const actual=await treasury.createAccount(conn,tenant,owner,{kind,code,name:'Actual '+code,
+   currency,operatorId:kind==='cash'?operator.id:undefined,isDefault:true},
+   {configurationBranchId:String(branchId)});
+  const observation=await treasury.requestObservation(conn,tenant,operator,actual._id,{
+   kind:'opening',actualBalance:balance,observedAt:new Date(Date.now()-1000).toISOString(),
+   evidenceType:kind==='cash'?'cash_count':'transfer_register',
+   evidenceReference:'LINK-'+code+'-'+nonce,
+   note:'Independently counted '+currency+' operational account opening',
+   idempotencyKey:crypto.randomUUID()});
+  await treasury.reviewObservation(conn,tenant,reviewer,observation.observation._id,decision);
+  if(kind==='cash'){
+   const shift=await cash.open(conn,tenant,operator,{currency,openingCash:balance});
+   await cash.decideOpening(conn,tenant,reviewer,shift._id,decision);
+  }
+  return actual;
+ }
+ const sspDrawer=await openCurrency('cash','REAL_SSP_CASH','SSP','2000.00',teller,owner,branch._id);
+ const sspPayable=await openCurrency('transfer_clearing','SSP_PAYABLE','SSP','0',teller,owner,branch._id);
+ const usdDrawer=await openCurrency('cash','REAL_USD_CASH','USD','100.00',receivingTeller,manager,destination._id);
+ const xOrder=(await transfer.createRequest(conn,tenant,teller,{
+  senderName:'Sending Customer',senderPhone:sourceInput.senderPhone,
+  receiverName:'Receiving Customer',receiverPhone:sourceInput.receiverPhone,
+  currency:'SSP',amount:'650.00',payoutCurrency:'USD',payoutAmount:'5.00',
+  fxRateId:String(fxRate._id),transferMethod:'Cash',fee:'0',
+  destinationBranchId:String(destination._id),idempotencyKey:crypto.randomUUID()
+ })).order;
+ assert.equal(String(xOrder.amountMinor),'65000');
+ assert.equal(String(xOrder.payoutMinor),'500');
+ const collect=(await funded.request(conn,tenant,teller,'money_transfer',xOrder._id,{
+  ...input(),collectionAccountId:String(sspDrawer._id),
+  clearingAccountId:String(sspPayable._id)})).execution;
+ await funded.review(conn,tenant,owner,collect._id,decision);
+ assert.equal(await amount(sspDrawer._id),'265000');
+ assert.equal(await amount(sspPayable._id),'65000');
+ const claim=await funded.revealPin(conn,tenant,teller,collect._id);
+ const verified=await funded.checkPayout(conn,tenant,receivingTeller,{
+  pin:claim.pin,senderPhone:sourceInput.senderPhone,receiverNameCheck:sourceInput.receiverName});
+ const pay=(await funded.requestPayout(conn,tenant,receivingTeller,{
+  ...input(),verificationToken:verified.token,payoutAccountId:String(usdDrawer._id)})).execution;
+ assert.equal(await amount(usdDrawer._id),'10000');
+ await funded.review(conn,tenant,manager,pay._id,decision);
+ assert.equal(await amount(usdDrawer._id),'9500');
+ assert.equal(await amount(sspPayable._id),'0');
+ assert.equal(await amount(sspDrawer._id),'265000');
+ const linked=await require('../src/tenant/settlements/models').models(conn).settlement
+  .findOne({sourceId:xOrder._id}).lean();
+ assert.equal(linked.status,'posted');
+ assert.equal(linked.postingBatchIds.length,3);
+ assert.equal(String(linked.destinationPayoutAccountId),String(usdDrawer._id));
+ assert.equal((await core.transferOrderModel(conn).findById(xOrder._id)).status,'paid_out_manual');
+ await assert.rejects(funded.review(conn,tenant,manager,pay._id,decision),{status:409});
+ for(const account of [sspDrawer,sspPayable,usdDrawer])
+  await treasury.assertBookIntegrity(conn,null,await treasury.models(conn).account.findById(account._id).lean());
+ for(const [site,currency] of [[branch,'SSP'],[destination,'USD']])
+  assert.equal((await ledger.trialBalance(conn,{branchId:String(site._id),currency})).balanced,true);
+ process.env.CLASSICFIN_LINKED_CURRENCY_POSTING='disabled';
+
+ console.log('PASS: real SSP sender to USD receiver cross-branch payout with linked journals; destination-bound branch PINs, real destination cash, balanced interbranch receivable/payable journals, revoked sender, rollback, concurrent single payout, branch isolation and book integrity. No live SMS sent.');
 }
 async function cleanup(){if(mongoose.connection.readyState===1&&mongoose.connection.name===platformName&&/^cfh_branch_transfer_[a-f0-9]{16}$/.test(platformName)){if(conn?.name===require('../src/config/tenantDatabaseName').tenantDbNameFromSlug(slug))await conn.db.dropDatabase();await mongoose.connection.db.dropDatabase();}await mongoose.disconnect();}
 main().catch(error=>{console.error('BRANCH TRANSFER INTEGRATION FAILED:',error.stack||error.message);process.exitCode=1;}).finally(()=>cleanup().catch(error=>{console.error('Transfer SMS scratch cleanup failed:',error.message);process.exitCode=1;}));

@@ -92,7 +92,7 @@ module.exports=function routes({renderTenant}){
  router.get('/fx',async(req,res,next)=>{
   try{
    if(!req.operationBranch)return res.status(409).send('Select an operating branch');
-   if(!hasPermission(req.user,'treasury.view')||!hasPermission(req.user,'forex.view')||
+   if(!hasPermission(req.user,'treasury.view')||!(hasPermission(req.user,'forex.view')||req.user.role==='Mobile Money Operator')||
       !require('../services/moduleAccess.service').hasModuleForUser(req.tenant,req.user,'forex'))
     return res.status(403).send('Forex and Treasury access is required');
    const branch=req.operationBranch;

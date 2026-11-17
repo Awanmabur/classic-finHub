@@ -51,6 +51,34 @@ module.exports=function routes({renderTenant}){
     recordPath:hasPermission(req.user,'mobile_money.cash_in')?'/tenant/mobile-money/cash-in':'/tenant/mobile-money/cash-out'});
   }catch(error){next(error);}
  }
+ router.get('/fx',async(req,res,next)=>{
+  try{
+   if(!req.operationBranch)return res.status(409).send('Select an operating branch');
+   if(!hasPermission(req.user,'treasury.view')||!hasPermission(req.user,'forex.view')||
+      !require('../services/moduleAccess.service').hasModuleForUser(req.tenant,req.user,'forex'))
+    return res.status(403).send('Forex and Treasury access is required');
+   const branch=req.operationBranch;
+   const funds=await require('../services/mobileMoneyFunds.service').context(req.tenantDb,req.tenant,req.user,branch);
+   const eligible=row=>row.state==='active'&&row.reconciliation==='matched'&&row.expectedMinor!=null;
+   const wallets=funds.wallets.filter(eligible),drawers=funds.paymentAccounts.filter(row=>row.kind==='cash'&&eligible(row));
+   let result=null,error=null;
+   if(req.query.walletAccountId||req.query.cashAccountId||req.query.providerAmountMinor){
+    try{result=await require('../services/momoFxPreview.service').preview(req.tenantDb,req.tenant,req.user,branch,req.query);}
+    catch(e){error=e.message;}
+   }
+   res.set('Cache-Control','private, no-store');
+   renderTenant(req,res,'mobile-money/fx','Cross-currency Mobile Money',
+    'Approved exchange-rate preview using actual wallet and cash balances; no provider transaction is executed.',
+    {wallets,drawers,result,error,input:req.query,selectedBranchId:String(branch._id)});
+  }catch(e){next(e);}
+ });
+ router.get('/fx/preview',async(req,res,next)=>{
+  try{
+   if(!req.operationBranch)return res.status(409).json({error:'Select an operating branch'});
+   res.set('Cache-Control','private, no-store');
+   res.json(await require('../services/momoFxPreview.service').preview(req.tenantDb,req.tenant,req.user,req.operationBranch,req.query));
+  }catch(e){res.status(e.status>=400&&e.status<500?e.status:500).set('Cache-Control','private, no-store').json({error:e.status>=400&&e.status<500?e.message:'Unable to preview the transaction'});}
+ });
  router.get('/funds/context',async(req,res,next)=>{try{if(!req.operationBranch)return res.status(409).json({error:'An operating branch is required.'});res.set('Cache-Control','private, no-store').json(await require('../services/mobileMoneyFunds.service').context(req.tenantDb,req.tenant,req.user,req.operationBranch));}catch(error){next(error);}});
  router.get('/readiness',async(req,res,next)=>{
   try{

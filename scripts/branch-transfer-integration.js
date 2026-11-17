@@ -189,6 +189,85 @@ async function main(){
  assert.equal(reviewed.recovery.items.some(item=>item.sourceId===String(xOrder._id)),false,
   'Once recipient is paid, the original must leave the unpaid recovery queue');
  await assert.rejects(transfer.branchBalances(conn,tenant,receivingTeller),{status:403});
+ // Real, independently reviewed sender cash refund of another SSP->USD
+ // collection, NOT a currency swap, fake provider reversal or voided history.
+ process.env.CLASSICFIN_LINKED_CURRENCY_REFUNDS='enabled';
+ const refundService=require('../src/tenant/refunds/service');
+ await require('../src/tenant/refunds/models').ensure(conn);
+ const refundOrder=(await transfer.createRequest(conn,tenant,teller,{
+  senderName:'Sending Customer',senderPhone:sourceInput.senderPhone,
+  receiverName:'Receiving Customer',receiverPhone:sourceInput.receiverPhone,
+  currency:'SSP',amount:'13.00',payoutCurrency:'USD',payoutAmount:'0.10',
+  fxRateId:String(fxRate._id),transferMethod:'Cash',fee:'1.00',
+  destinationBranchId:String(destination._id),idempotencyKey:crypto.randomUUID()
+ })).order;
+ assert.equal(String(refundOrder.amountMinor),'1300');
+ const actualFee=BigInt(String(refundOrder.feeMinor));
+ const cashBeforeRefundCollection=BigInt(await amount(sspDrawer._id));
+ const payableBeforeRefundCollection=BigInt(await amount(sspPayable._id));
+ const refundCollection=(await funded.request(conn,tenant,teller,'money_transfer',refundOrder._id,{
+  ...input(),collectionAccountId:String(sspDrawer._id),
+  clearingAccountId:String(sspPayable._id)})).execution;
+ await funded.review(conn,tenant,owner,refundCollection._id,decision);
+ assert.equal(BigInt(await amount(sspDrawer._id)),cashBeforeRefundCollection+1300n+actualFee);
+ assert.equal(BigInt(await amount(sspPayable._id)),payableBeforeRefundCollection+1300n);
+ const refundInput=()=>({
+  idempotencyKey:crypto.randomUUID(),senderPhone:sourceInput.senderPhone,
+  reason:'Original sender confirmed request for full cash refund',
+  evidenceReference:'SENDER-DOC-'+nonce
+ });
+ const rejectedRequest=await refundService.request(conn,tenant,teller,refundOrder._id,refundInput());
+ assert.equal(rejectedRequest.refund.status,'pending_review');
+ await assert.rejects(refundService.request(conn,tenant,teller,refundOrder._id,refundInput()),{status:409});
+ const rejected=await refundService.review(conn,tenant,owner,rejectedRequest.refund._id,{
+  decision:'reject',note:'Original customer cash refund evidence not yet sufficient'});
+ assert.equal(rejected.refund.status,'rejected');
+ assert.equal(BigInt(await amount(sspDrawer._id)),cashBeforeRefundCollection+1300n+actualFee);
+ assert.equal(BigInt(await amount(sspPayable._id)),payableBeforeRefundCollection+1300n);
+ const request2=await refundService.request(conn,tenant,teller,refundOrder._id,refundInput());
+ assert.equal(request2.refund.status,'pending_review');
+ const secondKey=request2.refund.idempotencyKey;
+ assert.equal((await refundService.request(conn,tenant,teller,refundOrder._id,{
+  idempotencyKey:secondKey,senderPhone:sourceInput.senderPhone,
+  reason:'Original sender confirmed request for full cash refund',
+  evidenceReference:'SENDER-DOC-'+nonce
+ })).duplicate,true);
+ await assert.rejects(refundService.review(conn,tenant,teller,request2.refund._id,{
+  decision:'approve',note:'This self-approved refund must be rejected',
+  signedReceiptReference:'SIGNED-SELF-'+nonce,cashHandoverConfirmed:'confirmed'
+ }),{status:403});
+ const approvedRefund=await refundService.review(conn,tenant,owner,request2.refund._id,{
+  decision:'approve',note:'Original sender counted and signed for full returned cash and fee',
+  signedReceiptReference:'SIGNED-HANDOVER-'+nonce,cashHandoverConfirmed:'confirmed'
+ });
+ assert.equal(approvedRefund.refund.status,'posted_refund');
+ assert.equal(BigInt(await amount(sspDrawer._id)),cashBeforeRefundCollection,
+  'Actual original SSP cashier cash + fee must be returned exactly once');
+ assert.equal(BigInt(await amount(sspPayable._id)),payableBeforeRefundCollection,
+  'The original SSP recipient payable must be fully reversed');
+ const refundSource=await core.transferOrderModel(conn).findById(refundOrder._id).lean();
+ assert.equal(refundSource.status,'refunded_manual');
+ assert.equal(String(refundSource.manualRefundId),String(request2.refund._id));
+ assert.equal((await fundedModels.models(conn).execution.findById(refundCollection._id).select('+pinHash +pinEncrypted').lean()).pinHash,null);
+ const refundLinked=await require('../src/tenant/settlements/models').models(conn).settlement
+  .findOne({sourceId:refundOrder._id}).lean();
+ assert.equal(refundLinked.status,'reversed');
+ assert.equal(refundLinked.postingBatchIds.length,2);
+ const returnedReceipt=await require('../src/tenant/settlements/models').models(conn).event
+  .findOne({settlementId:refundLinked._id,stage:'reversed'}).lean();
+ assert.equal(returnedReceipt.evidenceSource,'signed_receipt');
+ assert.equal((await refundService.detail(conn,tenant,owner,refundOrder._id))[0].status,'posted_refund');
+ await assert.rejects(refundService.review(conn,tenant,owner,request2.refund._id,{
+  decision:'approve',note:'Trying to return collected money a second time',
+  signedReceiptReference:'SIGNED-SECOND-'+nonce,cashHandoverConfirmed:'confirmed'
+ }),{status:409});
+ assert.equal((await transfer.branchBalances(conn,tenant,manager)).recovery.items
+  .some(item=>item.sourceId===String(refundOrder._id)),false);
+ await treasury.assertBookIntegrity(conn,null,await treasury.models(conn).account.findById(sspDrawer._id).lean());
+ await treasury.assertBookIntegrity(conn,null,await treasury.models(conn).account.findById(sspPayable._id).lean());
+ assert.equal((await ledger.trialBalance(conn,{branchId:String(branch._id),currency:'SSP'})).balanced,true);
+ process.env.CLASSICFIN_LINKED_CURRENCY_REFUNDS='disabled';
+
  process.env.CLASSICFIN_LINKED_CURRENCY_POSTING='disabled';
 
  console.log('PASS: real SSP sender to USD receiver cross-branch payout with linked journals; destination-bound branch PINs, real destination cash, balanced interbranch receivable/payable journals, revoked sender, rollback, concurrent single payout, branch isolation and book integrity. No live SMS sent.');

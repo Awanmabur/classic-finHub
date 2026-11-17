@@ -109,7 +109,7 @@ async function apply(conn,session,authorization,values,{requireObservation=false
     if(eligible.length!==1)throw fail(eligible.length?
      crossCurrency?'Choose which physical cash drawer holds this settlement currency.':
       'More than one physical drawer qualifies. The Tenant Owner must map the provider wallet to the correct drawer.':
-     'There is no approved physical cash drawer in the settlement currency assigned to this operator and branch.',409);
+     'There is no approved physical cash drawer in the settlement currency assigned to this operator and branch; do not create a duplicate cash drawer. Ask the Tenant Owner to verify the real drawer.',409);
     drawer=eligible[0];
    }
    if(values.paymentAccountId&&String(values.paymentAccountId)!==String(drawer._id))

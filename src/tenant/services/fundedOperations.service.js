@@ -233,7 +233,7 @@ async function review(conn,tenant,actor,executionId,input={}){
   if(execution.action==='transfer_payout'){
    const collection=await Execution.findOne({_id:execution.collectionExecutionId,action:'transfer_collect',status:'posted_manual',sourceId:execution.sourceId}).session(session).lean();
    if(!collection||String(source.manualCollectionExecutionId)!==String(collection._id))throw fail('Collected transfer funds are unavailable or already paid out',409);
-   if(snapshot.payoutCurrency){
+   if(snapshot.payoutCurrency&&String(source.branchId)===String(execution.branchId)){
     if(process.env.CLASSICFIN_LINKED_CURRENCY_POSTING!=='enabled')
      throw fail('Cross-currency payout is not enabled on this deployment',403);
     if(!hasModuleForUser(authorization.tenant,authorization.actor,'money_transfer')||
@@ -279,6 +279,13 @@ async function review(conn,tenant,actor,executionId,input={}){
    execution.action==='transfer_payout'?{status:'paid_out_manual',manualPayoutExecutionId:execution._id,manualPostedAt:new Date()}:{status:'posted_manual',manualExecutionId:execution._id,manualPostedAt:new Date()};
   const changed=await sourceModel.findOneAndUpdate({_id:source._id,status:source.status},{$set:sourceChanges,$inc:{revision:1}},{new:true,session,runValidators:true}).lean();
   if(!changed)throw fail('The instruction changed during manual posting',409);
+  if(execution.sourceType==='money_transfer'&&source.payoutCurrency){
+   const lifecycle=require('../settlements/transferLifecycle');
+   if(execution.action==='transfer_collect')
+    await lifecycle.recordCollection(conn,session,authorization.tenant,authorization.actor,changed,execution,posting);
+   else if(execution.action==='transfer_payout')
+    await lifecycle.recordPayout(conn,session,authorization.tenant,authorization.actor,changed,execution,posting);
+  }
   if(execution.action==='transfer_payout'){
    await transferSms().closeAfterPayout(conn,execution.collectionExecutionId,session);
    await Execution.updateOne({_id:execution.collectionExecutionId,action:'transfer_collect'},{$unset:{pinEncrypted:''},$inc:{revision:1}},{session});

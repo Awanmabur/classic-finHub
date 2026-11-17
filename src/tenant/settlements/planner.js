@@ -71,8 +71,8 @@ function quote({channel,operation,branchId,providerCurrency,cashCurrency,provide
 function transferPlan({originBranchId,destinationBranchId,originCashAccountId,destinationPayoutAccountId,
  collectionCurrency,payoutCurrency,payoutMinor,rate,at}={}){
  const origin=objectId(originBranchId,'origin branch'),destination=objectId(destinationBranchId,'destination branch');
- if(origin===destination)throw fail('Use a same-branch transfer operation instead',400);
  objectId(originCashAccountId,'origin cash account');objectId(destinationPayoutAccountId,'destination payout account');
+ if(String(originCashAccountId)===String(destinationPayoutAccountId))throw fail('Collection and payout must use distinct actual currency accounts',400);
  currency(collectionCurrency);currency(payoutCurrency);
  if(collectionCurrency===payoutCurrency)
   throw fail('Use the existing same-currency transfer workflow',400);
@@ -90,7 +90,7 @@ function transferPlan({originBranchId,destinationBranchId,originCashAccountId,de
    currency:payoutCurrency,deltaMinor:String(-amount),obligation:'release_only_after_verified_collection'}),
   status:'quote_only_no_funds_posted',
   profitStatus:'unmeasured_without_verified_cost_basis',
-  note:'Origin collection and destination payout need separate verified events and balanced interbranch liabilities. Neither leg is executed by this plan.'
+  note:origin===destination?'Collection and payout need separate verified events and balanced currency liabilities in this branch. Neither leg is executed by this plan.':'Origin collection and destination payout need separate verified events and balanced interbranch liabilities. Neither leg is executed by this plan.'
  });
 }
 function weightedAverageDisposal({holdingMinor,acquisitionCostFunctionalMinor,disposedMinor,

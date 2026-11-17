@@ -133,8 +133,8 @@ async function main(){
  assert.equal(await amount(destinationCash._id),String(receiverUGX+10000n));
  assert.equal((await core.transferOrderModel(conn).findById(source._id)).status,'paid_out_manual',
   'Interbranch reimbursement never changes the actual customer payout history');
- const checked=await transfer.branchBalances(conn,tenant,owner);
- const netUg=checked.rows.filter(x=>x.currency==='UGX');
+ const balancesAfterReimbursement=await transfer.branchBalances(conn,tenant,owner);
+ const netUg=balancesAfterReimbursement.rows.filter(x=>x.currency==='UGX');
  assert(netUg.every(x=>/UGX 0\b/.test(x.payable)&&/UGX 0\b/.test(x.receivable)),
   'The actual same-currency payable and receivable must both be fully cleared');
  for(const branchKey of [branch,destination])

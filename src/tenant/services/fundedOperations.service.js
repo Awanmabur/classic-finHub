@@ -233,27 +233,15 @@ async function review(conn,tenant,actor,executionId,input={}){
   if(execution.action==='transfer_payout'){
    const collection=await Execution.findOne({_id:execution.collectionExecutionId,action:'transfer_collect',status:'posted_manual',sourceId:execution.sourceId}).session(session).lean();
    if(!collection||String(source.manualCollectionExecutionId)!==String(collection._id))throw fail('Collected transfer funds are unavailable or already paid out',409);
-   if(snapshot.payoutCurrency&&String(source.branchId)===String(execution.branchId)){
+   if(snapshot.payoutCurrency){
+    // Both same-branch and cross-branch conversions are posted by the
+    // independently validated split-teller release, never this local plan.
     if(process.env.CLASSICFIN_LINKED_CURRENCY_POSTING!=='enabled')
      throw fail('Cross-currency payout is not enabled on this deployment',403);
     if(!hasModuleForUser(authorization.tenant,authorization.actor,'money_transfer')||
      !require('./moduleAccess.service').hasModule(authorization.tenant,'forex'))
      throw fail('Cross-currency collection/payout entitlement is unavailable',403);
-    const from=await treasury().ensureCounterAccount(conn,session,{
-     tenantId:authorization.tenant._id,branchId:execution.branchId,
-     currency:snapshot.currency,purpose:'settlement_clearing',actorId:authorization.actor.id
-    });
-    const to=await treasury().ensureCounterAccount(conn,session,{
-     tenantId:authorization.tenant._id,branchId:execution.branchId,
-     currency:snapshot.payoutCurrency,purpose:'settlement_clearing',actorId:authorization.actor.id
-    });
-    plan={legs:[
-     {accountId:execution.accounts.clearingAccountId,deltaMinor:'-'+snapshot.amountMinor},
-     {accountId:execution.accounts.payoutAccountId,deltaMinor:'-'+snapshot.payoutMinor}],
-     ledgerLines:[
-      {currency:snapshot.currency,accountId:String(from.ledgerAccountId),side:'credit',amountMinor:snapshot.amountMinor},
-      {currency:snapshot.payoutCurrency,accountId:String(to.ledgerAccountId),side:'debit',amountMinor:snapshot.payoutMinor}
-     ]};
+    plan=null;
    }else plan={legs:[{accountId:execution.accounts.clearingAccountId,deltaMinor:'-'+snapshot.amountMinor},{accountId:execution.accounts.payoutAccountId,deltaMinor:'-'+snapshot.amountMinor}],ledgerLines:[]};
   }else if(execution.sourceType==='banking'){
    const original=await lockCustomerAccount(conn,session,authorization,snapshot.customerAccountId,execution.branchId,snapshot.currency);

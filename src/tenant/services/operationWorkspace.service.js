@@ -99,7 +99,7 @@ async function report(conn,tenant,actor,key,query={},timeZone='UTC'){
   target:key==='forex'?formatAmount(row.target?.toString()||'0',row._id.targetCurrency):''}));
  return {moduleKey:key,label:spec.label,currencies:spec.currencies,filters,rows,timeZone,total:rows.reduce((sum,row)=>sum+row.count,0),
   canExport:hasPermission(actor,`${key}.report`)||hasPermission(actor,'reports.export'),
-  note:key==='forex'?'Quotations remain separate from posted manual exchanges. Reviewed manual movements update the foreign stock and settlement books; check the cash movement report for physical drawer effects.':
+  note:key==='forex'?'Quotations remain separate from posted manual exchanges. Finalized cashier-confirmed exchanges update the foreign stock and settlement books; check the cash movement report for physical drawer effects.':
    key==='banking'?'Pending instructions remain separate from posted manual operations. Reviewed manual movements update the selected funds and internal customer accounts together.':
     'Pending requests remain separate from collected and paid-out manual transfers. Independently reviewed collection posts the funds and payable, then enables one-time PIN access; provider settlement remains separate.'};
 }

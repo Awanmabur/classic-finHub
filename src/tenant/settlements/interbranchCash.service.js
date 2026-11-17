@@ -105,17 +105,22 @@ async function request(conn,tenant,actor,transferId,input={}){
  const sourceId=id(transferId),value=requestInput(input);
  await Promise.all([core.ensureTenantIndexes(conn),treasury.ensure(conn),
   funded.ensureIndexes(conn),ensure(conn)]);
- const Model=model(conn),prior=await Model.findOne({tenantId:tenant._id,idempotencyKey:value.idempotencyKey}).lean();
- if(prior){
-  if(String(prior.transferId)!==sourceId||String(prior.requestedBy)!==String(actor.id)||
-    prior.evidenceReference!==value.evidenceReference||prior.note!==value.note)
-   throw fail('Reimbursement reference reused for different evidence');
-  return {reimbursement:prior,duplicate:true};
- }
+ const Model=model(conn);
  const session=await conn.startSession();
  try{return await session.withTransaction(async()=>{
   const authorization=await auth.fenceAction(conn,session,actor,tenant,'money_transfer','money_transfer.view');
   if(!hasPermission(authorization.actor,'treasury.observe'))throw fail('Cash custody authority required',403);
+  const prior=await Model.findOne({tenantId:authorization.tenant._id,
+   idempotencyKey:value.idempotencyKey}).session(session).lean();
+  if(prior){
+   if(String(prior.transferId)!==sourceId||
+    String(prior.requestedBy)!==String(authorization.actor.id)||
+    String(prior.branchId)!==String(authorization.actor.branchId||'')||
+    authorization.actor.role!=='Money Transfer Operator'||
+    prior.evidenceReference!==value.evidenceReference||prior.note!==value.note)
+    throw fail('Reimbursement reference reused or the original cashier lost access',403);
+   return {reimbursement:prior,duplicate:true};
+  }
   const source=await core.transferOrderModel(conn).findOneAndUpdate({
    _id:sourceId,status:'paid_out_manual'
   },{$inc:{revision:1}},{session,new:true}).lean();

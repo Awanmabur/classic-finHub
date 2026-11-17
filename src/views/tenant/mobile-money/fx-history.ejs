@@ -1,0 +1,28 @@
+<section class="view show mobileMoneyPage">
+ <section class="card">
+  <div class="cardHead"><div><b>Cross-currency transaction history</b><br><span>One operation, two native-currency custody legs. No currency totals are mixed.</span></div><div class="rowBtns"><a class="btn" href="/tenant/mobile-money/fx">Exchange preview</a><a class="btn" href="/tenant/mobile-money">Mobile Money</a></div></div>
+  <div class="cardBody">
+   <% if(!data.records.length){ %>
+    <p>No verified cross-currency settlements have been posted for this branch.</p>
+   <% }else{ %>
+    <div class="tableWrap"><table>
+     <thead><tr><th>Recorded</th><th>Network reference</th><th>Direction</th><th>Wallet change</th><th>Cash change</th><th>Rate</th><th>Income status</th></tr></thead>
+     <tbody>
+      <% data.records.forEach(r=>{ %>
+       <tr>
+        <td><%= formatLocalDate(r.settledAt,r.branchId) %></td>
+        <td><%= r.providerReference %></td>
+        <td><%= r.operation==='withdraw_provider_receive_cash'?'Electronic withdrawal → cash payout':'Cash deposit → electronic credit' %></td>
+        <td><%= data.formatMoneyMinor(r.walletDeltaMinor,r.providerCurrency) %></td>
+        <td><%= data.formatMoneyMinor(r.cashDeltaMinor,r.cashCurrency) %></td>
+        <td><%= r.rateSide.toUpperCase() %> <%= r.rateDecimal %></td>
+        <td>Unmeasured FX profit — cost basis required</td>
+       </tr>
+      <% }); %>
+     </tbody>
+    </table></div>
+   <% } %>
+   <p class="tiny">Provider and cash evidence are retained with the linked financial record. Custody movements are not operating revenue. The two journal entries are not separate customer sales.</p>
+  </div>
+ </section>
+</section>

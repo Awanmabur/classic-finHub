@@ -91,24 +91,51 @@ async function main(){
  await require('../src/tenant/settlements/interbranchCash.models').ensure(conn);
  const originalUGX=BigInt(await amount(drawer._id));
  const receiverUGX=BigInt(await amount(destinationCash._id));
- const settlementInput=()=>({
+ const settlementInput=label=>({
   idempotencyKey:crypto.randomUUID(),
-  evidenceReference:'SENDER-UGX-HANDOVER-'+nonce,
+  evidenceReference:'SENDER-UGX-HANDOVER-'+label+'-'+nonce,
   note:'Origin cashier presents counted UGX notes for independent branch reimbursement'
  });
- const rejectedCash=(await physical.request(conn,tenant,teller,source._id,settlementInput())).reimbursement;
- assert.equal(rejectedCash.status,'pending_review');
+ const rejectedCash=(await physical.request(conn,tenant,teller,source._id,settlementInput('REJECT'))).reimbursement;
+ assert.equal(rejectedCash.status,'pending_receiver');
+ const rejectedReceiving=await physical.confirmReceipt(conn,tenant,receivingTeller,rejectedCash._id,{
+  receiverReceiptReference:'DEST-REJECTED-UGX-'+nonce,
+  receiverNote:'Actual receiving cashier counted original rejected reimbursement evidence',
+  cashCountConfirmed:'confirmed'
+ },source._id);
+ assert.equal(rejectedReceiving.reimbursement.status,'pending_review');
  const refused=await physical.review(conn,tenant,owner,rejectedCash._id,{
   decision:'reject',note:'Receiving-branch signed cash proof had not yet arrived'},source._id);
  assert.equal(refused.reimbursement.status,'rejected');
  assert.equal(await amount(drawer._id),String(originalUGX));
  assert.equal(await amount(destinationCash._id),String(receiverUGX));
- const actual=(await physical.request(conn,tenant,teller,source._id,settlementInput())).reimbursement;
- assert.equal(actual.status,'pending_review');
- await assert.rejects(physical.request(conn,tenant,teller,source._id,settlementInput()),{status:409});
+ const actual=(await physical.request(conn,tenant,teller,source._id,settlementInput('FINAL'))).reimbursement;
+ assert.equal(actual.status,'pending_receiver');
+ await assert.rejects(physical.request(conn,tenant,teller,source._id,settlementInput('EXTRA')),{status:409});
+ await assert.rejects(physical.review(conn,tenant,owner,actual._id,{
+  decision:'approve',note:'Without confirmed receiving cash no posting is allowed',
+  senderHandoverReference:'SENDER-UGX-HANDOVER-FINAL-'+nonce,
+  receiverReceiptReference:'DESTINATION-SIGNED-'+nonce,bothBranchesVerified:'confirmed'
+ },source._id),{status:409},'Owner cannot invent a receiving cashier receipt');
+ await assert.rejects(physical.confirmReceipt(conn,tenant,teller,actual._id,{
+  receiverReceiptReference:'DESTINATION-SIGNED-'+nonce,
+  receiverNote:'Wrong sender cashier cannot confirm destination physical cash',
+  cashCountConfirmed:'confirmed'
+ },source._id),{status:403});
+ const confirmedCash=await physical.confirmReceipt(conn,tenant,receivingTeller,actual._id,{
+  receiverReceiptReference:'DESTINATION-SIGNED-'+nonce,
+  receiverNote:'Counted and signed for actual UGX cash delivered by sending branch',
+  cashCountConfirmed:'confirmed'
+ },source._id);
+ assert.equal(confirmedCash.reimbursement.status,'pending_review');
+ await assert.rejects(physical.confirmReceipt(conn,tenant,receivingTeller,actual._id,{
+  receiverReceiptReference:'DESTINATION-SIGNED-'+nonce,
+  receiverNote:'Second confirmation must not be accepted',
+  cashCountConfirmed:'confirmed'
+ },source._id),{status:409});
  const postedCashDecision={
   decision:'approve',note:'Both branches signed for exact counted original UGX handover',
-  senderHandoverReference:'SENDER-SIGNED-'+nonce,
+  senderHandoverReference:'SENDER-UGX-HANDOVER-FINAL-'+nonce,
   receiverReceiptReference:'DESTINATION-SIGNED-'+nonce,
   bothBranchesVerified:'confirmed'
  };

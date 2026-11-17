@@ -128,7 +128,7 @@ function routes({renderTenant}){
     String(order.createdBy)===String(req.user.id)&&
     String(order.branchId)===String(req.user.branchId)&&
     hasPermission(req.user,'treasury.observe')&&
-    !reimbursements.some(x=>['pending_review','posted'].includes(x.status));
+    !reimbursements.some(x=>['pending_receiver','pending_review','return_pending','return_dispatched','return_verified','posted'].includes(x.status));
    const payout=order.manualPayoutExecutionId?
     await require('../funded/models').models(req.tenantDb).execution
      .findById(order.manualPayoutExecutionId).select('createdBy branchId').lean():null;
@@ -137,12 +137,16 @@ function routes({renderTenant}){
     hasPermission(req.user,'money_transfer.payout')&&
     String(req.user.id)===String(payout?.createdBy||'')&&
     String(req.user.branchId)===String(order.destinationBranchId||'');
+   const canConfirmReturn=canRequest||(
+    enabled&&differentBranches&&!crossCurrency&&req.user.role==='Money Transfer Operator'&&
+    String(order.createdBy)===String(req.user.id)&&String(req.user.branchId)===String(order.branchId)&&
+    hasPermission(req.user,'treasury.observe'));
    const canReview=enabled&&differentBranches&&!crossCurrency&&
     req.user.role==='Tenant Owner'&&
     hasPermission(req.user,'money_transfer.review')&&hasPermission(req.user,'treasury.review');
    renderTenant(req,res,'money-transfer/interbranch-cash','Branch cash reimbursement',
     'Original-currency cash custody, independently reviewed branch reimbursement and retained evidence.',{
-     order,enabled,crossCurrency,canRequest,canConfirm,canReview,reimbursements,
+     order,enabled,crossCurrency,canRequest,canConfirm,canConfirmReturn,canReview,reimbursements,
      idempotencyKey:crypto.randomUUID(),formatMoneyMinor
     });
   }catch(error){next(error);}
@@ -160,6 +164,30 @@ function routes({renderTenant}){
    await require('../settlements/interbranchCash.service').confirmReceipt(
     req.tenantDb,req.tenant,req.user,req.params.settlementId,req.body,req.params.id);
    flash(req,'good','Actual receiving cashier receipt saved. No funds have moved in Treasury yet; owner approval is required.');
+   res.redirect(303,`/tenant/money-transfer/${req.params.id}/interbranch-cash`);
+  }catch(error){next(error);}
+ });
+ router.post('/:id/interbranch-cash/:settlementId/return-dispatch',requirePermission('money_transfer.payout'),financial,async(req,res,next)=>{
+  try{
+   await require('../settlements/interbranchCash.service').returnDispatch(
+    req.tenantDb,req.tenant,req.user,req.params.settlementId,req.body,req.params.id);
+   flash(req,'good','Original receiving cashier signed physical cash return dispatch. Funds remain reserved until source cashier counts the actual returned banknotes and the owner reviews.');
+   res.redirect(303,`/tenant/money-transfer/${req.params.id}/interbranch-cash`);
+  }catch(error){next(error);}
+ });
+ router.post('/:id/interbranch-cash/:settlementId/return-receive',requirePermission('money_transfer.view'),financial,async(req,res,next)=>{
+  try{
+   await require('../settlements/interbranchCash.service').confirmReturned(
+    req.tenantDb,req.tenant,req.user,req.params.settlementId,req.body,req.params.id);
+   flash(req,'good','Original sending cashier signed actual returned-cash count. Funds remain reserved pending separate owner release.');
+   res.redirect(303,`/tenant/money-transfer/${req.params.id}/interbranch-cash`);
+  }catch(error){next(error);}
+ });
+ router.post('/:id/interbranch-cash/:settlementId/return-release',requirePermission('money_transfer.review'),financial,async(req,res,next)=>{
+  try{
+   await require('../settlements/interbranchCash.service').releaseReturned(
+    req.tenantDb,req.tenant,req.user,req.params.settlementId,req.body,req.params.id);
+   flash(req,'good','Independent owner verified both return receipts and released the returned physical funds reservation. No second customer payout was created.');
    res.redirect(303,`/tenant/money-transfer/${req.params.id}/interbranch-cash`);
   }catch(error){next(error);}
  });

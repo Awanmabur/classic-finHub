@@ -26,6 +26,7 @@ const steps=[
   [process.execPath,['scripts/transaction-branch-integration.js']],
   [process.execPath,['scripts/branch-multicurrency-integration.js']],
   [process.execPath,['scripts/linked-settlement-integrity.js']],
+  [process.execPath,['scripts/momo-currency-rates-integration.js']],
   [process.execPath,['scripts/branch-view-integration.js']],
   [process.execPath,['scripts/manual-authorization-integration.js']],
   [process.execPath,['scripts/operation-authorization-integration.js']],

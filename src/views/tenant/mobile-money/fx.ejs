@@ -32,8 +32,8 @@
        <% }); %>
       </select>
      </label>
-     <label>Provider amount (integer minor units)
-      <input name="providerAmountMinor" inputmode="numeric" pattern="[1-9][0-9]*" value="<%= data.input.providerAmountMinor||'' %>" required>
+     <label>Provider amount (in selected wallet currency)
+      <input name="providerAmount" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" value="<%= data.input.providerAmount||'' %>" required>
      </label>
     </div>
     <button class="btn primary" type="submit">Calculate approved quote</button>

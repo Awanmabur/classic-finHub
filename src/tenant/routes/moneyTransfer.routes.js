@@ -113,6 +113,48 @@ function routes({renderTenant}){
     });
   }catch(e){next(e);}
  });
+ router.get('/:id/refund',requirePermission('money_transfer.view'),async(req,res,next)=>{
+  try{
+   const refunds=require('../refunds/service');
+   const order=await transfer.detail(req.tenantDb,req.tenant,req.user,req.params.id);
+   const enabled=process.env.CLASSICFIN_LINKED_CURRENCY_REFUNDS==='enabled';
+   const records=await refunds.detail(req.tenantDb,req.tenant,req.user,order._id);
+   const isOrigin=String(order.branchId)===String(req.user.branchId||'');
+   const canRequest=enabled&&order.status==='collected_manual'&&
+    (order.capture?.method||'Cash')==='Cash'&&
+    String(order.createdBy)===String(req.user.id)&&
+    hasPermission(req.user,'money_transfer.create')&&
+    (req.user.role==='Tenant Owner'||isOrigin)&&
+    !records.some(row=>['pending_review','posted_refund'].includes(row.status));
+   const canReview=enabled&&['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(req.user.role)&&
+    hasPermission(req.user,'money_transfer.review')&&hasPermission(req.user,'treasury.review')&&
+    (req.user.role==='Tenant Owner'||isOrigin);
+   renderTenant(req,res,'money-transfer/refund','Sender cash refund',
+    'Original cash collection, independent review and compensation evidence.',{
+     order,refunds:records,enabled,canRequest,canReview,
+     idempotencyKey:require('node:crypto').randomUUID(),formatMoneyMinor
+    });
+  }catch(error){next(error);}
+ });
+ router.post('/:id/refund/request',requirePermission('money_transfer.create'),financial,async(req,res,next)=>{
+  try{
+   await require('../refunds/service').request(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
+   flash(req,'good','Cash refund requested. No funds have been moved; independent review is required.');
+   res.redirect(303,`/tenant/money-transfer/${req.params.id}/refund`);
+  }catch(error){next(error);}
+ });
+ router.post('/:id/refund/:refundId/review',requirePermission('money_transfer.review'),financial,async(req,res,next)=>{
+  try{
+   const result=await require('../refunds/service').review(
+    req.tenantDb,req.tenant,req.user,req.params.refundId,req.body);
+   if(String(result.refund.sourceId)!==String(req.params.id))
+    throw Object.assign(new Error('Refund belongs to a different transfer'),{status:403});
+   flash(req,'good',result.refund.status==='posted_refund'?
+    'Reviewed original-currency cash refund posted and recipient PIN closed.':
+    'Refund request rejected. Collected funds and recipient obligation are unchanged.');
+   res.redirect(303,`/tenant/money-transfer/${req.params.id}/refund`);
+  }catch(error){next(error);}
+ });
  router.post('/:id/review',requirePermission('money_transfer.review'),financial,async(req,res,next)=>{
   try{await transfer.decide(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
    flash(req,'good','Independent decision saved. Approval does not send or settle funds.');

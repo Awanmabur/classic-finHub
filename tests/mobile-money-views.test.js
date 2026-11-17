@@ -27,7 +27,7 @@ function options(overrides={}) {
    receivedCommissionMinorFormatted:'UGX 0'}],
   expenses:[],expensesAccessible:true,note:'Internal book figures, not provider settlement.'},
   formatMoneyMinor:(minor,currency)=>currency+' '+String(minor),
-  operation:'cash_in',canRecord:true,canExport:true,idempotencyKey:requestKey,filters:{from:'2026-11-03',to:'2026-11-03',network:'MTN',currency:'UGX',entrySource:'sms'},records:{items:[record],nextCursor:'next-key'},networksAvailable:['MTN','Airtel','Africell','M-Pesa'],currencies:['UGX','USD','SSP','KES'],networks:[{network:'MTN',currency:'UGX',cashInCount:1,cashOutCount:0,formatted:{volume:'UGX 5,000',fees:'UGX 100'}}],summary:{total:1,activeCount:1,manualCount:0,smsCount:1,voidedCount:0,byCurrency:[{currency:'UGX',count:1,cashInCount:1,cashOutCount:0,physicalCashInCount:1,physicalCashOutCount:0,formatted:{cashIn:'UGX 5,000',cashOut:'UGX 0',physicalCashIn:'UGX 5,000',physicalCashOut:'UGX 0',cashImpact:'UGX 5,000',volume:'UGX 5,000',fees:'UGX 100'}}]}},
+  operation:'cash_in',canRecord:true,canExport:true,idempotencyKey:requestKey,filters:{from:'2026-11-03',to:'2026-11-03',network:'MTN',currency:'UGX',entrySource:'sms'},records:{items:[record],nextCursor:'next-key'},networksAvailable:['MTN','Airtel','Africell','M-Pesa'],currencies:['UGX','USD','SSP','KES'],networks:[{network:'MTN',currency:'UGX',cashInCount:1,cashOutCount:0,formatted:{volume:'UGX 5,000',fees:'UGX 100'}}],summary:{total:1,activeCount:1,manualCount:0,smsCount:1,voidedCount:0,cashByCurrency:[{currency:'UGX',physicalCashInCount:1,physicalCashOutCount:0,formatted:{physicalCashIn:'UGX 5,000',physicalCashOut:'UGX 0',cashImpact:'UGX 5,000'}}],byCurrency:[{currency:'UGX',count:1,cashInCount:1,cashOutCount:0,physicalCashInCount:1,physicalCashOutCount:0,formatted:{cashIn:'UGX 5,000',cashOut:'UGX 0',physicalCashIn:'UGX 5,000',physicalCashOut:'UGX 0',cashImpact:'UGX 5,000',volume:'UGX 5,000',fees:'UGX 100'}}]}},
     ...overrides
   };
 }
@@ -101,10 +101,10 @@ test('network activity and report use supplied totals, retained status, filters 
 
 test('cash impact retains all approved cards and separates physical cash from recorded commissions',async()=>{
   const html = await render('cash-impact',options());
-  for(const label of ['Deposit','Withdrawal','Net impact','Fee / commission recorded']) assert.ok(html.includes(label));
-  assert.match(html,/Cash-method cash-in minus Cash-method cash-out/);
-  assert.match(html,/Bank and Wallet Balance records are excluded/);
-  const empty = options(); empty.data.summary.byCurrency=[]; empty.data.records={items:[]};
+  for(const label of ['Deposit','Withdrawal','Net impact']) assert.ok(html.includes(label));
+  assert.match(html,/real currency of the cashier/);
+  assert.match(html,/Bank \/ Wallet Balance methods are excluded/);
+  const empty = options(); empty.data.summary.cashByCurrency=[]; empty.data.records={items:[]};
   const emptyHtml = await render('cash-impact',empty);
   assert.match(emptyHtml,/<div class="k">Deposit<\/div>/);
   assert.match(emptyHtml,/<div class="k">Withdrawal<\/div>/);

@@ -138,8 +138,26 @@ async function main(){
  const claim=await funded.revealPin(conn,tenant,teller,collect._id);
  const verified=await funded.checkPayout(conn,tenant,receivingTeller,{
   pin:claim.pin,senderPhone:sourceInput.senderPhone,receiverNameCheck:sourceInput.receiverName});
- const pay=(await funded.requestPayout(conn,tenant,receivingTeller,{
+ const rejectedPayout=(await funded.requestPayout(conn,tenant,receivingTeller,{
   ...input(),verificationToken:verified.token,payoutAccountId:String(usdDrawer._id)})).execution;
+ assert.equal(await amount(usdDrawer._id),'10000');
+ await funded.review(conn,tenant,manager,rejectedPayout._id,{
+  decision:'reject',note:'Rejected for independently verified payout review test'});
+ const rejectedRecovery=await transfer.branchBalances(conn,tenant,manager);
+ const rejectedItem=rejectedRecovery.recovery.items.find(item=>item.sourceId===String(xOrder._id));
+ assert(rejectedItem,'Rejected payout must leave the original sender collection outstanding');
+ assert.equal(rejectedItem.state,'payout_rejected');
+ assert.equal(rejectedItem.needsAttention,true);
+ assert.equal(await amount(usdDrawer._id),'10000','Rejected payout cannot debit actual USD cash');
+ assert.equal(await amount(sspPayable._id),'65000','Rejected payout cannot release original SSP obligation');
+ assert.equal((await core.transferOrderModel(conn).findById(xOrder._id)).status,'collected_manual');
+ // Re-check the original bound PIN and receiver identity. Do not create a new
+ // sender transfer or recycle the already-consumed verification token.
+ const nextVerified=await funded.checkPayout(conn,tenant,receivingTeller,{
+  pin:claim.pin,senderPhone:sourceInput.senderPhone,receiverNameCheck:sourceInput.receiverName});
+ const pay=(await funded.requestPayout(conn,tenant,receivingTeller,{
+  ...input(),verificationToken:nextVerified.token,payoutAccountId:String(usdDrawer._id)})).execution;
+ assert.notEqual(String(pay._id),String(rejectedPayout._id));
  assert.equal(await amount(usdDrawer._id),'10000');
  await funded.review(conn,tenant,manager,pay._id,decision);
  assert.equal(await amount(usdDrawer._id),'9500');

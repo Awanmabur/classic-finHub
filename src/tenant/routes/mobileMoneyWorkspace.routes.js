@@ -98,10 +98,23 @@ module.exports=function routes({renderTenant}){
     try{result=await require('../services/momoFxPreview.service').preview(req.tenantDb,req.tenant,req.user,branch,req.query);}
     catch(e){error=e.message;}
    }
+   const postingEnabled=process.env.CLASSICFIN_MOMO_FX_POSTING_ENABLED==='true';
+   let grantApproved=false;
+   if(result&&postingEnabled){
+    grantApproved=Boolean(await require('../schemas/MomoFxSettlement').grants(req.tenantDb).exists({
+     tenantId:req.tenant._id,branchId:branch._id,walletAccountId:result.walletAccountId,
+     cashAccountId:result.cashAccountId,providerNetwork:result.network,
+     permittedCurrencyPair:result.providerCurrency+'/'+result.cashCurrency,
+     status:'approved',expiresAt:{$gt:new Date()},
+     providerAuthorizationReference:{$ne:''},regulatoryAuthorizationReference:{$ne:''}
+    }));
+   }
+   const neededPermission=result?.operation==='withdraw_provider_receive_cash'?'mobile_money.cash_out':'mobile_money.cash_in';
+   const canExecute=postingEnabled&&grantApproved&&hasPermission(req.user,neededPermission)&&hasPermission(req.user,'treasury.observe');
    res.set('Cache-Control','private, no-store');
    renderTenant(req,res,'mobile-money/fx','Cross-currency Mobile Money',
     'Approved exchange-rate preview using actual wallet and cash balances; no provider transaction is executed.',
-    {wallets,drawers,result,error,input:req.query,idempotencyKey:randomUUID(),selectedBranchId:String(branch._id),formatMoneyMinor:require('../services/mobileMoney.service').formatMoneyMinor});
+    {wallets,drawers,result,error,input:req.query,idempotencyKey:randomUUID(),canExecute,postingEnabled,grantApproved,selectedBranchId:String(branch._id),formatMoneyMinor:require('../services/mobileMoney.service').formatMoneyMinor});
   }catch(e){next(e);}
  });
  router.get('/fx/preview',async(req,res,next)=>{

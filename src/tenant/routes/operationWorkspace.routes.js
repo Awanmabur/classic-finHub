@@ -33,6 +33,8 @@ module.exports=function operationWorkspaceRoutes({renderTenant,moduleKey}){
     const data=await workspace.formContext(req.tenantDb,req.tenant,req.user,moduleKey,req.operationBranch,req.query);
     data.financeOverview=await require('../services/financeOverview.service').moduleOverview(
      req.tenantDb,req.tenant,req.user,req.operationBranch,{moduleKey,viewBranchId:req.viewBranchId,viewBranch:req.viewBranch});
+    data.canFx=require('../services/moduleAccess.service').hasModuleForUser(req.tenant,req.user,'forex')&&
+     require('../services/moduleAccess.service').hasPermission(req.user,'forex.quotes.create');
     Object.assign(data,{workspaceTitle:title,workspaceOperation:operation,
      originModule:moduleKey==='forex'&&['mobile_money','banking','money_transfer'].includes(req.query.originModule)?
       req.query.originModule:'forex'});

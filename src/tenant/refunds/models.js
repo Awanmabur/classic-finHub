@@ -17,6 +17,7 @@ const refund=new Schema({
  activeKey:{type:String,maxlength:100},
  reviewedBy:{type:O,default:null},reviewedAt:{type:Date,default:null},
  reviewNote:{type:String,maxlength:400,default:null},
+ refundReceiptReference:{type:String,maxlength:120,default:null},
  reversalBatchId:{type:O,default:null},journalIds:{type:[O],default:[]},
  revision:{type:Number,default:0,min:0}
 },{strict:'throw',timestamps:true,versionKey:false});

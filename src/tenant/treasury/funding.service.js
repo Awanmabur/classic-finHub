@@ -59,7 +59,8 @@ async function request(conn,tenant,actor,input={}){
   fingerprint=hash(canonical);const prior=await model(conn).findOne({tenantId:tenant._id,idempotencyKey:values.idempotencyKey}).session(session).lean();
   if(prior){if(prior.fingerprint!==fingerprint)throw fail('Funding reference was reused with different details',409);return {funding:prior,duplicate:true};}
   validatePair(source,destination,branch._id);
-  if(BigInt(String(source.bookBalanceMinor))<amount)throw fail('The funding source has insufficient available funds',409);
+  if(BigInt(String(source.bookBalanceMinor))-BigInt(String(source.kind==='cash'?source.reservedCashMinor??'0':'0'))<amount)
+   throw fail('The funding source has insufficient spendable funds; physical cash in transit is reserved',409);
   const [funding]=await model(conn).create([{...canonical,fingerprint}],{session});await audit(conn,session,authorization.actor,'treasury.funding.requested',funding);return {funding,duplicate:false};
  });}catch(error){
   if(error.code===11000){const prior=await model(conn).findOne({tenantId:tenant._id,requestedBy:actor.id,idempotencyKey:values.idempotencyKey}).lean();if(prior&&prior.fingerprint===fingerprint)return {funding:prior,duplicate:true};throw fail('Funding reference already exists with different details',409);}throw error;

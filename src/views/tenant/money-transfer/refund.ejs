@@ -1,0 +1,53 @@
+<section class="view show">
+<section class="card"><div class="cardHead"><b>Sender cash refund</b><span><%= data.order.reference %> · <%= data.order.status.replaceAll('_',' ') %></span></div>
+<div class="cardBody">
+ <p class="tiny">This is a financial correction, not cancellation of an unpaid transfer request. The original sender currency and cash drawer must be verified. A recipient payout, an active verification, or uncertain external provider settlement blocks any refund. No exchange rate is applied again.</p>
+ <div class="summary">
+ <div class="sumRow"><span>Original sender collection</span><b><%= data.formatMoneyMinor(data.order.amountMinor,data.order.currency) %></b></div>
+ <div class="sumRow"><span>Original recorded service fee</span><b><%= data.formatMoneyMinor(data.order.feeMinor,data.order.currency) %></b></div>
+ <% if(data.order.payoutCurrency){ %><div class="sumRow"><span>Original recipient obligation (not refunded in this currency)</span><b><%= data.formatMoneyMinor(data.order.payoutMinor,data.order.payoutCurrency) %></b></div><% } %>
+ <div class="sumRow"><span>Transfer status</span><b><%= data.order.status.replaceAll('_',' ') %></b></div>
+ </div>
+ <div class="rowBtns"><a class="btn" href="/tenant/money-transfer/<%= data.order._id %>">Back to transfer</a><a class="btn" href="/tenant/money-transfer/branch-balances">Outstanding transfer balances</a></div>
+</div></section>
+<% if(!data.enabled){ %>
+<section class="card" style="margin-top:12px"><div class="cardBody"><p class="tiny"><strong>Refund posting is disabled.</strong> Finance must first complete the staged refund controls and explicitly enable the production policy. No refund was recorded or approved.</p></div></section>
+<% } %>
+<% if(data.canRequest){ %>
+<form class="card" style="margin-top:14px" method="post" action="/tenant/money-transfer/<%= data.order._id %>/refund/request">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>">
+<input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
+<div class="cardHead"><b>Request refund of original collected cash</b><span>Cashier request only · does not move money</span></div>
+<div class="cardBody">
+ <p class="tiny">Before requesting, confirm the sender's original phone, actual collection and current cash count. The later reviewer must examine proof of cash returned to the sender. No partial or wallet-funded refund is supported here.</p>
+ <label class="field">Original sender phone<input class="control" name="senderPhone" value="<%= data.order.sender.phone %>" required minlength="9" maxlength="16"></label>
+ <label class="field">Sender identity evidence reference (8–120 characters)<input class="control" name="evidenceReference" required minlength="8" maxlength="120" placeholder="Signed identity check reference"></label>
+ <label class="field">Reason for cash refund (12–400 characters)<textarea class="control" name="reason" rows="3" required minlength="12" maxlength="400"></textarea></label>
+ <button class="btn btnPrimary" type="submit">Request independent refund review</button>
+</div></form>
+<% } %>
+<section class="card" style="margin-top:14px"><div class="cardHead"><b>Refund requests and decisions</b><span>Original evidence retained</span></div>
+ <div class="cardBody">
+ <% if(!data.refunds.length){ %><p class="tiny">No cash refund has been requested for this transfer.</p><% } %>
+ <% data.refunds.forEach(refund=>{ %>
+ <div class="summary">
+ <div class="sumRow"><span>Status</span><b><%= refund.status.replaceAll('_',' ') %></b></div>
+ <div class="sumRow"><span>Amount, original sender currency</span><b><%= refund.amount %></b></div>
+ <div class="sumRow"><span>Reason</span><b><%= refund.reason %></b></div>
+ <% if(refund.reviewNote){ %><div class="sumRow"><span>Independent review</span><b><%= refund.reviewNote %></b></div><% } %>
+ <% if(refund.status==='posted_refund'){ %><div class="sumRow"><span>Signed sender cash receipt</span><b><%= refund.signedReceiptReference||'Receipt reference unavailable — investigate' %></b></div><div class="sumRow"><span>Compensation entry</span><b><%= refund.compensationBatch||'Missing Treasury batch — investigate' %></b></div><% } %>
+ </div>
+ <% if(data.canReview&&refund.status==='pending_review'&&String(refund.requestedBy)!==String(user.id)){ %>
+ <form method="post" action="/tenant/money-transfer/<%= data.order._id %>/refund/<%= refund.id %>/review" style="margin:12px 0">
+ <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+ <label class="field">Independent review note (12–400 characters)<textarea class="control" name="note" rows="3" required minlength="12" maxlength="400"></textarea></label>
+ <label class="field">Signed sender cash refund receipt reference (8–120 characters)<input class="control" name="signedReceiptReference" minlength="8" maxlength="120" placeholder="Actual cash handover evidence"></label>
+ <label class="field"><input type="checkbox" name="cashHandoverConfirmed" value="confirmed"> I independently verified the sender received the actual refund in the original cash currency from the original cashier drawer</label>
+ <p class="tiny">Approval posts a new, auditable compensation transaction and permanently closes the original recipient PIN. Rejecting this request does not return cash or alter the original payable.</p>
+ <div class="rowBtns"><button class="btn btnPrimary" type="submit" name="decision" value="approve">Approve verified cash refund</button>
+ <button class="btn" type="submit" name="decision" value="reject">Reject refund request</button></div>
+ </form>
+ <% } %>
+ <% }) %>
+ </div></section>
+</section>

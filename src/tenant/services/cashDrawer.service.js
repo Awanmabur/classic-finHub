@@ -39,6 +39,8 @@ async function open(conn,tenant,actor,input={}){
    if(useBookCount&&(!fund||fund.openingBalanceMinor===null||!fund.openingApprovedAt||fund.status!=='active'||fund.reconciliationState!=='matched'))
     throw fail('An active, reconciled cash drawer is required to reuse the automatic book balance',409);
    const opening=useBookCount?String(fund.bookBalanceMinor):manuallyCounted;
+   if(fund&&BigInt(String(fund.reservedCashMinor??'0'))>0n)
+    throw fail('Resolve and independently reconcile all physical cash in transit before opening a new cashier shift',409);
    if(fund&&fund.openingBalanceMinor!==null){
     if(fund.status!=='active'||fund.reconciliationState!=='matched')throw fail('Reconcile the actual cash account before opening another day',409);
     await funds.assertBookIntegrity(conn,tx,fund);
@@ -175,6 +177,8 @@ async function submit(conn,tenant,actor,shiftId,input={}){
    const computed=BigInt(String(aggregation[0]?.movement||'0'))-BigInt(String(expenseAggregation[0]?.amount||'0'));
    if(result.treasuryAccountId){
     const fund=await require('../treasury/models').models(conn).account.findOne({_id:result.treasuryAccountId,branchId:result.branchId,operatorId:result.operatorId,currency:result.currency}).session(tx).lean();
+    if(fund&&BigInt(String(fund.reservedCashMinor??'0'))>0n)
+     throw fail('This drawer has unreturned physical cash in transit. Resolve custody and independently review its return or receipt before closing',409);
     if(!fund||minor(fund.bookBalanceMinor)!==minor(result.openingMinor)+minor(result.provisionalMovementMinor))throw fail('Cash drawer and treasury book do not reconcile',409);
    }else if(computed!==minor(result.provisionalMovementMinor))throw fail('Cash shift movement does not reconcile with original records',409);
    const expected=minor(result.openingMinor)+minor(result.provisionalMovementMinor);

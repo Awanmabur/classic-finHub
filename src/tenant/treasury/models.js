@@ -18,7 +18,10 @@ const accountSchema=new Schema({
  ledgerAccountId:{type:O,required:true,immutable:true},ledgerCode:{type:String,required:true,immutable:true},
  status:{type:String,enum:['uninitialized','active','held','archived'],default:'uninitialized'},
  openingBalanceMinor:{type:D,default:null},openingObservedAt:{type:Date,default:null},openingObservationId:{type:O,default:null},openingApprovedAt:{type:Date,default:null},
- bookBalanceMinor:{type:D,required:true,default:'0'},sequence:{type:Number,default:0,min:0},revision:{type:Number,default:0,min:0},
+ bookBalanceMinor:{type:D,required:true,default:'0'},
+ // Cash physically handed to a courier but not independently closed. Not
+ // spendable; does NOT alter the original journal balance until settlement.
+ reservedCashMinor:{type:D,required:true,default:'0'},sequence:{type:Number,default:0,min:0},revision:{type:Number,default:0,min:0},
  lastObservationId:{type:O,default:null},lastObservationAt:{type:Date,default:null},lastObservedMinor:{type:D,default:null},
  lastExpectedAtObservationMinor:{type:D,default:null},lastVarianceMinor:{type:D,default:null},
  reconciliationState:{type:String,enum:['unknown','matched','mismatch','stale'],default:'unknown'},

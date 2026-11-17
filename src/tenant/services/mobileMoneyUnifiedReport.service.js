@@ -53,7 +53,7 @@ function renderRow(row){
  return result;
 }
 function summarize(transactionGroups,payoutGroups,expenseGroups){
- const networks=new Map(),currencies=new Map();
+ const networks=new Map(),currencies=new Map(),cashCurrencies=new Map();
  const ensure=(network,currency)=>{
   const key=network+'|'+currency;
   if(!networks.has(key))networks.set(key,blank(network,currency));
@@ -62,6 +62,8 @@ function summarize(transactionGroups,payoutGroups,expenseGroups){
  };
  for(const group of transactionGroups){
   const {network,currency,operation,entrySource,feeTreatment,voided,reviewState,status}=group._id;
+  const cashCurrency=group._id.cashCurrency||currency;
+  if(!Object.hasOwn(mobile.currencies,cashCurrency))throw fail('Unsupported physical cash currency in report',409);
   if(!network||!Object.hasOwn(mobile.currencies,currency))throw fail('Unsupported transaction currency/provider in report',409);
   const rows=ensure(network,currency);
   for(const row of rows){
@@ -73,7 +75,9 @@ function summarize(transactionGroups,payoutGroups,expenseGroups){
    if(status==='pending_verification'||status==='recorded')row.providerUnverifiedCount+=group.count;
    row[operation==='cash_in'?'depositMinor':'withdrawalMinor']+=amount;
    row.volumeMinor+=amount;
-   row.cashImpactMinor+=whole(group.cashMovementMinor);
+   // Cash is aggregated by its actual native currency. Never print SSP cash
+   // paid as if it were an amount of UGX or KES provider principal.
+   if(cashCurrency===currency)row.cashImpactMinor+=whole(group.cashMovementMinor);
    row.recordedFeeMinor+=fees;
    if(feeTreatment==='payment_collected')row.collectedFeeMinor+=fees;
    if(feeTreatment==='wallet_commission')row.legacyWalletFeeMinor+=fees;
@@ -83,6 +87,13 @@ function summarize(transactionGroups,payoutGroups,expenseGroups){
    row.publishedCommissionReferenceMinor+=whole(group.publishedCommissionReferenceMinor);
    row.publishedCustomerChargeReferenceMinor+=whole(group.publishedCustomerChargeReferenceMinor);
    row.configuredCostEstimateMinor+=whole(group.configuredCostEstimateMinor);
+  }
+  if(!voided){
+   const cashKey=network+'|'+cashCurrency;
+   const entry=cashCurrencies.get(cashKey)||{network,currency:cashCurrency,amountMinor:0n,recordCount:0};
+   entry.amountMinor+=whole(group.cashMovementMinor);
+   entry.recordCount+=group.count;
+   cashCurrencies.set(cashKey,entry);
   }
  }
  for(const group of payoutGroups){
@@ -99,7 +110,9 @@ function summarize(transactionGroups,payoutGroups,expenseGroups){
   amountMinor:String(row.amountMinor),formatted:format(row.amountMinor,row._id.currency)}));
  return {networks:[...networks.values()].sort((a,b)=>a.network.localeCompare(b.network)||a.currency.localeCompare(b.currency)).map(renderRow),
   currencies:[...currencies.values()].sort((a,b)=>a.currency.localeCompare(b.currency)).map(renderRow),
-  expenses:expenses.sort((a,b)=>a.currency.localeCompare(b.currency))};
+  expenses:expenses.sort((a,b)=>a.currency.localeCompare(b.currency)),
+  cashMovements:[...cashCurrencies.values()].sort((a,b)=>a.currency.localeCompare(b.currency)||a.network.localeCompare(b.network))
+   .map(row=>({...row,amountMinor:String(row.amountMinor),formatted:format(row.amountMinor,row.currency)}))};
 }
 async function generate(conn,tenant,actor,input={},timeZone='UTC'){
  if(!workspace.canReport(actor))throw fail('Mobile Money reporting permission required',403);
@@ -108,7 +121,7 @@ async function generate(conn,tenant,actor,input={},timeZone='UTC'){
  if(input.currency){if(!Object.hasOwn(mobile.currencies,input.currency))throw fail('Unknown currency');match.currency=input.currency;}
  // Each group keeps voids, methods, commissions, and review states distinct.
  const txQuery=mobileTransactionModel(conn).aggregate([{$match:match},{$group:{
-  _id:{network:'$network',currency:'$currency',operation:'$operation',entrySource:{$ifNull:['$entrySource','manual']},
+  _id:{network:'$network',currency:'$currency',cashCurrency:{$ifNull:['$cashCurrency','$currency']},operation:'$operation',entrySource:{$ifNull:['$entrySource','manual']},
    feeTreatment:{$ifNull:['$feeTreatment','record_only']},reviewState:{$ifNull:['$reviewState','awaiting_review']},status:'$status',
    voided:{$or:[{$eq:['$status','voided_internal']},{$eq:['$correctionState','voided']}]}},
   count:{$sum:1},amountMinor:{$sum:'$amountMinor'},feeMinor:{$sum:'$feeMinor'},
@@ -153,6 +166,8 @@ function csv(report){
  ].map(v=>typeof v==='bigint'?String(v):v)),
  ['Business period ('+report.window.timeZone+')',report.window.from+' to '+report.window.to],
  ['Expenses scope','All approved branch expenses, not allocated by provider'],
+ ['Physical cash currency','Network','Net physical cash movement (native minor units)','Cash transaction records'],
+ ...(report.cashMovements||[]).map(row=>[row.currency,row.network,row.amountMinor,row.recordCount]),
  ...report.expenses.map(e=>['Approved expenses '+e.currency,e.amountMinor])
  ];
  return '\uFEFF'+rows.map(row=>row.map(mobile.csvCell).join(',')).join('\r\n')+'\r\n';

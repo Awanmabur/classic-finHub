@@ -216,6 +216,8 @@ async function requestObservationInSession(conn,session,authorization,accountId,
  authorization=await access(conn,authorization.tenant,authorization.actor,{permission:'treasury.observe',session,fence:true});
  const account=await loadAccount(conn,authorization,accountId,{session,fence:true}),value=parseObservation(input,account);
   if(account.status==='archived')throw fail('Restore this funds account before recording evidence',409);
+  if(account.kind==='cash'&&BigInt(String(account.reservedCashMinor??'0'))>0n)
+   throw fail('Physical cash is in transit. Verify independent branch settlement or actual return before counting the original drawer',409);
   const prior=await models(conn).observation.findOne({idempotencyKey:value.idempotencyKey}).session(session).lean();if(prior){if(!sameObservation(prior,authorization.actor,account,value))throw fail('Evidence reference reused with different observation details',409);return {observation:prior,duplicate:true};}
   if(value.kind==='opening'&&(account.openingBalanceMinor!==null||account.pendingOpeningId))throw fail('An opening balance already exists or awaits review. Use a balance check after opening.',409);
   if(value.kind==='checkpoint'&&account.openingBalanceMinor===null)throw fail('Obtain independent opening approval first',409);
@@ -244,6 +246,8 @@ async function reviewObservationInSession(conn,session,authorization,observation
  const account=await loadAccount(conn,authorization,observation.accountId,{session,fence:true});
  if(String(observation.requestedBy)===authorization.actor.id||String(account.operatorId||'')===authorization.actor.id)throw fail('A different person must review the evidence and operator drawer',403);
  if(account.status==='archived')throw fail('Archived funds accounts cannot receive balance approval',409);
+ if(account.kind==='cash'&&BigInt(String(account.reservedCashMinor??'0'))>0n)
+  throw fail('Cash in physical transit prevents approving a misleading full drawer balance',409);
  let expected=null,variance=null,journalId=null;
  if(decision==='approve'&&observation.kind==='opening'){
   if(account.openingBalanceMinor!==null||String(account.pendingOpeningId)!==String(observation._id))throw fail('This account already has an opening balance or a different pending request',409);
@@ -280,7 +284,8 @@ function normalizeMovement(input){
 async function postingAuthorization(conn,session,authorization,value,internal={}){
  if(internal.branchTransferExecutionId){
   const {execution,source,collection}=await require('../funded/branchTransfer').validate(conn,session,authorization.tenant,authorization.actor,internal.branchTransferExecutionId);
-  const counter=await models(conn).counter.findOne({branchId:source.branchId,currency:source.currency,purpose:'interbranch_payable'}).session(session).lean();
+  const purpose=String(source.branchId)===String(execution.branchId)?'settlement_clearing':'interbranch_payable';
+  const counter=await models(conn).counter.findOne({branchId:source.branchId,currency:source.currency,purpose}).session(session).lean();
   if(value.sourceType!=='money_transfer'||value.sourceRef!==`BRANCH_PAYOUT:${execution._id}:ORIGIN`||value.branchId!==String(source.branchId)||value.operatingActorId!==String(collection.createdBy)||value.legs.length!==1||value.legs[0].accountId!==String(collection.accounts.clearingAccountId)||value.legs[0].deltaMinor!==`-${source.amountMinor}`||value.ledgerLines.length!==1||!counter||value.ledgerLines[0].accountId!==String(counter.ledgerAccountId)||value.ledgerLines[0].currency!==source.currency||value.ledgerLines[0].side!=='credit'||value.ledgerLines[0].amountMinor!==String(source.amountMinor))throw fail('Only the exact originating transfer payable may be reclassified',403);
   const current=await access(conn,authorization.tenant,authorization.actor,{permission:'money_transfer.review',session,fence:true,sourceType:'money_transfer'});
   const branch=await core.branchModel(conn).findOneAndUpdate({_id:source.branchId,status:'active'},{$inc:{revision:1}},{session,new:true}).lean();
@@ -318,6 +323,9 @@ async function applyMovements(conn,session,authorization,input,internal={}){
   if(occurredAt<new Date(account.openingObservedAt))throw fail('This operation predates the reviewed opening. Preserve it as historical evidence rather than counting it twice.',409);
   await assertBookIntegrity(conn,session,account);
   const before=BigInt(String(account.bookBalanceMinor)),delta=BigInt(leg.deltaMinor),after=before+delta;
+  const reserved=BigInt(String(account.reservedCashMinor??'0'));
+  if(account.kind==='cash'&&(reserved<0n||reserved>before||after<reserved))
+   throw fail('Cash is reserved for physical interbranch transit and is not available for another payment',409);
   if(after<0n&&!internal.allowNegative)throw fail(`Insufficient ${account.currency} funds in ${account.name}`,409);
   if(after>MAX||after< -MAX)throw fail('Funds book exceeds supported exact limits',409);
   if(account.kind==='cash')await require('../services/cashDrawer.service').bindFundAccount(conn,session,account,String(before),{allowNoActiveShift:Boolean(internal.allowSuspense)});
@@ -346,12 +354,18 @@ async function applyMovements(conn,session,authorization,input,internal={}){
  return {batch,movements,journalIds,duplicate:false};
 }
 async function postBranchTransferPayout(conn,session,authorization,payoutId){
- const {execution,source,collection}=await require('../funded/branchTransfer').validate(conn,session,authorization.tenant,authorization.actor,payoutId);
- const payable=await ensureCounterAccount(conn,session,{tenantId:authorization.tenant._id,branchId:source.branchId,currency:source.currency,purpose:'interbranch_payable',actorId:authorization.actor.id});
- const receivable=await ensureCounterAccount(conn,session,{tenantId:authorization.tenant._id,branchId:execution.branchId,currency:source.currency,purpose:'interbranch_receivable',actorId:authorization.actor.id});
+ const {execution,source,collection,sameBranch}=await require('../funded/branchTransfer').validate(conn,session,authorization.tenant,authorization.actor,payoutId);
+ const payoutCurrency=source.payoutCurrency||source.currency;
+ const payoutMinor=String(source.payoutMinor||source.amountMinor);
+ if(source.payoutCurrency&&process.env.CLASSICFIN_LINKED_CURRENCY_POSTING!=='enabled')
+  throw fail('Cross-currency transfer payouts have not been enabled',403);
+ if(source.payoutCurrency&&(!source.fxRateId||!source.fxRateDecimal||!source.fxRateApprovedBy))
+  throw fail('The original cross-currency transfer is missing immutable approved pricing evidence',409);
+ const payable=await ensureCounterAccount(conn,session,{tenantId:authorization.tenant._id,branchId:source.branchId,currency:source.currency,purpose:sameBranch?'settlement_clearing':'interbranch_payable',actorId:authorization.actor.id});
+ const receivable=await ensureCounterAccount(conn,session,{tenantId:authorization.tenant._id,branchId:execution.branchId,currency:payoutCurrency,purpose:sameBranch?'settlement_clearing':'interbranch_receivable',actorId:authorization.actor.id});
  const origin=await applyMovements(conn,session,authorization,{sourceType:'money_transfer',sourceRef:`BRANCH_PAYOUT:${execution._id}:ORIGIN`,branchId:String(source.branchId),operatingActorId:String(collection.createdBy),legs:[{accountId:String(collection.accounts.clearingAccountId),deltaMinor:`-${source.amountMinor}`}],ledgerLines:[{currency:source.currency,accountId:String(payable.ledgerAccountId),side:'credit',amountMinor:String(source.amountMinor)}],evidenceRef:execution.evidenceReference,description:execution.note},{branchTransferExecutionId:execution._id});
- const destination=await applyMovements(conn,session,authorization,{sourceType:'money_transfer',sourceRef:`FUNDED:${execution._id}`,branchId:String(execution.branchId),operatingActorId:String(execution.createdBy),legs:[{accountId:String(execution.accounts.payoutAccountId),deltaMinor:`-${source.amountMinor}`}],ledgerLines:[{currency:source.currency,accountId:String(receivable.ledgerAccountId),side:'debit',amountMinor:String(source.amountMinor)}],evidenceRef:execution.evidenceReference,description:execution.note});
- return {...destination,journalIds:[...origin.journalIds,...destination.journalIds]};
+ const destination=await applyMovements(conn,session,authorization,{sourceType:'money_transfer',sourceRef:`FUNDED:${execution._id}`,branchId:String(execution.branchId),operatingActorId:String(execution.createdBy),legs:[{accountId:String(execution.accounts.payoutAccountId),deltaMinor:`-${payoutMinor}`}],ledgerLines:[{currency:payoutCurrency,accountId:String(receivable.ledgerAccountId),side:'debit',amountMinor:payoutMinor}],evidenceRef:execution.evidenceReference,description:execution.note});
+ return {...destination,originBatchId:origin.batch._id,originMovements:origin.movements,journalIds:[...origin.journalIds,...destination.journalIds]};
 }
 async function reverseMovements(conn,session,authorization,input){
  if(!session?.inTransaction())throw fail('Correction must share the business transaction',409);
@@ -390,7 +404,10 @@ async function assertBookIntegrity(conn,session,account){
  let balance=0n;for(const entry of entries)balance+=BigInt(String(entry.amount))*(entry._id===normalSide(account.kind)?1n:-1n);
  const movements=await models(conn).movement.aggregate([{$match:{accountId:account._id}},{$group:{_id:null,amount:{$sum:'$deltaMinor'},count:{$sum:1}}}]).session(session);
  const sum=BigInt(String(account.openingBalanceMinor))+BigInt(String(movements[0]?.amount||'0'));
- if(balance!==BigInt(String(account.bookBalanceMinor))||sum!==balance||Number(movements[0]?.count||0)!==account.sequence)throw fail('Funds book integrity check failed. Suspend transactions and investigate the immutable ledger and movement history.',503);
+ if((account.kind==='cash'&&(
+  BigInt(String(account.reservedCashMinor??'0'))<0n||
+  BigInt(String(account.reservedCashMinor??'0'))>BigInt(String(account.bookBalanceMinor))))||
+  balance!==BigInt(String(account.bookBalanceMinor))||sum!==balance||Number(movements[0]?.count||0)!==account.sequence)throw fail('Funds book integrity check failed. Suspend transactions and investigate the immutable ledger and movement history.',503);
 }
 async function balanceSnapshot(conn,tenant,actor,filters={}){
  return transaction(conn,async session=>{
@@ -403,7 +420,11 @@ async function balanceSnapshot(conn,tenant,actor,filters={}){
     expectedMinor:account.openingBalanceMinor===null?null:String(account.bookBalanceMinor),expectedFormatted:account.openingBalanceMinor===null?'Opening not verified':format(account.bookBalanceMinor,account.currency),
     observedMinor:account.lastObservedMinor===null?null:String(account.lastObservedMinor),observedFormatted:account.lastObservedMinor===null?'No verified observation':format(account.lastObservedMinor,account.currency),
     varianceMinor:account.lastVarianceMinor===null?null:String(account.lastVarianceMinor),varianceFormatted:account.lastVarianceMinor===null?'—':format(account.lastVarianceMinor,account.currency),
-    availableMinor:account.status==='active'&&account.reconciliationState==='matched'&&BigInt(String(account.bookBalanceMinor))>0n?String(account.bookBalanceMinor):'0',
+    // Book cash and spendable physical cash differ while banknotes are in transit.
+    reservedCashMinor:String(account.reservedCashMinor??'0'),
+    reservedCashFormatted:format(account.reservedCashMinor??'0',account.currency),
+    availableMinor:account.status==='active'&&account.reconciliationState==='matched'?
+     String((v=>v>0n?v:0n)(BigInt(String(account.bookBalanceMinor))-BigInt(String(account.reservedCashMinor??'0')))):'0',
     actualSource:'independently reviewed manual evidence',actualIsLive:false});
   }
   return {accounts:rows,checkedAt:new Date(),note:'Expected balance is derived from the posted ledger. Actual balance is the last independently reviewed observation at its stated time; it is not a live provider query.'};

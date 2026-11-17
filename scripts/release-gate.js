@@ -36,6 +36,8 @@ const steps=[
   [process.execPath,['scripts/wallet-funding-integration.js']],
   [process.execPath,['scripts/mobile-funds-integration.js']],
   [process.execPath,['scripts/funded-operations-integration.js']],
+  // Execute against a real disposable replica set, never fake in-memory balances.
+  [process.execPath,['scripts/linked-settlement-integrity.js']],
   [process.execPath,['scripts/expenses-treasury-integration.js']],
   [process.execPath,['scripts/reporting-cash-integration.js']],
   [process.execPath,['scripts/workspace-settings-integration.js']],

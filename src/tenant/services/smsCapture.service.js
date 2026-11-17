@@ -152,7 +152,15 @@ async function receive(deviceId,raw,input,headers){
       duplicate=true;
     }finally{await session.endSession();}
   }
-  if(device.autoRecord&&row.state==='parsed'){
+  // SMS proves provider float, NOT which banknotes the agent handed over.
+  // A South Sudan SSP branch receiving an UGX-network SMS must not silently
+  // create a false UGX cash movement. Keep this in operator confirmation.
+  const crossMarket=Boolean(row.fields?.currency&&context.branch.currency!==row.fields.currency);
+  if(device.autoRecord&&row.state==='parsed'&&crossMarket){
+    await Inbox.updateOne({_id:row._id,state:'parsed'},
+      {$set:{state:'needs_review',reasonCode:'physical_cash_currency_confirmation_required'}});
+    row=await Inbox.findById(row._id).lean();
+  }else if(device.autoRecord&&row.state==='parsed'){
     await recordDraft(conn,tenant,context.actor,String(row._id),row.fields,true).catch(()=>{});
     row=await Inbox.findById(row._id).lean();
   }
@@ -198,7 +206,7 @@ async function recordDraft(conn,tenant,actor,id,input,automatic=false){
   if(!device)throw secure.fail('SMS device is unavailable. Use manual Mobile Money entry if appropriate.',403);
   const fresh=await boundContext(device);
   if(String(fresh.actor.id)!==String(actor.id))throw secure.fail('Device assignment changed.',403);
-  const values={};for(const key of ['operation','customer','network','networkReference','currency','amount','fee','observedWalletBalance','observationEvidenceReference'])values[key]=input?.[key];
+  const values={};for(const key of ['operation','customer','network','networkReference','currency','amount','fee','settlementCurrency','settlementAmount','forexRateId','observedWalletBalance','observationEvidenceReference'])values[key]=input?.[key];
   values.idempotencyKey=secure.idempotencyKey(device.deviceId,prior.messageId);
   mobile.validate(values,values.operation);
   if(values.network!==device.network)throw secure.fail('The network must match the enrolled SMS device.');

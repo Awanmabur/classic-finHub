@@ -65,13 +65,23 @@ function validateOrder(input){
  else{senderId=id(input?.senderId);beneficiaryId=id(input?.beneficiaryId);if(senderId===beneficiaryId)throw fail('Sender and beneficiary must be different contacts');}
  const currency=text(input?.currency,'currency',3,3);
  const amountMinor=mobile.toMinor(input?.amount,currency);
+ const requestedPayoutCurrency=String(input?.payoutCurrency||currency);
+ if(!require('../../config/currencies').currencyCodes.includes(requestedPayoutCurrency))
+  throw fail('Choose a supported receiving currency');
+ const crossCurrency=requestedPayoutCurrency!==currency;
+ if(crossCurrency&&process.env.CLASSICFIN_LINKED_CURRENCY_POSTING!=='enabled')
+  throw fail('Cross-currency Money Transfer recording is not enabled on this deployment',403);
+ const payoutMinor=crossCurrency?mobile.toMinor(input?.payoutAmount,requestedPayoutCurrency):null;
+ const fxRateId=crossCurrency?id(input?.fxRateId):null;
  const feeMinor=require('../pricing/apply').mode(input)?0n:mobile.toMinor(input?.fee??'0',currency,true);
  if(feeMinor>amountMinor)throw fail('Transfer fee cannot exceed the requested amount');
  const idempotencyKey=text(input?.idempotencyKey,'form reference',36,36);
  if(!UUID.test(idempotencyKey))throw fail('Invalid form reference. Reload the page.');
  const validDays=Number(input?.validDays??7);
  if(!Number.isSafeInteger(validDays)||validDays<1||validDays>30)throw fail('Validity must be 1–30 days');
- return {partyEntryMode:hasTyped?'typed':'saved_contact',senderId,beneficiaryId,sender,beneficiary,currency,amountMinor,feeMinor,idempotencyKey,validDays,destinationBranchId,capture:require('./operationCapture.service').parse('money_transfer',input)};
+ return {partyEntryMode:hasTyped?'typed':'saved_contact',senderId,beneficiaryId,sender,beneficiary,currency,amountMinor,feeMinor,idempotencyKey,validDays,destinationBranchId,
+  payoutCurrency:crossCurrency?requestedPayoutCurrency:null,payoutMinor,fxRateId,
+  capture:require('./operationCapture.service').parse('money_transfer',input)};
 }
 function snapshot(contact){return {contactId:contact._id,name:contact.fullName,phone:contact.phone,country:contact.country};}
 function maskPhone(phone){return String(phone).replace(/.(?=.{4})/g,'•');}
@@ -82,7 +92,10 @@ function equivalent(existing,actor,branchId,v){
  return String(existing.createdBy)===String(actor.id)&&String(existing.branchId)===branchId&&
    String(existing.destinationBranchId||existing.branchId)===String(v.destinationBranchId||branchId)&&mode===storedMode&&parties&&
    require('./operationCapture.service').equivalent('money_transfer',existing.capture,v.capture)&&existing.currency===v.currency&&String(existing.amountMinor)===String(v.amountMinor)&&
-   String(existing.feeMinor)===String(v.feeMinor)&&existing.validDays===v.validDays;
+   String(existing.feeMinor)===String(v.feeMinor)&&existing.validDays===v.validDays&&
+   String(existing.payoutCurrency||'')===String(v.payoutCurrency||'')&&
+   String(existing.payoutMinor||'')===String(v.payoutMinor||'')&&
+   String(existing.fxRateId||'')===String(v.fxRateId||'');
 }
 async function addContact(conn,tenant,actor,input){
  requireModuleAccess(tenant,actor,'money_transfer.contacts');
@@ -141,7 +154,7 @@ async function createRequest(conn,tenant,actor,input){
  requireModuleAccess(tenant,actor,'money_transfer.create');if(!writeActor(actor))throw fail('Only transfer operators can request transfers',403);
  const v=validateOrder(input),branchId=String((await require('./transactionBranch.service').resolveTransactionBranch(conn,actor,input))._id);
  if(input.fromBranchId&&id(input.fromBranchId)!==branchId)throw fail('From branch must match your assigned operating branch',403);
- if(v.destinationBranchId===branchId)throw fail('Choose a receiving branch different from your operating branch');
+ if(v.destinationBranchId===branchId&&!v.payoutCurrency)throw fail('Choose a different receiving branch for same-currency transfers');
  await ensureTenantIndexes(conn);
  const Model=transferOrderModel(conn);
  const existing=await Model.findOne({idempotencyKey:v.idempotencyKey}).lean();
@@ -157,7 +170,20 @@ async function createRequest(conn,tenant,actor,input){
   const destinationBranchId=v.destinationBranchId;
   const destination=await branchModel(conn).findOneAndUpdate({_id:destinationBranchId,status:'active'},{$inc:{revision:1}},{session:tx,new:true});
   if(!destination)throw fail('Choose an active receiving branch in this tenant',409);
-  require('./branchCurrency.service').resolve(destination,v.currency);
+  require('./branchCurrency.service').resolve(destination,v.payoutCurrency||v.currency);
+  let approvedTerms=null;
+  if(v.payoutCurrency){
+   if(!require('./moduleAccess.service').hasModule(authorization.tenant,'forex'))
+    throw fail('An active Forex module is required for this linked currency pair',403);
+   approvedTerms=await require('../settlements/rateBook').quoteTransferTerms(conn,tx,{
+    tenant:authorization.tenant,rateId:v.fxRateId,
+    originBranchId:String(branch._id),destinationBranchId:String(destination._id),
+    collectionCurrency:v.currency,payoutCurrency:v.payoutCurrency,
+    payoutMinor:String(v.payoutMinor)
+   });
+   if(String(v.amountMinor)!==approvedTerms.collectionCashMinor)
+    throw fail('The collected amount does not match the approved receiving-currency quote. Refresh pricing before submitting.',409);
+  }
   let sender=v.sender,beneficiary=v.beneficiary;
   if(v.partyEntryMode==='saved_contact'){
    const contacts=await transferContactModel(conn).find({_id:{$in:[v.senderId,v.beneficiaryId]},branchId,active:true}).session(tx).lean();
@@ -168,8 +194,16 @@ async function createRequest(conn,tenant,actor,input){
   await reserveUsage(authorization.tenant,'money_transfer_requests',tx);
   [created]=await Model.create([{reference:`TR-${crypto.randomBytes(12).toString('hex').toUpperCase()}`,
    idempotencyKey:v.idempotencyKey,branchId,destinationBranchId,originBranchName:branch.name,destinationBranchName:destination.name,createdBy:actor.id,partyEntryMode:v.partyEntryMode,sender,beneficiary,
-   capture:v.capture,pricing:v.pricing,currency:v.currency,amountMinor:String(v.amountMinor),feeMinor:String(v.feeMinor),validDays:v.validDays,
-   expiresAt:new Date(Date.now()+v.validDays*86400000),status:'requested'}],{session:tx});
+   capture:v.capture,pricing:v.pricing,currency:v.currency,amountMinor:String(v.amountMinor),
+   ...(approvedTerms?{payoutCurrency:v.payoutCurrency,payoutMinor:String(v.payoutMinor),
+    fxRateId:approvedTerms.rateSnapshot.rateId,
+    fxRateDecimal:approvedTerms.rateSnapshot.rateDecimal,
+    fxRateApprovedBy:approvedTerms.rateSnapshot.approvedBy,
+    fxRateExpiresAt:new Date(approvedTerms.rateSnapshot.expiresAt)}:{}),
+   feeMinor:String(v.feeMinor),validDays:v.validDays,
+   expiresAt:new Date(approvedTerms?
+    Math.min(Date.now()+v.validDays*86400000,new Date(approvedTerms.rateSnapshot.expiresAt).getTime()):
+    Date.now()+v.validDays*86400000),status:'requested'}],{session:tx});
   await auditEventModel(conn).create([{action:'money_transfer.request.created',actorId:actor.id,targetId:created._id,
    metadata:{branchId,currency:v.currency,reference:created.reference,amountMinor:v.amountMinor}}],{session:tx});
  });return {order:created,duplicate:false};}

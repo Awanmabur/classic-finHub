@@ -56,10 +56,10 @@ test('transfer has separate collection and payout stages across distinct branche
  assert.equal(plan.status,'quote_only_no_funds_posted');
  assert.match(plan.note,/separate verified events/);
 });
-test('transfer plan cannot cross the wrong branch or skip rate approval',()=>{
+test('transfer plan cannot reuse the same custody account or skip rate approval',()=>{
  assert.throws(()=>planner.transferPlan({originBranchId:b,destinationBranchId:b,
-  originCashAccountId:e,destinationPayoutAccountId:f,collectionCurrency:'SSP',
-  payoutCurrency:'UGX',payoutMinor:'100000',rate:rate('sell','1.1')}),/same-branch/);
+  originCashAccountId:e,destinationPayoutAccountId:e,collectionCurrency:'SSP',
+  payoutCurrency:'UGX',payoutMinor:'100000',rate:rate('sell','1.1')}),/distinct actual currency accounts/);
  assert.throws(()=>planner.transferPlan({originBranchId:b,destinationBranchId:c,
   originCashAccountId:e,destinationPayoutAccountId:f,collectionCurrency:'SSP',
   payoutCurrency:'UGX',payoutMinor:'100000',rate:rate('buy','1.1')}),/approved/);

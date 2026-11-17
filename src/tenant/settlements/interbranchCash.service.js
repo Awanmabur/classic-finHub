@@ -279,8 +279,10 @@ async function review(conn,tenant,actor,reimbursementId,input={},expectedTransfe
    String(authorization.actor.id)===String(initial.requestedBy))
    throw fail('A different tenant owner must independently verify both physical branches',403);
   const locked=await Model.findOneAndUpdate({_id:initial._id,tenantId:tenant._id,
-   status:'pending_review',receiverConfirmedAt:{$ne:null},
-   receiverReceiptReference:{$type:'string'},requestedBy:{$ne:authorization.actor.id},
+   status:confirmed?'pending_review':{$in:['pending_receiver','pending_review']},
+   ...(confirmed?{receiverConfirmedAt:{$ne:null},
+    receiverReceiptReference:{$type:'string'}}:{}),
+   requestedBy:{$ne:authorization.actor.id},
    ...(expectedTransferId?{transferId:id(expectedTransferId)}:{})},
    {$inc:{revision:1}},{new:true,session}).lean();
   if(!locked)throw fail('Reimbursement already decided or outside your tenant');
@@ -288,9 +290,9 @@ async function review(conn,tenant,actor,reimbursementId,input={},expectedTransfe
    String(locked.receivedBy||'')===String(authorization.actor.id))
    throw fail('Sender, receiver and financial reviewer must be different authenticated people',403);
   if(!confirmed){
-   const rejected=await Model.findOneAndUpdate({_id:locked._id,status:'pending_review'},
-    {$set:{status:'rejected',reviewedBy:authorization.actor.id,reviewedAt:new Date(),
-     reviewNote:note},$unset:{activeKey:''}},{new:true,session}).lean();
+   const rejected=await Model.findOneAndUpdate({_id:locked._id,status:locked.status},
+    {$set:{status:'return_pending',reviewedBy:authorization.actor.id,reviewedAt:new Date(),
+     reviewNote:note}},{new:true,session}).lean();
    await writeAudit(conn,session,authorization.actor,rejected,'rejected');
    return {reimbursement:rejected,duplicate:false};
   }
@@ -312,6 +314,10 @@ async function review(conn,tenant,actor,reimbursementId,input={},expectedTransfe
    tenantId:tenant._id
   }).session(session).lean();
   readyAccounts(pair,accounts);
+  // The physical handover hold is consumed in the same transaction as the
+  // actual origin debit; an unrelated cash-out can never use the held notes.
+  if(!locked.reservedAt)throw fail('Actual sender cash was not reserved at handover');
+  await changeReserve(conn,session,authorization.tenant,pair,'release');
   const Counter=treasury.models(conn).counter;
   const [payable,receivable]=await Promise.all([
    Counter.findOne({tenantId:tenant._id,branchId:pair.branchId,

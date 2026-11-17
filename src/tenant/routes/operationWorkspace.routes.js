@@ -22,7 +22,7 @@ module.exports=function operationWorkspaceRoutes({renderTenant,moduleKey}){
    // report period rather than a misleading unfiltered "today".
    data.financeOverview=await require('../services/financeOverview.service').moduleOverview(
     req.tenantDb,req.tenant,req.user,req.operationBranch,
-    {from:data.filters.from,to:data.filters.to,timeZone,viewBranchId:req.viewBranchId,viewBranch:req.viewBranch}
+    {moduleKey,from:data.filters.from,to:data.filters.to,timeZone,viewBranchId:req.viewBranchId,viewBranch:req.viewBranch}
    );
    renderTenant(req,res,`${definition.path}/${view}`,title,'Filter and review records in your authorized workspace.',data);
   }catch(error){next(error);}
@@ -32,7 +32,7 @@ module.exports=function operationWorkspaceRoutes({renderTenant,moduleKey}){
    try{
     const data=await workspace.formContext(req.tenantDb,req.tenant,req.user,moduleKey,req.operationBranch,req.query);
     data.financeOverview=await require('../services/financeOverview.service').moduleOverview(
-     req.tenantDb,req.tenant,req.user,req.operationBranch,{viewBranchId:req.viewBranchId,viewBranch:req.viewBranch});
+     req.tenantDb,req.tenant,req.user,req.operationBranch,{moduleKey,viewBranchId:req.viewBranchId,viewBranch:req.viewBranch});
     Object.assign(data,{workspaceTitle:title,workspaceOperation:operation});
     renderTenant(req,res,`${definition.path}/index`,title,moduleKey==='forex'?'Customer exchange quotations with approved rates and independent review.':'Record instructions and review their status.',data);
    }catch(error){next(error);}
@@ -60,7 +60,7 @@ module.exports=function operationWorkspaceRoutes({renderTenant,moduleKey}){
     data.records=await workspace.records(req.tenantDb,req.tenant,req.user,moduleKey,filters,timeZone);
     data.financeOverview=await require('../services/financeOverview.service').moduleOverview(
      req.tenantDb,req.tenant,req.user,req.operationBranch,
-     {from:data.filters.from,to:data.filters.to,timeZone,viewBranchId:req.viewBranchId,viewBranch:req.viewBranch}
+     {moduleKey,from:data.filters.from,to:data.filters.to,timeZone,viewBranchId:req.viewBranchId,viewBranch:req.viewBranch}
     );
     Object.assign(data,{basePath:'/tenant/money-transfer',title:'Pending payout queue',mode:'pending'});
     renderTenant(req,res,'money-transfer/workspace',data.title,'Independently reviewed manual collections awaiting receiver verification and payout.',data);
@@ -76,7 +76,7 @@ module.exports=function operationWorkspaceRoutes({renderTenant,moduleKey}){
    try{const data=await workspace.formContext(req.tenantDb,req.tenant,req.user,moduleKey,req.operationBranch,req.query);
     data.rates=await require('../services/forex.service').listRates(req.tenantDb,req.tenant,req.user,{status:'active'});
     data.financeOverview=await require('../services/financeOverview.service').moduleOverview(
-     req.tenantDb,req.tenant,req.user,req.operationBranch,{viewBranchId:req.viewBranchId,viewBranch:req.viewBranch});
+     req.tenantDb,req.tenant,req.user,req.operationBranch,{moduleKey,viewBranchId:req.viewBranchId,viewBranch:req.viewBranch});
     Object.assign(data,{workspaceTitle:'Active rate board',workspaceOperation:'rates'});
     renderTenant(req,res,'forex/index','Active rate board','Approved indicative exchange rates and independent review.',data);
    }catch(error){next(error);}

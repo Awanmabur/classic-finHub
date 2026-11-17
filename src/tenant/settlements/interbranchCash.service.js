@@ -245,6 +245,136 @@ async function confirmReceipt(conn,tenant,actor,reimbursementId,input={},expecte
   throw fail('This receiving-branch receipt was already used for another cash reimbursement');throw error;
  }finally{await session.endSession();}
 }
+// Rejected or failed physical custody never releases spendable cash on a
+// button press. Verified receiver dispatch -> sender return -> independent
+// owner release. If the receiver never accepted delivery, hold cash in
+// investigation until a separately evidenced recovery is built.
+async function returnDispatch(conn,tenant,actor,reimbursementId,input={},expectedTransferId=null){
+ context(conn,tenant,actor);feature();
+ const key=receipt(input.returnDispatchReference,'receiving cashier signed return dispatch');
+ const note=text(input.returnDispatchNote,'physical cash return dispatch explanation',12,400);
+ if(input.notesDispatched!=='confirmed')
+  throw fail('Original receiving cashier must confirm actual physical return dispatch',400);
+ await Promise.all([ensure(conn),core.ensureTenantIndexes(conn),funded.ensureIndexes(conn)]);
+ const session=await conn.startSession();
+ try{return await session.withTransaction(async()=>{
+  const authz=await auth.fenceAction(conn,session,actor,tenant,'money_transfer','money_transfer.payout');
+  if(authz.actor.role!=='Money Transfer Operator')throw fail('Only original receiving cashier may return physical cash',403);
+  const initial=await model(conn).findOne({
+   _id:id(reimbursementId),tenantId:tenant._id,status:'return_pending',
+   receivedBy:authz.actor.id,destinationBranchId:authz.actor.branchId,
+   receiverConfirmedAt:{$ne:null},
+   ...(expectedTransferId?{transferId:id(expectedTransferId)}:{})
+  }).session(session).lean();
+  if(!initial)throw fail('Rejected cash handover has no authenticated destination cashier acceptance; resolve custody incident first',409);
+  if([initial.evidenceReference,initial.receiverReceiptReference].includes(key))
+   throw fail('Physical cash return dispatch requires its own unique signed proof');
+  const source=await core.transferOrderModel(conn).findOneAndUpdate({
+   _id:initial.transferId,status:'paid_out_manual',
+   branchId:initial.branchId,destinationBranchId:initial.destinationBranchId
+  },{$inc:{revision:1}},{session,new:true}).lean();
+  if(!source)throw fail('The original transfer changed during cash return dispatch');
+  const pair=await authoritativePair(conn,session,source);
+  if(pair.payoutActorId!==String(authz.actor.id)||
+   pair.destinationCashAccountId!==String(initial.destinationCashAccountId))
+   throw fail('The original receiver cashier is not authorized to dispatch different cash',403);
+  const updated=await model(conn).findOneAndUpdate({
+   _id:initial._id,status:'return_pending',returnDispatchedAt:null
+  },{$set:{status:'return_dispatched',returnDispatchReference:key,
+   returnDispatchNote:note,returnDispatchedBy:authz.actor.id,
+   returnDispatchedAt:new Date()},$inc:{revision:1}},{session,new:true}).lean();
+  if(!updated)throw fail('Cash return dispatch changed concurrently');
+  await writeAudit(conn,session,authz.actor,updated,'return_dispatched');
+  return {reimbursement:updated};
+ });}catch(error){if(error.code===11000)
+  throw fail('Receiving-branch physical cash return receipt has already been used');throw error;
+ }finally{await session.endSession();}
+}
+async function confirmReturned(conn,tenant,actor,reimbursementId,input={},expectedTransferId=null){
+ context(conn,tenant,actor);feature();
+ const key=receipt(input.returnReference,'original sending cashier signed returned cash receipt');
+ const note=text(input.returnNote,'actual returned cash count and verification',12,400);
+ if(input.cashReturnedConfirmed!=='confirmed')
+  throw fail('Original sending cashier must count the returned banknotes first',400);
+ await Promise.all([ensure(conn),core.ensureTenantIndexes(conn),funded.ensureIndexes(conn)]);
+ const session=await conn.startSession();
+ try{return await session.withTransaction(async()=>{
+  const authz=await auth.fenceAction(conn,session,actor,tenant,'money_transfer','money_transfer.view');
+  if(authz.actor.role!=='Money Transfer Operator'||!hasPermission(authz.actor,'treasury.observe'))
+   throw fail('Only the original sending cashier may verify returned physical banknotes',403);
+  const initial=await model(conn).findOne({
+   _id:id(reimbursementId),tenantId:tenant._id,status:'return_dispatched',
+   requestedBy:authz.actor.id,branchId:authz.actor.branchId,
+   returnDispatchedAt:{$ne:null},
+   ...(expectedTransferId?{transferId:id(expectedTransferId)}:{})
+  }).session(session).lean();
+  if(!initial)throw fail('Cash is not verified as dispatched back to the original cashier',409);
+  if([initial.evidenceReference,initial.receiverReceiptReference,
+    initial.returnDispatchReference].includes(key))
+   throw fail('Returned physical cash must have an independent signed receipt');
+  const source=await core.transferOrderModel(conn).findOneAndUpdate({
+   _id:initial.transferId,status:'paid_out_manual',
+   branchId:initial.branchId,destinationBranchId:initial.destinationBranchId
+  },{$inc:{revision:1}},{session,new:true}).lean();
+  if(!source)throw fail('Original transfer changed before return receipt');
+  const pair=await authoritativePair(conn,session,source);
+  if(pair.collectionActorId!==String(authz.actor.id)||
+   pair.sourceCashAccountId!==String(initial.sourceCashAccountId))
+   throw fail('Returned notes must be counted by the original sending cashier',403);
+  const updated=await model(conn).findOneAndUpdate({
+   _id:initial._id,status:'return_dispatched',returnConfirmedAt:null
+  },{$set:{status:'return_verified',returnReference:key,returnNote:note,
+   returnConfirmedBy:authz.actor.id,returnConfirmedAt:new Date()},
+   $inc:{revision:1}},{session,new:true}).lean();
+  if(!updated)throw fail('Cash return receipt already recorded or changed');
+  await writeAudit(conn,session,authz.actor,updated,'return_received');
+  return {reimbursement:updated};
+ });}catch(error){if(error.code===11000)
+  throw fail('Sender return receipt was already used for another cash custody operation');throw error;
+ }finally{await session.endSession();}
+}
+async function releaseReturned(conn,tenant,actor,reimbursementId,input={},expectedTransferId=null){
+ context(conn,tenant,actor);feature();
+ const reason=text(input.note,'independent return-release review',12,400);
+ if(input.returnVerified!=='confirmed')
+  throw fail('Independent owner must verify both return receipts and actual drawer custody',400);
+ await Promise.all([ensure(conn),treasury.ensure(conn),core.ensureTenantIndexes(conn),funded.ensureIndexes(conn)]);
+ const session=await conn.startSession();
+ try{return await session.withTransaction(async()=>{
+  const authz=await auth.fenceAction(conn,session,actor,tenant,'money_transfer','money_transfer.review');
+  if(authz.actor.role!=='Tenant Owner'||!hasPermission(authz.actor,'treasury.review'))
+   throw fail('Different Treasury-qualified tenant owner must release returned physical funds',403);
+  const locked=await model(conn).findOneAndUpdate({
+   _id:id(reimbursementId),tenantId:tenant._id,status:'return_verified',
+   returnConfirmedAt:{$ne:null},returnDispatchedAt:{$ne:null},
+   ...(expectedTransferId?{transferId:id(expectedTransferId)}:{})
+  },{$inc:{revision:1}},{session,new:true}).lean();
+  if(!locked)throw fail('Returned cash is not verified or was already released',409);
+  if([locked.requestedBy,locked.receivedBy].some(x=>String(x)===String(authz.actor.id))||
+   String(locked.returnConfirmedBy)!==String(locked.requestedBy)||
+   String(locked.returnDispatchedBy)!==String(locked.receivedBy))
+   throw fail('Sending, receiving and financial reviewer must be distinct authorized staff',403);
+  const source=await core.transferOrderModel(conn).findOneAndUpdate({
+   _id:locked.transferId,status:'paid_out_manual',
+   branchId:locked.branchId,destinationBranchId:locked.destinationBranchId
+  },{$inc:{revision:1}},{session,new:true}).lean();
+  if(!source)throw fail('The original recipient payout changed during return');
+  const pair=await authoritativePair(conn,session,source);
+  if(pair.sourceCashAccountId!==String(locked.sourceCashAccountId)||
+   pair.amountMinor!==String(locked.amountMinor)||pair.currency!==locked.currency||
+   pair.destinationCashAccountId!==String(locked.destinationCashAccountId))
+   throw fail('Returned cash does not match the original interbranch handover');
+  await changeReserve(conn,session,authz.tenant,pair,'release');
+  const result=await model(conn).findOneAndUpdate({
+   _id:locked._id,status:'return_verified'
+  },{$set:{status:'returned',returnApprovedBy:authz.actor.id,
+   returnApprovedAt:new Date(),returnApprovalNote:reason},
+   $unset:{activeKey:''},$inc:{revision:1}},{session,new:true}).lean();
+  if(!result)throw fail('Cash custody return was reviewed concurrently');
+  await writeAudit(conn,session,authz.actor,result,'return_released');
+  return {reimbursement:result};
+ });}finally{await session.endSession();}
+}
 async function counterBalance(conn,session,account,currency,branchId,normalSide){
  const sums=await core.ledgerPostingModel(conn).aggregate([
   {$match:{accountId:account,currency,branchId}},
@@ -387,4 +517,4 @@ async function detail(conn,tenant,actor,transferId){
   destinationBatchId:x.destinationBatchId?String(x.destinationBatchId):null
  }));
 }
-module.exports={sourcePair,readyAccounts,changeReserve,requestInput,receipt,request,confirmReceipt,review,detail,feature,fail};
+module.exports={sourcePair,readyAccounts,changeReserve,requestInput,receipt,request,confirmReceipt,returnDispatch,confirmReturned,releaseReturned,review,detail,feature,fail};

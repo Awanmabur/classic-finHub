@@ -25,7 +25,15 @@
            <div class="overviewCurrencyLines" aria-label="<%= label %> by original currency">
              <% currencyDetail.forEach(item=>{ %><div class="overviewCurrencyLine"><span><%= item.currency==='KES'?'KSH':item.currency %> · <%= item.count %> transaction<%= item.count===1?'':'s' %></span><b><%= item.formatted.replace(/^KES /,'KSH ') %></b></div><% }); %>
            </div>
-           <% } %></div><% }) %>
+           <% } %>
+           <% const moduleEarning=(finance.moduleEarnings||[]).find(item=>item.moduleKey===key); %>
+           <% if(moduleEarning?.net?.length){ %>
+             <div class="overviewCurrencyLines" title="Posted module ledger income less expenses; excludes unmeasured exchange gains and shared costs">
+               <span class="s">Posted net income (not transaction volume)</span>
+               <% moduleEarning.net.forEach(item=>{ %><div class="overviewCurrencyLine"><span><%= item.currency==='KES'?'KSH':item.currency %></span><b><%= item.formatted.replace(/^KES /,'KSH ') %></b></div><% }); %>
+             </div>
+           <% } else if(finance.available&&key==='forex'){ %><div class="s">Forex trading profit requires stock cost basis; not estimated from turnover.</div><% } %>
+           </div><% }) %>
         <% if(data.hasMobileMoney){ %>
         <% [['cash',cashFunds,'Physical cash · book balance','ovCash'],['float',floatFunds,'Electronic float · wallet balance','ovFloat']].forEach(([type,accounts,label,id])=>{const totals=(data.mobileBookTotals?.[type]||[]);const unapproved=accounts.filter(a=>a.expectedMinor===null||a.expectedMinor===undefined); %>
         <div class="stat" data-dashboard-fund-stat="<%= type %>" title="Approved opening balances plus recorded internal funds movements, not live provider balances.">

@@ -26,7 +26,13 @@
    <% data.items.forEach(g=>{ %><tr><td><%= g.providerNetwork %></td><td><%= g.permittedCurrencyPair %></td>
     <td><%= g.status.replaceAll('_',' ') %></td><td><%= formatLocalDate(g.expiresAt,data.branchId) %></td>
     <td><%= g.approvedBy?'Independently decided':'Awaiting independent document review' %></td><td>
-    <% if(data.canReview&&g.status==='pending_review'&&String(g.requestedBy)!==String(user.id)){ %>
+    <% if((data.canReview||data.canRequest)&&g.status==='approved'){ %>
+     <form method="post" action="/tenant/mobile-money/fx/authorizations/<%= g._id %>/suspend">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label class="field">Suspension reason<textarea class="control" name="note" minlength="12" maxlength="500" required rows="2" placeholder="Document expired, provider blocked, permission withdrawn..."></textarea></label>
+      <button class="btn" type="submit">Suspend this pair</button>
+     </form>
+    <% }else if(data.canReview&&g.status==='pending_review'&&String(g.requestedBy)!==String(user.id)){ %>
       <form method="post" action="/tenant/mobile-money/fx/authorizations/<%= g._id %>/decide">
        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
        <label class="field">Verification findings<textarea name="note" minlength="20" maxlength="500" required rows="2" placeholder="State which original documents and expiry you independently checked"></textarea></label>

@@ -22,8 +22,8 @@ module.exports=function routes({renderTenant}){
    const filters=market.withDefaultFilters(req.query,realWallets);
    const reportData=report?await require('../services/mobileMoneyUnifiedReport.service').generate(
     req.tenantDb,req.tenant,req.user,filters,reportZone):null;
-   const crossCurrencyEnabled=process.env.CLASSICFIN_LINKED_CURRENCY_POSTING==='enabled' &&
-    require('../services/moduleAccess.service').hasModule(req.tenant,'forex');
+   // Included in Mobile Money: standalone Forex trading subscription is not required.
+   const crossCurrencyEnabled=process.env.CLASSICFIN_LINKED_CURRENCY_POSTING==='enabled';
    const approvedFxRates=crossCurrencyEnabled&&operation&&req.operationBranch?
     await require('../models').forexRateModel(req.tenantDb).find({
      branchId:req.operationBranch._id,status:'active',expiresAt:{$gt:new Date()},

@@ -102,7 +102,7 @@ test('network activity and report use supplied totals, retained status, filters 
 test('cash impact retains all approved cards and separates physical cash from recorded commissions',async()=>{
   const html = await render('cash-impact',options());
   for(const label of ['Deposit','Withdrawal','Net impact']) assert.ok(html.includes(label));
-  assert.match(html,/actual currency of the cashier/);
+  assert.match(html,/real currency of the cashier/);
   assert.match(html,/Bank \/ Wallet Balance methods are excluded/);
   const empty = options(); empty.data.summary.cashByCurrency=[]; empty.data.records={items:[]};
   const emptyHtml = await render('cash-impact',empty);

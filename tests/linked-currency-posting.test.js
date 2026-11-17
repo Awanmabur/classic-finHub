@@ -17,7 +17,7 @@ const values={paymentMethod:'Cash',operation:'cash_out',idempotencyKey:'f3b0b7a6
  walletAccountId:ids.wallet,paymentAccountId:ids.cash,cashCurrency:'SSP',
  fxRateId:'507f1f77bcf86cd799439018'};
 const quote={channel:'mobile_money',operation:'cash_out',branchId:ids.branch,
- providerCurrency:'UGX',cashCurrency:'SSP',providerPrincipalMinor:'100000',actualCashMinor:'-9000000',
+ providerCurrency:'UGX',cashCurrency:'SSP',providerPrincipalMinor:'100000',actualCashMinor:'9000000',
  rateSnapshot:{rateId:values.fxRateId,side:'buy',fromCurrency:'UGX',toCurrency:'SSP',
  rateDecimal:'0.9',approvedBy:ids.actor,expiresAt:'2030-01-01T00:00:00.000Z'},
  custodyLegs:[{accountId:ids.wallet,kind:'wallet',currency:'UGX',deltaMinor:'100000'},

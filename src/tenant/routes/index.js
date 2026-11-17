@@ -76,17 +76,21 @@ router.get('/mobile-money', requireModule('mobile_money'), requirePermission('mo
     const reportZone=await reportTimeZone.forRequest(req);
     const canReview=hasPermission(req.user,'mobile_money.review')&&(req.user.role==='Tenant Owner'||req.user.branchId);
     const reviewBranch=req.user.role==='Tenant Owner'?(require('../services/branchView.service').readScope(req.user).branchId||null):req.user.branchId;
-    const [summary,branches,voidQueue,funds,pricingContext]=await Promise.all([
+    const [summary,branches,voidQueue,funds,pricingContext,settlementRates]=await Promise.all([
       mobile.getSummary(req.tenantDb,{...recordScope(req),timeZone:reportZone}),
       branchService.list(req.tenant),
       canReview?mobile.getVoidQueue(req.tenantDb,req.user.id,25,reviewBranch):[],
       req.operationBranch?require('../services/mobileMoneyFunds.service').context(req.tenantDb,req.tenant,req.user,req.operationBranch):null,
-      require('../pricing/presentation').context(req.tenantDb,req.tenant,req.operationBranch,'mobile_money')
+      require('../pricing/presentation').context(req.tenantDb,req.tenant,req.operationBranch,'mobile_money'),
+      req.operationBranch?require('../models').forexRateModel(req.tenantDb)
+       .find({branchId:req.operationBranch._id,status:'active',side:{$in:['buy','sell']},expiresAt:{$gt:new Date()}})
+       .select('_id fromCurrency toCurrency side rateDecimal expiresAt')
+       .sort({fromCurrency:1,toCurrency:1,side:1}).limit(100).lean():[]
     ]);
     renderTenant(req,res,'mobile-money/index','Mobile Money','Record agent transactions. Provider settlement remains unverified until reconciled.',{
       entryCurrency:req.operationBranch?require('../services/branchCurrency.service').resolve(req.operationBranch,req.query.currency):null,
       entryCurrencies:req.operationBranch?require('../services/branchCurrency.service').options(req.operationBranch):[],
-      summary,branches:branches.filter(b=>b.status==='active' && (req.user.role==='Tenant Owner' || String(b._id)===String(req.user.branchId))),voidQueue,funds,pricingContext,
+      summary,branches:branches.filter(b=>b.status==='active' && (req.user.role==='Tenant Owner' || String(b._id)===String(req.user.branchId))),voidQueue,funds,pricingContext,settlementRates,
       canReview: hasPermission(req.user,'mobile_money.review'), idempotencyKey:randomUUID(),
       canRecord: hasPermission(req.user,'mobile_money.cash_in') || hasPermission(req.user,'mobile_money.cash_out')
     });

@@ -27,6 +27,16 @@ test('Forex can be subscribed independently; reports remain independently subscr
  assert(!sourcesFor({...base,moduleGrants:base.moduleGrants.filter(g=>g.moduleKey!=='forex')},analyst).some(s=>s.key==='forex'));
  assert(!sourcesFor({...base,moduleGrants:base.moduleGrants.filter(g=>g.moduleKey!=='reports')},analyst).length);
 });
+test('Banking and Transfer staff may trade only with assigned Forex entitlement and not manage rates',()=>{
+ const bank=actor('Banking Operator',['banking','forex']);
+ const transfer=actor('Money Transfer Operator',['money_transfer','forex']);
+ assert.equal(fx.operator(bank),true);
+ assert.equal(fx.operator(transfer),true);
+ assert.equal(bank.permissions.includes('forex.quotes.create'),true);
+ assert.equal(transfer.permissions.includes('forex.quotes.create'),true);
+ assert.equal(bank.permissions.includes('forex.rate_manage'),false);
+ assert.equal(transfer.permissions.includes('forex.rate_manage'),false);
+});
 test('FX rates are exact fixed-point decimals and conversion does not use floating point',()=>{
  assert.equal(fx.rateScaled('0.00027500'),27500n);
  assert.equal(fx.rateScaled('1.23456789'),123456789n);

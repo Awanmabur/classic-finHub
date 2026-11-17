@@ -174,11 +174,68 @@
       if (!match || (match[2] || '').length > decimals) return null;
       return BigInt(match[1]) * (10n ** BigInt(decimals)) + BigInt((match[2] || '').padEnd(decimals, '0') || '0');
     };
+    const settlementCurrency=form.elements.namedItem('settlementCurrency');
+    const settlementAmount=form.elements.namedItem('settlementAmount');
+    const fxRate=form.elements.namedItem('forexRateId');
+    const fxRateField=form.querySelector('[data-mobile-fx-rate-field]');
+    const settlementAmountField=form.querySelector('[data-mobile-settlement-amount-field]');
+    const settlementLabel=form.querySelector('[data-mobile-settlement-label]');
+    let previousProviderCurrency=currencyControl?.value||form.dataset.currency;
+    const syncSettlement=(providerAmountMinor)=>{
+      const from=selectedCurrency();
+      if(settlementCurrency&&from!==previousProviderCurrency&&settlementCurrency.value===previousProviderCurrency)
+        settlementCurrency.value=from;
+      previousProviderCurrency=from;
+      const to=settlementCurrency?.value||from,cross=to!==from;
+      if(fxRateField)fxRateField.hidden=!cross;
+      if(settlementAmountField)settlementAmountField.hidden=!cross;
+      if(settlementLabel)settlementLabel.textContent=to==='KES'?'KSH':to;
+      if(fxRate)fxRate.disabled=!cross;
+      if(settlementAmount)settlementAmount.disabled=!cross;
+      if(!cross){
+        if(fxRate)fxRate.value='';
+        if(settlementAmount)settlementAmount.value='';
+        settlementCurrency?.setCustomValidity('');
+        return {cross:false,currency:from,amountMinor:providerAmountMinor};
+      }
+      const side=form.dataset.operation==='cash_out'?'buy':'sell',valid=[];
+      for(const option of fxRate?.options||[]){
+        if(!option.value)continue;
+        const match=option.dataset.from===from&&option.dataset.to===to&&option.dataset.side===side&&
+          Number.isFinite(Date.parse(option.dataset.expires||''))&&Date.parse(option.dataset.expires)>Date.now();
+        option.disabled=!match;option.hidden=!match;
+        if(match)valid.push(option);
+      }
+      if(!valid.some(option=>option.value===fxRate.value))fxRate.value=valid.length===1?valid[0].value:'';
+      const rate=fxRate?.selectedOptions?.[0]?.dataset.rate||'';
+      settlementCurrency?.setCustomValidity(!rate?'The Tenant Owner must approve a '+side.toUpperCase()+' '+from+' → '+to+' rate before this cash settlement.':'');
+      if(!rate||providerAmountMinor===null||providerAmountMinor<=0n){
+        if(settlementAmount)settlementAmount.value='';
+        return {cross:true,currency:to,amountMinor:null};
+      }
+      const [whole,frac='']=rate.split('.');
+      if(!/^(?:0|[1-9]\\d{0,9})$/.test(whole)||!/^(?:\\d{1,8})?$/.test(frac)){
+        if(settlementAmount)settlementAmount.value='';
+        settlementCurrency?.setCustomValidity('Invalid approved exchange rate; contact the Tenant Owner.');
+        return {cross:true,currency:to,amountMinor:null};
+      }
+      const scale=10n**8n,fromScale=from==='UGX'?1n:100n,toScale=to==='UGX'?1n:100n;
+      const scaled=BigInt(whole)*scale+BigInt(frac.padEnd(8,'0')||'0');
+      const denom=scale*fromScale;
+      const amountMinor=(providerAmountMinor*scaled*toScale+denom/2n)/denom;
+      const digits=to==='UGX'?0:2,base=10n**BigInt(digits);
+      if(settlementAmount)settlementAmount.value=(amountMinor/base).toString()+(digits?'.'+(amountMinor%base).toString().padStart(digits,'0'):'');
+      return {cross:true,currency:to,amountMinor};
+    };
     const updateTotal = () => {
       const currency=selectedCurrency(),decimals=currency==='UGX'?0:2;
       form.dataset.currency=currency;form.dataset.currencyLabel=currency==='KES'?'KSH':currency;
       const pattern=decimals?'[0-9]{1,11}([.][0-9]{1,2})?':'[0-9]{1,11}';amount.pattern=pattern;fee.pattern=pattern;
       const amountMinor = toMinor(amount.value,decimals), feeMinor = toMinor(fee.value,decimals);
+      const settlement=syncSettlement(amountMinor);
+      const providerTotal=form.querySelector('[data-mobile-provider-total]');
+      if(providerTotal)providerTotal.textContent=amountMinor!==null&&amountMinor>0n?
+        (currency==='KES'?'KSH':currency)+' '+(Number(amountMinor)/10**decimals).toLocaleString('en-US',{minimumFractionDigits:decimals,maximumFractionDigits:decimals}):'—';
       fee.setCustomValidity(amountMinor !== null && feeMinor !== null && feeMinor > amountMinor ? 'Fee / commission cannot exceed the amount.' : '');
       const total = form.querySelector('[data-mobile-total]');
       if (!total) return;
@@ -187,11 +244,17 @@
       if (amountMinor === null || amountMinor <= 0n || feeMinor === null || feeMinor > amountMinor) { total.textContent = '—'; return; }
       const collected=(form.elements.namedItem('feeTreatment')?.value||form.querySelector('[data-wallet-account]')?.selectedOptions[0]?.dataset.feeTreatment)==='payment_collected';
       const totalMinor = amountMinor + (collected?(form.dataset.operation === 'cash_in' ? feeMinor : -feeMinor):0n);
-      total.textContent = (form.dataset.currencyLabel || currency) + ' ' + (Number(totalMinor) / 10 ** decimals).toLocaleString('en-US', {minimumFractionDigits:decimals, maximumFractionDigits:decimals});
+      const cashCurrency=settlement.cross?settlement.currency:currency;
+      const cashDigits=cashCurrency==='UGX'?0:2;
+      const physical=settlement.cross?settlement.amountMinor:totalMinor;
+      total.textContent=physical===null?'—':(cashCurrency==='KES'?'KSH':cashCurrency)+' '+
+        (Number(physical)/10**cashDigits).toLocaleString('en-US',{minimumFractionDigits:cashDigits,maximumFractionDigits:cashDigits});
     };
     amount.addEventListener('input', updateTotal);
     fee.addEventListener('input', updateTotal);
     currencyControl?.addEventListener('change',updateTotal);
+    settlementCurrency?.addEventListener('change',updateTotal);
+    fxRate?.addEventListener('change',updateTotal);
     form.addEventListener('reset',()=>queueMicrotask(updateTotal));
     form.querySelectorAll('[data-mobile-operation]').forEach(tab => tab.addEventListener('click', event => {
       if (!onOperationChange) return; // Real page links remain usable without a dialog.

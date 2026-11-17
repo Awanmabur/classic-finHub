@@ -70,7 +70,8 @@ function describe(key,row){
   party:key==='forex'?row.customerLabel:key==='banking'?`${row.source.customerName} · ${row.source.institutionName} · ****${row.source.last4}`:`${row.sender.name} → ${row.beneficiary.name}`,
   volume:formatAmount(row[spec.amount]?.toString()||'0',key==='forex'?row.fromCurrency:row.currency),
   fee:key==='money_transfer'?formatAmount(row.feeMinor?.toString()||'0',row.currency):null,
-  target:key==='forex'?formatAmount(row.targetMinor?.toString()||'0',row.toCurrency):null,
+  target:key==='forex'?formatAmount(row.targetMinor?.toString()||'0',row.toCurrency):
+   key==='money_transfer'?formatAmount((row.payoutMinor||row.amountMinor)?.toString()||'0',row.payoutCurrency||row.currency):null,
   href:`/tenant/${spec.path}/${row._id}`};
 }
 async function records(conn,tenant,actor,key,query={},timeZone='UTC'){
@@ -87,21 +88,23 @@ async function report(conn,tenant,actor,key,query={},timeZone='UTC'){
  const group={day:{$dateToString:{date:'$createdAt',format:'%Y-%m-%d',timezone:timeZone}},status:'$status',
   currency:key==='forex'?'$fromCurrency':'$currency',kind:key==='forex'?{$ifNull:['$operation','quote']}:key==='banking'?'$kind':{$literal:'transfer_request'}};
  if(key==='forex')group.targetCurrency='$toCurrency';
+ if(key==='money_transfer')group.targetCurrency={$ifNull:['$payoutCurrency','$currency']};
  const values={_id:group,count:{$sum:1},volume:{$sum:`$${spec.amount}`}};
  if(spec.fees)values.fees={$sum:`$${spec.fees}`};
  if(key==='forex')values.target={$sum:'$targetMinor'};
+ if(key==='money_transfer')values.target={$sum:{$ifNull:['$payoutMinor','$amountMinor']}};
  const found=await spec.model(conn).aggregate([{$match:match},{$group:values},{$sort:{'_id.day':-1,'_id.currency':1,'_id.kind':1,'_id.status':1}},{$limit:1001}]);
  if(found.length>1000)throw fail('Report has more than 1,000 groups. Narrow the dates or filters.',422);
  const rows=found.map(row=>({day:row._id.day,status:row._id.status,kind:row._id.kind,currency:row._id.currency,
   targetCurrency:row._id.targetCurrency||'',count:row.count,
   volume:formatAmount(row.volume?.toString()||'0',row._id.currency),
   fees:spec.fees?formatAmount(row.fees?.toString()||'0',row._id.currency):'',
-  target:key==='forex'?formatAmount(row.target?.toString()||'0',row._id.targetCurrency):''}));
+  target:(key==='forex'||key==='money_transfer')?formatAmount(row.target?.toString()||'0',row._id.targetCurrency):''}));
  return {moduleKey:key,label:spec.label,currencies:spec.currencies,filters,rows,timeZone,total:rows.reduce((sum,row)=>sum+row.count,0),
   canExport:hasPermission(actor,`${key}.report`)||hasPermission(actor,'reports.export'),
   note:key==='forex'?'Quotations remain separate from posted manual exchanges. Reviewed manual movements update the foreign stock and settlement books; check the cash movement report for physical drawer effects.':
    key==='banking'?'Pending instructions remain separate from posted manual operations. Reviewed manual movements update the selected funds and internal customer accounts together.':
-    'Pending requests remain separate from collected and paid-out manual transfers. Independently reviewed collection posts the funds and payable, then enables one-time PIN access; provider settlement remains separate.'};
+    'Sender collection and receiver payouts are grouped by separate native currencies. No SSP/USD amounts are ever added together. Independently reviewed collection posts the funds and payable; PIN payout posts the recipient currency. Provider settlement and realized Forex profits remain unverified.'};
 }
 function csv(report){
  const headers=['Date ('+(report.timeZone||'UTC')+')','Operation','Status','Currency','Records','Requested / quoted amount','Proposed fees','Target currency','Target quoted amount'];

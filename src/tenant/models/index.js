@@ -39,6 +39,7 @@ const moneySchema = new mongoose.Schema({
   physicalCashMovementMinor:{type:mongoose.Schema.Types.Decimal128,default:null,immutable:true},
   // Provider value remains in currency; settlement is physical cash held in a
   // potentially different currency. Rate metadata is an immutable approval snapshot.
+  crossCurrency:{type:Boolean,default:false,immutable:true},
   settlementCurrency:{type:String,enum:currencyCodes,default:undefined,immutable:true},
   settlementAmountMinor:{type:mongoose.Schema.Types.Decimal128,default:null,immutable:true},
   forexRateId:{type:mongoose.Schema.Types.ObjectId,default:null,immutable:true},

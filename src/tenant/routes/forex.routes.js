@@ -28,6 +28,7 @@ module.exports=function routes({renderTenant}){
      branches:branchList,formRates:formRates.filter(rate=>fx.enabledRate(selected,rate)),rates,records,rateQueue,quoteQueue,selectedBranchId:selected?selectedId:null,
     currencyChoices:selected?require('../services/branchCurrency.service').options(selected):[],
     canPropose:fx.operator(req.user)&&hasPermission(req.user,'forex.rate_manage'),
+    canMobileFx:require('../services/moduleAccess.service').hasModuleForUser(req.tenant,req.user,'mobile_money'),
     canQuote:fx.operator(req.user)&&hasPermission(req.user,'forex.quotes.create'),
     canRateReview:fx.reviewer(req.user)&&hasPermission(req.user,'forex.rate_review'),
     canQuoteReview:fx.reviewer(req.user)&&hasPermission(req.user,'forex.quotes.review'),

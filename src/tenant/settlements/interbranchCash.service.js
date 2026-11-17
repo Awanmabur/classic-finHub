@@ -21,6 +21,12 @@ function text(value,label,min,max){
   throw fail('Invalid '+label,400);
  return value.trim();
 }
+function receipt(value,label){
+ const v=text(value,label,8,120).toUpperCase();
+ if(!/^[A-Z0-9][A-Z0-9._:/-]{7,119}$/.test(v))
+  throw fail('Signed cash receipt reference must use letters, digits, dot, slash, dash, colon or underscore',400);
+ return v;
+}
 function feature(){if(process.env.CLASSICFIN_INTERBRANCH_CASH_SETTLEMENT!=='enabled')
  throw fail('Actual interbranch cash reimbursement is not enabled on this deployment',403);}
 function context(conn,tenant,actor){
@@ -92,7 +98,7 @@ function requestInput(input={}){
  if(!UUID.test(String(input.idempotencyKey||'')))throw fail('Reload the form for a fresh reimbursement reference',400);
  return {
   idempotencyKey:String(input.idempotencyKey).toLowerCase(),
-  evidenceReference:text(input.evidenceReference,'sending cashier cash-handover evidence',8,120),
+  evidenceReference:receipt(input.evidenceReference,'sending cashier cash-handover evidence'),
   note:text(input.note,'interbranch reimbursement explanation',12,400)
  };
 }
@@ -154,7 +160,7 @@ async function request(conn,tenant,actor,transferId,input={}){
 }
 async function confirmReceipt(conn,tenant,actor,reimbursementId,input={},expectedTransferId=null){
  context(conn,tenant,actor);feature();
- const evidenceReference=text(input.receiverReceiptReference,'actual receiving cashier signed receipt',8,120);
+ const evidenceReference=receipt(input.receiverReceiptReference,'actual receiving cashier signed receipt');
  const note=text(input.receiverNote,'receiving cashier counted-cash note',12,400);
  if(input.cashCountConfirmed!=='confirmed')
   throw fail('The actual receiving cashier must confirm the counted banknotes received',400);
@@ -210,9 +216,9 @@ async function review(conn,tenant,actor,reimbursementId,input={},expectedTransfe
  const note=text(input.note,'independent interbranch review',12,400);
  const confirmed=input.decision==='approve';
  const senderReference=confirmed?
-  text(input.senderHandoverReference,'signed sending-branch handover',8,120):null;
+  receipt(input.senderHandoverReference,'signed sending-branch handover'):null;
  const receiverReference=confirmed?
-  text(input.receiverReceiptReference,'signed receiving-branch receipt',8,120):null;
+  receipt(input.receiverReceiptReference,'signed receiving-branch receipt'):null;
  if(confirmed&&(senderReference===receiverReference||input.bothBranchesVerified!=='confirmed'))
   throw fail('Independent origin handover and destination receipt must both be verified',400);
  await Promise.all([core.ensureTenantIndexes(conn),treasury.ensure(conn),
@@ -331,4 +337,4 @@ async function detail(conn,tenant,actor,transferId){
   destinationBatchId:x.destinationBatchId?String(x.destinationBatchId):null
  }));
 }
-module.exports={sourcePair,readyAccounts,requestInput,request,confirmReceipt,review,detail,feature,fail};
+module.exports={sourcePair,readyAccounts,requestInput,receipt,request,confirmReceipt,review,detail,feature,fail};

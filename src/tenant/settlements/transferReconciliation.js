@@ -21,6 +21,9 @@ function authorized(conn,tenant,actor,scope){
   if(!/^[a-f0-9]{24}$/i.test(String(scope.branchId)))throw fail('Invalid scoped reconciliation branch');
  }else if(!['Tenant Owner','Auditor'].includes(actor.role))
   throw fail('A branch supervisor cannot inspect other branches');
+ if(!['Tenant Owner','Auditor'].includes(actor.role)&&
+  String(scope?.branchId||'')!==String(actor.branchId||''))
+  throw fail('Branch reconciliation is restricted to the assigned branch');
 }
 function stateFor(row,order,pending,evidence){
  const sourceMatches=order&&String(order.amountMinor)===String(row.physicalCashMinor)&&

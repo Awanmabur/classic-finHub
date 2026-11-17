@@ -223,6 +223,10 @@ async function review(conn,tenant,actor,executionId,input={}){
    const rejected=await Execution.findOneAndUpdate({_id:execution._id,status:'pending_review'},{$set:{status:'rejected',reviewedBy:actor.id,reviewedAt:new Date(),reviewNote:note},$unset:{activeKey:''}},{new:true,session}).lean();
    await audit(conn,session,authorization.actor,rejected,'manual.rejected');return {execution:rejected,duplicate:false};
   }
+  if(execution.action==='transfer_payout'&&await require('../refunds/models').model(conn).exists({
+   tenantId:authorization.tenant._id,sourceId:source._id,status:'pending_review'
+  }).session(session))
+   throw fail('Sender refund awaits independent review; recipient payout cannot be approved until the refund case is resolved',409);
   assertSourceAvailable(source,execution.sourceType,execution.action);
   // This branch write serializes customer balance checks with all existing
   // ledger posting paths before reading the spendable liability balance.

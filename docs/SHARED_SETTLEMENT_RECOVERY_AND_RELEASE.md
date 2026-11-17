@@ -24,9 +24,17 @@ Location: **Money Transfer → Branch transfer balances → Unpaid transfers nee
 
 Only the newest 50 outstanding records per authorized scope are displayed. This is **not** an exhaustive regulatory report; the separate audit and operational history remain authoritative.
 
-## Before any collected transfer refund or reversal can ship
+## Manual sender cash refund — implemented behind an independent safety gate
 
-A **real in-app cash refund workflow is still pending**, and it must be **separate** from undoing the original internal posting:
+**Implemented and exercised in a disposable replica-set test:** original Cash-method sender collection in SSP (or another native sender currency) → cashier refund request with identity reference → different Treasury-qualified reviewer's approval or rejection → exact balanced compensating Treasury cash/payable/fee movement → original transfer marked `refunded_manual` → recipient PIN and queued PIN SMS suppressed → linked settlement marked reversed with immutable signed receipt evidence. All original transactions remain in history.
+
+The refund feature is **disabled by default** and has a separate release switch: `CLASSICFIN_LINKED_CURRENCY_REFUNDS=enabled`. Do not enable it on Contabo before independent operational acceptance. It **does not** refund wallet/mobile-network or bank-origin transfers, and it **does not** confirm anything about an external provider.
+
+The cash refund requires the **original cashier's real physical cash drawer** to be available, assigned, counted and reconciled. The original amount **plus the actual charged fee** is returned in the sender's original currency. No new exchange rate is applied. The refunder cannot independently approve their own request; the refund is rejected if a payout is posted/pending, a PIN verification is still active, a balance is insufficient, or external payout status remains uncertain.
+
+If banknotes have physically changed hands but the database commit fails, the cashier and reviewer must stop, preserve the signed evidence, reconcile the physical count against Treasury, and correct the exception under independent supervision. **Never simply resubmit a cash handover as if no money moved.**
+
+### Before broader sender refund capability can ship
 
 1. Lock original source, collection execution, any active PIN verification, linked settlement and payout attempt in one serializable or conflict-safe database transaction.
 2. Prove that no recipient cash was paid and no external provider payment remains uncertain. Missing evidence, offline payout terminals and delayed callbacks mean **hold for investigation**, not refund.
@@ -34,7 +42,7 @@ A **real in-app cash refund workflow is still pending**, and it must be **separa
 4. Book explicit, balanced **compensating journal entries** with new references and append-only evidence. Do **not** delete original history or automatically reverse a settled external payment.
 5. Reconcile cash counts, outstanding transfer liability, original and compensating journals, customer notices and owner alerts. Safe retries must be idempotent across every branch.
 6. Verify rejection, crash-after-commit, duplicate submission, concurrency, revoked operator, insufficient funds, held drawer, missing proof, foreign currency mismatch and provider timeout with real replica-set tests.
-7. Only then expose a permission-checked refund request/independent review interface. A cosmetic Refund button or automatic "reversal" would be dangerous.
+7. The gated, two-person **cash-only** interface exists. Expand beyond it only after separate bank/wallet provider confirmation, interbranch liquidity custody, irreversible payout dispute controls, operational receipt preservation, and verified customer handover procedures.
 
 ## Daily financial reconciliation
 
@@ -54,5 +62,5 @@ For each branch, cashier, provider and currency separately:
 - Browser checks on the **approved original dashboard and existing forms**; correct local business timezone display, PDFs/receipts, offline behavior and no misleading loading or success states.
 - Backup plus tested restore and rollback of image, exact source SHA and MongoDB data, index inventory and redacted secrets handling.
 - Verified provider statement/API or independently validated SMS ingestion, duplicate and out-of-order evidence handling, unknown/failed callback investigation and owner alert delivery.
-- Written refund/compensation controls and operational training before real funds processing.
+- Verified cash-only refund dry-runs (including actual signed-receipt retention and failed-commit recovery), written operating controls, and customer support training before enabling either money or refund flag.
 - No real customer transactions during acceptance tests. Keep the release flag off until the production readiness gate is approved.

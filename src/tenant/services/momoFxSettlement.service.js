@@ -4,7 +4,7 @@
 // handover. Arbitrary browser-supplied references are NOT verification.
 const mongoose=require('mongoose');
 const crypto=require('node:crypto');
-const {records,grants}=require('../schemas/MomoFxSettlement');
+const {records,grants,ensure:ensureFxIndexes}=require('../schemas/MomoFxSettlement');
 const {models:treasuryModels,ensure:ensureTreasury}=require('../treasury/models');
 const treasury=require('../treasury/service');
 const {forexRateModel,branchModel,auditEventModel}=require('../models');
@@ -79,7 +79,7 @@ async function settleVerified(conn,tenant,actor,input,proof){
   {...verifiedEvidence(proof,input),evidenceId:proof.evidenceId,
    evidenceKind:'signed_provider',settlementState:'verified'};
  const Record=records(conn),Grant=grants(conn);
- await Promise.all([ensureTreasury(conn),Record.init(),Grant.init()]);
+ await Promise.all([ensureTreasury(conn),ensureFxIndexes(conn)]);
  const existing=await Record.findOne({tenantId:tenant._id,idempotencyKey:input.idempotencyKey}).lean();
  if(existing){
   if(existing.providerReference!==input.providerReference||existing.network!==input.network||
@@ -90,6 +90,9 @@ async function settleVerified(conn,tenant,actor,input,proof){
     throw fail('Idempotency reference already used for another exchange');
   return {record:existing,duplicate:true};
  }
+ const used=await Record.findOne({tenantId:tenant._id,network:input.network,
+  providerReference:input.providerReference}).select('_id').lean();
+ if(used)throw fail('This provider transaction reference is already recorded; never post it again');
  const session=await conn.startSession();
  try{
   let result;

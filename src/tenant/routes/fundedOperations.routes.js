@@ -23,6 +23,16 @@ module.exports=function fundedOperationsRoutes({renderTenant}){
  router.post('/:id/retry-sms',financial,async(req,res,next)=>{try{await service.retrySms(req.tenantDb,req.tenant,req.user,req.params.id,req.body);flash(req,'good','Receiver SMS queued for provider submission. Check its status before promising delivery.');res.redirect(303,`/tenant/funded/${req.params.id}`);}catch(error){next(error);}});
  router.post('/:id/reveal-pin',financial,async(req,res,next)=>{try{const data=await service.revealPin(req.tenantDb,req.tenant,req.user,req.params.id);renderTenant(req,res,'funded/pin','Transfer payout PIN','Shown once. Share it privately with the sender or receiver.',data);}catch(error){next(error);}});
  router.get('/:id',async(req,res,next)=>{try{const data=await service.detail(req.tenantDb,req.tenant,req.user,req.params.id);renderTenant(req,res,'funded/detail','Manual movement','Source records, independent review and posted book entries.',data);}catch(error){next(error);}});
- router.post('/:sourceType/:sourceId',financial,async(req,res,next)=>{try{const result=await service.request(req.tenantDb,req.tenant,req.user,req.params.sourceType,req.params.sourceId,req.body);flash(req,'good',result.duplicate?'This manual movement request already exists.':'Manual movement recorded for independent review.');require('../services/branchView.service').followRecord(req,result.execution);res.redirect(303,`/tenant/funded/${result.execution._id}`);}catch(error){next(error);}});
+ router.post('/:sourceType/:sourceId',financial,async(req,res,next)=>{try{
+  const result=await service.request(req.tenantDb,req.tenant,req.user,req.params.sourceType,req.params.sourceId,req.body);
+  // Forex is a confirmed physical exchange, not a request for routine approval.
+  // Never enable this path for Banking, Money Transfer or unconfirmed custody.
+  if(req.params.sourceType==='forex'){
+   const posted=await service.finalizeForex(req.tenantDb,req.tenant,req.user,result.execution._id,req.body);
+   flash(req,'good',posted.duplicate?'This Forex exchange was already finalized.':'Forex exchange finalized; both currency balances and journals posted.');
+  }else flash(req,'good',result.duplicate?'This manual movement request already exists.':'Manual movement recorded for independent review.');
+  require('../services/branchView.service').followRecord(req,result.execution);
+  res.redirect(303,`/tenant/funded/${result.execution._id}`);
+ }catch(error){next(error);}});
  return router;
 };

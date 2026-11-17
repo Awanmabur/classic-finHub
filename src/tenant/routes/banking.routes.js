@@ -27,7 +27,8 @@ function routes({renderTenant}){
    const references=branch?await bank.listReferences(req.tenantDb,req.tenant,require('../services/branchView.service').withoutReadView(req.user),{branchId:selectedId}):[];
    if(branch&&hasModuleForUser(req.tenant,req.user,'accounts')&&hasPermission(req.user,'accounts.view'))references.push(...await require('../customerAccounts/bankingBridge').choices(req.tenantDb,req.tenant,req.user,{branchId:selectedId}));
    renderTenant(req,res,'banking/index','Banking Requests','Record banking instructions, then post manual movements against reviewed balances.',{
-    records,branches,queue,references,selectedBranchId:branch?selectedId:null,
+    financeOverview:await require('../services/financeOverview.service').moduleOverview(req.tenantDb,req.tenant,req.user,req.operationBranch),
+     records,branches,queue,references,selectedBranchId:branch?selectedId:null,
     currencyChoices:require('../services/branchCurrency.service').options(req.operationBranch),selectedCurrency:req.operationBranch?require('../services/branchCurrency.service').resolve(req.operationBranch,req.query.currency):null,
     canCreate:bank.operator(req.user)&&hasPermission(req.user,'banking.requests.create'),
     canReview:bank.reviewer(req.user)&&hasPermission(req.user,'banking.review'),

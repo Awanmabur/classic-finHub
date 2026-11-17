@@ -71,3 +71,33 @@ test('platform tenant form reflects persisted active state and effective module 
  assert.match(html,/Current: Starter/);
  assert.match(html,/Current workspace state/);
 });
+
+test('posted module earnings classify actual journals by source without counting Forex volume',async t=>{
+ const mongoose=require('mongoose');
+ const core=require('../src/tenant/models');
+ const treasury=require('../src/tenant/treasury/models');
+ const conn=mongoose.createConnection();
+ t.after(()=>conn.close());
+ const Batch=treasury.models(conn).batch;
+ const Posting=core.ledgerPostingModel(conn);
+ const j1=new mongoose.Types.ObjectId('507f1f77bcf86cd799439021');
+ const j2=new mongoose.Types.ObjectId('507f1f77bcf86cd799439022');
+ const rows=[
+  {sourceType:'mobile_money',journalIds:[j1]},
+  {sourceType:'expenses',journalIds:[j2]}
+ ];
+ t.mock.method(Batch,'find',()=>({
+  select:()=>({limit:()=>({maxTimeMS:()=>({lean:async()=>rows})})})
+ }));
+ const posted=[
+  {_id:{journalId:j1,currency:'UGX',category:'income',side:'credit'},amount:'1200'},
+  {_id:{journalId:j2,currency:'UGX',category:'expense',side:'debit'},amount:'300'}
+ ];
+ t.mock.method(Posting,'aggregate',()=>({option:async()=>posted}));
+ const report=await finance.postedEarningsByModule(conn,{_id:id},{},{
+  now:new Date('2026-11-17T12:00:00Z'),timeZone:'Africa/Juba'
+ });
+ assert.equal(report.find(r=>r.moduleKey==='mobile_money').income[0].amountMinor,'1200');
+ assert.equal(report.find(r=>r.moduleKey==='expenses').net[0].amountMinor,'-300');
+ assert.equal(report.some(r=>r.moduleKey==='forex'),false);
+});

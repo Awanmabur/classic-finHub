@@ -20,9 +20,9 @@ const schema=new mongoose.Schema({
   fxRateDecimal:{type:String,default:null,maxlength:24,immutable:true},
   fxRateApprovedBy:{type:O,default:null,immutable:true},
   fxRateExpiresAt:{type:Date,default:null,immutable:true},
-  status:{type:String,enum:['requested','approved_pending_provider','collected_manual','paid_out_manual','rejected','cancelled','expired'],default:'requested',required:true},
+  status:{type:String,enum:['requested','approved_pending_provider','collected_manual','paid_out_manual','refunded_manual','rejected','cancelled','expired'],default:'requested',required:true},
   validDays:{type:Number,min:1,max:30,required:true,immutable:true},expiresAt:{type:Date,required:true,immutable:true},
-  manualCollectionExecutionId:{type:O,default:null},manualPayoutExecutionId:{type:O,default:null},manualPostedAt:{type:Date,default:null},
+  manualCollectionExecutionId:{type:O,default:null},manualPayoutExecutionId:{type:O,default:null},manualPostedAt:{type:Date,default:null},manualRefundId:{type:O,default:null},refundedAt:{type:Date,default:null},
   reviewedBy:{type:O},reviewedAt:{type:Date},reviewNote:{type:String,maxlength:400},
   cancelledAt:{type:Date},cancelledBy:{type:O},cancelReason:{type:String,maxlength:400},
   expiredAt:{type:Date},revision:{type:Number,default:0,min:0}

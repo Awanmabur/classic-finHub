@@ -37,6 +37,13 @@ const moneySchema = new mongoose.Schema({
   walletBalanceBeforeMinor:{type:mongoose.Schema.Types.Decimal128,default:null,immutable:true},walletBalanceAfterMinor:{type:mongoose.Schema.Types.Decimal128,default:null,immutable:true},
   walletObservationId:{type:mongoose.Schema.Types.ObjectId,default:null,immutable:true},fundsSourceRef:{type:String,default:null,immutable:true},fundJournalIds:{type:[mongoose.Schema.Types.ObjectId],default:[],immutable:true},
   physicalCashMovementMinor:{type:mongoose.Schema.Types.Decimal128,default:null,immutable:true},
+  // Provider principal and actual physical cash may have different native currencies.
+  cashCurrency:{type:String,enum:currencyCodes,default:null,immutable:true},
+  fxRateId:{type:mongoose.Schema.Types.ObjectId,default:null,immutable:true},
+  fxRateSide:{type:String,enum:['buy','sell'],default:null,immutable:true},
+  fxRateDecimal:{type:String,default:null,immutable:true,maxlength:24},
+  fxCashMinor:{type:mongoose.Schema.Types.Decimal128,default:null,immutable:true},
+  linkedSettlementId:{type:mongoose.Schema.Types.ObjectId,default:null,immutable:true},
   entrySource:{type:String,enum:['manual','sms'],default:'manual',immutable:true},
   smsInboxId:{type:mongoose.Schema.Types.ObjectId,default:null,immutable:true},
   idempotencyKey: { type: String, required: true, immutable: true, match: /^[0-9a-f-]{36}$/ },

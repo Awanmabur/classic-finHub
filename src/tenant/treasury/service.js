@@ -216,6 +216,8 @@ async function requestObservationInSession(conn,session,authorization,accountId,
  authorization=await access(conn,authorization.tenant,authorization.actor,{permission:'treasury.observe',session,fence:true});
  const account=await loadAccount(conn,authorization,accountId,{session,fence:true}),value=parseObservation(input,account);
   if(account.status==='archived')throw fail('Restore this funds account before recording evidence',409);
+  if(account.kind==='cash'&&BigInt(String(account.reservedCashMinor??'0'))>0n)
+   throw fail('Physical cash is in transit. Verify independent branch settlement or actual return before counting the original drawer',409);
   const prior=await models(conn).observation.findOne({idempotencyKey:value.idempotencyKey}).session(session).lean();if(prior){if(!sameObservation(prior,authorization.actor,account,value))throw fail('Evidence reference reused with different observation details',409);return {observation:prior,duplicate:true};}
   if(value.kind==='opening'&&(account.openingBalanceMinor!==null||account.pendingOpeningId))throw fail('An opening balance already exists or awaits review. Use a balance check after opening.',409);
   if(value.kind==='checkpoint'&&account.openingBalanceMinor===null)throw fail('Obtain independent opening approval first',409);
@@ -244,6 +246,8 @@ async function reviewObservationInSession(conn,session,authorization,observation
  const account=await loadAccount(conn,authorization,observation.accountId,{session,fence:true});
  if(String(observation.requestedBy)===authorization.actor.id||String(account.operatorId||'')===authorization.actor.id)throw fail('A different person must review the evidence and operator drawer',403);
  if(account.status==='archived')throw fail('Archived funds accounts cannot receive balance approval',409);
+ if(account.kind==='cash'&&BigInt(String(account.reservedCashMinor??'0'))>0n)
+  throw fail('Cash in physical transit prevents approving a misleading full drawer balance',409);
  let expected=null,variance=null,journalId=null;
  if(decision==='approve'&&observation.kind==='opening'){
   if(account.openingBalanceMinor!==null||String(account.pendingOpeningId)!==String(observation._id))throw fail('This account already has an opening balance or a different pending request',409);

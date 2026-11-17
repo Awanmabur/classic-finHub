@@ -61,7 +61,7 @@
           <span class="tiny">The Tenant Owner must have an active, independently approved rate for this currency pair. Ordinary transactions post immediately.</span>
         </label>
         <label class="field" data-mobile-settlement-amount-field hidden>Physical cash amount (<span data-mobile-settlement-label><%= entryCurrency %></span>)
-          <input class="control" name="settlementAmount" data-mobile-settlement-amount inputmode="decimal" disabled placeholder="Calculated using approved rate" required>
+          <input class="control" name="settlementAmount" data-mobile-settlement-amount inputmode="decimal" readonly disabled placeholder="Calculated using approved rate" required>
           <span class="tiny">Confirm the customer received or paid this exact physical amount. A different amount requires a revised approved rate before recording.</span>
         </label>
       </div>

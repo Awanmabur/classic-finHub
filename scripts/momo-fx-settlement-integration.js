@@ -74,12 +74,25 @@ async function main(){
   await forex.decideRate(conn,tenant,reviewer,proposed._id,{decision:'approve',note:'Approved independent synthetic bid or ask reference'});
  }
  await grants(conn).init();await records(conn).init();
- await grants(conn).create({tenantId:tenant._id,branchId:branch._id,
-  walletAccountId:wallet._id,cashAccountId:drawer._id,providerNetwork:'MTN',
-  status:'approved',permittedCurrencyPair:'UGX/SSP',
+ const authorization=require('../src/tenant/services/momoFxAuthorization.service');
+ const docs={walletAccountId:String(wallet._id),cashAccountId:String(drawer._id),
   providerAuthorizationReference:'ISOLATED-TEST-ONLY-PROVIDER-CONTRACT',
   regulatoryAuthorizationReference:'ISOLATED-TEST-ONLY-LICENSE',
-  approvedBy:reviewer.id,reviewedAt:new Date(),expiresAt:new Date(Date.now()+86400000)});
+  expiresAt:new Date(Date.now()+3*86400000).toISOString().slice(0,10),
+  confirmedDocuments:'yes'};
+ await assert.rejects(authorization.request(conn,tenant,owner,branch,{...docs,confirmedDocuments:'no'}),{status:400});
+ const pending=await authorization.request(conn,tenant,owner,branch,docs);
+ assert.equal(pending.status,'pending_review');
+ await assert.rejects(authorization.decide(conn,tenant,owner,branch,pending._id,
+  {decision:'approve',verifiedOriginals:'yes',note:'Owner cannot independently verify own originals'}),{status:403});
+ await assert.rejects(authorization.decide(conn,tenant,reviewer,branch,pending._id,
+  {decision:'approve',verifiedOriginals:'no',note:'Original provider and regulatory documents checked'}),{status:400});
+ const approvedGrant=await authorization.decide(conn,tenant,reviewer,branch,pending._id,
+  {decision:'approve',verifiedOriginals:'yes',note:'Independently checked original isolated synthetic provider and regulatory documents'});
+ assert.equal(approvedGrant.status,'approved');
+ await assert.rejects(authorization.decide(conn,tenant,reviewer,branch,pending._id,
+  {decision:'approve',verifiedOriginals:'yes',note:'A second approval must not be permitted'}),{status:409});
+ assert.equal((await authorization.context(conn,tenant,reviewer,branch)).items[0].status,'approved');
  const balances=async()=>({
   wallet:String((await tm.models(conn).account.findById(wallet._id).lean()).bookBalanceMinor),
   drawer:String((await tm.models(conn).account.findById(drawer._id).lean()).bookBalanceMinor)

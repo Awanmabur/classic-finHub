@@ -6,7 +6,7 @@ const {Types}=require('mongoose');
 const models=require('../models');
 const {models:fundsModels}=require('../treasury/models');
 const {currencyCodes}=require('../../config/currencies');
-const {hasPermission}=require('./moduleAccess.service');
+const {hasPermission,hasModuleForUser}=require('./moduleAccess.service');
 const businessTime=require('../../utils/businessTime');
 const format=require('./mobileMoney.service').formatMoneyMinor;
 const OID=/^[a-f0-9]{24}$/i;
@@ -30,6 +30,7 @@ function branchScope(user,options={}){
  if(['Tenant Owner','Auditor'].includes(user.role)&&view==='all')return {};
  const branch=options.viewBranch?._id||options.operationBranch?._id||user.branchId;
  if(!OID.test(String(branch||'')))return null;
+ if(!['Tenant Owner','Auditor'].includes(user.role)&&String(branch)!==String(user.branchId))return null;
  return {branchId:new Types.ObjectId(String(branch))};
 }
 async function overview(conn,tenant,user,options={}){
@@ -42,12 +43,14 @@ async function overview(conn,tenant,user,options={}){
  const [assets,recognized]=await Promise.all([
   Account.find({tenantId:tenant._id,...scope,kind:{$in:ASSET_KINDS},
    status:{$in:['active','held']},openingBalanceMinor:{$ne:null}})
-   .select('currency kind moduleKey bookBalanceMinor').limit(1000).lean(),
+   .select('currency kind moduleKey bookBalanceMinor').limit(1001).lean(),
   postedEarnings(conn,scope,options)
  ]);
- const assetMap=groupMoney(assets,'bookBalanceMinor');
+ if(assets.length>1000)return {available:false,reason:'Too many capital accounts for one overview. Select a branch.'};
+ const visibleAssets=assets.filter(account=>account.moduleKey==='shared'||['Tenant Owner','Auditor'].includes(user.role)||hasModuleForUser(tenant,user,account.moduleKey));
+ const assetMap=groupMoney(visibleAssets,'bookBalanceMinor');
  const byModule=new Map();
- for(const account of assets){
+ for(const account of visibleAssets){
   const key=account.moduleKey||'shared',currency=account.currency;
   if(!byModule.has(key))byModule.set(key,new Map());
   const m=byModule.get(key);

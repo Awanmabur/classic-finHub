@@ -36,4 +36,32 @@
    <% if(linked.hasMore){ %><p class="tiny">Showing only the 50 newest linked transfers in this scope. This is not a complete reconciliation export. Narrow the operational history or use the audit reports for older records.</p><% } %>
   </div>
  </section>
+ <section class="card" style="margin-top:14px">
+  <div class="cardHead"><b>Unpaid transfers needing follow-up</b><span>Collected sender money · payout not posted</span></div>
+  <div class="cardBody">
+   <% const pending=data.recovery||{items:[],attentionCount:0,hasMore:false,attentionHours:24}; %>
+   <p class="tiny">Only transfers with an actual recorded collection and no completed recipient payout appear here. A rejected payout review does not refund the sender or consume the original money. The <%= pending.attentionHours %>-hour marker is a review reminder, not an automatic cancellation or repayment authorization.</p>
+   <% if(pending.attentionCount){ %>
+    <p class="tiny"><strong><%= pending.attentionCount %> transfer(s) need follow-up</strong> among the listed unpaid collections. Confirm the real cashier balances and the recipient's status before taking action.</p>
+   <% } %>
+   <div class="tableWrap"><table>
+    <thead><tr><th>Transfer</th><th>Collected from sender</th><th>Recipient owed</th><th>Outstanding</th><th>Next safe step</th></tr></thead>
+    <tbody>
+     <% if(!pending.items.length){ %><tr><td colspan="5">No collected transfers awaiting recipient payout in this branch view.</td></tr><% } %>
+     <% pending.items.forEach(item=>{ %>
+      <tr>
+       <td><a href="/tenant/money-transfer/<%= item.sourceId %>"><%= item.reference %></a></td>
+       <td><%= item.senderCollected %></td>
+       <td><%= item.recipientDue %></td>
+       <td><%= item.hoursSinceCollection===null?'Collection time unavailable':item.hoursSinceCollection+' hour(s)' %>
+        <% if(item.needsAttention){ %><div class="tiny"><strong>Review suggested</strong></div><% } %></td>
+       <td><%= item.explanation %></td>
+      </tr>
+     <% }) %>
+    </tbody>
+   </table></div>
+   <% if(pending.hasMore){ %><p class="tiny">More unpaid transfers exist outside the 50 displayed rows. This page is not an exhaustive compliance report.</p><% } %>
+   <p class="tiny">There is no automatic refund button here: refunding a collected transfer requires verified outstanding liabilities, actual cash on hand, independent authorization, an auditable compensating transaction and confirmation that the recipient has not been paid.</p>
+  </div>
+ </section>
 </section>

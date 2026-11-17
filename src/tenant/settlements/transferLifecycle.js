@@ -4,13 +4,52 @@
 // as source status, native Treasury postings, outbox and audit events.
 const crypto=require('node:crypto');
 const {models}=require('./models');
-const {fail}=require('./planner');
+const {fail,integer}=require('./planner');
+const {rateScaled,converted}=require('../services/forex.service');
 const digest=(label,...ids)=>crypto.createHash('sha256').update([label,...ids.map(String)].join(':')).digest('hex');
+function assertEconomics(source){
+ const collection=integer(source?.amountMinor,'sender collection');
+ const payout=integer(source?.payoutMinor,'recipient payout');
+ if(!source?.payoutCurrency||source.currency===source.payoutCurrency)
+  throw fail('Linked transfer needs different collection and payout currencies',409);
+ if(!source.fxRateId||!source.fxRateDecimal||!source.fxRateApprovedBy)
+  throw fail('Linked transfer does not contain its immutable approved rate',409);
+ const expected=converted(payout,source.payoutCurrency,source.currency,
+  rateScaled(String(source.fxRateDecimal)));
+ if(expected!==collection)
+  throw fail('Linked transfer amount no longer matches its independently approved Forex rate',409);
+ return {collectionMinor:String(collection),payoutMinor:String(payout),
+  collectionCurrency:source.currency,payoutCurrency:source.payoutCurrency};
+}
+function movementPresent(movements,accountId,deltaMinor){
+ return Array.isArray(movements)&&movements.some(m=>String(m.accountId)===String(accountId)&&
+  String(m.deltaMinor)===String(deltaMinor));
+}
+function assertCollectionMovement(source,execution,posting){
+ const {collectionMinor}=assertEconomics(source);
+ if(!posting?.batch?._id||!movementPresent(posting.movements,
+     execution.accounts.collectionAccountId,
+     String(BigInt(collectionMinor)+BigInt(String(source.feeMinor||0))))||
+   !movementPresent(posting.movements,execution.accounts.clearingAccountId,collectionMinor))
+  throw fail('Native-currency transfer cash receipt and payable did not post exactly',409);
+ return true;
+}
+function assertPayoutMovements(source,execution,posting){
+ const {collectionMinor,payoutMinor}=assertEconomics(source);
+ if(!posting?.originBatchId||!posting?.batch?._id||
+    String(posting.originBatchId)===String(posting.batch._id)||
+    !movementPresent(posting.originMovements,execution.accounts.clearingAccountId,
+       '-'+collectionMinor)||
+    !movementPresent(posting.movements,execution.accounts.payoutAccountId,'-'+payoutMinor))
+  throw fail('Both native-currency transfer payable release and recipient cash payout must post exactly',409);
+ return true;
+}
 function assertCross(tenant,source,execution,session){
  if(!session?.inTransaction())throw fail('Linked transfer evidence needs the original database transaction');
  if(!tenant?._id||!source?._id||!source.payoutCurrency||!source.payoutMinor||
    !source.fxRateId||!source.fxRateApprovedBy||!source.fxRateDecimal||!source.fxRateExpiresAt)
   throw fail('Cross-currency transfer is missing original approved pricing evidence');
+ assertEconomics(source);
  if(String(execution?.sourceId)!==String(source._id)||execution.sourceType!=='money_transfer')
   throw fail('Linked transfer source and financial execution disagree');
 }
@@ -31,8 +70,9 @@ function originalTerms(source){
 }
 async function recordCollection(conn,session,tenant,actor,source,execution,posting){
  assertCross(tenant,source,execution,session);
- if(execution.action!=='transfer_collect'||!posting?.batch?._id||!execution.accounts?.collectionAccountId)
-  throw fail('Collection must already be posted to a real cash account');
+ if(execution.action!=='transfer_collect'||!execution.accounts?.collectionAccountId)
+  throw fail('Collection must use a real independently verified receipt account');
+ assertCollectionMovement(source,execution,posting);
  const Linked=models(conn),now=new Date();
  const [linked]=await Linked.settlement.create([{
   ...originalTerms(source),tenantId:tenant._id,sourceFingerprint:execution.sourceFingerprint,
@@ -51,9 +91,10 @@ async function recordCollection(conn,session,tenant,actor,source,execution,posti
 }
 async function recordPayout(conn,session,tenant,actor,source,execution,posting){
  assertCross(tenant,source,execution,session);
- if(execution.action!=='transfer_payout'||!posting?.batch?._id||
+ if(execution.action!=='transfer_payout'||
   !execution.accounts?.payoutAccountId||!execution.collectionExecutionId)
-  throw fail('Payout must already be posted to the real receiving-currency cash drawer');
+  throw fail('Payout must use the real native-currency recipient cash drawer');
+ assertPayoutMovements(source,execution,posting);
  const Linked=models(conn),now=new Date();
  const batchIds=[posting.originBatchId,posting.batch._id].filter(Boolean);
  const settled=await Linked.settlement.findOneAndUpdate({
@@ -74,4 +115,4 @@ async function recordPayout(conn,session,tenant,actor,source,execution,posting){
  }],{session});
  return settled;
 }
-module.exports={assertCross,originalTerms,recordCollection,recordPayout};
+module.exports={assertCross,assertEconomics,assertCollectionMovement,assertPayoutMovements,originalTerms,recordCollection,recordPayout};

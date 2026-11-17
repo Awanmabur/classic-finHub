@@ -298,6 +298,23 @@ async function decideVoid(conn,reviewer,recordId,decision,note){
         if(!tenant)throw bad('The funded workspace is unavailable',403);
         const authorization=await require('./financialAuthorization.service').fenceAction(conn,session,reviewer,tenant,'mobile_money','mobile_money.review');
         await require('../treasury/service').reverseMovements(conn,session,authorization,{sourceType:'mobile_money',sourceRef:record.fundsSourceRef,reversalSourceRef:`MM-VOID:${record._id}`,description:reason});
+        if(record.linkedSettlementId){
+          // Never leave the linked FX record claiming an active settlement
+          // after its cash/float books have been reversibly corrected.
+          const Linked=require('../settlements/models').models(conn);
+          const linked=await Linked.settlement.findOneAndUpdate({
+           _id:record.linkedSettlementId,sourceModule:'mobile_money',sourceId:record._id,
+           status:'posted'
+          },{$set:{status:'reversed',reversedAt:new Date()},$inc:{revision:1}},{session,new:true}).lean();
+          if(!linked)throw bad('Linked currency settlement was already corrected or cannot be reconciled',409);
+          const digest=require('node:crypto').createHash('sha256')
+           .update('MM-VOID:'+String(record._id)+':'+String(linked._id)).digest('hex');
+          await Linked.event.create([{
+           tenantId:tenant._id,settlementId:linked._id,branchId:record.branchId,
+           stage:'reversed',evidenceSource:'internal_journal',evidenceDigest:digest,
+           observedAt:new Date(),recordedBy:reviewer.id
+          }],{session});
+        }
       }else if(record.cashSessionId){
         const movement=BigInt(String(record.physicalCashMovementMinor??record.amountMinor))*(record.physicalCashMovementMinor==null?(record.operation==='cash_in'?1n:-1n):1n);
         await require('./cashDrawer.service').fenceRecordChange(conn,session,record,decision==='approve'?-movement:0n);

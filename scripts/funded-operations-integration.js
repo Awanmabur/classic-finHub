@@ -27,7 +27,7 @@ async function main(){
  await connectPlatformMongo();require('../src/config/mongoTopology').verifyReplicaPrimary(await mongoose.connection.db.admin().command({hello:1}));
  await Promise.all([Tenant.createIndexes(),Usage.createIndexes(),require('../src/platform/models/LoginThrottle').createIndexes()]);
  connections=slugs.map(getTenantConnection);const [conn,other]=connections;
- await Promise.all(connections.map(core.ensureTenantIndexes));await funded.prepareIndexes(conn);await treasury.ensure(conn);
+ for(const connection of connections)await core.ensureTenantIndexes(connection);await funded.prepareIndexes(conn);await treasury.ensure(conn);
  const moduleKeys=require('../src/data/store').modules.filter(module=>['enabled','recording_only'].includes(module.runtimeStatus)&&module.key!=='sms_capture').map(module=>module.key);
  const terms={...require('../src/data/store').plans.find(plan=>plan.code==='enterprise'),code:'manual_funded',modules:moduleKeys};
  const commerce=require('../src/platform/services/commercial.service'),snapshot=commerce.planSnapshot({...commerce.asPlanVersion(terms),status:'published'});

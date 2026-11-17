@@ -134,7 +134,6 @@ done
 curl -fsS --max-time 15 https://classicfinhub.com/health/ready >/dev/null
 echo '=== VERIFY PUBLIC CSS FROM CANONICAL HTTPS ORIGIN ==='
 CSS="$(mktemp /tmp/classicfin-public-css-XXXXXX)"
-trap 'rm -f "$CSS"; recover $?' ERR
 curl -fsS --max-time 20 -H 'Cache-Control: no-cache' \
  "https://classicfinhub.com/css/dashboard-layout.css?release=${SHA}" -o "$CSS"
 grep -Fq ':not(.overviewStatsGrid):not(.moduleStatsGrid)' "$CSS"

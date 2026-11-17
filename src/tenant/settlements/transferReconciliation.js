@@ -44,6 +44,11 @@ function stateFor(row,order,pending,evidence){
   if(stages.has('cash_paid')||row.destinationPayoutAccountId||order?.status!=='collected_manual')
    issues.push('Collection/payout lifecycle inconsistent');
  }
+ if(row.status==='reversed'&&order?.status==='refunded_manual'){
+  if(!stages.has('reversed')||row.postingBatchIds?.length!==2)
+   issues.push('Sender refund is missing compensating journal or signed receipt evidence');
+ }else if(row.status==='reversed')
+  issues.push('Linked settlement reversed but original transfer does not show a sender refund');
  if(row.status==='disputed')issues.push('Disputed: investigate before closing');
  const paid=row.status==='posted';
  const crossBranch=String(row.destinationBranchId||row.branchId)!==String(row.branchId);
@@ -55,10 +60,14 @@ function stateFor(row,order,pending,evidence){
   status:row.status,
   stage:row.status==='collected'?
    pending?'Payout awaiting independent review':'Cash collected · payout outstanding':
-   paid?'Payout posted in internal books':row.status.replaceAll('_',' '),
+   paid?'Payout posted in internal books':
+   row.status==='reversed'&&order?.status==='refunded_manual'?'Sender cash refunded from original drawer':
+    row.status.replaceAll('_',' '),
   branchState:paid&&crossBranch?
     'Cross-branch dues remain until independently reconciled':
    paid?'Same-branch currency position requires reconciliation':
+    row.status==='reversed'&&order?.status==='refunded_manual'?
+     'Original collection compensated and PIN disabled; no recipient payout':
     'No recipient cash payout recorded',
   verifiedProvider:row.providerState==='confirmed',
   needsReview:issues.length>0,
@@ -81,7 +90,7 @@ async function inspect(conn,tenant,actor,scope={}){
   core.transferOrderModel(conn).find({_id:{$in:ids}}).select('status amountMinor currency payoutMinor payoutCurrency branchId destinationBranchId').lean(),
   funded.models(conn).execution.find({sourceType:'money_transfer',action:'transfer_payout',
    sourceId:{$in:ids},status:'pending_review'}).select('sourceId').lean(),
-  Linked.event.find({settlementId:{$in:linkedIds},stage:{$in:['cash_collected','cash_paid']}})
+  Linked.event.find({settlementId:{$in:linkedIds},stage:{$in:['cash_collected','cash_paid','reversed']}})
    .select('settlementId stage').lean()
  ]);
  const orderMap=new Map(orders.map(x=>[String(x._id),x]));

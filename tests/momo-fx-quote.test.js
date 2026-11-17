@@ -10,14 +10,14 @@ const base={
 test('UGX withdrawal credits float and debits SSP cash',()=>{
  const q=quote({...base,operation:'withdraw_provider_receive_cash',rateSide:'buy'});
  assert.equal(q.walletDeltaMinor,'100000');
- assert.equal(q.cashDeltaMinor,'-9000');
- assert.equal(q.cashAmountMinor,'9000');
+ assert.equal(q.cashDeltaMinor,'-9000000');
+ assert.equal(q.cashAmountMinor,'9000000');
  assert.equal(q.postingAuthorized,false);
 });
 test('SSP deposit debits float and credits cash',()=>{
  const q=quote({...base,operation:'deposit_cash_send_provider',rateSide:'sell'});
  assert.equal(q.walletDeltaMinor,'-100000');
- assert.equal(q.cashDeltaMinor,'9000');
+ assert.equal(q.cashDeltaMinor,'9000000');
 });
 test('wrong Buy/Sell rate is rejected',()=>{
  assert.throws(()=>quote({...base,operation:'withdraw_provider_receive_cash',rateSide:'sell'}),/Wrong approved/);

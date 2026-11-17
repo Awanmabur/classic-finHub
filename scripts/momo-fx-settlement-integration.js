@@ -114,13 +114,13 @@ async function main(){
  const bad=await preview(conn,tenant,owner,branch,{operation:'withdraw_provider_receive_cash',walletAccountId:String(wallet._id),
   cashAccountId:String(drawer._id),providerAmountMinor:'1000'});
  const existingBalance=await balances(),originalCount=await records(conn).countDocuments();
- await assert.rejects(settleVerified(conn,tenant,owner,{...bad,branchId:String(branch._id),
-  idempotencyKey:crypto.randomUUID(),providerReference:'INSUFFICIENT-'+nonce},{
-   providerStatus:'confirmed',cashHandoverConfirmed:true,
-   providerReference:'INSUFFICIENT-'+nonce,network:'MTN',currency:'UGX',amountMinor:'1000',
-   evidenceId:'INSUFFICIENT-EVIDENCE-'+nonce,verifiedAt:new Date().toISOString(),cashConfirmedAt:new Date().toISOString()
-  }),error=>error.status===409&&/Insufficient/.test(error.message));
-  */
+ const insufficientInput={...bad,branchId:String(branch._id),idempotencyKey:crypto.randomUUID(),providerReference:'INSUFFICIENT-'+nonce};
+ const insufficientProof=sign({providerStatus:'confirmed',cashHandoverConfirmed:true,
+  providerReference:'INSUFFICIENT-'+nonce,network:'MTN',currency:'UGX',amountMinor:'1000',
+  evidenceId:'INSUFFICIENT-EVIDENCE-'+nonce,verifiedAt:new Date().toISOString(),cashConfirmedAt:new Date().toISOString()});
+ await assert.rejects(settleVerified(conn,tenant,owner,insufficientInput,insufficientProof),
+  error=>error.status===409&&/Insufficient/.test(error.message));
+
  assert.deepEqual(await balances(),existingBalance,'both custody movements must roll back together');
  assert.equal(await records(conn).countDocuments(),originalCount,'failed exchange cannot appear settled');
  assert.equal(await tm.models(conn).batch.countDocuments({sourceRef:{$regex:/^MFX:/}}),2,'failed exchange cannot create a journal batch');

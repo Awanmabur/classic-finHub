@@ -24,7 +24,7 @@
   </div><% }); %>
  </div>
 </section>
-<% } else if(['Tenant Owner','Branch Manager','Reconciliation Officer','Auditor'].includes(user.role)){ %>
+<% } else if(typeof user==='object'&&user&&['Tenant Owner','Branch Manager','Reconciliation Officer','Auditor'].includes(user.role)){ %>
 <section class="card financialModuleOverview" aria-label="Financial statistics availability">
  <div class="cardHead"><b>Financial summary · <%= moduleKey.replaceAll('_',' ') %></b></div>
  <div class="cardBody"><p class="tiny"><%= moduleFinance.reason||'Choose an active operating branch to display authorized posted financial totals.' %></p></div>

@@ -13,6 +13,7 @@
    const needsOnboarding=!currentBranch||!hasUsableFundsPair; %>
 <section class="view show mobileMoneyPage">
  <%- include('../../partials/operation-branch', {currentBranch, branchProblem, user}) %>
+ <%- include('../partials/module-finance',{moduleKey:'mobile_money'}) %>
 
  <% if(needsOnboarding){ %>
  <section class="card" data-mobile-onboarding aria-label="Mobile Money start and opening checklist">

@@ -50,6 +50,27 @@
       <p class="tiny">Preview only: no provider settlement, bank or cash movement has been posted. No profit is inferred from this exchange quote.</p>
      </div>
     </section>
+    <% if(data.canExecute){ %>
+     <form class="card" method="POST" action="/tenant/mobile-money/fx/record" autocomplete="off">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
+      <% ['operation','walletAccountId','cashAccountId','providerCurrency','cashCurrency','providerAmountMinor','cashAmountMinor','rateId','rateVersion','rateDecimal'].forEach(field=>{ %>
+       <input type="hidden" name="<%= field %>" value="<%= q[field] %>">
+      <% }); %>
+      <div class="cardBody">
+       <p><strong>Record the actual exchange</strong></p>
+       <label class="field">Provider transaction reference
+        <input class="control" name="providerReference" pattern="[A-Za-z0-9._:/\\-]{6,120}" minlength="6" maxlength="120" required placeholder="Reference shown in the provider app">
+       </label>
+       <label class="field"><input type="checkbox" name="providerAppConfirmed" value="yes" required> I personally confirmed the provider transaction in the actual provider app.</label>
+       <label class="field"><input type="checkbox" name="cashHandoverConfirmed" value="yes" required> The displayed physical cash amount was actually received or handed over.</label>
+       <p class="tiny">This posts one internally final financial record and updates both funds books. It does not claim the provider independently reconciled its settlement. Missing FX cost basis remains unmeasured.</p>
+       <button class="btn primary" type="submit">Finalize actual exchange</button>
+      </div>
+     </form>
+    <% }else{ %>
+     <p class="tiny" role="status">Financial posting is unavailable until this branch, provider and currency pair pass the required authorization checks and cross-currency release gate. This preview does not move any money.</p>
+    <% } %>
    <% } %>
   </div>
  </section>

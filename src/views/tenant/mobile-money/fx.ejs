@@ -1,6 +1,6 @@
 <section class="view show mobileMoneyPage">
  <section class="card">
-  <div class="cardHead"><div><b>Cross-currency Mobile Money</b><br><span>Real provider wallet and physical cash drawer · approved branch Buy/Sell rates</span></div><a class="btn" href="/tenant/mobile-money">Back to Mobile Money</a></div>
+  <div class="cardHead"><div><b>Cross-currency Mobile Money</b><br><span>Real provider wallet and physical cash drawer · approved branch Buy/Sell rates</span></div><a class="btn" href="/tenant/mobile-money">Back to Mobile Money</a><a class="btn" href="/tenant/mobile-money/fx/history">Transaction history</a></div>
   <div class="cardBody">
    <p class="tiny">This is an exact calculation preview, not a completed transfer. Provider confirmation and legally permitted settlement are required before balances can be posted. All money shown is in its own currency.</p>
    <% if(data.error){ %><p role="alert"><%= data.error %></p><% } %>
@@ -43,10 +43,10 @@
     <section class="card" aria-label="Cross-currency preview">
      <div class="cardHead"><b>Approved Buy/Sell preview</b><span><%= q.rateSide.toUpperCase() %> · rate <%= q.rateDecimal %> <%= q.cashCurrency %> per 1 <%= q.providerCurrency %></span></div>
      <div class="cardBody">
-      <p><strong>Provider wallet:</strong> <%= q.walletName %> (<%= q.providerCurrency %>) · signed change <%= q.walletDeltaMinor %> minor units</p>
-      <p><strong>Physical drawer:</strong> <%= q.cashName %> (<%= q.cashCurrency %>) · signed change <%= q.cashDeltaMinor %> minor units</p>
-      <p><strong>Customer cash amount:</strong> <%= q.cashAmountMinor %> <%= q.cashCurrency %> minor units</p>
-      <p><strong>Rate expiration:</strong> <%= new Date(q.rateExpiresAt).toLocaleString('en-GB') %></p>
+      <p><strong>Provider wallet:</strong> <%= q.walletName %> (<%= q.providerCurrency %>) · signed change <%= data.formatMoneyMinor(q.walletDeltaMinor,q.providerCurrency) %></p>
+      <p><strong>Physical drawer:</strong> <%= q.cashName %> (<%= q.cashCurrency %>) · signed change <%= data.formatMoneyMinor(q.cashDeltaMinor,q.cashCurrency) %></p>
+      <p><strong>Customer cash amount:</strong> <%= data.formatMoneyMinor(q.cashAmountMinor,q.cashCurrency) %></p>
+      <p><strong>Rate expiration:</strong> <%= formatLocalDate(q.rateExpiresAt,data.selectedBranchId) %></p>
       <p class="tiny">Preview only: no provider settlement, bank or cash movement has been posted. No profit is inferred from this exchange quote.</p>
      </div>
     </section>

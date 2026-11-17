@@ -150,6 +150,19 @@ async function main(){
   await treasury.assertBookIntegrity(conn,null,await treasury.models(conn).account.findById(account._id).lean());
  for(const [site,currency] of [[branch,'SSP'],[destination,'USD']])
   assert.equal((await ledger.trialBalance(conn,{branchId:String(site._id),currency})).balanced,true);
+ // Receiving branch sees native USD due and the original SSP collection;
+ // neither becomes "settled" simply because the cash payout journal balanced.
+ const reviewed=await transfer.branchBalances(conn,tenant,manager);
+ const linkedItem=reviewed.reconciliation.items.find(item=>item.sourceId===String(xOrder._id));
+ assert(linkedItem,'The receiving branch should see linked-currency payout evidence');
+ assert.equal(linkedItem.collection,'SSP 650.00');
+ assert.equal(linkedItem.payout,'USD 5.00');
+ assert.equal(linkedItem.needsReview,false);
+ assert.match(linkedItem.branchState,/remain until independently reconciled/);
+ const due=reviewed.rows.find(row=>row.currency==='USD');
+ assert(due,'Native USD receivable must appear separately');
+ assert.equal(due.receivable,'USD 5.00');
+ await assert.rejects(transfer.branchBalances(conn,tenant,receivingTeller),{status:403});
  process.env.CLASSICFIN_LINKED_CURRENCY_POSTING='disabled';
 
  console.log('PASS: real SSP sender to USD receiver cross-branch payout with linked journals; destination-bound branch PINs, real destination cash, balanced interbranch receivable/payable journals, revoked sender, rollback, concurrent single payout, branch isolation and book integrity. No live SMS sent.');

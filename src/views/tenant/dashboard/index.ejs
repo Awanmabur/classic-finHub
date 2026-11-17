@@ -21,7 +21,7 @@
       <% if(snapshot.mixedRegion){ %><p class="tiny">Branches use different timezones. Select a branch from the dashboard header to view accurate local-day transaction totals; cash and float accounts remain independently scoped.</p><% } %>
       <% if(hasSources){ %><div class="grid3 overviewStatsGrid">
         <% cards.forEach(([flag,key,label,id,sub])=>{if(!data[flag])return;const value=volumes[key]; %><div class="stat" title="Today's active recorded <%= key.replaceAll('_',' ') %> operations and instructions. This total is separate from verified external balances."><div class="k"><%= label %></div><div class="v" id="<%= id %>"><%= value?.formatted||'—' %></div><div class="s"><span class="dot <%= key==='forex'?'warn':'' %>"></span><span><%= key==='mobile_money'&&data.mobileMarket?data.mobileMarket.label+' · '+data.mobileMarket.currency:sub %></span></div>
-           <% const currencyDetail=byCurrency[key]||[];if(currencyDetail.length){ %>
+           <% const currencyDetail=byCurrency[key]||[];if(snapshot.todayByCurrencyUnavailable?.[key]){ %><div class="s">Currency breakdown temporarily unavailable</div><% } else if(currencyDetail.length){ %>
            <div class="overviewCurrencyLines" aria-label="<%= label %> by original currency">
              <% currencyDetail.forEach(item=>{ %><div class="overviewCurrencyLine"><span><%= item.currency==='KES'?'KSH':item.currency %> · <%= item.count %> transaction<%= item.count===1?'':'s' %></span><b><%= item.formatted.replace(/^KES /,'KSH ') %></b></div><% }); %>
            </div>

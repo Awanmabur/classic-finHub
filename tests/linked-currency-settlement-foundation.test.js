@@ -94,3 +94,28 @@ test('linked settlement and cost books have unique immutable source identifiers'
  assert.equal(settlementSchema.path('sourceModule').options.immutable,true);
  assert.equal(settlementSchema.path('rateSnapshot').options.immutable,true);
 });
+
+test('MoMo linked settlement journal balances independently in both currencies',()=>{
+ const j=require('../src/tenant/settlements/journalPlan');
+ const plan=planner.quote({channel:'mobile_money',operation:'cash_out',branchId:b,
+  providerCurrency:'UGX',cashCurrency:'SSP',providerPrincipalMinor:'100000',
+  walletAccountId:e,cashAccountId:f,rate:rate('buy','0.9')});
+ const entries=j.linesForMoMo(plan);
+ assert.equal(entries.length,4);
+ assert.equal(j.assertBalanced(entries),true);
+ assert.deepEqual(entries.map(x=>x.side),['debit','credit','credit','debit']);
+ assert.equal(entries.filter(x=>x.kind==='fx_settlement_clearing').length,2);
+ assert.throws(()=>j.assertBalanced(entries.slice(0,3)),/not balanced/);
+});
+test('staged transfer returns two unposted events in independent branches',()=>{
+ const j=require('../src/tenant/settlements/journalPlan');
+ const plan=planner.transferPlan({originBranchId:b,destinationBranchId:c,
+  originCashAccountId:e,destinationPayoutAccountId:f,collectionCurrency:'SSP',
+  payoutCurrency:'UGX',payoutMinor:'100000',rate:rate('sell','1.1')});
+ const stages=j.transferStages(plan);
+ assert.deepEqual(stages.map(s=>s.stage),['collection','payout']);
+ assert.deepEqual(stages.map(s=>s.status),['not_posted','not_posted']);
+ assert.equal(stages[0].currency,'SSP');
+ assert.equal(stages[1].currency,'UGX');
+ assert.notEqual(stages[0].branchId,stages[1].branchId);
+});

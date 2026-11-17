@@ -1,1 +1,39 @@
-<section class="view show"><section class="card"><div class="cardHead"><b>Branch transfer balances</b><span>Posted branch payouts</span></div><div class="cardBody"><p class="tiny">A receiving branch uses its own verified cash to pay the receiver. The sending branch owes that amount; the receiving branch records it as due from the sending office. Reconcile these dues against actual branch settlement. They are separate from cash, customer deposits and transfer fees.</p><div class="tableWrap"><table><thead><tr><th>Branch</th><th>Currency</th><th>Due from branches</th><th>Due to branches</th></tr></thead><tbody><% if(!data.rows.length){ %><tr><td colspan="4">No posted cross-branch dues in this viewing scope.</td></tr><% } %><% data.rows.forEach(row=>{ %><tr><td><%= row.branch %></td><td><%= row.currency %></td><td><%= row.receivable %></td><td><%= row.payable %></td></tr><% }) %></tbody></table></div></div></section></section>
+<section class="view show">
+ <section class="card">
+  <div class="cardHead"><b>Branch transfer balances</b><span>Native currency · real posted journals</span></div>
+  <div class="cardBody">
+   <p class="tiny">These are independently booked interbranch dues, not available cash or final settlement. A branch collecting SSP and a branch paying USD have DIFFERENT currency obligations. Never add, net or compare those values without an approved interbranch FX reconciliation. Actual branch funding, provider confirmation and realized exchange profit are not implied by these figures.</p>
+   <div class="tableWrap"><table>
+    <thead><tr><th>Branch</th><th>Currency</th><th>Due from branches</th><th>Due to branches</th></tr></thead>
+    <tbody><% if(!data.rows.length){ %><tr><td colspan="4">No posted cross-branch dues in this viewing scope.</td></tr><% } %>
+    <% data.rows.forEach(row=>{ %><tr><td><%= row.branch %></td><td><%= row.currency %></td><td><%= row.receivable %></td><td><%= row.payable %></td></tr><% }) %></tbody>
+   </table></div>
+  </div>
+ </section>
+ <section class="card" style="margin-top:14px">
+  <div class="cardHead"><b>Linked transfer reconciliation</b><span>Actual collection and payout currencies</span></div>
+  <div class="cardBody">
+   <p class="tiny">An approved rate locks the amount the receiver should get. Collection and payout remain separate recorded facts; a posted payout is not proof that interbranch positions were funded, that an external provider settled, or that Forex profit was realized. Investigate missing evidence before closing a financial day.</p>
+   <% const linked=data.reconciliation||{items:[],hasMore:false,reviewCount:0}; %>
+   <% if(linked.reviewCount){ %><p class="tiny"><strong><%= linked.reviewCount %> reconciliation inconsistencies</strong> in the displayed records require finance review. This is not a balance adjustment.</p><% } %>
+   <div class="tableWrap"><table>
+    <thead><tr><th>Transfer</th><th>Sender funds collected</th><th>Recipient funds due / paid</th><th>Internal stage</th><th>Reconciliation</th></tr></thead>
+    <tbody>
+     <% if(!linked.items.length){ %><tr><td colspan="5">No linked cross-currency transfers in this authorized branch view.</td></tr><% } %>
+     <% linked.items.forEach(item=>{ %>
+     <tr>
+      <td><a href="/tenant/money-transfer/<%= item.sourceId %>"><%= item.reference %></a></td>
+      <td><%= item.collection %></td>
+      <td><%= item.payout %></td>
+      <td><%= item.stage %></td>
+      <td><%= item.branchState %>
+       <% if(item.issues.length){ %><div class="tiny"><strong>Review:</strong> <%= item.issues.join('; ') %></div><% } %>
+      </td>
+     </tr>
+     <% }) %>
+    </tbody>
+   </table></div>
+   <% if(linked.hasMore){ %><p class="tiny">Showing only the 50 newest linked transfers in this scope. This is not a complete reconciliation export. Narrow the operational history or use the audit reports for older records.</p><% } %>
+  </div>
+ </section>
+</section>

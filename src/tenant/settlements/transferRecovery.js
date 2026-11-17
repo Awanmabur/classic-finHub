@@ -19,7 +19,8 @@ function assertScope(conn,tenant,actor,scope){
  if(!scope||typeof scope!=='object'||Object.keys(scope).some(k=>k!=='branchId'))
   throw fail('Invalid financial branch scope');
  if(scope.branchId&&!/^[0-9a-f]{24}$/i.test(String(scope.branchId)))throw fail('Invalid financial branch ID');
- if(!scope.branchId&&!['Tenant Owner','Auditor'].includes(actor.role))
+ if(!['Tenant Owner','Auditor'].includes(actor.role)&&
+  (!scope.branchId||String(scope.branchId)!==String(actor.branchId||'')))
   throw fail('Branch supervisors may only inspect their own assigned branch');
 }
 function classify(order,latest,now=new Date()){

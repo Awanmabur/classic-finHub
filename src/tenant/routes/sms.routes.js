@@ -25,11 +25,19 @@ router.post('/devices/:deviceId/revoke',async(req,res,next)=>{try{
 }catch(error){next(error);}});
 router.get('/:id',async(req,res,next)=>{try{
   const draft=await capture.getDraft(req.tenantDb,req.tenant,req.user,req.params.id);
-  render(req,res,'detail','Review captured SMS',{draft,canConfirm:String(draft.operatorId)===req.user.id});
+  const branch=req.operationBranch;
+  const settlementRates=branch?await require('../models').forexRateModel(req.tenantDb)
+   .find({branchId:branch._id,status:'active',side:{$in:['buy','sell']},expiresAt:{$gt:new Date()}})
+   .select('_id fromCurrency toCurrency side rateDecimal expiresAt')
+   .limit(100).lean():[];
+  render(req,res,'detail','Review captured SMS',{draft,canConfirm:String(draft.operatorId)===req.user.id,
+   cashCurrency:branch?.currency||draft.fields?.currency||'SSP',
+   cashCurrencies:branch?require('../services/branchCurrency.service').supported(branch):[],
+   settlementRates});
 }catch(error){next(error);}});
 router.post('/:id/confirm',require('../../platform/services/actionThrottle.service').financial,async(req,res,next)=>{try{
   await capture.recordDraft(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
-  flash(req,'good','SMS transaction recorded for independent verification.');res.redirect(303,`/tenant/sms-capture/${req.params.id}`);
+  flash(req,'good','SMS transaction recorded as final in the correct cash and provider books. Check provider settlement separately.');res.redirect(303,`/tenant/sms-capture/${req.params.id}`);
 }catch(error){next(error);}});
 router.post('/:id/dismiss',async(req,res,next)=>{try{
   await capture.dismiss(req.tenantDb,req.tenant,req.user,req.params.id,req.body.note);

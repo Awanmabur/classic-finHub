@@ -47,7 +47,7 @@ function environment({wallet=account(ids.wallet,ids.branch,'UGX','wallet'),
   TreasuryAccountV1:accountModel,
   SecureBranch:{findOne(query){return{session(){return this;},lean:async()=>[branch,dest].find(b=>String(b._id)===String(query._id))||null};}},
   ForexRateV1:readModel(rate)
- }};
+ },model(name){return this.models[name]||(this.models[name]={});}};
  return {conn,queries};
 }
 test('UGX wallet withdrawal quotes SSP from exactly the existing physical cashier drawer',async()=>{

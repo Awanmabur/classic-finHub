@@ -19,6 +19,27 @@ test('refund must repay the original sender cash AND the actually collected fee 
   principalMinor:'1300',feeMinor:'100',totalMinor:'1400',currency:'SSP',cashAccountId:id.cash
  });
 });
+test('refund requires independently counted original cashier cash and outstanding liability; held or short funds cannot be refunded',()=>{
+ const accounts=[
+  {_id:id.cash,kind:'cash',currency:'SSP',branchId:id.branch,operatorId:id.teller,
+   openingBalanceMinor:'1000',openingApprovedAt:new Date(),status:'active',
+   reconciliationState:'matched',bookBalanceMinor:'1400'},
+  {_id:id.payable,kind:'transfer_clearing',currency:'SSP',branchId:id.branch,
+   openingBalanceMinor:'0',openingApprovedAt:new Date(),status:'active',
+   reconciliationState:'matched',bookBalanceMinor:'1300'}
+ ];
+ assert.equal(refund.assertReadyRefundDrawers(source,collection,accounts).gross,'1400');
+ for(const change of [
+  {status:'held'},{reconciliationState:'stale'},{bookBalanceMinor:'1399'},
+  {currency:'USD'},{operatorId:'507f1f77bcf86cd799439019'},
+  {kind:'wallet'},{openingApprovedAt:null}
+ ]){
+  assert.throws(()=>refund.assertReadyRefundDrawers(source,collection,
+   [{...accounts[0],...change},accounts[1]]),{status:409});
+ }
+ assert.throws(()=>refund.assertReadyRefundDrawers(source,collection,
+  [accounts[0],{...accounts[1],bookBalanceMinor:'1299'}]),{status:409});
+});
 test('original cash cannot be replaced with a wallet, bank or different cashier/branch',()=>{
  const variants=[
   [{...source,capture:{method:'Mobile Money'}},collection],

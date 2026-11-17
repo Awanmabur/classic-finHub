@@ -54,3 +54,43 @@ test('all four module report routes load real finance snapshots',()=>{
  assert.match(momo,/financeOverview:\s*await|financeOverview,reportData/);
  assert.match(source('src/views/tenant/mobile-money/report.ejs'),/include\('\.\.\/partials\/module-finance'/);
 });
+
+
+test('Forex operator sees real report counters even without restricted Treasury totals',async()=>{
+ const html=await ejs.renderFile(path.join(root,'src/views/tenant/operation-workspace.ejs'),{
+  data:{moduleKey:'forex',title:'Forex report summary',label:'Forex',mode:'report',
+   basePath:'/tenant/forex',total:6,note:'Quotes and manual movements',
+   filters:{from:'2026-11-01',to:'2026-11-17'},
+   rows:[
+    {day:'2026-11-17',status:'quoted',kind:'buy',currency:'UGX',targetCurrency:'SSP',count:2,volume:'UGX 2,000',target:'SSP 1,800'},
+    {day:'2026-11-17',status:'posted_manual',kind:'sell',currency:'UGX',targetCurrency:'SSP',count:3,volume:'UGX 3,000',target:'SSP 3,300'},
+    {day:'2026-11-16',status:'rejected',kind:'sell',currency:'SSP',targetCurrency:'UGX',count:1,volume:'SSP 100',target:'UGX 120'}
+   ],canExport:false,
+   financeOverview:{available:false,reason:'Treasury permission required'}},
+  user:{role:'Forex Operator'},businessTimeZone:'Africa/Juba',currencyLabel:code=>code
+ });
+ assert.match(html,/Forex operational report statistics/);
+ assert.match(html,/Records in selected period<\\/div><div class="v">6<\\/div>/);
+ assert.match(html,/Awaiting next step<\\/div><div class="v">2<\\/div>/);
+ assert.match(html,/Posted \\/ paid out internally<\\/div><div class="v">3<\\/div>/);
+ assert.match(html,/Currencies represented<\\/div><div class="v">2<\\/div>/);
+ assert.doesNotMatch(html,/Operating assets · book/,'restricted Treasury totals must not leak');
+});
+test('Money Transfer collected funds remain pending until internal payout, not marked completed',async()=>{
+ const html=await ejs.renderFile(path.join(root,'src/views/tenant/operation-workspace.ejs'),{
+  data:{moduleKey:'money_transfer',title:'Transfer report summary',label:'Money Transfer',mode:'report',
+   basePath:'/tenant/money-transfer',total:5,note:'Manual transfer states',
+   filters:{from:'2026-11-01',to:'2026-11-17'},
+   rows:[
+    {day:'2026-11-17',status:'collected_manual',kind:'transfer_request',currency:'SSP',count:2,volume:'SSP 200',fees:'SSP 0'},
+    {day:'2026-11-17',status:'requested',kind:'transfer_request',currency:'SSP',count:1,volume:'SSP 100',fees:'SSP 0'},
+    {day:'2026-11-17',status:'paid_out_manual',kind:'transfer_request',currency:'SSP',count:1,volume:'SSP 100',fees:'SSP 0'},
+    {day:'2026-11-17',status:'rejected',kind:'transfer_request',currency:'SSP',count:1,volume:'SSP 100',fees:'SSP 0'}
+   ],canExport:false,
+   financeOverview:{available:false,reason:'Treasury permission required'}},
+  user:{role:'Money Transfer Operator'},businessTimeZone:'Africa/Juba',currencyLabel:code=>code
+ });
+ assert.match(html,/Awaiting next step<\\/div><div class="v">3<\\/div>/);
+ assert.match(html,/Posted \\/ paid out internally<\\/div><div class="v">1<\\/div>/);
+ assert.match(html,/not proof of provider settlement/);
+});

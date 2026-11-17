@@ -25,9 +25,7 @@ test('Normal same-currency deposits require no rate or extra cash amount',()=>{
 test('Real SSP settlement is explicit and cannot silently be booked in UGX',()=>{
  const input=settlement.normalize({settlementCurrency:'SSP',forexRateId:rateId,settlementAmount:'90000.00'},'UGX');
  assert.deepEqual(input,{settlementCurrency:'SSP',forexRateId:rateId,settlementAmountMinor:9000000,crossCurrency:true});
- assert.deepEqual(settlement.pricingSnapshot({...base,...input},rate,branchId,{
-  toISOString:()=>new Date('2026-11-17').toISOString()
- }),{settlementCurrency:'SSP',settlementAmountMinor:'9000000',forexRateId:rateId,
+ assert.deepEqual(settlement.pricingSnapshot({...base,...input},rate,branchId,new Date('2026-11-17')),{settlementCurrency:'SSP',settlementAmountMinor:'9000000',forexRateId:rateId,
   forexRateDecimal:'0.90',forexSide:'buy',crossCurrency:true});
 });
 
@@ -41,7 +39,7 @@ test('Wrong rate, cash amount, reversed operation, or unverified fees cannot pos
   {paymentMethod:'Bank'},
   {operation:'cash_in'},
   {settlementCurrency:'USD'}
- ])assert.throws(()=>settlement.pricingSnapshot({...base,...change},rate,branchId),{status:409},'No unapproved FX settlement can be posted');
+ ])assert.throws(()=>settlement.pricingSnapshot({...base,...change},rate,branchId),{status:change.paymentMethod==='Bank'?400:409},'No unapproved FX settlement can be posted');
  assert.throws(()=>settlement.pricingSnapshot(base,{...rate,expiresAt:new Date('2026-01-01')},branchId),{status:409});
 });
 

@@ -1,0 +1,73 @@
+'use strict';
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const ejs=require('ejs');
+const finance=require('../src/tenant/services/financeOverview.service');
+
+const id='507f1f77bcf86cd799439011';
+
+test('book balances keep currencies separate and preserve signs',()=>{
+ const amounts=finance.groupMoney([
+  {currency:'UGX',bookBalanceMinor:'10000'},
+  {currency:'UGX',bookBalanceMinor:'-1000'},
+  {currency:'SSP',bookBalanceMinor:'700'},
+  {currency:'USD',bookBalanceMinor:'300'},
+  {currency:'INVALID',bookBalanceMinor:'5'}
+ ],'bookBalanceMinor');
+ assert.equal(amounts.get('UGX'),9000n);
+ assert.equal(amounts.get('SSP'),700n);
+ assert.equal(amounts.get('USD'),300n);
+ assert.equal(amounts.has('INVALID'),false);
+ const rows=finance.rowsOf(amounts);
+ assert.equal(rows.length,3);
+ assert.equal(rows.find(x=>x.currency==='UGX').amountMinor,'9000');
+});
+test('non-owner cannot pick another branch to read capital or earnings',()=>{
+ const user={role:'Branch Manager',branchId:id};
+ assert.equal(finance.branchScope(user,{viewBranch:{_id:'507f1f77bcf86cd799439012'}}),null);
+ assert.equal(String(finance.branchScope(user,{operationBranch:{_id:id}}).branchId),id);
+ assert.deepEqual(finance.branchScope({role:'Tenant Owner'},{viewBranchId:'all'}),{});
+});
+
+test('dashboard shows posted-only earnings and distinguishes Forex from unmeasured profit',()=>{
+ const file=path.join(__dirname,'../src/views/tenant/dashboard/index.ejs');
+ const view=fs.readFileSync(file,'utf8');
+ const html=ejs.render(view,{
+  businessTimeZone:'Africa/Juba',
+  data:{
+   hasTransfer:false,hasMobileMoney:true,hasBanking:false,hasForex:true,
+   mobileMarkets:[],mobileFunds:{wallets:[],paymentAccounts:[]},mobileBookTotals:{cash:[],float:[]},
+   financeOverview:{available:true,mixedRegion:false,postedNet:[{currency:'SSP',formatted:'SSP 7,000'}],
+    postedIncome:[{currency:'SSP',formatted:'SSP 10,000'}],bookAssets:[{currency:'SSP',formatted:'SSP 100,000'}],byModule:[]},
+   workspaceSnapshot:{todayVolumes:{forex:{formatted:'USD 0'},mobile_money:{formatted:'UGX 0'}},
+    todayByCurrency:{forex:[{currency:'USD',count:1,formatted:'USD 100.00'}]}}
+  },quickActions:[],user:{role:'Tenant Owner',permissions:['*']},
+  visiblePaths:new Set(),tenant:{slug:'demo'},currencyOptions:[{code:'SSP',label:'SSP'}]
+ },{filename:file});
+ assert.match(html,/Posted net income/);
+ assert.match(html,/SSP 7,000/);
+ assert.match(html,/Operating assets/);
+ assert.match(html,/Forex trading profit/);
+ assert.match(html,/Not yet measurable/);
+ assert.match(html,/overviewStatsGrid/);
+});
+test('platform tenant form reflects persisted active state and effective module entitlements',()=>{
+ const file=path.join(__dirname,'../src/views/platform/tenants/show.ejs');
+ const sub={planCode:'starter',planName:'Starter',planVersion:1,status:'granted',
+  periodStart:new Date('2026-11-01T00:00:00Z'),periodEnd:new Date('2027-11-01T00:00:00Z'),
+  modules:['forex'],limits:{users:5,branches:2}};
+ const html=ejs.render(fs.readFileSync(file,'utf8'),{
+  data:{tenant:{id,slug:'demo',name:'Demo',owner:'Test Owner',email:'owner@example.test',phone:'',
+    status:'active',setupStatus:'complete',subscription:sub,enabledModules:['forex'],moduleGrants:[],
+    seatsReserved:1,branchCount:1,__v:0},
+   effectivePlan:sub,activeAddonGrants:[],modules:[{key:'forex',name:'Forex',runtimeStatus:'active'}],
+   published:[{code:'starter',name:'Starter'}],independentModules:[{key:'forex',category:'Standalone',name:'Forex',priceMonthly:5,requiresRecords:true}]},
+  csrfToken:'test-csrf',formatUtcDate:value=>new Date(value).toISOString()
+ },{filename:file});
+ assert.match(html,/Current: active/);
+ assert.match(html,/Forex · enabled/);
+ assert.match(html,/Current: Starter/);
+ assert.match(html,/Current workspace state/);
+});

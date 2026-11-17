@@ -7,25 +7,25 @@
 <section class="view show">
  <%- include('../../partials/operation-branch', {currentBranch, branchProblem, user}) %>
  <%- include('../partials/module-finance',{moduleKey:'forex'}) %>
- <section class="card"><div class="cardHead"><b><%= data.workspaceTitle||'Forex rate board and quotations' %></b><span>Approved rates · reviewed manual posting</span></div>
-  <div class="cardBody"><p class="tiny">Use an approved rate to record a quotation, then record the actual exchange against opened foreign currency and settlement accounts for independent review.</p>
+ <section class="card"><div class="cardHead"><b><%= data.workspaceTitle||'Forex trading and rates' %></b><span>Approved rates · actual exchange posting</span></div>
+  <div class="cardBody"><p class="tiny">Use the authorized Buy or Sell rate, record the actual exchange against opened currency accounts, and finalize it in the funds books.</p>
    <div class="rowBtns"><a class="btn" href="/tenant/funded">Manual movements &amp; review</a><a class="btn" href="/tenant/treasury">Balances &amp; reconciliation</a><a class="btn" href="/tenant/forex/buy">Buy forex from customer</a><a class="btn" href="/tenant/forex/sell">Sell forex to customer</a><a class="btn" href="/tenant/forex/rates">Active rate board</a><a class="btn" href="/tenant/forex/cash-impact">Forex cash impact</a><a class="btn" href="/tenant/forex/records">Forex operation records</a><a class="btn" href="/tenant/forex/report">Forex report summary</a></div>
 
   </div></section>
  <div class="grid" style="margin-top:14px">
  <% if(data.canPropose && currentBranchId && proposalCurrencies.length>=2 && !['buy','sell'].includes(data.workspaceOperation)){ %><form method="post" action="/tenant/forex/rates" class="card" autocomplete="off"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
-  <div class="cardHead"><b>Propose an indicative rate</b><span>Requires a different reviewer</span></div><div class="cardBody" style="display:grid;gap:12px">
+  <div class="cardHead"><b>Set Buy/Sell or indicative rate</b><span><%= user.role==='Tenant Owner'?'Owner rates activate immediately':'Staff rate changes need authorization' %></span></div><div class="cardBody" style="display:grid;gap:12px">
    <div class="row2"><label class="field">Source currency<select class="control" name="fromCurrency" required><% proposalCurrencies.forEach((c,i)=>{ %><option value="<%= c %>" <%= i===0?'selected':'' %>><%= c==='EUR'?'EUR (quote only)':c==='KES'?'KSH':c %></option><% }) %></select></label><label class="field">Target currency<select class="control" name="toCurrency" required><% proposalCurrencies.forEach((c,i)=>{ %><option value="<%= c %>" <%= i===1?'selected':'' %>><%= c==='EUR'?'EUR (quote only)':c==='KES'?'KSH':c %></option><% }) %></select></label></div>
    <label class="field">Rate purpose<select class="control" name="side" required><option value="buy">Buy foreign currency from customer</option><option value="sell">Sell foreign currency to customer</option><option value="quote">Indicative quotation only</option></select></label>
    <p class="tiny">Buying and selling have separate approved prices for the same pair. Choose two different currencies. Only enabled branch currencies can be exchanged in cash. EUR is for indicative quotes until EUR cash/ledger support is added.</p>
    <label class="field">Target units per 1 source unit<input name="rateDecimal" class="control" inputmode="decimal" placeholder="0.00027500" required></label>
    <label class="field">Rate validity<select name="validHours" class="control" required><% for(let hours=1;hours<=72;hours++){ %><option value="<%= hours %>" <%= hours===24?'selected':'' %>><%= hours %> hour<%= hours===1?'':'s' %></option><% } %></select></label>
    <label class="field">Source and justification (12–400 characters)<textarea name="note" class="control" rows="2" minlength="12" maxlength="400" required></textarea></label>
-   <button class="btn btnPrimary" type="submit">Submit rate for independent review</button>
+   <button class="btn btnPrimary" type="submit"><%= user.role==='Tenant Owner'?'Activate exchange rate':'Submit rate for review' %></button>
   </div></form><% } %>
  <% if(approvedForexRates.length){ %>
  <section class="card"><div class="cardHead"><b>Approved rate board</b><span>Provider verification not automatic</span></div><div class="cardBody tableWrap"><table><thead><tr><th>Pair</th><th>Purpose</th><th>Rate</th><th>State</th><th>Expires UTC</th></tr></thead><tbody><% data.rates.filter(r=>r.status==='active' && new Date(r.expiresAt)>new Date()).forEach(r=>{ %><tr><td><%= r.fromCurrency %> → <%= r.toCurrency %></td><td><%= r.side==='buy'?'Buy':r.side==='sell'?'Sell':'Indicative' %></td><td><%= r.rateDecimal %></td><td><%= r.status %></td><td><%= new Date(r.expiresAt).toISOString().slice(0,16).replace('T',' ') %></td></tr><% }) %></tbody></table></div></section>
- <% }else{ %><p class="tiny">No approved Forex rate for this branch yet. Propose a real rate above and have an independently authorized reviewer approve it; cash Buy/Sell cannot proceed without one.</p><% } %>
+ <% }else{ %><p class="tiny">No active Forex rate for this branch yet. The Tenant Owner can activate the Buy/Sell rates above; cash exchanges require an active valid rate.</p><% } %>
  </div>
  <div class="grid" style="margin-top:14px">
  <% if(data.canQuote && currentBranchId && data.workspaceOperation!=='rates'){ %><form class="card" method="post" action="/tenant/forex/quotes" autocomplete="off" data-forex-form><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>"><input type="hidden" name="operation" value="<%= ['buy','sell'].includes(data.workspaceOperation)?data.workspaceOperation:'quote' %>">

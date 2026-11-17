@@ -14,7 +14,10 @@ async function validate(conn,session,tenant,actor,payoutId){
  const source=await core.transferOrderModel(conn).findOne({_id:execution.sourceId,status:'collected_manual',destinationBranchId:execution.branchId}).session(session).lean();
  const collection=await funded.models(conn).execution.findOne({_id:execution.collectionExecutionId,action:'transfer_collect',status:'posted_manual',sourceId:execution.sourceId}).session(session).lean();
  const service=require('../services/fundedOperations.service');
- if(!source||!collection||String(source.branchId)===String(execution.branchId)||String(collection.branchId)!==String(source.branchId)||String(source.manualCollectionExecutionId)!==String(collection._id)||String(collection.accounts.clearingAccountId)!==String(execution.accounts.clearingAccountId)||!service.sourceMatches(execution,source)||!service.sourceMatches(collection,source))throw fail('Branch transfer source or collection integrity changed');
- return {authorization,execution,source,collection};
+ const sameBranch=source&&String(source.branchId)===String(execution.branchId);
+ // Allow a same-branch payout only when it is genuinely a different-currency
+ // transfer. The collected clearing account still belongs to its original teller.
+ if(!source||!collection||(sameBranch&&!source.payoutCurrency)||String(collection.branchId)!==String(source.branchId)||String(source.manualCollectionExecutionId)!==String(collection._id)||String(collection.accounts.clearingAccountId)!==String(execution.accounts.clearingAccountId)||!service.sourceMatches(execution,source)||!service.sourceMatches(collection,source))throw fail('Branch transfer source or collection integrity changed');
+ return {authorization,execution,source,collection,sameBranch};
 }
 module.exports={validate};

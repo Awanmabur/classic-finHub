@@ -75,12 +75,17 @@ async function main(){
  const proposedSellRate=await forex.proposeRate(conn,tenant,owner,{fromCurrency:'USD',toCurrency:'UGX',side:'sell',rateDecimal:'3700.01',validHours:24,note:'Separately approved customer USD selling price for manual settlement'});
  const sellRate=await forex.decideRate(conn,tenant,reviewer,proposedSellRate._id,reviewData);
  async function quote(operation,amount,commission){return (await forex.createQuote(conn,tenant,owner,{operation,rateId:String(operation==='sell'?sellRate._id:rate._id),customerLabel:'Actual customer',customerPhone:'+256700123456',amount,commission,note:'Customer agreed to the displayed manual exchange terms and counted notes',settlementMethod:'Cash',idempotencyKey:crypto.randomUUID()})).quote;}
- const buySource=await quote('buy','10','100'),buy=await manual('forex',buySource,{foreignAccountId:String(stock._id),settlementAccountId:String(cashFund._id)});await funded.review(conn,tenant,reviewer,buy.execution._id,reviewData);
+ const buySource=await quote('buy','10','100'),buy=await manual('forex',buySource,{foreignAccountId:String(stock._id),settlementAccountId:String(cashFund._id)});
+ await assert.rejects(funded.finalizeForex(conn,tenant,owner,buy.execution._id,{confirmFundsExchanged:'yes'}),{status:403},'missing receipt evidence confirmation cannot post');
+ assert.equal((await funded.finalizeForex(conn,tenant,owner,buy.execution._id,{confirmFundsExchanged:'yes',confirmEvidenceChecked:'yes'})).execution.status,'posted_manual');
+ assert((await funded.finalizeForex(conn,tenant,owner,buy.execution._id,{})).duplicate,'retry cannot post duplicate movement');
  assert.equal(await book(stock),101000n);assert.equal(await book(cashFund),970100n);
- const sellSource=await quote('sell','5','50'),sell=await manual('forex',sellSource,{foreignAccountId:String(stock._id),settlementAccountId:String(cashFund._id)});await funded.review(conn,tenant,reviewer,sell.execution._id,reviewData);
+ const sellSource=await quote('sell','5','50'),sell=await manual('forex',sellSource,{foreignAccountId:String(stock._id),settlementAccountId:String(cashFund._id)});
+ await funded.finalizeForex(conn,tenant,owner,sell.execution._id,{confirmFundsExchanged:'yes',confirmEvidenceChecked:'yes'});
+ assert.equal((await fundedModel.models(conn).execution.findById(sell.execution._id)).reviewedBy,null,'cashier confirmation must never claim independent review');
  assert.equal(await book(stock),100500n);assert.equal(await book(cashFund),988650n);
  const overStockSource=await quote('sell','2000','0'),overStock=await manual('forex',overStockSource,{foreignAccountId:String(stock._id),settlementAccountId:String(cashFund._id)}),stockBefore=await book(stock),cashBefore=await book(cashFund),journalsBefore=await core.ledgerJournalModel(conn).countDocuments();
- await assert.rejects(funded.review(conn,tenant,reviewer,overStock.execution._id,reviewData),error=>error.status===409&&/Insufficient/.test(error.message));assert.equal(await book(stock),stockBefore);assert.equal(await book(cashFund),cashBefore);assert.equal(await core.ledgerJournalModel(conn).countDocuments(),journalsBefore);
+ await assert.rejects(funded.finalizeForex(conn,tenant,owner,overStock.execution._id,{confirmFundsExchanged:'yes',confirmEvidenceChecked:'yes'}),error=>error.status===409&&/Insufficient/.test(error.message));assert.equal(await book(stock),stockBefore);assert.equal(await book(cashFund),cashBefore);assert.equal(await core.ledgerJournalModel(conn).countDocuments(),journalsBefore);
  await funded.review(conn,tenant,reviewer,overStock.execution._id,{decision:'reject',note:'Original foreign notes were insufficient for the proposed customer sale'});
  const sender=await transfer.addContact(conn,tenant,owner,{kind:'sender',fullName:'Verified sender',phone:'+256700111222',country:'UG'}),receiver=await transfer.addContact(conn,tenant,owner,{kind:'beneficiary',fullName:'Verified receiver',phone:'+256700123456',country:'UG'});
  // Persisted pre-branch-routing requests remain payable at their original

@@ -53,6 +53,35 @@ test('different SSP/USD recipient currency cannot render a posting form',async()
  assert.match(html,/SSP payable cannot simply be offset against USD receivable/);
  assert.doesNotMatch(html,/<form[^>]*action="[^"]*interbranch-cash/);
 });
+test('rejected courier handover keeps reserved banknotes until both signed returns and owner release',async()=>{
+ const returned=(status,extra={})=>({
+  id:ids.review,status,amount:'UGX 10,000',
+  requestedBy:'507f1f77bcf86cd799439013',receivedBy:'507f1f77bcf86cd799439012',
+  note:'Both original cashier receipts remain linked',...extra
+ });
+ const receiver=await ejs.renderFile(view,values({
+  canRequest:false,canConfirm:true,canConfirmReturn:false,canReview:false,
+  reimbursements:[returned('return_pending')]
+ }));
+ assert.match(receiver,/Confirm signed return dispatch/);
+ assert.match(receiver,/name="notesDispatched" value="confirmed"/);
+ assert.match(receiver,/reserved from sending drawer/);
+ const sender=await ejs.renderFile(view,values({
+  user:{id:'507f1f77bcf86cd799439013',role:'Money Transfer Operator'},
+  canConfirm:false,canConfirmReturn:true,canRequest:false,canReview:false,
+  reimbursements:[returned('return_dispatched')]
+ }));
+ assert.match(sender,/Confirm actual source-drawer cash returned/);
+ assert.match(sender,/name="cashReturnedConfirmed" value="confirmed"/);
+ const owner=await ejs.renderFile(view,values({
+  canConfirm:false,canConfirmReturn:false,canRequest:false,canReview:true,
+  reimbursements:[returned('return_verified',{
+   returnDispatchReference:'RECEIVER-RETURN-001',returnReference:'SENDER-RETURN-001'} )]
+ }));
+ assert.match(owner,/Release independently verified returned cash/);
+ assert.match(owner,/RECEIVER-RETURN-001/);
+ assert.match(owner,/SENDER-RETURN-001/);
+});
 test('feature flag off reveals no cash movement or approvals',async()=>{
  const html=await ejs.renderFile(view,values({
   enabled:false,canRequest:false,canReview:false

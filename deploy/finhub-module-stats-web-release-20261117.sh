@@ -97,6 +97,12 @@ for i in $(seq 1 35); do
  sleep 2
 done
 test "$READY" = 1
+echo '=== VERIFY SERVED DESKTOP GRID CSS BEFORE CUTOVER ==='
+CSS="$(mktemp /tmp/classicfin-summary-css-XXXXXX)"
+curl -fsS --max-time 10 http://127.0.0.1:3601/css/dashboard-layout.css -o "$CSS"
+grep -Fq ':not(.overviewStatsGrid):not(.moduleStatsGrid)' "$CSS"
+grep -Fq 'repeat(4,minmax(0,1fr))!important' "$CSS"
+rm -f "$CSS"
 docker rm -f "$CANARY" >/dev/null
 
 echo '=== 6. WEB-ONLY CUTOVER (DATABASE AND WORKERS UNCHANGED) ==='

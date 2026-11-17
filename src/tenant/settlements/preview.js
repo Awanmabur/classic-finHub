@@ -112,4 +112,31 @@ async function transfer(conn,tenant,actor,branch,input={},session=null){
   note:'A quote, not a transfer. Collection and payout need separately verified events; each uses its existing real cash drawer.'
  }};
 }
-module.exports={assertTenant,requireAccess,activeAccount,ownDrawer,wallet,mobileMoney,transfer};
+async function transferTerms(conn,tenant,actor,branch,input={},session=null){
+ requireAccess(conn,tenant,actor,'money_transfer','money_transfer.create');
+ if(!branch||String(branch._id)!==String(actor?.transactionBranchId||actor?.branchId))
+  throw planner.fail('The transfer must start in your actual operating branch',403);
+ const destinationId=planner.objectId(input.destinationBranchId,'receiving branch');
+ const destination=await branchModel(conn).findOne({_id:destinationId,status:'active'}).session(session).lean();
+ if(!destination)throw planner.fail('Select an active receiving branch',409);
+ branchCurrency.resolve(branch,input.collectionCurrency);
+ branchCurrency.resolve(destination,input.payoutCurrency);
+ const terms=await rates.quoteTransferTerms(conn,session,{
+  tenant,rateId:input.rateId,originBranchId:String(branch._id),
+  destinationBranchId:String(destination._id),
+  collectionCurrency:input.collectionCurrency,payoutCurrency:input.payoutCurrency,
+  payoutMinor:input.payoutMinor
+ });
+ return {terms,display:{
+  senderPays:format(terms.collectionCashMinor,terms.collectionCurrency),
+  recipientReceives:format(terms.recipientPayoutMinor,terms.payoutCurrency),
+  collectionMinor:terms.collectionCashMinor,collectionCurrency:terms.collectionCurrency,
+  payoutMinor:terms.recipientPayoutMinor,payoutCurrency:terms.payoutCurrency,
+  rate:terms.rateSnapshot.rateDecimal,side:terms.rateSnapshot.side,
+  rateId:terms.rateSnapshot.rateId,
+  expiresAt:terms.rateSnapshot.expiresAt,
+  status:'quote_only_no_cash_collected',
+  note:'Exact approved exchange quote. Sender cash is collected into the existing Treasury drawer later. The receiver is paid only from their verified destination drawer after PIN verification.'
+ }};
+}
+module.exports={assertTenant,requireAccess,activeAccount,ownDrawer,wallet,mobileMoney,transfer,transferTerms};

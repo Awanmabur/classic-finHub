@@ -12,7 +12,7 @@
 <dt>Network reference (unverified)</dt><dd><%= record.networkReference %></dd>
 <dt>Customer</dt><dd><%= record.customer %></dd>
 <dt>Provider wallet principal</dt><dd><%= amount %></dd>
-<% if(physicalCash){ %>
+<% if(typeof physicalCash!=='undefined'&&physicalCash){ %>
 <dt>Actual physical cash <%= record.operation==='cash_out'?'paid':'received' %></dt><dd><%= physicalCash %></dd>
 <dt>Approved Forex rate</dt><dd><%= record.fxRateSide %> · <%= record.fxRateDecimal %> <%= record.cashCurrency %> per <%= record.currency %></dd>
 <dt>Linked internal settlement ID</dt><dd><%= record.linkedSettlementId %></dd>

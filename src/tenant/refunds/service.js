@@ -77,10 +77,9 @@ function equivalent(row,sourceId,actor,v){return String(row.sourceId)===String(s
  row.evidenceReference===v.evidenceReference&&row.senderPhone===v.senderPhone;}
 async function context(conn,tenant,actor,permission){
  assertTenant(conn,tenant);feature();
- const current=await auth.fenceAction; // Actual role/tenant fencing occurs INSIDE every write transaction.
  if(!actor?.id||!hasPermission(actor,permission)||!hasModuleForUser(tenant,actor,'money_transfer'))
   throw fail('Money Transfer refund access is unavailable',403);
- return current;
+ return true;
 }
 async function request(conn,tenant,actor,sourceId,input={}){
  await context(conn,tenant,actor,'money_transfer.create');

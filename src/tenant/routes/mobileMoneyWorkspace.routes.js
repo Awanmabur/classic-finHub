@@ -86,7 +86,7 @@ module.exports=function routes({renderTenant}){
    res.set('Cache-Control','private, no-store');
    renderTenant(req,res,'mobile-money/fx','Cross-currency Mobile Money',
     'Approved exchange-rate preview using actual wallet and cash balances; no provider transaction is executed.',
-    {wallets,drawers,result,error,input:req.query,selectedBranchId:String(branch._id)});
+    {wallets,drawers,result,error,input:req.query,selectedBranchId:String(branch._id),formatMoneyMinor:require('../services/mobileMoney.service').formatMoneyMinor});
   }catch(e){next(e);}
  });
  router.get('/fx/preview',async(req,res,next)=>{

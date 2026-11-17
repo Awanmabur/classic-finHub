@@ -53,6 +53,13 @@ async function processOne(conn,tenant,workerId,sendOverride){
   return finish(dead?'dead':'retry',{failureCode:code,availableAt:new Date(Date.now()+retryDelay(row.attempts))});
  }
 }
+async function closeAfterRefund(conn,executionId,session){
+ if(!session?.inTransaction())throw new Error('Refund SMS suppression must share the financial transaction');
+ return model(conn).updateMany({executionId:oid(executionId),state:{$nin:['accepted','suppressed']}},
+  {$set:{state:'suppressed',failureCode:'SMS_TRANSFER_REFUNDED',
+    leaseToken:null,leaseUntil:null},
+   $unset:{payloadEncrypted:''},$inc:{revision:1}},{session});
+}
 async function closeAfterPayout(conn,executionId,session){
  if(!session)throw new Error('Transfer SMS closure requires a transaction');
  // Fence an in-flight worker as well. A provider request already submitted
@@ -71,4 +78,4 @@ async function requeue(conn,messageId,content,session){
  const changed=await model(conn).findOneAndUpdate({_id:previous._id,state:previous.state,revision:previous.revision,redrives:previous.redrives||0},{$set:{payloadEncrypted,state:'pending',attempts:0,lastRequeuedAt:new Date(),availableAt:new Date(),leaseToken:null,leaseUntil:null,failureCode:null},$inc:{revision:1,redrives:1}},{new:true,session});
  if(!changed)throw Object.assign(new Error('Transfer SMS status changed; reload before retrying'),{status:409});return publicRecord(changed.toObject());
 }
-module.exports={closeAfterPayout,enqueue,summary,record,validateConfig,processOne,requeue,claimOne,classify,retryDelay,publicRecord,ensureIndexes,binding,mask,MAX_ATTEMPTS};
+module.exports={closeAfterRefund,closeAfterPayout,enqueue,summary,record,validateConfig,processOne,requeue,claimOne,classify,retryDelay,publicRecord,ensureIndexes,binding,mask,MAX_ATTEMPTS};

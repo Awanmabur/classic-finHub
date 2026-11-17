@@ -108,6 +108,18 @@ async function main(){
  const deposit=await exercise('deposit_cash_send_provider','50');
  assert.equal(deposit.q.cashAmountMinor,'5000');
  assert.deepEqual(await balances(),{wallet:'1050',drawer:'46000'});
+ const beforeSecurityChecks=await balances();
+ await assert.rejects(settleVerified(conn,tenant,owner,{
+  ...withdraw.input,idempotencyKey:crypto.randomUUID(),
+  providerReference:'FORGED-'+nonce
+ },{...withdraw.proof,providerReference:'FORGED-'+nonce}),
+  error=>error.status===403&&/signature/.test(error.message),
+  'a user-edited provider reference must invalidate provider proof');
+ await assert.rejects(settleVerified(conn,tenant,owner,{
+  ...withdraw.input,idempotencyKey:crypto.randomUUID()
+ },withdraw.proof),error=>error.status===409&&/already/.test(error.message),
+  'a different request key cannot double-spend the same provider receipt');
+ assert.deepEqual(await balances(),beforeSecurityChecks,'forged or replayed provider receipts must never move custody');
  assert.equal(await records(conn).countDocuments({tenantId:tenant._id}),2);
  for(const currency of ['UGX','SSP'])
   assert.equal((await require('../src/tenant/services/ledger.service').trialBalance(conn,{branchId:branch._id,currency})).balanced,true);

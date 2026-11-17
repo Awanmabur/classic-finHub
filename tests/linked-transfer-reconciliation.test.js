@@ -9,7 +9,7 @@ const ID={
  destination:'507f1f77bcf86cd799439012',source:'507f1f77bcf86cd799439013',
  collection:'507f1f77bcf86cd799439014',payout:'507f1f77bcf86cd799439015'};
 const slug='linked-reconciliation-test';
-const tenant={...entitledTenant({enabledModules:['money_transfer','forex']}),slug,
+const tenant={...entitledTenant({plan:'enterprise',enabledModules:['money_transfer','forex']}),_id:ID.tenant,slug,
  dbName:tenantDbNameFromSlug(slug)};
 const owner={id:ID.tenant,role:'Tenant Owner',permissions:['*'],allowedModules:['money_transfer','forex']};
 const row={

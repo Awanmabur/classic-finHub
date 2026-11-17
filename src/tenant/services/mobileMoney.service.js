@@ -37,6 +37,10 @@ function validate(input, operation) {
   const currency = require('../pricing/networkTariffs').NETWORKS[network]?.currency || input.currency;
   if(require('../pricing/networkTariffs').NETWORKS[network]?.currency && input.currency !== undefined && input.currency !== currency)
     throw bad('The selected network determines the currency. Reload the transaction and try again.',409);
+  const cashCurrency=input.cashCurrency||currency;
+  if(!Object.hasOwn(currencies,cashCurrency))throw bad('Choose a supported native physical cash currency');
+  const fxRateId=String(input.fxRateId||'');
+  if(cashCurrency!==currency&&!/^[a-f0-9]{24}$/i.test(fxRateId))throw bad('Choose an independently approved exchange rate for this currency pair');
   const networkReference = String(input.networkReference || '').trim();
   const idempotencyKey = String(input.idempotencyKey || '');
   if (customer.length < 2 || customer.length > 120 || !networks.includes(network)) throw bad('Customer and network are required');
@@ -63,12 +67,16 @@ function validate(input, operation) {
   const feeTreatment=input.feeTreatment||'record_only';if(!['record_only','payment_collected','wallet_commission'].includes(feeTreatment))throw bad('Choose a valid fee treatment');
   const observedWalletBalance=input.observedWalletBalance||'',observationEvidenceReference=input.observationEvidenceReference||'';
   if(typeof observedWalletBalance!=='string'||observedWalletBalance.length>32||typeof observationEvidenceReference!=='string'||observationEvidenceReference.length>120||/[\u0000-\u001f\u007f]/.test(observationEvidenceReference))throw bad('Enter a valid actual balance and evidence reference');
-  return { operation, customer, customerPhone, customerNote, paymentMethod, network, networkReference, currency, amountMinor, feeMinor, idempotencyKey,...selected,feeTreatment,observedWalletBalance:observedWalletBalance.trim(),observationEvidenceReference:observationEvidenceReference.trim() };
+  if(cashCurrency!==currency&&paymentMethod!=='Cash')throw bad('Cross-currency customer settlement requires actual physical cash');
+  return { operation, customer, customerPhone, customerNote, paymentMethod, network, networkReference, currency,
+   cashCurrency,fxRateId:cashCurrency===currency?null:fxRateId,amountMinor,feeMinor,idempotencyKey,...selected,feeTreatment,observedWalletBalance:observedWalletBalance.trim(),observationEvidenceReference:observationEvidenceReference.trim() };
 }
 function sameDetails(record,values,{feeTreatmentSpecified=true}={}){
   return ['amountMinor','feeMinor','currency','customer','network','networkReference','customerPhone','customerNote','paymentMethod']
     .every(key=>String(record[key]??(key==='paymentMethod'?'Cash':key==='customerPhone'||key==='customerNote'?'':undefined))===String(values[key])) &&
     (!feeTreatmentSpecified||String(record.feeTreatment||'record_only')===String(values.feeTreatment||'record_only')) &&
+    String(record.cashCurrency||record.currency)===String(values.cashCurrency)&&
+    String(record.fxRateId||'')===String(values.fxRateId||'') &&
     ['walletAccountId','paymentAccountId','customerAccountId'].every(key=>!values[key]||String(record[key]||'')===String(values[key])) &&
     (!values.observedWalletBalance||String(record.observedWalletBalance||'')===values.observedWalletBalance);
 }
@@ -85,6 +93,14 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
   if(sourceContext !== null && (!sourceContext || typeof sourceContext !== 'object' || Array.isArray(sourceContext) ||
     Object.keys(sourceContext).length !== 1 || !/^[a-f0-9]{24}$/i.test(String(sourceContext.smsInboxId || ''))))
     throw bad('Invalid trusted SMS source context',400);
+  const linkedCurrency=values.cashCurrency!==values.currency;
+  // Do not permit direct HTTP clients to bypass the launch gate. Preview
+  // availability and cash-posting authorization are separate controls.
+  if(linkedCurrency&&process.env.CLASSICFIN_LINKED_CURRENCY_POSTING!=='enabled')
+    throw bad('Cross-currency financial posting has not been enabled for this deployment',403);
+  // Trusted SMS describes provider e-money, not the local SSP cash handed over.
+  // A separate cashier-confirmed cross-currency path must never be auto-posted from SMS alone.
+  if(linkedCurrency&&sourceContext)throw bad('Confirm the actual cross-currency cash handover through the cashier workflow; do not auto-post cash from an SMS',409);
   const source = sourceContext ? {entrySource:'sms',smsInboxId:String(sourceContext.smsInboxId)} : {entrySource:'manual'};
   if(!require('./moduleAccess.service').hasModule(tenant,'mobile_money'))throw bad('An active Mobile Money module subscription is required',403);
   const operatingBranch=await require('./transactionBranch.service').resolveTransactionBranch(conn,operator,input);
@@ -112,8 +128,9 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
       const branch=await branchModel(conn).findOneAndUpdate({_id:requestedBranchId,status:'active'},{$inc:{revision:1}},{session,new:true});
       if(!branch)throw bad('Assigned branch is inactive or unavailable',409);
       require('./branchCurrency.service').resolve(branch,values.currency);
+      if(linkedCurrency)require('./branchCurrency.service').resolve(branch,values.cashCurrency);
       if(smsAuthorization?.receivedAt)
-        await require('./cashDrawer.service').assertSmsWithinShift(conn,session,authorization.actor,branch._id,values.currency,smsAuthorization.receivedAt);
+        await require('./cashDrawer.service').assertSmsWithinShift(conn,session,authorization.actor,branch._id,values.cashCurrency,smsAuthorization.receivedAt);
       const pricing=await require('../pricing/apply').resolve(conn,authorization.tenant,branch,input,{operation:'mobile_money.'+operation,currency:values.currency,amountMinor:values.amountMinor,network:values.network,providedMinor:values.feeMinor,session,source:sourceContext?'sms':'manual'});
       if(pricing){values.pricing=pricing;values.feeMinor=BigInt(pricing.feeMinor);if(values.feeMinor>values.amountMinor)throw bad('Configured fee cannot exceed the amount',409);}
       // Immutable informational reference only. Approved network tariff quotes
@@ -135,16 +152,27 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
       // Wallet and bank are declared receipt methods, not verified integrations.
       // Only physical Cash records may change a verified drawer or join a shift.
       const funds=require('./mobileMoneyFunds.service');
-      const tracking=await funds.shouldTrack(conn,authorization.tenant,values,options.requireFunds===true);
+      const tracking=linkedCurrency||await funds.shouldTrack(conn,authorization.tenant,values,options.requireFunds===true);
       if(['mGURUSH','Digi Cash'].includes(values.network)&&!tracking)
        throw bad('Configure an independently approved provider float wallet before recording transactions on this new network.',409);
       // Daily transactions use the configured funds book. Actual balance checks
       // belong on the wallets page; an SMS can still attach its dated balance.
-      const funding=tracking?await funds.apply(conn,session,authorization,{...values,branchId:branch._id},{receivedAt:smsAuthorization?.receivedAt,feeTreatmentSpecified,expectedFeeTreatment,useConfiguredPolicy:options.requireFunds===true}):{};
-      const cashSessionId=values.paymentMethod==='Cash'?await require('./cashDrawer.service').attachRecord(conn,session,authorization.actor,branch._id,values.currency,operation,BigInt(values.amountMinor),{...(smsAuthorization?{receivedAt:smsAuthorization.receivedAt}:{}),bookManaged:tracking}):null;
+      let linkedPosting=null;
+      const funding=linkedCurrency?
+       (linkedPosting=await require('../settlements/mobileMoneyPosting').apply(conn,session,authorization,branch,values,{
+        cashHandoverConfirmed:input.cashHandoverConfirmed===true||input.cashHandoverConfirmed==='on'
+       })).funding:
+       tracking?await funds.apply(conn,session,authorization,{...values,branchId:branch._id},{receivedAt:smsAuthorization?.receivedAt,feeTreatmentSpecified,expectedFeeTreatment,useConfiguredPolicy:options.requireFunds===true}):{};
+      const cashMinor=linkedCurrency?BigInt(linkedPosting.quote.actualCashMinor):BigInt(values.amountMinor);
+      const cashSessionId=values.paymentMethod==='Cash'?await require('./cashDrawer.service').attachRecord(conn,session,authorization.actor,branch._id,values.cashCurrency,operation,cashMinor,{...(smsAuthorization?{receivedAt:smsAuthorization.receivedAt}:{}),bookManaged:tracking}):null;
       const risk=require('./mobileMoneyRisk.service');
       const riskSignals=await risk.assess(conn,session,Model,values,branch._id,funding);
-      [created] = await Model.create([{ ...values, ...source,...tariffEstimates,...publicReferences,...funding, cashSessionId, branchId:branch._id, amountMinor: String(values.amountMinor), feeMinor: String(values.feeMinor), operatorId: operator.id, status: 'recorded', reviewState: 'not_required',riskSignals }], { session });
+      const linkedId=linkedPosting?new (require('mongoose').Types.ObjectId)():null;
+      [created] = await Model.create([{ ...values, ...source,...tariffEstimates,...publicReferences,...funding,
+       ...(linkedId?{linkedSettlementId:linkedId}:{}),cashSessionId,branchId:branch._id,
+       amountMinor:String(values.amountMinor),feeMinor:String(values.feeMinor),operatorId:operator.id,
+       status:'recorded',reviewState:'not_required',riskSignals }],{session});
+      if(linkedPosting)await require('../settlements/mobileMoneyPosting').link(conn,session,authorization,authorization.actor,created,linkedId,linkedPosting);
       await Audit.create([{
         action: `mobile_money.${operation}.recorded`, actorId: operator.id, targetId: created._id,
         metadata: { currency: values.currency, amountMinor: values.amountMinor, network: values.network, paymentMethod:values.paymentMethod, branchId: String(created.branchId),riskSignals }
@@ -270,6 +298,23 @@ async function decideVoid(conn,reviewer,recordId,decision,note){
         if(!tenant)throw bad('The funded workspace is unavailable',403);
         const authorization=await require('./financialAuthorization.service').fenceAction(conn,session,reviewer,tenant,'mobile_money','mobile_money.review');
         await require('../treasury/service').reverseMovements(conn,session,authorization,{sourceType:'mobile_money',sourceRef:record.fundsSourceRef,reversalSourceRef:`MM-VOID:${record._id}`,description:reason});
+        if(record.linkedSettlementId){
+          // Never leave the linked FX record claiming an active settlement
+          // after its cash/float books have been reversibly corrected.
+          const Linked=require('../settlements/models').models(conn);
+          const linked=await Linked.settlement.findOneAndUpdate({
+           _id:record.linkedSettlementId,sourceModule:'mobile_money',sourceId:record._id,
+           status:'posted'
+          },{$set:{status:'reversed',reversedAt:new Date()},$inc:{revision:1}},{session,new:true}).lean();
+          if(!linked)throw bad('Linked currency settlement was already corrected or cannot be reconciled',409);
+          const digest=require('node:crypto').createHash('sha256')
+           .update('MM-VOID:'+String(record._id)+':'+String(linked._id)).digest('hex');
+          await Linked.event.create([{
+           tenantId:tenant._id,settlementId:linked._id,branchId:record.branchId,
+           stage:'reversed',evidenceSource:'internal_journal',evidenceDigest:digest,
+           observedAt:new Date(),recordedBy:reviewer.id
+          }],{session});
+        }
       }else if(record.cashSessionId){
         const movement=BigInt(String(record.physicalCashMovementMinor??record.amountMinor))*(record.physicalCashMovementMinor==null?(record.operation==='cash_in'?1n:-1n):1n);
         await require('./cashDrawer.service').fenceRecordChange(conn,session,record,decision==='approve'?-movement:0n);

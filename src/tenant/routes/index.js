@@ -53,6 +53,8 @@ function renderTenant(req, res, view, pageTitle, pageSub, data) {
 }
 router.use('/backups',require('../backups/routes')({renderTenant}));
 router.use('/treasury',require('../treasury/routes')({renderTenant}));
+// The shared currency flow is quote-only until the atomic posting gates are complete.
+router.use('/settlements/preview',require('./linkedSettlementPreview.routes'));
 router.use('/funded',require('./fundedOperations.routes')({renderTenant}));
 router.use(require('./cashControl.routes')({renderTenant}));
 router.use(require('./dayControl.routes')({renderTenant,recordScope}));

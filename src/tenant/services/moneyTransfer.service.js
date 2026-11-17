@@ -301,10 +301,12 @@ async function branchBalances(conn,tenant,actor){
  const branches=await branchModel(conn).find(branchScope(actor).branchId?{_id:branchScope(actor).branchId}:{}).select('name').lean(),names=new Map(branches.map(row=>[String(row._id),row.name])),rows=new Map();
  const totals=await require('../models').ledgerPostingModel(conn).aggregate([{$match:{accountId:{$in:counters.map(row=>row.ledgerAccountId)}}},{$group:{_id:{accountId:'$accountId',side:'$side'},amount:{$sum:'$amountMinor'}}}]);
  for(const counter of counters){const key=String(counter.branchId)+':'+counter.currency,row=rows.get(key)||{branch:names.get(String(counter.branchId))||'Branch',currency:counter.currency,payable:0n,receivable:0n};let net=0n;for(const total of totals.filter(total=>String(total._id.accountId)===String(counter.ledgerAccountId)))net+=BigInt(String(total.amount))*(total._id.side==='debit'?1n:-1n);if(counter.purpose==='interbranch_payable')row.payable=-net;else row.receivable=net;rows.set(key,row);}
- const reconciliation=await require('../settlements/transferReconciliation')
-  .inspect(conn,tenant,actor,branchScope(actor));
+ const [reconciliation,recovery]=await Promise.all([
+  require('../settlements/transferReconciliation').inspect(conn,tenant,actor,branchScope(actor)),
+  require('../settlements/transferRecovery').list(conn,tenant,actor,branchScope(actor))
+ ]);
  return {rows:[...rows.values()].map(row=>({...row,payable:mobile.formatMoneyMinor(String(row.payable),row.currency),receivable:mobile.formatMoneyMinor(String(row.receivable),row.currency)})),
-  reconciliation};
+  reconciliation,recovery};
 }
 // Old direct payout entrypoints must remain explicitly blocked.
 const sendMoney=()=>unavailable('moneyTransfer sendMoney');

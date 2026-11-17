@@ -27,8 +27,16 @@ function receipt(value,label){
   throw fail('Signed cash receipt reference must use letters, digits, dot, slash, dash, colon or underscore',400);
  return v;
 }
-function feature(){if(process.env.CLASSICFIN_INTERBRANCH_CASH_SETTLEMENT!=='enabled')
- throw fail('Actual interbranch cash reimbursement is not enabled on this deployment',403);}
+function feature(){
+ if(process.env.CLASSICFIN_INTERBRANCH_CASH_SETTLEMENT!=='enabled')
+  throw fail('Actual interbranch cash reimbursement is not enabled on this deployment',403);
+ // The physical handover can precede final journal posting. Until a
+ // transaction-safe source drawer reservation and verified return path exist,
+ // never expose spendable-in-transit cash to live customer operations, even
+ // when a deployment operator accidentally enables the feature flag.
+ if(process.env.NODE_ENV==='production')
+  throw fail('Production interbranch cash reimbursement is blocked until cash-in-transit reservations and return recovery are implemented',403);
+}
 function context(conn,tenant,actor){
  if(!tenant?._id||!tenant?.slug||tenant.dbName!==conn?.name||
   conn.name!==tenantDbNameFromSlug(tenant.slug))

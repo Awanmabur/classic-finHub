@@ -22,7 +22,7 @@ const commerce=require('../src/platform/services/commercial.service');
 const treasury=require('../src/tenant/treasury/service'),tm=require('../src/tenant/treasury/models');
 const forex=require('../src/tenant/services/forex.service');
 const {preview}=require('../src/tenant/services/momoFxPreview.service');
-const {settleVerified}=require('../src/tenant/services/momoFxSettlement.service');
+const {settleVerified,settleManuallyConfirmed}=require('../src/tenant/services/momoFxSettlement.service');
 const {records,grants}=require('../src/tenant/schemas/MomoFxSettlement');
 const cash=require('../src/tenant/services/cashDrawer.service');
 const {permissionsFor}=require('../src/config/roles');
@@ -108,6 +108,18 @@ async function main(){
  const deposit=await exercise('deposit_cash_send_provider','50');
  assert.equal(deposit.q.cashAmountMinor,'5000');
  assert.deepEqual(await balances(),{wallet:'1050',drawer:'46000'});
+ const manualQuote=await preview(conn,tenant,owner,branch,{operation:'withdraw_provider_receive_cash',
+  walletAccountId:String(wallet._id),cashAccountId:String(drawer._id),providerAmountMinor:'10'});
+ const manualInput={...manualQuote,branchId:String(branch._id),idempotencyKey:crypto.randomUUID(),
+  providerReference:'MANUAL-'+crypto.randomBytes(8).toString('hex'),
+  providerAppConfirmed:'yes',cashHandoverConfirmed:'yes'};
+ const manual=await settleManuallyConfirmed(conn,tenant,owner,manualInput);
+ assert.equal(manual.record.providerSettlementState,'unverified');
+ assert.equal(manual.record.providerEvidenceKind,'operator_attested');
+ assert.equal(manual.record.providerVerifiedAt,null);
+ assert.equal((await settleManuallyConfirmed(conn,tenant,owner,manualInput)).duplicate,true);
+ assert.deepEqual(await balances(),{wallet:'1060',drawer:'45100'});
+
  const beforeSecurityChecks=await balances();
  await assert.rejects(settleVerified(conn,tenant,owner,{
   ...withdraw.input,idempotencyKey:crypto.randomUUID(),
@@ -120,7 +132,7 @@ async function main(){
  },withdraw.proof),error=>error.status===409&&/already/.test(error.message),
   'a different request key cannot double-spend the same provider receipt');
  assert.deepEqual(await balances(),beforeSecurityChecks,'forged or replayed provider receipts must never move custody');
- assert.equal(await records(conn).countDocuments({tenantId:tenant._id}),2);
+ assert.equal(await records(conn).countDocuments({tenantId:tenant._id}),3);
  for(const currency of ['UGX','SSP'])
   assert.equal((await require('../src/tenant/services/ledger.service').trialBalance(conn,{branchId:branch._id,currency})).balanced,true);
  const bad=await preview(conn,tenant,owner,branch,{operation:'withdraw_provider_receive_cash',walletAccountId:String(wallet._id),
@@ -135,7 +147,7 @@ async function main(){
 
  assert.deepEqual(await balances(),existingBalance,'both custody movements must roll back together');
  assert.equal(await records(conn).countDocuments(),originalCount,'failed exchange cannot appear settled');
- assert.equal(await tm.models(conn).batch.countDocuments({sourceRef:{$regex:/^MFX:/}}),2,'failed exchange cannot create a journal batch');
+ assert.equal(await tm.models(conn).batch.countDocuments({sourceRef:{$regex:/^MFX:/}}),3,'failed exchange cannot create a journal batch');
  console.log('PASS: approved bid/ask quote, opposite UGX/SSP cash directions, atomic native-currency journals, no duplicate settlement, insufficient-cash rollback, and truthful unmeasured FX profit.');
 }
 async function cleanup(){

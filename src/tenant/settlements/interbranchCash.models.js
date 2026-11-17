@@ -16,10 +16,17 @@ const schema=new Schema({
  idempotencyKey:{type:String,required:true,immutable:true,match:/^[a-f0-9-]{36}$/i},
  evidenceReference:{type:String,required:true,immutable:true,maxlength:120},
  note:{type:String,required:true,immutable:true,maxlength:400},
- status:{type:String,enum:['pending_receiver','pending_review','rejected','posted'],default:'pending_receiver',required:true},
+ status:{type:String,enum:['pending_receiver','pending_review','return_pending','return_verified','returned','posted'],default:'pending_receiver',required:true},
  activeKey:{type:String,maxlength:100},
  receivedBy:{type:O,default:null},receiverConfirmedAt:{type:Date,default:null},
  receiverNote:{type:String,maxlength:400,default:null},
+ reservedAt:{type:Date,default:null},
+ returnReference:{type:String,maxlength:120,default:null},
+ returnNote:{type:String,maxlength:400,default:null},
+ returnConfirmedBy:{type:O,default:null},
+ returnConfirmedAt:{type:Date,default:null},
+ returnApprovedBy:{type:O,default:null},
+ returnApprovedAt:{type:Date,default:null},
  reviewedBy:{type:O,default:null},
  reviewedAt:{type:Date,default:null},
  reviewNote:{type:String,maxlength:400,default:null},
@@ -35,6 +42,9 @@ schema.index({activeKey:1},{unique:true,partialFilterExpression:{activeKey:{$typ
 schema.index({branchId:1,createdAt:-1});
 schema.index({tenantId:1,branchId:1,evidenceReference:1},
  {unique:true,name:'unique_sender_handover_receipt_per_branch'});
+schema.index({tenantId:1,returnReference:1},
+ {unique:true,partialFilterExpression:{returnReference:{$type:'string'}},
+ name:'unique_actual_sender_return_receipt'});
 schema.index({tenantId:1,receiverReceiptReference:1},
  {unique:true,partialFilterExpression:{receiverReceiptReference:{$type:'string'}},
   name:'unique_actual_receiving_cashier_receipt'});

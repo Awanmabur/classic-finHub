@@ -165,7 +165,7 @@ async function postedForexActivity(conn,tenant,user,branch,period={}){
   if(!['buy','sell'].includes(snap.operation)||!currencyCodes.includes(snap.fromCurrency)||
    !currencyCodes.includes(snap.toCurrency))continue;
   const amount=String(snap.sourceMinor||'');
-  if(!/^\\d+$/.test(amount))continue;
+  if(!/^\d+$/.test(amount))continue;
   const target=snap.operation==='buy'?bought:sold;
   target.set(snap.fromCurrency,(target.get(snap.fromCurrency)||0n)+BigInt(amount));
   count++;

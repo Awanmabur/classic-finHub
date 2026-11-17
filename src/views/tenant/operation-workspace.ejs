@@ -16,6 +16,31 @@ const reportMode=!['records','pending','payout'].includes(data.mode);
 %>
 <section class="view show">
  <%- include('partials/module-finance',{moduleKey}) %>
+ <% if(data.mode==='report'){ 
+    // These operational counts come from the already-authorized report rows.
+    // Never use Treasury balances or add monetary amounts across currencies.
+    const pendingStates={
+     money_transfer:['requested','approved_pending_provider','collected_manual'],
+     banking:['requested','approved_pending_bank'],
+     forex:['quoted','approved_pending_execution']
+    }[moduleKey]||[];
+    const postedStates={
+     money_transfer:['paid_out_manual'],
+     banking:['posted_manual'],
+     forex:['posted_manual']
+    }[moduleKey]||[];
+    const countFor=states=>(data.rows||[]).reduce((sum,row)=>sum+(states.includes(row.status)?Number(row.count||0):0),0);
+    const currencyGroups=new Set((data.rows||[]).map(row=>row.currency).filter(Boolean)).size;
+ %>
+ <section class="financialModuleOverview" aria-label="<%= data.label %> operational report statistics">
+  <div class="grid3 overviewStatsGrid moduleStatsGrid">
+   <div class="stat"><div class="k">Records in selected period</div><div class="v"><%= data.total %></div><div class="s">All statuses in your authorized report scope</div></div>
+   <div class="stat"><div class="k">Awaiting next step</div><div class="v"><%= countFor(pendingStates) %></div><div class="s">Pending instructions, quotes or collections</div></div>
+   <div class="stat"><div class="k">Posted / paid out internally</div><div class="v"><%= countFor(postedStates) %></div><div class="s">Internal state only; not proof of provider settlement</div></div>
+   <div class="stat"><div class="k">Currencies represented</div><div class="v"><%= currencyGroups %></div><div class="s">Counts only; monetary volumes remain separate</div></div>
+  </div>
+ </section>
+ <% } %>
  <section class="card">
   <div class="cardHead"><b><%= data.title %></b><span><%= data.total %> internal record<%= data.total===1?'':'s' %> in range</span></div>
   <div class="cardBody">

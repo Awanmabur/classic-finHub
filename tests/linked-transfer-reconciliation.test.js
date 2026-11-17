@@ -64,3 +64,21 @@ test('scoped reconciliation rejects cross-tenant data, weak roles and unassigned
   {branchId:'not-an-id'}),{status:403});
  assert.equal(LIMIT,50);
 });
+
+
+test('the approved Money Transfer balance page renders native sender/recipient currencies and escapes references',async()=>{
+ const ejs=require('ejs'),path=require('node:path');
+ const record=stateFor({...row,sourceReference:'<script>alert(1)</script>'},order,false,
+  ['cash_collected','cash_paid']);
+ const html=await ejs.renderFile(path.resolve(__dirname,
+  '../src/views/tenant/money-transfer/branch-balances.ejs'),{
+  data:{rows:[{branch:'Receiver office',currency:'USD',
+    receivable:'USD 5.00',payable:'USD 0.00'}],
+   reconciliation:{items:[record],hasMore:false,reviewCount:0}}
+ });
+ assert.match(html,/SSP 650\.00/);
+ assert.match(html,/USD 5\.00/);
+ assert.match(html,/remain until independently reconciled/);
+ assert.match(html,/&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+ assert.doesNotMatch(html,/<script>alert\(1\)<\/script>/);
+});

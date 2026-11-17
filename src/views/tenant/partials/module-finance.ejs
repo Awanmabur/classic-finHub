@@ -1,11 +1,15 @@
 <% const moduleFinance=typeof data.financeOverview==='object'&&data.financeOverview?data.financeOverview:{};
    const modulePosting=(moduleFinance.moduleEarnings||[]).find(item=>item.moduleKey===moduleKey)||{};
    const moduleAssets=(moduleFinance.byModule||[]).find(item=>item.moduleKey===moduleKey)?.totals||[];
+   const sharedTreasuryAssets=(moduleFinance.byModule||[]).find(item=>item.moduleKey==='shared')?.totals||[];
+   const showSharedForex=moduleKey==='forex'&&!moduleAssets.length&&sharedTreasuryAssets.length>0;
    const financialCards=[
-    {title:'Operating assets · book',items:moduleAssets,empty:'No module-specific asset account',note:'Shared cash is counted once in Treasury, not attributed to every module.'},
-    {title:'Posted income · '+(moduleFinance.periodLabel||'today'),items:modulePosting.income||[],empty:'No posted income',note:'Only recognized ledger postings, not estimates or customer fees charged by a provider.'},
-    {title:'Posted expenses · '+(moduleFinance.periodLabel||'today'),items:modulePosting.expenses||[],empty:'No posted expenses',note:'Only approved, actually posted ledger expenses.'},
-    {title:'Posted net income · '+(moduleFinance.periodLabel||'today'),items:modulePosting.net||[],empty:'No posted income or expenses',note:moduleKey==='forex'?'Excludes trading profit until purchase cost basis and sales can be matched.':'Posted income less posted expenses; not a valuation of unmeasured costs.'}
+    {title:showSharedForex?'Shared Treasury · reference':'Operating assets · book',items:showSharedForex?sharedTreasuryAssets:moduleAssets,
+      empty:moduleKey==='forex'?'Set up Forex stock and settlement balances in Treasury':'No opened module-specific accounts',
+      note:showSharedForex?'These shared balances are shown for context only, not allocated to Forex or added again to total assets.':'Only actual opened financial accounts appear here; shared balances are held once in Treasury.'},
+    {title:'Posted income · '+(moduleFinance.periodLabel||'today'),items:modulePosting.income||[],empty:'No income posted',note:'Actual collected fees and recognized income only. Currency trading gains require matched inventory cost.'},
+    {title:'Posted expenses · '+(moduleFinance.periodLabel||'today'),items:modulePosting.expenses||[],empty:'No expenses posted',note:'Actual booked expenses only, not anticipated costs.'},
+    {title:'Posted net income · '+(moduleFinance.periodLabel||'today'),items:modulePosting.net||[],empty:'No posted net income',note:moduleKey==='forex'?'Operating income less booked expenses; Forex trading profit is not fabricated without verified inventory cost basis.':'Posted income less posted expenses.'}
    ]; %>
 <% if(moduleFinance.available){ %>
 <section class="financialModuleOverview" aria-label="Financial summary for this module" style="margin-top:12px">

@@ -42,6 +42,40 @@
         <label class="field" data-mobile-currency-field <%= entryVerifiedMarket(selectedEntryNetwork)?'hidden':'' %>>Currency (derived from network)<select class="control" name="currency" data-mobile-currency required><% entryCurrencyOptions.forEach(option=>{ %><option value="<%= option.code %>" <%= option.code===entryCurrency?'selected':'' %>><%= option.label %></option><% }) %></select></label>
         <label class="field">Amount (<span data-mobile-currency-label><%= entryCurrency %></span>)<input class="control" type="text" inputmode="decimal" name="amount" placeholder="0" pattern="<%= entryAmountPattern %>" required></label>
       </div>
+      <% if(data.crossCurrencyEnabled){
+       // Only approved real cashier-owned drawers are candidates. An operator
+       // cannot create or borrow cash balances through this control.
+       const linkedDrawers=(data.funds?.paymentAccounts||[]).filter(a=>a.kind==='cash'&&a.assignedToOperator&&a.state==='active'&&a.reconciliation==='matched'&&a.expectedMinor!==null);
+       const linkedCurrencies=[...new Set(linkedDrawers.map(a=>a.currency))];
+      %>
+      <div class="formSection" data-linked-currency-area>
+       <div class="formSectionTitle">Customer cash currency · shared Treasury drawer</div>
+       <div class="row2">
+        <label class="field">Actual cash handed over
+         <select class="control" name="cashCurrency" data-linked-cash-currency required>
+          <% linkedCurrencies.forEach(code=>{ %><option value="<%= code %>" <%= code===entryCurrency?'selected':'' %>><%= code==='KES'?'KSH':code %> · existing cashier drawer</option><% }) %>
+         </select>
+        </label>
+        <label class="field" data-linked-rate-field hidden>Approved Forex rate
+         <select class="control" name="fxRateId" data-linked-rate disabled>
+          <option value="">Choose the approved rate</option>
+          <% (data.approvedFxRates||[]).forEach(rate=>{ %>
+           <option value="<%= rate._id %>" data-from="<%= rate.fromCurrency %>" data-to="<%= rate.toCurrency %>" data-side="<%= rate.side %>"><%= rate.fromCurrency %> → <%= rate.toCurrency %> · <%= rate.side==='buy'?'buy':'sell' %> · <%= rate.rateDecimal %></option>
+          <% }) %>
+         </select>
+        </label>
+       </div>
+       <section class="summary" data-linked-preview hidden aria-live="polite">
+        <div class="sumRow"><span data-linked-preview-title>Customer cash movement</span><b data-linked-preview-amount>—</b></div>
+        <div class="sumRow"><span>Provider float movement</span><b data-linked-preview-wallet>—</b></div>
+        <p class="tiny" data-linked-preview-note></p>
+       </section>
+       <label class="field" data-linked-confirm-field hidden>
+        <span><input type="checkbox" name="cashHandoverConfirmed" value="on" data-linked-confirm disabled> I have physically counted and handed over/received the displayed cash amount.</span>
+       </label>
+       <p class="tiny">Cash is recorded only against your existing verified shift. Forex conversion uses approved rates. This does not confirm provider settlement.</p>
+      </div>
+      <% } %>
       <input type="hidden" name="paymentMethod" value="Cash">
       <p class="tiny" data-momo-account-notice hidden aria-live="polite"></p>
       <%- include('_funds-context') %>

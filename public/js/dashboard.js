@@ -249,20 +249,25 @@
       const payment=form.querySelector('[data-payment-account]');
       const paymentField=form.querySelector('[data-payment-account-field]');
       if(payment&&paymentField){
+        const cashCurrency=form.elements.namedItem('cashCurrency')?.value||currency;
         const validAccounts=[];
         for(const option of payment.options){
           if(!option.value)continue;
           const eligible=option.dataset.method==='Cash'&&option.dataset.assigned==='true'&&
-            option.dataset.currency===currency&&option.dataset.state==='active'&&
+            option.dataset.currency===cashCurrency&&option.dataset.state==='active'&&
             option.dataset.reconciliation==='matched'&&option.dataset.opened==='true';
           option.disabled=!eligible;option.hidden=!eligible;
           if(eligible)validAccounts.push(option);
         }
         const configuredDrawer=wallet.selectedOptions?.[0]?.dataset.cashDrawer||'';
+        // A wallet's native-currency drawer mapping must not override a real
+        // SSP drawer during a cross-currency physical cash handover.
+        const applicableMapping=cashCurrency===currency?configuredDrawer:
+          (validAccounts.some(option=>option.value===configuredDrawer)?configuredDrawer:'');
         // Never allow the teller to choose a cash drawer. Server independently
         // recomputes the mapping, checks branch, operator, approval and shift.
-        const mapped=configuredDrawer?validAccounts.filter(option=>option.value===configuredDrawer):[];
-        const resolved=configuredDrawer?
+        const mapped=applicableMapping?validAccounts.filter(option=>option.value===applicableMapping):[];
+        const resolved=applicableMapping?
           (mapped.length===1?mapped[0]:null):
           (validAccounts.length===1?validAccounts[0]:null);
         payment.value=resolved?.value||'';
@@ -273,8 +278,8 @@
         const problem=wallet.value&&!resolved?
           (validAccounts.length===0?
             'No approved cash drawer belongs to this login. Sign in as the operator assigned to the physical drawer and verified cash shift; do not create another drawer.':
-            configuredDrawer?
-              'This wallet is linked to a drawer that is unavailable to this operator. The Tenant Owner should check the account mapping.':
+            applicableMapping?
+              'The wallet-to-drawer mapping is unavailable for this cashier or currency. The Tenant Owner should check Treasury.':
               'More than one approved drawer is available. The Tenant Owner must link this wallet to the correct physical drawer once in Treasury.'):'';
         wallet.setCustomValidity(problem);
         if(notice){notice.textContent=problem;notice.hidden=!problem;}
@@ -282,7 +287,8 @@
       const chosenCash=payment?.value||'';
       const chosenWallet=wallet.value||'';
       for(const stat of form.querySelectorAll('[data-balance-kind]')){
-        stat.hidden=stat.dataset.balanceCurrency!==currency||
+        stat.hidden=(stat.dataset.balanceKind==='wallet'&&stat.dataset.balanceCurrency!==currency)||
+          (stat.dataset.balanceKind==='cash'&&stat.dataset.balanceCurrency!==(form.elements.namedItem('cashCurrency')?.value||currency))||
           (stat.dataset.balanceKind==='wallet'&&stat.dataset.balanceAccount!==chosenWallet)||
           (stat.dataset.balanceKind==='cash'&&stat.dataset.balanceAccount!==chosenCash);
       }
@@ -299,6 +305,7 @@
     };
     network.addEventListener('change',()=>{refresh();update();});method.addEventListener('change',()=>{refresh();update();});
     currencyControl?.addEventListener('change',()=>{refresh();update();});
+    form.elements.namedItem('cashCurrency')?.addEventListener('change',()=>{refresh();update();});
     form.addEventListener('input',update);form.addEventListener('change',update);form.addEventListener('reset',()=>queueMicrotask(()=>{refresh();update();}));
     refresh();update();
   };

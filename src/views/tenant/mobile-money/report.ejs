@@ -8,12 +8,13 @@
    const count=key=>groups.reduce((sum,row)=>sum+(row[key]||0),0);
    const format=(minor,currency)=>data.formatMoneyMinor(minor,currency); %>
 <section class="view show mobileMoneyPage workspaceStack" aria-label="Mobile Money consolidated reporting">
+ <%- include('../partials/module-finance',{moduleKey:'mobile_money'}) %>
  <section class="card">
   <div class="cardHead"><div><b>Mobile Money business report</b><br><span>One view · provider, currency, verified income, cash movements and expenses</span></div>
    <% if(data.canExport){ %><a class="btn" href="/tenant/mobile-money/report/unified.csv?<%= exportParams.toString() %>">Export consolidated CSV</a><% } %>
   </div>
   <div class="cardBody workspaceStack">
-   <p class="tiny">Cash/float principal is not income. Provider commission estimates are not received commission. Customer network charges are not automatically agent earnings. Values are scoped to your accessible branches and records.</p>
+   <p class="tiny">Cash/float principal is not income. Provider commission estimates are not received commission. Customer network charges are not automatically agent earnings. Values are scoped to your accessible branches and records. Cross-currency physical cash (such as SSP paid against UGX float) is shown by actual drawer currency, never added to provider-currency turnover.</p>
    <%- include('_filters',{filterAction:'/tenant/mobile-money/report'}) %>
    <div class="summary">
     <div class="sumRow"><span>Business period (<%= reportZoneLabel %>)</span><b><%= report.window.from %> to <%= report.window.to %></b></div>
@@ -26,6 +27,14 @@
  <section class="card">
   <div class="cardHead"><b>Per-currency operating totals</b><span>Never add different currencies together</span></div>
   <div class="cardBody">
+   <% if((report.cashMovements||[]).length){ %>
+    <div class="summary" aria-label="Real physical cash movement in its native currency">
+     <div class="sumRow"><strong>Physical cash actually moved · native currency</strong><span>Shared Treasury drawers, no conversion of provider principal</span></div>
+     <% report.cashMovements.forEach(row=>{ %>
+      <div class="sumRow"><span><%= row.network %> · <%= row.currency==='KES'?'KSH':row.currency %></span><b><%= row.formatted.replace(/^KES /,'KSH ') %></b></div>
+     <% }) %>
+    </div>
+   <% } %>
    <% if(!totals.length){ %><p class="tiny">No Mobile Money records or posted commission receipts in this period.</p><% } %>
    <% totals.forEach(row=>{ %>
     <div class="mobileMoneyCurrencyBlock">
@@ -33,7 +42,7 @@
      <div class="networkBalanceGrid">
       <div class="networkBalanceStat"><span>Deposits / Withdrawals</span><strong><%= row.depositCount %> / <%= row.withdrawalCount %></strong><small>Recorded entries, voids excluded</small></div>
       <div class="networkBalanceStat"><span>Transaction volume</span><strong><%= row.volumeMinorFormatted %></strong><small>Principal exchanged — not revenue</small></div>
-      <div class="networkBalanceStat"><span>Net cash movement</span><strong><%= row.cashImpactMinorFormatted %></strong><small>Internal physical drawer movement</small></div>
+      <div class="networkBalanceStat"><span>Net cash movement</span><strong><%= row.cashImpactMinorFormatted %></strong><small>Same-currency internal drawer movement; other currencies are listed above</small></div>
       <div class="networkBalanceStat"><span>Provider commission received</span><strong><%= row.receivedCommissionMinorFormatted %></strong><small>Posted from independently reviewed payout evidence</small></div>
       <div class="networkBalanceStat"><span>Explicitly collected agent fees</span><strong><%= row.collectedFeeMinorFormatted %></strong><small>Only payment_collected policy, not provider charges</small></div>
       <div class="networkBalanceStat"><span>Estimated commission</span><strong><%= row.commissionMissingCount&&String(row.estimatedCommissionMinor)==='0'?'Not configured':row.estimatedCommissionMinorFormatted %></strong><small>From approved tenant sheets · <%= row.commissionMissingCount||0 %> transaction(s) without an approved sheet. Published provider reference amounts appear separately below and never count as income.</small></div>

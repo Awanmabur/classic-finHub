@@ -26,7 +26,20 @@ function configurationChecks(input){
  entries.push(check('trusted_proxy_hops',/^[12]$/.test(input.TRUST_PROXY||''),'TRUST_PROXY must match the actual one or two trusted proxy hops.'));
  entries.push(check('port',/^\d+$/.test(input.PORT||'3000')&&Number(input.PORT||3000)>=1&&Number(input.PORT||3000)<=65535,'PORT must be an integer from 1 to 65535.'));
  entries.push(check('provider_execution_disabled',input.REAL_MONEY_ENABLED==='false','REAL_MONEY_ENABLED must remain explicitly false; manual books do not certify provider execution.'));
- entries.push(check('recovery_mail_configured',configured(input.RESEND_API_KEY)&&configured(input.MAIL_FROM)&&/^(?:[^<>\r\n]{1,80}\s<)?[^<>\s@]+@[^<>\s@]+\.[^<>\s@]+>?$/.test(input.MAIL_FROM),'Configure Resend and a verified MAIL_FROM address; delivery still needs a real inbox test.'));
+ // Both mail delivery modes are first-class. The readiness probe must
+ // validate the selected mode, never demand credentials for a provider that
+ // the application is not configured to use.
+ const mailProvider=String(input.MAIL_PROVIDER||'resend').toLowerCase();
+ const validFrom=require('../../config/mail').validFrom;
+ const senderValid=validFrom(input.MAIL_FROM,{gmail:mailProvider==='gmail'});
+ const mailReady=senderValid&&(
+  mailProvider==='gmail'?[
+   input.GMAIL_CLIENT_ID,input.GMAIL_CLIENT_SECRET,input.GMAIL_REFRESH_TOKEN
+  ].every(configured):
+  mailProvider==='resend'&&configured(input.RESEND_API_KEY)
+ );
+ entries.push(check('recovery_mail_configured',mailReady,
+  'Configure the selected Gmail OAuth or Resend provider with an authorized MAIL_FROM; real inbox delivery still needs verification.'));
  let smsValid=false;
  try{require('../../tenant/transferSms/config').validateConfig(input,{worker:true});smsValid=true;}catch{}
  entries.push(check('transfer_sms_configuration',smsValid,'Transfer SMS requires a supported provider, a dedicated encryption key and complete notification-worker credentials when enabled.'));

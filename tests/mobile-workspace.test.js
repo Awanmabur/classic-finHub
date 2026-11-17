@@ -42,5 +42,5 @@ test('receipt metadata is validated and CSV preserves exact money and neutralize
  assert.throws(()=>mobile.validate({...input,paymentMethod:'settled'},'cash_in'),{status:400});
  assert.throws(()=>mobile.validate({...input,customerNote:'x'.repeat(401)},'cash_in'),{status:400});
  const csv=workspace.toCsv([{...values,createdAt:new Date('2026-11-05T10:00:00Z'),amountMinor:'9007199254740993',feeMinor:'1',status:'pending_verification'}]);
- assert.match(csv,/90071992547409\.93/);assert.match(csv,/'=HYPERLINK/);assert.match(csv,/'\+256700123456/);assert.match(csv,/"Wallet Balance","manual"/);assert.match(csv,/,"0\.00"\r\n$/);
+ assert.match(csv,/90071992547409\.93/);assert.match(csv,/'=HYPERLINK/);assert.match(csv,/'\+256700123456/);assert.match(csv,/"Wallet Balance","manual"/);assert.match(csv,/,"0\.00","KES"\r\n$/);
 });

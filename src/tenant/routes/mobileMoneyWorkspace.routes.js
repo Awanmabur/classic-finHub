@@ -22,6 +22,13 @@ module.exports=function routes({renderTenant}){
    const filters=market.withDefaultFilters(req.query,realWallets);
    const reportData=report?await require('../services/mobileMoneyUnifiedReport.service').generate(
     req.tenantDb,req.tenant,req.user,filters,reportZone):null;
+   const crossCurrencyEnabled=process.env.CLASSICFIN_LINKED_CURRENCY_POSTING==='enabled' &&
+    require('../services/moduleAccess.service').hasModule(req.tenant,'forex');
+   const approvedFxRates=crossCurrencyEnabled&&operation&&req.operationBranch?
+    await require('../models').forexRateModel(req.tenantDb).find({
+     branchId:req.operationBranch._id,status:'active',expiresAt:{$gt:new Date()},
+     side:{$in:['buy','sell']},reviewedBy:{$ne:null},reviewedAt:{$ne:null}
+    }).select('_id fromCurrency toCurrency side rateDecimal expiresAt').sort({createdAt:-1}).limit(100).lean():[];
    const [data,branches,pricingContext]=await Promise.all([
     workspace.workspace(req.tenantDb,req.user,report?{}:filters,{operation,timeZone:reportZone}),branchService.list(req.tenant),
     operation?require('../pricing/presentation').context(req.tenantDb,req.tenant,req.operationBranch,'mobile_money'):[]
@@ -35,7 +42,13 @@ module.exports=function routes({renderTenant}){
    const mobileCurrency=req.operationBranch&&selectedMarket?
     branchCurrency.resolve(req.operationBranch,selectedMarket.currency):
     req.operationBranch&&operation?branchCurrency.resolve(req.operationBranch,req.query.currency):null;
-   renderTenant(req,res,`mobile-money/${view}`,title,subtitle,{...data,reportData,networkMarkets:marketOptions,networksAvailable:marketOptions.length?[...new Set(marketOptions.map(x=>x.network))]:data.networksAvailable,filters:report?{...data.filters,network:filters.network||'',currency:filters.currency||'',from:reportData.window.from,to:reportData.window.to}:data.filters,operation,pricingContext,commissionReceived,formatMoneyMinor:require('../services/mobileMoney.service').formatMoneyMinor,idempotencyKey:randomUUID(),
+   const financeOverview=['report','cash-impact','network'].includes(view)?
+    await require('../services/financeOverview.service').moduleOverview(
+     req.tenantDb,req.tenant,req.user,req.operationBranch,{
+      ...(reportData?.window?{from:reportData.window.from,to:reportData.window.to}:{}),
+      timeZone:reportZone,viewBranchId:req.viewBranchId,viewBranch:req.viewBranch
+     }):undefined;
+   renderTenant(req,res,`mobile-money/${view}`,title,subtitle,{...data,crossCurrencyEnabled,approvedFxRates,financeOverview,reportData,networkMarkets:marketOptions,networksAvailable:marketOptions.length?[...new Set(marketOptions.map(x=>x.network))]:data.networksAvailable,filters:report?{...data.filters,network:filters.network||'',currency:filters.currency||'',from:reportData.window.from,to:reportData.window.to}:data.filters,operation,pricingContext,commissionReceived,formatMoneyMinor:require('../services/mobileMoney.service').formatMoneyMinor,idempotencyKey:randomUUID(),
     entryCurrency:operation?mobileCurrency:null,mobileMoneySelectedCurrency:selectedMarket?.currency||null,
     entryCurrencies:req.operationBranch?branchCurrency.options(req.operationBranch):[],
     branches:branches.filter(branch=>branch.status==='active'&&(req.user.role==='Tenant Owner'||String(branch._id)===String(req.user.branchId))),

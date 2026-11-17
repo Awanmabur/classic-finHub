@@ -37,6 +37,13 @@ const moneySchema = new mongoose.Schema({
   walletBalanceBeforeMinor:{type:mongoose.Schema.Types.Decimal128,default:null,immutable:true},walletBalanceAfterMinor:{type:mongoose.Schema.Types.Decimal128,default:null,immutable:true},
   walletObservationId:{type:mongoose.Schema.Types.ObjectId,default:null,immutable:true},fundsSourceRef:{type:String,default:null,immutable:true},fundJournalIds:{type:[mongoose.Schema.Types.ObjectId],default:[],immutable:true},
   physicalCashMovementMinor:{type:mongoose.Schema.Types.Decimal128,default:null,immutable:true},
+  // Provider principal and actual physical cash may have different native currencies.
+  cashCurrency:{type:String,enum:currencyCodes,default:null,immutable:true},
+  fxRateId:{type:mongoose.Schema.Types.ObjectId,default:null,immutable:true},
+  fxRateSide:{type:String,enum:['buy','sell'],default:null,immutable:true},
+  fxRateDecimal:{type:String,default:null,immutable:true,maxlength:24},
+  fxCashMinor:{type:mongoose.Schema.Types.Decimal128,default:null,immutable:true},
+  linkedSettlementId:{type:mongoose.Schema.Types.ObjectId,default:null,immutable:true},
   entrySource:{type:String,enum:['manual','sms'],default:'manual',immutable:true},
   smsInboxId:{type:mongoose.Schema.Types.ObjectId,default:null,immutable:true},
   idempotencyKey: { type: String, required: true, immutable: true, match: /^[0-9a-f-]{36}$/ },
@@ -129,6 +136,15 @@ function ensureTenantIndexes(conn) {
   if (!initialized.has(conn)) {
     const job = Promise.all([
       require('../transferSms/models').ensureIndexes(conn),
+      // Financial posting must not race missing uniqueness indexes on newly
+      // provisioned tenant DBs. Never create these within a cash transaction.
+      ...(process.env.CLASSICFIN_LINKED_CURRENCY_POSTING==='enabled'?
+       [require('../settlements/models').ensure(conn)]:[]),
+      ...(process.env.CLASSICFIN_INTERBRANCH_CASH_SETTLEMENT==='enabled'&&
+       process.env.NODE_ENV!=='production'?
+       [require('../settlements/interbranchCash.models').ensure(conn)]:[]),
+      ...(process.env.CLASSICFIN_LINKED_CURRENCY_REFUNDS==='enabled'?
+       [require('../refunds/models').ensure(conn)]:[]),
       ensureModelIndexes(model(conn, 'SecureTenantUser',userSchema)),
       ensureModelIndexes(model(conn, 'SecureMobileTransaction',moneySchema)),
       ensureModelIndexes(model(conn, 'SecureAuditEvent',auditSchema)),

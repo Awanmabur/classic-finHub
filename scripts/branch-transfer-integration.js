@@ -236,10 +236,24 @@ async function main(){
   decision:'approve',note:'This self-approved refund must be rejected',
   signedReceiptReference:'SIGNED-SELF-'+nonce,cashHandoverConfirmed:'confirmed'
  }),{status:403});
- const approvedRefund=await refundService.review(conn,tenant,owner,request2.refund._id,{
+ const validRefundDecision={
   decision:'approve',note:'Original sender counted and signed for full returned cash and fee',
   signedReceiptReference:'SIGNED-HANDOVER-'+nonce,cashHandoverConfirmed:'confirmed'
- });
+ };
+ await assert.rejects(refundService.review(conn,tenant,owner,request2.refund._id,
+  validRefundDecision,String(xOrder._id)),{status:403},
+  'A forged URL must not post a refund belonging to another transfer');
+ await assert.rejects(refundService.review(conn,tenant,owner,request2.refund._id,{
+  ...validRefundDecision,signedReceiptReference:''
+ }),{status:400},'Signed refund receipt evidence cannot be omitted');
+ const simultaneousRefunds=await Promise.allSettled([
+  refundService.review(conn,tenant,owner,request2.refund._id,validRefundDecision,String(refundOrder._id)),
+  refundService.review(conn,tenant,owner,request2.refund._id,validRefundDecision,String(refundOrder._id))
+ ]);
+ assert.equal(simultaneousRefunds.filter(x=>x.status==='fulfilled').length,1,
+  'Concurrent double-clicks may create only one compensating cash movement');
+ assert.equal(simultaneousRefunds.filter(x=>x.status==='rejected').length,1);
+ const approvedRefund=simultaneousRefunds.find(x=>x.status==='fulfilled').value;
  assert.equal(approvedRefund.refund.status,'posted_refund');
  assert.equal(BigInt(await amount(sspDrawer._id)),cashBeforeRefundCollection,
   'Actual original SSP cashier cash + fee must be returned exactly once');
@@ -263,6 +277,11 @@ async function main(){
  }),{status:409});
  assert.equal((await transfer.branchBalances(conn,tenant,manager)).recovery.items
   .some(item=>item.sourceId===String(refundOrder._id)),false);
+ await assert.rejects(refundService.request(conn,tenant,teller,xOrder._id,refundInput()),
+  {status:409},'Never refund an already-paid original sender');
+ assert.equal((await treasury.models(conn).batch.countDocuments({
+  sourceType:'money_transfer',sourceRef:'MT-REFUND:'+String(refundOrder._id)
+ })),1,'Exactly one posted compensation batch per original cash collection');
  await treasury.assertBookIntegrity(conn,null,await treasury.models(conn).account.findById(sspDrawer._id).lean());
  await treasury.assertBookIntegrity(conn,null,await treasury.models(conn).account.findById(sspPayable._id).lean());
  assert.equal((await ledger.trialBalance(conn,{branchId:String(branch._id),currency:'SSP'})).balanced,true);

@@ -107,6 +107,8 @@ async function main(){
  const refused=await physical.review(conn,tenant,owner,rejectedCash._id,{
   decision:'reject',note:'Receiving-branch signed cash proof had not yet arrived'},source._id);
  assert.equal(refused.reimbursement.status,'rejected');
+ await assert.rejects(physical.request(conn,tenant,teller,source._id,settlementInput('REJECT')),
+  {status:409},'An original cashier signed handover must not be reused for another settlement request');
  assert.equal(await amount(drawer._id),String(originalUGX));
  assert.equal(await amount(destinationCash._id),String(receiverUGX));
  const actual=(await physical.request(conn,tenant,teller,source._id,settlementInput('FINAL'))).reimbursement;
@@ -117,6 +119,11 @@ async function main(){
   senderHandoverReference:'SENDER-UGX-HANDOVER-FINAL-'+nonce,
   receiverReceiptReference:'DESTINATION-SIGNED-'+nonce,bothBranchesVerified:'confirmed'
  },source._id),{status:409},'Owner cannot invent a receiving cashier receipt');
+ await assert.rejects(physical.confirmReceipt(conn,tenant,receivingTeller,actual._id,{
+  receiverReceiptReference:'DEST-REJECTED-UGX-'+nonce,
+  receiverNote:'Reusing a previous receipt must not be accepted',
+  cashCountConfirmed:'confirmed'
+ },source._id),{status:409},'A destination cashier cannot reuse their previous receipt on a different request');
  await assert.rejects(physical.confirmReceipt(conn,tenant,teller,actual._id,{
   receiverReceiptReference:'DESTINATION-SIGNED-'+nonce,
   receiverNote:'Wrong sender cashier cannot confirm destination physical cash',

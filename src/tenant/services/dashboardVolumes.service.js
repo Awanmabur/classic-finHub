@@ -79,9 +79,9 @@ async function breakdown(conn,user,key,operationBranch,now,timeZone='UTC'){
 }
 async function volumes(conn,tenant,user,input={},operationBranch=null,overview={}){
  const currency=selectedCurrency(input.currency,operationBranch),now=input.now||new Date(),
-  timeZone=input.timeZone||'UTC',result={},todayByCurrency={};
+  timeZone=input.timeZone||'UTC',result={},todayByCurrency={},todayByCurrencyUnavailable={};
  if(input.suppressTodayVolumes===true)return {selectedCurrency:currency,currencyOptions:currencyCodes.map(code=>({code,label:currencyLabel(code)})),
-  todayVolumes:{},todayByCurrency:{},date:businessTime.localDay(now,timeZone),mixedRegion:true};
+  todayVolumes:{},todayByCurrency:{},todayByCurrencyUnavailable:{},date:businessTime.localDay(now,timeZone),mixedRegion:true};
  await Promise.all(Object.entries(sources).map(async([key,spec])=>{
   if(overview[spec.flag]===false||!hasModuleForUser(tenant,user,key)||!hasPermission(user,`${key}.view`))return;
   const market=key==='mobile_money'?input.mobileMarket:null;
@@ -95,11 +95,17 @@ async function volumes(conn,tenant,user,input={},operationBranch=null,overview={
     {$group:{_id:{currency:key==='mobile_money'?'$currency':{$literal:currency},status:'$status'},count:{$sum:1},amountMinor:{$sum:key==='mobile_money'?'$amountMinor':executionAmount(key,currency)}}}
    ]).option({maxTimeMS:2500}),
    breakdown(conn,user,key,operationBranch,now,timeZone)
+    .then(rows=>({rows,available:true}))
+    .catch(error=>{
+     console.warn(JSON.stringify({event:'dashboard.currency_breakdown_unavailable',module:key,code:String(error.code||error.name||'UNKNOWN').slice(0,80)}));
+     return {rows:[],available:false};
+    })
   ]);
-  todayByCurrency[key]=allCurrencies;
+  todayByCurrency[key]=allCurrencies.rows;
+  if(!allCurrencies.available)todayByCurrencyUnavailable[key]=true;
   result[key]={...totalFor(grouped,effectiveCurrency),basis:key==='mobile_money'?'posted funds book movements':'independently reviewed posted manual movements',
    ...(market?{network:market.network,networkLabel:market.label}:{})};
  }));
- return {selectedCurrency:currency,currencyOptions:currencyCodes.map(code=>({code,label:currencyLabel(code)})),todayVolumes:result,todayByCurrency,date:businessTime.localDay(now,timeZone)};
+ return {selectedCurrency:currency,currencyOptions:currencyCodes.map(code=>({code,label:currencyLabel(code)})),todayVolumes:result,todayByCurrency,todayByCurrencyUnavailable,date:businessTime.localDay(now,timeZone)};
 }
 module.exports={volumes,sources,selectedCurrency,scopeFor,activeMatch,executionMatch,executionAmount,bounds,totalFor,breakdown,money,fail};

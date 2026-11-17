@@ -293,13 +293,15 @@
     if(!wallet)return;mobileFundsBindings.add(form);
     const network=form.elements.namedItem('network'),method=form.elements.namedItem('paymentMethod'),amount=form.elements.namedItem('amount'),fee=form.elements.namedItem('fee'),currencyControl=form.elements.namedItem('currency');
     const selectedCurrency=()=>currencyControl?.value||form.dataset.currency;
+    const cashCurrencyControl=form.elements.namedItem('settlementCurrency');
+    const selectedCashCurrency=()=>cashCurrencyControl?.value||selectedCurrency();
     const parse=value=>{
       const scale=selectedCurrency()==='UGX'?0:2;
       const match=String(value||'').match(/^(\d{1,11})(?:\.(\d{1,2}))?$/);if(!match||(match[2]||'').length>scale)return null;
       return BigInt(match[1])*10n**BigInt(scale)+BigInt((match[2]||'').padEnd(scale,'0')||'0');
     };
     const refresh=()=>{
-      const currency=selectedCurrency(),current=wallet.value,available=[];
+      const currency=selectedCurrency(),cashCurrency=selectedCashCurrency(),crossCurrency=cashCurrency!==currency,current=wallet.value,available=[];
       for(const option of wallet.options){if(!option.value)continue;const visible=option.dataset.network===network.value&&option.dataset.currency===currency;option.hidden=!visible;option.disabled=!visible||option.dataset.state!=='active'||option.dataset.reconciliation!=='matched'||!/^\d{1,34}$/.test(option.dataset.expectedMinor||'');if(!option.disabled)available.push(option);}
       if(!available.some(option=>option.value===current)){
         const own=available.filter(option=>option.dataset.assigned==='true'),eligible=own.length?own:available,defaults=eligible.filter(option=>option.dataset.default==='true');
@@ -316,26 +318,29 @@
         for(const option of payment.options){
           if(!option.value)continue;
           const eligible=option.dataset.method==='Cash'&&option.dataset.assigned==='true'&&
-            option.dataset.currency===currency&&option.dataset.state==='active'&&
+            option.dataset.currency===cashCurrency&&option.dataset.state==='active'&&
             option.dataset.reconciliation==='matched'&&option.dataset.opened==='true';
           option.disabled=!eligible;option.hidden=!eligible;
           if(eligible)validAccounts.push(option);
         }
-        const configuredDrawer=wallet.selectedOptions?.[0]?.dataset.cashDrawer||'';
+        const configuredDrawer=crossCurrency?'':wallet.selectedOptions?.[0]?.dataset.cashDrawer||'';
         // Never allow the teller to choose a cash drawer. Server independently
         // recomputes the mapping, checks branch, operator, approval and shift.
         const mapped=configuredDrawer?validAccounts.filter(option=>option.value===configuredDrawer):[];
-        const resolved=configuredDrawer?
-          (mapped.length===1?mapped[0]:null):
-          (validAccounts.length===1?validAccounts[0]:null);
+        const previous=validAccounts.find(option=>option.value===payment.value);
+        const resolved=crossCurrency?
+          (previous||(validAccounts.length===1?validAccounts[0]:null)):
+          (configuredDrawer?(mapped.length===1?mapped[0]:null):(validAccounts.length===1?validAccounts[0]:null));
         payment.value=resolved?.value||'';
-        payment.disabled=!resolved;
-        payment.required=false;
-        paymentField.hidden=true;
+        payment.disabled=!crossCurrency&&!resolved;
+        payment.required=crossCurrency&&validAccounts.length>1;
+        paymentField.hidden=!crossCurrency||validAccounts.length<=1;
         const notice=form.querySelector('[data-momo-account-notice]');
         const problem=wallet.value&&!resolved?
           (validAccounts.length===0?
-            'No approved cash drawer belongs to this login. Sign in as the operator assigned to the physical drawer and verified cash shift; do not create another drawer.':
+            'No approved '+cashCurrency+' cash drawer belongs to this operator. Open and verify a real '+cashCurrency+' drawer first.':
+            crossCurrency?
+              'Choose the actual '+cashCurrency+' drawer used for this cash settlement.':
             configuredDrawer?
               'This wallet is linked to a drawer that is unavailable to this operator. The Tenant Owner should check the account mapping.':
               'More than one approved drawer is available. The Tenant Owner must link this wallet to the correct physical drawer once in Treasury.'):'';
@@ -345,7 +350,7 @@
       const chosenCash=payment?.value||'';
       const chosenWallet=wallet.value||'';
       for(const stat of form.querySelectorAll('[data-balance-kind]')){
-        stat.hidden=stat.dataset.balanceCurrency!==currency||
+        stat.hidden=stat.dataset.balanceCurrency!==(stat.dataset.balanceKind==='cash'?cashCurrency:currency)||
           (stat.dataset.balanceKind==='wallet'&&stat.dataset.balanceAccount!==chosenWallet)||
           (stat.dataset.balanceKind==='cash'&&stat.dataset.balanceAccount!==chosenCash);
       }
@@ -358,10 +363,21 @@
       const after=before!==null&&value!==null&&charge!==null?before+(form.dataset.operation==='cash_in'?-value:value)+(treatment==='wallet_commission'?charge:0n):null;
       amount.setCustomValidity(value!==null&&value<=0n?'Enter an amount greater than zero.':after!==null&&after<0n?'The selected wallet has insufficient funds.':'');
       const label=form.querySelector('[data-mobile-total-label]');if(label)label.textContent=form.dataset.operation==='cash_out'?'Total customer receives':'Total customer pays';
-      const total=form.querySelector('[data-mobile-total]');if(total)total.textContent=value!==null&&value>0n&&charge!==null&&charge<=value?operationAmount(value+(treatment==='payment_collected'?(form.dataset.operation==='cash_in'?charge:-charge):0n),currency):'—';
+      const cashCurrency=selectedCashCurrency(),cross=cashCurrency!==currency;
+      const cashText=form.elements.namedItem('settlementAmount')?.value||'';
+      const cashScale=cashCurrency==='UGX'?0:2;
+      const cashMatch=cashText.match(/^(\\d+)(?:\\.(\\d{1,2}))?$/);
+      const cashMinor=cross&&cashMatch&&(!cashMatch[2]||cashMatch[2].length<=cashScale)?
+        BigInt(cashMatch[1])*10n**BigInt(cashScale)+BigInt((cashMatch[2]||'').padEnd(cashScale,'0')||'0'):null;
+      const total=form.querySelector('[data-mobile-total]');
+      if(total)total.textContent=cross?
+        (cashMinor!==null?operationAmount(cashMinor,cashCurrency):'—'):
+        (value!==null&&value>0n&&charge!==null&&charge<=value?
+          operationAmount(value+(treatment==='payment_collected'?(form.dataset.operation==='cash_in'?charge:-charge):0n),currency):'—');
     };
     network.addEventListener('change',()=>{refresh();update();});method.addEventListener('change',()=>{refresh();update();});
     currencyControl?.addEventListener('change',()=>{refresh();update();});
+    cashCurrencyControl?.addEventListener('change',()=>{refresh();update();});
     form.addEventListener('input',update);form.addEventListener('change',update);form.addEventListener('reset',()=>queueMicrotask(()=>{refresh();update();}));
     refresh();update();
   };

@@ -33,8 +33,10 @@ module.exports=function operationWorkspaceRoutes({renderTenant,moduleKey}){
     const data=await workspace.formContext(req.tenantDb,req.tenant,req.user,moduleKey,req.operationBranch,req.query);
     data.financeOverview=await require('../services/financeOverview.service').moduleOverview(
      req.tenantDb,req.tenant,req.user,req.operationBranch,{moduleKey,viewBranchId:req.viewBranchId,viewBranch:req.viewBranch});
-    Object.assign(data,{workspaceTitle:title,workspaceOperation:operation});
-    renderTenant(req,res,`${definition.path}/index`,title,moduleKey==='forex'?'Customer exchange quotations with approved rates and independent review.':'Record instructions and review their status.',data);
+    Object.assign(data,{workspaceTitle:title,workspaceOperation:operation,
+     originModule:moduleKey==='forex'&&['mobile_money','banking','money_transfer'].includes(req.query.originModule)?
+      req.query.originModule:'forex'});
+    renderTenant(req,res,`${definition.path}/index`,title,moduleKey==='forex'?'Real Buy/Sell exchange quotations and direct cashier-confirmed Treasury posting.':'Record instructions and review their status.',data);
    }catch(error){next(error);}
   });
  }

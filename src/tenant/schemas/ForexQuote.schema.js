@@ -11,6 +11,7 @@ const schema=new mongoose.Schema({
  branchId:{type:O,required:true,immutable:true},createdBy:{type:O,required:true,immutable:true},
  customerLabel:{type:String,required:true,maxlength:120,immutable:true},
  operation:{type:String,enum:['buy','sell','quote'],default:'quote',immutable:true},
+ originModule:{type:String,enum:['forex','mobile_money','banking','money_transfer'],default:'forex',immutable:true},
  rateId:{type:O,required:true,immutable:true},
  fromCurrency:{type:String,enum:forexCurrencyCodes,required:true,immutable:true},toCurrency:{type:String,enum:forexCurrencyCodes,required:true,immutable:true},
  rateDecimal:{type:String,required:true,immutable:true},

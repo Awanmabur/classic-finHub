@@ -113,6 +113,49 @@ function routes({renderTenant}){
     });
   }catch(e){next(e);}
  });
+ router.get('/:id/interbranch-cash',requirePermission('money_transfer.view'),async(req,res,next)=>{
+  try{
+   const finance=require('../settlements/interbranchCash.service');
+   const order=await transfer.detail(req.tenantDb,req.tenant,req.user,req.params.id);
+   const reimbursements=await finance.detail(req.tenantDb,req.tenant,req.user,order._id);
+   const enabled=process.env.CLASSICFIN_INTERBRANCH_CASH_SETTLEMENT==='enabled';
+   const differentBranches=Boolean(order.destinationBranchId)&&
+    String(order.branchId)!==String(order.destinationBranchId);
+   const crossCurrency=Boolean(order.payoutCurrency&&order.payoutCurrency!==order.currency);
+   const canRequest=enabled&&differentBranches&&!crossCurrency&&
+    order.status==='paid_out_manual'&&req.user.role==='Money Transfer Operator'&&
+    String(order.createdBy)===String(req.user.id)&&
+    String(order.branchId)===String(req.user.branchId)&&
+    hasPermission(req.user,'treasury.observe')&&
+    !reimbursements.some(x=>['pending_review','posted'].includes(x.status));
+   const canReview=enabled&&differentBranches&&!crossCurrency&&
+    req.user.role==='Tenant Owner'&&
+    hasPermission(req.user,'money_transfer.review')&&hasPermission(req.user,'treasury.review');
+   renderTenant(req,res,'money-transfer/interbranch-cash','Branch cash reimbursement',
+    'Original-currency cash custody, independently reviewed branch reimbursement and retained evidence.',{
+     order,enabled,crossCurrency,canRequest,canReview,reimbursements,
+     idempotencyKey:crypto.randomUUID(),formatMoneyMinor
+    });
+  }catch(error){next(error);}
+ });
+ router.post('/:id/interbranch-cash/request',requirePermission('money_transfer.view'),financial,async(req,res,next)=>{
+  try{
+   await require('../settlements/interbranchCash.service').request(
+    req.tenantDb,req.tenant,req.user,req.params.id,req.body);
+   flash(req,'good','Cash handover request recorded. No Treasury balances changed; independent receiving-branch proof and owner review are required.');
+   res.redirect(303,`/tenant/money-transfer/${req.params.id}/interbranch-cash`);
+  }catch(error){next(error);}
+ });
+ router.post('/:id/interbranch-cash/:settlementId/review',requirePermission('money_transfer.review'),financial,async(req,res,next)=>{
+  try{
+   const result=await require('../settlements/interbranchCash.service').review(
+    req.tenantDb,req.tenant,req.user,req.params.settlementId,req.body,req.params.id);
+   flash(req,'good',result.reimbursement.status==='posted'?
+    'Both original-currency cash custody movements and interbranch dues posted to Treasury in one transaction.':
+    'Reimbursement rejected; neither branch cash account was changed.');
+   res.redirect(303,`/tenant/money-transfer/${req.params.id}/interbranch-cash`);
+  }catch(error){next(error);}
+ });
  router.get('/:id/refund',requirePermission('money_transfer.view'),async(req,res,next)=>{
   try{
    const refunds=require('../refunds/service');

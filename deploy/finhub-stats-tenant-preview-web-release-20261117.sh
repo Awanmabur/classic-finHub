@@ -9,9 +9,9 @@ exec 9>/run/lock/classicfin-web-fees-release.lock
 flock -n 9
 REPO=/srv/classic/apps/classicfin
 BRANCH=fix/finhub-approvals-stats-tenant-preview-20261117
-SHA=59ad216944b7b1ca41e6e96754e6b7154c637178
-WT=/home/classicdeploy/classicfin-stats-59ad2169
-IMAGE=classicfin:stats-59ad216944b7
+SHA=6304bab94983eb013c57c0ca6728a063e07c044d
+WT=/home/classicdeploy/classicfin-stats-6304bab9
+IMAGE=classicfin:stats-6304bab94983
 APP=classicfin-web-only
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 BACK="${APP}-pre-stats-${STAMP}"

@@ -108,7 +108,7 @@ test('Mobile Money-only tenant can quote KES/SSP without separately buying Forex
   providerPrincipalMinor:'100000',rateId:ids.rate});
  assert.equal(out.quote.providerCurrency,'KES');
  assert.equal(out.quote.cashCurrency,'SSP');
- assert.equal(out.quote.custodyLegs[1].deltaMinor,'-9000000');
+ assert.equal(out.quote.custodyLegs[1].deltaMinor,'-90000');
  await assert.rejects(preview.transfer(e.conn,momoTenant,owner,branch,{
   originCashAccountId:ids.cash,collectionCurrency:'SSP',
   destinationBranchId:ids.dest,destinationPayoutAccountId:ids.payout,

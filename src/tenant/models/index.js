@@ -136,6 +136,10 @@ function ensureTenantIndexes(conn) {
   if (!initialized.has(conn)) {
     const job = Promise.all([
       require('../transferSms/models').ensureIndexes(conn),
+      // Financial posting must not race missing uniqueness indexes on newly
+      // provisioned tenant DBs. Never create these within a cash transaction.
+      ...(process.env.CLASSICFIN_LINKED_CURRENCY_POSTING==='enabled'?
+       [require('../settlements/models').ensure(conn)]:[]),
       ensureModelIndexes(model(conn, 'SecureTenantUser',userSchema)),
       ensureModelIndexes(model(conn, 'SecureMobileTransaction',moneySchema)),
       ensureModelIndexes(model(conn, 'SecureAuditEvent',auditSchema)),

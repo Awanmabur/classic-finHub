@@ -16,7 +16,8 @@ function assertTenant(conn,tenant){
 }
 function requireAccess(conn,tenant,actor,moduleKey,permission){
  assertTenant(conn,tenant);
- if(!actor?.id||!hasModuleForUser(tenant,actor,moduleKey)||!hasPermission(actor,permission)||!hasModule(tenant,'forex'))
+ if(!actor?.id||!hasModuleForUser(tenant,actor,moduleKey)||!hasPermission(actor,permission)||
+  !hasModule(tenant,moduleKey==='mobile_money'?'mobile_money':'forex'))
   throw planner.fail('The operating module and approved Forex pricing are required',403);
 }
 function activeAccount(account,tenant,branch,currency,kind){

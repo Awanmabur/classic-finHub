@@ -18,6 +18,14 @@ router.post('/mobile-money',requirePermission('mobile_money.view'),throttle,asyn
   res.json(result.display);
  }catch(error){next(error);}
 });
+router.post('/transfer-terms',requirePermission('money_transfer.create'),throttle,async(req,res,next)=>{
+ try{
+  const result=await require('../settlements/preview').transferTerms(
+   req.tenantDb,req.tenant,req.user,req.operationBranch,req.body
+  );
+  res.json(result.display);
+ }catch(error){next(error);}
+});
 router.post('/money-transfer',requirePermission('money_transfer.view'),throttle,async(req,res,next)=>{
  try{
   const result=await preview.transfer(req.tenantDb,req.tenant,req.user,req.operationBranch,req.body);

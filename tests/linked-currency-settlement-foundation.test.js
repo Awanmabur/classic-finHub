@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
 const planner=require('../src/tenant/settlements/planner');
-const {settlementSchema,costBookSchema}=require('../src/tenant/settlements/models');
+const {settlementSchema,costBookSchema,evidenceSchema}=require('../src/tenant/settlements/models');
 const a='507f1f77bcf86cd799439011',b='507f1f77bcf86cd799439012',c='507f1f77bcf86cd799439013',
  d='507f1f77bcf86cd799439014',e='507f1f77bcf86cd799439015',f='507f1f77bcf86cd799439016';
 function rate(side,price,overrides={}){
@@ -93,6 +93,8 @@ test('linked settlement and cost books have unique immutable source identifiers'
  assert.ok(costBookSchema.indexes().some(([fields,opts])=>fields.accountId===1&&opts.unique));
  assert.equal(settlementSchema.path('sourceModule').options.immutable,true);
  assert.equal(settlementSchema.path('rateSnapshot').options.immutable,true);
+ assert.ok(evidenceSchema.indexes().some(([fields,opts])=>fields.settlementId===1&&fields.stage===1&&opts.unique));
+ assert.ok(evidenceSchema.indexes().some(([fields,opts])=>fields.providerReference===1&&opts.unique));
 });
 
 test('MoMo linked settlement journal balances independently in both currencies',()=>{

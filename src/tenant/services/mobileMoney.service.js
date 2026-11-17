@@ -94,6 +94,10 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
     Object.keys(sourceContext).length !== 1 || !/^[a-f0-9]{24}$/i.test(String(sourceContext.smsInboxId || ''))))
     throw bad('Invalid trusted SMS source context',400);
   const linkedCurrency=values.cashCurrency!==values.currency;
+  // Do not permit direct HTTP clients to bypass the launch gate. Preview
+  // availability and cash-posting authorization are separate controls.
+  if(linkedCurrency&&process.env.CLASSICFIN_LINKED_CURRENCY_POSTING!=='enabled')
+    throw bad('Cross-currency financial posting has not been enabled for this deployment',403);
   // Trusted SMS describes provider e-money, not the local SSP cash handed over.
   // A separate cashier-confirmed cross-currency path must never be auto-posted from SMS alone.
   if(linkedCurrency&&sourceContext)throw bad('Confirm the actual cross-currency cash handover through the cashier workflow; do not auto-post cash from an SMS',409);

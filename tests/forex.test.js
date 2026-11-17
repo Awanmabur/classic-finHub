@@ -55,6 +55,9 @@ test('Input validation requires valid pair, expiry, idempotency and explanations
  fail(()=>fx.rateInput({...rate,note:'tiny'}),400);
  const quote={rateId:branch,customerLabel:'Client label',amount:'1000',note:'Customer requested an indicative quote',validMinutes:'10',idempotencyKey:crypto.randomUUID()};
  assert.equal(fx.quoteInput(quote).validMinutes,10);
+ assert.equal(fx.quoteInput({...quote,originModule:'banking'}).originModule,'banking');
+ assert.equal(fx.quoteInput({...quote,originModule:'money_transfer'}).originModule,'money_transfer');
+ fail(()=>fx.quoteInput({...quote,originModule:'arbitrary_external_provider'}),400);
  fail(()=>fx.quoteInput({...quote,validMinutes:61}),400);
  fail(()=>fx.quoteInput({...quote,idempotencyKey:'bad'}),400);
  fail(()=>fx.quoteInput({...quote,customerLabel:'x'}),400);
@@ -116,6 +119,7 @@ test('Forex schemas prevent mutable rate and quote snapshots and enforce unique 
  const quote=require('../src/tenant/schemas/ForexQuote.schema');
  for(const name of ['fromCurrency','toCurrency','side','rateDecimal','expiresAt'])assert(rate.path(name).options.immutable);
  for(const name of ['fromCurrency','toCurrency','rateDecimal','sourceMinor','targetMinor','rateId','expiresAt'])assert(quote.path(name).options.immutable);
+ assert.equal(quote.path('originModule').options.immutable,true);
  assert(rate.indexes().some(([fields,options])=>fields.branchId===1&&fields.side===1&&options.unique&&options.name==='one_active_forex_rate_per_pair_side'&&options.partialFilterExpression?.status==='active'));
  assert(quote.indexes().some(([fields,options])=>fields.idempotencyKey===1&&options.unique));
 });

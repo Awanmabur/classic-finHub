@@ -30,6 +30,10 @@ const recordSchema=new Schema({
  fxProfitState:{type:String,enum:['unmeasured_cost_basis'],required:true,default:'unmeasured_cost_basis',immutable:true},
  settledAt:{type:Date,required:true,immutable:true}
 },{strict:'throw',versionKey:false,timestamps:{createdAt:true,updatedAt:false}});
+// Posted financial evidence cannot be edited or erased. Corrections require a new linked journal.
+for(const op of ['updateOne','updateMany','replaceOne','findOneAndUpdate','findOneAndReplace','deleteOne','deleteMany','findOneAndDelete'])
+ recordSchema.pre(op,function(next){next(new Error('Posted cross-currency evidence is append-only'));});
+recordSchema.pre('save',function(next){next(this.isNew?null:new Error('Posted cross-currency evidence is append-only'));});
 recordSchema.index({tenantId:1,idempotencyKey:1},{unique:true});
 recordSchema.index({tenantId:1,network:1,providerReference:1},{unique:true});
 recordSchema.index({tenantId:1,providerEvidenceId:1},{unique:true});

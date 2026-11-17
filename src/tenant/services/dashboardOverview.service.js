@@ -64,6 +64,9 @@ async function overview(conn,tenant,user,options={}){
   snapshot.snapshot(conn,tenant,user,flags,options.operationBranch,overviewOptions),
   require('./financeOverview.service').overview(conn,tenant,user,{
    ...overviewOptions,operationBranch:options.operationBranch,viewBranch:options.viewBranch
+  }).catch(error=>{
+   console.warn(JSON.stringify({event:'finance.overview_unavailable',errorCode:String(error.code||error.name||'UNKNOWN').slice(0,80)}));
+   return {available:false,reason:'Financial totals temporarily unavailable. Check Treasury and reports.'};
   })
  ]);
  const displayWallets=mobileMarket?(mobileFunds?.wallets||[]).filter(a=>a.network===mobileMarket.network&&a.currency===mobileMarket.currency):(mobileFunds?.wallets||[]);

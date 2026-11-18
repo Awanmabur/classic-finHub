@@ -1,78 +1,109 @@
-<section class="view show mobileMoneyPage">
+<section class="view show mobileMoneyPage momoFxPage">
+ <style>
+  .momoFxPage .momoFxHeader{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px}
+  .momoFxPage .momoFxActions{display:flex;flex-wrap:wrap;gap:8px}
+  .momoFxPage .momoFxSteps{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px}
+  .momoFxPage .momoFxStep{border:1px solid var(--border,rgba(128,128,128,.24));border-radius:var(--radius,12px);padding:8px 12px;font-size:.86rem}
+  .momoFxPage .momoFxFields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+  .momoFxPage .momoFxFields label{display:flex;flex-direction:column;gap:6px;min-width:0;font-weight:600}
+  .momoFxPage .momoFxFields select,.momoFxPage .momoFxFields input{width:100%;min-width:0}
+  .momoFxPage .momoFxMetrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:14px 0}
+  .momoFxPage .momoFxMetric{min-width:0;border:1px solid var(--border,rgba(128,128,128,.24));border-radius:var(--radius,12px);padding:16px}
+  .momoFxPage .momoFxMetric small,.momoFxPage .momoFxMetric span{display:block;overflow-wrap:anywhere}
+  .momoFxPage .momoFxMetric strong{display:block;font-size:clamp(1.15rem,2.7vw,1.7rem);line-height:1.3;overflow-wrap:anywhere;margin:8px 0}
+  .momoFxPage .momoFxFacts{display:grid;grid-template-columns:minmax(120px,1fr) minmax(0,2fr);gap:10px 16px;margin:12px 0}
+  .momoFxPage .momoFxFacts dt{font-weight:600}
+  .momoFxPage .momoFxFacts dd{margin:0;overflow-wrap:anywhere}
+  .momoFxPage .momoFxNotice{border:1px solid var(--border,rgba(128,128,128,.3));border-radius:var(--radius,12px);padding:12px 14px;margin:14px 0}
+  .momoFxPage .momoFxNotice p{margin:4px 0}
+  .momoFxPage .momoFxNotice ul{margin:8px 0 0;padding-left:22px}
+  .momoFxPage .momoFxSubmit{margin-top:14px}
+  .momoFxPage .momoFxConfirm{display:grid;gap:12px;margin-top:14px}
+  .momoFxPage .momoFxConfirm label{display:flex;gap:10px;align-items:flex-start}
+  @media(max-width:720px){.momoFxPage .momoFxFields,.momoFxPage .momoFxMetrics{grid-template-columns:minmax(0,1fr)}.momoFxPage .momoFxFacts{grid-template-columns:1fr;gap:3px}.momoFxPage .momoFxFacts dd{margin-bottom:10px}}
+ </style>
  <section class="card">
-  <div class="cardHead"><div><b>Cross-currency Mobile Money</b><br><span>Real provider wallet and physical cash drawer · approved branch Buy/Sell rates</span></div><a class="btn" href="/tenant/mobile-money">Back to Mobile Money</a><a class="btn" href="/tenant/mobile-money/fx/history">Transaction history</a><a class="btn" href="/tenant/mobile-money/fx/authorizations">Provider authorization setup</a></div>
+  <div class="cardHead momoFxHeader">
+   <div><b>Cross-currency Mobile Money</b><p class="tiny">Exchange between a genuine network wallet and a different-currency cash drawer</p></div>
+   <div class="momoFxActions"><a class="btn" href="/tenant/mobile-money/fx/history">History</a><a class="btn" href="/tenant/mobile-money/fx/authorizations">Authorization</a><a class="btn" href="/tenant/mobile-money">Mobile Money</a></div>
+  </div>
   <div class="cardBody">
-   <p class="tiny">This is an exact calculation preview, not a completed transfer. Provider confirmation and legally permitted settlement are required before balances can be posted. All money shown is in its own currency.</p>
-   <% if(data.error){ %><p role="alert"><%= data.error %></p><% } %>
-   <% if(!data.wallets.length || !data.drawers.length){ %>
-    <p>Set up and reconcile an actual electronic wallet and physical cash drawer before quoting.</p>
-    <a class="btn" href="/tenant/treasury">Manage cash and float</a>
+   <div class="momoFxSteps" aria-label="Transaction stages"><span class="momoFxStep">1 · Select accounts</span><span class="momoFxStep">2 · Check quote</span><span class="momoFxStep">3 · Confirm real exchange</span></div>
+   <% if(data.error){ %><div class="momoFxNotice" role="alert"><strong>Unable to calculate quote</strong><p><%= data.error %></p></div><% } %>
+   <% if(!data.wallets.length||!data.drawers.length){ %>
+    <div class="momoFxNotice" role="status">A reconciled provider wallet and a different-currency physical drawer are needed before quoting. <a href="/tenant/treasury">Manage cash and float</a>.</div>
    <% }else{ %>
-   <form method="GET" action="/tenant/mobile-money/fx">
-    <div class="formGrid">
-     <label>Transaction direction
-      <select name="operation" required>
-       <option value="withdraw_provider_receive_cash" <%= data.input.operation==='withdraw_provider_receive_cash'?'selected':'' %>>Customer withdraws electronic money and receives cash</option>
-       <option value="deposit_cash_send_provider" <%= data.input.operation==='deposit_cash_send_provider'?'selected':'' %>>Customer deposits cash and receives electronic money</option>
-      </select>
-     </label>
-     <label>Provider wallet
-      <select name="walletAccountId" required>
-       <option value="">Select actual provider wallet</option>
-       <% data.wallets.forEach(wallet=>{ %>
-        <option value="<%= wallet.id %>" <%= data.input.walletAccountId===wallet.id?'selected':'' %>><%= wallet.name %> — <%= wallet.network %> · <%= wallet.currency %></option>
-       <% }); %>
-      </select>
-     </label>
-     <label>Physical cash drawer
-      <select name="cashAccountId" required>
-       <option value="">Select actual cash drawer</option>
-       <% data.drawers.forEach(drawer=>{ %>
-        <option value="<%= drawer.id %>" <%= data.input.cashAccountId===drawer.id?'selected':'' %>><%= drawer.name %> · <%= drawer.currency %></option>
-       <% }); %>
-      </select>
-     </label>
-     <label>Provider amount (in selected wallet currency)
-      <input name="providerAmount" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" value="<%= data.input.providerAmount||'' %>" required>
-     </label>
-    </div>
-    <button class="btn primary" type="submit">Calculate approved quote</button>
-   </form>
-   <% } %>
-   <% if(data.result){ const q=data.result; %>
-    <section class="card" aria-label="Cross-currency preview">
-     <div class="cardHead"><b>Approved Buy/Sell preview</b><span><%= q.rateSide.toUpperCase() %> · rate <%= q.rateDecimal %> <%= q.cashCurrency %> per 1 <%= q.providerCurrency %></span></div>
-     <div class="cardBody">
-      <p><strong>Provider wallet:</strong> <%= q.walletName %> (<%= q.providerCurrency %>) · signed change <%= data.formatMoneyMinor(q.walletDeltaMinor,q.providerCurrency) %></p>
-      <p><strong>Physical drawer:</strong> <%= q.cashName %> (<%= q.cashCurrency %>) · signed change <%= data.formatMoneyMinor(q.cashDeltaMinor,q.cashCurrency) %></p>
-      <p><strong>Customer cash amount:</strong> <%= data.formatMoneyMinor(q.cashAmountMinor,q.cashCurrency) %></p>
-      <p><strong>Rate expiration:</strong> <%= formatLocalDate(q.rateExpiresAt,data.selectedBranchId) %></p>
-      <p class="tiny">Preview only: no provider settlement, bank or cash movement has been posted. No profit is inferred from this exchange quote.</p>
+    <form method="get" action="/tenant/mobile-money/fx">
+     <div class="momoFxFields">
+      <label>Transaction direction
+       <select name="operation" required>
+        <option value="withdraw_provider_receive_cash" <%= data.input.operation==='withdraw_provider_receive_cash'?'selected':'' %>>Customer sends mobile money → receives cash</option>
+        <option value="deposit_cash_send_provider" <%= data.input.operation==='deposit_cash_send_provider'?'selected':'' %>>Customer gives cash → receives mobile money</option>
+       </select>
+      </label>
+      <label>Provider wallet
+       <select name="walletAccountId" required>
+        <option value="">Select wallet</option>
+        <% data.wallets.forEach(w=>{ %><option value="<%= w.id %>" <%= data.input.walletAccountId===w.id?'selected':'' %>><%= w.name %> · <%= w.network %> · <%= w.currency %></option><% }) %>
+       </select>
+      </label>
+      <label>Physical cash drawer
+       <select name="cashAccountId" required>
+        <option value="">Select drawer</option>
+        <% data.drawers.forEach(d=>{ %><option value="<%= d.id %>" <%= data.input.cashAccountId===d.id?'selected':'' %>><%= d.name %> · <%= d.currency %></option><% }) %>
+       </select>
+      </label>
+      <label>Mobile Money amount (wallet currency)
+       <input name="providerAmount" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" value="<%= data.input.providerAmount||'' %>" required placeholder="Enter actual customer amount">
+      </label>
      </div>
-    </section>
-    <% if(data.canExecute){ %>
-     <form class="card" method="POST" action="/tenant/mobile-money/fx/record" autocomplete="off">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
-      <% ['operation','network','walletAccountId','cashAccountId','providerCurrency','cashCurrency','providerAmountMinor','cashAmountMinor','rateId','rateVersion','rateDecimal'].forEach(field=>{ %>
-       <input type="hidden" name="<%= field %>" value="<%= q[field] %>">
-      <% }); %>
-      <div class="cardBody">
-       <p><strong>Record the actual exchange</strong></p>
-       <label class="field">Provider transaction reference
-        <input class="control" name="providerReference" pattern="[A-Za-z0-9._:/\\-]{6,120}" minlength="6" maxlength="120" required placeholder="Reference shown in the provider app">
-       </label>
-       <label class="field"><input type="checkbox" name="providerAppConfirmed" value="yes" required> I personally confirmed the provider transaction in the actual provider app.</label>
-       <label class="field"><input type="checkbox" name="cashHandoverConfirmed" value="yes" required> The displayed physical cash amount was actually received or handed over.</label>
-       <p class="tiny">This posts one internally final financial record and updates both funds books. It does not claim the provider independently reconciled its settlement. Missing FX cost basis remains unmeasured.</p>
-       <button class="btn primary" type="submit">Finalize actual exchange</button>
-      </div>
-     </form>
-    <% }else{ %>
-     <p class="tiny" role="status">Posting is not available for this wallet/drawer pair yet. Verify that the branch has an active Buy/Sell rate, reconciled balances, your required permissions, and an independently checked provider and regulatory authorization. No money is moved by this preview.</p>
-     <a class="btn" href="/tenant/mobile-money/fx/authorizations">Check or request provider authorization</a>
-    <% } %>
+     <button class="btn btnPrimary momoFxSubmit" type="submit">Calculate exchange quote</button>
+    </form>
    <% } %>
   </div>
  </section>
+ <% if(data.result){const q=data.result; %>
+  <section class="card" style="margin-top:14px" aria-label="Cross-currency preview">
+   <div class="cardHead momoFxHeader"><div><b>Exchange quote</b><p class="tiny"><%= q.rateSide.toUpperCase() %> · <%= q.providerCurrency %> → <%= q.cashCurrency %> · Preview only</p></div><span class="tag"><%= data.canExecute?'Ready for real-world confirmation':'Posting unavailable' %></span></div>
+   <div class="cardBody">
+    <div class="momoFxMetrics">
+     <div class="momoFxMetric"><small><%= q.operation==='withdraw_provider_receive_cash'?'Customer sends electronic money':'Customer receives electronic money' %></small><strong><%= data.formatMoneyMinor(q.providerAmountMinor,q.providerCurrency) %></strong><span><%= q.walletName %> · <%= q.network %></span></div>
+     <div class="momoFxMetric"><small><%= q.operation==='withdraw_provider_receive_cash'?'Customer receives physical cash':'Customer pays physical cash' %></small><strong><%= data.formatMoneyMinor(q.cashAmountMinor,q.cashCurrency) %></strong><span><%= q.cashName %></span></div>
+    </div>
+    <dl class="momoFxFacts">
+     <dt>Approved rate</dt><dd>1 <%= q.providerCurrency %> = <%= q.rateDecimal %> <%= q.cashCurrency %> (<%= q.rateSide.toUpperCase() %>)</dd>
+     <dt>Wallet book movement</dt><dd><%= data.formatMoneyMinor(q.walletDeltaMinor,q.providerCurrency) %></dd>
+     <dt>Drawer book movement</dt><dd><%= data.formatMoneyMinor(q.cashDeltaMinor,q.cashCurrency) %></dd>
+     <dt>Rate expires</dt><dd><%= formatLocalDate(q.rateExpiresAt,data.selectedBranchId) %></dd>
+    </dl>
+    <div class="momoFxNotice" role="note"><strong>Verify the amount before any money moves</strong><p>The rate is approved in FinHub, but that does not independently establish a fair market price. Check the expected cash payout against a real operating quote, available cash and your limits. This preview has not transferred funds or verified any external provider settlement.</p></div>
+   </div>
+  </section>
+  <% if(data.canExecute){ %>
+   <section class="card" style="margin-top:14px">
+    <div class="cardHead"><b>Finalize confirmed exchange</b></div>
+    <form method="post" action="/tenant/mobile-money/fx/record" autocomplete="off" class="cardBody">
+     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+     <input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
+     <% ['operation','network','walletAccountId','cashAccountId','providerCurrency','cashCurrency','providerAmountMinor','cashAmountMinor','rateId','rateVersion','rateDecimal'].forEach(field=>{ %><input type="hidden" name="<%= field %>" value="<%= q[field] %>"><% }) %>
+     <label class="field">Actual provider transaction reference<input class="control" name="providerReference" pattern="[A-Za-z0-9._:/\\-]{6,120}" minlength="6" maxlength="120" required placeholder="Reference from MTN/Airtel transaction"></label>
+     <div class="momoFxConfirm">
+      <label><input type="checkbox" name="providerAppConfirmed" value="yes" required> I personally verified the actual provider transaction in the provider application.</label>
+      <label><input type="checkbox" name="cashHandoverConfirmed" value="yes" required> I physically received or handed over exactly <strong><%= data.formatMoneyMinor(q.cashAmountMinor,q.cashCurrency) %></strong>.</label>
+     </div>
+     <p class="tiny">Finalizes the internal journals for both currencies; external settlement remains marked unverified unless independently evidenced.</p>
+     <button class="btn btnPrimary momoFxSubmit" type="submit">Finalize actual exchange</button>
+    </form>
+   </section>
+  <% }else{ %>
+   <section class="card" style="margin-top:14px"><div class="cardBody">
+    <div class="momoFxNotice" role="status">
+     <strong>Exchange cannot be posted yet</strong>
+     <ul><% (data.blockers||[]).forEach(message=>{ %><li><%= message %></li><% }) %></ul>
+     <p class="tiny">A previously approved authorization for another drawer, wallet or branch does not authorize this exact pair.</p>
+    </div>
+    <div class="momoFxActions"><a class="btn" href="/tenant/mobile-money/fx/authorizations">Check pair authorization</a><a class="btn" href="/tenant/treasury">Review balances</a></div>
+   </div></section>
+  <% } %>
+ <% } %>
 </section>

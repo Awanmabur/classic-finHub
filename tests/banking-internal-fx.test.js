@@ -41,6 +41,7 @@ test('Banking internal currency exchange template uses CSRF, evidence and two na
  assert.match(html,/name="_csrf" value="test-csrf"/);
  assert.match(html,/name="confirmCustomerAuthority"/);
  assert.match(html,/name="rateChoice"/);
+ assert.match(html,/action="\/tenant\/banking\/exchange\/preview"/);
  assert.match(html,/name="sourceAccountId"/);
  assert.match(html,/name="destinationAccountId"/);
  assert.match(html,/0\.00027/);
@@ -53,4 +54,24 @@ test('Banking FX code never claims that customer ledger transfer executes an ext
  assert.match(service,/treasury\.applyMovements/);
  assert.match(service,/sourceType:'forex'/);
  assert.match(service,/Insufficient posted customer balance/);
+});
+
+test('Banking FX final confirmation shows the exact two-currency quote and retains fixed idempotency',async()=>{
+ const filename=path.join(__dirname,'../src/views/tenant/banking/fx-confirm.ejs');
+ const html=await ejs.renderFile(filename,{csrfToken:'some-csrf',
+  data:{review:{
+   source:{_id:'507f1f77bcf86cd799439011',customerName:'Example Customer',currency:'UGX',accountNumber:'AC1234'},
+   destination:{_id:'507f1f77bcf86cd799439012',currency:'USD',accountNumber:'AC5678'},
+   sourceLabel:'UGX 2,000',destinationLabel:'USD 0.54',rate:{side:'buy',fromCurrency:'UGX',toCurrency:'USD'},
+   rateDecimal:'0.00027',rateId:'507f1f77bcf86cd799439013',rateVersion:1,
+   amount:'2000',evidenceReference:'INVOICE-12345',idempotencyKey:'22222222-2222-4222-8222-222222222222'
+  }}
+ });
+ assert.match(html,/UGX 2,000/);
+ assert.match(html,/USD 0.54/);
+ assert.match(html,/Confirm and post both currency ledgers/);
+ assert.match(html,/name="_csrf" value="some-csrf"/);
+ assert.match(html,/name="idempotencyKey" value="22222222-2222-4222-8222-222222222222"/);
+ assert.match(html,/name="confirmCustomerAuthority"/);
+ assert.match(html,/action="\/tenant\/banking\/exchange"/);
 });

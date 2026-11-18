@@ -292,8 +292,10 @@ async function postingAuthorization(conn,session,authorization,value,internal={}
  // subscription. Only the dedicated internal settlement service may opt in.
  // Untrusted HTTP fields cannot set the internal argument.
  if(internal.momoFx&&(value.sourceType!=='forex'||
-   !/^MFX:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.sourceRef)||
-   value.legs.length!==2||value.ledgerLines.length!==0))
+   !(internal.reversesBatchId?
+     /^MM-VOID:[0-9a-f]{24}$/i.test(value.sourceRef):
+     /^MFX:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.sourceRef))||
+   value.legs.length!==2||(!internal.reversesBatchId&&value.ledgerLines.length!==0)))
   throw fail('Invalid Mobile Money cross-currency ledger source',403);
  const internalSource=['treasury_adjustment','treasury_funding'].includes(value.sourceType),
   source=internal.momoFx?'mobile_money':internalSource?null:value.sourceType;
@@ -416,10 +418,12 @@ async function postCrossCurrencyTransferPayout(conn,session,authorization,execut
  });
  return {...dest,journalIds:[...origin.journalIds,...dest.journalIds]};
 }
-async function reverseMovements(conn,session,authorization,input){
+async function reverseMovements(conn,session,authorization,input,internal={}){
  if(!session?.inTransaction())throw fail('Correction must share the business transaction',409);
  const sourceType=input?.sourceType,sourceRef=input?.batchId?null:reference(input?.sourceRef),reversalSourceRef=reference(input?.reversalSourceRef||(input?.batchId?input.sourceRef:null));
- const current=await access(conn,authorization.tenant,authorization.actor,{permission:'treasury.review',session,fence:true,sourceType});if(!REVIEW_ROLES.includes(current.actor.role))throw fail('Independent funds correction reviewer required',403);
+ if(internal.momoFx&&(sourceType!=='forex'||!String(input?.sourceRef||'').startsWith('MFX:')))
+  throw fail('Invalid linked Mobile Money Forex correction',403);
+ const current=await access(conn,authorization.tenant,authorization.actor,{permission:'treasury.review',session,fence:true,sourceType:internal.momoFx?'mobile_money':sourceType});if(!REVIEW_ROLES.includes(current.actor.role))throw fail('Independent funds correction reviewer required',403);
  const batch=await models(conn).batch.findOne({sourceType,...(input.batchId?{_id:oid(input.batchId,'funds batch')}:{sourceRef}),tenantId:current.tenant._id,...scope(current.actor)}).session(session).lean();if(!batch||batch.reversesBatchId)throw fail('Original funds movement is unavailable or already a reversal',409);
  const prior=await models(conn).batch.findOne({reversesBatchId:batch._id}).session(session).lean();if(prior){if(prior.sourceRef!==reversalSourceRef)throw fail('This source has already been corrected',409);return {batch:prior,movements:await models(conn).movement.find({batchId:prior._id}).session(session).lean(),journalIds:prior.journalIds,duplicate:true};}
  if(String(batch.operatingActorId||batch.actorId)===current.actor.id)throw fail('A different person must approve reversal of the original funds entry',403);
@@ -427,7 +431,7 @@ async function reverseMovements(conn,session,authorization,input){
  const postings=await core.ledgerPostingModel(conn).find({journalId:{$in:batch.journalIds}}).session(session).lean();
  const ledgerLines=postings.filter(posting=>!fundIds.has(String(posting.accountId))).map(posting=>({currency:posting.currency,accountId:String(posting.accountId),side:opposite(posting.side),amountMinor:String(posting.amountMinor)}));
  const operatorIds=[...new Set(funds.filter(account=>account.operatorId).map(account=>String(account.operatorId)))];if(operatorIds.length>1)throw fail('Correction contains incompatible operating drawers',409);
- return applyMovements(conn,session,current,{sourceType,sourceRef:reversalSourceRef,branchId:String(batch.branchId),operatingActorId:String(batch.operatingActorId||operatorIds[0]||input.operatingActorId||current.actor.id),legs:movements.map(movement=>({accountId:String(movement.accountId),deltaMinor:String(-BigInt(String(movement.deltaMinor)))})),ledgerLines,description:text(input.description,'correction explanation',12,400),evidenceRef:input.evidenceRef||input.evidenceReference||`REV:${batch._id}`},{reversesBatchId:batch._id,allowHeld:true});
+ return applyMovements(conn,session,current,{sourceType,sourceRef:reversalSourceRef,branchId:String(batch.branchId),operatingActorId:String(batch.operatingActorId||operatorIds[0]||input.operatingActorId||current.actor.id),legs:movements.map(movement=>({accountId:String(movement.accountId),deltaMinor:String(-BigInt(String(movement.deltaMinor)))})),ledgerLines,description:text(input.description,'correction explanation',12,400),evidenceRef:input.evidenceRef||input.evidenceReference||`REV:${batch._id}`},{reversesBatchId:batch._id,allowHeld:true,...(internal.momoFx?{momoFx:true}:{})});
 }
 async function findAccount(conn,session,{branchId,kind,network='',currency,operatorId=null}){
  if(!KINDS.includes(kind)||!currencyCodes.includes(currency))throw fail('Invalid operating funds account selection');

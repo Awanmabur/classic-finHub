@@ -335,6 +335,12 @@ async function detail(conn,tenant,actor,executionId){
  return {execution,source,sms,smsRetryAt,smsRetryLimited,smsRetryCooling,canRetrySms:execution.action==='transfer_collect'&&execution.status==='posted_manual'&&source?.status==='collected_manual'&&current.actor.role==='Tenant Owner'&&['dead','not_configured'].includes(sms?.state)&&smsRetryConfigured&&!smsRetryLimited&&!smsRetryCooling,canFinalizeForex:execution.sourceType==='forex'&&execution.status==='pending_review'&&
   String(execution.createdBy)===current.actor.id&&['Tenant Owner','Forex Operator','Banking Operator','Money Transfer Operator'].includes(current.actor.role)&&
   hasPermission(current.actor,'forex.quotes.create'),
+  canFinalizePayout:execution.action==='transfer_payout'&&execution.sourceType==='money_transfer'&&
+   execution.status==='pending_review'&&String(execution.createdBy)===current.actor.id&&
+   String(source?.branchId)===String(execution.branchId)&&
+   ['Tenant Owner','Money Transfer Operator'].includes(current.actor.role)&&
+   hasPermission(current.actor,'money_transfer.payout')&&
+   Boolean(execution.verificationInfo?.identityDocument)&&Boolean(execution.verificationInfo?.receiverNameCheck),
   canReview:execution.status==='pending_review'&&String(execution.createdBy)!==current.actor.id&&hasPermission(current.actor,permission(execution.sourceType,true,execution.action)),canRevealPin:execution.action==='transfer_collect'&&execution.status==='posted_manual'&&source?.status==='collected_manual'&&!execution.pinShownAt&&(current.actor.role==='Tenant Owner'||String(execution.createdBy)===current.actor.id)};
 }
 async function revealPin(conn,tenant,actor,executionId){
@@ -450,6 +456,8 @@ async function requestPayout(conn,tenant,actor,input={}){
   const source=collection?await models.transferOrderModel(conn).findOne({_id:collection.sourceId,status:'collected_manual',manualCollectionExecutionId:collection._id}).session(session).lean():null;
   if(!source||String(source.destinationBranchId||source.branchId)!==String(branch._id))throw fail('This transfer was paid, changed or belongs to another receiving branch',409);
   assertBranchCurrencies(branch,sourceSnapshot('money_transfer',source));
+  if(!verification.receiverNameCheck||!verification.identityDocument)
+   throw fail('Verify the recipient full name and identity reference before initiating payout',403);
   const snapshot=sourceSnapshot('money_transfer',source),available=await availableAccounts(conn,authorization.tenant,authorization.actor,branch._id,'money_transfer');
   const selected=available.find(a=>String(a._id)===id(input.payoutAccountId));
   if(!selected||selected.kind!=='cash')throw fail('Select your actual independently opened cash payout drawer',409);

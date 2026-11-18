@@ -78,3 +78,13 @@ test('published provider fee-sheet references appear in reports but never become
  assert.match(csv,/Published customer network charge/);
  assert.match(csv,/"325","1500"/);
 });
+
+test('cross-currency records appear in existing Mobile Money CSV without combining native currencies',()=>{
+ const csv=reporting.csv({networks:[],expenses:[],fxRows:[{network:'MTN',
+  operation:'withdraw_provider_receive_cash',providerCurrency:'UGX',cashCurrency:'SSP',
+  count:1,providerMinor:'1000',cashMinor:'90000',unverified:1}],
+  window:{timeZone:'Africa/Juba',from:'2026-11-18',to:'2026-11-18'}});
+ assert.match(csv,/Cross-currency Mobile Money/);
+ assert.match(csv,/"MTN","withdraw_provider_receive_cash","UGX","SSP","1","1000","90000","1"/);
+ assert.doesNotMatch(csv,/91000/,'unlike currencies must not be summed');
+});

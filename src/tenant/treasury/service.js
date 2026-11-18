@@ -288,7 +288,15 @@ async function postingAuthorization(conn,session,authorization,value,internal={}
   return {...current,operatingActor:{id:String(collection.createdBy)},operatingBranch:branch,historicalCorrection:false,branchTransfer:true};
  }
 
- const internalSource=['treasury_adjustment','treasury_funding'].includes(value.sourceType),source=internalSource?null:value.sourceType;
+ // MoMo FX uses the Forex clearing ledger but belongs to the Mobile Money
+ // subscription. Only the dedicated internal settlement service may opt in.
+ // Untrusted HTTP fields cannot set the internal argument.
+ if(internal.momoFx&&(value.sourceType!=='forex'||
+   !/^MFX:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.sourceRef)||
+   value.legs.length!==2||value.ledgerLines.length!==0))
+  throw fail('Invalid Mobile Money cross-currency ledger source',403);
+ const internalSource=['treasury_adjustment','treasury_funding'].includes(value.sourceType),
+  source=internal.momoFx?'mobile_money':internalSource?null:value.sourceType;
  const current=await access(conn,authorization.tenant,authorization.actor,{permission:internalSource?'treasury.review':'treasury.observe',session,fence:true,sourceType:source});
  const branch=await core.branchModel(conn).findOneAndUpdate({_id:value.branchId,status:'active'},{$inc:{revision:1}},{session,new:true}).lean();if(!branch)throw fail('The operating branch is unavailable',409);
  if(current.actor.role!=='Tenant Owner'&&String(current.actor.branchId)!==value.branchId)throw fail('Funds movements cannot cross the assigned branch',403);

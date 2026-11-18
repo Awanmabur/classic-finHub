@@ -20,7 +20,7 @@ const Tenant=require('../src/platform/models/Tenant'),Usage=require('../src/plat
 const {connectPlatformMongo,getTenantConnection}=require('../src/config/mongo');
 const commerce=require('../src/platform/services/commercial.service');
 const treasury=require('../src/tenant/treasury/service'),tm=require('../src/tenant/treasury/models');
-const forex=require('../src/tenant/services/forex.service');
+const mobileFxRates=require('../src/tenant/services/mobileMoneyFxRate.service');
 const {preview}=require('../src/tenant/services/momoFxPreview.service');
 const {settleVerified,settleManuallyConfirmed}=require('../src/tenant/services/momoFxSettlement.service');
 const {records,grants}=require('../src/tenant/schemas/MomoFxSettlement');
@@ -42,7 +42,7 @@ async function main(){
  await Promise.all([Tenant.createIndexes(),Usage.createIndexes()]);
  conn=getTenantConnection(slug);
  await core.ensureTenantIndexes(conn);await tm.ensure(conn);
- const modules=['mobile_money','forex','money_transfer','banking','expenses'];
+ const modules=['mobile_money'];
  const terms=commerce.planSnapshot({...commerce.asPlanVersion({...require('../src/data/store').plans.find(plan=>plan.code==='enterprise'),code:'momo_fx_probe',modules}),status:'published'});
  const tenant=await Tenant.create({name:'Cross currency scratch test',slug,dbName:conn.name,owner:'Owner',email:nonce+'@example.invalid',
   plan:'momo_fx_probe',status:'active',setupStatus:'complete',enabledModules:modules,seatsReserved:2,branchCount:1,
@@ -69,30 +69,16 @@ async function main(){
  const drawer=await opened('cash','SSP_DRAWER','SSP','500.00');
  const shift=await cash.open(conn,tenant,owner,{currency:'SSP',openingCash:'500.00'});
  await cash.decideOpening(conn,tenant,reviewer,shift._id,{decision:'approve',note:'Physical SSP opening counted independently in test'});
- for(const [side,rateDecimal] of [['buy','0.9'],['sell','1.0']]){
-  const proposed=await forex.proposeRate(conn,tenant,owner,{fromCurrency:'UGX',toCurrency:'SSP',side,rateDecimal,validHours:3,note:'Synthetic approved cross-currency rate with verified direction'});
-  await forex.decideRate(conn,tenant,reviewer,proposed._id,{decision:'approve',note:'Approved independent synthetic bid or ask reference'});
+ // The scratch tenant is subscribed to Mobile Money ONLY: no Forex module
+ // and no provider or regulatory document workflow.
+ for(const [side,quotedRate] of [['buy','900'],['sell','1000']]){
+  const rate=await mobileFxRates.setOwnerRate(conn,tenant,owner,branch,{
+   fromCurrency:'UGX',toCurrency:'SSP',side,rateBaseUnits:'1000',quotedRate,validHours:'3'});
+  assert.equal(rate.status,'active');
+  assert.equal(rate.rateDecimal,side==='buy'?'0.9':'1');
  }
  await grants(conn).init();await records(conn).init();
- const authorization=require('../src/tenant/services/momoFxAuthorization.service');
- const docs={walletAccountId:String(wallet._id),cashAccountId:String(drawer._id),
-  providerAuthorizationReference:'ISOLATED-TEST-ONLY-PROVIDER-CONTRACT',
-  regulatoryAuthorizationReference:'ISOLATED-TEST-ONLY-LICENSE',
-  expiresAt:new Date(Date.now()+3*86400000).toISOString().slice(0,10),
-  confirmedDocuments:'yes'};
- await assert.rejects(authorization.request(conn,tenant,owner,branch,{...docs,confirmedDocuments:'no'}),{status:400});
- const pending=await authorization.request(conn,tenant,owner,branch,docs);
- assert.equal(pending.status,'pending_review');
- await assert.rejects(authorization.decide(conn,tenant,owner,branch,pending._id,
-  {decision:'approve',verifiedOriginals:'yes',note:'Owner cannot independently verify own originals'}),{status:403});
- await assert.rejects(authorization.decide(conn,tenant,reviewer,branch,pending._id,
-  {decision:'approve',verifiedOriginals:'no',note:'Original provider and regulatory documents checked'}),{status:400});
- const approvedGrant=await authorization.decide(conn,tenant,reviewer,branch,pending._id,
-  {decision:'approve',verifiedOriginals:'yes',note:'Independently checked original isolated synthetic provider and regulatory documents'});
- assert.equal(approvedGrant.status,'approved');
- await assert.rejects(authorization.decide(conn,tenant,reviewer,branch,pending._id,
-  {decision:'approve',verifiedOriginals:'yes',note:'A second approval must not be permitted'}),{status:409});
- assert.equal((await authorization.context(conn,tenant,reviewer,branch)).items[0].status,'approved');
+ assert.equal(await grants(conn).countDocuments({tenantId:tenant._id}),0);
  const balances=async()=>({
   wallet:String((await tm.models(conn).account.findById(wallet._id).lean()).bookBalanceMinor),
   drawer:String((await tm.models(conn).account.findById(drawer._id).lean()).bookBalanceMinor)
@@ -161,18 +147,24 @@ async function main(){
  assert.deepEqual(await balances(),existingBalance,'both custody movements must roll back together');
  assert.equal(await records(conn).countDocuments(),originalCount,'failed exchange cannot appear settled');
  assert.equal(await tm.models(conn).batch.countDocuments({sourceRef:{$regex:/^MFX:/}}),3,'failed exchange cannot create a journal batch');
- const suspended=await authorization.suspend(conn,tenant,owner,branch,approvedGrant._id,{
-  note:'Synthetic provider authorization suspended for live grant safety verification'});
- assert.equal(suspended.status,'suspended');
+ // Explicit legacy suspension still fences future posts even though
+ // ordinary internal book recording no longer requires document grants.
+ const [suspended]=await grants(conn).create([{
+  tenantId:tenant._id,branchId:branch._id,walletAccountId:wallet._id,cashAccountId:drawer._id,
+  providerNetwork:'MTN',permittedCurrencyPair:'UGX/SSP',status:'suspended',
+  providerAuthorizationReference:'LEGACY-SUSPENDED-PAIR',
+  regulatoryAuthorizationReference:'LEGACY-SUSPENDED-PAIR',
+  expiresAt:new Date(Date.now()+86400000)
+ }]);
  const afterSuspendQuote=await preview(conn,tenant,owner,branch,{operation:'withdraw_provider_receive_cash',
   walletAccountId:String(wallet._id),cashAccountId:String(drawer._id),providerAmountMinor:'1'});
  await assert.rejects(settleManuallyConfirmed(conn,tenant,owner,{
   ...afterSuspendQuote,branchId:String(branch._id),idempotencyKey:crypto.randomUUID(),
   providerReference:'SUSPENDED-'+nonce,providerAppConfirmed:'yes',cashHandoverConfirmed:'yes'
- }),error=>error.status===403&&/authorization/.test(error.message),
+ }),error=>error.status===403&&/hold|suspend/.test(error.message),
  'suspended provider grant must prevent all future cross-currency postings');
  assert.deepEqual(await balances(),existingBalance,'suspended authorization must not move money');
- console.log('PASS: approved bid/ask quote, opposite UGX/SSP cash directions, atomic native-currency journals, no duplicate settlement, insufficient-cash rollback, independently reviewed grant onboarding, safe suspension and truthful unmeasured FX profit.');
+ console.log('PASS: Mobile Money-only entitlement without document grants, owner 1,000-unit FX rates, opposite UGX/SSP cash directions, atomic native-currency journals, duplicate protection, insufficient-funds rollback, suspended pair hold and unmeasured FX profit.');
 }
 async function cleanup(){
  if(mongoose.connection.readyState===1&&mongoose.connection.name===platformName&&/^cfh_momofx_[a-f0-9]{14}$/.test(platformName)){

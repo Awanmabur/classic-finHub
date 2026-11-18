@@ -10,9 +10,9 @@ const OID=/^[a-f0-9]{24}$/i;
 function fail(message,status=409){return Object.assign(new Error(message),{status});}
 async function preview(conn,tenant,actor,branch,input){
  if(!branch||branch.status!=='active')throw fail('Select an active operating branch');
- if(!hasModuleForUser(tenant,actor,'mobile_money')||!hasModuleForUser(tenant,actor,'forex')||
-    !hasPermission(actor,'mobile_money.view')||!(hasPermission(actor,'forex.view')||actor.role==='Mobile Money Operator')||
-    !hasPermission(actor,'treasury.view'))throw fail('This preview requires Mobile Money, Forex and Treasury access',403);
+ if(!hasModuleForUser(tenant,actor,'mobile_money')||
+    !hasPermission(actor,'mobile_money.view')||
+    !hasPermission(actor,'treasury.view'))throw fail('Mobile Money and Treasury access are required',403);
  if(actor.role!=='Tenant Owner'&&String(actor.branchId)!==String(branch._id))throw fail('Cannot access another branch',403);
  const walletId=String(input.walletAccountId||''),cashId=String(input.cashAccountId||'');
  if(!OID.test(walletId)||!OID.test(cashId)||walletId===cashId)throw fail('Choose the actual provider wallet and cash drawer',400);
@@ -37,6 +37,6 @@ async function preview(conn,tenant,actor,branch,input){
   expiresAt:new Date(rate.expiresAt).toISOString()});
  return {...value,branchId:String(branch._id),walletAccountId:walletId,cashAccountId:cashId,
   network:wallet.network,walletName:wallet.name,cashName:cash.name,rateExpiresAt:rate.expiresAt,
-  financialPosting:process.env.CLASSICFIN_MOMO_FX_POSTING_ENABLED==='true'?'authorization_required':'disabled',providerVerification:'required'};
+  financialPosting:process.env.CLASSICFIN_MOMO_FX_POSTING_ENABLED==='true'?'manual_book_recording':'disabled',providerVerification:'required'};
 }
 module.exports={preview};

@@ -10,6 +10,39 @@
    <a class="chip <%= data.fxState.selected?'active':'' %>" href="<%= entryPath %>?fx=1" <%- data.fxState.selected?'aria-current="page"':'' %>>Different-currency <%= data.operation==='cash_out'?'withdrawal':'deposit' %></a>
   </nav>
   <% } %>
+  <% if(data.fxState && user.role==='Tenant Owner' &&
+    ((user.permissions||[]).includes('*')||(user.permissions||[]).includes('treasury.manage')) &&
+    data.fxState.wallets.length && data.fxState.drawers.length){ %>
+  <details class="card logicNote" style="margin-top:12px">
+   <summary class="cardHead">Exchange rates · owner settings</summary>
+   <form method="post" action="/tenant/mobile-money/fx/rates" class="cardBody" autocomplete="off">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <div class="row2">
+     <label class="field">Provider wallet currency
+      <select class="control" name="fromCurrency" required>
+       <% [...new Set(data.fxState.wallets.map(w=>w.currency))].forEach(code=>{ %><option value="<%= code %>"><%= code==='KES'?'KSH':code %></option><% }) %>
+      </select></label>
+     <label class="field">Cash currency
+      <select class="control" name="toCurrency" required>
+       <% [...new Set(data.fxState.drawers.map(d=>d.currency))].forEach(code=>{ %><option value="<%= code %>"><%= code==='KES'?'KSH':code %></option><% }) %>
+      </select></label>
+    </div>
+    <div class="row2">
+     <label class="field">Rate type
+      <select class="control" name="side" required><option value="buy">Buy · customer withdraws in cash</option><option value="sell">Sell · customer deposits cash</option></select></label>
+     <label class="field">Reference amount
+      <select class="control" name="rateBaseUnits" required>
+       <option value="1">1 unit</option><option value="100">100 units</option><option value="1000" selected>1,000 units</option>
+      </select></label>
+    </div>
+    <label class="field">Target currency amount for the selected reference
+     <input class="control" name="quotedRate" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,8})?" required placeholder="Enter your actual operating rate"></label>
+    <input type="hidden" name="validHours" value="24">
+    <p class="tiny">For example, enter 1,000 UGX and its equivalent SSP amount. The system saves a precise per-unit rate. Updating a rate does not change completed transactions.</p>
+    <button class="btn btnPrimary" type="submit">Save operating exchange rate</button>
+   </form>
+  </details>
+  <% } %>
   <div class="grid mobileMoneyEntryGrid">
     <% if(data.canRecord && currentBranch){ %>
       <% if(data.fxState?.selected){ %><%- include('_fx-inline',{currentBranch}) %>

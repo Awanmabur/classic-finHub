@@ -152,7 +152,7 @@ async function request(conn,tenant,actor,type,sourceId,input={}){
  const canonical={sourceType:type,sourceId:id(sourceId),action,branchId:String(branch._id),createdBy:current.actor.id,accounts,...v};
  const fingerprint=hash(canonical),Execution=fundedModels(conn).execution;
  const prior=await Execution.findOne({idempotencyKey:v.idempotencyKey}).lean();
- if(prior){if(prior.fingerprint!==fingerprint)throw fail('Request reference reused with different financial details',409);return {execution:prior,duplicate:true,sameBranch:String(prior.sourceSnapshot?.branchId)===String(prior.branchId)};}
+ if(prior){if(prior.fingerprint!==fingerprint)throw fail('Request reference reused with different financial details',409);return {execution:prior,duplicate:true};}
  try{return await transaction(conn,async session=>{
   const authorization=await auth.fenceAction(conn,session,actor,current.tenant,type,permission(type),{branchId:String(branch._id)});
   const activeBranch=await models.branchModel(conn).findOneAndUpdate({_id:branch._id,status:'active'},{$inc:{revision:1}},{new:true,session}).lean();
@@ -440,7 +440,7 @@ async function requestPayout(conn,tenant,actor,input={}){
  if(prior){if(prior.evidenceReference!==v.evidenceReference||prior.note!==v.note||prior.verificationDigest!==tokenHash||
   (input.payoutAccountId&&String(prior.accounts.payoutAccountId)!==id(input.payoutAccountId))||
   String(prior.payoutFx?.rateId||'')!==String((input.rateChoice||'').split(':')[0]||''))
-  throw fail('Payout request reference was reused with changed details',409);return {execution:prior,duplicate:true};}
+  throw fail('Payout request reference was reused with changed details',409);return {execution:prior,duplicate:true,sameBranch:String(prior.sourceSnapshot?.branchId)===String(prior.branchId)};}
  try{return await transaction(conn,async session=>{
   const authorization=await auth.fenceAction(conn,session,actor,current.tenant,'money_transfer','money_transfer.payout');
   const verification=await fundedModels(conn).verification.findOneAndUpdate({tokenHash,createdBy:actor.id,consumedAt:null,expiresAt:{$gt:new Date()}},{$set:{consumedAt:new Date()}},{session,new:true}).lean();

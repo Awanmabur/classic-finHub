@@ -55,6 +55,7 @@ const grantSchema=new Schema({
  regulatoryAuthorizationReference:{type:String,required:true,maxlength:200},
  approvedBy:{type:O,default:null},
  reviewedAt:{type:Date,default:null},reviewNote:{type:String,maxlength:500,default:''},
+ revision:{type:Number,default:0,min:0},
  expiresAt:{type:Date,required:true}
 },{timestamps:true,strict:'throw'});
 grantSchema.index({tenantId:1,branchId:1,walletAccountId:1,cashAccountId:1,status:1});

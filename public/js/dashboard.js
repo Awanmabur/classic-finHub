@@ -551,6 +551,7 @@
         selectKind(kind);present.action=operations[kind].action;syncMobileOperation(present,kind);
         window.ClassicFinPricing?.initialise(present);
         window.ClassicFinMobileQuote?.initialise(present);
+        window.ClassicFinMobileUnified?.initialise(present);
         present.elements.namedItem('amount')?.dispatchEvent(new Event('input',{bubbles:true}));message('');return;
       }
       activeRequest?.abort();activeRequest=new AbortController();
@@ -648,7 +649,7 @@
         if(version!==requestVersion)return;
         const activeSeed=seed?.contains(document.activeElement)?document.activeElement:null;
         const seedFocus=activeSeed?.name?{name:activeSeed.name,start:activeSeed.selectionStart,end:activeSeed.selectionEnd,direction:activeSeed.selectionDirection}:null;
-        formHost.replaceChildren(form);window.ClassicFinDirectory?.initialiseForm(form);initialiseOperationForm(form);initialiseMobileFunds(form);window.ClassicFinMobileQuote?.initialise(form);message('');
+        formHost.replaceChildren(form);window.ClassicFinDirectory?.initialiseForm(form);initialiseOperationForm(form);initialiseMobileFunds(form);window.ClassicFinMobileQuote?.initialise(form);window.ClassicFinMobileUnified?.initialise(form);message('');
         form.dataset.operationLoadedAt=String(Date.now());form.dataset.operationDirty=seed?.dataset.operationDirty==='true'?'true':'false';
         const markDirty=event=>{if(event.target.matches('input:not([type="hidden"]):not([readonly]),select,textarea'))form.dataset.operationDirty='true';};form.addEventListener('input',markDirty);form.addEventListener('change',markDirty);
         const restoredFocus=seedFocus?form.elements.namedItem(seedFocus.name):null;

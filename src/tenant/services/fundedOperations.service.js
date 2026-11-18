@@ -38,7 +38,9 @@ function sourceSnapshot(type,source){
   if(!['buy','sell'].includes(source.operation))throw fail('Choose an explicit Buy or Sell quote before recording a manual exchange',409);
   if(!currencyCodes.includes(source.fromCurrency)||!currencyCodes.includes(source.toCurrency)||source.fromCurrency===source.toCurrency)throw fail('Manual books require supported, different currencies',409);
   const fee=require('./operationCapture.service').commissionMinor(source.capture||{},source.toCurrency);
-  return {...base,operation:source.operation,fromCurrency:source.fromCurrency,toCurrency:source.toCurrency,sourceMinor:minor(source.sourceMinor),targetMinor:minor(source.targetMinor),feeMinor:String(fee),settlementMethod:source.capture?.settlementMethod||'Cash',rateId:id(source.rateId),rateDecimal:String(source.rateDecimal)};
+  return {...base,operation:source.operation,originModule:source.originModule||'forex',
+   originRecordId:source.originRecordId?String(source.originRecordId):null,
+   fromCurrency:source.fromCurrency,toCurrency:source.toCurrency,sourceMinor:minor(source.sourceMinor),targetMinor:minor(source.targetMinor),feeMinor:String(fee),settlementMethod:source.capture?.settlementMethod||'Cash',rateId:id(source.rateId),rateDecimal:String(source.rateDecimal)};
  }
  if(!currencyCodes.includes(source.currency))throw fail('Unsupported manual financial currency',409);
  if(type==='banking'){
@@ -54,6 +56,8 @@ function sourceMatches(execution,source){
  if(execution.sourceType==='banking'&&!Object.hasOwn(execution.sourceSnapshot||{},'feeMinor')&&candidate.feeMinor==='0')delete candidate.feeMinor;
  if(execution.sourceType==='money_transfer'&&!Object.hasOwn(execution.sourceSnapshot||{},'senderPhone')){delete candidate.senderPhone;delete candidate.senderName;}
  if(execution.sourceType==='money_transfer'&&!Object.hasOwn(execution.sourceSnapshot||{},'destinationBranchId'))delete candidate.destinationBranchId;
+ if(execution.sourceType==='forex'&&!Object.hasOwn(execution.sourceSnapshot||{},'originModule'))delete candidate.originModule;
+ if(execution.sourceType==='forex'&&!Object.hasOwn(execution.sourceSnapshot||{},'originRecordId'))delete candidate.originRecordId;
  return hash(candidate)===execution.sourceFingerprint;
 }
 function payoutLookup(input={}){
@@ -235,6 +239,15 @@ async function review(conn,tenant,actor,executionId,input={},options={}){
   const branch=await models.branchModel(conn).findOneAndUpdate({_id:execution.branchId,status:'active'},{$inc:{revision:1}},{new:true,session}).lean();
   if(!branch)throw fail('The operating branch is unavailable',409);
   const snapshot=execution.sourceSnapshot;let plan;
+  if(execution.sourceType==='forex'){
+   await require('./forexOrigin.service').verify(conn,session,authorization.actor,String(execution.branchId),snapshot);
+   if(snapshot.originRecordId){
+    const duplicated=await models.forexQuoteModel(conn).findOne({_id:{$ne:source._id},
+     originModule:snapshot.originModule,originRecordId:snapshot.originRecordId,
+     status:'posted_manual'}).session(session).lean();
+    if(duplicated)throw fail('The linked Banking/Transfer instruction has already funded another completed currency exchange',409);
+   }
+  }
   if(execution.action==='transfer_payout'){
    const collection=await Execution.findOne({_id:execution.collectionExecutionId,action:'transfer_collect',status:'posted_manual',sourceId:execution.sourceId}).session(session).lean();
    if(!collection||String(source.manualCollectionExecutionId)!==String(collection._id))throw fail('Collected transfer funds are unavailable or already paid out',409);

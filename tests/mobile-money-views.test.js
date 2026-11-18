@@ -214,3 +214,32 @@ test('authorized balance-readiness view provides actionable account status witho
  assert.match(html,/\/tenant\/treasury/);
  assert.doesNotMatch(html,/verified actual provider balance: UGX/);
 });
+
+test('cross-currency exchange shows exact provider and drawer currency, quote movements, and posting blockers',async()=>{
+ const common=options({
+  wallets:[{id:'wallet1',name:'MTN Uganda Float Wallet',network:'MTN',currency:'UGX'}],
+  drawers:[{id:'drawer1',name:'SSP Cash Drawer',currency:'SSP'}],
+  input:{operation:'withdraw_provider_receive_cash',walletAccountId:'wallet1',cashAccountId:'drawer1',providerAmount:'200000'},
+  selectedBranchId:'aaaaaaaaaaaaaaaaaaaaaaaa',
+  canExecute:false,
+  blockers:['No active approved authorization for this exact provider wallet and cash drawer.'],
+  result:{operation:'withdraw_provider_receive_cash',network:'MTN',providerCurrency:'UGX',cashCurrency:'SSP',
+   rateSide:'buy',rateDecimal:'4000',walletName:'MTN Uganda Float Wallet',cashName:'SSP Cash Drawer',
+   providerAmountMinor:'20000000',cashAmountMinor:'80000000000',walletDeltaMinor:'20000000',
+   cashDeltaMinor:'-80000000000',rateExpiresAt:new Date('2026-11-19T12:00:00Z')}
+ });
+ const html=await render('fx',common);
+ for(const label of ['Exchange quote','Customer sends electronic money','Customer receives physical cash',
+  'Wallet book movement','Drawer book movement','Exchange cannot be posted yet',
+  'No active approved authorization for this exact provider wallet and cash drawer.'])
+  assert.ok(html.includes(label),label);
+ assert.match(html,/name="walletAccountId"/);
+ assert.match(html,/name="cashAccountId"/);
+ assert.match(html,/name="providerAmount"/);
+ assert.doesNotMatch(html,/action="\/tenant\/mobile-money\/fx\/record"/);
+ const ready=await render('fx',{...common,canExecute:true,blockers:[]});
+ assert.match(ready,/action="\/tenant\/mobile-money\/fx\/record"/);
+ assert.match(ready,/name="providerReference"/);
+ assert.match(ready,/name="providerAppConfirmed"/);
+ assert.match(ready,/name="cashHandoverConfirmed"/);
+});

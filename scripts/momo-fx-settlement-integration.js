@@ -169,7 +169,7 @@ async function main(){
  await assert.rejects(settleManuallyConfirmed(conn,tenant,owner,{
   ...afterSuspendQuote,branchId:String(branch._id),idempotencyKey:crypto.randomUUID(),
   providerReference:'SUSPENDED-'+nonce,providerAppConfirmed:'yes',cashHandoverConfirmed:'yes'
- }),error=>error.status===403&&/authorization/.test(error.message),
+ }),error=>error.status===403&&/hold|suspend/.test(error.message),
  'suspended provider grant must prevent all future cross-currency postings');
  assert.deepEqual(await balances(),existingBalance,'suspended authorization must not move money');
  console.log('PASS: approved bid/ask quote, opposite UGX/SSP cash directions, atomic native-currency journals, no duplicate settlement, insufficient-cash rollback, independently reviewed grant onboarding, safe suspension and truthful unmeasured FX profit.');

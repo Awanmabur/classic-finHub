@@ -65,7 +65,10 @@ function rateInput(input){
  const side=input?.side===undefined?'quote':input.side;
  if(!['buy','sell','quote'].includes(side))throw fail('Choose a Buy, Sell or indicative rate');
  if(side!=='quote'&&(!currencyCodes.includes(fromCurrency)||!currencyCodes.includes(toCurrency)))throw fail('Buy/Sell requires currencies supported by funds books');
- const rateDecimal=text(input?.rateDecimal,'rate',1,24);rateScaled(rateDecimal);
+ const rateDecimal=input?.quotedRate!==undefined?
+  require('./forexRateUnits.service').normalize({quotedRate:input.quotedRate,rateBaseUnits:input.rateBaseUnits}):
+  text(input?.rateDecimal,'rate',1,24);
+ rateScaled(rateDecimal);
  const validHours=Number(input?.validHours??24);
  if(!Number.isSafeInteger(validHours)||validHours<1||validHours>72)throw fail('Rate validity must be 1–72 hours');
  const note=text(input?.note,'rate justification',12,400);

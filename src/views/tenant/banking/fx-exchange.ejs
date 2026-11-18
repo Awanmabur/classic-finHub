@@ -16,14 +16,14 @@
       <label class="field">Debit source account
        <select class="control" name="sourceAccountId" required><option value="">Select posted customer balance</option>
         <% data.accounts.forEach(a=>{ %>
-         <option value="<%= a._id %>"><%= a.customerName %> · ****<%= a.accountNumber.slice(-4) %> · <%= a.currency %></option>
+         <option value="<%= a._id %>"><%= a.customerName %> · ****<%= a.accountNumber.slice(-4) %> · <%= a.currency %> · Book: <%= a.balanceLabel||'Balance unavailable' %></option>
         <% }) %>
        </select>
       </label>
       <label class="field">Credit destination account
        <select class="control" name="destinationAccountId" required><option value="">Select same customer's other currency account</option>
         <% data.accounts.forEach(a=>{ %>
-         <option value="<%= a._id %>"><%= a.customerName %> · ****<%= a.accountNumber.slice(-4) %> · <%= a.currency %></option>
+         <option value="<%= a._id %>"><%= a.customerName %> · ****<%= a.accountNumber.slice(-4) %> · <%= a.currency %> · Book: <%= a.balanceLabel||'Balance unavailable' %></option>
         <% }) %>
        </select>
       </label>

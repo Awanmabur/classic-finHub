@@ -155,10 +155,17 @@ async function main(){
   verificationToken:fxMatched.token,payoutAccountId:String(sspCash._id),
   rateChoice:String(ugxSspRate._id)+':'+ugxSspRate.revision+':'+ugxSspRate.rateDecimal
  }));
+ assert.equal(fxPayout.sameBranch,true);
  assert.equal(String(fxPayout.execution.payoutFx.targetCurrency),'SSP');
  assert.equal(String(fxPayout.execution.payoutFx.payoutMinor),'1200000');
  assert.equal(await book(sspCash),sspBefore,'creating a payout request cannot release SSP funds');
- await funded.review(conn,tenant,reviewer,fxPayout.execution._id,reviewData);
+ await assert.rejects(funded.finalizePayout(conn,tenant,owner,fxPayout.execution._id,{
+  confirmRecipientVerified:'yes'}),{status:403},'a payout without physical handover confirmation cannot post');
+ assert.equal(await book(sspCash),sspBefore);
+ assert.equal((await funded.finalizePayout(conn,tenant,owner,fxPayout.execution._id,{
+  confirmRecipientVerified:'yes',confirmCashPaid:'yes'})).execution.status,'posted_manual');
+ assert((await funded.finalizePayout(conn,tenant,owner,fxPayout.execution._id,{})).duplicate,
+  'cashier retries cannot cause duplicate SSP cash payouts');
  assert.equal((await core.transferOrderModel(conn).findById(fxTransferSource._id)).status,'paid_out_manual');
  assert.equal(await book(clearing),0n);
  assert.equal(await book(sspCash),sspBefore-1200000n);

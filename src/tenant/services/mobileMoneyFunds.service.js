@@ -105,7 +105,7 @@ async function apply(conn,session,authorization,values,{requireObservation=false
     const eligible=await fundsModels.models(conn).account.find(cashQuery).limit(2).session(session).lean();
     if(eligible.length!==1)throw fail(eligible.length?
      'Select your actual physical cash drawer before finalizing.':
-     'There is no approved cash drawer assigned to this login.',409);
+     'There is no approved cash drawer assigned to this login; do not create a duplicate cash drawer.',409);
     drawer=eligible[0];
    }
    if(values.paymentAccountId&&String(values.paymentAccountId)!==String(drawer._id))

@@ -334,3 +334,20 @@ test('recording permission warning states the live signed-in role without claimi
  assert.ok(oneHtml.includes('Open permitted Deposit'));
  assert.ok(oneHtml.includes('href="/tenant/mobile-money/cash-in"'));
 });
+
+test('tenant owner and assigned Mobile Money Operator retain their existing recording form',async()=>{
+ for(const [role,permissions] of [
+  ['Tenant Owner',['*']],
+  ['Mobile Money Operator',['mobile_money.view','mobile_money.cash_in','mobile_money.cash_out']]
+ ]){
+  const local=options();
+  local.user.role=role;
+  local.user.permissions=permissions;
+  local.data.canRecord=true;
+  local.data.operation='cash_out';
+  const html=await render('entry',local);
+  assert.ok(html.includes('data-mobile-money-form'),role);
+  assert.ok(html.includes('name="walletAccountId"'),role);
+  assert.ok(!html.includes('This signed-in session has role'),role);
+ }
+});

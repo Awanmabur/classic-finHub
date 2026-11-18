@@ -149,7 +149,7 @@
   // The preview is for display only; amounts and branch assignment are checked
   // again by the server when the operation is recorded.
   const initialiseMobileMoneyForm = (form, onOperationChange) => {
-    if (!form?.matches('[data-mobile-money-form]')) return;
+    if (!form?.matches('[data-mobile-money-form]')||form.dataset.unifiedCurrency==='true') return;
     const amount = form.elements.namedItem('amount');
     const fee = form.elements.namedItem('fee');
     const currencyControl = form.elements.namedItem('currency');
@@ -225,7 +225,7 @@
   };
   const mobileFundsBindings=new WeakSet();
   const initialiseMobileFunds=form=>{
-    if(!form?.matches('[data-mobile-money-form]')||mobileFundsBindings.has(form))return;
+    if(!form?.matches('[data-mobile-money-form]')||form.dataset.unifiedCurrency==='true'||mobileFundsBindings.has(form))return;
     const wallet=form.querySelector('[data-wallet-account]');
     if(!wallet)return;mobileFundsBindings.add(form);
     const network=form.elements.namedItem('network'),method=form.elements.namedItem('paymentMethod'),amount=form.elements.namedItem('amount'),fee=form.elements.namedItem('fee'),currencyControl=form.elements.namedItem('currency');

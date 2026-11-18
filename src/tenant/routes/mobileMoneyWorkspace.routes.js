@@ -142,6 +142,7 @@ module.exports=function routes({renderTenant}){
      cashAccountId:result.cashAccountId,providerNetwork:result.network,
      permittedCurrencyPair:result.providerCurrency+'/'+result.cashCurrency,
      status:'approved',expiresAt:{$gt:new Date()},
+     requestedBy:{$ne:null},approvedBy:{$ne:null},reviewedAt:{$ne:null},
      providerAuthorizationReference:{$ne:''},regulatoryAuthorizationReference:{$ne:''}
     }));
    }

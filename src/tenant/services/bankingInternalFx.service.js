@@ -64,6 +64,28 @@ async function balance(conn,session,ledgerId,branchId,currency){
  ]).session(session);
  return groups.reduce((n,g)=>n+BigInt(String(g.amount))*(g._id==='credit'?1n:-1n),0n);
 }
+// Do not create a new customer liability in a currency that the branch cannot
+// cover with independently opened, reconciled currency assets. This is a
+// conservative branch liquidity fence, not an external bank balance lookup.
+async function checkTargetLiquidity(conn,session,branch,currency,additionalMinor){
+ const Money=treasuryModels.models(conn);
+ const assets=await Money.account.find({branchId:branch._id,currency,
+  kind:{$in:['cash','bank','wallet','forex_stock']},status:'active',
+  openingApprovedAt:{$ne:null},reconciliationState:'matched'}).session(session).lean();
+ const backed=assets.reduce((sum,row)=>sum+BigInt(String(row.bookBalanceMinor)),0n);
+ const customerLedger=await accounts.accountModel(conn).find({branchId:branch._id,currency,
+  status:{$in:['active','pending','suspended']}}).select('ledgerAccountId').session(session).lean();
+ const ids=customerLedger.map(x=>x.ledgerAccountId);
+ const rows=ids.length?await core.ledgerPostingModel(conn).aggregate([
+  {$match:{branchId:branch._id,currency,accountId:{$in:ids}}},
+  {$group:{_id:'$side',amount:{$sum:'$amountMinor'}}}
+ ]).session(session):[];
+ let customerClaims=0n;
+ for(const row of rows)customerClaims+=(row._id==='credit'?1n:-1n)*BigInt(String(row.amount));
+ if(customerClaims<0n||backed-customerClaims<additionalMinor)
+  throw fail('Insufficient independently reconciled '+currency+' branch liquidity to support the new customer balance',409);
+ return {backed,customerClaims};
+}
 async function convert(conn,tenant,actor,branch,input={}){
  if(!branch||!eligible(tenant,actor)||actor.role!=='Tenant Owner'&&String(actor.branchId)!==String(branch._id))
   throw fail('You cannot post Banking currency exchanges for this branch',403);
@@ -123,6 +145,7 @@ async function convert(conn,tenant,actor,branch,input={}){
     forex.rateScaled(rate.rateDecimal));
    const available=await balance(conn,session,source.ledgerAccountId,branch._id,source.currency);
    if(available<sourceMinor)throw fail('Insufficient posted customer balance in the source currency',409);
+   await checkTargetLiquidity(conn,session,active,destination.currency,destinationMinor);
    // One immutable source, two currency-specific balanced journals, and no
    // provider cash movement. Settlement-clearing ledger positions record FX
    // exposure without fabricating trading profit or bank settlement.
@@ -158,7 +181,8 @@ async function convert(conn,tenant,actor,branch,input={}){
  }finally{await session.endSession();}
 }
 async function history(conn,tenant,actor,branch){
- if(!branch||!eligible(tenant,actor))throw fail('Banking Forex history requires module access',403);
+ if(!branch||!eligible(tenant,actor)||actor.role!=='Tenant Owner'&&String(actor.branchId)!==String(branch._id))
+  throw fail('Banking Forex history requires operating-branch module access',403);
  const scope={tenantId:tenant._id,branchId:branch._id,...(actor.role==='Tenant Owner'?{}:{createdBy:actor.id})};
  return Fx(conn).find(scope).sort({postedAt:-1,_id:-1}).limit(100).lean();
 }

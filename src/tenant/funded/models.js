@@ -12,6 +12,14 @@ const executionSchema=new Schema({
  sourceFingerprint:{type:String,required:true,immutable:true,match:/^[a-f0-9]{64}$/},
  sourceSnapshot:{type:Schema.Types.Mixed,required:true,immutable:true},
  accounts:{type:new Schema({cashAccountId:{type:O,default:null},foreignAccountId:{type:O,default:null},settlementAccountId:{type:O,default:null},collectionAccountId:{type:O,default:null},clearingAccountId:{type:O,default:null},payoutAccountId:{type:O,default:null}},{_id:false,strict:'throw'}),required:true,immutable:true},
+ payoutFx:{type:new Schema({
+  targetCurrency:{type:String,required:true,immutable:true},
+  payoutMinor:{type:Schema.Types.Decimal128,required:true,immutable:true},
+  rateId:{type:O,required:true,immutable:true},
+  rateDecimal:{type:String,required:true,immutable:true},
+  rateVersion:{type:Number,required:true,immutable:true},
+  rateExpiresAt:{type:Date,required:true,immutable:true}
+ },{_id:false,strict:'throw'}),default:null,immutable:true},
  collectionExecutionId:{type:O,default:null,immutable:true},verificationDigest:{type:String,default:null,immutable:true,select:false},
  evidenceReference:{type:String,required:true,maxlength:120,immutable:true},note:{type:String,required:true,maxlength:400,immutable:true},
  verificationInfo:{type:new Schema({receiverNameCheck:{type:String,maxlength:120,default:''},identityDocument:{type:String,maxlength:80,default:''}},{_id:false,strict:'throw'}),default:()=>({}),immutable:true},

@@ -208,24 +208,33 @@ async function review(conn,tenant,actor,executionId,input={},options={}){
  // callers cannot select this mode; ordinary banking and transfer reviews
  // retain independent approval.
  const directForex=options.mode==='forex_cashier_confirmed';
+ const directPayout=options.mode==='pin_verified_cash_payout';
  if(!tenant?.slug||conn.name!==tenantDbNameFromSlug(tenant.slug))throw fail('Manual financial workspace is invalid',403);
  if(!['approve','reject'].includes(input.decision))throw fail('Choose approve or reject');const note=text(input.note,'review evidence',12,400);
  await prepareIndexes(conn);const Execution=fundedModels(conn).execution,initial=await Execution.findById(id(executionId)).lean();if(!initial)throw fail('Manual movement not found',404);
- const current=await context(conn,tenant,actor,initial.sourceType,directForex?'forex.quotes.create':permission(initial.sourceType,true,initial.action));
+ const current=await context(conn,tenant,actor,initial.sourceType,directForex?'forex.quotes.create':directPayout?'money_transfer.payout':permission(initial.sourceType,true,initial.action));
  if(directForex){
   if(initial.sourceType!=='forex'||initial.action!=='forex'||!['Tenant Owner','Forex Operator','Banking Operator','Money Transfer Operator'].includes(current.actor.role)||
     String(initial.createdBy)!==String(current.actor.id)||
     input.confirmFundsExchanged!=='yes'||input.confirmEvidenceChecked!=='yes')
    throw fail('The originating Forex cashier must confirm actual receipt, payout and evidence before final posting',403);
+ }else if(directPayout){
+  if(initial.sourceType!=='money_transfer'||initial.action!=='transfer_payout'||
+    !['Tenant Owner','Money Transfer Operator'].includes(current.actor.role)||
+    String(initial.createdBy)!==String(current.actor.id)||
+    input.confirmCashPaid!=='yes'||input.confirmRecipientVerified!=='yes'||
+    !initial.verificationInfo?.receiverNameCheck||!initial.verificationInfo?.identityDocument)
+   throw fail('A PIN-verified cashier must confirm the actual cash payment and recipient identity before final posting',403);
  }else{
   if(!['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(current.actor.role))throw fail('Independent financial reviewer required',403);
   if(String(initial.createdBy)===current.actor.id)throw fail('The originator cannot review their own manual movement',403);
  }
  return transaction(conn,async session=>{
-  const authorization=await auth.fenceAction(conn,session,actor,current.tenant,initial.sourceType,directForex?'forex.quotes.create':permission(initial.sourceType,true,initial.action));
+  const authorization=await auth.fenceAction(conn,session,actor,current.tenant,initial.sourceType,
+   directForex?'forex.quotes.create':directPayout?'money_transfer.payout':permission(initial.sourceType,true,initial.action));
   if(!await models.tenantUserModel(conn).exists({_id:actor.id,status:'active',...(require('../../config/mfaPolicy').enabled()?{mfaEnabledAt:{$ne:null}}:{})}).session(session))throw fail('Authenticator enrollment is required for manual financial review',403);
   const execution=await Execution.findOneAndUpdate({_id:initial._id,status:'pending_review',
-   ...(directForex?{createdBy:actor.id}:{createdBy:{$ne:actor.id}}),...scope(authorization.actor)},{$inc:{revision:1}},{new:true,session}).lean();
+   ...(directForex||directPayout?{createdBy:actor.id}:{createdBy:{$ne:actor.id}}),...scope(authorization.actor)},{$inc:{revision:1}},{new:true,session}).lean();
   if(!execution)throw fail('Manual movement already reviewed or outside your branch',409);
   const sourceModel=definition(execution.sourceType).model(conn),source=await sourceModel.findById(execution.sourceId).session(session).lean();
   if(!source||!sourceMatches(execution,source))throw fail('Original instruction is missing or its economics changed',409);
@@ -239,6 +248,8 @@ async function review(conn,tenant,actor,executionId,input={},options={}){
   const branch=await models.branchModel(conn).findOneAndUpdate({_id:execution.branchId,status:'active'},{$inc:{revision:1}},{new:true,session}).lean();
   if(!branch)throw fail('The operating branch is unavailable',409);
   const snapshot=execution.sourceSnapshot;let plan,collectionForFx=null;
+  if(directPayout&&String(source.branchId)!==String(execution.branchId))
+   throw fail('Cross-branch remittance payouts require independent financial review',403);
   if(execution.sourceType==='forex'&&snapshot.originRecordId)
    throw fail('Legacy linked Forex instructions cannot settle Banking/Transfer payables twice. Use the module-native currency conversion workflow.',409);
   if(execution.action==='transfer_payout'){
@@ -272,8 +283,9 @@ async function review(conn,tenant,actor,executionId,input={},options={}){
     branchId:String(execution.branchId),operatingActorId:String(execution.createdBy),
     ...plan,evidenceRef:execution.evidenceReference,description:execution.note
    });
-  const changes={status:'posted_manual',reviewedBy:directForex?null:actor.id,reviewedAt:new Date(),
-   reviewNote:directForex?'Cashier attested actual custody and checked evidence; independent review not claimed':note,
+  const changes={status:'posted_manual',reviewedBy:directForex||directPayout?null:actor.id,reviewedAt:new Date(),
+   reviewNote:directForex?'Cashier attested actual custody and checked evidence; independent review not claimed':
+    directPayout?'PIN-verified cashier confirmed actual beneficiary ID and cash payout; independent review not claimed':note,
    journalIds:posting.journalIds||[]};
   if(execution.action==='transfer_collect'){
    let generated;
@@ -296,7 +308,7 @@ async function review(conn,tenant,actor,executionId,input={},options={}){
    await Execution.updateOne({_id:execution.collectionExecutionId,action:'transfer_collect'},{$unset:{pinEncrypted:''},$inc:{revision:1}},{session});
   }
   await audit(conn,session,authorization.actor,posted,'manual.posted',{journalIds:(posting.journalIds||[]).map(String),
-   evidenceMode:directForex?'cashier_attested_forex':'independently_reviewed_manual'});
+   evidenceMode:directForex?'cashier_attested_forex':directPayout?'cashier_confirmed_pin_payout':'independently_reviewed_manual'});
   return {execution:posted,source:changed,duplicate:false};
  });
 }
@@ -470,6 +482,17 @@ async function requestPayout(conn,tenant,actor,input={}){
   await audit(conn,session,authorization.actor,execution,'payout.requested');return {execution,duplicate:false};
  });}catch(error){if(error.code===11000)throw fail('A payout is already pending or posted for this transfer',409);throw error;}
 }
+async function finalizePayout(conn,tenant,actor,executionId,confirmation={}){
+ const execution=await fundedModels(conn).execution.findById(id(executionId)).lean();
+ if(!execution||execution.sourceType!=='money_transfer'||execution.action!=='transfer_payout')
+  throw fail('PIN payout request not found',404);
+ if(String(execution.createdBy)!==String(actor.id))throw fail('Payout is outside your originating-cashier scope',403);
+ if(execution.status==='posted_manual')return {execution,duplicate:true};
+ return review(conn,tenant,actor,executionId,{
+  decision:'approve',note:'Verified beneficiary PIN, identity and actually handed-over native-currency cash',
+  confirmCashPaid:confirmation.confirmCashPaid,confirmRecipientVerified:confirmation.confirmRecipientVerified
+ },{mode:'pin_verified_cash_payout'});
+}
 async function finalizeForex(conn,tenant,actor,executionId,confirmation={}){
  const execution=await fundedModels(conn).execution.findById(id(executionId)).lean();
  if(!execution||execution.sourceType!=='forex')throw fail('Forex movement not found',404);
@@ -483,4 +506,4 @@ async function finalizeForex(conn,tenant,actor,executionId,confirmation={}){
   confirmEvidenceChecked:confirmation.confirmEvidenceChecked
  },{mode:'forex_cashier_confirmed'});
 }
-module.exports={finalizeForex,sourceMatches,payoutLookup,transferMessage,retrySms,definitions,definition,sourceSnapshot,economicPlan,context,prepare,request,review,list,detail,revealPin,checkPayout,payoutContext,requestPayout,prepareIndexes,fail,minor,paymentKind,choose};
+module.exports={finalizePayout,finalizeForex,sourceMatches,payoutLookup,transferMessage,retrySms,definitions,definition,sourceSnapshot,economicPlan,context,prepare,request,review,list,detail,revealPin,checkPayout,payoutContext,requestPayout,prepareIndexes,fail,minor,paymentKind,choose};

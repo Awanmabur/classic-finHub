@@ -140,6 +140,55 @@ async function main(){
  await assert.rejects(funded.review(conn,tenant,reviewer,payout.execution._id,reviewData),{status:409});await assert.rejects(funded.checkPayout(conn,tenant,owner,{pin:revealed.pin,senderPhone:'+256700111222'}),{status:404});
  for(let i=0;i<10;i++)await assert.rejects(funded.checkPayout(conn,tenant,owner,{pin:'123456',senderPhone:'+256700199999'}),{status:404});
  await assert.rejects(funded.checkPayout(conn,tenant,owner,{pin:'123456',senderPhone:'+256700199999'}),{status:429},'same phone and branch guesses are limited across database-backed attempts');
+ // Same-branch cash pickup remittance: collect UGX, pay SSP at an approved
+ // locked rate. No provider transfer is simulated or treated as completed.
+ const ugxSspRateProposal=await forex.proposeRate(conn,tenant,owner,{
+  fromCurrency:'UGX',toCurrency:'SSP',side:'buy',rateDecimal:'1.2',validHours:24,
+  note:'Independently checked cash-remittance exchange rate for genuine UGX to SSP payout'});
+ const ugxSspRate=await forex.decideRate(conn,tenant,reviewer,ugxSspRateProposal._id,reviewData);
+ const sspShift=await cash.open(conn,tenant,owner,{currency:'SSP',openingCash:'20000'});
+ await cash.decideOpening(conn,tenant,reviewer,sspShift._id,{
+  decision:'approve',note:'Independently counted physical SSP cash before native-currency remittance payout'});
+ const sspCash=await opened('CASH_SSP','cash','SSP','20000');
+ const fxTransferSource=await core.transferOrderModel(conn).create({
+  reference:'TR-FX-'+nonce.toUpperCase(),idempotencyKey:crypto.randomUUID(),branchId:branch._id,
+  createdBy:owner.id,partyEntryMode:'saved_contact',
+  sender:{contactId:sender._id,name:sender.fullName,phone:sender.phone,country:sender.country},
+  beneficiary:{contactId:receiver._id,name:receiver.fullName,phone:receiver.phone,country:receiver.country},
+  capture:require('../src/tenant/services/operationCapture.service').parse('money_transfer',{transferMethod:'Cash'}),
+  currency:'UGX',amountMinor:'10000',feeMinor:'0',validDays:7,
+  expiresAt:new Date(Date.now()+7*86400000),status:'requested'
+ });
+ const fxCollection=await manual('money_transfer',fxTransferSource,{
+  collectionAccountId:String(cashFund._id),clearingAccountId:String(clearing._id)});
+ await funded.review(conn,tenant,reviewer,fxCollection.execution._id,reviewData);
+ const fxPin=await funded.revealPin(conn,tenant,owner,fxCollection.execution._id);
+ const fxMatched=await funded.checkPayout(conn,tenant,owner,{
+  pin:fxPin.pin,senderPhone:'+256700111222',receiverNameCheck:'Verified receiver',
+  identityDocument:'RECEIVER-IDENTITY-SSP'
+ });
+ const fxPayoutCtx=await funded.payoutContext(conn,tenant,owner,fxMatched);
+ assert(fxPayoutCtx.fxRates.some(r=>String(r._id)===String(ugxSspRate._id)));
+ assert(fxPayoutCtx.payoutAccounts.some(a=>String(a._id)===String(sspCash._id)));
+ const sspBefore=await book(sspCash),clearingBefore=await book(clearing);
+ assert.equal(clearingBefore,10000n);
+ const fxPayout=await funded.requestPayout(conn,tenant,owner,requestData({
+  verificationToken:fxMatched.token,payoutAccountId:String(sspCash._id),
+  rateChoice:String(ugxSspRate._id)+':'+ugxSspRate.revision+':'+ugxSspRate.rateDecimal
+ }));
+ assert.equal(String(fxPayout.execution.payoutFx.targetCurrency),'SSP');
+ assert.equal(String(fxPayout.execution.payoutFx.payoutMinor),'1200000');
+ assert.equal(await book(sspCash),sspBefore,'creating a payout request cannot release SSP funds');
+ await funded.review(conn,tenant,reviewer,fxPayout.execution._id,reviewData);
+ assert.equal((await core.transferOrderModel(conn).findById(fxTransferSource._id)).status,'paid_out_manual');
+ assert.equal(await book(clearing),0n);
+ assert.equal(await book(sspCash),sspBefore-1200000n);
+ const fxPayoutJournal=await fundedModel.models(conn).execution.findById(fxPayout.execution._id).lean();
+ assert.equal(fxPayoutJournal.journalIds.length,2,'real remittance conversion must post one balanced journal per currency');
+ await assert.rejects(funded.review(conn,tenant,reviewer,fxPayout.execution._id,reviewData),{status:409});
+ await treasury.assertBookIntegrity(conn,null,await treasuryModels(conn).account.findById(sspCash._id).lean());
+ for(const currency of ['UGX','SSP'])
+  assert.equal((await ledger.trialBalance(conn,{branchId:String(branch._id),currency})).balanced,true);
  const expiredChecked=await treasuryModels(conn).account.findById(cashFund._id).lean();assert.equal(String(expiredChecked.lastObservedMinor),originalObserved,'expected book movement cannot pretend the last external/counted observation changed live');
  const disabledSource=await bankSource('deposit_request','100'),disabled=await manual('banking',disabledSource,{cashAccountId:String(cashFund._id)});
  await core.tenantUserModel(conn).updateOne({_id:owner.id},{$set:{status:'disabled'},$inc:{authVersion:1}});const disabledBefore=await book(cashFund);await assert.rejects(funded.review(conn,tenant,reviewer,disabled.execution._id,reviewData),{status:403});assert.equal(await book(cashFund),disabledBefore);

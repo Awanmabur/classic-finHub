@@ -70,9 +70,9 @@ async function settleVerified(conn,tenant,actor,input,proof){
     !ref(input.providerReference)||typeof input.network!=='string')
   throw fail('Invalid cross-currency operation identifiers',400);
  expectedOperation(input.operation);
- if(!hasModuleForUser(tenant,actor,'mobile_money')||!hasModuleForUser(tenant,actor,'forex')||
-    !hasPermission(actor,'treasury.observe')||!(hasPermission(actor,'forex.view')||actor.role==='Mobile Money Operator')||
-    !hasPermission(actor,'mobile_money.view'))throw fail('Missing cross-currency module or treasury permission',403);
+ if(!hasModuleForUser(tenant,actor,'mobile_money')||
+    !hasPermission(actor,'treasury.observe')||
+    !hasPermission(actor,'mobile_money.view'))throw fail('Missing Mobile Money or treasury permission',403);
  // Do not import signed external float movements from user supplied balances.
  const evidence=proof?.mode==='operator_attested_unverified'?
   operatorEvidence(proof,input,actor):
@@ -113,16 +113,22 @@ async function settleVerified(conn,tenant,actor,input,proof){
    if(!wallet||!cash||wallet.currency===cash.currency)throw fail('Verified wallet and cash drawer must have different currencies');
    for(const account of [wallet,cash])if(account.operatorId&&String(account.operatorId)!==String(actor.id))
     throw fail('Funds account belongs to a different cashier',403);
-   // Write-fence the approved grant so concurrent suspension aborts the settlement.
-   const grant=await Grant.findOneAndUpdate({tenantId:tenant._id,branchId:branch._id,
+   // Internal book recording is not a provider licence check. Existing pair
+   // suspensions remain authoritative: a suspended pair must never post.
+   // Recheck and write-fence any legacy grant so concurrent suspension aborts.
+   const legacyGrant=await Grant.findOne({tenantId:tenant._id,branchId:branch._id,
     walletAccountId:wallet._id,cashAccountId:cash._id,providerNetwork:wallet.network,
-    permittedCurrencyPair:wallet.currency+'/'+cash.currency,status:'approved',
-    expiresAt:{$gt:new Date()},providerAuthorizationReference:{$ne:''},
-    regulatoryAuthorizationReference:{$ne:''},requestedBy:{$ne:null},
-    approvedBy:{$ne:null},reviewedAt:{$ne:null}},
-    {$inc:{revision:1}},{session,new:true}).lean();
-   if(!grant||String(grant.requestedBy)===String(grant.approvedBy))
-    throw fail('This branch/provider/currency pair lacks independently verified regulatory and provider authorization',403);
+    permittedCurrencyPair:wallet.currency+'/'+cash.currency,
+    status:{$in:['approved','suspended','revoked']}})
+    .sort({createdAt:-1}).session(session).lean();
+   if(legacyGrant&&legacyGrant.status!=='approved')
+    throw fail('This wallet and cash pair was suspended; ask the owner to resolve the hold',403);
+   let grant=null;
+   if(legacyGrant){
+    grant=await Grant.findOneAndUpdate({_id:legacyGrant._id,status:'approved',revision:legacyGrant.revision},
+     {$inc:{revision:1}},{session,new:true}).lean();
+    if(!grant)throw fail('Pair access changed during recording; retry',409);
+   }
    const side=input.operation==='withdraw_provider_receive_cash'?'buy':'sell';
    const rate=await forexRateModel(conn).findOne({_id:input.rateId,
     branchId:branch._id,fromCurrency:wallet.currency,toCurrency:cash.currency,
@@ -156,7 +162,7 @@ async function settleVerified(conn,tenant,actor,input,proof){
     rateId:rate._id,rateVersion:rate.revision,rateSide:rate.side,rateDecimal:rate.rateDecimal,
     providerEvidenceId:evidence.evidenceId,providerVerifiedAt:evidence.verifiedAt,
     providerEvidenceKind:evidence.evidenceKind,providerSettlementState:evidence.settlementState,
-    cashConfirmedAt:evidence.cashConfirmedAt,complianceGrantId:grant._id,
+    cashConfirmedAt:evidence.cashConfirmedAt,complianceGrantId:grant?._id||null,
     journalBatchId:posting.batch._id,fxProfitState:'unmeasured_cost_basis',settledAt:new Date()
    }],{session});
    await auditEventModel(conn).create([{action:'mobile_money.fx.settled',actorId:actor.id,targetId:record._id,

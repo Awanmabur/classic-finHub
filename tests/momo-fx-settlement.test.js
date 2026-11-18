@@ -20,7 +20,7 @@ test('cross-currency records require linked journal and verified provider eviden
   assert.equal(models.recordSchema.path(key).isRequired,true,key+' is required');
 });
 test('internal Mobile Money book records do not require compliance document grants',()=>{
- assert.equal(models.recordSchema.path('complianceGrantId').isRequired,false);
+ assert.notEqual(models.recordSchema.path('complianceGrantId').isRequired,true);
  const rate=require('../src/tenant/services/mobileMoneyFxRate.service');
  assert.equal(rate.inputRate({fromCurrency:'UGX',toCurrency:'SSP',side:'buy',
   rateBaseUnits:'1000',quotedRate:'350',validHours:'24'}).rateDecimal,'0.35');

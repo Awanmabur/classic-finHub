@@ -152,7 +152,7 @@ async function request(conn,tenant,actor,type,sourceId,input={}){
  const canonical={sourceType:type,sourceId:id(sourceId),action,branchId:String(branch._id),createdBy:current.actor.id,accounts,...v};
  const fingerprint=hash(canonical),Execution=fundedModels(conn).execution;
  const prior=await Execution.findOne({idempotencyKey:v.idempotencyKey}).lean();
- if(prior){if(prior.fingerprint!==fingerprint)throw fail('Request reference reused with different financial details',409);return {execution:prior,duplicate:true};}
+ if(prior){if(prior.fingerprint!==fingerprint)throw fail('Request reference reused with different financial details',409);return {execution:prior,duplicate:true,sameBranch:String(prior.sourceSnapshot?.branchId)===String(prior.branchId)};}
  try{return await transaction(conn,async session=>{
   const authorization=await auth.fenceAction(conn,session,actor,current.tenant,type,permission(type),{branchId:String(branch._id)});
   const activeBranch=await models.branchModel(conn).findOneAndUpdate({_id:branch._id,status:'active'},{$inc:{revision:1}},{new:true,session}).lean();
@@ -479,7 +479,8 @@ async function requestPayout(conn,tenant,actor,input={}){
   const [execution]=await Execution.create([{...canonical,fingerprint:hash(canonical),sourceFingerprint:hash(snapshot),sourceSnapshot:snapshot,
    verificationDigest:tokenHash,verificationInfo:{receiverNameCheck:verification.receiverNameCheck,identityDocument:verification.identityDocument},
    activeKey:`money_transfer:${source._id}:transfer_payout`}],{session});
-  await audit(conn,session,authorization.actor,execution,'payout.requested');return {execution,duplicate:false};
+  await audit(conn,session,authorization.actor,execution,'payout.requested');
+  return {execution,duplicate:false,sameBranch:String(source.branchId)===String(branch._id)};
  });}catch(error){if(error.code===11000)throw fail('A payout is already pending or posted for this transfer',409);throw error;}
 }
 async function finalizePayout(conn,tenant,actor,executionId,confirmation={}){

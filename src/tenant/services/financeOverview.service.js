@@ -193,6 +193,27 @@ async function postedOriginFxActivity(conn,tenant,user,branch,period={}){
  }
  return {limited:false,count:rows.length,bought:rowsOf(bought),sold:rowsOf(sold)};
 }
+async function postedBankingInternalFxActivity(conn,tenant,user,branch,period={}){
+ if(period.moduleKey!=='banking'||!hasModuleForUser(tenant,user,'accounts')||!hasModuleForUser(tenant,user,'forex'))return null;
+ const scope=branchScope(user,{operationBranch:branch,viewBranchId:period.viewBranchId,viewBranch:period.viewBranch});
+ if(scope===null)return null;
+ const bounds=businessTime.dayBounds({from:period.from,to:period.to},
+  period.timeZone||businessTime.forBranch(branch),366,period.now||new Date());
+ const Model=require('../schemas/BankingInternalFx.schema').model(conn);
+ const rows=await Model.find({...scope,tenantId:tenant._id,
+  postedAt:bounds}).select('sourceCurrency destinationCurrency sourceAmountMinor destinationAmountMinor')
+  .sort({postedAt:-1,_id:-1}).limit(1001).maxTimeMS(3000).lean();
+ if(rows.length>1000)return {limited:true,count:null,source:[],destination:[]};
+ const from=new Map(),to=new Map();
+ for(const row of rows){
+  const a=String(row.sourceAmountMinor),b=String(row.destinationAmountMinor);
+  if(!currencyCodes.includes(row.sourceCurrency)||!currencyCodes.includes(row.destinationCurrency)||
+   !/^\d+$/.test(a)||!/^\d+$/.test(b))continue;
+  from.set(row.sourceCurrency,(from.get(row.sourceCurrency)||0n)+BigInt(a));
+  to.set(row.destinationCurrency,(to.get(row.destinationCurrency)||0n)+BigInt(b));
+ }
+ return {limited:false,count:rows.length,source:rowsOf(from),destination:rowsOf(to)};
+}
 async function moduleOverview(conn,tenant,user,branch,period={}){
  try{
   const result=await overview(conn,tenant,user,{
@@ -204,10 +225,12 @@ async function moduleOverview(conn,tenant,user,branch,period={}){
    result.forexActivity=await postedForexActivity(conn,tenant,user,branch,period);
   if(result.available&&['banking','money_transfer'].includes(period.moduleKey))
    result.crossModuleFxActivity=await postedOriginFxActivity(conn,tenant,user,branch,period);
+  if(result.available&&period.moduleKey==='banking')
+   result.bankingInternalFxActivity=await postedBankingInternalFxActivity(conn,tenant,user,branch,period);
   return result;
  }catch(error){
   console.warn(JSON.stringify({event:'finance.module_overview_unavailable',code:String(error.code||error.name||'UNKNOWN').slice(0,80)}));
   return {available:false,reason:'Financial overview temporarily unavailable; core transactions remain available'};
  }
 }
-module.exports={ASSET_KINDS,MODULES,groupMoney,rowsOf,branchScope,postedEarnings,postedEarningsByModule,postedForexActivity,postedOriginFxActivity,overview,moduleOverview};
+module.exports={ASSET_KINDS,MODULES,groupMoney,rowsOf,branchScope,postedEarnings,postedEarningsByModule,postedForexActivity,postedOriginFxActivity,postedBankingInternalFxActivity,overview,moduleOverview};

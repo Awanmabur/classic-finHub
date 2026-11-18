@@ -238,7 +238,7 @@ async function review(conn,tenant,actor,executionId,input={},options={}){
   // ledger posting paths before reading the spendable liability balance.
   const branch=await models.branchModel(conn).findOneAndUpdate({_id:execution.branchId,status:'active'},{$inc:{revision:1}},{new:true,session}).lean();
   if(!branch)throw fail('The operating branch is unavailable',409);
-  const snapshot=execution.sourceSnapshot;let plan;
+  const snapshot=execution.sourceSnapshot;let plan,collectionForFx=null;
   if(execution.sourceType==='forex'){
    await require('./forexOrigin.service').verify(conn,session,authorization.actor,String(execution.branchId),snapshot);
    if(snapshot.originRecordId){
@@ -251,14 +251,34 @@ async function review(conn,tenant,actor,executionId,input={},options={}){
   if(execution.action==='transfer_payout'){
    const collection=await Execution.findOne({_id:execution.collectionExecutionId,action:'transfer_collect',status:'posted_manual',sourceId:execution.sourceId}).session(session).lean();
    if(!collection||String(source.manualCollectionExecutionId)!==String(collection._id))throw fail('Collected transfer funds are unavailable or already paid out',409);
-   plan={legs:[{accountId:execution.accounts.clearingAccountId,deltaMinor:'-'+snapshot.amountMinor},{accountId:execution.accounts.payoutAccountId,deltaMinor:'-'+snapshot.amountMinor}],ledgerLines:[]};
+   collectionForFx=collection;
+   if(execution.payoutFx){
+    if(!hasModuleForUser(authorization.tenant,authorization.actor,'forex')||
+      !hasPermission(authorization.actor,'forex.view'))
+     throw fail('Payout reviewer needs authorized Forex module access',403);
+    const payoutActor=await models.tenantUserModel(conn).findOne({_id:execution.createdBy,status:'active'}).session(session).lean();
+    if(!payoutActor||!hasModuleForUser(authorization.tenant,payoutActor,'forex'))
+     throw fail('The payout cashier no longer has Forex entitlement',403);
+    branchCurrency.resolve(branch,execution.payoutFx.targetCurrency);
+   }else if((await treasury().models(conn).account.findById(execution.accounts.payoutAccountId).session(session).lean())?.currency!==snapshot.currency)
+    throw fail('Payout currency differs from the collected transfer but has no locked Forex rate',409);
+   plan={legs:[{accountId:execution.accounts.clearingAccountId,deltaMinor:'-'+snapshot.amountMinor},
+    {accountId:execution.accounts.payoutAccountId,deltaMinor:'-'+(execution.payoutFx?String(execution.payoutFx.payoutMinor):snapshot.amountMinor)}],ledgerLines:[]};
   }else if(execution.sourceType==='banking'){
    const original=await lockCustomerAccount(conn,session,authorization,snapshot.customerAccountId,execution.branchId,snapshot.currency);
    const destination=snapshot.destinationAccountId?await lockCustomerAccount(conn,session,authorization,snapshot.destinationAccountId,execution.branchId,snapshot.currency):null;
    if(snapshot.kind!=='deposit_request'&&await customerBalance(conn,session,original.ledger._id,execution.branchId,snapshot.currency)<BigInt(snapshot.amountMinor)+BigInt(snapshot.feeMinor||'0'))throw fail('Insufficient posted customer account balance including charges',409);
    plan=economicPlan(snapshot,execution.accounts,{sourceLiabilityId:String(original.ledger._id),destinationLiabilityId:destination?String(destination.ledger._id):null,feeIncomeId:await feeAccount(conn,session,authorization,snapshot,execution)});
   }else plan=economicPlan(snapshot,execution.accounts,{feeIncomeId:await feeAccount(conn,session,authorization,snapshot,execution)});
-  const posting=execution.action==='transfer_payout'&&String(source.destinationBranchId||source.branchId)!==String(source.branchId)?await treasury().postBranchTransferPayout(conn,session,authorization,execution._id):await treasury().applyMovements(conn,session,authorization,{sourceType:execution.sourceType,sourceRef:`FUNDED:${execution._id}`,branchId:String(execution.branchId),operatingActorId:String(execution.createdBy),...plan,evidenceRef:execution.evidenceReference,description:execution.note});
+  const posting=execution.action==='transfer_payout'&&execution.payoutFx?
+   await treasury().postCrossCurrencyTransferPayout(conn,session,authorization,execution,source,collectionForFx):
+   execution.action==='transfer_payout'&&String(source.destinationBranchId||source.branchId)!==String(source.branchId)?
+   await treasury().postBranchTransferPayout(conn,session,authorization,execution._id):
+   await treasury().applyMovements(conn,session,authorization,{
+    sourceType:execution.sourceType,sourceRef:`FUNDED:${execution._id}`,
+    branchId:String(execution.branchId),operatingActorId:String(execution.createdBy),
+    ...plan,evidenceRef:execution.evidenceReference,description:execution.note
+   });
   const changes={status:'posted_manual',reviewedBy:directForex?null:actor.id,reviewedAt:new Date(),
    reviewNote:directForex?'Cashier attested actual custody and checked evidence; independent review not claimed':note,
    journalIds:posting.journalIds||[]};

@@ -209,7 +209,7 @@ async function convert(conn,tenant,actor,branch,input={}){
   },{readConcern:{level:'snapshot'}});
   return result;
  }catch(error){
-  if(error.code===11000)throw fail('This internal exchange reference already posted; refresh history before retrying',409);
+  if(error.code===11000)throw fail('This exchange reference or customer-approved voucher was already used. Check posted history before creating another transaction',409);
   throw error;
  }finally{await session.endSession();}
 }

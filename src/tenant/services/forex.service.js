@@ -62,7 +62,14 @@ function branchFor(actor,input){return require('./transactionBranch.service').as
 function rateInput(input){
  const fromCurrency=currency(input?.fromCurrency),toCurrency=currency(input?.toCurrency);
  if(fromCurrency===toCurrency)throw fail('Exchange currencies must differ');
- const rateDecimal=text(input?.rateDecimal,'rate',1,24);rateScaled(rateDecimal);
+ // Reference units are input-only. Persist the historical per-one-unit rate format.
+ const referenceUnits=Number(input?.referenceUnits??1);
+ if(![1,100,1000,10000].includes(referenceUnits))throw fail('Choose 1, 100, 1,000 or 10,000 reference units');
+ const quotedRate=text(input?.rateDecimal,'rate',1,24);
+ const scaled=rateScaled(quotedRate);
+ const normalized=(scaled+BigInt(referenceUnits)/2n)/BigInt(referenceUnits);
+ if(normalized===0n)throw fail('Quoted rate is too small for eight-decimal precision');
+ const rateDecimal=(normalized/RATE_SCALE).toString()+(normalized%RATE_SCALE===0n?'':'.'+(normalized%RATE_SCALE).toString().padStart(8,'0').replace(/0+$/,''));
  const validHours=Number(input?.validHours??24);
  if(!Number.isSafeInteger(validHours)||validHours<1||validHours>72)throw fail('Rate validity must be 1–72 hours');
  const note=text(input?.note,'rate justification',12,400);

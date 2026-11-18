@@ -80,7 +80,7 @@ test('Banking FX search escapes regex metacharacters and preview uses selected a
  const source=fs.readFileSync(path.join(__dirname,'../src/tenant/services/bankingInternalFx.service.js'),'utf8');
  assert.match(source,/regexMeta\.includes\(ch\)/);
  assert.match(source,/filter\.selectedIds/);
- assert.match(source,/selectedAccounts\.slice\(0,100\)/);
+ assert.match(source,/customerAccounts\.slice\(0,100\)/);
  assert.doesNotMatch(source,/More than 200 customer accounts/);
  const view=fs.readFileSync(path.join(__dirname,'../src/views/tenant/banking/fx-exchange.ejs'),'utf8');
  assert.match(view,/name="q"/);

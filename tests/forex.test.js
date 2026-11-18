@@ -131,6 +131,13 @@ test('Forex schemas prevent mutable rate and quote snapshots and enforce unique 
  for(const name of ['fromCurrency','toCurrency','side','rateDecimal','expiresAt'])assert(rate.path(name).options.immutable);
  for(const name of ['fromCurrency','toCurrency','rateDecimal','sourceMinor','targetMinor','rateId','expiresAt'])assert(quote.path(name).options.immutable);
  assert.equal(quote.path('originModule').options.immutable,true);
+ assert.equal(quote.path('originRecordId').options.immutable,true);
+ assert(quote.indexes().some(([keys,options])=>keys.originRecordId===1&&options.unique&&options.partialFilterExpression?.status==='posted_manual'));
+ const origin=require('../src/tenant/services/forexOrigin.service');
+ assert.equal(origin.originId(null,'forex'),null);
+ assert.equal(origin.originId(branch,'banking'),branch);
+ assert.throws(()=>origin.originId('', 'money_transfer'),{status:400});
+ assert.throws(()=>origin.originId(branch,'forex'),{status:400});
  assert(rate.indexes().some(([fields,options])=>fields.branchId===1&&fields.side===1&&options.unique&&options.name==='one_active_forex_rate_per_pair_side'&&options.partialFilterExpression?.status==='active'));
  assert(quote.indexes().some(([fields,options])=>fields.idempotencyKey===1&&options.unique));
 });

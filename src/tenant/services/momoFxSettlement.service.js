@@ -106,7 +106,7 @@ async function settleVerified(conn,tenant,actor,input,proof){
    const branchId=String(input.branchId||'');
    if(!OID.test(branchId)||actor.role!=='Tenant Owner'&&String(actor.branchId)!==branchId)
     throw fail('Cross-branch settlement is forbidden',403);
-   const auth=await treasury.access(conn,tenant,actor,{permission:'treasury.observe',sourceType:'forex',session,fence:true});
+   const auth=await treasury.access(conn,tenant,actor,{permission:'treasury.observe',sourceType:'mobile_money',session,fence:true});
    const branch=await branchModel(conn).findOne({_id:branchId,status:'active'}).session(session).lean();
    if(!branch)throw fail('Branch is inactive');
    const pair=await treasuryModels(conn).account.find({
@@ -155,7 +155,7 @@ async function settleVerified(conn,tenant,actor,input,proof){
           {accountId:input.cashAccountId,deltaMinor:q.cashDeltaMinor}],
     description:'Cross-currency Mobile Money '+input.operation+' ('+wallet.currency+'/'+cash.currency+')',
     evidenceReference:input.providerReference
-   });
+   },{momoFx:true});
    // Both native-currency journals, account balances and this record commit
    // together. Missing FX cost basis is explicitly NOT shown as profit.
    const [record]=await Record.create([{

@@ -86,7 +86,7 @@ for i in $(seq 1 40); do
  sleep 1
 done
 [[ "$ready" = 1 ]] || fail "Scratch primary unavailable"
-for f in forex-integration.js funded-operations-integration.js momo-fx-settlement-integration.js branch-multicurrency-integration.js branch-transfer-integration.js banking-integration.js; do
+for f in forex-integration.js funded-operations-integration.js momo-fx-settlement-integration.js branch-multicurrency-integration.js branch-transfer-integration.js transfer-sms-integration.js banking-integration.js; do
  echo "CHECK $f"
  docker run --rm --network host --cpus 2 --memory 3g \
   --user "$(stat -c %u "$ROOT"):$(stat -c %g "$ROOT")" \

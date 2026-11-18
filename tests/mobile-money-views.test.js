@@ -228,6 +228,7 @@ test('cross-currency exchange shows exact provider and drawer currency, quote mo
    providerAmountMinor:'20000000',cashAmountMinor:'80000000000',walletDeltaMinor:'20000000',
    cashDeltaMinor:'-80000000000',rateExpiresAt:new Date('2026-11-19T12:00:00Z')}
  });
+ common.formatLocalDate=()=> '19 Nov 2026';
  const html=await render('fx',common);
  for(const label of ['Exchange quote','Customer sends electronic money','Customer receives physical cash',
   'Wallet book movement','Drawer book movement','Exchange cannot be posted yet',

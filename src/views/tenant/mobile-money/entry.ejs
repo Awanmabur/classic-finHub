@@ -40,7 +40,20 @@
   <div class="grid mobileMoneyEntryGrid">
     <% if(data.canRecord && currentBranch){ %>
       <%- include('_entry-form',{currentBranch,operation:data.operation}) %>
-    <% } else { %><section class="card"><div class="cardHead"><b><%= data.operation === 'cash_out' ? 'Withdrawal' : 'Deposit' %></b></div><div class="cardBody"><p class="tiny"><%= data.canRecord ? branchProblem : 'Your role has read-only access to these records.' %></p></div></section><% } %>
+    <% } else { %><section class="card"><div class="cardHead"><b><%= data.operation === 'cash_out' ? 'Withdrawal' : 'Deposit' %> · access check</b></div><div class="cardBody">
+     <% if(!data.canRecord){ const allowedDeposit=(user.permissions||[]).includes('*')||(user.permissions||[]).includes('mobile_money.cash_in');
+        const allowedWithdrawal=(user.permissions||[]).includes('*')||(user.permissions||[]).includes('mobile_money.cash_out');
+        const requestedAction=data.operation==='cash_out'?'Withdrawal':'Deposit'; %>
+       <p role="status">This signed-in session has role <strong><%= user.role %></strong>. It can view Mobile Money but is not authorized to record <%= requestedAction.toLowerCase() %> transactions. This screen has not changed your role or removed any permissions.</p>
+       <p class="tiny">Deposit recording: <strong><%= allowedDeposit?'Allowed':'Not allowed' %></strong> · Withdrawal recording: <strong><%= allowedWithdrawal?'Allowed':'Not allowed' %></strong>. Account access is checked live from your tenant user role.</p>
+       <% if(!allowedDeposit&&!allowedWithdrawal){ %>
+         <p class="tiny">Viewing reports is different from recording transactions. If you previously recorded deposits or withdrawals using this same login, check the role shown above against your former role before changing permissions.</p>
+       <% }else if(!allowedDeposit){ %><a class="btn" href="/tenant/mobile-money/cash-out">Open permitted Withdrawal</a>
+       <% }else if(!allowedWithdrawal){ %><a class="btn" href="/tenant/mobile-money/cash-in">Open permitted Deposit</a><% } %>
+     <% }else{ %><p role="status"><%= branchProblem %></p>
+       <a class="btn" href="/tenant/branches">Review operating branch assignment</a>
+     <% } %>
+    </div></section><% } %>
     <section class="card"><div class="cardHead"><div><b><%= data.operation === 'cash_out' ? 'Withdrawal' : 'Deposit' %> activity</b><br><span>Recorded operations</span></div><a class="btn" href="/tenant/mobile-money/history">All history</a></div><div class="cardBody richPageGrid"><%- include('_filters',{filterAction:entryPath,fixedOperation:data.operation}) %><%- include('_activity',{activityRecords:data.records,activityPath:entryPath}) %></div></section>
   </div>
   <p class="tiny">Cash-In and Cash-Out exchange real physical cash with provider float. The assigned operator must have an independently approved cash shift. Commission estimates come from provider rate sheets and are never treated as a confirmed payout. <a href="/tenant/mobile-money">Review recorded transactions</a>.</p>

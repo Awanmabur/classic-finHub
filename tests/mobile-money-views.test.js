@@ -272,3 +272,82 @@ test('one original cashier form supports same/cross currency without a second pa
  assert.doesNotMatch(page,/script src="\/js\/mobile-money-unified\.js"/,
   'Avoid duplicate form initializers on the Mobile Money page');
 });
+
+test('Mobile Money overview visibly links the existing cashier form even before account setup',async()=>{
+ const base=options();
+ base.data.funds={wallets:[],paymentAccounts:[]};
+ const html=await render('index',base);
+ assert.match(html,/Record Mobile Money/);
+ assert.match(html,/href="\/tenant\/mobile-money\/cash-in"/);
+ assert.match(html,/href="\/tenant\/mobile-money\/cash-out"/);
+ assert.match(html,/No ready wallet and assigned cash drawer pair/);
+ assert.match(html,/Review real wallet and cash account assignments/);
+});
+
+test('cashier form displays real wallets and SSP-first authorized drawers without permitting other operators',async()=>{
+ const base=options();
+ base.data.funds={wallets:[
+  {id:'own-wallet',name:'MTN wallet',kind:'wallet',network:'MTN',currency:'UGX',
+   assignedToOperator:true,shared:false,state:'active',reconciliation:'matched',expectedMinor:'300000',isDefault:true},
+  {id:'other-wallet',name:'Another cashier wallet',kind:'wallet',network:'MTN',currency:'UGX',
+   assignedToOperator:false,shared:false,state:'active',reconciliation:'matched',expectedMinor:'900000'}
+ ],paymentAccounts:[
+  {id:'ugx-drawer',name:'UGX cash',kind:'cash',currency:'UGX',
+   assignedToOperator:true,state:'active',reconciliation:'matched',expectedMinor:'120000'},
+  {id:'ssp-drawer',name:'SSP cash',kind:'cash',currency:'SSP',
+   assignedToOperator:true,state:'active',reconciliation:'matched',expectedMinor:'500000'},
+  {id:'other-drawer',name:'Another cashier drawer',kind:'cash',currency:'SSP',
+   assignedToOperator:false,state:'active',reconciliation:'matched',expectedMinor:'600000'}
+ ]};
+ base.data.operation='cash_out';
+ const html=await render('entry',base);
+ assert.match(html,/1\. Provider wallet and physical cash drawer/);
+ assert.match(html,/option value="ssp-drawer"[^>]*selected/);
+ assert.match(html,/option value="other-drawer"[^>]*disabled/);
+ assert.match(html,/option value="other-wallet"[^>]*disabled/);
+ assert.match(html,/assigned to another cashier/);
+ const walletStart=html.indexOf('name="walletAccountId"');
+ assert(walletStart>0 && walletStart<html.indexOf('name="networkReference"'),
+  'Cashier needs to see the wallet first, before typing provider reference');
+ assert.equal((html.match(/name="walletAccountId"/g)||[]).length,1);
+ assert.equal((html.match(/name="paymentAccountId"/g)||[]).length,1);
+});
+
+test('recording permission warning states the live signed-in role without claiming a revocation',async()=>{
+ const viewer=options();
+ viewer.data.operation='cash_out';
+ viewer.data.canRecord=false;
+ viewer.user.role='Branch Manager';
+ viewer.user.permissions=['mobile_money.view','treasury.view'];
+ const html=await render('entry',viewer);
+ assert.ok(html.includes('This signed-in session has role'));
+ assert.ok(html.includes('<strong>Branch Manager</strong>'));
+ assert.ok(html.includes('Deposit recording: <strong>Not allowed</strong>'));
+ assert.ok(html.includes('Withdrawal recording: <strong>Not allowed</strong>'));
+ assert.ok(!html.includes('An authorized tenant owner must assign the required recording permission'));
+ assert.ok(!html.includes('data-mobile-money-form'));
+ const oneAction=options();
+ oneAction.data.operation='cash_out';
+ oneAction.data.canRecord=false;
+ oneAction.user.permissions=['mobile_money.view','mobile_money.cash_in'];
+ const oneHtml=await render('entry',oneAction);
+ assert.ok(oneHtml.includes('Open permitted Deposit'));
+ assert.ok(oneHtml.includes('href="/tenant/mobile-money/cash-in"'));
+});
+
+test('tenant owner and assigned Mobile Money Operator retain their existing recording form',async()=>{
+ for(const [role,permissions] of [
+  ['Tenant Owner',['*']],
+  ['Mobile Money Operator',['mobile_money.view','mobile_money.cash_in','mobile_money.cash_out']]
+ ]){
+  const local=options();
+  local.user.role=role;
+  local.user.permissions=permissions;
+  local.data.canRecord=true;
+  local.data.operation='cash_out';
+  const html=await render('entry',local);
+  assert.ok(html.includes('data-mobile-money-form'),role);
+  assert.ok(html.includes('name="walletAccountId"'),role);
+  assert.ok(!html.includes('This signed-in session has role'),role);
+ }
+});

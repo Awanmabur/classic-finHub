@@ -19,6 +19,19 @@
  <%- include('../../partials/operation-branch', {currentBranch, branchProblem, user}) %>
  <%- include('../partials/module-finance',{moduleKey:'mobile_money'}) %>
 
+ <section class="card" aria-label="Record a Mobile Money deposit or withdrawal">
+  <div class="cardHead"><div><b>Record Mobile Money</b><br><span>One transaction form for same-currency and different-currency cash</span></div></div>
+  <div class="cardBody">
+   <div class="rowBtns">
+    <% if(user.permissions.includes('*')||user.permissions.includes('mobile_money.cash_in')){ %><a class="btn btnPrimary" href="/tenant/mobile-money/cash-in">Deposit · customer pays cash</a><% } %>
+    <% if(user.permissions.includes('*')||user.permissions.includes('mobile_money.cash_out')){ %><a class="btn btnPrimary" href="/tenant/mobile-money/cash-out">Withdrawal · customer receives cash</a><% } %>
+   </div>
+   <p class="tiny">Choose the real provider wallet and your assigned cash drawer. An SSP cash drawer is preferred when available. Different currencies use the owner's current exchange rate and are linked to Forex automatically, with only one cash/float posting.</p>
+   <% if(!currentBranch){ %><p role="status"><%= branchProblem %> <a href="/tenant/branches">Review operating branch</a>.</p>
+   <% }else if(!hasUsableFundsPair){ %><p role="status">No ready wallet and assigned cash drawer pair for this login. You can open the transaction form to see the account setup blockers. <a href="/tenant/treasury">Review real wallet and cash account assignments</a>.</p>
+   <% }else if(!data.canRecord){ %><p role="status">Current signed-in role: <strong><%= user.role %></strong>. This role can view Mobile Money but does not have Deposit or Withdrawal recording permission in the active role policy. This page did not revoke your earlier access. If you previously posted using this same login, check whether your signed-in role or tenant account has changed.</p><% } %>
+  </div>
+ </section>
 
  <% if(needsOnboarding){ %>
  <section class="card" data-mobile-onboarding aria-label="Mobile Money start and opening checklist">
@@ -65,8 +78,6 @@
    </div>
   </section>
   <div class="richActions" style="margin-top:14px">
-    <% if(user.permissions.includes('*') || user.permissions.includes('mobile_money.cash_in')){ %><a class="btn" href="/tenant/mobile-money/cash-in" data-transaction-kind="cash_in">Deposit</a><% } %>
-    <% if(user.permissions.includes('*') || user.permissions.includes('mobile_money.cash_out')){ %><a class="btn" href="/tenant/mobile-money/cash-out" data-transaction-kind="cash_out">Withdrawal</a><% } %>
     <a class="btn" href="/tenant/mobile-money/network-activity">Network activity</a><a class="btn" href="/tenant/mobile-money/cash-impact">Cash impact</a><% if((user.permissions||[]).includes('*')||(user.permissions||[]).includes('treasury.view')){ %><a class="btn" href="/tenant/mobile-money/tariffs">Agent rate sheets</a><% } %><% if((user.permissions||[]).some(permission=>['*','mobile_money.report','reports.view'].includes(permission))){ %><a class="btn" href="/tenant/mobile-money/report">Mobile money report</a><% } %>
   </div>
   <div class="grid">

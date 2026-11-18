@@ -29,7 +29,7 @@
    <p class="tiny">Choose the real provider wallet and your assigned cash drawer. An SSP cash drawer is preferred when available. Different currencies use the owner's current exchange rate and are linked to Forex automatically, with only one cash/float posting.</p>
    <% if(!currentBranch){ %><p role="status"><%= branchProblem %> <a href="/tenant/branches">Review operating branch</a>.</p>
    <% }else if(!hasUsableFundsPair){ %><p role="status">No ready wallet and assigned cash drawer pair for this login. You can open the transaction form to see the account setup blockers. <a href="/tenant/treasury">Review real wallet and cash account assignments</a>.</p>
-   <% }else if(!data.canRecord){ %><p role="status">This account does not have transaction recording permission. Ask the tenant owner to review your role.</p><% } %>
+   <% }else if(!data.canRecord){ %><p role="status">Current signed-in role: <strong><%= user.role %></strong>. This role can view Mobile Money but does not have Deposit or Withdrawal recording permission in the active role policy. This page did not revoke your earlier access. If you previously posted using this same login, check whether your signed-in role or tenant account has changed.</p><% } %>
   </div>
  </section>
 

@@ -113,12 +113,16 @@ async function settleVerified(conn,tenant,actor,input,proof){
    if(!wallet||!cash||wallet.currency===cash.currency)throw fail('Verified wallet and cash drawer must have different currencies');
    for(const account of [wallet,cash])if(account.operatorId&&String(account.operatorId)!==String(actor.id))
     throw fail('Funds account belongs to a different cashier',403);
-   const grant=await Grant.findOne({tenantId:tenant._id,branchId:branch._id,
+   // Write-fence the approved grant so concurrent suspension aborts the settlement.
+   const grant=await Grant.findOneAndUpdate({tenantId:tenant._id,branchId:branch._id,
     walletAccountId:wallet._id,cashAccountId:cash._id,providerNetwork:wallet.network,
     permittedCurrencyPair:wallet.currency+'/'+cash.currency,status:'approved',
     expiresAt:{$gt:new Date()},providerAuthorizationReference:{$ne:''},
-    regulatoryAuthorizationReference:{$ne:''}}).session(session).lean();
-   if(!grant)throw fail('This branch/provider/currency pair lacks independently verified regulatory and provider authorization',403);
+    regulatoryAuthorizationReference:{$ne:''},requestedBy:{$ne:null},
+    approvedBy:{$ne:null},reviewedAt:{$ne:null}},
+    {$inc:{revision:1}},{session,new:true}).lean();
+   if(!grant||String(grant.requestedBy)===String(grant.approvedBy))
+    throw fail('This branch/provider/currency pair lacks independently verified regulatory and provider authorization',403);
    const side=input.operation==='withdraw_provider_receive_cash'?'buy':'sell';
    const rate=await forexRateModel(conn).findOne({_id:input.rateId,
     branchId:branch._id,fromCurrency:wallet.currency,toCurrency:cash.currency,

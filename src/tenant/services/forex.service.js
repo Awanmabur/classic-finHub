@@ -73,7 +73,8 @@ function rateInput(input){
 }
 function quoteInput(input){
  const originModule=input?.originModule||'forex';
- if(!['forex','mobile_money','banking','money_transfer'].includes(originModule))throw fail('Unknown source module');
+ if(!['forex','banking','money_transfer'].includes(originModule))throw fail('Choose Forex, Banking or Money Transfer for this quote; Mobile Money uses its dedicated wallet-to-drawer settlement');
+ const originRecordId=require('./forexOrigin.service').originId(input?.originRecordId,originModule);
  const operation=input?.operation||'quote';
  if(!['buy','sell','quote'].includes(operation))throw fail('Invalid exchange operation');
  const rateId=id(input?.rateId);const customerLabel=text(input?.customerLabel,'customer reference',2,120);
@@ -83,7 +84,7 @@ function quoteInput(input){
  if(!Number.isSafeInteger(validMinutes)||validMinutes<5||validMinutes>60)throw fail('Quote validity must be 5–60 minutes');
  const idempotencyKey=text(input?.idempotencyKey,'form reference',36,36);
  if(!UUID.test(idempotencyKey))throw fail('Reload the form to obtain a valid request identifier');
- return {rateId,customerLabel,amount,note,validMinutes,idempotencyKey,operation,originModule,capture:require('./operationCapture.service').parse('forex',{...input,commission:require('../pricing/apply').mode(input)?'0':input?.commission})};
+ return {rateId,customerLabel,amount,note,validMinutes,idempotencyKey,operation,originModule,originRecordId,capture:require('./operationCapture.service').parse('forex',{...input,commission:require('../pricing/apply').mode(input)?'0':input?.commission})};
 }
 async function proposeRate(conn,tenant,actor,input){
  moduleAccess(tenant,actor,'forex.rate_manage');if(!operator(actor))throw fail('Only assigned Forex staff may propose rates',403);
@@ -149,7 +150,8 @@ function identical(existing,actor,branchId,v){return String(existing.createdBy)=
 // The requested expiry is fixed on creation. For idempotent requests, compare
 // their immutable input fields, not the moving clock-based expiry.
 function equivalent(existing,actor,branchId,v){return String(existing.createdBy)===String(actor.id)&&String(existing.branchId)===branchId&&
- (existing.operation||'quote')===(v.operation||'quote')&&(existing.originModule||'forex')===(v.originModule||'forex')&&require('./operationCapture.service').equivalent('forex',existing.capture,v.capture)&&
+ (existing.operation||'quote')===(v.operation||'quote')&&(existing.originModule||'forex')===(v.originModule||'forex')&&
+ String(existing.originRecordId||'')===String(v.originRecordId||'')&&require('./operationCapture.service').equivalent('forex',existing.capture,v.capture)&&
  String(existing.rateId)===v.rateId&&existing.customerLabel===v.customerLabel&&existing.note===v.note&&
  existing.sourceMinor.toString()===v.sourceMinor.toString()&&existing.validMinutes===v.validMinutes;}
 function quoteEconomics(input,rate){
@@ -187,14 +189,19 @@ async function createQuote(conn,tenant,actor,input){
   const branch=await branchModel(conn).findOneAndUpdate({_id:branchId,status:'active'},{$inc:{revision:1}},{session,new:true});
   if(!branch)throw fail('Assigned branch is unavailable',409);
   enabledPair(branch,rate.fromCurrency,rate.toCurrency);
+  await require('./forexOrigin.service').verify(conn,session,authorization.actor,branchId,{
+   originModule:v.originModule,originRecordId:v.originRecordId,
+   fromCurrency:rate.fromCurrency,toCurrency:rate.toCurrency,
+   sourceMinor,targetMinor
+  });
   await reserveUsage(authorization.tenant,'forex_quotes',session);
   [quote]=await Quote.create([{reference:`FX-${crypto.randomBytes(12).toString('hex').toUpperCase()}`,
-   idempotencyKey:v.idempotencyKey,branchId,createdBy:actor.id,customerLabel:v.customerLabel,operation:v.operation,originModule:v.originModule,capture:v.capture,pricing:v.pricing,rateId:rate._id,
+   idempotencyKey:v.idempotencyKey,branchId,createdBy:actor.id,customerLabel:v.customerLabel,operation:v.operation,originModule:v.originModule,originRecordId:v.originRecordId,capture:v.capture,pricing:v.pricing,rateId:rate._id,
    fromCurrency:rate.fromCurrency,toCurrency:rate.toCurrency,rateDecimal:rate.rateDecimal,
    sourceMinor:String(sourceMinor),targetMinor:String(targetMinor),note:v.note,validMinutes:v.validMinutes,
    expiresAt:new Date(now.getTime()+v.validMinutes*60000)}],{session});
   await auditEventModel(conn).create([{action:'forex.quote.created',actorId:actor.id,targetId:quote._id,
-   metadata:{branchId,reference:quote.reference,operation:v.operation,originModule:v.originModule,pair:`${rate.fromCurrency}/${rate.toCurrency}`}}],{session});
+   metadata:{branchId,reference:quote.reference,operation:v.operation,originModule:v.originModule,originRecordId:v.originRecordId||undefined,pair:`${rate.fromCurrency}/${rate.toCurrency}`}}],{session});
  });return {quote,duplicate:false};}
  catch(e){if(e.code===11000){const found=await Quote.findOne({idempotencyKey:v.idempotencyKey}).lean();
   if(found&&equivalent(found,actor,branchId,{...v,sourceMinor:minor(v.amount,found.fromCurrency)}))return {quote:found,duplicate:true};

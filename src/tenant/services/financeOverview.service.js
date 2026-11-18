@@ -180,7 +180,7 @@ async function postedOriginFxActivity(conn,tenant,user,branch,period={}){
  const {$gte,$lt}=businessTime.dayBounds({from:period.from,to:period.to},
   period.timeZone||businessTime.forBranch(branch),366,period.now||new Date());
  const rows=await models.forexQuoteModel(conn).find({...scope,originModule:period.moduleKey,
-  status:'posted_manual',manualPostedAt:{$gte,$lt}}).select('operation fromCurrency sourceMinor')
+  originRecordId:{$type:'objectId'},status:'posted_manual',manualPostedAt:{$gte,$lt}}).select('operation fromCurrency sourceMinor')
   .limit(1001).maxTimeMS(3000).lean();
  if(rows.length>1000)return {limited:true,count:null,bought:[],sold:[]};
  const bought=new Map(),sold=new Map();

@@ -312,3 +312,25 @@ test('cashier form displays real wallets and SSP-first authorized drawers withou
  assert.equal((html.match(/name="walletAccountId"/g)||[]).length,1);
  assert.equal((html.match(/name="paymentAccountId"/g)||[]).length,1);
 });
+
+test('recording permission warning states the actual signed-in role, not an invented revocation',async()=>{
+ const viewer=options();
+ viewer.data.operation='cash_out';
+ viewer.data.canRecord=false;
+ viewer.user.role='Branch Manager';
+ viewer.user.permissions=['mobile_money.view','treasury.view'];
+ const html=await render('entry',viewer);
+ assert.match(html,/This signed-in session has role/);
+ assert.match(html,/<strong>Branch Manager<\\/strong>/);
+ assert.match(html,/Deposit recording:.*Not allowed/);
+ assert.match(html,/Withdrawal recording:.*Not allowed/);
+ assert.doesNotMatch(html,/An authorized tenant owner must assign the required recording permission/);
+ assert.doesNotMatch(html,/data-mobile-money-form/);
+ const oneAction=options();
+ oneAction.data.operation='cash_out';
+ oneAction.data.canRecord=false;
+ oneAction.user.permissions=['mobile_money.view','mobile_money.cash_in'];
+ const oneHtml=await render('entry',oneAction);
+ assert.match(oneHtml,/Open permitted Deposit/);
+ assert.match(oneHtml,/href="\\/tenant\\/mobile-money\\/cash-in"/);
+});

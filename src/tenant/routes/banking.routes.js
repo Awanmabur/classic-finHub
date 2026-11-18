@@ -37,6 +37,31 @@ function routes({renderTenant}){
    });
   }catch(e){next(e);}
  });
+ router.get('/exchange',requirePermission('banking.view'),async(req,res,next)=>{
+  try{
+   if(!req.operationBranch)return res.status(409).send('Choose an operating branch');
+   const fxBank=require('../services/bankingInternalFx.service');
+   const [available,records]=await Promise.all([
+    fxBank.options(req.tenantDb,req.tenant,req.user,req.operationBranch),
+    fxBank.history(req.tenantDb,req.tenant,req.user,req.operationBranch)
+   ]);
+   renderTenant(req,res,'banking/fx-exchange','Internal Banking Currency Exchange',
+    'Real customer account balances exchange across currencies; no external bank transfer is implied.',
+    {...available,records,idempotencyKey:crypto.randomUUID(),formatMoneyMinor});
+  }catch(e){next(e);}
+ });
+ router.post('/exchange',requirePermission('banking.requests.create'),financial,async(req,res,next)=>{
+  try{
+   if(!req.operationBranch)return res.status(409).send('Choose an operating branch');
+   const [rateId,rateVersion,rateDecimal]=String(req.body.rateChoice||'').split(':');
+   const result=await require('../services/bankingInternalFx.service').convert(
+    req.tenantDb,req.tenant,req.user,req.operationBranch,
+    {...req.body,rateId,rateVersion,rateDecimal});
+   flash(req,'good',result.duplicate?'The identical internal exchange was already posted.':
+    'Internal cross-currency account transfer posted in both native-currency ledgers.');
+   res.redirect(303,'/tenant/banking/exchange');
+  }catch(e){next(e);}
+ });
  router.get('/accounts',requirePermission('banking.view'),async(req,res,next)=>{
   try{const branches=await available(req);
    const selectedId=req.viewBranchId?String(req.viewBranchId):String(req.operationBranch?._id || '');
@@ -98,9 +123,8 @@ function routes({renderTenant}){
    const pendingMovement=await require('../funded/models').models(req.tenantDb).execution.findOne({sourceType:'banking',sourceId:request._id,status:'pending_review'}).select('_id createdBy').lean();
    renderTenant(req,res,'banking/detail','Banking Request Details','Banking instructions and independently reviewed manual book entries.',{
     request,formatMoneyMinor,
-    canFx:request.status==='posted_manual'&&
-     hasModuleForUser(req.tenant,req.user,'forex')&&hasPermission(req.user,'forex.quotes.create')&&
-     (req.user.role==='Tenant Owner'||String(req.user.id)===String(request.createdBy))&&
+    canFx:hasModuleForUser(req.tenant,req.user,'forex')&&hasModuleForUser(req.tenant,req.user,'accounts')&&
+     hasPermission(req.user,'forex.quotes.create')&&hasPermission(req.user,'banking.requests.create')&&
      String(req.operationBranch?._id||'')===String(request.branchId),
     pendingMovementId:pendingMovement&&(req.user.role!=='Banking Operator'||String(pendingMovement.createdBy)===String(req.user.id))?pendingMovement._id:null,
     canRecordManual:!pendingMovement&&bank.operator(req.user)&&hasPermission(req.user,'banking.requests.create')&&hasPermission(req.user,'treasury.view')&&

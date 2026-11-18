@@ -9,7 +9,7 @@
    <div class="sumRow"><span>Credit account</span><b><%= data.review.destination.currency %> · ****<%= data.review.destination.accountNumber.slice(-4) %></b></div>
    <div class="sumRow"><span>Credit amount</span><b><%= data.review.destinationLabel %></b></div>
    <div class="sumRow"><span>Exchange direction</span><b><%= data.review.rate.side==='buy'?'Buy':'Sell' %> · <%= data.review.rate.fromCurrency %> → <%= data.review.rate.toCurrency %></b></div>
-   <div class="sumRow"><span>Rate</span><b><%= data.review.rateDecimal %></b></div>
+   <div class="sumRow"><span>Rate</span><b><% const rd=data.rateDisplay(data.review.rateDecimal,data.review.rate.fromCurrency); %><%= rd.text %> = <%= rd.rate %> <%= data.review.rate.toCurrency %></b></div>
    <div class="sumRow"><span>External bank settlement</span><b>Not requested · Internal ledger only</b></div>
    <div class="sumRow"><span>Customer voucher</span><b><%= data.review.evidenceReference %></b></div>
   </div>

@@ -239,7 +239,7 @@ test('cross-currency exchange shows exact provider and drawer currency, quote mo
  assert.match(html,/name="cashAccountId"/);
  assert.match(html,/name="providerAmount"/);
  assert.doesNotMatch(html,/action="\/tenant\/mobile-money\/fx\/record"/);
- const ready=await render('fx',{...common,canExecute:true,blockers:[]});
+ const ready=await render('fx',{...common,data:{...common.data,canExecute:true,blockers:[]}});
  assert.match(ready,/action="\/tenant\/mobile-money\/fx\/record"/);
  assert.match(ready,/name="providerReference"/);
  assert.match(ready,/name="providerAppConfirmed"/);

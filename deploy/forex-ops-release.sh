@@ -7,7 +7,8 @@ fail(){ echo "RELEASE BLOCKED: $*" >&2; exit 1; }
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SHA="$(git -c safe.directory="$ROOT" -C "$ROOT" rev-parse HEAD)"
 [[ "$SHA" = "$CLASSICFIN_EXPECTED_SHA" && "$SHA" =~ ^[a-f0-9]{40}$ ]] || fail "Incorrect commit"
-[[ -z "$(git -c safe.directory="$ROOT" -C "$ROOT" status --porcelain)" ]] || fail "Dirty worktree"
+# Keep Git index ownership with the deployment user: a root-run status can rewrite index as root.
+[[ -z "$(GIT_OPTIONAL_LOCKS=0 git -c safe.directory="$ROOT" -C "$ROOT" status --porcelain)" ]] || fail "Dirty worktree"
 [[ -d "$ROOT/node_modules" ]] || fail "Missing test dependencies"
 exec 9>/run/lock/classicfin-forex-ops-release.lock
 flock -n 9 || fail "Another release is in progress"

@@ -15,11 +15,27 @@ module.exports=function fundedOperationsRoutes({renderTenant}){
    req.session.manualPayoutVerification=await service.checkPayout(req.tenantDb,req.tenant,req.user,req.body);flash(req,'good','PIN and transfer details matched. Verify the receiver before requesting payout.');return res.redirect(303,'/tenant/funded/payout');
   }
   if(req.body.phase!=='request')throw service.fail('Choose Check PIN before requesting payout');
-  const result=await service.requestPayout(req.tenantDb,req.tenant,req.user,req.body);delete req.session.manualPayoutVerification;
-  flash(req,'good',result.duplicate?'This payout request already exists.':'Payout requested for independent review.');require('../services/branchView.service').followRecord(req,result.execution);res.redirect(303,`/tenant/funded/${result.execution._id}`);
+  if(req.body.confirmCashPaid!=='yes'||req.body.confirmRecipientVerified!=='yes')
+   throw service.fail('Confirm actual cash handover and recipient identity before submitting the payout');
+  const result=await service.requestPayout(req.tenantDb,req.tenant,req.user,req.body);
+  delete req.session.manualPayoutVerification;
+  if(result.sameBranch){
+   const posted=await service.finalizePayout(req.tenantDb,req.tenant,req.user,result.execution._id,req.body);
+   flash(req,'good',posted.duplicate?'This PIN payout already posted.':
+    'Receiver cash payout is final. Both currency ledgers were updated and audited.');
+  }else{
+   flash(req,'good','Cross-branch payout recorded for independent interbranch settlement review.');
+  }
+  require('../services/branchView.service').followRecord(req,result.execution);
+  res.redirect(303,`/tenant/funded/${result.execution._id}`);
  }catch(error){if(error.retryAfter)res.set('Retry-After',String(error.retryAfter));next(error);}});
  router.post('/payout/reset',financial,async(req,res,next)=>{try{await service.payoutContext(req.tenantDb,req.tenant,req.user,null);delete req.session.manualPayoutVerification;res.redirect(303,'/tenant/funded/payout');}catch(error){next(error);}});
  router.post('/:id/review',financial,async(req,res,next)=>{try{const result=await service.review(req.tenantDb,req.tenant,req.user,req.params.id,req.body);flash(req,'good',result.execution.status==='posted_manual'?'Manual movement posted to the funds book.':'Manual posting request rejected.');res.redirect(303,`/tenant/funded/${req.params.id}`);}catch(error){next(error);}});
+ router.post('/:id/finalize-payout',financial,async(req,res,next)=>{try{
+  const result=await service.finalizePayout(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
+  flash(req,'good',result.duplicate?'The same PIN payout was already finalized.':'Verified cash payout finalized and recorded in the correct currency.');
+  res.redirect(303,`/tenant/funded/${req.params.id}`);
+ }catch(error){next(error);}});
  router.post('/:id/finalize-forex',financial,async(req,res,next)=>{try{
   const result=await service.finalizeForex(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
   flash(req,'good',result.duplicate?'Forex exchange already posted.':'Forex exchange finalized and posted in both original currencies.');

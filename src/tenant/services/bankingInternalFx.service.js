@@ -86,6 +86,30 @@ async function checkTargetLiquidity(conn,session,branch,currency,additionalMinor
   throw fail('Insufficient independently reconciled '+currency+' branch liquidity to support the new customer balance',409);
  return {backed,customerClaims};
 }
+async function preview(conn,tenant,actor,branch,input={}){
+ if(!branch||!eligible(tenant,actor)||actor.role!=='Tenant Owner'&&String(actor.branchId)!==String(branch._id))
+  throw fail('Banking currency exchange access is unavailable',403);
+ const sourceId=id(input.sourceAccountId),destinationId=id(input.destinationAccountId),rateId=id(input.rateId);
+ if(sourceId===destinationId)throw fail('Select two different customer accounts',400);
+ if(!UUID.test(String(input.idempotencyKey||'')))throw fail('Reload the exchange form before previewing',400);
+ if(input.confirmCustomerAuthority!=='yes')throw fail('Confirm customer authorization before previewing the actual transaction');
+ const evidenceReference=ref(input.evidenceReference);
+ const {accounts:available,rates}=await options(conn,tenant,actor,branch);
+ const source=available.find(a=>String(a._id)===sourceId),destination=available.find(a=>String(a._id)===destinationId);
+ if(!source||!destination||String(source.customerId)!==String(destination.customerId)||source.currency===destination.currency)
+  throw fail('Both selected active accounts must belong to the same customer and use different currencies',409);
+ const rate=rates.find(r=>String(r._id)===rateId&&String(r.revision)===String(input.rateVersion)&&
+  String(r.rateDecimal)===String(input.rateDecimal)&&r.fromCurrency===source.currency&&r.toCurrency===destination.currency);
+ if(!rate||new Date(rate.expiresAt)<=new Date())throw fail('The current approved exchange rate is unavailable. Reload.',409);
+ const sourceMinor=forex.minor(input.amount,source.currency);
+ const destinationMinor=forex.converted(sourceMinor,source.currency,destination.currency,forex.rateScaled(rate.rateDecimal));
+ if(BigInt(source.balanceMinor)<sourceMinor)throw fail('Insufficient posted customer balance in the selected source account',409);
+ return {source,destination,rate,sourceMinor:String(sourceMinor),destinationMinor:String(destinationMinor),
+  sourceLabel:forex.amountLabel(sourceMinor,source.currency),
+  destinationLabel:forex.amountLabel(destinationMinor,destination.currency),
+  evidenceReference,idempotencyKey:input.idempotencyKey,
+  amount:input.amount,rateId:String(rate._id),rateVersion:rate.revision,rateDecimal:rate.rateDecimal};
+}
 async function convert(conn,tenant,actor,branch,input={}){
  if(!branch||!eligible(tenant,actor)||actor.role!=='Tenant Owner'&&String(actor.branchId)!==String(branch._id))
   throw fail('You cannot post Banking currency exchanges for this branch',403);
@@ -186,4 +210,4 @@ async function history(conn,tenant,actor,branch){
  const scope={tenantId:tenant._id,branchId:branch._id,...(actor.role==='Tenant Owner'?{}:{createdBy:actor.id})};
  return Fx(conn).find(scope).sort({postedAt:-1,_id:-1}).limit(100).lean();
 }
-module.exports={options,convert,history,eligible,fail,balance};
+module.exports={options,preview,convert,history,eligible,fail,balance};

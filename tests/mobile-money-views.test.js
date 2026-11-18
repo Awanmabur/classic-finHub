@@ -260,4 +260,15 @@ test('one original cashier form supports same/cross currency without a second pa
  const script=require('node:fs').readFileSync(path.resolve(__dirname,'../public/js/mobile-money-unified.js'),'utf8');
  assert.ok(script.includes('/tenant/mobile-money/fx/preview'));
  assert.ok(script.includes('result.cashAmountMinor'));
+ const dashboard=require('node:fs').readFileSync(path.resolve(__dirname,'../public/js/dashboard.js'),'utf8');
+ const layout=require('node:fs').readFileSync(path.resolve(__dirname,'../src/views/layouts/dashboard.ejs'),'utf8');
+ const page=require('node:fs').readFileSync(path.resolve(__dirname,'../src/views/tenant/mobile-money/entry.ejs'),'utf8');
+ assert.match(dashboard,/ClassicFinMobileUnified\?\.initialise\(form\)/,
+  'Existing New transaction dialog must activate the currency-aware form');
+ assert.match(dashboard,/ClassicFinMobileUnified\?\.initialise\(present\)/,
+  'Changing deposit to withdrawal in dialog must recalculate the exchange');
+ assert.match(layout,/mobile-money-unified\.js\?v=/,
+  'Shared tenant layout loads the quote logic for dialogs on any page');
+ assert.doesNotMatch(page,/script src="\/js\/mobile-money-unified\.js"/,
+  'Avoid duplicate form initializers on the Mobile Money page');
 });

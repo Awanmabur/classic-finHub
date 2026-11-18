@@ -27,6 +27,27 @@
    <div class="s"><%= card.note %></div>
   </div><% }); %>
  </div>
+ <% if(moduleKey==='banking'&&moduleFinance.bankingInternalFxActivity){ const fx=moduleFinance.bankingInternalFxActivity; %>
+ <section class="card" style="margin-top:12px" aria-label="Real internal Banking currency conversions">
+  <div class="cardHead"><b>Internal customer account currency transfers</b><span>Posted ledger liabilities · no external bank wire</span></div>
+  <div class="cardBody">
+   <% if(fx.limited){ %><p class="tiny">Too many posted exchanges; narrow the report dates.</p>
+   <% }else{ %><strong><%= fx.count %> posted internal currency exchange<%= fx.count===1?'':'s' %></strong>
+    <div class="row2" style="margin-top:10px">
+     <div><b>Customer source balances debited</b>
+      <% if(!fx.source.length){ %><p class="tiny">No debits posted</p><% } %>
+      <% fx.source.forEach(x=>{ %><p><%= x.formatted %></p><% }) %>
+     </div>
+     <div><b>Destination balances credited</b>
+      <% if(!fx.destination.length){ %><p class="tiny">No credits posted</p><% } %>
+      <% fx.destination.forEach(x=>{ %><p><%= x.formatted %></p><% }) %>
+     </div>
+    </div>
+    <p class="tiny">Recorded internal customer liability conversion, backed by reconciled native-currency branch liquidity. Does not imply funds were sent externally or that a trading profit was realized.</p>
+   <% } %>
+  </div>
+ </section>
+ <% } %>
  <% if(['banking','money_transfer'].includes(moduleKey) && moduleFinance.crossModuleFxActivity){ const activity=moduleFinance.crossModuleFxActivity; %>
  <section class="card" style="margin-top:12px" aria-label="Module-origin currency exchanges">
   <div class="cardHead"><b>Currency exchanges started from <%= moduleKey.replaceAll('_',' ') %></b><span>Completed Treasury postings, not bank or remittance settlements</span></div>

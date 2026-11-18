@@ -412,7 +412,10 @@ async function requestPayout(conn,tenant,actor,input={}){
  const v=formInput(input),current=await context(conn,tenant,actor,'money_transfer','money_transfer.payout');await prepareIndexes(conn);
  const Execution=fundedModels(conn).execution,tokenHash=pin.tokenHash(input.verificationToken);
  const prior=await Execution.findOne({idempotencyKey:v.idempotencyKey,createdBy:actor.id,action:'transfer_payout',...scope(current.actor)}).select('+verificationDigest').lean();
- if(prior){if(prior.evidenceReference!==v.evidenceReference||prior.note!==v.note||prior.verificationDigest!==tokenHash||(input.payoutAccountId&&String(prior.accounts.payoutAccountId)!==id(input.payoutAccountId)))throw fail('Payout request reference was reused with changed details',409);return {execution:prior,duplicate:true};}
+ if(prior){if(prior.evidenceReference!==v.evidenceReference||prior.note!==v.note||prior.verificationDigest!==tokenHash||
+  (input.payoutAccountId&&String(prior.accounts.payoutAccountId)!==id(input.payoutAccountId))||
+  String(prior.payoutFx?.rateId||'')!==String((input.rateChoice||'').split(':')[0]||''))
+  throw fail('Payout request reference was reused with changed details',409);return {execution:prior,duplicate:true};}
  try{return await transaction(conn,async session=>{
   const authorization=await auth.fenceAction(conn,session,actor,current.tenant,'money_transfer','money_transfer.payout');
   const verification=await fundedModels(conn).verification.findOneAndUpdate({tokenHash,createdBy:actor.id,consumedAt:null,expiresAt:{$gt:new Date()}},{$set:{consumedAt:new Date()}},{session,new:true}).lean();
@@ -423,9 +426,34 @@ async function requestPayout(conn,tenant,actor,input={}){
   if(!source||String(source.destinationBranchId||source.branchId)!==String(branch._id))throw fail('This transfer was paid, changed or belongs to another receiving branch',409);
   assertBranchCurrencies(branch,sourceSnapshot('money_transfer',source));
   const snapshot=sourceSnapshot('money_transfer',source),available=await availableAccounts(conn,authorization.tenant,authorization.actor,branch._id,'money_transfer');
-  const accounts={clearingAccountId:String(collection.accounts.clearingAccountId),payoutAccountId:choose(available,input.payoutAccountId,{kind:'cash',currency:snapshot.currency,actorId:actor.id,label:'the verified payout cash drawer'})};
-  const canonical={sourceType:'money_transfer',sourceId:String(source._id),sourceReference:source.reference,action:'transfer_payout',branchId:String(branch._id),createdBy:actor.id,accounts,collectionExecutionId:String(collection._id),...v};
-  const [execution]=await Execution.create([{...canonical,fingerprint:hash(canonical),sourceFingerprint:hash(snapshot),sourceSnapshot:snapshot,verificationDigest:tokenHash,verificationInfo:{receiverNameCheck:verification.receiverNameCheck,identityDocument:verification.identityDocument},activeKey:`money_transfer:${source._id}:transfer_payout`}],{session});
+  const selected=available.find(a=>String(a._id)===id(input.payoutAccountId));
+  if(!selected||selected.kind!=='cash')throw fail('Select your actual independently opened cash payout drawer',409);
+  const accounts={clearingAccountId:String(collection.accounts.clearingAccountId),
+   payoutAccountId:choose(available,input.payoutAccountId,{kind:'cash',currency:selected.currency,actorId:actor.id,label:'the verified payout cash drawer'})};
+  let payoutFx=null;
+  if(selected.currency!==snapshot.currency){
+   if(!hasModuleForUser(authorization.tenant,authorization.actor,'forex')||
+     !hasPermission(authorization.actor,'forex.quotes.create'))
+    throw fail('Cross-currency remittance payout requires Forex entitlement',403);
+   const selectedRate=String(input.rateChoice||'').split(':');
+   if(selectedRate.length!==3||!OID.test(selectedRate[0])||!/^(0|[1-9][0-9]*)$/.test(selectedRate[1]))
+    throw fail('Choose an active approved payout-currency exchange rate',409);
+   const rate=await models.forexRateModel(conn).findOne({_id:selectedRate[0],branchId:branch._id,
+    status:'active',side:'buy',fromCurrency:snapshot.currency,toCurrency:selected.currency,
+    revision:Number(selectedRate[1]),rateDecimal:selectedRate[2],
+    reviewedBy:{$ne:null},expiresAt:{$gt:new Date(Date.now()+60000)}}).session(session).lean();
+   if(!rate)throw fail('Payout currency rate is unavailable or expired. Recheck the quote.',409);
+   const forex=require('./forex.service');
+   const payoutMinor=forex.converted(BigInt(snapshot.amountMinor),snapshot.currency,selected.currency,forex.rateScaled(rate.rateDecimal));
+   payoutFx={targetCurrency:selected.currency,payoutMinor:String(payoutMinor),rateId:rate._id,
+    rateDecimal:rate.rateDecimal,rateVersion:rate.revision,rateExpiresAt:rate.expiresAt};
+  }else if(input.rateChoice)throw fail('A same-currency payout does not require a Forex conversion',400);
+  const canonical={sourceType:'money_transfer',sourceId:String(source._id),sourceReference:source.reference,
+   action:'transfer_payout',branchId:String(branch._id),createdBy:actor.id,accounts,
+   collectionExecutionId:String(collection._id),payoutFx,...v};
+  const [execution]=await Execution.create([{...canonical,fingerprint:hash(canonical),sourceFingerprint:hash(snapshot),sourceSnapshot:snapshot,
+   verificationDigest:tokenHash,verificationInfo:{receiverNameCheck:verification.receiverNameCheck,identityDocument:verification.identityDocument},
+   activeKey:`money_transfer:${source._id}:transfer_payout`}],{session});
   await audit(conn,session,authorization.actor,execution,'payout.requested');return {execution,duplicate:false};
  });}catch(error){if(error.code===11000)throw fail('A payout is already pending or posted for this transfer',409);throw error;}
 }

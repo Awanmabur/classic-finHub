@@ -68,7 +68,9 @@
    }else if(policy)policy.disabled=true;
    const eligible=[...wallet.options].filter(o=>available(o)&&o.dataset.network===network.value);
    const field=form.querySelector('[data-wallet-account-field]');
-   if(field)field.hidden=eligible.length===1&&Boolean(wallet.value);
+   // Keep the actual wallet identity visible even when it is the only
+   // eligible wallet. It is auto-selected, but must not seem to disappear.
+   if(field)field.hidden=false;
    amount.pattern=code==='UGX'?'[0-9]{1,11}':'[0-9]{1,11}([.][0-9]{1,2})?';
    for(const stat of form.querySelectorAll('[data-balance-kind]')){
     stat.hidden=(stat.dataset.balanceKind==='wallet'&&stat.dataset.balanceAccount!==wallet.value)||
@@ -87,7 +89,7 @@
    const wc=w?.dataset.currency||'',dc=d?.dataset.currency||'';
    const same=Boolean(w?.value&&d?.value&&wc===dc);
    const different=Boolean(w?.value&&d?.value&&wc!==dc);
-   if(mode)mode.textContent=same?'Same currency':different?'Cross-currency · linked Forex':'Select wallet and cash drawer';
+   if(mode)mode.textContent=same?'Same currency · no exchange':different?'Different currency · automatic Forex':'Select wallet and cash drawer';
    if(cashCode)cashCode.textContent=dc?'('+ (dc==='KES'?'KSH':dc)+')':'';
    if(totalLabel)totalLabel.textContent=form.dataset.operation==='cash_out'?'Cash paid to customer':'Cash received from customer';
    if(confirm){

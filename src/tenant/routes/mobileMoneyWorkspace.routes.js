@@ -30,6 +30,15 @@ module.exports=function routes({renderTenant}){
   const permission=operation==='cash_out'?'mobile_money.cash_out':'mobile_money.cash_in';
   const blockers=[];
   if(!postingEnabled)blockers.push('Financial posting is disabled.');
+  if(result&&postingEnabled){
+   const blocked=await require('../schemas/MomoFxSettlement').grants(req.tenantDb).exists({
+    tenantId:req.tenant._id,branchId:req.operationBranch._id,
+    walletAccountId:result.walletAccountId,cashAccountId:result.cashAccountId,
+    providerNetwork:result.network,permittedCurrencyPair:result.providerCurrency+'/'+result.cashCurrency,
+    status:{$in:['suspended','revoked']}
+   });
+   if(blocked)blockers.push('This account pair is on hold. Ask the owner to resolve the hold.');
+  }
 
   if(!hasPermission(req.user,permission))blockers.push('You cannot perform this Mobile Money operation.');
   if(!hasPermission(req.user,'treasury.observe'))blockers.push('You need Treasury operation permission.');

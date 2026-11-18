@@ -181,6 +181,19 @@ async function main(){
  }),error=>error.status===403&&/hold|suspend/.test(error.message),
  'suspended provider grant must prevent all future cross-currency postings');
  assert.deepEqual(await balances(),existingBalance,'suspended authorization must not move money');
+ const mobile=require('../src/tenant/services/mobileMoney.service');
+ await mobile.requestVoid(conn,owner,manual.mobile._id,
+  'Customer exchange was corrected with real funds recovered in test');
+ const correction=await mobile.decideVoid(conn,reviewer,manual.mobile._id,'approve',
+  'Independent proof of restored cash and wallet funds verified before journal reversal');
+ assert.equal(correction.correctionState,'voided');
+ const linked=await core.forexQuoteModel(conn).findOne({originModule:'mobile_money',originRecordId:manual.mobile._id}).lean();
+ assert.equal(linked.status,'reversed_manual');
+ assert.deepEqual(await balances(),{wallet:'1050',drawer:'46000'},'Both native-currency balances reverse once');
+ assert.equal(await tm.models(conn).batch.countDocuments({sourceRef:{$regex:/^MFX:/}}),3,'Reverse never re-posts original Forex custody');
+ assert.equal(await tm.models(conn).batch.countDocuments({sourceRef:'MM-VOID:'+manual.mobile._id}),1,'One linked correction journal');
+ await assert.rejects(mobile.decideVoid(conn,reviewer,manual.mobile._id,'approve',
+  'Repeat review must not repost or reverse a second time'),{status:409});
  console.log('PASS: Mobile Money-only entitlement without document grants, owner 1,000-unit FX rates, opposite UGX/SSP cash directions, atomic native-currency journals, duplicate protection, insufficient-funds rollback, suspended pair hold and unmeasured FX profit.');
 }
 async function cleanup(){

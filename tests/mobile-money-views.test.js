@@ -216,7 +216,8 @@ test('authorized balance-readiness view provides actionable account status witho
 });
 
 test('cross-currency exchange shows exact provider and drawer currency, quote movements, and posting blockers',async()=>{
- const common=options({
+ const common=options();
+ Object.assign(common.data,{
   wallets:[{id:'wallet1',name:'MTN Uganda Float Wallet',network:'MTN',currency:'UGX'}],
   drawers:[{id:'drawer1',name:'SSP Cash Drawer',currency:'SSP'}],
   input:{operation:'withdraw_provider_receive_cash',walletAccountId:'wallet1',cashAccountId:'drawer1',providerAmount:'200000'},

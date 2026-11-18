@@ -65,10 +65,10 @@ test('Input validation requires valid pair, expiry, idempotency and explanations
  fail(()=>fx.rateInput({...rate,note:'tiny'}),400);
  const quote={rateId:branch,customerLabel:'Client label',amount:'1000',note:'Customer requested an indicative quote',validMinutes:'10',idempotencyKey:crypto.randomUUID()};
  assert.equal(fx.quoteInput(quote).validMinutes,10);
- assert.equal(fx.quoteInput({...quote,originModule:'banking',originRecordId:branch}).originModule,'banking');
- assert.equal(fx.quoteInput({...quote,originModule:'money_transfer',originRecordId:branch}).originModule,'money_transfer');
- fail(()=>fx.quoteInput({...quote,originModule:'arbitrary_external_provider'}),400);
- fail(()=>fx.quoteInput({...quote,originModule:'banking'}),400);
+ fail(()=>fx.quoteInput({...quote,originModule:'banking',originRecordId:branch}),409);
+ fail(()=>fx.quoteInput({...quote,originModule:'money_transfer',originRecordId:branch}),409);
+ fail(()=>fx.quoteInput({...quote,originModule:'arbitrary_external_provider'}),409);
+ fail(()=>fx.quoteInput({...quote,originModule:'banking'}),409);
  fail(()=>fx.quoteInput({...quote,validMinutes:61}),400);
  fail(()=>fx.quoteInput({...quote,idempotencyKey:'bad'}),400);
  fail(()=>fx.quoteInput({...quote,customerLabel:'x'}),400);

@@ -98,6 +98,10 @@ function routes({renderTenant}){
    const pendingMovement=await require('../funded/models').models(req.tenantDb).execution.findOne({sourceType:'banking',sourceId:request._id,status:'pending_review'}).select('_id createdBy').lean();
    renderTenant(req,res,'banking/detail','Banking Request Details','Banking instructions and independently reviewed manual book entries.',{
     request,formatMoneyMinor,
+    canFx:request.status==='posted_manual'&&
+     hasModuleForUser(req.tenant,req.user,'forex')&&hasPermission(req.user,'forex.quotes.create')&&
+     (req.user.role==='Tenant Owner'||String(req.user.id)===String(request.createdBy))&&
+     String(req.operationBranch?._id||'')===String(request.branchId),
     pendingMovementId:pendingMovement&&(req.user.role!=='Banking Operator'||String(pendingMovement.createdBy)===String(req.user.id))?pendingMovement._id:null,
     canRecordManual:!pendingMovement&&bank.operator(req.user)&&hasPermission(req.user,'banking.requests.create')&&hasPermission(req.user,'treasury.view')&&
      (req.user.role==='Tenant Owner'||String(request.createdBy)===String(req.user.id))&&String(req.operationBranch?._id||'')===String(request.branchId)&&

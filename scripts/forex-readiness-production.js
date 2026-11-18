@@ -17,7 +17,9 @@ async function main(){
  for(const t of tenants){
   const conn=getTenantConnection(t.slug);
   const [a,b,c,d]=await Promise.all([
-   grants(conn).countDocuments({tenantId:t._id,status:'approved',expiresAt:{$gt:now},providerAuthorizationReference:{$ne:''},regulatoryAuthorizationReference:{$ne:''}}),
+   grants(conn).countDocuments({tenantId:t._id,status:'approved',expiresAt:{$gt:now},
+    requestedBy:{$ne:null},approvedBy:{$ne:null},reviewedAt:{$ne:null},
+    providerAuthorizationReference:{$ne:''},regulatoryAuthorizationReference:{$ne:''}}),
    forexRateModel(conn).countDocuments({status:'active',side:{$in:['buy','sell']},expiresAt:{$gt:now}}),
    funded(conn).execution.countDocuments({sourceType:'forex',status:'posted_manual'}),
    records(conn).countDocuments({tenantId:t._id})

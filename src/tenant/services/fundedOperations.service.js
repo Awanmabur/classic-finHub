@@ -239,15 +239,8 @@ async function review(conn,tenant,actor,executionId,input={},options={}){
   const branch=await models.branchModel(conn).findOneAndUpdate({_id:execution.branchId,status:'active'},{$inc:{revision:1}},{new:true,session}).lean();
   if(!branch)throw fail('The operating branch is unavailable',409);
   const snapshot=execution.sourceSnapshot;let plan,collectionForFx=null;
-  if(execution.sourceType==='forex'){
-   await require('./forexOrigin.service').verify(conn,session,authorization.actor,String(execution.branchId),snapshot);
-   if(snapshot.originRecordId){
-    const duplicated=await models.forexQuoteModel(conn).findOne({_id:{$ne:source._id},
-     originModule:snapshot.originModule,originRecordId:snapshot.originRecordId,
-     status:'posted_manual'}).session(session).lean();
-    if(duplicated)throw fail('The linked Banking/Transfer instruction has already funded another completed currency exchange',409);
-   }
-  }
+  if(execution.sourceType==='forex'&&snapshot.originRecordId)
+   throw fail('Legacy linked Forex instructions cannot settle Banking/Transfer payables twice. Use the module-native currency conversion workflow.',409);
   if(execution.action==='transfer_payout'){
    const collection=await Execution.findOne({_id:execution.collectionExecutionId,action:'transfer_collect',status:'posted_manual',sourceId:execution.sourceId}).session(session).lean();
    if(!collection||String(source.manualCollectionExecutionId)!==String(collection._id))throw fail('Collected transfer funds are unavailable or already paid out',409);

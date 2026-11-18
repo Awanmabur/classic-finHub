@@ -40,7 +40,11 @@
   <div class="grid mobileMoneyEntryGrid">
     <% if(data.canRecord && currentBranch){ %>
       <%- include('_entry-form',{currentBranch,operation:data.operation}) %>
-    <% } else { %><section class="card"><div class="cardHead"><b><%= data.operation === 'cash_out' ? 'Withdrawal' : 'Deposit' %></b></div><div class="cardBody"><p class="tiny"><%= data.canRecord ? branchProblem : 'Your role has read-only access to these records.' %></p></div></section><% } %>
+    <% } else { %><section class="card"><div class="cardHead"><b><%= data.operation === 'cash_out' ? 'Withdrawal' : 'Deposit' %> · setup required</b></div><div class="cardBody">
+     <p role="status"><%= data.canRecord ? branchProblem : 'Your account has read-only access. An authorized tenant owner must assign the required recording permission.' %></p>
+     <% if(!currentBranch){ %><a class="btn" href="/tenant/branches">Review operating branch assignment</a><% } %>
+     <% if(data.canRecord){ %><a class="btn" href="/tenant/treasury">Check real cash and wallet accounts</a><% } %>
+    </div></section><% } %>
     <section class="card"><div class="cardHead"><div><b><%= data.operation === 'cash_out' ? 'Withdrawal' : 'Deposit' %> activity</b><br><span>Recorded operations</span></div><a class="btn" href="/tenant/mobile-money/history">All history</a></div><div class="cardBody richPageGrid"><%- include('_filters',{filterAction:entryPath,fixedOperation:data.operation}) %><%- include('_activity',{activityRecords:data.records,activityPath:entryPath}) %></div></section>
   </div>
   <p class="tiny">Cash-In and Cash-Out exchange real physical cash with provider float. The assigned operator must have an independently approved cash shift. Commission estimates come from provider rate sheets and are never treated as a confirmed payout. <a href="/tenant/mobile-money">Review recorded transactions</a>.</p>

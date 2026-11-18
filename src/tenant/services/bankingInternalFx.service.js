@@ -31,7 +31,8 @@ async function options(conn,tenant,actor,branch,filter={}){
  if(search.length>60)throw fail('Account search is too long',400);
  const selectedIds=Array.isArray(filter.selectedIds)&&filter.selectedIds.length===2?
   filter.selectedIds.map(id):null;
- const escaped=search.replace(/[.*+?^${}()|[\]\\]/g,'\\ const [customerAccounts,rates]=await Promise.all([');
+ const regexMeta='.*+?^$'+'{}()|[]'+String.fromCharCode(92);
+ const escaped=[...search].map(ch=>regexMeta.includes(ch)?String.fromCharCode(92)+ch:ch).join('');
  const searchMatch=selectedIds?{_id:{$in:selectedIds.map(x=>new mongoose.Types.ObjectId(x))}}:
   search?{$or:[{accountNumber:new RegExp(escaped,'i')},{'customer.name':new RegExp(escaped,'i')}]}:{};
  const [customerAccounts,rates]=await Promise.all([

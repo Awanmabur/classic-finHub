@@ -52,6 +52,17 @@ function routes({renderTenant}){
     {...available,records,idempotencyKey:crypto.randomUUID(),formatMoneyMinor});
   }catch(e){next(e);}
  });
+ router.post('/exchange/preview',requirePermission('banking.requests.create'),financial,async(req,res,next)=>{
+  try{
+   if(!req.operationBranch)return res.status(409).send('Choose an operating branch');
+   const [rateId,rateVersion,rateDecimal]=String(req.body.rateChoice||'').split(':');
+   const review=await require('../services/bankingInternalFx.service').preview(
+    req.tenantDb,req.tenant,req.user,req.operationBranch,{...req.body,rateId,rateVersion,rateDecimal});
+   renderTenant(req,res,'banking/fx-confirm','Review currency exchange',
+    'Confirm the exact source debit and destination credit before posting.',
+    {review,formatMoneyMinor});
+  }catch(e){next(e);}
+ });
  router.post('/exchange',requirePermission('banking.requests.create'),financial,async(req,res,next)=>{
   try{
    if(!req.operationBranch)return res.status(409).send('Choose an operating branch');

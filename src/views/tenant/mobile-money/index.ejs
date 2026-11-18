@@ -9,7 +9,11 @@
    const pendingFunds=[...visibleCashAccounts,...visibleWalletAccounts].filter(a=>a.expectedMinor===null||a.expectedMinor===undefined||a.state!=='active'||a.reconciliation!=='matched');
    const readyCashAccounts=visibleCashAccounts.filter(a=>a.state==='active'&&a.reconciliation==='matched'&&a.expectedMinor!==null&&a.expectedMinor!==undefined);
    const readyWalletAccounts=visibleWalletAccounts.filter(a=>a.state==='active'&&a.reconciliation==='matched'&&a.expectedMinor!==null&&a.expectedMinor!==undefined);
-   const hasUsableFundsPair=readyWalletAccounts.some(wallet=>readyCashAccounts.some(cash=>cash.currency===wallet.currency));
+   // Both native-currency and cross-currency service use one real provider
+   // wallet and one assigned physical drawer; a mismatched currency is not
+   // incomplete onboarding when the owner has an active operating FX rate.
+   const hasUsableFundsPair=readyWalletAccounts.some(wallet=>(wallet.assignedToOperator||wallet.shared)&&
+    readyCashAccounts.some(cash=>cash.assignedToOperator));
    const needsOnboarding=!currentBranch||!hasUsableFundsPair; %>
 <section class="view show mobileMoneyPage">
  <%- include('../../partials/operation-branch', {currentBranch, branchProblem, user}) %>

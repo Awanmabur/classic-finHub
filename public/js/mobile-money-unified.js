@@ -97,18 +97,41 @@
    if(!w?.value||!d?.value){showError('Choose an active wallet and your actual physical cash drawer.');submit.disabled=true;return;}
    if(!valid){showError('Enter the provider wallet amount to calculate what the customer receives or pays.');submit.disabled=true;return;}
    if(same){
-    const n=BigInt(amountText.replace('.',''));const decimal=wc==='UGX'?0:(amountText.split('.')[1]||'').length;
-    const minor=wc==='UGX'?n:BigInt((amountText.split('.')[0]||'0'))*100n+
+    const minor=wc==='UGX'?BigInt(amountText):
+      BigInt((amountText.split('.')[0]||'0'))*100n+
       BigInt((amountText.split('.')[1]||'').padEnd(2,'0')||'0');
-    const feeValue=fee?.value||'0';
-    // Same-currency provider fee policy remains on the existing recording path.
+    const feeText=String(fee?.value||'0').trim();
+    const validFee=wc==='UGX'?/^[0-9]{1,11}$/.test(feeText):
+      /^[0-9]{1,11}(?:\.[0-9]{1,2})?$/.test(feeText);
+    if(!validFee){showError('Enter a valid fee amount for the selected wallet currency.');submit.disabled=true;return;}
+    const feeMinor=wc==='UGX'?BigInt(feeText):
+      BigInt(feeText.split('.')[0])*100n+
+      BigInt((feeText.split('.')[1]||'').padEnd(2,'0')||'0');
+    const treatment=w.dataset.feeTreatment||'record_only';
+    if(treatment==='wallet_commission'){
+     showError('The wallet has a legacy commission policy. Ask the owner to change it to Record only before booking funds.');
+     submit.disabled=true;return;
+    }
+    if(feeMinor>minor){
+     showError('The customer fee cannot exceed the withdrawal or deposit amount.');
+     submit.disabled=true;return;
+    }
+    const withdrawal=form.dataset.operation==='cash_out';
+    const cashMinor=minor+(treatment==='payment_collected'?(withdrawal?-feeMinor:feeMinor):0n);
+    const cashAvailable=d.dataset.expectedMinor, floatAvailable=w.dataset.expectedMinor;
+    const available=withdrawal?cashAvailable:floatAvailable;
+    const required=withdrawal?cashMinor:minor;
+    if(!/^[0-9]+$/.test(available||'')||BigInt(available)<required){
+     showError('Insufficient '+(withdrawal?'physical cash':'electronic float')+' in the selected account.');
+     submit.disabled=true;return;
+    }
     if(mode)mode.textContent='Same-currency Mobile Money';
-    if(cashText)cashText.textContent=format(minor,dc);
-    if(total)total.textContent=format(minor,dc);
-    if(message)message.textContent='One Mobile Money record; cash and float update in '+wc+'. No Forex posting.';
+    if(cashText)cashText.textContent=format(cashMinor,dc);
+    if(total)total.textContent=format(cashMinor,dc);
+    if(message)message.textContent='One Mobile Money transaction with the configured fee policy; cash and float update in '+wc+'. No Forex posting.';
     ready=true;submit.disabled=false;return;
    }
-   if(fee&&String(fee.value||'0')!=='0'){
+   if(fee&&!/^0+(?:\.0+)?$/.test(String(fee.value||'0'))){
     showError('Cross-currency settlement uses the owner\'s approved exchange rate. Remove an extra fee before finalizing.');
     submit.disabled=true;return;
    }

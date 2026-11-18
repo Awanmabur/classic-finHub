@@ -33,14 +33,28 @@ async function options(conn,tenant,actor,branch){
    {$lookup:{from:accounts.customerModel(conn).collection.name,localField:'customerId',foreignField:'_id',as:'customer'}},
    {$unwind:'$customer'},{$match:{'customer.status':'active','customer.branchId':branch._id}},
    {$sort:{accountNumber:1}},{$limit:201},
-   {$project:{_id:1,customerId:1,accountNumber:1,currency:1,customerName:'$customer.name'}}
+   {$project:{_id:1,customerId:1,ledgerAccountId:1,accountNumber:1,currency:1,customerName:'$customer.name'}}
   ]).option({maxTimeMS:3000}),
   core.forexRateModel(conn).find({branchId:branch._id,status:'active',side:{$in:['buy','sell']},
    expiresAt:{$gt:new Date()},reviewedBy:{$ne:null}}).select('fromCurrency toCurrency side rateDecimal revision expiresAt')
    .sort({fromCurrency:1,toCurrency:1,side:1}).limit(100).lean()
  ]);
  if(customerAccounts.length>200)throw fail('More than 200 customer accounts. Narrow the branch account list before exchanging.',422);
- return {accounts:customerAccounts,rates};
+ const ledgerIds=customerAccounts.map(account=>account.ledgerAccountId);
+ const postings=ledgerIds.length?await core.ledgerPostingModel(conn).aggregate([
+  {$match:{accountId:{$in:ledgerIds},branchId:branch._id}},
+  {$group:{_id:{accountId:'$accountId',side:'$side',currency:'$currency'},amount:{$sum:'$amountMinor'}}}
+ ]).option({maxTimeMS:3000}):[];
+ const balances=new Map();
+ for(const row of postings){
+  const key=String(row._id.accountId),sign=row._id.side==='credit'?1n:-1n;
+  balances.set(key,(balances.get(key)||0n)+BigInt(String(row.amount))*sign);
+ }
+ return {accounts:customerAccounts.map(account=>({...account,
+  balanceMinor:String(balances.get(String(account.ledgerAccountId))||0n),
+  balanceLabel:require('./mobileMoney.service').formatMoneyMinor(
+   String(balances.get(String(account.ledgerAccountId))||0n),account.currency)
+ })),rates};
 }
 async function balance(conn,session,ledgerId,branchId,currency){
  const groups=await core.ledgerPostingModel(conn).aggregate([

@@ -1,11 +1,15 @@
 <% const moduleFinance=typeof data.financeOverview==='object'&&data.financeOverview?data.financeOverview:{};
    const modulePosting=(moduleFinance.moduleEarnings||[]).find(item=>item.moduleKey===moduleKey)||{};
    const moduleAssets=(moduleFinance.byModule||[]).find(item=>item.moduleKey===moduleKey)?.totals||[];
+   const sharedTreasuryAssets=(moduleFinance.byModule||[]).find(item=>item.moduleKey==='shared')?.totals||[];
+   const showSharedForex=moduleKey==='forex'&&!moduleAssets.length&&sharedTreasuryAssets.length>0;
    const financialCards=[
-    {title:'Operating assets · book',items:moduleAssets,empty:'No module-specific asset account',note:'Shared cash is counted once in Treasury, not attributed to every module.'},
-    {title:'Posted income · '+(moduleFinance.periodLabel||'today'),items:modulePosting.income||[],empty:'No posted income',note:'Only recognized ledger postings, not estimates or customer fees charged by a provider.'},
-    {title:'Posted expenses · '+(moduleFinance.periodLabel||'today'),items:modulePosting.expenses||[],empty:'No posted expenses',note:'Only approved, actually posted ledger expenses.'},
-    {title:'Posted net income · '+(moduleFinance.periodLabel||'today'),items:modulePosting.net||[],empty:'No posted income or expenses',note:moduleKey==='forex'?'Excludes trading profit until purchase cost basis and sales can be matched.':'Posted income less posted expenses; not a valuation of unmeasured costs.'}
+    {title:showSharedForex?'Shared Treasury · reference':'Operating assets · book',items:showSharedForex?sharedTreasuryAssets:moduleAssets,
+      empty:moduleKey==='forex'?'Set up Forex stock and settlement balances in Treasury':'No opened module-specific accounts',
+      note:showSharedForex?'These shared balances are shown for context only, not allocated to Forex or added again to total assets.':'Only actual opened financial accounts appear here; shared balances are held once in Treasury.'},
+    {title:'Posted income · '+(moduleFinance.periodLabel||'today'),items:modulePosting.income||[],empty:'No income posted',note:'Actual collected fees and recognized income only. Currency trading gains require matched inventory cost.'},
+    {title:'Posted expenses · '+(moduleFinance.periodLabel||'today'),items:modulePosting.expenses||[],empty:'No expenses posted',note:'Actual booked expenses only, not anticipated costs.'},
+    {title:'Posted net income · '+(moduleFinance.periodLabel||'today'),items:modulePosting.net||[],empty:'No posted net income',note:moduleKey==='forex'?'Operating income less booked expenses; Forex trading profit is not fabricated without verified inventory cost basis.':'Posted income less posted expenses.'}
    ]; %>
 <% if(moduleFinance.available){ %>
 <section class="financialModuleOverview" aria-label="Financial summary for this module" style="margin-top:12px">
@@ -23,6 +27,87 @@
    <div class="s"><%= card.note %></div>
   </div><% }); %>
  </div>
+ <% if(moduleKey==='money_transfer'&&moduleFinance.transferPayoutFxActivity){ const fx=moduleFinance.transferPayoutFxActivity; %>
+ <section class="card" style="margin-top:12px" aria-label="Actual cross-currency PIN payouts">
+  <div class="cardHead"><b>Cross-currency remittances · actually paid</b><span>Native-currency Treasury ledger · PIN verified</span></div>
+  <div class="cardBody">
+   <% if(fx.limited){ %><p class="tiny">More than 1,000 records; narrow the report period.</p>
+   <% }else{ %><strong><%= fx.count %> confirmed cross-currency cash payout<%= fx.count===1?'':'s' %></strong>
+   <div class="row2" style="margin-top:10px">
+    <div><b>Original transfers collected</b>
+     <% if(!fx.sent.length){ %><p class="tiny">None posted</p><% } %>
+     <% fx.sent.forEach(x=>{ %><p><%= x.formatted %></p><% }) %>
+    </div>
+    <div><b>Beneficiary cash paid</b>
+     <% if(!fx.received.length){ %><p class="tiny">None posted</p><% } %>
+     <% fx.received.forEach(x=>{ %><p><%= x.formatted %></p><% }) %>
+    </div>
+   </div><p class="tiny">Each payout has verified PIN custody, a locked Buy rate and separate original-currency journal records. These are actual recorded cash settlements, not provider wire confirmations or recognized exchange profits.</p>
+   <% } %>
+  </div>
+ </section>
+ <% } %>
+ <% if(moduleKey==='banking'&&moduleFinance.bankingInternalFxActivity){ const fx=moduleFinance.bankingInternalFxActivity; %>
+ <section class="card" style="margin-top:12px" aria-label="Real internal Banking currency conversions">
+  <div class="cardHead"><b>Internal customer account currency transfers</b><span>Posted ledger liabilities · no external bank wire</span></div>
+  <div class="cardBody">
+   <% if(fx.limited){ %><p class="tiny">Too many posted exchanges; narrow the report dates.</p>
+   <% }else{ %><strong><%= fx.count %> posted internal currency exchange<%= fx.count===1?'':'s' %></strong>
+    <div class="row2" style="margin-top:10px">
+     <div><b>Customer source balances debited</b>
+      <% if(!fx.source.length){ %><p class="tiny">No debits posted</p><% } %>
+      <% fx.source.forEach(x=>{ %><p><%= x.formatted %></p><% }) %>
+     </div>
+     <div><b>Destination balances credited</b>
+      <% if(!fx.destination.length){ %><p class="tiny">No credits posted</p><% } %>
+      <% fx.destination.forEach(x=>{ %><p><%= x.formatted %></p><% }) %>
+     </div>
+    </div>
+    <p class="tiny">Recorded internal customer liability conversion, backed by reconciled native-currency branch liquidity. Does not imply funds were sent externally or that a trading profit was realized.</p>
+   <% } %>
+  </div>
+ </section>
+ <% } %>
+ <% if(['banking','money_transfer'].includes(moduleKey) && moduleFinance.crossModuleFxActivity){ const activity=moduleFinance.crossModuleFxActivity; %>
+ <section class="card" style="margin-top:12px" aria-label="Module-origin currency exchanges">
+  <div class="cardHead"><b>Currency exchanges started from <%= moduleKey.replaceAll('_',' ') %></b><span>Completed Treasury postings, not bank or remittance settlements</span></div>
+  <div class="cardBody">
+   <% if(activity.limited){ %><p class="tiny">More than 1,000 exchanges. Narrow the date range.</p>
+   <% }else{ %>
+    <strong><%= activity.count %> posted exchange<%= activity.count===1?'':'s' %></strong>
+    <div class="row2" style="margin-top:10px">
+     <div><b>Bought</b><% if(!activity.bought.length){ %><p class="tiny">None posted</p><% } %>
+      <% activity.bought.forEach(line=>{ %><p><%= line.formatted %></p><% }) %></div>
+     <div><b>Sold</b><% if(!activity.sold.length){ %><p class="tiny">None posted</p><% } %>
+      <% activity.sold.forEach(line=>{ %><p><%= line.formatted %></p><% }) %></div>
+    </div>
+    <p class="tiny">These are independently attributable Forex inventory movements. They do not prove that an external bank transfer or beneficiary payout was completed.</p>
+   <% } %>
+  </div>
+ </section>
+ <% } %>
+ <% if(moduleKey==='forex' && moduleFinance.forexActivity){ const activity=moduleFinance.forexActivity; %>
+ <section class="card" style="margin-top:12px" aria-label="Posted Forex exchange activity">
+  <div class="cardHead"><b>Actual Forex exchanges · posted</b><span>Real book movements, not pending quotations</span></div>
+  <div class="cardBody">
+   <% if(activity.limited){ %><p class="tiny">Too many exchanges for this summary. Narrow the report period.</p>
+   <% }else{ %>
+    <strong><%= activity.count %> completed exchange<%= activity.count===1?'':'s' %></strong>
+    <div class="row2" style="margin-top:10px">
+     <div><b>Foreign currency bought</b>
+      <% if(!activity.bought.length){ %><p class="tiny">No purchases posted</p><% } %>
+      <% activity.bought.forEach(line=>{ %><p><%= line.formatted %></p><% }) %>
+     </div>
+     <div><b>Foreign currency sold</b>
+      <% if(!activity.sold.length){ %><p class="tiny">No sales posted</p><% } %>
+      <% activity.sold.forEach(line=>{ %><p><%= line.formatted %></p><% }) %>
+     </div>
+    </div>
+    <p class="tiny">Volumes come from posted Forex movements only. They are not net income or realized trading profit. Rates and received/paid settlement currencies remain visible in individual transaction records.</p>
+   <% } %>
+  </div>
+ </section>
+ <% } %>
 </section>
 <% } else if(typeof user==='object'&&user&&['Tenant Owner','Branch Manager','Reconciliation Officer','Auditor'].includes(user.role)){ %>
 <section class="card financialModuleOverview" aria-label="Financial statistics availability">

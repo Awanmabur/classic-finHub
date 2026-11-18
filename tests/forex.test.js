@@ -27,6 +27,16 @@ test('Forex can be subscribed independently; reports remain independently subscr
  assert(!sourcesFor({...base,moduleGrants:base.moduleGrants.filter(g=>g.moduleKey!=='forex')},analyst).some(s=>s.key==='forex'));
  assert(!sourcesFor({...base,moduleGrants:base.moduleGrants.filter(g=>g.moduleKey!=='reports')},analyst).length);
 });
+test('Banking and Transfer staff may trade only with assigned Forex entitlement and not manage rates',()=>{
+ const bank=actor('Banking Operator',['banking','forex']);
+ const transfer=actor('Money Transfer Operator',['money_transfer','forex']);
+ assert.equal(fx.operator(bank),true);
+ assert.equal(fx.operator(transfer),true);
+ assert.equal(bank.permissions.includes('forex.quotes.create'),true);
+ assert.equal(transfer.permissions.includes('forex.quotes.create'),true);
+ assert.equal(bank.permissions.includes('forex.rate_manage'),false);
+ assert.equal(transfer.permissions.includes('forex.rate_manage'),false);
+});
 test('FX rates are exact fixed-point decimals and conversion does not use floating point',()=>{
  assert.equal(fx.rateScaled('0.00027500'),27500n);
  assert.equal(fx.rateScaled('1.23456789'),123456789n);
@@ -55,6 +65,10 @@ test('Input validation requires valid pair, expiry, idempotency and explanations
  fail(()=>fx.rateInput({...rate,note:'tiny'}),400);
  const quote={rateId:branch,customerLabel:'Client label',amount:'1000',note:'Customer requested an indicative quote',validMinutes:'10',idempotencyKey:crypto.randomUUID()};
  assert.equal(fx.quoteInput(quote).validMinutes,10);
+ fail(()=>fx.quoteInput({...quote,originModule:'banking',originRecordId:branch}),409);
+ fail(()=>fx.quoteInput({...quote,originModule:'money_transfer',originRecordId:branch}),409);
+ fail(()=>fx.quoteInput({...quote,originModule:'arbitrary_external_provider'}),409);
+ fail(()=>fx.quoteInput({...quote,originModule:'banking'}),409);
  fail(()=>fx.quoteInput({...quote,validMinutes:61}),400);
  fail(()=>fx.quoteInput({...quote,idempotencyKey:'bad'}),400);
  fail(()=>fx.quoteInput({...quote,customerLabel:'x'}),400);
@@ -116,6 +130,14 @@ test('Forex schemas prevent mutable rate and quote snapshots and enforce unique 
  const quote=require('../src/tenant/schemas/ForexQuote.schema');
  for(const name of ['fromCurrency','toCurrency','side','rateDecimal','expiresAt'])assert(rate.path(name).options.immutable);
  for(const name of ['fromCurrency','toCurrency','rateDecimal','sourceMinor','targetMinor','rateId','expiresAt'])assert(quote.path(name).options.immutable);
+ assert.equal(quote.path('originModule').options.immutable,true);
+ assert.equal(quote.path('originRecordId').options.immutable,true);
+ assert(quote.indexes().some(([keys,options])=>keys.originRecordId===1&&options.unique&&options.partialFilterExpression?.status==='posted_manual'));
+ const origin=require('../src/tenant/services/forexOrigin.service');
+ assert.equal(origin.originId(null,'forex'),null);
+ assert.equal(origin.originId(branch,'banking'),branch);
+ assert.throws(()=>origin.originId('', 'money_transfer'),{status:400});
+ assert.throws(()=>origin.originId(branch,'forex'),{status:400});
  assert(rate.indexes().some(([fields,options])=>fields.branchId===1&&fields.side===1&&options.unique&&options.name==='one_active_forex_rate_per_pair_side'&&options.partialFilterExpression?.status==='active'));
  assert(quote.indexes().some(([fields,options])=>fields.idempotencyKey===1&&options.unique));
 });
@@ -133,7 +155,7 @@ test('Forex UI uses existing card layout, CSRF protection, independent controls 
     currencyChoices:[{code:'UGX'},{code:'USD'},{code:'SSP'},{code:'KES'}],rates:[],records:{items:[]},rateQueue:[],quoteQueue:[],idempotencyKey:crypto.randomUUID(),amountLabel:fx.amountLabel}
  });
  assert.match(html,/forex\/quotes/);assert.match(html,/forex\/rates/);assert.match(html,/name="side"/);assert.match(html,/name="_csrf" value="test-csrf"/);
- assert.doesNotMatch(html,/name="decision"/);assert.match(html,/record the actual exchange against opened foreign currency and settlement accounts for independent review/);
+ assert.doesNotMatch(html,/name="decision"/);assert.match(html,/record the actual exchange against opened currency accounts, and finalize it in the funds books/);
  const detail=await ejs.renderFile(path.join(__dirname,'../src/views/tenant/forex/detail.ejs'),{
   csrfToken:'x',data:{quote:{_id:branch,reference:'FX-test',status:'quoted',customerLabel:'<script>alert(1)<\/script>',
    fromCurrency:'UGX',toCurrency:'USD',sourceMinor:'20000',targetMinor:'550',rateDecimal:'0.000275',note:'Customer asked',expiresAt:new Date(),reviewNote:null},

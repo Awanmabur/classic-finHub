@@ -38,7 +38,9 @@ function sourceSnapshot(type,source){
   if(!['buy','sell'].includes(source.operation))throw fail('Choose an explicit Buy or Sell quote before recording a manual exchange',409);
   if(!currencyCodes.includes(source.fromCurrency)||!currencyCodes.includes(source.toCurrency)||source.fromCurrency===source.toCurrency)throw fail('Manual books require supported, different currencies',409);
   const fee=require('./operationCapture.service').commissionMinor(source.capture||{},source.toCurrency);
-  return {...base,operation:source.operation,fromCurrency:source.fromCurrency,toCurrency:source.toCurrency,sourceMinor:minor(source.sourceMinor),targetMinor:minor(source.targetMinor),feeMinor:String(fee),settlementMethod:source.capture?.settlementMethod||'Cash',rateId:id(source.rateId),rateDecimal:String(source.rateDecimal)};
+  return {...base,operation:source.operation,originModule:source.originModule||'forex',
+   originRecordId:source.originRecordId?String(source.originRecordId):null,
+   fromCurrency:source.fromCurrency,toCurrency:source.toCurrency,sourceMinor:minor(source.sourceMinor),targetMinor:minor(source.targetMinor),feeMinor:String(fee),settlementMethod:source.capture?.settlementMethod||'Cash',rateId:id(source.rateId),rateDecimal:String(source.rateDecimal)};
  }
  if(!currencyCodes.includes(source.currency))throw fail('Unsupported manual financial currency',409);
  if(type==='banking'){
@@ -54,6 +56,8 @@ function sourceMatches(execution,source){
  if(execution.sourceType==='banking'&&!Object.hasOwn(execution.sourceSnapshot||{},'feeMinor')&&candidate.feeMinor==='0')delete candidate.feeMinor;
  if(execution.sourceType==='money_transfer'&&!Object.hasOwn(execution.sourceSnapshot||{},'senderPhone')){delete candidate.senderPhone;delete candidate.senderName;}
  if(execution.sourceType==='money_transfer'&&!Object.hasOwn(execution.sourceSnapshot||{},'destinationBranchId'))delete candidate.destinationBranchId;
+ if(execution.sourceType==='forex'&&!Object.hasOwn(execution.sourceSnapshot||{},'originModule'))delete candidate.originModule;
+ if(execution.sourceType==='forex'&&!Object.hasOwn(execution.sourceSnapshot||{},'originRecordId'))delete candidate.originRecordId;
  return hash(candidate)===execution.sourceFingerprint;
 }
 function payoutLookup(input={}){
@@ -199,17 +203,38 @@ async function feeAccount(conn,session,authorization,snapshot,execution){
  const result=await treasury().ensureCounterAccount(conn,session,{tenantId:String(authorization.tenant._id),branchId:String(execution.branchId),currency:snapshot.sourceType==='forex'?snapshot.toCurrency:snapshot.currency,purpose:'fee_income',actorId:authorization.actor.id});
  return String(result.ledgerAccountId||result._id);
 }
-async function review(conn,tenant,actor,executionId,input={}){
+async function review(conn,tenant,actor,executionId,input={},options={}){
+ // Internal-only path for a cashier-confirmed Forex trade. External HTTP
+ // callers cannot select this mode; ordinary banking and transfer reviews
+ // retain independent approval.
+ const directForex=options.mode==='forex_cashier_confirmed';
+ const directPayout=options.mode==='pin_verified_cash_payout';
  if(!tenant?.slug||conn.name!==tenantDbNameFromSlug(tenant.slug))throw fail('Manual financial workspace is invalid',403);
  if(!['approve','reject'].includes(input.decision))throw fail('Choose approve or reject');const note=text(input.note,'review evidence',12,400);
  await prepareIndexes(conn);const Execution=fundedModels(conn).execution,initial=await Execution.findById(id(executionId)).lean();if(!initial)throw fail('Manual movement not found',404);
- const current=await context(conn,tenant,actor,initial.sourceType,permission(initial.sourceType,true,initial.action));
- if(!['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(current.actor.role))throw fail('Independent financial reviewer required',403);
- if(String(initial.createdBy)===current.actor.id)throw fail('The originator cannot review their own manual movement',403);
+ const current=await context(conn,tenant,actor,initial.sourceType,directForex?'forex.quotes.create':directPayout?'money_transfer.payout':permission(initial.sourceType,true,initial.action));
+ if(directForex){
+  if(initial.sourceType!=='forex'||initial.action!=='forex'||!['Tenant Owner','Forex Operator','Banking Operator','Money Transfer Operator'].includes(current.actor.role)||
+    String(initial.createdBy)!==String(current.actor.id)||
+    input.confirmFundsExchanged!=='yes'||input.confirmEvidenceChecked!=='yes')
+   throw fail('The originating Forex cashier must confirm actual receipt, payout and evidence before final posting',403);
+ }else if(directPayout){
+  if(initial.sourceType!=='money_transfer'||initial.action!=='transfer_payout'||
+    !['Tenant Owner','Money Transfer Operator'].includes(current.actor.role)||
+    String(initial.createdBy)!==String(current.actor.id)||
+    input.confirmCashPaid!=='yes'||input.confirmRecipientVerified!=='yes'||
+    !initial.verificationInfo?.receiverNameCheck||!initial.verificationInfo?.identityDocument)
+   throw fail('A PIN-verified cashier must confirm the actual cash payment and recipient identity before final posting',403);
+ }else{
+  if(!['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(current.actor.role))throw fail('Independent financial reviewer required',403);
+  if(String(initial.createdBy)===current.actor.id)throw fail('The originator cannot review their own manual movement',403);
+ }
  return transaction(conn,async session=>{
-  const authorization=await auth.fenceAction(conn,session,actor,current.tenant,initial.sourceType,permission(initial.sourceType,true,initial.action));
+  const authorization=await auth.fenceAction(conn,session,actor,current.tenant,initial.sourceType,
+   directForex?'forex.quotes.create':directPayout?'money_transfer.payout':permission(initial.sourceType,true,initial.action));
   if(!await models.tenantUserModel(conn).exists({_id:actor.id,status:'active',...(require('../../config/mfaPolicy').enabled()?{mfaEnabledAt:{$ne:null}}:{})}).session(session))throw fail('Authenticator enrollment is required for manual financial review',403);
-  const execution=await Execution.findOneAndUpdate({_id:initial._id,status:'pending_review',createdBy:{$ne:actor.id},...scope(authorization.actor)},{$inc:{revision:1}},{new:true,session}).lean();
+  const execution=await Execution.findOneAndUpdate({_id:initial._id,status:'pending_review',
+   ...(directForex||directPayout?{createdBy:actor.id}:{createdBy:{$ne:actor.id}}),...scope(authorization.actor)},{$inc:{revision:1}},{new:true,session}).lean();
   if(!execution)throw fail('Manual movement already reviewed or outside your branch',409);
   const sourceModel=definition(execution.sourceType).model(conn),source=await sourceModel.findById(execution.sourceId).session(session).lean();
   if(!source||!sourceMatches(execution,source))throw fail('Original instruction is missing or its economics changed',409);
@@ -222,19 +247,46 @@ async function review(conn,tenant,actor,executionId,input={}){
   // ledger posting paths before reading the spendable liability balance.
   const branch=await models.branchModel(conn).findOneAndUpdate({_id:execution.branchId,status:'active'},{$inc:{revision:1}},{new:true,session}).lean();
   if(!branch)throw fail('The operating branch is unavailable',409);
-  const snapshot=execution.sourceSnapshot;let plan;
+  const snapshot=execution.sourceSnapshot;let plan,collectionForFx=null;
+  if(directPayout&&String(source.branchId)!==String(execution.branchId))
+   throw fail('Cross-branch remittance payouts require independent financial review',403);
+  if(execution.sourceType==='forex'&&snapshot.originRecordId)
+   throw fail('Legacy linked Forex instructions cannot settle Banking/Transfer payables twice. Use the module-native currency conversion workflow.',409);
   if(execution.action==='transfer_payout'){
    const collection=await Execution.findOne({_id:execution.collectionExecutionId,action:'transfer_collect',status:'posted_manual',sourceId:execution.sourceId}).session(session).lean();
    if(!collection||String(source.manualCollectionExecutionId)!==String(collection._id))throw fail('Collected transfer funds are unavailable or already paid out',409);
-   plan={legs:[{accountId:execution.accounts.clearingAccountId,deltaMinor:'-'+snapshot.amountMinor},{accountId:execution.accounts.payoutAccountId,deltaMinor:'-'+snapshot.amountMinor}],ledgerLines:[]};
+   collectionForFx=collection;
+   if(execution.payoutFx){
+    if(!hasModuleForUser(authorization.tenant,authorization.actor,'forex')||
+      !hasPermission(authorization.actor,'forex.view'))
+     throw fail('Payout reviewer needs authorized Forex module access',403);
+    const payoutActor=await models.tenantUserModel(conn).findOne({_id:execution.createdBy,status:'active'}).session(session).lean();
+    if(!payoutActor||!hasModuleForUser(authorization.tenant,payoutActor,'forex'))
+     throw fail('The payout cashier no longer has Forex entitlement',403);
+    branchCurrency.resolve(branch,execution.payoutFx.targetCurrency);
+   }else if((await treasury().models(conn).account.findById(execution.accounts.payoutAccountId).session(session).lean())?.currency!==snapshot.currency)
+    throw fail('Payout currency differs from the collected transfer but has no locked Forex rate',409);
+   plan={legs:[{accountId:execution.accounts.clearingAccountId,deltaMinor:'-'+snapshot.amountMinor},
+    {accountId:execution.accounts.payoutAccountId,deltaMinor:'-'+(execution.payoutFx?String(execution.payoutFx.payoutMinor):snapshot.amountMinor)}],ledgerLines:[]};
   }else if(execution.sourceType==='banking'){
    const original=await lockCustomerAccount(conn,session,authorization,snapshot.customerAccountId,execution.branchId,snapshot.currency);
    const destination=snapshot.destinationAccountId?await lockCustomerAccount(conn,session,authorization,snapshot.destinationAccountId,execution.branchId,snapshot.currency):null;
    if(snapshot.kind!=='deposit_request'&&await customerBalance(conn,session,original.ledger._id,execution.branchId,snapshot.currency)<BigInt(snapshot.amountMinor)+BigInt(snapshot.feeMinor||'0'))throw fail('Insufficient posted customer account balance including charges',409);
    plan=economicPlan(snapshot,execution.accounts,{sourceLiabilityId:String(original.ledger._id),destinationLiabilityId:destination?String(destination.ledger._id):null,feeIncomeId:await feeAccount(conn,session,authorization,snapshot,execution)});
   }else plan=economicPlan(snapshot,execution.accounts,{feeIncomeId:await feeAccount(conn,session,authorization,snapshot,execution)});
-  const posting=execution.action==='transfer_payout'&&String(source.destinationBranchId||source.branchId)!==String(source.branchId)?await treasury().postBranchTransferPayout(conn,session,authorization,execution._id):await treasury().applyMovements(conn,session,authorization,{sourceType:execution.sourceType,sourceRef:`FUNDED:${execution._id}`,branchId:String(execution.branchId),operatingActorId:String(execution.createdBy),...plan,evidenceRef:execution.evidenceReference,description:execution.note});
-  const changes={status:'posted_manual',reviewedBy:actor.id,reviewedAt:new Date(),reviewNote:note,journalIds:posting.journalIds||[]};
+  const posting=execution.action==='transfer_payout'&&execution.payoutFx?
+   await treasury().postCrossCurrencyTransferPayout(conn,session,authorization,execution,source,collectionForFx):
+   execution.action==='transfer_payout'&&String(source.destinationBranchId||source.branchId)!==String(source.branchId)?
+   await treasury().postBranchTransferPayout(conn,session,authorization,execution._id):
+   await treasury().applyMovements(conn,session,authorization,{
+    sourceType:execution.sourceType,sourceRef:`FUNDED:${execution._id}`,
+    branchId:String(execution.branchId),operatingActorId:String(execution.createdBy),
+    ...plan,evidenceRef:execution.evidenceReference,description:execution.note
+   });
+  const changes={status:'posted_manual',reviewedBy:directForex||directPayout?null:actor.id,reviewedAt:new Date(),
+   reviewNote:directForex?'Cashier attested actual custody and checked evidence; independent review not claimed':
+    directPayout?'PIN-verified cashier confirmed actual beneficiary ID and cash payout; independent review not claimed':note,
+   journalIds:posting.journalIds||[]};
   if(execution.action==='transfer_collect'){
    let generated;
    for(let attempt=0;attempt<8;attempt++){
@@ -255,7 +307,8 @@ async function review(conn,tenant,actor,executionId,input={}){
    await transferSms().closeAfterPayout(conn,execution.collectionExecutionId,session);
    await Execution.updateOne({_id:execution.collectionExecutionId,action:'transfer_collect'},{$unset:{pinEncrypted:''},$inc:{revision:1}},{session});
   }
-  await audit(conn,session,authorization.actor,posted,'manual.posted',{journalIds:(posting.journalIds||[]).map(String),evidenceMode:'independently_reviewed_manual'});
+  await audit(conn,session,authorization.actor,posted,'manual.posted',{journalIds:(posting.journalIds||[]).map(String),
+   evidenceMode:directForex?'cashier_attested_forex':directPayout?'cashier_confirmed_pin_payout':'independently_reviewed_manual'});
   return {execution:posted,source:changed,duplicate:false};
  });
 }
@@ -279,7 +332,16 @@ async function detail(conn,tenant,actor,executionId){
  const smsRetryConfigured=require('../transferSms/config').validateConfig().enabled;
  const smsRetryLimited=(sms?.redrives||0)>=3;
  const smsRetryCooling=!!smsRetryAt&&smsRetryAt>new Date();
- return {execution,source,sms,smsRetryAt,smsRetryLimited,smsRetryCooling,canRetrySms:execution.action==='transfer_collect'&&execution.status==='posted_manual'&&source?.status==='collected_manual'&&current.actor.role==='Tenant Owner'&&['dead','not_configured'].includes(sms?.state)&&smsRetryConfigured&&!smsRetryLimited&&!smsRetryCooling,canReview:execution.status==='pending_review'&&String(execution.createdBy)!==current.actor.id&&hasPermission(current.actor,permission(execution.sourceType,true,execution.action)),canRevealPin:execution.action==='transfer_collect'&&execution.status==='posted_manual'&&source?.status==='collected_manual'&&!execution.pinShownAt&&(current.actor.role==='Tenant Owner'||String(execution.createdBy)===current.actor.id)};
+ return {execution,source,sms,smsRetryAt,smsRetryLimited,smsRetryCooling,canRetrySms:execution.action==='transfer_collect'&&execution.status==='posted_manual'&&source?.status==='collected_manual'&&current.actor.role==='Tenant Owner'&&['dead','not_configured'].includes(sms?.state)&&smsRetryConfigured&&!smsRetryLimited&&!smsRetryCooling,canFinalizeForex:execution.sourceType==='forex'&&execution.status==='pending_review'&&
+  String(execution.createdBy)===current.actor.id&&['Tenant Owner','Forex Operator','Banking Operator','Money Transfer Operator'].includes(current.actor.role)&&
+  hasPermission(current.actor,'forex.quotes.create'),
+  canFinalizePayout:execution.action==='transfer_payout'&&execution.sourceType==='money_transfer'&&
+   execution.status==='pending_review'&&String(execution.createdBy)===current.actor.id&&
+   String(source?.branchId)===String(execution.branchId)&&
+   ['Tenant Owner','Money Transfer Operator'].includes(current.actor.role)&&
+   hasPermission(current.actor,'money_transfer.payout')&&
+   Boolean(execution.verificationInfo?.identityDocument)&&Boolean(execution.verificationInfo?.receiverNameCheck),
+  canReview:execution.status==='pending_review'&&String(execution.createdBy)!==current.actor.id&&hasPermission(current.actor,permission(execution.sourceType,true,execution.action)),canRevealPin:execution.action==='transfer_collect'&&execution.status==='posted_manual'&&source?.status==='collected_manual'&&!execution.pinShownAt&&(current.actor.role==='Tenant Owner'||String(execution.createdBy)===current.actor.id)};
 }
 async function revealPin(conn,tenant,actor,executionId){
  await prepareIndexes(conn);const current=await context(conn,tenant,actor,'money_transfer','money_transfer.create');
@@ -365,13 +427,26 @@ async function payoutContext(conn,tenant,actor,state){
  if(!verification||String(verification.branchId)!==String((await resolveTransactionBranch(conn,current.actor))._id))return {verification:null,idempotencyKey:crypto.randomUUID()};
  const collection=await fundedModels(conn).execution.findOne({_id:verification.collectionExecutionId,status:'posted_manual'}).lean();
  const source=collection?await models.transferOrderModel(conn).findOne({_id:collection.sourceId,status:'collected_manual'}).lean():null;
- return source?{verification,collection,source,payoutAccounts:(await availableAccounts(conn,current.tenant,current.actor,verification.branchId,'money_transfer')).filter(account=>account.kind==='cash'&&account.currency===source.currency&&String(account.operatorId)===String(actor.id)),verificationToken:state.token,idempotencyKey:crypto.randomUUID()}:{verification:null,idempotencyKey:crypto.randomUUID()};
+ if(!source)return {verification:null,idempotencyKey:crypto.randomUUID()};
+ const available=(await availableAccounts(conn,current.tenant,current.actor,verification.branchId,'money_transfer'))
+  .filter(account=>account.kind==='cash'&&String(account.operatorId)===String(actor.id));
+ const canFx=hasModuleForUser(current.tenant,current.actor,'forex')&&hasPermission(current.actor,'forex.quotes.create');
+ const rates=canFx?await models.forexRateModel(conn).find({
+  branchId:verification.branchId,fromCurrency:source.currency,toCurrency:{$ne:source.currency},
+  side:'buy',status:'active',reviewedBy:{$ne:null},expiresAt:{$gt:new Date()}
+ }).select('_id fromCurrency toCurrency rateDecimal revision expiresAt').sort({toCurrency:1}).limit(30).lean():[];
+ return {verification,collection,source,payoutAccounts:available.filter(a=>a.currency===source.currency||
+  canFx&&rates.some(r=>r.toCurrency===a.currency)),fxRates:rates,
+  verificationToken:state.token,idempotencyKey:crypto.randomUUID()};
 }
 async function requestPayout(conn,tenant,actor,input={}){
  const v=formInput(input),current=await context(conn,tenant,actor,'money_transfer','money_transfer.payout');await prepareIndexes(conn);
  const Execution=fundedModels(conn).execution,tokenHash=pin.tokenHash(input.verificationToken);
  const prior=await Execution.findOne({idempotencyKey:v.idempotencyKey,createdBy:actor.id,action:'transfer_payout',...scope(current.actor)}).select('+verificationDigest').lean();
- if(prior){if(prior.evidenceReference!==v.evidenceReference||prior.note!==v.note||prior.verificationDigest!==tokenHash||(input.payoutAccountId&&String(prior.accounts.payoutAccountId)!==id(input.payoutAccountId)))throw fail('Payout request reference was reused with changed details',409);return {execution:prior,duplicate:true};}
+ if(prior){if(prior.evidenceReference!==v.evidenceReference||prior.note!==v.note||prior.verificationDigest!==tokenHash||
+  (input.payoutAccountId&&String(prior.accounts.payoutAccountId)!==id(input.payoutAccountId))||
+  String(prior.payoutFx?.rateId||'')!==String((input.rateChoice||'').split(':')[0]||''))
+  throw fail('Payout request reference was reused with changed details',409);return {execution:prior,duplicate:true,sameBranch:String(prior.sourceSnapshot?.branchId)===String(prior.branchId)};}
  try{return await transaction(conn,async session=>{
   const authorization=await auth.fenceAction(conn,session,actor,current.tenant,'money_transfer','money_transfer.payout');
   const verification=await fundedModels(conn).verification.findOneAndUpdate({tokenHash,createdBy:actor.id,consumedAt:null,expiresAt:{$gt:new Date()}},{$set:{consumedAt:new Date()}},{session,new:true}).lean();
@@ -381,11 +456,63 @@ async function requestPayout(conn,tenant,actor,input={}){
   const source=collection?await models.transferOrderModel(conn).findOne({_id:collection.sourceId,status:'collected_manual',manualCollectionExecutionId:collection._id}).session(session).lean():null;
   if(!source||String(source.destinationBranchId||source.branchId)!==String(branch._id))throw fail('This transfer was paid, changed or belongs to another receiving branch',409);
   assertBranchCurrencies(branch,sourceSnapshot('money_transfer',source));
+  if(!verification.receiverNameCheck||!verification.identityDocument)
+   throw fail('Verify the recipient full name and identity reference before initiating payout',403);
   const snapshot=sourceSnapshot('money_transfer',source),available=await availableAccounts(conn,authorization.tenant,authorization.actor,branch._id,'money_transfer');
-  const accounts={clearingAccountId:String(collection.accounts.clearingAccountId),payoutAccountId:choose(available,input.payoutAccountId,{kind:'cash',currency:snapshot.currency,actorId:actor.id,label:'the verified payout cash drawer'})};
-  const canonical={sourceType:'money_transfer',sourceId:String(source._id),sourceReference:source.reference,action:'transfer_payout',branchId:String(branch._id),createdBy:actor.id,accounts,collectionExecutionId:String(collection._id),...v};
-  const [execution]=await Execution.create([{...canonical,fingerprint:hash(canonical),sourceFingerprint:hash(snapshot),sourceSnapshot:snapshot,verificationDigest:tokenHash,verificationInfo:{receiverNameCheck:verification.receiverNameCheck,identityDocument:verification.identityDocument},activeKey:`money_transfer:${source._id}:transfer_payout`}],{session});
-  await audit(conn,session,authorization.actor,execution,'payout.requested');return {execution,duplicate:false};
+  const selected=available.find(a=>String(a._id)===id(input.payoutAccountId));
+  if(!selected||selected.kind!=='cash')throw fail('Select your actual independently opened cash payout drawer',409);
+  const accounts={clearingAccountId:String(collection.accounts.clearingAccountId),
+   payoutAccountId:choose(available,input.payoutAccountId,{kind:'cash',currency:selected.currency,actorId:actor.id,label:'the verified payout cash drawer'})};
+  let payoutFx=null;
+  if(selected.currency!==snapshot.currency){
+   if(!hasModuleForUser(authorization.tenant,authorization.actor,'forex')||
+     !hasPermission(authorization.actor,'forex.quotes.create'))
+    throw fail('Cross-currency remittance payout requires Forex entitlement',403);
+   const selectedRate=String(input.rateChoice||'').split(':');
+   if(selectedRate.length!==3||!OID.test(selectedRate[0])||!/^(0|[1-9][0-9]*)$/.test(selectedRate[1]))
+    throw fail('Choose an active approved payout-currency exchange rate',409);
+   const rate=await models.forexRateModel(conn).findOne({_id:selectedRate[0],branchId:branch._id,
+    status:'active',side:'buy',fromCurrency:snapshot.currency,toCurrency:selected.currency,
+    revision:Number(selectedRate[1]),rateDecimal:selectedRate[2],
+    reviewedBy:{$ne:null},expiresAt:{$gt:new Date(Date.now()+60000)}}).session(session).lean();
+   if(!rate)throw fail('Payout currency rate is unavailable or expired. Recheck the quote.',409);
+   const forex=require('./forex.service');
+   const payoutMinor=forex.converted(BigInt(snapshot.amountMinor),snapshot.currency,selected.currency,forex.rateScaled(rate.rateDecimal));
+   payoutFx={targetCurrency:selected.currency,payoutMinor:String(payoutMinor),rateId:rate._id,
+    rateDecimal:rate.rateDecimal,rateVersion:rate.revision,rateExpiresAt:rate.expiresAt};
+  }else if(input.rateChoice)throw fail('A same-currency payout does not require a Forex conversion',400);
+  const canonical={sourceType:'money_transfer',sourceId:String(source._id),sourceReference:source.reference,
+   action:'transfer_payout',branchId:String(branch._id),createdBy:actor.id,accounts,
+   collectionExecutionId:String(collection._id),payoutFx,...v};
+  const [execution]=await Execution.create([{...canonical,fingerprint:hash(canonical),sourceFingerprint:hash(snapshot),sourceSnapshot:snapshot,
+   verificationDigest:tokenHash,verificationInfo:{receiverNameCheck:verification.receiverNameCheck,identityDocument:verification.identityDocument},
+   activeKey:`money_transfer:${source._id}:transfer_payout`}],{session});
+  await audit(conn,session,authorization.actor,execution,'payout.requested');
+  return {execution,duplicate:false,sameBranch:String(source.branchId)===String(branch._id)};
  });}catch(error){if(error.code===11000)throw fail('A payout is already pending or posted for this transfer',409);throw error;}
 }
-module.exports={sourceMatches,payoutLookup,transferMessage,retrySms,definitions,definition,sourceSnapshot,economicPlan,context,prepare,request,review,list,detail,revealPin,checkPayout,payoutContext,requestPayout,prepareIndexes,fail,minor,paymentKind,choose};
+async function finalizePayout(conn,tenant,actor,executionId,confirmation={}){
+ const execution=await fundedModels(conn).execution.findById(id(executionId)).lean();
+ if(!execution||execution.sourceType!=='money_transfer'||execution.action!=='transfer_payout')
+  throw fail('PIN payout request not found',404);
+ if(String(execution.createdBy)!==String(actor.id))throw fail('Payout is outside your originating-cashier scope',403);
+ if(execution.status==='posted_manual')return {execution,duplicate:true};
+ return review(conn,tenant,actor,executionId,{
+  decision:'approve',note:'Verified beneficiary PIN, identity and actually handed-over native-currency cash',
+  confirmCashPaid:confirmation.confirmCashPaid,confirmRecipientVerified:confirmation.confirmRecipientVerified
+ },{mode:'pin_verified_cash_payout'});
+}
+async function finalizeForex(conn,tenant,actor,executionId,confirmation={}){
+ const execution=await fundedModels(conn).execution.findById(id(executionId)).lean();
+ if(!execution||execution.sourceType!=='forex')throw fail('Forex movement not found',404);
+ if(execution.status==='posted_manual'){
+  if(String(execution.createdBy)!==String(actor.id))throw fail('Forex movement outside your scope',403);
+  return {execution,duplicate:true};
+ }
+ return review(conn,tenant,actor,executionId,{
+  decision:'approve',note:'Cashier verified both physical currency legs against the recorded evidence',
+  confirmFundsExchanged:confirmation.confirmFundsExchanged,
+  confirmEvidenceChecked:confirmation.confirmEvidenceChecked
+ },{mode:'forex_cashier_confirmed'});
+}
+module.exports={finalizePayout,finalizeForex,sourceMatches,payoutLookup,transferMessage,retrySms,definitions,definition,sourceSnapshot,economicPlan,context,prepare,request,review,list,detail,revealPin,checkPayout,payoutContext,requestPayout,prepareIndexes,fail,minor,paymentKind,choose};

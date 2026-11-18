@@ -1,6 +1,6 @@
 'use strict';
-// INTERNAL INDICATIVE RATES AND QUOTATIONS ONLY. No currency is bought,
-// sold, held, delivered, posted to a ledger, or settled in this module.
+// Rates and quotations are immutable trading instructions. Actual physical
+// Forex exchanges post via fundedOperations and the shared Treasury ledger.
 const crypto=require('node:crypto');
 const financialAuth=require('./financialAuthorization.service');
 const mongoose=require('mongoose');
@@ -47,7 +47,7 @@ function amountLabel(value,ccy){const n=BigInt(String(value?.toString?.()??value
 function moduleAccess(tenant,actor,permission){
  if(!hasModuleForUser(tenant,actor,'forex')||!hasPermission(actor,permission))throw fail('Forex subscription or role permission unavailable',403);
 }
-function operator(actor){return ['Tenant Owner','Forex Operator'].includes(actor?.role);}
+function operator(actor){return ['Tenant Owner','Forex Operator','Banking Operator','Money Transfer Operator'].includes(actor?.role);}
 function reviewer(actor){return ['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(actor?.role);}
 function branchScope(actor){
  if(['Tenant Owner','Auditor'].includes(actor?.role))return require('./branchView.service').readScope(actor);
@@ -55,7 +55,7 @@ function branchScope(actor){
  return {branchId:id(actor.branchId)};
 }
 function quoteScope(actor){const scope=branchScope(actor);
- if(actor?.role==='Forex Operator')scope.createdBy=id(actor.id);
+ if(['Forex Operator','Banking Operator','Money Transfer Operator'].includes(actor?.role))scope.createdBy=id(actor.id);
  return scope;
 }
 function branchFor(actor,input){return require('./transactionBranch.service').assignedBranchId(actor,input);}
@@ -65,13 +65,22 @@ function rateInput(input){
  const side=input?.side===undefined?'quote':input.side;
  if(!['buy','sell','quote'].includes(side))throw fail('Choose a Buy, Sell or indicative rate');
  if(side!=='quote'&&(!currencyCodes.includes(fromCurrency)||!currencyCodes.includes(toCurrency)))throw fail('Buy/Sell requires currencies supported by funds books');
- const rateDecimal=text(input?.rateDecimal,'rate',1,24);rateScaled(rateDecimal);
+ let rateDecimal;
+ try{rateDecimal=input?.quotedRate!==undefined?
+  require('./forexRateUnits.service').normalize({quotedRate:input.quotedRate,rateBaseUnits:input.rateBaseUnits}):
+  text(input?.rateDecimal,'rate',1,24);}
+ catch(error){throw fail(error.message,400);}
+ rateScaled(rateDecimal);
  const validHours=Number(input?.validHours??24);
  if(!Number.isSafeInteger(validHours)||validHours<1||validHours>72)throw fail('Rate validity must be 1–72 hours');
  const note=text(input?.note,'rate justification',12,400);
  return {fromCurrency,toCurrency,side,rateDecimal,validHours,note};
 }
 function quoteInput(input){
+ const originModule=input?.originModule||'forex';
+ if(originModule!=='forex'||input?.originRecordId)
+  throw fail('Use Banking account exchange or PIN-verified Money Transfer payout for cross-module conversion. Standalone Forex cannot also settle those original funds.',409);
+ const originRecordId=null;
  const operation=input?.operation||'quote';
  if(!['buy','sell','quote'].includes(operation))throw fail('Invalid exchange operation');
  const rateId=id(input?.rateId);const customerLabel=text(input?.customerLabel,'customer reference',2,120);
@@ -81,7 +90,7 @@ function quoteInput(input){
  if(!Number.isSafeInteger(validMinutes)||validMinutes<5||validMinutes>60)throw fail('Quote validity must be 5–60 minutes');
  const idempotencyKey=text(input?.idempotencyKey,'form reference',36,36);
  if(!UUID.test(idempotencyKey))throw fail('Reload the form to obtain a valid request identifier');
- return {rateId,customerLabel,amount,note,validMinutes,idempotencyKey,operation,capture:require('./operationCapture.service').parse('forex',{...input,commission:require('../pricing/apply').mode(input)?'0':input?.commission})};
+ return {rateId,customerLabel,amount,note,validMinutes,idempotencyKey,operation,originModule,originRecordId,capture:require('./operationCapture.service').parse('forex',{...input,commission:require('../pricing/apply').mode(input)?'0':input?.commission})};
 }
 async function proposeRate(conn,tenant,actor,input){
  moduleAccess(tenant,actor,'forex.rate_manage');if(!operator(actor))throw fail('Only assigned Forex staff may propose rates',403);
@@ -106,7 +115,11 @@ async function decideRate(conn,tenant,actor,rateId,input){
  try{await session.withTransaction(async()=>{
   const authorization=await financialAuth.fenceAction(conn,session,actor,tenant,'forex','forex.rate_review');
   const Rate=forexRateModel(conn);
-  const current=await Rate.findOne({_id:id(rateId),status:'pending_review',proposedBy:{$ne:id(actor.id)},expiresAt:{$gt:new Date()},...branchScope(actor)}).session(session);
+  // An authorized Tenant Owner may activate their own operational rate;
+  // staff-proposed rates still need an independent authorized reviewer.
+  const current=await Rate.findOne({_id:id(rateId),status:'pending_review',
+   ...(actor.role==='Tenant Owner'?{}:{proposedBy:{$ne:id(actor.id)}}),
+   expiresAt:{$gt:new Date()},...branchScope(actor)}).session(session);
   if(!current)throw fail('Rate expired, already reviewed, outside your branch, or proposed by you',409);
   if(decision==='approve'){
    const branch=await branchModel(conn).findOneAndUpdate({_id:current.branchId,status:'active'},{$inc:{revision:1}},{session,new:true});
@@ -143,7 +156,8 @@ function identical(existing,actor,branchId,v){return String(existing.createdBy)=
 // The requested expiry is fixed on creation. For idempotent requests, compare
 // their immutable input fields, not the moving clock-based expiry.
 function equivalent(existing,actor,branchId,v){return String(existing.createdBy)===String(actor.id)&&String(existing.branchId)===branchId&&
- (existing.operation||'quote')===(v.operation||'quote')&&require('./operationCapture.service').equivalent('forex',existing.capture,v.capture)&&
+ (existing.operation||'quote')===(v.operation||'quote')&&(existing.originModule||'forex')===(v.originModule||'forex')&&
+ String(existing.originRecordId||'')===String(v.originRecordId||'')&&require('./operationCapture.service').equivalent('forex',existing.capture,v.capture)&&
  String(existing.rateId)===v.rateId&&existing.customerLabel===v.customerLabel&&existing.note===v.note&&
  existing.sourceMinor.toString()===v.sourceMinor.toString()&&existing.validMinutes===v.validMinutes;}
 function quoteEconomics(input,rate){
@@ -157,7 +171,9 @@ function quoteEconomics(input,rate){
 }
 async function createQuote(conn,tenant,actor,input){
  moduleAccess(tenant,actor,'forex.quotes.create');if(!operator(actor))throw fail('Quote creation role required',403);
- const v=quoteInput(input),branchId=String((await require('./transactionBranch.service').resolveTransactionBranch(conn,actor,input))._id);await ensureTenantIndexes(conn);
+ const v=quoteInput(input);
+ if(v.originModule!=='forex'&&!hasModuleForUser(tenant,actor,v.originModule))throw fail('The source financial module is not assigned to this account',403);
+ const branchId=String((await require('./transactionBranch.service').resolveTransactionBranch(conn,actor,input))._id);await ensureTenantIndexes(conn);
  const Quote=forexQuoteModel(conn),existing=await Quote.findOne({idempotencyKey:v.idempotencyKey}).lean();
  if(existing){const base=minor(v.amount,existing.fromCurrency);
   const pricing=await require('../pricing/apply').resolve(conn,tenant,branchId,input,{operation:'forex.'+v.operation,currency:existing.toCurrency,amountMinor:existing.targetMinor,existing,providedMinor:require('./operationCapture.service').commissionMinor(v.capture,existing.toCurrency),field:'commission'});
@@ -167,6 +183,8 @@ async function createQuote(conn,tenant,actor,input){
  const session=await conn.startSession();let quote;
  try{await session.withTransaction(async()=>{
   const authorization=await financialAuth.fenceAction(conn,session,actor,tenant,'forex','forex.quotes.create',{branchId});
+  if(v.originModule!=='forex'&&!hasModuleForUser(authorization.tenant,authorization.actor,v.originModule))
+   throw fail('Source module assignment changed. Refresh the exchange form.',403);
   const Rate=forexRateModel(conn);const now=new Date();
   const rate=await Rate.findOneAndUpdate({_id:v.rateId,branchId,status:'active',...(v.operation==='quote'?{}:{side:v.operation}),expiresAt:{$gt:new Date(now.getTime()+v.validMinutes*60000)}},
    {$inc:{revision:1}},{session,new:true});
@@ -177,14 +195,19 @@ async function createQuote(conn,tenant,actor,input){
   const branch=await branchModel(conn).findOneAndUpdate({_id:branchId,status:'active'},{$inc:{revision:1}},{session,new:true});
   if(!branch)throw fail('Assigned branch is unavailable',409);
   enabledPair(branch,rate.fromCurrency,rate.toCurrency);
+  await require('./forexOrigin.service').verify(conn,session,authorization.actor,branchId,{
+   originModule:v.originModule,originRecordId:v.originRecordId,
+   fromCurrency:rate.fromCurrency,toCurrency:rate.toCurrency,
+   sourceMinor,targetMinor
+  });
   await reserveUsage(authorization.tenant,'forex_quotes',session);
   [quote]=await Quote.create([{reference:`FX-${crypto.randomBytes(12).toString('hex').toUpperCase()}`,
-   idempotencyKey:v.idempotencyKey,branchId,createdBy:actor.id,customerLabel:v.customerLabel,operation:v.operation,capture:v.capture,pricing:v.pricing,rateId:rate._id,
+   idempotencyKey:v.idempotencyKey,branchId,createdBy:actor.id,customerLabel:v.customerLabel,operation:v.operation,originModule:v.originModule,originRecordId:v.originRecordId,capture:v.capture,pricing:v.pricing,rateId:rate._id,
    fromCurrency:rate.fromCurrency,toCurrency:rate.toCurrency,rateDecimal:rate.rateDecimal,
    sourceMinor:String(sourceMinor),targetMinor:String(targetMinor),note:v.note,validMinutes:v.validMinutes,
    expiresAt:new Date(now.getTime()+v.validMinutes*60000)}],{session});
   await auditEventModel(conn).create([{action:'forex.quote.created',actorId:actor.id,targetId:quote._id,
-   metadata:{branchId,reference:quote.reference,operation:v.operation,pair:`${rate.fromCurrency}/${rate.toCurrency}`}}],{session});
+   metadata:{branchId,reference:quote.reference,operation:v.operation,originModule:v.originModule,originRecordId:v.originRecordId||undefined,pair:`${rate.fromCurrency}/${rate.toCurrency}`}}],{session});
  });return {quote,duplicate:false};}
  catch(e){if(e.code===11000){const found=await Quote.findOne({idempotencyKey:v.idempotencyKey}).lean();
   if(found&&equivalent(found,actor,branchId,{...v,sourceMinor:minor(v.amount,found.fromCurrency)}))return {quote:found,duplicate:true};
@@ -228,7 +251,9 @@ async function listRates(conn,tenant,actor,{status=null,branchId=null}={}){
 }
 async function rateReviewQueue(conn,tenant,actor){
  moduleAccess(tenant,actor,'forex.rate_review');if(!reviewer(actor))throw fail('Independent reviewer required',403);
- return forexRateModel(conn).find({status:'pending_review',proposedBy:{$ne:id(actor.id)},expiresAt:{$gt:new Date()},...branchScope(actor)}).sort({createdAt:1}).limit(30).lean();
+ return forexRateModel(conn).find({status:'pending_review',
+  ...(actor.role==='Tenant Owner'?{}:{proposedBy:{$ne:id(actor.id)}}),
+  expiresAt:{$gt:new Date()},...branchScope(actor)}).sort({createdAt:1}).limit(30).lean();
 }
 async function listQuotes(conn,tenant,actor,{status=null,cursor=null}={}){
  moduleAccess(tenant,actor,'forex.view');
@@ -248,7 +273,7 @@ async function detail(conn,tenant,actor,quoteId){
 }
 async function quoteReviewQueue(conn,tenant,actor){
  moduleAccess(tenant,actor,'forex.quotes.review');if(!reviewer(actor))throw fail('Reviewer role required',403);
- return forexQuoteModel(conn).find({status:'quoted',createdBy:{$ne:id(actor.id)},expiresAt:{$gt:new Date()},...branchScope(actor)}).sort({createdAt:1}).limit(30).lean();
+ return forexQuoteModel(conn).find({status:'quoted',operation:'quote',createdBy:{$ne:id(actor.id)},expiresAt:{$gt:new Date()},...branchScope(actor)}).sort({createdAt:1}).limit(30).lean();
 }
 async function expireDue(conn,now=new Date(),limit=100){
  if(!(now instanceof Date)||!Number.isFinite(now.getTime())||!Number.isSafeInteger(limit)||limit<1||limit>200)throw fail('Invalid expiry sweep');

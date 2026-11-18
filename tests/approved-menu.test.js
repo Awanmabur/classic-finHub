@@ -37,7 +37,8 @@ test('fully entitled owner retains approved groups with wallet controls and no d
   assert.doesNotMatch(item.href,/javascript:|undefined|#|\?/);
  }
  assert.deepEqual(menu.find(group=>group.label==='Mobile Money').items.map(item=>[item.label,item.href]),[
-  ['Deposit','/tenant/mobile-money/cash-in'],['Withdrawal','/tenant/mobile-money/cash-out'],['Onboarding guide','/tenant/mobile-money/onboarding'],['Network activity','/tenant/mobile-money/network-activity'],['Cash impact','/tenant/mobile-money/cash-impact'],['Mobile money report','/tenant/mobile-money/report']
+  ['Deposit','/tenant/mobile-money/cash-in'],['Withdrawal','/tenant/mobile-money/cash-out'],
+  ['Onboarding guide','/tenant/mobile-money/onboarding'],['Network activity','/tenant/mobile-money/network-activity'],['Cash impact','/tenant/mobile-money/cash-impact'],['Mobile money report','/tenant/mobile-money/report']
  ]);
 });
 
@@ -89,6 +90,9 @@ test('expanded navigation still requires module entitlement, assignment and fixe
  const menu=tenantMenu(tenant,operator),operatorPaths=paths(menu);
  assert(menu.some(group=>group.label==='Mobile Money'&&group.items.length===6));
  assert(operatorPaths.includes('/tenant/mobile-money/report'));
+ assert(!operatorPaths.includes('/tenant/mobile-money/fx'),'Cross-currency requires Forex module assignment');
+ const fxOperator=actor('Mobile Money Operator',['mobile_money','forex']);
+ assert(!paths(tenantMenu(tenant,fxOperator)).includes('/tenant/mobile-money/fx'),'Exchange is embedded in existing cashier forms, not a sidebar destination');
  for(const forbidden of ['/tenant/workspace','/tenant/workspace/profile','/tenant/workspace/subscription','/tenant/users','/tenant/branches','/tenant/expenses/new','/tenant/customers/new','/tenant/reports','/tenant/approvals'])
   assert(!operatorPaths.includes(forbidden),`Unassigned or privileged path exposed: ${forbidden}`);
  assert(!tenantMenu(tenant,{...operator,allowedModules:[]}).some(group=>group.label==='Mobile Money'));

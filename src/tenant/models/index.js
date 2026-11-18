@@ -127,7 +127,11 @@ const model = (conn, name, schema) => conn.models[name] || conn.model(name, sche
 const initialized = new WeakMap();
 function ensureTenantIndexes(conn) {
   if (!initialized.has(conn)) {
-    const job = Promise.all([
+    // Do not reject this barrier while sibling DDL calls are still running:
+    // provisioning tests deliberately inject an index failure and immediately
+    // retry. Draining every index attempt prevents the old requests from
+    // exhausting the same pool during the next tenant creation.
+    const job = Promise.allSettled([
       require('../transferSms/models').ensureIndexes(conn),
       ensureModelIndexes(model(conn, 'SecureTenantUser',userSchema)),
       ensureModelIndexes(model(conn, 'SecureMobileTransaction',moneySchema)),
@@ -154,7 +158,10 @@ function ensureTenantIndexes(conn) {
       ensureModelIndexes(model(conn, 'FinancialOperationV1', financialSchemas.operation)),
       ensureModelIndexes(model(conn, 'VerifiedFinancialEvidenceV1', financialSchemas.evidence)),
       ensureModelIndexes(model(conn, 'FinancialExceptionV1', financialSchemas.exception))
-    ]).catch(err => { initialized.delete(conn); throw err; });
+    ]).then(results=>{
+      const failed=results.find(result=>result.status==='rejected');
+      if(failed)throw failed.reason;
+    }).catch(err => { initialized.delete(conn); throw err; });
     initialized.set(conn, job);
   }
   return initialized.get(conn);

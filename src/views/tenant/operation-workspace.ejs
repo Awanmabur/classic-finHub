@@ -24,8 +24,8 @@ const reportMode=!['records','pending','payout'].includes(data.mode);
   </div>
  </section>
  <% if(data.mode==='cash'){ %>
- <section class="card" style="margin-top:14px"><div class="cardHead"><b>Cash stock and drawer impact</b><span>Reviewed manual balances</span></div>
-  <div class="cardBody"><p class="tiny">Quotations alone do not change currency stock or drawer cash. Independently reviewed manual exchanges post the actual foreign currency and settlement account movements. No cash balance is inferred from these quotations.</p><div class="rowBtns"><a class="btn btnPrimary" href="/tenant/treasury">View balances &amp; reconciliation</a><a class="btn" href="/tenant/funded">Manual movements &amp; review</a><a class="btn" href="/tenant/forex/records">Review quotation records</a></div></div>
+ <section class="card" style="margin-top:14px"><div class="cardHead"><b>Cash stock and drawer impact</b><span>Posted fund balances</span></div>
+  <div class="cardBody"><p class="tiny">Quotations alone do not change currency stock or drawer cash. Finalized, cashier-confirmed Forex exchanges update the actual foreign-currency stock and settlement balances. No cash balance is inferred from these quotations.</p><div class="rowBtns"><a class="btn btnPrimary" href="/tenant/treasury">View balances &amp; reconciliation</a><a class="btn" href="/tenant/funded">Manual movements &amp; review</a><a class="btn" href="/tenant/forex/records">Review quotation records</a></div></div>
  </section>
  <% } %>
  <% if(data.mode==='payout'){ %>

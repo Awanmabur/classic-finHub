@@ -12,9 +12,11 @@ const branch='507f1f77bcf86cd799439011',actorId='507f1f77bcf86cd799439012';
 const tenant=entitledTenant({plan:'finance',enabledModules:['banking','forex']});
 const actor=(role,modules=['banking','forex'])=>({id:actorId,role,branchId:branch,permissions:permissionsFor(role),allowedModules:modules});
 test('Own-module workspaces remain usable without Reports and cannot read an unassigned module',async()=>{
- const op=actor('Banking Operator');
+ const op=actor('Banking Operator',['banking']);
  assert.doesNotThrow(()=>service.authorize(tenant,op,'banking'));
  assert.throws(()=>service.authorize(tenant,op,'forex'),{status:403});
+ assert.doesNotThrow(()=>service.authorize(tenant,actor('Banking Operator',['banking','forex']),'forex'),
+  'An operator granted both modules may legitimately view Forex while a banking-only operator cannot');
  assert.throws(()=>service.authorize(tenant,{...op,allowedModules:[]},'banking'),{status:403});
  await assert.rejects(service.report({},tenant,op,'money_transfer'),{status:403});
  assert.throws(()=>service.definition('__proto__'),{status:400});

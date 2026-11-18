@@ -11,6 +11,8 @@ const schema=new mongoose.Schema({
  branchId:{type:O,required:true,immutable:true},createdBy:{type:O,required:true,immutable:true},
  customerLabel:{type:String,required:true,maxlength:120,immutable:true},
  operation:{type:String,enum:['buy','sell','quote'],default:'quote',immutable:true},
+ originModule:{type:String,enum:['forex','mobile_money','banking','money_transfer'],default:'forex',immutable:true},
+ originRecordId:{type:O,default:null,immutable:true},
  rateId:{type:O,required:true,immutable:true},
  fromCurrency:{type:String,enum:forexCurrencyCodes,required:true,immutable:true},toCurrency:{type:String,enum:forexCurrencyCodes,required:true,immutable:true},
  rateDecimal:{type:String,required:true,immutable:true},
@@ -27,5 +29,8 @@ const schema=new mongoose.Schema({
 },{strict:'throw',timestamps:true,versionKey:false});
 schema.index({reference:1},{unique:true});schema.index({idempotencyKey:1},{unique:true});
 schema.index({branchId:1,createdAt:-1,_id:-1});schema.index({createdBy:1,createdAt:-1,_id:-1});
-schema.index({branchId:1,status:1,createdAt:1});schema.index({status:1,expiresAt:1});
+schema.index({branchId:1,status:1,createdAt:1});schema.index({branchId:1,originModule:1,status:1,manualPostedAt:-1});
+schema.index({originModule:1,originRecordId:1,status:1},{
+ unique:true,partialFilterExpression:{status:'posted_manual',originRecordId:{$type:'objectId'}}
+});schema.index({status:1,expiresAt:1});
 module.exports=schema;

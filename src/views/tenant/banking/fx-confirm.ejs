@@ -1,0 +1,30 @@
+<section class="view show"><section class="card">
+ <div class="cardHead"><b>Review internal account exchange</b><span>Rate locked for this quote · revalidated at posting</span></div>
+ <div class="cardBody">
+  <p class="tiny">Verify these exact amounts with the customer before confirming. Both account balances and the exchange rate will be checked again when posting. No external bank payment is initiated.</p>
+  <div class="summary">
+   <div class="sumRow"><span>Customer</span><b><%= data.review.source.customerName %></b></div>
+   <div class="sumRow"><span>Debit account</span><b><%= data.review.source.currency %> · ****<%= data.review.source.accountNumber.slice(-4) %></b></div>
+   <div class="sumRow"><span>Debit amount</span><b><%= data.review.sourceLabel %></b></div>
+   <div class="sumRow"><span>Credit account</span><b><%= data.review.destination.currency %> · ****<%= data.review.destination.accountNumber.slice(-4) %></b></div>
+   <div class="sumRow"><span>Credit amount</span><b><%= data.review.destinationLabel %></b></div>
+   <div class="sumRow"><span>Exchange direction</span><b><%= data.review.rate.side==='buy'?'Buy':'Sell' %> · <%= data.review.rate.fromCurrency %> → <%= data.review.rate.toCurrency %></b></div>
+   <div class="sumRow"><span>Rate</span><b><% const rd=data.rateDisplay(data.review.rateDecimal,data.review.rate.fromCurrency); %><%= rd.text %> = <%= rd.rate %> <%= data.review.rate.toCurrency %></b></div>
+   <div class="sumRow"><span>External bank settlement</span><b>Not requested · Internal ledger only</b></div>
+   <div class="sumRow"><span>Customer voucher</span><b><%= data.review.evidenceReference %></b></div>
+  </div>
+  <form method="post" action="/tenant/banking/exchange" autocomplete="off">
+   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+   <input type="hidden" name="sourceAccountId" value="<%= data.review.source._id %>">
+   <input type="hidden" name="destinationAccountId" value="<%= data.review.destination._id %>">
+   <input type="hidden" name="rateChoice" value="<%= data.review.rateId %>:<%= data.review.rateVersion %>:<%= data.review.rateDecimal %>">
+   <input type="hidden" name="amount" value="<%= data.review.amount %>">
+   <input type="hidden" name="evidenceReference" value="<%= data.review.evidenceReference %>">
+   <input type="hidden" name="idempotencyKey" value="<%= data.review.idempotencyKey %>">
+   <label class="field"><input type="checkbox" name="confirmCustomerAuthority" value="yes" required> Customer confirms the displayed source debit, destination credit, exact rate and account details.</label>
+   <div class="rowBtns"><button type="submit" class="btn btnPrimary">Confirm and post both currency ledgers</button>
+    <a class="btn" href="/tenant/banking/exchange">Change details</a></div>
+  </form>
+  <p class="tiny">A changed or expired rate, insufficient posted balance, or lost account permission prevents posting. A duplicate reference can only return its original identical exchange.</p>
+ </div>
+</section></section>

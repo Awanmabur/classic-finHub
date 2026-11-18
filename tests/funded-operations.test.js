@@ -70,7 +70,7 @@ test('payout PIN storage is domain-separated, bound to tenant/branch/receiver an
 });
 test('payout form uses one protected MVC stage and cannot pay before a matched receiver',async()=>{
  const file=path.resolve(__dirname,'../src/views/tenant/funded/payout.ejs');const html=await ejs.renderFile(file,{data:{verification:null,idempotencyKey:crypto.randomUUID()},csrfToken:'csrf'});
- for(const field of ['PIN','Sender phone','Receiver name check','ID / Passport presented','Payout note','Match','Amount','Status'])assert(html.includes(field));
+ for(const field of ['PIN','Sender phone','Receiver name check','ID / Passport presented','Payout note','Match','Collected amount','Status'])assert(html.includes(field));
  assert.match(html,/name="phase" value="check"/);assert.match(html,/name="_csrf" value="csrf"/);assert.match(html,/<button class="btn" type="submit" disabled>Pay out cash/);assert.doesNotMatch(html,/name="branchId"/);
 });
 

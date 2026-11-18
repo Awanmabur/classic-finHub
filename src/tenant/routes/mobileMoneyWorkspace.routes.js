@@ -10,6 +10,64 @@ const reportTimeZone=require('../services/reportTimeZone.service');
 module.exports=function routes({renderTenant}){
  const router=require('express').Router();
  router.use(requireModule('mobile_money'),requirePermission('mobile_money.view'));
+ // Reuse the existing Mobile Money Deposit/Withdrawal screens for FX.
+ // Read-only quotes here do not post funds or execute a provider payment.
+ async function inlineFx(req,operation,funds){
+  if(!req.operationBranch||
+     !require('../services/moduleAccess.service').hasModuleForUser(req.tenant,req.user,'forex')||
+     !hasPermission(req.user,'treasury.view')||
+     !(hasPermission(req.user,'forex.view')||req.user.role==='Mobile Money Operator'))return null;
+  const eligible=row=>row.state==='active'&&row.reconciliation==='matched'&&row.expectedMinor!=null;
+  const wallets=(funds?.wallets||[]).filter(eligible);
+  const drawers=(funds?.paymentAccounts||[]).filter(row=>row.kind==='cash'&&eligible(row));
+  const selected=req.query.fx==='1';
+  const direction=operation==='cash_out'?'withdraw_provider_receive_cash':'deposit_cash_send_provider';
+  let result=null,error=null,grantApproved=false;
+  if(selected&&(req.query.walletAccountId||req.query.cashAccountId||req.query.providerAmount)){
+   try{
+    result=await require('../services/momoFxPreview.service').preview(req.tenantDb,req.tenant,req.user,
+     req.operationBranch,{...req.query,operation:direction});
+   }catch(e){error=e.status>=400&&e.status<500?e.message:'Unable to calculate a safe exchange quote';}
+  }
+  const postingEnabled=process.env.CLASSICFIN_MOMO_FX_POSTING_ENABLED==='true';
+  if(result&&postingEnabled){
+   grantApproved=Boolean(await require('../schemas/MomoFxSettlement').grants(req.tenantDb).exists({
+    tenantId:req.tenant._id,branchId:req.operationBranch._id,walletAccountId:result.walletAccountId,
+    cashAccountId:result.cashAccountId,providerNetwork:result.network,
+    permittedCurrencyPair:result.providerCurrency+'/'+result.cashCurrency,
+    status:'approved',expiresAt:{$gt:new Date()},
+    requestedBy:{$ne:null},approvedBy:{$ne:null},reviewedAt:{$ne:null},
+    providerAuthorizationReference:{$ne:''},regulatoryAuthorizationReference:{$ne:''}
+   }));
+  }
+  const permission=operation==='cash_out'?'mobile_money.cash_out':'mobile_money.cash_in';
+  const blockers=[];
+  if(!postingEnabled)blockers.push('Financial posting is disabled.');
+  if(!grantApproved)blockers.push('This exact wallet and drawer are not enabled as an approved currency pair.');
+  if(!hasPermission(req.user,permission))blockers.push('You cannot perform this Mobile Money operation.');
+  if(!hasPermission(req.user,'treasury.observe'))blockers.push('You need Treasury operation permission.');
+  // The final ledger still rechecks atomically; quote UI must not invite a
+  // cashier to hand over funds when the latest visible book is insufficient.
+  if(result){
+   const debit=result.operation==='withdraw_provider_receive_cash'?
+    drawers.find(d=>d.id===result.cashAccountId):
+    wallets.find(w=>w.id===result.walletAccountId);
+   const debitAmount=result.operation==='withdraw_provider_receive_cash'?
+    result.cashAmountMinor:result.providerAmountMinor;
+   if(!debit||debit.expectedMinor==null||BigInt(String(debit.expectedMinor))<BigInt(debitAmount))
+    blockers.push('Insufficient available '+(result.operation==='withdraw_provider_receive_cash'?result.cashCurrency+' physical cash':result.providerCurrency+' provider float')+' for this quote.');
+  }
+  const canExecute=Boolean(result&&blockers.length===0);
+  const history=selected?await require('../schemas/MomoFxSettlement').records(req.tenantDb).find({
+   tenantId:req.tenant._id,branchId:req.operationBranch._id,
+   ...(['Tenant Owner','Branch Manager','Reconciliation Officer','Auditor'].includes(req.user.role)?{}:{actorId:req.user.id})
+  }).sort({createdAt:-1}).limit(5).lean():[];
+  return {selected,operation:direction,wallets,drawers,result,error,canExecute,blockers,
+   quoteRate:result?require('../services/forexRateUnits.service').display(result.rateDecimal,result.providerCurrency):null,
+   idempotencyKey:randomUUID(),history,input:req.query,
+   formatMoneyMinor:require('../services/mobileMoney.service').formatMoneyMinor,
+   selectedBranchId:String(req.operationBranch._id)};
+ }
  async function render(req,res,next,{view,title,subtitle,operation,report=false}){
   try{
    if(report&&!workspace.canReport(req.user))return res.status(403).send('Mobile money report permission is required.');
@@ -30,6 +88,7 @@ module.exports=function routes({renderTenant}){
     await require('../pricing/commissionPayoutService').summary(req.tenantDb,req.tenant,req.user):[];
    const branchCurrency=require('../services/branchCurrency.service');
    const selectedMarket=market.preferred(realWallets);
+   const fxState=view==='entry'&&operation?await inlineFx(req,operation,funds):null;
    // Mobile Money currency follows the configured network, not the branch's
    // unrelated default (Sherikat's branch default is USD, MTN UG uses UGX).
    const mobileCurrency=req.operationBranch&&selectedMarket?
@@ -46,11 +105,96 @@ module.exports=function routes({renderTenant}){
     entryCurrencies:req.operationBranch?branchCurrency.options(req.operationBranch):[],
     branches:branches.filter(branch=>branch.status==='active'&&(req.user.role==='Tenant Owner'||String(branch._id)===String(req.user.branchId))),
     selectedBranchId:req.operationBranch?String(req.operationBranch._id):null,
-    funds,
+    funds,fxState,
     canRecord:operation?hasPermission(req.user,`mobile_money.${operation}`):hasPermission(req.user,'mobile_money.cash_in')||hasPermission(req.user,'mobile_money.cash_out'),
     recordPath:hasPermission(req.user,'mobile_money.cash_in')?'/tenant/mobile-money/cash-in':'/tenant/mobile-money/cash-out'});
   }catch(error){next(error);}
  }
+ router.post('/fx/record',requirePermission('treasury.observe'),
+  require('../../platform/services/actionThrottle.service').financial,
+  async(req,res,next)=>{
+   try{
+    if(!req.operationBranch)return res.status(409).send('Choose an operating branch');
+    // The service re-reads branch, rate, wallet, drawer and grants in the SAME
+    // database transaction. Form snapshots are never trusted for posting.
+    const result=await require('../services/momoFxSettlement.service').settleManuallyConfirmed(
+     req.tenantDb,req.tenant,req.user,{...req.body,branchId:String(req.operationBranch._id)});
+    require('../../utils/view').flash(req,'good',result.duplicate?
+     'This exchange was already recorded; no duplicate posted.':
+     'Exchange finalized in FinHub cash and float books. External provider settlement remains unverified.');
+    res.redirect(303,'/tenant/mobile-money/'+(req.body.operation==='withdraw_provider_receive_cash'?'cash-out':'cash-in')+'?fx=1');
+   }catch(e){next(e);}
+  });
+ router.get('/fx/authorizations',async(req,res,next)=>{try{
+  if(!req.operationBranch)return res.status(409).send('Choose an operating branch');
+  const service=require('../services/momoFxAuthorization.service');
+  const [context,funds]=await Promise.all([
+   service.context(req.tenantDb,req.tenant,req.user,req.operationBranch),
+   require('../services/mobileMoneyFunds.service').context(req.tenantDb,req.tenant,req.user,req.operationBranch)]);
+  const eligible=row=>row.state==='active'&&row.reconciliation==='matched'&&row.expectedMinor!=null;
+  renderTenant(req,res,'mobile-money/fx-authorizations','Cross-currency provider authorization',
+   'One-time provider and regulatory evidence checks, not per-transaction review.',
+   {...context,branchId:String(req.operationBranch._id),wallets:funds.wallets.filter(eligible),
+    drawers:funds.paymentAccounts.filter(row=>row.kind==='cash'&&eligible(row))});
+ }catch(e){next(e);}});
+ router.post('/fx/authorizations',require('../../platform/services/actionThrottle.service').financial,async(req,res,next)=>{try{
+  if(!req.operationBranch)return res.status(409).send('Choose an operating branch');
+  await require('../services/momoFxAuthorization.service').request(req.tenantDb,req.tenant,req.user,req.operationBranch,req.body);
+  require('../../utils/view').flash(req,'good','Authorization submitted for independent document verification.');
+  res.redirect(303,'/tenant/mobile-money/fx/authorizations');
+ }catch(e){next(e);}});
+ router.post('/fx/authorizations/:id/decide',require('../../platform/services/actionThrottle.service').financial,async(req,res,next)=>{try{
+  if(!req.operationBranch)return res.status(409).send('Choose an operating branch');
+  await require('../services/momoFxAuthorization.service').decide(req.tenantDb,req.tenant,req.user,req.operationBranch,req.params.id,req.body);
+  require('../../utils/view').flash(req,'good','Authorization decision recorded; refresh the exchange quote.');
+  res.redirect(303,'/tenant/mobile-money/fx/authorizations');
+ }catch(e){next(e);}});
+ router.post('/fx/authorizations/:id/suspend',require('../../platform/services/actionThrottle.service').financial,async(req,res,next)=>{try{
+  if(!req.operationBranch)return res.status(409).send('Choose an operating branch');
+  await require('../services/momoFxAuthorization.service').suspend(req.tenantDb,req.tenant,req.user,req.operationBranch,req.params.id,req.body);
+  require('../../utils/view').flash(req,'good','Currency authorization suspended. Future financial postings are blocked for this pair.');
+  res.redirect(303,'/tenant/mobile-money/fx/authorizations');
+ }catch(e){next(e);}});
+ router.get('/fx/history',async(req,res,next)=>{
+  try{
+   if(!req.operationBranch||!hasPermission(req.user,'treasury.view')||
+      !hasPermission(req.user,'forex.view')||
+      !require('../services/moduleAccess.service').hasModuleForUser(req.tenant,req.user,'forex'))
+    return res.status(403).send('Cross-currency reporting access is required');
+   const scope={tenantId:req.tenant._id,branchId:req.operationBranch._id};
+   if(!['Tenant Owner','Branch Manager','Reconciliation Officer','Auditor'].includes(req.user.role))
+    scope.actorId=new (require('mongoose').Types.ObjectId)(String(req.user.id));
+   const FxRecords=require('../schemas/MomoFxSettlement').records(req.tenantDb);
+   const [records,summary]=await Promise.all([
+    FxRecords.find(scope).sort({settledAt:-1,_id:-1}).limit(100).lean(),
+    FxRecords.aggregate([{$match:scope},{$group:{
+     _id:{network:'$network',operation:'$operation',providerCurrency:'$providerCurrency',cashCurrency:'$cashCurrency'},
+     count:{$sum:1},providerMinor:{$sum:'$providerAmountMinor'},cashMinor:{$sum:'$cashAmountMinor'}
+    }},{$sort:{'_id.network':1,'_id.providerCurrency':1,'_id.cashCurrency':1}}])
+   ]);
+   res.set('Cache-Control','private, no-store');
+   renderTenant(req,res,'mobile-money/fx-history','Cross-currency history',
+     'Immutable completed cross-currency operations; each pair of native-currency journals belongs to one customer operation.',
+     {records,summary,formatMoneyMinor:require('../services/mobileMoney.service').formatMoneyMinor});
+  }catch(e){next(e);}
+ });
+ // Preserve old links while keeping currency exchange in the existing cashier screen.
+ router.get('/fx',(req,res)=>{
+  const operation=req.query.operation==='deposit_cash_send_provider'?'cash-in':'cash-out';
+  const q=new URLSearchParams({fx:'1'});
+  for(const key of ['walletAccountId','cashAccountId','providerAmount']){
+   const value=req.query[key];
+   if(typeof value==='string'&&value.length<=120)q.set(key,value);
+  }
+  res.redirect(303,'/tenant/mobile-money/'+operation+'?'+q.toString());
+ });
+ router.get('/fx/preview',async(req,res,next)=>{
+  try{
+   if(!req.operationBranch)return res.status(409).json({error:'Select an operating branch'});
+   res.set('Cache-Control','private, no-store');
+   res.json(await require('../services/momoFxPreview.service').preview(req.tenantDb,req.tenant,req.user,req.operationBranch,req.query));
+  }catch(e){res.status(e.status>=400&&e.status<500?e.status:500).set('Cache-Control','private, no-store').json({error:e.status>=400&&e.status<500?e.message:'Unable to preview the transaction'});}
+ });
  router.get('/funds/context',async(req,res,next)=>{try{if(!req.operationBranch)return res.status(409).json({error:'An operating branch is required.'});res.set('Cache-Control','private, no-store').json(await require('../services/mobileMoneyFunds.service').context(req.tenantDb,req.tenant,req.user,req.operationBranch));}catch(error){next(error);}});
  router.get('/readiness',async(req,res,next)=>{
   try{

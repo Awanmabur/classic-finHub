@@ -54,3 +54,31 @@ test('all four module report routes load real finance snapshots',()=>{
  assert.match(momo,/financeOverview:\s*await|financeOverview,reportData/);
  assert.match(source('src/views/tenant/mobile-money/report.ejs'),/include\('\.\.\/partials\/module-finance'/);
 });
+
+test('posted Forex exchanges appear in reports without pretending spread is recognized profit',async()=>{
+ const file=path.join(root,'src/views/tenant/operation-workspace.ejs');
+ const html=await ejs.renderFile(file,{
+  data:{moduleKey:'forex',title:'Forex report summary',label:'Forex',mode:'report',
+   basePath:'/tenant/forex',total:2,note:'Quoted and posted activity',
+   filters:{from:'2026-11-01',to:'2026-11-18'},rows:[],canExport:false,
+   financeOverview:{...financialData,forexActivity:{
+    limited:false,count:2,
+    bought:[{currency:'USD',formatted:'USD 10.00'}],
+    sold:[{currency:'USD',formatted:'USD 5.00'}]
+   }}},
+  user:{role:'Tenant Owner'},businessTimeZone:'Africa/Juba',
+  formatLocalDate:()=>'',currencyLabel:code=>code
+ });
+ assert.match(html,/Actual Forex exchanges/);
+ assert.match(html,/2 completed exchanges/);
+ assert.match(html,/USD 10.00/);
+ assert.match(html,/USD 5.00/);
+ assert.match(html,/not net income or realized trading profit/);
+});
+test('phone financial stats are two-up and long tables remain horizontally scrollable',()=>{
+ const css=source('public/css/dashboard-layout.css');
+ assert.match(css,/@media \(max-width:599\.98px\)/);
+ assert.match(css,/grid-template-columns:repeat\(2,minmax\(0,1fr\)\)!important/);
+ assert.match(css,/overscroll-behavior-x:contain/);
+ assert.match(css,/-webkit-overflow-scrolling:touch/);
+});

@@ -353,6 +353,61 @@ async function postBranchTransferPayout(conn,session,authorization,payoutId){
  const destination=await applyMovements(conn,session,authorization,{sourceType:'money_transfer',sourceRef:`FUNDED:${execution._id}`,branchId:String(execution.branchId),operatingActorId:String(execution.createdBy),legs:[{accountId:String(execution.accounts.payoutAccountId),deltaMinor:`-${source.amountMinor}`}],ledgerLines:[{currency:source.currency,accountId:String(receivable.ledgerAccountId),side:'debit',amountMinor:String(source.amountMinor)}],evidenceRef:execution.evidenceReference,description:execution.note});
  return {...destination,journalIds:[...origin.journalIds,...destination.journalIds]};
 }
+async function postCrossCurrencyTransferPayout(conn,session,authorization,execution,source,collection){
+ if(!session?.inTransaction()||execution.action!=='transfer_payout'||!execution.payoutFx)
+  throw fail('Cross-currency remittance payout must use one verified transaction',409);
+ const fx=execution.payoutFx;
+ if(!source||!collection||source.status!=='collected_manual'||
+  String(source.manualCollectionExecutionId)!==String(collection._id)||
+  collection.status!=='posted_manual'||String(collection.sourceId)!==String(source._id)||
+  String(source.currency)===String(fx.targetCurrency)||
+  !require('../services/fundedOperations.service').sourceMatches(execution,source))
+  throw fail('Collected transfer or cross-currency payout snapshot was changed',409);
+ if(new Date(fx.rateExpiresAt)<=new Date())throw fail('Exchange rate has expired. Reject and reissue a payout request at an approved rate.',409);
+ const Rate=core.forexRateModel(conn);
+ const rate=await Rate.findOne({_id:fx.rateId,branchId:execution.branchId,
+   side:'buy',fromCurrency:source.currency,toCurrency:fx.targetCurrency,
+   rateDecimal:fx.rateDecimal,status:'active',revision:fx.rateVersion,
+   reviewedBy:{$ne:null},expiresAt:{$gt:new Date()}}).session(session).lean();
+ if(!rate)throw fail('The approved payout exchange rate was replaced. Request an updated payout.',409);
+ const forex=require('../services/forex.service');
+ const amount=forex.converted(BigInt(String(source.amountMinor)),source.currency,fx.targetCurrency,
+  forex.rateScaled(rate.rateDecimal));
+ if(amount!==BigInt(String(fx.payoutMinor)))throw fail('Payout currency calculation or rate snapshot changed',409);
+ const sourceBranch=String(source.branchId),targetBranch=String(execution.branchId);
+ if(String(source.destinationBranchId||source.branchId)!==targetBranch)
+  throw fail('Destination branch was changed after the collection',403);
+ const base={sourceType:'forex',sourceRef:'FUNDED:'+execution._id,branchId:targetBranch,
+  operatingActorId:String(execution.createdBy),description:'Actual cross-currency PIN remittance cash payout '+source.currency+' to '+fx.targetCurrency,
+  evidenceRef:execution.evidenceReference};
+ if(sourceBranch===targetBranch){
+  return applyMovements(conn,session,authorization,{...base,legs:[
+   {accountId:String(collection.accounts.clearingAccountId),deltaMinor:'-'+source.amountMinor},
+   {accountId:String(execution.accounts.payoutAccountId),deltaMinor:'-'+fx.payoutMinor}
+  ]});
+ }
+ // Sending and receiving branches must each post their own exact currency.
+ // The original transfer payable is settled only by an independent reviewer
+ // through the existing branch-transfer authorization fence.
+ await require('../funded/branchTransfer').validate(conn,session,authorization.tenant,authorization.actor,execution._id);
+ const payable=await ensureCounterAccount(conn,session,{tenantId:authorization.tenant._id,branchId:source.branchId,
+  currency:source.currency,purpose:'interbranch_payable',actorId:authorization.actor.id});
+ const receivable=await ensureCounterAccount(conn,session,{tenantId:authorization.tenant._id,branchId:execution.branchId,
+  currency:fx.targetCurrency,purpose:'interbranch_receivable',actorId:authorization.actor.id});
+ const origin=await applyMovements(conn,session,authorization,{
+  sourceType:'money_transfer',sourceRef:'BRANCH_PAYOUT:'+execution._id+':ORIGIN',
+  branchId:sourceBranch,operatingActorId:String(collection.createdBy),
+  legs:[{accountId:String(collection.accounts.clearingAccountId),deltaMinor:'-'+source.amountMinor}],
+  ledgerLines:[{currency:source.currency,accountId:String(payable.ledgerAccountId),side:'credit',amountMinor:String(source.amountMinor)}],
+  evidenceRef:execution.evidenceReference,description:execution.note
+ },{branchTransferExecutionId:execution._id});
+ const dest=await applyMovements(conn,session,authorization,{...base,
+  legs:[{accountId:String(execution.accounts.payoutAccountId),deltaMinor:'-'+fx.payoutMinor}],
+  ledgerLines:[{currency:fx.targetCurrency,accountId:String(receivable.ledgerAccountId),
+   side:'debit',amountMinor:String(fx.payoutMinor)}]
+ });
+ return {...dest,journalIds:[...origin.journalIds,...dest.journalIds]};
+}
 async function reverseMovements(conn,session,authorization,input){
  if(!session?.inTransaction())throw fail('Correction must share the business transaction',409);
  const sourceType=input?.sourceType,sourceRef=input?.batchId?null:reference(input?.sourceRef),reversalSourceRef=reference(input?.reversalSourceRef||(input?.batchId?input.sourceRef:null));
@@ -456,4 +511,4 @@ async function reviewAdjustment(conn,tenant,actor,adjustmentId,input){
   await audit(conn,session,authorization.actor,`treasury.adjustment.${input.decision==='approve'?'approved':'rejected'}`,adjustment._id,{branchId:String(account.branchId),accountId:String(account._id),batchId:batchId?String(batchId):null,deltaMinor:String(adjustment.deltaMinor)});return result;
  });
 }
-module.exports={postBranchTransferPayout,models,ensure,access,loadAccount,createAccount,configureAccount,archiveUnusedWallet,assertUnusedWalletArchivable,validateAccount,requestObservation,requestObservationInSession,reviewObservation,reviewObservationInSession,applyMovements,reverseMovements,ensureCounterAccount,findAccount,findOperatingAccounts,balanceSnapshot,accountDetail,reviewQueue,requestAdjustment,reviewAdjustment,expectedAt,assertBookIntegrity,format,major,signedMinor,normalizeMovement,parseObservation,scope,moduleForKind,normalSide,fail,KINDS,NETWORKS};
+module.exports={postCrossCurrencyTransferPayout,postBranchTransferPayout,models,ensure,access,loadAccount,createAccount,configureAccount,archiveUnusedWallet,assertUnusedWalletArchivable,validateAccount,requestObservation,requestObservationInSession,reviewObservation,reviewObservationInSession,applyMovements,reverseMovements,ensureCounterAccount,findAccount,findOperatingAccounts,balanceSnapshot,accountDetail,reviewQueue,requestAdjustment,reviewAdjustment,expectedAt,assertBookIntegrity,format,major,signedMinor,normalizeMovement,parseObservation,scope,moduleForKind,normalSide,fail,KINDS,NETWORKS};

@@ -1,0 +1,46 @@
+<section class="view show mobileMoneyPage">
+ <section class="card">
+  <div class="cardHead"><b>Cross-currency authorization · one-time setup</b><a class="btn" href="/tenant/mobile-money/fx">Back to exchange</a></div>
+  <div class="cardBody">
+   <p class="tiny">Each provider wallet and different-currency cash drawer requires genuine current provider and regulatory authorization. The Tenant Owner submits the documents; an independent branch supervisor verifies them once. This is not a transaction-by-transaction reviewer.</p>
+   <% if(data.canRequest){ %>
+    <form method="post" action="/tenant/mobile-money/fx/authorizations" class="formSection">
+     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+     <div class="row2">
+      <label class="field">Actual provider wallet<select class="control" name="walletAccountId" required><option value="">Select wallet</option><% data.wallets.forEach(w=>{ %><option value="<%= w.id %>"><%= w.name %> · <%= w.network %> · <%= w.currency %></option><% }) %></select></label>
+      <label class="field">Actual physical cash drawer<select class="control" name="cashAccountId" required><option value="">Select drawer</option><% data.drawers.forEach(d=>{ %><option value="<%= d.id %>"><%= d.name %> · <%= d.currency %></option><% }) %></select></label>
+      <label class="field">Provider agreement / merchant authorization reference<input class="control" name="providerAuthorizationReference" minlength="8" maxlength="200" required></label>
+      <label class="field">Regulatory licence / legal authorization reference<input class="control" name="regulatoryAuthorizationReference" minlength="8" maxlength="200" required></label>
+      <label class="field">Documented authorization expiry<input class="control" type="date" name="expiresAt" required></label>
+     </div>
+     <label class="field"><input type="checkbox" name="confirmedDocuments" value="yes" required> These are genuine current authorizations, not placeholders, and the original documents can be independently checked.</label>
+     <button class="btn btnPrimary" type="submit">Submit authorization for independent verification</button>
+    </form>
+   <% } %>
+  </div>
+ </section>
+ <section class="card" style="margin-top:14px">
+  <div class="cardHead"><b>Branch provider authorizations</b><span><%= data.items.length %> shown</span></div>
+  <div class="cardBody tableWrap"><table><thead><tr><th>Provider</th><th>Currency pair</th><th>Status</th><th>Document expiry</th><th>Reviewer</th><th>Decision</th></tr></thead><tbody>
+   <% if(!data.items.length){ %><tr><td colspan="6">No authorizations submitted for this branch yet.</td></tr><% } %>
+   <% data.items.forEach(g=>{ %><tr><td><%= g.providerNetwork %></td><td><%= g.permittedCurrencyPair %></td>
+    <td><%= g.status.replaceAll('_',' ') %></td><td><%= formatLocalDate(g.expiresAt,data.branchId) %></td>
+    <td><%= g.approvedBy?'Independently decided':'Awaiting independent document review' %></td><td>
+    <% if((data.canReview||data.canRequest)&&g.status==='approved'){ %>
+     <form method="post" action="/tenant/mobile-money/fx/authorizations/<%= g._id %>/suspend">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label class="field">Suspension reason<textarea class="control" name="note" minlength="12" maxlength="500" required rows="2" placeholder="Document expired, provider blocked, permission withdrawn..."></textarea></label>
+      <button class="btn" type="submit">Suspend this pair</button>
+     </form>
+    <% }else if(data.canReview&&g.status==='pending_review'&&String(g.requestedBy)!==String(user.id)){ %>
+      <form method="post" action="/tenant/mobile-money/fx/authorizations/<%= g._id %>/decide">
+       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+       <label class="field">Verification findings<textarea name="note" minlength="20" maxlength="500" required rows="2" placeholder="State which original documents and expiry you independently checked"></textarea></label>
+       <label class="field"><input type="checkbox" name="verifiedOriginals" value="yes"> Original provider and regulatory documents checked against the issuing parties.</label>
+       <div class="rowBtns"><button class="btn btnPrimary" name="decision" value="approve">Approve pair</button><button class="btn" name="decision" value="reject">Reject</button></div>
+      </form>
+    <% }else{ %>—<% } %>
+    </td></tr><% }) %>
+  </tbody></table></div>
+ </section>
+</section>

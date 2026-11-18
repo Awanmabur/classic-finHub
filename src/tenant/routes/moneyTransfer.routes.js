@@ -29,10 +29,11 @@ function routes({renderTenant}){
    const branchId=String(req.operationBranch?._id || '');
    const selected=availableBranches.find(b=>String(b._id)===branchId);
    renderTenant(req,res,'money-transfer/index','Money Transfer','Transfer instructions, reviewed manual collections and secure PIN payouts.',{
-    financeOverview:await require('../services/financeOverview.service').moduleOverview(req.tenantDb,req.tenant,req.user,req.operationBranch),
+    financeOverview:await require('../services/financeOverview.service').moduleOverview(req.tenantDb,req.tenant,req.user,req.operationBranch,{moduleKey:'money_transfer'}),
      currencyChoices:require('../services/branchCurrency.service').options(req.operationBranch),selectedCurrency:req.operationBranch?require('../services/branchCurrency.service').resolve(req.operationBranch,req.query.currency):null,
     records,queue,destinationBranches:(await branchService.list(req.tenant)).filter(branch=>branch.status==='active'&&String(branch._id)!==branchId),branches:availableBranches,selectedBranchId:selected?branchId:null,countryOptions:require('../../utils/selectionOptions').countryOptions(),
     canCreate:writeRoles.has(req.user.role)&&hasPermission(req.user,'money_transfer.create'),
+    canFx:require('../services/moduleAccess.service').hasModuleForUser(req.tenant,req.user,'forex')&&hasPermission(req.user,'forex.quotes.create'),
     canReview:reviewerRoles.has(req.user.role)&&hasPermission(req.user,'money_transfer.review'),
     idempotencyKey:crypto.randomUUID(),formatMoneyMinor
    });
@@ -102,6 +103,11 @@ function routes({renderTenant}){
    renderTenant(req,res,'money-transfer/detail','Transfer Request Details',
     'Transfer instructions and independently reviewed manual collections and payouts.',{
      order,formatMoneyMinor,
+     canFx:order.status==='collected_manual'&&
+      require('../services/moduleAccess.service').hasModuleForUser(req.tenant,req.user,'forex')&&
+      hasPermission(req.user,'forex.quotes.create')&&
+      (req.user.role==='Tenant Owner'||String(req.user.id)===String(order.createdBy))&&
+      String(req.operationBranch?._id||'')===String(order.branchId),
     pendingMovementId:pendingMovement&&(req.user.role!=='Money Transfer Operator'||String(pendingMovement.createdBy)===String(req.user.id))?pendingMovement._id:null,
      canRecordManual:!pendingMovement&&writeRoles.has(req.user.role)&&hasPermission(req.user,'money_transfer.create')&&hasPermission(req.user,'treasury.view')&&
       (req.user.role==='Tenant Owner'||String(order.createdBy)===String(req.user.id))&&String(req.operationBranch?._id||'')===String(order.branchId)&&

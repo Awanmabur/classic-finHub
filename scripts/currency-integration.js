@@ -54,7 +54,7 @@ async function main(){
   }
   const incompatible={customer:'Currency mismatch',network:currency==='USD'?'MTN SSD':'MTN',currency,amount:'1.00',fee:'0',networkReference:`CCY-WRONG-${nonce}-${currency}`,idempotencyKey:crypto.randomUUID()};
   await assert.rejects(mobile.recordMobileMoney(conn,owner,incompatible,'cash_in',tenant),{status:409});
-  const day=new Date().toISOString().slice(0,10);
+  const day=require('../src/utils/businessTime').localDay(new Date(),require('../src/utils/businessTime').forBranch(branch));
   const summary=await mobileWorkspace.workspace(conn,owner,{from:day,to:day,currency});
   assert.equal(summary.summary.total,2);assert.equal(summary.summary.byCurrency.length,1);
   assert.equal(summary.summary.byCurrency[0].volumeMinor,'14690');assert.equal(summary.summary.byCurrency[0].cashImpactMinor,'10000');

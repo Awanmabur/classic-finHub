@@ -23,21 +23,29 @@ module.exports=function routes({renderTenant}){
     fx.listQuotes(req.tenantDb,req.tenant,req.user),
     fx.reviewer(req.user)&&hasPermission(req.user,'forex.rate_review')?fx.rateReviewQueue(req.tenantDb,req.tenant,req.user):[],
     fx.reviewer(req.user)&&hasPermission(req.user,'forex.quotes.review')?fx.quoteReviewQueue(req.tenantDb,req.tenant,req.user):[]]);
-   renderTenant(req,res,'forex/index','Forex Rates & Quotes','Approved rates, customer quotations and independently reviewed manual exchanges.',{
-    financeOverview:await require('../services/financeOverview.service').moduleOverview(req.tenantDb,req.tenant,req.user,req.operationBranch),
+   renderTenant(req,res,'forex/index','Forex Rates & Quotes','Active rates, customer quotations and cashier-confirmed manual exchanges.',{
+    financeOverview:await require('../services/financeOverview.service').moduleOverview(req.tenantDb,req.tenant,req.user,req.operationBranch,{moduleKey:'forex'}),
      branches:branchList,formRates:formRates.filter(rate=>fx.enabledRate(selected,rate)),rates,records,rateQueue,quoteQueue,selectedBranchId:selected?selectedId:null,
     currencyChoices:selected?require('../services/branchCurrency.service').options(selected):[],
     canPropose:fx.operator(req.user)&&hasPermission(req.user,'forex.rate_manage'),
+    canMobileFx:require('../services/moduleAccess.service').hasModuleForUser(req.tenant,req.user,'mobile_money'),
     canQuote:fx.operator(req.user)&&hasPermission(req.user,'forex.quotes.create'),
     canRateReview:fx.reviewer(req.user)&&hasPermission(req.user,'forex.rate_review'),
     canQuoteReview:fx.reviewer(req.user)&&hasPermission(req.user,'forex.quotes.review'),
-    idempotencyKey:crypto.randomUUID(),amountLabel:fx.amountLabel
+    idempotencyKey:crypto.randomUUID(),amountLabel:fx.amountLabel,
+    rateDisplay:require('../services/forexRateUnits.service').display
    });
   }catch(e){next(e);}
  });
  router.post('/rates',requirePermission('forex.rate_manage'),financial,async(req,res,next)=>{
-  try{await fx.proposeRate(req.tenantDb,req.tenant,req.user,req.body);
-   flash(req,'good','Indicative rate proposed. A different authorized reviewer must approve it.');res.redirect(303,'/tenant/forex');
+  try{
+   const proposed=await fx.proposeRate(req.tenantDb,req.tenant,req.user,req.body);
+   if(req.user.role==='Tenant Owner'&&hasPermission(req.user,'forex.rate_review')){
+    await fx.decideRate(req.tenantDb,req.tenant,req.user,String(proposed._id),{
+     decision:'approve',note:'Authorized owner activated branch exchange rate'});
+    flash(req,'good','Buy/Sell rate activated and audited. Cashier trades no longer wait for routine approval.');
+   }else flash(req,'good','Rate submitted for authorized review.');
+   res.redirect(303,'/tenant/forex');
   }catch(e){next(e);}
  });
  router.post('/rates/:id/review',requirePermission('forex.rate_review'),financial,async(req,res,next)=>{
@@ -68,7 +76,7 @@ module.exports=function routes({renderTenant}){
     canRecordManual:!pendingMovement&&fx.operator(req.user)&&hasPermission(req.user,'forex.quotes.create')&&hasPermission(req.user,'treasury.view')&&
      (req.user.role==='Tenant Owner'||String(quote.createdBy)===String(req.user.id))&&String(req.operationBranch?._id||'')===String(quote.branchId)&&
      ['quoted','approved_pending_execution'].includes(quote.status)&&['buy','sell'].includes(quote.operation)&&new Date(quote.expiresAt)>new Date(),
-    canReview:quote.status==='quoted'&&new Date(quote.expiresAt)>new Date()&&fx.reviewer(req.user)&&
+    canReview:quote.operation==='quote'&&quote.status==='quoted'&&new Date(quote.expiresAt)>new Date()&&fx.reviewer(req.user)&&
      hasPermission(req.user,'forex.quotes.review')&&String(quote.createdBy)!==String(req.user.id),
     canCancel:quote.status==='quoted'&&(req.user.role==='Tenant Owner'||String(quote.createdBy)===String(req.user.id))
    });

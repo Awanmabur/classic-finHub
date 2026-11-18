@@ -48,16 +48,21 @@ async function prepareTenantStorage(connection){
   try{
     // These independent schema groups share the same awaited preflight barrier.
     // No tenant or invitation is published until every group has succeeded.
-    await Promise.all([
-      require('../../tenant/models').ensureTenantIndexes(connection),
-      require('../../tenant/customerAccounts/models').ensureIndexes(connection),
-      require('../../tenant/models/expenses').ensureExpenseIndexes(connection),
-      require('../../tenant/workspace/models').ensure(connection),
-      require('../../tenant/treasury/models').ensure(connection),
-      require('../../tenant/treasury/funding.models').ensureIndexes(connection),
-      require('../../tenant/funded/models').ensureIndexes(connection),
-      require('../../tenant/pricing/models').ensure(connection)
-    ]);
+    // Every group uses the SAME MongoClient connection pool. Running all
+    // groups at once can exhaust its checkout wait queue during provisioning.
+    // Await each group fully before beginning the next; a failed group must not
+    // leave independent index builds racing the next HTTP retry.
+    const preflights=[
+      ()=>require('../../tenant/models').ensureTenantIndexes(connection),
+      ()=>require('../../tenant/customerAccounts/models').ensureIndexes(connection),
+      ()=>require('../../tenant/models/expenses').ensureExpenseIndexes(connection),
+      ()=>require('../../tenant/workspace/models').ensure(connection),
+      ()=>require('../../tenant/treasury/models').ensure(connection),
+      ()=>require('../../tenant/treasury/funding.models').ensureIndexes(connection),
+      ()=>require('../../tenant/funded/models').ensureIndexes(connection),
+      ()=>require('../../tenant/pricing/models').ensure(connection)
+    ];
+    for(const prepare of preflights)await prepare();
   }catch(error){throw storageFailure(error);}
 }
 // Derive a stable, short database identifier from the first meaningful word.

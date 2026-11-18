@@ -49,14 +49,12 @@ async function main(){
   const first=await forex.proposeRate(a.conn,a.tenant,maker,rateInput);
   assert.equal(first.status,'pending_review');
   await assert.rejects(forex.decideRate(a.conn,a.tenant,{...maker,role:'Tenant Owner',permissions:['*']},String(first._id),
-   {decision:'approve',note:'A maker must not review own rate'}),e=>e.status===403);
+   {decision:'approve',note:'Only persisted owners may directly activate rates'}),e=>e.status===403);
   await User.updateOne({_id:maker.id},{$set:{role:'Tenant Owner'}});
-  await assert.rejects(forex.decideRate(a.conn,a.tenant,{...maker,role:'Tenant Owner',permissions:['*']},String(first._id),
-   {decision:'approve',note:'A maker must not review own rate'}),e=>e.status===409);
+  const active=await forex.decideRate(a.conn,a.tenant,{...maker,role:'Tenant Owner',permissions:['*']},String(first._id),
+   {decision:'approve',note:'Owner directly activated the recorded customer buying rate'});
   await User.updateOne({_id:maker.id},{$set:{role:maker.role}});
-  const active=await forex.decideRate(a.conn,a.tenant,reviewer,String(first._id),
-   {decision:'approve',note:'Independent rate approval, not external price verification'});
-  assert.equal(active.status,'active');
+  assert.equal(active.status,'active');assert.equal(String(active.reviewedBy),maker.id,'owner activation is attributable and audited');
   const sellProposed=await forex.proposeRate(a.conn,a.tenant,maker,{...rateInput,side:'sell',rateDecimal:'0.000300'});
   const sellRate=await forex.decideRate(a.conn,a.tenant,reviewer,String(sellProposed._id),
    {decision:'approve',note:'Independent selling price approved for this currency pair'});

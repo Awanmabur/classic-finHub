@@ -100,6 +100,7 @@ function tenantMenu(tenant,user) {
   return groups;
 }
 function tenantNavigationPath(path){
+  if(/^\/tenant\/mobile-money\/fx(?:\/.*)?$/.test(path))return '/tenant/mobile-money/cash-out';
   if(path.startsWith('/tenant/mobile-money/shifts'))return path.replace('/tenant/mobile-money/shifts','/tenant/cash/shifts');
   if(/^\/tenant\/mobile-money(?:\/(?:history|[a-f0-9]{24})(?:\/.*)?)?\/?$/i.test(path))return '/tenant/mobile-money/network-activity';
   if(/^\/tenant\/money-transfer\/contacts(?:\/.*)?$/i.test(path))return '/tenant/money-transfer/send';

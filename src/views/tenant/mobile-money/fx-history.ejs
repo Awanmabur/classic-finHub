@@ -1,0 +1,46 @@
+<section class="view show mobileMoneyPage">
+ <section class="card">
+  <div class="cardHead"><div><b>Cross-currency transaction history</b><br><span>One operation, two native-currency custody legs. No currency totals are mixed.</span></div><div class="rowBtns"><a class="btn" href="/tenant/mobile-money/fx">Exchange preview</a><a class="btn" href="/tenant/mobile-money">Mobile Money</a></div></div>
+  <div class="cardBody">
+   <% if(data.summary.length){ %>
+    <div class="tableWrap"><table aria-label="All posted cross-currency operation totals">
+     <thead><tr><th>Network</th><th>Operation</th><th>Transactions</th><th>Electronic amount</th><th>Physical cash amount</th></tr></thead>
+     <tbody>
+      <% data.summary.forEach(row=>{ %>
+       <tr>
+        <td><%= row._id.network %></td>
+        <td><%= row._id.operation==='withdraw_provider_receive_cash'?'Electronic withdrawal':'Electronic deposit' %></td>
+        <td><%= row.count %></td>
+        <td><%= data.formatMoneyMinor(row.providerMinor,row._id.providerCurrency) %></td>
+        <td><%= data.formatMoneyMinor(row.cashMinor,row._id.cashCurrency) %></td>
+       </tr>
+      <% }); %>
+     </tbody>
+    </table></div>
+    <p class="tiny">These totals cover all matching finalized operations. Provider and cash amounts stay in separate currency columns; each customer transaction is counted once.</p>
+   <% } %>
+   <% if(!data.records.length){ %>
+    <p>No cross-currency exchanges have been posted for this branch.</p>
+   <% }else{ %>
+    <div class="tableWrap"><table>
+     <thead><tr><th>Recorded</th><th>Network reference</th><th>Direction</th><th>Wallet change</th><th>Cash change</th><th>Rate</th><th>Provider evidence</th><th>Income status</th></tr></thead>
+     <tbody>
+      <% data.records.forEach(r=>{ %>
+       <tr>
+        <td><%= formatLocalDate(r.settledAt,r.branchId) %></td>
+        <td><%= r.providerReference %></td>
+        <td><%= r.operation==='withdraw_provider_receive_cash'?'Electronic withdrawal → cash payout':'Cash deposit → electronic credit' %></td>
+        <td><%= data.formatMoneyMinor(r.walletDeltaMinor,r.providerCurrency) %></td>
+        <td><%= data.formatMoneyMinor(r.cashDeltaMinor,r.cashCurrency) %></td>
+        <td><%= r.rateSide.toUpperCase() %> <%= r.rateDecimal %></td>
+        <td><%= r.providerSettlementState==='verified'?'Externally verified':'Cashier-confirmed · external settlement unverified' %></td>
+        <td>Unmeasured FX profit — cost basis required</td>
+       </tr>
+      <% }); %>
+     </tbody>
+    </table></div>
+   <% } %>
+   <p class="tiny">Provider and cash evidence are retained with the linked financial record. Custody movements are not operating revenue. The two journal entries are not separate customer sales.</p>
+  </div>
+ </section>
+</section>

@@ -100,7 +100,8 @@ async function main(){
   sender:{contactId:sender._id,name:sender.fullName,phone:sender.phone,country:sender.country},beneficiary:{contactId:receiver._id,name:receiver.fullName,phone:receiver.phone,country:receiver.country},
   capture:require('../src/tenant/services/operationCapture.service').parse('money_transfer',{transferMethod:'Cash'}),currency:'UGX',amountMinor:'20000',feeMinor:'200',validDays:7,expiresAt:new Date(Date.now()+7*86400000),status:'requested'});
  await assert.rejects(quote('sell','5','0','money_transfer',String(transferSource._id)),
-  error=>error.status===409&&/collection/.test(error.message),'uncollected transfers cannot fund FX');
+  error=>error.status===409&&/Money Transfer payout/.test(error.message),
+  'No transfer, collected or uncollected, may be converted outside the PIN-verified remittance posting path');
  const collection=await manual('money_transfer',transferSource,{collectionAccountId:String(cashFund._id),clearingAccountId:String(clearing._id)});await funded.review(conn,tenant,reviewer,collection.execution._id,reviewData);
  assert.equal(await book(cashFund),1008850n);assert.equal(await book(clearing),20000n);assert.equal((await core.transferOrderModel(conn).findById(transferSource._id)).status,'collected_manual');
  await assert.rejects(quote('buy','2','0','banking',String(depositSource._id)),

@@ -171,6 +171,11 @@ async function main(){
  assert.equal(await book(sspCash),sspBefore-1200000n);
  const fxPayoutJournal=await fundedModel.models(conn).execution.findById(fxPayout.execution._id).lean();
  assert.equal(fxPayoutJournal.journalIds.length,2,'real remittance conversion must post one balanced journal per currency');
+ const actualTransfers=await require('../src/tenant/services/financeOverview.service').postedTransferPayoutFxActivity(
+  conn,tenant,owner,branch,{moduleKey:'money_transfer',timeZone:'Africa/Juba'});
+ assert.equal(actualTransfers.count,1);
+ assert.equal(actualTransfers.sent[0].formatted,'UGX 10,000');
+ assert.equal(actualTransfers.received[0].formatted,'SSP 12,000.00');
  await assert.rejects(funded.review(conn,tenant,reviewer,fxPayout.execution._id,reviewData),{status:409});
  await treasury.assertBookIntegrity(conn,null,await treasuryModels(conn).account.findById(sspCash._id).lean());
  for(const currency of ['UGX','SSP'])
@@ -231,6 +236,11 @@ async function main(){
  assert.equal((await bankFx.convert(conn,tenant,owner,branch,fxBankInput)).duplicate,true);
  assert.equal(await customerBook(accountA),3000n,'Bank FX source liability debited once');
  assert.equal(await customerBook(usdAccount),54n,'Bank FX USD customer liability credited once');
+ const actualBankFx=await require('../src/tenant/services/financeOverview.service').postedBankingInternalFxActivity(
+  conn,tenant,owner,branch,{moduleKey:'banking',timeZone:'Africa/Juba'});
+ assert.equal(actualBankFx.count,1);
+ assert.equal(actualBankFx.source[0].formatted,'UGX 2,000');
+ assert.equal(actualBankFx.destination[0].formatted,'USD 0.54');
  const journalBeforeDenied=await core.ledgerJournalModel(conn).countDocuments();
  await assert.rejects(bankFx.convert(conn,tenant,owner,branch,{...fxBankInput,idempotencyKey:crypto.randomUUID(),
   evidenceReference:'BANKFX-INSUFFICIENT-'+nonce,amount:'20000'}),
@@ -243,7 +253,7 @@ async function main(){
  assert.equal((await bankFx.history(conn,tenant,owner,branch)).length,1);
  for(const ccy of ['UGX','USD'])assert.equal((await ledger.trialBalance(conn,{branchId:String(branch._id),currency:ccy})).balanced,true);
  const logs=JSON.stringify(await core.auditEventModel(conn).find({}).lean());assert(!logs.includes(revealed.pin),'audit must never contain payout PIN');
- console.log('PASS: native-currency manual banking and transfers, linked Forex trades, atomic internal Banking customer account FX, idempotency, insufficient balance rollback, journals, payout PIN and role/tenant security.');
+ console.log('PASS: native-currency manual finance, standalone Forex, atomic internal Banking FX, immediate PIN-verified UGX/SSP remittance payout, correct cross-module reports, idempotency, insufficient balance rollback, journal integrity and tenant/role isolation.');
 }
 async function cleanup(){if(mongoose.connection.readyState===1&&mongoose.connection.name===platformName&&/^cfh_funded_probe_[a-f0-9]{16}$/.test(platformName)){for(const connection of connections)await connection.db.dropDatabase();await mongoose.connection.db.dropDatabase();}await mongoose.disconnect();}
 main().catch(error=>{console.error('FUNDED OPERATIONS INTEGRATION FAILED:',error.stack||error.message);process.exitCode=1;}).finally(()=>cleanup().catch(error=>{console.error('Funded scratch cleanup failed:',error.message);process.exitCode=1;}));

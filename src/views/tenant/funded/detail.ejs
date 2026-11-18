@@ -5,7 +5,7 @@
  <div class="cardHead"><b>Complete PIN-verified cash payout</b><span>Retry an interrupted same-branch posting without paying twice</span></div>
  <div class="cardBody"><form data-funded-form method="post" action="/tenant/funded/<%= row._id %>/finalize-payout">
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-  <% if(row.payoutFx){ %><p><strong>Locked receiver cash:</strong> <%= row.payoutFx.targetCurrency %> · <%= formatMoneyMinor(row.payoutFx.payoutMinor,row.payoutFx.targetCurrency) %></p><% } %>
+  <% if(row.payoutFx){ %><p><strong>Locked receiver cash:</strong> <%= row.payoutFx.targetCurrency %> · <%= typeof formatMoneyMinor==='function'?formatMoneyMinor(row.payoutFx.payoutMinor,row.payoutFx.targetCurrency):row.payoutFx.payoutMinor+' minor units' %></p><% } %>
   <label class="field"><input type="checkbox" name="confirmRecipientVerified" value="yes" required> I independently checked the recipient identity and successful PIN verification.</label>
   <label class="field"><input type="checkbox" name="confirmCashPaid" value="yes" required> The exact cash payout has physically occurred and the original voucher has been checked.</label>
   <button type="submit" class="btn btnPrimary">Finalize actual payout</button>

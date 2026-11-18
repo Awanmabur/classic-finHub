@@ -4,5 +4,21 @@
  <input type="hidden" name="walletFeePolicy" data-wallet-fee-policy disabled>
  <label class="field" data-wallet-account-field>Provider float wallet<select class="control" name="walletAccountId" required data-wallet-account><option value="">Select wallet</option><% walletOptions.forEach(wallet=>{ %><option value="<%= wallet.id %>" data-network="<%= wallet.network %>" data-currency="<%= wallet.currency %>" data-expected-minor="<%= wallet.expectedMinor??'' %>" data-state="<%= wallet.state %>" data-reconciliation="<%= wallet.reconciliation %>" data-default="<%= wallet.isDefault?'true':'false' %>" data-assigned="<%= wallet.assignedToOperator?'true':'false' %>" data-fee-treatment="<%= wallet.feeTreatment||'record_only' %>" data-cash-drawer="<%= wallet.cashDrawerAccountId||'' %>" <%= wallet.state!=='active'||wallet.reconciliation!=='matched'||wallet.expectedMinor===null?'disabled':'' %>><%= wallet.name %></option><% }) %></select><% if(!walletOptions.length){ %><span class="tiny">No compatible network wallet is available. Ask the Tenant Owner to configure an approved shared or assigned provider wallet.</span><% } %></label>
  
- <div class="field" data-payment-account-field hidden><select class="control" name="paymentAccountId" data-payment-account disabled><option value="">Choose the actual account</option><% (funds.paymentAccounts||[]).filter(a=>a.kind==='cash'&&a.assignedToOperator).forEach(account=>{ %><option value="<%= account.id %>" data-method="<%= account.kind==='cash'?'Cash':'Bank' %>" data-currency="<%= account.currency %>" data-state="<%= account.state %>" data-reconciliation="<%= account.reconciliation %>" data-assigned="<%= account.assignedToOperator?'true':'false' %>" data-opened="<%= account.expectedMinor!==null?'true':'false' %>" data-default="<%= account.isDefault?'true':'false' %>" <%= account.state!=='active'||account.reconciliation!=='matched'||account.expectedMinor===null?'disabled':'' %>><%= account.name %> · <%= account.currency %></option><% }) %></select><span class="tiny" data-drawer-help hidden>Ask the Tenant Owner to link this network wallet to your actual approved cash drawer in Treasury. A cash drawer cannot be chosen during transaction entry.</span></div>
+ <% const usableCash=(funds.paymentAccounts||[]).filter(a=>a.kind==='cash'&&a.assignedToOperator&&a.state==='active'&&a.reconciliation==='matched'&&a.expectedMinor!==null);
+    const preferredSSP=usableCash.find(a=>a.currency==='SSP'&&a.isDefault)||usableCash.find(a=>a.currency==='SSP');
+    const selectedCash=preferredSSP||(usableCash.length===1?usableCash[0]:null); %>
+ <label class="field" data-payment-account-field>Cash drawer · customer receives or pays
+  <select class="control" name="paymentAccountId" data-payment-account required>
+   <option value="">Select cash drawer</option>
+   <% (funds.paymentAccounts||[]).filter(a=>a.kind==='cash'&&a.assignedToOperator).forEach(account=>{ %>
+    <option value="<%= account.id %>" data-method="Cash" data-currency="<%= account.currency %>"
+     data-state="<%= account.state %>" data-reconciliation="<%= account.reconciliation %>"
+     data-assigned="true" data-opened="<%= account.expectedMinor!==null?'true':'false' %>"
+     data-expected-minor="<%= account.expectedMinor??'' %>"
+     <%= account.state!=='active'||account.reconciliation!=='matched'||account.expectedMinor===null?'disabled':'' %>
+     <%= selectedCash?.id===account.id?'selected':'' %>><%= account.name %> · <%= account.currency==='KES'?'KSH':account.currency %></option>
+   <% }) %>
+  </select>
+  <% if(!usableCash.length){ %><span class="tiny">No available physical cash drawer is assigned to you. Ask the owner to open and assign your real drawer.</span><% } %>
+ </label>
 </div>

@@ -27,6 +27,26 @@
    <div class="s"><%= card.note %></div>
   </div><% }); %>
  </div>
+ <% if(moduleKey==='money_transfer'&&moduleFinance.transferPayoutFxActivity){ const fx=moduleFinance.transferPayoutFxActivity; %>
+ <section class="card" style="margin-top:12px" aria-label="Actual cross-currency PIN payouts">
+  <div class="cardHead"><b>Cross-currency remittances · actually paid</b><span>Native-currency Treasury ledger · PIN verified</span></div>
+  <div class="cardBody">
+   <% if(fx.limited){ %><p class="tiny">More than 1,000 records; narrow the report period.</p>
+   <% }else{ %><strong><%= fx.count %> confirmed cross-currency cash payout<%= fx.count===1?'':'s' %></strong>
+   <div class="row2" style="margin-top:10px">
+    <div><b>Original transfers collected</b>
+     <% if(!fx.sent.length){ %><p class="tiny">None posted</p><% } %>
+     <% fx.sent.forEach(x=>{ %><p><%= x.formatted %></p><% }) %>
+    </div>
+    <div><b>Beneficiary cash paid</b>
+     <% if(!fx.received.length){ %><p class="tiny">None posted</p><% } %>
+     <% fx.received.forEach(x=>{ %><p><%= x.formatted %></p><% }) %>
+    </div>
+   </div><p class="tiny">Each payout has verified PIN custody, a locked Buy rate and separate original-currency journal records. These are actual recorded cash settlements, not provider wire confirmations or recognized exchange profits.</p>
+   <% } %>
+  </div>
+ </section>
+ <% } %>
  <% if(moduleKey==='banking'&&moduleFinance.bankingInternalFxActivity){ const fx=moduleFinance.bankingInternalFxActivity; %>
  <section class="card" style="margin-top:12px" aria-label="Real internal Banking currency conversions">
   <div class="cardHead"><b>Internal customer account currency transfers</b><span>Posted ledger liabilities · no external bank wire</span></div>

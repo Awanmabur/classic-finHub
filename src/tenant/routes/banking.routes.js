@@ -49,7 +49,7 @@ function routes({renderTenant}){
    ]);
    renderTenant(req,res,'banking/fx-exchange','Internal Banking Currency Exchange',
     'Real customer account balances exchange across currencies; no external bank transfer is implied.',
-    {...available,records,idempotencyKey:crypto.randomUUID(),formatMoneyMinor});
+    {...available,records,idempotencyKey:crypto.randomUUID(),formatMoneyMinor,rateDisplay:require('../services/forexRateUnits.service').display});
   }catch(e){next(e);}
  });
  router.post('/exchange/preview',requirePermission('banking.requests.create'),financial,async(req,res,next)=>{
@@ -60,7 +60,7 @@ function routes({renderTenant}){
     req.tenantDb,req.tenant,req.user,req.operationBranch,{...req.body,rateId,rateVersion,rateDecimal});
    renderTenant(req,res,'banking/fx-confirm','Review currency exchange',
     'Confirm the exact source debit and destination credit before posting.',
-    {review,formatMoneyMinor});
+    {review,formatMoneyMinor,rateDisplay:require('../services/forexRateUnits.service').display});
   }catch(e){next(e);}
  });
  router.post('/exchange',requirePermission('banking.requests.create'),financial,async(req,res,next)=>{

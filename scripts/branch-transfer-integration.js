@@ -59,7 +59,7 @@ async function main(){
  const collection=(await funded.request(conn,tenant,teller,'money_transfer',source._id,input())).execution;await funded.review(conn,tenant,owner,collection._id,decision);
  const secret=await funded.revealPin(conn,tenant,teller,collection._id);assert.equal((await fundedModels.models(conn).execution.findById(collection._id)).pinLookupVersion,'sender_destination_v3');
  await assert.rejects(funded.checkPayout(conn,tenant,teller,{pin:secret.pin,senderPhone:sourceInput.senderPhone}),{status:404},'sending branch cannot pay a destination-bound PIN');
- const checked=await funded.checkPayout(conn,tenant,receivingTeller,{pin:secret.pin,senderPhone:sourceInput.senderPhone,receiverNameCheck:sourceInput.receiverName});
+ const checked=await funded.checkPayout(conn,tenant,receivingTeller,{pin:secret.pin,senderPhone:sourceInput.senderPhone,receiverNameCheck:sourceInput.receiverName,identityDocument:'INDEPENDENTLY-CHECKED-BRANCH-RECEIVER-ID'});
  const payout=(await funded.requestPayout(conn,tenant,receivingTeller,{...input(),verificationToken:checked.token,payoutAccountId:String(destinationCash._id)})).execution;
  const amount=async id=>String((await treasury.models(conn).account.findById(id)).bookBalanceMinor);
  assert.equal(await amount(destinationCash._id),'50000');assert.equal(await amount(payable._id),'10000');

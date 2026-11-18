@@ -37,7 +37,10 @@ test('cash-drawer association is configured once by owner and enforced in funds 
  assert.match(view,/name="cashDrawerAccountId"/);
  assert.match(form,/data-cash-drawer/);
  assert.match(scripts,/paymentField.hidden=true/);
- assert.doesNotMatch(form,/<label class="field" data-payment-account-field/);
+ assert.match(form,/<label class="field" data-payment-account-field/);
+ assert.match(form,/preferredSSP/);
+ assert.match(form,/name="paymentAccountId"/);
+ assert.match(file('public/js/mobile-money-unified.js'),/cashAccountId/);
 });
 
 test('dashboard does not attribute Airtel or shared branch cash to MTN without explicit mapping',()=>{

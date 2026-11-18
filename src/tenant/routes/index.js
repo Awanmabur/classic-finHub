@@ -96,9 +96,64 @@ router.get('/mobile-money', requireModule('mobile_money'), requirePermission('mo
 for (const [path,op,permission] of [['cash-in','cash_in','mobile_money.cash_in'],['cash-out','cash_out','mobile_money.cash_out']]) {
   router.post(`/mobile-money/${path}`, requireModule('mobile_money'),requirePermission(permission),require('../../platform/services/actionThrottle.service').financial,async(req,res,next)=>{
     try {
-      const result = await mobile.recordMobileMoney(req.tenantDb,req.user,req.body,op,req.tenant,null,{requireFunds:true});
-      flash(req,'good',result.duplicate ? 'This request was already recorded. No duplicate created.' : 'Transaction recorded as final in FinHub. Provider settlement remains independently unverified.');
-      require('../services/branchView.service').followRecord(req,result.created);
+      // ONE cash-in/cash-out endpoint: the actual wallet/drawer currency pair
+      // determines whether a normal MoMo or linked Forex posting is required.
+      // The client never chooses an accounting module or authorizes a rate.
+      const T=require('../treasury/models').models(req.tenantDb).account;
+      const OID=/^[a-f0-9]{24}$/i;
+      const walletId=String(req.body.walletAccountId||''),cashId=String(req.body.paymentAccountId||'');
+      if(!OID.test(walletId)||!OID.test(cashId)||!req.operationBranch){
+        const error=new Error('Select your actual provider wallet and cash drawer');error.status=400;throw error;
+      }
+      const pair=await T.find({_id:{$in:[walletId,cashId]},tenantId:req.tenant._id,
+       branchId:req.operationBranch._id,status:'active',reconciliationState:'matched',
+       openingApprovedAt:{$ne:null}}).lean();
+      const wallet=pair.find(a=>String(a._id)===walletId&&a.kind==='wallet');
+      const cash=pair.find(a=>String(a._id)===cashId&&a.kind==='cash');
+      if(!wallet||!cash||wallet.network!==String(req.body.network||'')||
+        wallet.currency!==String(req.body.currency||'')){
+       const error=new Error('Wallet, provider network or cash account changed. Reload and select the actual accounts.');
+       error.status=409;throw error;
+      }
+      if(wallet.currency===cash.currency){
+       const result=await mobile.recordMobileMoney(req.tenantDb,req.user,req.body,op,req.tenant,null,{requireFunds:true});
+       flash(req,'good',result.duplicate?'This request was already recorded; no duplicate created.':
+        'Transaction recorded as final in Mobile Money. Provider settlement remains independently unverified.');
+       require('../services/branchView.service').followRecord(req,result.created);
+      }else{
+       // Fee and conversion must be the exact same terms the cashier previewed.
+       // In particular, no client may silently post an extra fee outside the
+       // owner-controlled cross-currency quote.
+       if(!/^0+(?:\.0+)?$/.test(String(req.body.fee??'0').trim())){
+        const error=new Error('Cross-currency amount includes the owner-approved rate only. Clear the separate fee and recheck the displayed cash amount.');
+        error.status=409;throw error;
+       }
+       const direction=op==='cash_out'?'withdraw_provider_receive_cash':'deposit_cash_send_provider';
+       const serverQuote=await require('../services/momoFxPreview.service').preview(
+        req.tenantDb,req.tenant,req.user,req.operationBranch,{
+         operation:direction,walletAccountId:walletId,cashAccountId:cashId,providerAmount:String(req.body.amount||'')
+        });
+       if(String(req.body.fxRateId||'')!==serverQuote.rateId||
+         String(req.body.fxRateVersion||'')!==String(serverQuote.rateVersion)||
+         String(req.body.fxCashAmountMinor||'')!==serverQuote.cashAmountMinor){
+         const error=new Error('Exchange quote changed. Recalculate and confirm the actual cash amount before finalizing.');
+         error.status=409;throw error;
+       }
+       // No second provider payment, standalone Forex subscription, or second
+       // ledger operation is created. Both module views reference one source.
+       const result=await require('../services/momoFxSettlement.service').settleManuallyConfirmed(
+         req.tenantDb,req.tenant,req.user,{
+          ...serverQuote,idempotencyKey:req.body.idempotencyKey,branchId:String(req.operationBranch._id),
+          providerReference:req.body.networkReference,customer:req.body.customer,
+          customerPhone:req.body.customerPhone,customerNote:req.body.customerNote,
+          providerAppConfirmed:req.body.providerAppConfirmed,
+          cashHandoverConfirmed:req.body.cashHandoverConfirmed
+         });
+       flash(req,'good',result.duplicate?
+        'This exchange was already recorded; no duplicate cash or float posting.':
+        'Withdrawal/deposit finalized once in Mobile Money and linked to Forex reporting. External provider settlement remains unverified.');
+       if(result.mobile)require('../services/branchView.service').followRecord(req,result.mobile);
+      }
       res.redirect(303,'/tenant/mobile-money');
     } catch(e) { next(e); }
   });

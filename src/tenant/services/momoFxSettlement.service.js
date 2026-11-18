@@ -7,7 +7,7 @@ const crypto=require('node:crypto');
 const {records,grants,ensure:ensureFxIndexes}=require('../schemas/MomoFxSettlement');
 const {models:treasuryModels,ensure:ensureTreasury}=require('../treasury/models');
 const treasury=require('../treasury/service');
-const {forexRateModel,branchModel,auditEventModel}=require('../models');
+const {forexRateModel,forexQuoteModel,branchModel,auditEventModel,mobileTransactionModel,ensureTenantIndexes}=require('../models');
 const {hasModuleForUser,hasPermission}=require('./moduleAccess.service');
 const {quote}=require('./momoFxQuote.service');
 const OID=/^[a-f0-9]{24}$/i,UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
@@ -79,7 +79,7 @@ async function settleVerified(conn,tenant,actor,input,proof){
   {...verifiedEvidence(proof,input),evidenceId:proof.evidenceId,
    evidenceKind:'signed_provider',settlementState:'verified'};
  const Record=records(conn),Grant=grants(conn);
- await Promise.all([ensureTreasury(conn),ensureFxIndexes(conn)]);
+ await Promise.all([ensureTreasury(conn),ensureFxIndexes(conn),ensureTenantIndexes(conn)]);
  const existing=await Record.findOne({tenantId:tenant._id,idempotencyKey:input.idempotencyKey}).lean();
  if(existing){
   if(existing.providerReference!==input.providerReference||existing.network!==input.network||
@@ -96,9 +96,11 @@ async function settleVerified(conn,tenant,actor,input,proof){
     throw fail('Idempotency reference already used for another exchange');
   return {record:existing,duplicate:true};
  }
+ const Mobile=mobileTransactionModel(conn);
  const used=await Record.findOne({tenantId:tenant._id,network:input.network,
   providerReference:input.providerReference}).select('_id').lean();
- if(used)throw fail('This provider transaction reference is already recorded; never post it again');
+ const ordinaryUsed=await Mobile.findOne({network:input.network,networkReference:input.providerReference}).select('_id').lean();
+ if(used||ordinaryUsed)throw fail('This provider transaction reference is already recorded; never post it again');
  const session=await conn.startSession();
  try{
   let result;
@@ -158,7 +160,53 @@ async function settleVerified(conn,tenant,actor,input,proof){
    },{momoFx:true});
    // Both native-currency journals, account balances and this record commit
    // together. Missing FX cost basis is explicitly NOT shown as profit.
-   const [record]=await Record.create([{
+   const crossId=new mongoose.Types.ObjectId(),mobileId=new mongoose.Types.ObjectId();
+   const shiftId=await require('./cashDrawer.service').attachRecord(conn,session,actor,branch._id,
+     cash.currency,input.operation==='withdraw_provider_receive_cash'?'cash_out':'cash_in',
+     BigInt(q.cashAmountMinor),{bookManaged:true});
+   const operation=input.operation==='withdraw_provider_receive_cash'?'cash_out':'cash_in';
+   const customerPhone=String(input.customerPhone||'').trim().replace(/[ ()-]/g,'');
+   if(customerPhone&&!/^\\+?\\d{7,15}$/.test(customerPhone))throw fail('Invalid customer phone',400);
+   const customer=String(input.customer||customerPhone||'Customer').trim();
+   const customerNote=String(input.customerNote||'').trim();
+   if(customer.length<2||customer.length>120||customerNote.length>400)
+    throw fail('Customer details are invalid',400);
+   const walletAfter=BigInt(String(wallet.bookBalanceMinor))+BigInt(q.walletDeltaMinor);
+   const riskSignals=await require('./mobileMoneyRisk.service').assess(conn,session,Mobile,
+    {network:wallet.network,operation,currency:wallet.currency,
+     amountMinor:q.providerAmountMinor,customerPhone},branch._id,
+    {walletBalanceAfterMinor:String(walletAfter)});
+   // The single Mobile Money record and its linked Forex exchange share one
+   // Treasury posting. Neither creates a second cash/float movement.
+   const [mobile]=await Mobile.create([{
+    _id:mobileId,idempotencyKey:input.idempotencyKey,operation,customer,customerPhone,customerNote,
+    network:wallet.network,networkReference:input.providerReference,
+    currency:wallet.currency,amountMinor:dec(q.providerAmountMinor),feeMinor:dec('0'),
+    operatorId:actor.id,branchId:branch._id,status:'recorded',reviewState:'not_required',
+    walletAccountId:wallet._id,paymentAccountId:cash._id,paymentMethod:'Cash',
+    fundingState:'book_recorded',fundsSourceRef:'MFX:'+input.idempotencyKey,
+    fundJournalIds:posting.journalIds||[],cashSessionId:shiftId,
+    walletBalanceBeforeMinor:dec(wallet.bookBalanceMinor),
+    walletBalanceAfterMinor:dec(walletAfter),physicalCashMovementMinor:dec(q.cashDeltaMinor),
+    fxSettlementId:crossId,cashCurrency:cash.currency,cashAmountMinor:dec(q.cashAmountMinor),
+    exchangeRateDecimal:rate.rateDecimal,riskSignals,entrySource:'manual'
+   }],{session});
+   const forexId=new mongoose.Types.ObjectId();
+   const [forexRecord]=await forexQuoteModel(conn).create([{
+    _id:forexId,reference:'MFX-'+input.idempotencyKey,idempotencyKey:input.idempotencyKey,
+    branchId:branch._id,createdBy:actor.id,customerLabel:customer,
+    operation:rate.side,originModule:'mobile_money',originRecordId:mobileId,
+    originNetwork:wallet.network,originOperation:operation,rateId:rate._id,
+    fromCurrency:wallet.currency,toCurrency:cash.currency,
+    rateDecimal:rate.rateDecimal,sourceMinor:dec(q.providerAmountMinor),
+    targetMinor:dec(q.cashAmountMinor),validMinutes:5,
+    expiresAt:new Date(rate.expiresAt),
+    status:'posted_manual',manualPostedAt:new Date(),
+    note:'Linked '+wallet.network+' Mobile Money '+(operation==='cash_out'?'withdrawal':'deposit')+
+     ', provider ref '+input.providerReference+'. One Treasury posting; external provider confirmation is separately unverified.'
+   }],{session});
+   const [record]=await Record.create([{_id:crossId,mobileMoneyRecordId:mobileId,
+    forexQuoteId:forexRecord._id,sourceModule:'mobile_money',
     tenantId:tenant._id,branchId:branch._id,actorId:actor.id,
     idempotencyKey:input.idempotencyKey,providerReference:input.providerReference,
     network:wallet.network,operation:input.operation,walletAccountId:wallet._id,
@@ -173,8 +221,10 @@ async function settleVerified(conn,tenant,actor,input,proof){
    }],{session});
    await auditEventModel(conn).create([{action:'mobile_money.fx.settled',actorId:actor.id,targetId:record._id,
     metadata:{branchId,providerReference:input.providerReference,providerCurrency:wallet.currency,
-      cashCurrency:cash.currency,treasuryBatchId:String(posting.batch._id)}}],{session});
-   result={record,duplicate:false};
+      cashCurrency:cash.currency,treasuryBatchId:String(posting.batch._id),mobileMoneyRecordId:String(mobile._id),
+      forexQuoteId:String(forexRecord._id),
+      sourceModule:'mobile_money',network:wallet.network,operation}}],{session});
+   result={record,mobile,duplicate:false};
   },{readConcern:{level:'snapshot'}});
   return result;
  }catch(error){

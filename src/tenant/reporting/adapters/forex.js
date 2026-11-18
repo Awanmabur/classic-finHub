@@ -2,6 +2,6 @@
 // Optional Forex source; Reports subscribers do not need Forex. No names or
 // account references leave the aggregate adapter.
 module.exports=Object.freeze({
- key:'forex',label:'Indicative Forex quotations',moduleKey:'forex',
+ key:'forex',label:'Forex quotations and posted exchanges',moduleKey:'forex',
  async rows({conn,filters,scope,dateRange}){return require('../../services/forex.service').reportRows({conn,filters,scope,dateRange});}
 });

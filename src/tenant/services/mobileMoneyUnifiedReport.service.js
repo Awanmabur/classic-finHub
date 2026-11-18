@@ -112,7 +112,7 @@ async function generate(conn,tenant,actor,input={},timeZone='UTC'){
    feeTreatment:{$ifNull:['$feeTreatment','record_only']},reviewState:{$ifNull:['$reviewState','awaiting_review']},status:'$status',
    voided:{$or:[{$eq:['$status','voided_internal']},{$eq:['$correctionState','voided']}]}},
   count:{$sum:1},amountMinor:{$sum:'$amountMinor'},feeMinor:{$sum:'$feeMinor'},
-  cashMovementMinor:{$sum:{$cond:[{$eq:[{$ifNull:['$paymentMethod','Cash']},'Cash']},
+  cashMovementMinor:{$sum:{$cond:[{$and:[{$eq:[{$ifNull:['$paymentMethod','Cash']},'Cash']},{$eq:[{$ifNull:['$cashCurrency','$currency']},'$currency']}]},
     {$ifNull:['$physicalCashMovementMinor',{$cond:[{$eq:['$operation','cash_in']},'$amountMinor',{$multiply:['$amountMinor',-1]}]}]},0]}},
   estimatedCommissionMinor:{$sum:{$convert:{input:'$agentCommissionEstimate.amountMinor',to:'decimal',onError:0,onNull:0}}},
   commissionMissingCount:{$sum:{$cond:[{$ifNull:['$agentCommissionEstimate.scheduleId',false]},0,1]}},
@@ -145,6 +145,11 @@ async function generate(conn,tenant,actor,input={},timeZone='UTC'){
  if(input.currency)fxScope.$or=[{providerCurrency:input.currency},{cashCurrency:input.currency}];
  const fxQuery=require('../schemas/MomoFxSettlement').records(conn).aggregate([
   {$match:fxScope},
+  // Preserve immutable original FX evidence but exclude independently reversed
+  // entries from active exchange volume. Corrections remain in audit/history.
+  {$lookup:{from:mobileTransactionModel(conn).collection.name,
+   localField:'mobileMoneyRecordId',foreignField:'_id',as:'linkedMobile'}},
+  {$match:{$or:[{mobileMoneyRecordId:null},{'linkedMobile.status':{$ne:'voided_internal'}}]}},
   {$group:{_id:{network:'$network',operation:'$operation',
      providerCurrency:'$providerCurrency',cashCurrency:'$cashCurrency'},
    count:{$sum:1},providerMinor:{$sum:'$providerAmountMinor'},

@@ -1,4 +1,4 @@
-const { mobileTransactionModel, auditEventModel, branchModel, ensureTenantIndexes } = require('../models');
+const { forexQuoteModel, mobileTransactionModel, auditEventModel, branchModel, ensureTenantIndexes } = require('../models');
 const {currencies}=require('../../config/currencies');
 const {networks}=require('../../config/mobileNetworks');
 const businessTime=require('../../utils/businessTime');
@@ -269,7 +269,26 @@ async function decideVoid(conn,reviewer,recordId,decision,note){
         const tenant=await require('../../platform/models/Tenant').findOne({dbName:conn.name,status:{$in:['active','trial']}}).session(session).lean();
         if(!tenant)throw bad('The funded workspace is unavailable',403);
         const authorization=await require('./financialAuthorization.service').fenceAction(conn,session,reviewer,tenant,'mobile_money','mobile_money.review');
-        await require('../treasury/service').reverseMovements(conn,session,authorization,{sourceType:'mobile_money',sourceRef:record.fundsSourceRef,reversalSourceRef:`MM-VOID:${record._id}`,description:reason});
+        if(record.fxSettlementId){
+          const fxProof=await require('../schemas/MomoFxSettlement').records(conn).findOne({
+            _id:record.fxSettlementId,mobileMoneyRecordId:record._id,
+            tenantId:tenant._id,branchId:record.branchId}).session(session).lean();
+          if(!fxProof?.forexQuoteId)throw bad('Linked Forex evidence is unavailable; do not void one side',409);
+          await require('../treasury/service').reverseMovements(conn,session,authorization,{
+            sourceType:'forex',sourceRef:record.fundsSourceRef,
+            reversalSourceRef:`MM-VOID:${record._id}`,description:reason
+          },{momoFx:true});
+          const reversed=await forexQuoteModel(conn).findOneAndUpdate({
+            _id:fxProof.forexQuoteId,originModule:'mobile_money',
+            originRecordId:record._id,status:'posted_manual'},
+            {$set:{status:'reversed_manual'},$inc:{revision:1}},{session,new:true}).lean();
+          if(!reversed)throw bad('Linked Forex record changed during correction; all changes rolled back',409);
+        }else{
+          await require('../treasury/service').reverseMovements(conn,session,authorization,{
+            sourceType:'mobile_money',sourceRef:record.fundsSourceRef,
+            reversalSourceRef:`MM-VOID:${record._id}`,description:reason
+          });
+        }
       }else if(record.cashSessionId){
         const movement=BigInt(String(record.physicalCashMovementMinor??record.amountMinor))*(record.physicalCashMovementMinor==null?(record.operation==='cash_in'?1n:-1n):1n);
         await require('./cashDrawer.service').fenceRecordChange(conn,session,record,decision==='approve'?-movement:0n);

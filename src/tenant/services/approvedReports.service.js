@@ -51,7 +51,7 @@ async function cashData(conn,scope,dateRange){
 async function cashImpact(conn,scope,dateRange,{legacyOnly=false}={}){
  const rows=await mobileTransactionModel(conn).aggregate([{$match:{...matchFor(scope,dateRange),status:{$ne:'voided_internal'},correctionState:{$ne:'voided'},
   ...(legacyOnly?{fundingState:{$ne:'book_recorded'}}:{}),
-  $or:[{paymentMethod:'Cash'},{paymentMethod:{$exists:false}},{paymentMethod:null}]}},{$group:{_id:'$currency',amount:{$sum:{$cond:[
+  $or:[{paymentMethod:'Cash'},{paymentMethod:{$exists:false}},{paymentMethod:null}]}},{$group:{_id:{$ifNull:['$cashCurrency','$currency']},amount:{$sum:{$cond:[
    {$ne:[{$ifNull:['$physicalCashMovementMinor',null]},null]},'$physicalCashMovementMinor',{$cond:[{$eq:['$operation','cash_in']},'$amountMinor',{$multiply:['$amountMinor',-1]}]}]}}}}]).option({maxTimeMS:5000});
  return Object.fromEntries(rows.map(row=>[row._id,String(row.amount)]));
 }

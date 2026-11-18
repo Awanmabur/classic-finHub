@@ -246,35 +246,29 @@ test('cross-currency exchange shows exact provider and drawer currency, quote mo
  assert.match(ready,/name="cashHandoverConfirmed"/);
 });
 
-test('currency conversion stays inside original cashier form and does not change same-currency posting',async()=>{
- const base=options();
- base.data.operation='cash_out';
- base.formatLocalDate=()=> '18 Nov 2026';
- const fx={
-  selected:true,operation:'withdraw_provider_receive_cash',
-  wallets:[{id:'507f1f77bcf86cd799439041',name:'MTN UGX wallet',network:'MTN',currency:'UGX'}],
-  drawers:[{id:'507f1f77bcf86cd799439042',name:'SSP drawer',currency:'SSP'}],
-  input:{fx:'1',walletAccountId:'507f1f77bcf86cd799439041',cashAccountId:'507f1f77bcf86cd799439042',providerAmount:'1000'},
-  result:{operation:'withdraw_provider_receive_cash',network:'MTN',walletAccountId:'507f1f77bcf86cd799439041',
-   cashAccountId:'507f1f77bcf86cd799439042',providerCurrency:'UGX',cashCurrency:'SSP',
-   providerAmountMinor:'1000',cashAmountMinor:'400000',walletDeltaMinor:'1000',cashDeltaMinor:'-400000',
-   rateSide:'buy',rateDecimal:'4',rateId:'507f1f77bcf86cd799439043',rateVersion:1,
-   rateExpiresAt:new Date('2026-11-19T13:00:00Z')},
-  quoteRate:{units:1000,rate:'4000',text:'1,000 UGX'},
-  canExecute:true,blockers:[],error:null,history:[],
-  idempotencyKey:requestKey,selectedBranchId:base.operationBranch._id,
-  formatMoneyMinor:(minor,currency)=>currency+' '+minor
- };
- base.data.fxState=fx;
- let html=await render('entry',base);
- assert.match(html,/Different-currency withdrawal/);
- assert.match(html,/1,000 UGX = 4000 SSP/);
- assert.match(html,/action="\/tenant\/mobile-money\/fx\/record"/);
- assert.match(html,/name="cashHandoverConfirmed"/);
- assert.doesNotMatch(html,/action="\/tenant\/mobile-money\/cash-out"[^>]*data-mobile-money-form/);
- assert.doesNotMatch(html,/regulatoryAuthorizationReference|providerAuthorizationReference/);
- base.data.fxState={...fx,selected:false,result:null,history:[]};
- html=await render('entry',base);
- assert.match(html,/action="\/tenant\/mobile-money\/cash-out"[^>]*data-mobile-money-form/);
- assert.doesNotMatch(html,/action="\/tenant\/mobile-money\/fx\/record"/);
+test('one original cashier form supports same/cross currency without a second page',async()=>{
+ const base=options();base.data.operation='cash_out';
+ base.data.fxState={selected:true,wallets:[],drawers:[]};
+ const html=await render('entry',base);
+ assert.ok(html.includes('action="/tenant/mobile-money/cash-out"'));
+ assert.ok(html.includes('data-mobile-money-form'));
+ for(const name of ['walletAccountId','paymentAccountId','fxRateId','fxCashAmountMinor','providerAppConfirmed'])
+  assert.ok(html.includes('name="'+name+'"'),name);
+ assert.ok(html.includes('data-momo-unified-preview'));
+ assert.ok(!html.includes('action="/tenant/mobile-money/fx/record"'));
+ assert.ok(!html.includes('regulatoryAuthorizationReference'));
+ const script=require('node:fs').readFileSync(path.resolve(__dirname,'../public/js/mobile-money-unified.js'),'utf8');
+ assert.ok(script.includes('/tenant/mobile-money/fx/preview'));
+ assert.ok(script.includes('result.cashAmountMinor'));
+ const dashboard=require('node:fs').readFileSync(path.resolve(__dirname,'../public/js/dashboard.js'),'utf8');
+ const layout=require('node:fs').readFileSync(path.resolve(__dirname,'../src/views/layouts/dashboard.ejs'),'utf8');
+ const page=require('node:fs').readFileSync(path.resolve(__dirname,'../src/views/tenant/mobile-money/entry.ejs'),'utf8');
+ assert.match(dashboard,/ClassicFinMobileUnified\?\.initialise\(form\)/,
+  'Existing New transaction dialog must activate the currency-aware form');
+ assert.match(dashboard,/ClassicFinMobileUnified\?\.initialise\(present\)/,
+  'Changing deposit to withdrawal in dialog must recalculate the exchange');
+ assert.match(layout,/mobile-money-unified\.js\?v=/,
+  'Shared tenant layout loads the quote logic for dialogs on any page');
+ assert.doesNotMatch(page,/script src="\/js\/mobile-money-unified\.js"/,
+  'Avoid duplicate form initializers on the Mobile Money page');
 });

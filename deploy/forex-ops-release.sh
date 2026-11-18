@@ -177,6 +177,6 @@ for p in / /signin /robots.txt /sitemap.xml; do
 done
 COMPLETE=1
 echo "FOREX OPERATIONS RELEASE LIVE: $SHA"
-echo "All three services healthy. FX posting switch enabled, provider/regulatory grants still enforced."
+echo "All three services healthy. MoMo FX internal posting enabled; account holds and audit controls remain enforced. Manual provider settlement is unverified."
 echo "Rollback suffix: $SUFFIX"
 docker exec classicfin-web-only node scripts/forex-readiness-production.js || true

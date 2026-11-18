@@ -297,10 +297,13 @@ async function reportRows({conn,filters,scope,dateRange}){
  const query={createdAt:dateRange||mobile.dateBounds({from:filters.from,to:filters.to},filters.timeZone||'UTC'),
   ...(scope.branchId?{branchId:new mongoose.Types.ObjectId(id(scope.branchId))}:{}),
   ...(scope.operatorId?{createdBy:new mongoose.Types.ObjectId(id(scope.operatorId))}:{})};
- const found=await forexQuoteModel(conn).aggregate([{$match:query},{$group:{_id:{from:'$fromCurrency',to:'$toCurrency',status:'$status'},
+ const found=await forexQuoteModel(conn).aggregate([{$match:query},{$group:{_id:{from:'$fromCurrency',to:'$toCurrency',status:'$status',
+  source:{$ifNull:['$originModule','forex']},network:{$ifNull:['$originNetwork','']},originOperation:{$ifNull:['$originOperation','']}} ,
   count:{$sum:1},amount:{$sum:'$sourceMinor'},target:{$sum:'$targetMinor'}}},{$sort:{'_id.from':1,'_id.to':1,'_id.status':1}},{$limit:501}]);
  if(found.length>500)throw fail('Too many forex report groups',422);
- return found.map(r=>({module:'Forex',activity:`${r._id.from} → ${r._id.to} indicative quote`,status:r._id.status,
+ return found.map(r=>({module:'Forex',
+  activity:`${r._id.from} → ${r._id.to} · ${r._id.source==='mobile_money'?'Mobile Money '+r._id.network+' '+r._id.originOperation:r._id.source==='banking'?'Banking':r._id.source==='money_transfer'?'Money Transfer':'Direct Forex'}`,
+  source:r._id.source,network:r._id.network,originOperation:r._id.originOperation,status:r._id.status,
   currency:r._id.from,count:r.count,amountMinor:r.amount?.toString()||'0',feesMinor:'0',targetCurrency:r._id.to,targetAmountMinor:r.target?.toString()||'0',
   volume:amountLabel(r.amount?.toString()||'0',r._id.from),fees:amountLabel('0',r._id.from)}));
 }

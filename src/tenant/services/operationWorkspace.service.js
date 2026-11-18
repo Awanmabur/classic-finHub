@@ -86,14 +86,20 @@ async function report(conn,tenant,actor,key,query={},timeZone='UTC'){
  const spec=definition(key),filters=filtersFor(key,query,timeZone),match=queryFor(actor,key,filters);
  const group={day:{$dateToString:{date:'$createdAt',format:'%Y-%m-%d',timezone:timeZone}},status:'$status',
   currency:key==='forex'?'$fromCurrency':'$currency',kind:key==='forex'?{$ifNull:['$operation','quote']}:key==='banking'?'$kind':{$literal:'transfer_request'}};
- if(key==='forex')group.targetCurrency='$toCurrency';
+ if(key==='forex'){
+  group.targetCurrency='$toCurrency';
+  group.source={$ifNull:['$originModule','forex']};
+  group.network={$ifNull:['$originNetwork','']};
+  group.sourceOperation={$ifNull:['$originOperation','']};
+ }
  const values={_id:group,count:{$sum:1},volume:{$sum:`$${spec.amount}`}};
  if(spec.fees)values.fees={$sum:`$${spec.fees}`};
  if(key==='forex')values.target={$sum:'$targetMinor'};
  const found=await spec.model(conn).aggregate([{$match:match},{$group:values},{$sort:{'_id.day':-1,'_id.currency':1,'_id.kind':1,'_id.status':1}},{$limit:1001}]);
  if(found.length>1000)throw fail('Report has more than 1,000 groups. Narrow the dates or filters.',422);
  const rows=found.map(row=>({day:row._id.day,status:row._id.status,kind:row._id.kind,currency:row._id.currency,
-  targetCurrency:row._id.targetCurrency||'',count:row.count,
+  targetCurrency:row._id.targetCurrency||'',source:row._id.source||'',
+  network:row._id.network||'',sourceOperation:row._id.sourceOperation||'',count:row.count,
   volume:formatAmount(row.volume?.toString()||'0',row._id.currency),
   fees:spec.fees?formatAmount(row.fees?.toString()||'0',row._id.currency):'',
   target:key==='forex'?formatAmount(row.target?.toString()||'0',row._id.targetCurrency):''}));
@@ -104,8 +110,8 @@ async function report(conn,tenant,actor,key,query={},timeZone='UTC'){
     'Pending requests remain separate from collected and paid-out manual transfers. Independently reviewed collection posts the funds and payable, then enables one-time PIN access; provider settlement remains separate.'};
 }
 function csv(report){
- const headers=['Date ('+(report.timeZone||'UTC')+')','Operation','Status','Currency','Records','Requested / quoted amount','Proposed fees','Target currency','Target quoted amount'];
- return '\uFEFF'+[headers,...report.rows.map(row=>[row.day,row.kind,row.status,row.currency,row.count,row.volume,row.fees,row.targetCurrency,row.target])]
+ const headers=['Date ('+(report.timeZone||'UTC')+')','Operation','Status','Currency','Records','Requested / quoted amount','Proposed fees','Target currency','Target quoted amount','Source module','Provider network','Original operation'];
+ return '\uFEFF'+[headers,...report.rows.map(row=>[row.day,row.kind,row.status,row.currency,row.count,row.volume,row.fees,row.targetCurrency,row.target,row.source||'',row.network||'',row.sourceOperation||''])]
   .map(row=>row.map(mobile.csvCell).join(',')).join('\r\n')+'\r\n';
 }
 async function formContext(conn,tenant,actor,key,operationBranch,input={}){

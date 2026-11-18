@@ -96,6 +96,18 @@ async function main(){
   const settled=await settleVerified(conn,tenant,owner,input,proof);
   assert.equal(settled.duplicate,false);
   assert.equal((await settleVerified(conn,tenant,owner,input,proof)).duplicate,true);
+  const momo=await core.mobileTransactionModel(conn).findOne({idempotencyKey:key}).lean();
+  const forex=await core.forexQuoteModel(conn).findOne({originModule:'mobile_money',originRecordId:momo?._id}).lean();
+  assert(momo&&forex,'one normal Mobile Money and linked Forex record must commit');
+  assert.equal(String(momo.fxSettlementId),String(settled.record._id));
+  assert.equal(String(settled.record.mobileMoneyRecordId),String(momo._id));
+  assert.equal(String(settled.record.forexQuoteId),String(forex._id));
+  assert.equal(forex.status,'posted_manual');
+  assert.equal(forex.originNetwork,'MTN');
+  assert.equal(forex.originOperation,operation==='withdraw_provider_receive_cash'?'cash_out':'cash_in');
+  assert.equal(String(momo.cashAmountMinor),String(settled.record.cashAmountMinor));
+  assert.equal(momo.cashCurrency,'SSP');
+  assert.equal(momo.currency,'UGX');
   assert.equal((await tm.models(conn).movement.countDocuments({batchId:settled.record.journalBatchId})),2);
   assert.equal((await tm.models(conn).batch.findById(settled.record.journalBatchId)).journalIds.length,2);
   return {q,settled,input,proof};
@@ -132,6 +144,9 @@ async function main(){
   'a different request key cannot double-spend the same provider receipt');
  assert.deepEqual(await balances(),beforeSecurityChecks,'forged or replayed provider receipts must never move custody');
  assert.equal(await records(conn).countDocuments({tenantId:tenant._id}),3);
+ assert.equal(await core.mobileTransactionModel(conn).countDocuments({branchId:branch._id,fxSettlementId:{$ne:null}}),3);
+ assert.equal(await core.forexQuoteModel(conn).countDocuments({branchId:branch._id,originModule:'mobile_money',status:'posted_manual'}),3);
+ assert.equal(await tm.models(conn).batch.countDocuments({sourceRef:{$regex:/^MFX:/}}),3,'Only three real financial movements; there must be no second Forex posting');
  for(const currency of ['UGX','SSP'])
   assert.equal((await require('../src/tenant/services/ledger.service').trialBalance(conn,{branchId:branch._id,currency})).balanced,true);
  const bad=await preview(conn,tenant,owner,branch,{operation:'withdraw_provider_receive_cash',walletAccountId:String(wallet._id),
@@ -146,6 +161,8 @@ async function main(){
 
  assert.deepEqual(await balances(),existingBalance,'both custody movements must roll back together');
  assert.equal(await records(conn).countDocuments(),originalCount,'failed exchange cannot appear settled');
+ assert.equal(await core.mobileTransactionModel(conn).countDocuments({fxSettlementId:{$ne:null}}),originalCount,'Failed exchange must not leave an orphan MoMo record');
+ assert.equal(await core.forexQuoteModel(conn).countDocuments({originModule:'mobile_money'}),originalCount,'Failed exchange must not leave an orphan Forex record');
  assert.equal(await tm.models(conn).batch.countDocuments({sourceRef:{$regex:/^MFX:/}}),3,'failed exchange cannot create a journal batch');
  // Explicit legacy suspension still fences future posts even though
  // ordinary internal book recording no longer requires document grants.
@@ -164,6 +181,19 @@ async function main(){
  }),error=>error.status===403&&/hold|suspend/.test(error.message),
  'suspended provider grant must prevent all future cross-currency postings');
  assert.deepEqual(await balances(),existingBalance,'suspended authorization must not move money');
+ const mobile=require('../src/tenant/services/mobileMoney.service');
+ await mobile.requestVoid(conn,owner,manual.mobile._id,
+  'Customer exchange was corrected with real funds recovered in test');
+ const correction=await mobile.decideVoid(conn,reviewer,manual.mobile._id,'approve',
+  'Independent proof of restored cash and wallet funds verified before journal reversal');
+ assert.equal(correction.correctionState,'voided');
+ const linked=await core.forexQuoteModel(conn).findOne({originModule:'mobile_money',originRecordId:manual.mobile._id}).lean();
+ assert.equal(linked.status,'reversed_manual');
+ assert.deepEqual(await balances(),{wallet:'1050',drawer:'46000'},'Both native-currency balances reverse once');
+ assert.equal(await tm.models(conn).batch.countDocuments({sourceRef:{$regex:/^MFX:/}}),3,'Reverse never re-posts original Forex custody');
+ assert.equal(await tm.models(conn).batch.countDocuments({sourceRef:'MM-VOID:'+manual.mobile._id}),1,'One linked correction journal');
+ await assert.rejects(mobile.decideVoid(conn,reviewer,manual.mobile._id,'approve',
+  'Repeat review must not repost or reverse a second time'),{status:409});
  console.log('PASS: Mobile Money-only entitlement without document grants, owner 1,000-unit FX rates, opposite UGX/SSP cash directions, atomic native-currency journals, duplicate protection, insufficient-funds rollback, suspended pair hold and unmeasured FX profit.');
 }
 async function cleanup(){

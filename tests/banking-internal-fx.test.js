@@ -31,7 +31,7 @@ test('Banking FX access needs source and Forex module, customer accounts and app
 test('Banking internal currency exchange template uses CSRF, evidence and two native currencies',async()=>{
  const filename=path.join(__dirname,'../src/views/tenant/banking/fx-exchange.ejs');
  const html=await ejs.renderFile(filename,{
-  data:{accounts:[{_id:'507f1f77bcf86cd799439011',customerName:'Example Customer',
+  data:{rateDisplay:require('../src/tenant/services/forexRateUnits.service').display,accounts:[{_id:'507f1f77bcf86cd799439011',customerName:'Example Customer',
     accountNumber:'CUSTOMER-123456',currency:'UGX'}],
    rates:[{_id:'507f1f77bcf86cd799439012',revision:1,rateDecimal:'0.00027',
     fromCurrency:'UGX',toCurrency:'USD',side:'buy'}],
@@ -59,7 +59,7 @@ test('Banking FX code never claims that customer ledger transfer executes an ext
 test('Banking FX final confirmation shows the exact two-currency quote and retains fixed idempotency',async()=>{
  const filename=path.join(__dirname,'../src/views/tenant/banking/fx-confirm.ejs');
  const html=await ejs.renderFile(filename,{csrfToken:'some-csrf',
-  data:{review:{
+  data:{rateDisplay:require('../src/tenant/services/forexRateUnits.service').display,review:{
    source:{_id:'507f1f77bcf86cd799439011',customerName:'Example Customer',currency:'UGX',accountNumber:'AC1234'},
    destination:{_id:'507f1f77bcf86cd799439012',currency:'USD',accountNumber:'AC5678'},
    sourceLabel:'UGX 2,000',destinationLabel:'USD 0.54',rate:{side:'buy',fromCurrency:'UGX',toCurrency:'USD'},

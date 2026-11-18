@@ -10,6 +10,7 @@
  <a class="btn" href="/tenant/forex">Configure a real exchange rate</a>
 <% }else{ %>
 <input type="hidden" name="originModule" value="<%= data.originModule||'forex' %>">
+<input type="hidden" name="originRecordId" value="<%= data.originRecordId||'' %>">
 <% if(data.originModule&&data.originModule!=='forex'){ %>
  <p class="tiny">Started from <%= data.originModule.replaceAll('_',' ') %>. This exchange posts actual currency stock and settlement balances, but does not itself send funds through a bank, telecom network or remittance provider.</p>
 <% } %>

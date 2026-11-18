@@ -42,7 +42,7 @@
       <label class="field">Approved exchange rate
        <select class="control" name="rateChoice" required><option value="">Choose currency pair and direction</option>
         <% data.rates.forEach(r=>{ %>
-         <option value="<%= r._id %>:<%= r.revision %>:<%= r.rateDecimal %>"><%= r.fromCurrency %> → <%= r.toCurrency %> · <%= r.side==='buy'?'Buy':'Sell' %> · <%= r.rateDecimal %></option>
+         <option value="<%= r._id %>:<%= r.revision %>:<%= r.rateDecimal %>"><% const quote=data.rateDisplay(r.rateDecimal,r.fromCurrency); %><%= r.fromCurrency %> → <%= r.toCurrency %> · <%= r.side==='buy'?'Buy':'Sell' %> · <%= quote.text %> = <%= quote.rate %> <%= r.toCurrency %></option>
         <% }) %>
        </select>
       </label>
@@ -66,7 +66,7 @@
       <tr><td><%= formatLocalDate(r.postedAt,r.branchId) %></td>
        <td><%= data.formatMoneyMinor(r.sourceAmountMinor,r.sourceCurrency) %></td>
        <td><%= data.formatMoneyMinor(r.destinationAmountMinor,r.destinationCurrency) %></td>
-       <td><%= r.rateSide.toUpperCase() %> <%= r.rateDecimal %></td>
+       <td><% const rd=data.rateDisplay(r.rateDecimal,r.sourceCurrency); %><%= r.rateSide.toUpperCase() %> · <%= rd.text %> = <%= rd.rate %> <%= r.destinationCurrency %></td>
        <td><%= r.evidenceReference %></td><td>Posted internally · no external bank payment</td>
       </tr>
      <% }) %></tbody>

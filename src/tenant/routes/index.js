@@ -121,6 +121,13 @@ for (const [path,op,permission] of [['cash-in','cash_in','mobile_money.cash_in']
         'Transaction recorded as final in Mobile Money. Provider settlement remains independently unverified.');
        require('../services/branchView.service').followRecord(req,result.created);
       }else{
+       // Fee and conversion must be the exact same terms the cashier previewed.
+       // In particular, no client may silently post an extra fee outside the
+       // owner-controlled cross-currency quote.
+       if(!/^0+(?:\.0+)?$/.test(String(req.body.fee??'0').trim())){
+        const error=new Error('Cross-currency amount includes the owner-approved rate only. Clear the separate fee and recheck the displayed cash amount.');
+        error.status=409;throw error;
+       }
        const direction=op==='cash_out'?'withdraw_provider_receive_cash':'deposit_cash_send_provider';
        const serverQuote=await require('../services/momoFxPreview.service').preview(
         req.tenantDb,req.tenant,req.user,req.operationBranch,{

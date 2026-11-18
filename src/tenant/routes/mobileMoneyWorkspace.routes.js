@@ -46,6 +46,17 @@ module.exports=function routes({renderTenant}){
   if(!grantApproved)blockers.push('This exact wallet and drawer are not enabled as an approved currency pair.');
   if(!hasPermission(req.user,permission))blockers.push('You cannot perform this Mobile Money operation.');
   if(!hasPermission(req.user,'treasury.observe'))blockers.push('You need Treasury operation permission.');
+  // The final ledger still rechecks atomically; quote UI must not invite a
+  // cashier to hand over funds when the latest visible book is insufficient.
+  if(result){
+   const debit=result.operation==='withdraw_provider_receive_cash'?
+    drawers.find(d=>d.id===result.cashAccountId):
+    wallets.find(w=>w.id===result.walletAccountId);
+   const debitAmount=result.operation==='withdraw_provider_receive_cash'?
+    result.cashAmountMinor:result.providerAmountMinor;
+   if(!debit||debit.expectedMinor==null||BigInt(String(debit.expectedMinor))<BigInt(debitAmount))
+    blockers.push('Insufficient available '+(result.operation==='withdraw_provider_receive_cash'?result.cashCurrency+' physical cash':result.providerCurrency+' provider float')+' for this quote.');
+  }
   const canExecute=Boolean(result&&blockers.length===0);
   const history=selected?await require('../schemas/MomoFxSettlement').records(req.tenantDb).find({
    tenantId:req.tenant._id,branchId:req.operationBranch._id,

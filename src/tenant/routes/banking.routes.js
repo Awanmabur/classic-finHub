@@ -44,7 +44,7 @@ function routes({renderTenant}){
    if(!req.operationBranch)return res.status(409).send('Choose an operating branch');
    const fxBank=require('../services/bankingInternalFx.service');
    const [available,records]=await Promise.all([
-    fxBank.options(req.tenantDb,req.tenant,req.user,req.operationBranch),
+    fxBank.options(req.tenantDb,req.tenant,req.user,req.operationBranch,{search:req.query.q||''}),
     fxBank.history(req.tenantDb,req.tenant,req.user,req.operationBranch)
    ]);
    renderTenant(req,res,'banking/fx-exchange','Internal Banking Currency Exchange',

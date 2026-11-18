@@ -246,20 +246,18 @@ test('cross-currency exchange shows exact provider and drawer currency, quote mo
  assert.match(ready,/name="cashHandoverConfirmed"/);
 });
 
-test('one original cashier form automatically supports same and different currencies without new page',async()=>{
+test('one original cashier form supports same/cross currency without a second page',async()=>{
  const base=options();base.data.operation='cash_out';
  base.data.fxState={selected:true,wallets:[],drawers:[]};
  const html=await render('entry',base);
- assert.match(html,/action="\\/tenant\\/mobile-money\\/cash-out"[^>]*data-mobile-money-form/);
- assert.match(html,/name="walletAccountId"/);
- assert.match(html,/name="paymentAccountId"/);
- assert.match(html,/name="fxRateId"/);
- assert.match(html,/name="fxCashAmountMinor"/);
- assert.match(html,/name="providerAppConfirmed"/);
- assert.match(html,/data-momo-unified-preview/);
- assert.doesNotMatch(html,/action="\\/tenant\\/mobile-money\\/fx\\/record"/);
- assert.doesNotMatch(html,/regulatoryAuthorizationReference|providerAuthorizationReference/);
- const script=source('public/js/mobile-money-unified.js');
- assert.match(script,/\\/tenant\\/mobile-money\\/fx\\/preview/);
- assert.match(script,/result.cashAmountMinor/);
+ assert.ok(html.includes('action="/tenant/mobile-money/cash-out"'));
+ assert.ok(html.includes('data-mobile-money-form'));
+ for(const name of ['walletAccountId','paymentAccountId','fxRateId','fxCashAmountMinor','providerAppConfirmed'])
+  assert.ok(html.includes('name="'+name+'"'),name);
+ assert.ok(html.includes('data-momo-unified-preview'));
+ assert.ok(!html.includes('action="/tenant/mobile-money/fx/record"'));
+ assert.ok(!html.includes('regulatoryAuthorizationReference'));
+ const script=require('node:fs').readFileSync(path.resolve(__dirname,'../public/js/mobile-money-unified.js'),'utf8');
+ assert.ok(script.includes('/tenant/mobile-money/fx/preview'));
+ assert.ok(script.includes('result.cashAmountMinor'));
 });

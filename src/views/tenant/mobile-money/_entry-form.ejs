@@ -13,7 +13,7 @@
    const entryCurrency=entryVerifiedMarket(selectedEntryNetwork)||data.entryCurrency||currentBranch.currency;
    const entryAmountPattern = entryCurrency === 'UGX' ? '[0-9]{1,11}' : '[0-9]{1,11}([.][0-9]{1,2})?';
    const entryCurrencyLabel = typeof currencyLabel === 'function' ? currencyLabel(entryCurrency) : (entryCurrency === 'KES' ? 'KSH' : entryCurrency); %>
-<form class="card mobileMoneyEntry" method="post" action="/tenant/mobile-money/<%= entryOperation === 'cash_in' ? 'cash-in' : 'cash-out' %>" autocomplete="off" data-mobile-money-form data-operation="<%= entryOperation %>" data-currency="<%= entryCurrency %>" data-currency-label="<%= entryCurrencyLabel %>">
+<form class="card mobileMoneyEntry" method="post" action="/tenant/mobile-money/<%= entryOperation === 'cash_in' ? 'cash-in' : 'cash-out' %>" autocomplete="off" data-mobile-money-form data-unified-currency="true" data-operation="<%= entryOperation %>" data-currency="<%= entryCurrency %>" data-currency-label="<%= entryCurrencyLabel %>">
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
   <input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
   <div class="cardHead"><div><b>Mobile Money - <%= entryLabel %></b><br><span>Customer, network, and amount details</span></div></div>
@@ -67,12 +67,28 @@
       <p class="tiny" data-mobile-quote-note></p>
     </section>
 
+    <section class="summary" data-momo-unified-preview aria-live="polite">
+      <div class="sumRow"><span>Exchange type</span><b data-momo-unified-mode>Choose wallet and drawer</b></div>
+      <div class="sumRow"><span>Customer cash <span data-momo-cash-currency></span></span>
+       <b data-momo-unified-cash>—</b></div>
+      <div class="sumRow" data-momo-rate-row hidden><span>Owner's locked exchange rate</span>
+       <b data-momo-rate>—</b></div>
+      <p class="tiny" data-momo-unified-message>Accounts and amounts are checked against real cash and float. Different currencies use a locked rate, with Forex recorded in the background.</p>
+    </section>
+    <input type="hidden" name="fxRateId" value="">
+    <input type="hidden" name="fxRateVersion" value="">
+    <input type="hidden" name="fxCashAmountMinor" value="">
+    <section class="formSection" data-momo-cross-confirm hidden>
+      <label class="field"><input type="checkbox" name="providerAppConfirmed" value="yes"> Actual provider transaction confirmed in the network application</label>
+      <label class="field"><input type="checkbox" name="cashHandoverConfirmed" value="yes"> I have actually received or paid the displayed physical cash amount</label>
+    </section>
+
     <div class="summary">
       <div class="sumRow"><span data-mobile-total-label><%= entryOperation==='cash_out'?'Physical cash paid to customer':'Physical cash received from customer' %></span><b data-mobile-total>—</b></div>
       <div class="sumRow"><span>Reference</span><b class="mono mobileRequestReference" data-mobile-reference><%= data.idempotencyKey %></b></div>
     </div>
     <details class="logicNote"><summary>Additional details</summary><div class="row2"><label class="field">Customer name<input class="control" name="customer" placeholder="Optional customer name" minlength="2" maxlength="120" autocomplete="name"></label><label class="field">Customer ID / note<input class="control" name="customerNote" placeholder="Optional verification or note" maxlength="400"></label></div></details>
-    <p class="tiny">Only record a transaction after the official network confirms it and the real customer cash exchange has occurred. Internal posting is immediate; independent review is separate.</p>
+    <p class="tiny">Same currency records one Mobile Money transaction. Different currency records the same customer transaction in Mobile Money and a linked Forex exchange, with a single cash/float posting. Confirm actual provider payment and cash handover first.</p>
     <div class="rowBtns"><button class="btn btnPrimary" type="submit" data-mobile-submit-label><%= entryOperation==='cash_in'?'Record deposit':'Record withdrawal' %></button></div>
   </div>
 </form>

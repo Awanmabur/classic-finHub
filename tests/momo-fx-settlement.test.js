@@ -16,9 +16,22 @@ test('cross-currency posting is disabled by default independent of caller inputs
  }
 });
 test('cross-currency records require linked journal and verified provider evidence',()=>{
- for(const key of ['journalBatchId','providerEvidenceId','complianceGrantId','rateId','walletAccountId','cashAccountId'])
+ for(const key of ['journalBatchId','providerEvidenceId','rateId','walletAccountId','cashAccountId'])
   assert.equal(models.recordSchema.path(key).isRequired,true,key+' is required');
 });
+test('internal Mobile Money book records do not require compliance document grants',()=>{
+ assert.equal(models.recordSchema.path('complianceGrantId').isRequired,false);
+ const rate=require('../src/tenant/services/mobileMoneyFxRate.service');
+ assert.equal(rate.inputRate({fromCurrency:'UGX',toCurrency:'SSP',side:'buy',
+  rateBaseUnits:'1000',quotedRate:'350',validHours:'24'}).rateDecimal,'0.35');
+ assert.equal(rate.inputRate({fromCurrency:'KES',toCurrency:'SSP',side:'sell',
+  rateBaseUnits:'1000',quotedRate:'2500'}).rateDecimal,'2.5');
+ assert.throws(()=>rate.inputRate({fromCurrency:'UGX',toCurrency:'UGX',
+  side:'buy',rateBaseUnits:'1000',quotedRate:'350'}),{status:400});
+ assert.throws(()=>rate.inputRate({fromCurrency:'UGX',toCurrency:'SSP',
+  side:'buy',rateBaseUnits:'10',quotedRate:'350'}),{status:400});
+});
+
 test('idempotency, provider reference and external evidence have unique indexes',()=>{
  const indexes=models.recordSchema.indexes().filter(([keys,options])=>options.unique);
  for(const field of ['idempotencyKey','providerReference','providerEvidenceId'])

@@ -251,6 +251,13 @@ async function main(){
  assert.equal(bankFxPosted.record.state,'posted_internal');
  assert.equal(bankFxPosted.record.journalIds.length,2);
  assert.equal((await bankFx.convert(conn,tenant,owner,branch,fxBankInput)).duplicate,true);
+ const priorFxJournalCount=await core.ledgerJournalModel(conn).countDocuments();
+ await assert.rejects(bankFx.convert(conn,tenant,owner,branch,{
+  ...fxBankInput,idempotencyKey:crypto.randomUUID()
+ }),error=>error.status===409&&/voucher/.test(error.message),
+ 'a second generated transaction ID cannot reuse a posted customer-approved voucher');
+ assert.equal(await core.ledgerJournalModel(conn).countDocuments(),priorFxJournalCount,
+  'blocked duplicate customer voucher cannot create extra books');
  assert.equal(await customerBook(accountA),3000n,'Bank FX source liability debited once');
  assert.equal(await customerBook(usdAccount),54n,'Bank FX USD customer liability credited once');
  await assert.rejects(bankFx.convert(conn,tenant,owner,branch,{...fxBankInput,

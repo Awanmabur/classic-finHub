@@ -24,23 +24,31 @@ function eligible(tenant,actor){
   hasPermission(actor,'forex.quotes.create')&&hasPermission(actor,'accounts.view')&&hasPermission(actor,'treasury.observe')&&
   ['Tenant Owner','Banking Operator'].includes(actor.role);
 }
-async function options(conn,tenant,actor,branch){
+async function options(conn,tenant,actor,branch,filter={}){
  if(!branch||branch.status!=='active'||!eligible(tenant,actor))throw fail('Banking, Forex, customer-account and financial operation access is required',403);
  if(actor.role!=='Tenant Owner'&&String(actor.branchId)!==String(branch._id))throw fail('Branch assignment changed',403);
+ const search=String(filter.search||'').trim();
+ if(search.length>60)throw fail('Account search is too long',400);
+ const selectedIds=Array.isArray(filter.selectedIds)&&filter.selectedIds.length===2?
+  filter.selectedIds.map(id):null;
+ const escaped=search.replace(/[.*+?^${}()|[\]\\]/g,'\\ const [customerAccounts,rates]=await Promise.all([');
+ const searchMatch=selectedIds?{_id:{$in:selectedIds.map(x=>new mongoose.Types.ObjectId(x))}}:
+  search?{$or:[{accountNumber:new RegExp(escaped,'i')},{'customer.name':new RegExp(escaped,'i')}]}:{};
  const [customerAccounts,rates]=await Promise.all([
   accounts.accountModel(conn).aggregate([
    {$match:{branchId:branch._id,status:'active',currency:{$in:currencySupport.supported(branch)}}},
    {$lookup:{from:accounts.customerModel(conn).collection.name,localField:'customerId',foreignField:'_id',as:'customer'}},
    {$unwind:'$customer'},{$match:{'customer.status':'active','customer.branchId':branch._id}},
-   {$sort:{accountNumber:1}},{$limit:201},
+   {$match:searchMatch},{$sort:{accountNumber:1}},{$limit:101},
    {$project:{_id:1,customerId:1,ledgerAccountId:1,accountNumber:1,currency:1,customerName:'$customer.name'}}
   ]).option({maxTimeMS:3000}),
   core.forexRateModel(conn).find({branchId:branch._id,status:'active',side:{$in:['buy','sell']},
    expiresAt:{$gt:new Date()},reviewedBy:{$ne:null}}).select('fromCurrency toCurrency side rateDecimal revision expiresAt')
    .sort({fromCurrency:1,toCurrency:1,side:1}).limit(100).lean()
  ]);
- if(customerAccounts.length>200)throw fail('More than 200 customer accounts. Narrow the branch account list before exchanging.',422);
- const ledgerIds=customerAccounts.map(account=>account.ledgerAccountId);
+ const truncated=customerAccounts.length>100;
+ const selectedAccounts=customerAccounts.slice(0,100);
+ const ledgerIds=selectedAccounts.map(account=>account.ledgerAccountId);
  const postings=ledgerIds.length?await core.ledgerPostingModel(conn).aggregate([
   {$match:{accountId:{$in:ledgerIds},branchId:branch._id}},
   {$group:{_id:{accountId:'$accountId',side:'$side',currency:'$currency'},amount:{$sum:'$amountMinor'}}}
@@ -50,11 +58,11 @@ async function options(conn,tenant,actor,branch){
   const key=String(row._id.accountId),sign=row._id.side==='credit'?1n:-1n;
   balances.set(key,(balances.get(key)||0n)+BigInt(String(row.amount))*sign);
  }
- return {accounts:customerAccounts.map(account=>({...account,
+ return {accounts:selectedAccounts.map(account=>({...account,
   balanceMinor:String(balances.get(String(account.ledgerAccountId))||0n),
   balanceLabel:require('./mobileMoney.service').formatMoneyMinor(
    String(balances.get(String(account.ledgerAccountId))||0n),account.currency)
- })),rates};
+ })),rates,search,truncated};
 }
 async function balance(conn,session,ledgerId,branchId,currency){
  const groups=await core.ledgerPostingModel(conn).aggregate([
@@ -94,7 +102,7 @@ async function preview(conn,tenant,actor,branch,input={}){
  if(!UUID.test(String(input.idempotencyKey||'')))throw fail('Reload the exchange form before previewing',400);
  if(input.confirmCustomerAuthority!=='yes')throw fail('Confirm customer authorization before previewing the actual transaction');
  const evidenceReference=ref(input.evidenceReference);
- const {accounts:available,rates}=await options(conn,tenant,actor,branch);
+ const {accounts:available,rates}=await options(conn,tenant,actor,branch,{selectedIds:[sourceId,destinationId]});
  const source=available.find(a=>String(a._id)===sourceId),destination=available.find(a=>String(a._id)===destinationId);
  if(!source||!destination||String(source.customerId)!==String(destination.customerId)||source.currency===destination.currency)
   throw fail('Both selected active accounts must belong to the same customer and use different currencies',409);

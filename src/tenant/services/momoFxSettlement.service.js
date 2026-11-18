@@ -7,7 +7,7 @@ const crypto=require('node:crypto');
 const {records,grants,ensure:ensureFxIndexes}=require('../schemas/MomoFxSettlement');
 const {models:treasuryModels,ensure:ensureTreasury}=require('../treasury/models');
 const treasury=require('../treasury/service');
-const {forexRateModel,branchModel,auditEventModel,mobileTransactionModel,ensureTenantIndexes}=require('../models');
+const {forexRateModel,forexQuoteModel,branchModel,auditEventModel,mobileTransactionModel,ensureTenantIndexes}=require('../models');
 const {hasModuleForUser,hasPermission}=require('./moduleAccess.service');
 const {quote}=require('./momoFxQuote.service');
 const OID=/^[a-f0-9]{24}$/i,UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
@@ -191,7 +191,22 @@ async function settleVerified(conn,tenant,actor,input,proof){
     fxSettlementId:crossId,cashCurrency:cash.currency,cashAmountMinor:dec(q.cashAmountMinor),
     exchangeRateDecimal:rate.rateDecimal,riskSignals,entrySource:'manual'
    }],{session});
-   const [record]=await Record.create([{_id:crossId,mobileMoneyRecordId:mobileId,sourceModule:'mobile_money',
+   const forexId=new mongoose.Types.ObjectId();
+   const [forexRecord]=await forexQuoteModel(conn).create([{
+    _id:forexId,reference:'MFX-'+input.idempotencyKey,idempotencyKey:input.idempotencyKey,
+    branchId:branch._id,createdBy:actor.id,customerLabel:customer,
+    operation:rate.side,originModule:'mobile_money',originRecordId:mobileId,
+    originNetwork:wallet.network,originOperation:operation,rateId:rate._id,
+    fromCurrency:wallet.currency,toCurrency:cash.currency,
+    rateDecimal:rate.rateDecimal,sourceMinor:dec(q.providerAmountMinor),
+    targetMinor:dec(q.cashAmountMinor),validMinutes:5,
+    expiresAt:new Date(rate.expiresAt),
+    status:'posted_manual',manualPostedAt:new Date(),
+    note:'Linked '+wallet.network+' Mobile Money '+(operation==='cash_out'?'withdrawal':'deposit')+
+     ', provider ref '+input.providerReference+'. One Treasury posting; external provider confirmation is separately unverified.'
+   }],{session});
+   const [record]=await Record.create([{_id:crossId,mobileMoneyRecordId:mobileId,
+    forexQuoteId:forexRecord._id,sourceModule:'mobile_money',
     tenantId:tenant._id,branchId:branch._id,actorId:actor.id,
     idempotencyKey:input.idempotencyKey,providerReference:input.providerReference,
     network:wallet.network,operation:input.operation,walletAccountId:wallet._id,
@@ -207,6 +222,7 @@ async function settleVerified(conn,tenant,actor,input,proof){
    await auditEventModel(conn).create([{action:'mobile_money.fx.settled',actorId:actor.id,targetId:record._id,
     metadata:{branchId,providerReference:input.providerReference,providerCurrency:wallet.currency,
       cashCurrency:cash.currency,treasuryBatchId:String(posting.batch._id),mobileMoneyRecordId:String(mobile._id),
+      forexQuoteId:String(forexRecord._id),
       sourceModule:'mobile_money',network:wallet.network,operation}}],{session});
    result={record,mobile,duplicate:false};
   },{readConcern:{level:'snapshot'}});

@@ -25,6 +25,7 @@ for(const op of ['updateOne','updateMany','replaceOne','findOneAndUpdate','findO
  schema.pre(op,function(next){next(new Error('Posted Banking FX evidence is append-only'));});
 schema.pre('save',function(next){next(this.isNew?null:new Error('Posted Banking FX evidence is append-only'));});
 schema.index({tenantId:1,idempotencyKey:1},{unique:true});
+schema.index({tenantId:1,branchId:1,evidenceReference:1},{unique:true});
 schema.index({tenantId:1,branchId:1,postedAt:-1,_id:-1});
 const model=conn=>conn.models.BankingInternalFxV1||conn.model('BankingInternalFxV1',schema);
 const pending=new WeakMap();

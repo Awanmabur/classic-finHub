@@ -86,7 +86,13 @@ async function settleVerified(conn,tenant,actor,input,proof){
      existing.operation!==input.operation||String(existing.actorId)!==String(actor.id)||
      String(existing.walletAccountId)!==input.walletAccountId||
      String(existing.cashAccountId)!==input.cashAccountId||
-     String(existing.providerAmountMinor)!==input.providerAmountMinor)
+     String(existing.branchId)!==String(input.branchId||'')||
+     String(existing.providerAmountMinor)!==String(input.providerAmountMinor)||
+     String(existing.cashAmountMinor)!==String(input.cashAmountMinor)||
+     existing.providerCurrency!==input.providerCurrency||existing.cashCurrency!==input.cashCurrency||
+     String(existing.rateId)!==String(input.rateId)||
+     existing.rateVersion!==Number(input.rateVersion)||
+     existing.rateDecimal!==String(input.rateDecimal))
     throw fail('Idempotency reference already used for another exchange');
   return {record:existing,duplicate:true};
  }

@@ -32,7 +32,8 @@ module.exports=function routes({renderTenant}){
     canQuote:fx.operator(req.user)&&hasPermission(req.user,'forex.quotes.create'),
     canRateReview:fx.reviewer(req.user)&&hasPermission(req.user,'forex.rate_review'),
     canQuoteReview:fx.reviewer(req.user)&&hasPermission(req.user,'forex.quotes.review'),
-    idempotencyKey:crypto.randomUUID(),amountLabel:fx.amountLabel
+    idempotencyKey:crypto.randomUUID(),amountLabel:fx.amountLabel,
+    rateDisplay:require('../services/forexRateUnits.service').display
    });
   }catch(e){next(e);}
  });

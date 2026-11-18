@@ -31,7 +31,9 @@ function routes({renderTenant}){
      records,branches,queue,references,selectedBranchId:branch?selectedId:null,
     currencyChoices:require('../services/branchCurrency.service').options(req.operationBranch),selectedCurrency:req.operationBranch?require('../services/branchCurrency.service').resolve(req.operationBranch,req.query.currency):null,
     canCreate:bank.operator(req.user)&&hasPermission(req.user,'banking.requests.create'),
-    canFx:hasModuleForUser(req.tenant,req.user,'forex')&&hasPermission(req.user,'forex.quotes.create'),
+    canFx:hasModuleForUser(req.tenant,req.user,'forex')&&hasModuleForUser(req.tenant,req.user,'accounts')&&
+     hasPermission(req.user,'forex.quotes.create')&&hasPermission(req.user,'banking.requests.create')&&
+     hasPermission(req.user,'accounts.view')&&hasPermission(req.user,'treasury.observe'),
     canReview:bank.reviewer(req.user)&&hasPermission(req.user,'banking.review'),
     idempotencyKey:crypto.randomUUID(),formatMoneyMinor
    });

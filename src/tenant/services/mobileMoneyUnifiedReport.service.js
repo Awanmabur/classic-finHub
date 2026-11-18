@@ -135,8 +135,35 @@ async function generate(conn,tenant,actor,input={},timeZone='UTC'){
  const expenseQuery=expensesAccessible?expenseModel(conn).aggregate([{$match:{
   ...scope,status:'approved',reviewedAt:window.bounds,...(input.currency?{currency:input.currency}:{})
  }},{$group:{_id:{currency:'$currency'},count:{$sum:1},amountMinor:{$sum:'$amountMinor'}}}]).option({maxTimeMS:8000}):Promise.resolve([]);
- const [transactions,payouts,expenses]=await Promise.all([txQuery,payoutQuery,expenseQuery]);
- return {window,...summarize(transactions,payouts,expenses),expensesAccessible,
+ // Cross-currency customer operations are stored once in their own immutable
+ // record collection. Report them inside Mobile Money, but never combine UGX
+ // electronic principal and SSP/KES physical cash into one fictitious amount.
+ const fxScope={tenantId:tenant._id,settledAt:window.bounds,
+  ...(scope.branchId?{branchId:scope.branchId}:{}),
+  ...(scope.operatorId?{actorId:scope.operatorId}:{})};
+ if(input.network)fxScope.network=input.network;
+ if(input.currency)fxScope.$or=[{providerCurrency:input.currency},{cashCurrency:input.currency}];
+ const fxQuery=require('../schemas/MomoFxSettlement').records(conn).aggregate([
+  {$match:fxScope},
+  {$group:{_id:{network:'$network',operation:'$operation',
+     providerCurrency:'$providerCurrency',cashCurrency:'$cashCurrency'},
+   count:{$sum:1},providerMinor:{$sum:'$providerAmountMinor'},
+   cashMinor:{$sum:'$cashAmountMinor'},
+   unverified:{$sum:{$cond:[{$eq:['$providerSettlementState','unverified']},1,0]}}}},
+  {$sort:{'_id.network':1,'_id.providerCurrency':1,'_id.cashCurrency':1}},
+  {$limit:501}
+ ]).option({maxTimeMS:8000});
+ const [transactions,payouts,expenses,fxGroups]=await Promise.all([txQuery,payoutQuery,expenseQuery,fxQuery]);
+ if(fxGroups.length>500)throw fail('Too many currency exchange report groups. Narrow the dates.',422);
+ const fxRows=fxGroups.map(group=>({
+  network:group._id.network,operation:group._id.operation,
+  providerCurrency:group._id.providerCurrency,cashCurrency:group._id.cashCurrency,
+  count:group.count,unverified:group.unverified,
+  providerMinor:String(group.providerMinor),cashMinor:String(group.cashMinor),
+  providerFormatted:format(group.providerMinor,group._id.providerCurrency),
+  cashFormatted:format(group.cashMinor,group._id.cashCurrency)
+ }));
+ return {window,...summarize(transactions,payouts,expenses),fxRows,expensesAccessible,
   payoutsAccessible:hasPayoutScope,
   note:'Cash/float principal is not revenue. Recorded fees and provider commission estimates are not received income. Provider network charges are not agent revenue. Only posted provider payouts and explicitly collected agent fees are identified as received/collected. Expenses cover all approved branch costs and are not allocated to an individual network. Historical wallet-commission recognition is shown separately to detect double counting. Provider settlement is not established by an internal review.'};
 }
@@ -153,7 +180,11 @@ function csv(report){
  ].map(v=>typeof v==='bigint'?String(v):v)),
  ['Business period ('+report.window.timeZone+')',report.window.from+' to '+report.window.to],
  ['Expenses scope','All approved branch expenses, not allocated by provider'],
- ...report.expenses.map(e=>['Approved expenses '+e.currency,e.amountMinor])
+ ...report.expenses.map(e=>['Approved expenses '+e.currency,e.amountMinor]),
+ ['Cross-currency Mobile Money (separate native currencies; never sum principals)'],
+ ['Network','Operation','Provider currency','Cash currency','Count','Provider principal minor','Cash principal minor','Externally unverified'],
+ ...(report.fxRows||[]).map(r=>[r.network,r.operation,r.providerCurrency,r.cashCurrency,
+  r.count,r.providerMinor,r.cashMinor,r.unverified])
  ];
  return '\uFEFF'+rows.map(row=>row.map(mobile.csvCell).join(',')).join('\r\n')+'\r\n';
 }

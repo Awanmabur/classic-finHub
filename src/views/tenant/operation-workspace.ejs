@@ -7,7 +7,7 @@ const links=moduleKey==='money_transfer'?[
 ]:moduleKey==='forex'?[
  ['/buy','Buy forex from customer'],['/sell','Sell forex to customer'],['/rates','Active rate board'],['/cash-impact','Forex cash impact'],['/records','Forex operation records'],['/report','Forex report summary']
 ]:[['/deposit','Deposit'],['/withdraw','Withdraw'],['/transfer','Account transfer'],['/accounts','External bank references'],['/movements','Banking request movements'],['/report','Banking report summary']];
-const statuses=moduleKey==='money_transfer'?['requested','approved_pending_provider','collected_manual','paid_out_manual','rejected','cancelled','expired']:moduleKey==='forex'?['quoted','approved_pending_execution','posted_manual','rejected','cancelled','expired']:['requested','approved_pending_bank','posted_manual','rejected','cancelled','expired'];
+const statuses=moduleKey==='money_transfer'?['requested','approved_pending_provider','collected_manual','paid_out_manual','rejected','cancelled','expired']:moduleKey==='forex'?['quoted','approved_pending_execution','posted_manual','reversed_manual','rejected','cancelled','expired']:['requested','approved_pending_bank','posted_manual','rejected','cancelled','expired'];
 const kinds=moduleKey==='banking'?['deposit_request','withdrawal_request','transfer_request']:moduleKey==='forex'?['buy','sell','quote']:[];
 const currencies=data.currencies||(moduleKey==='forex'?['UGX','USD','SSP','KES','EUR']:['UGX','USD','SSP','KES']);
 const filterQuery=new URLSearchParams();

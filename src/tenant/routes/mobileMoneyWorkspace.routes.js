@@ -148,10 +148,15 @@ module.exports=function routes({renderTenant}){
    }
    const neededPermission=result?.operation==='withdraw_provider_receive_cash'?'mobile_money.cash_out':'mobile_money.cash_in';
    const canExecute=postingEnabled&&grantApproved&&hasPermission(req.user,neededPermission)&&hasPermission(req.user,'treasury.observe');
+   const blockers=[];
+   if(!postingEnabled)blockers.push('Cross-currency posting is disabled at platform level.');
+   if(!grantApproved)blockers.push('No active approved authorization for this exact provider wallet and cash drawer.');
+   if(!hasPermission(req.user,neededPermission))blockers.push('Your account lacks the required Mobile Money transaction permission.');
+   if(!hasPermission(req.user,'treasury.observe'))blockers.push('Your account lacks Treasury transaction permission.');
    res.set('Cache-Control','private, no-store');
    renderTenant(req,res,'mobile-money/fx','Cross-currency Mobile Money',
     'Approved exchange-rate preview using actual wallet and cash balances; no provider transaction is executed.',
-    {wallets,drawers,result,error,input:req.query,idempotencyKey:randomUUID(),canExecute,postingEnabled,grantApproved,selectedBranchId:String(branch._id),formatMoneyMinor:require('../services/mobileMoney.service').formatMoneyMinor});
+    {wallets,drawers,result,error,input:req.query,idempotencyKey:randomUUID(),canExecute,postingEnabled,grantApproved,blockers,selectedBranchId:String(branch._id),formatMoneyMinor:require('../services/mobileMoney.service').formatMoneyMinor});
   }catch(e){next(e);}
  });
  router.get('/fx/preview',async(req,res,next)=>{

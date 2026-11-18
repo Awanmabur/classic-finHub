@@ -29,10 +29,10 @@ test('banking and remittance modules expose two-way Forex trades only under assi
  const transfer=fs.readFileSync(path.join(__dirname,'../src/views/tenant/money-transfer/index.ejs'),'utf8');
  for(const [source,module] of [[banking,'banking'],[transfer,'money_transfer']]){
   assert.match(source,/if\(data\.canFx\)/);
-  assert(source.includes('/tenant/'+(module==='banking'?'banking':'money-transfer')+'/history'));
+  const target=module==='banking'?'/tenant/banking/exchange':'/tenant/funded/payout';
+  assert(source.includes(target),'home page must link to the module-native transfer');
   const detail=fs.readFileSync(path.join(__dirname,'../src/views/tenant',module==='banking'?'banking/detail.ejs':'money-transfer/detail.ejs'),'utf8');
-  assert(detail.includes('/tenant/forex/buy?originModule='+module));
-  assert(detail.includes('/tenant/forex/sell?originModule='+module));
-  assert(detail.includes('originRecordId'));
+  assert(detail.includes(target),'detail must link to true posted settlement');
+  assert(!detail.includes('originModule='+module),'must not double-spend an existing payable');
  }
 });

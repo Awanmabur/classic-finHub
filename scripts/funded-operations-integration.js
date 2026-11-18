@@ -212,7 +212,11 @@ async function main(){
   }
   const foreign=await workspace.snapshot(conn,tenant,actor,emptyOverview,{...branch.toObject(),_id:new mongoose.Types.ObjectId()});assert.deepEqual(foreign.cash,[]);assert.equal(foreign.currentCashShift,null);
  }
- const branchCash=await workspace.snapshot(conn,tenant,reviewer,emptyOverview,branch);assert.equal(branchCash.cash[0].shiftCount,4);assert.equal(branchCash.cash[0].expectedFormatted,'UGX 100,000');
+ const branchCash=await workspace.snapshot(conn,tenant,reviewer,emptyOverview,branch);const ugxCash=branchCash.cash.find(row=>row.currency==='UGX');
+ assert(ugxCash,'reviewer must see actual UGX currency cash independently');
+ assert.equal(ugxCash.shiftCount,4);
+ assert.equal(ugxCash.expectedFormatted,'UGX 100,000');
+ assert(branchCash.cash.some(row=>row.currency==='SSP'),'reviewer must see SSP cash separately rather than merging currencies');
  const pendingActor={...operatorDrawers[0].actor,id:String(new mongoose.Types.ObjectId())};
  await core.tenantUserModel(conn).create({_id:pendingActor.id,name:'Pending operator',email:`${pendingActor.id}@example.invalid`,passwordHash:'scratch-not-a-real-password',role:pendingActor.role,branchId:pendingActor.branchId,allowedModules:pendingActor.allowedModules,status:'active',authVersion:0});
  await cash.open(conn,tenant,pendingActor,{openingCash:'5000'});

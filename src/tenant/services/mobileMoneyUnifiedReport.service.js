@@ -145,6 +145,11 @@ async function generate(conn,tenant,actor,input={},timeZone='UTC'){
  if(input.currency)fxScope.$or=[{providerCurrency:input.currency},{cashCurrency:input.currency}];
  const fxQuery=require('../schemas/MomoFxSettlement').records(conn).aggregate([
   {$match:fxScope},
+  // Preserve immutable original FX evidence but exclude independently reversed
+  // entries from active exchange volume. Corrections remain in audit/history.
+  {$lookup:{from:mobileTransactionModel(conn).collection.name,
+   localField:'mobileMoneyRecordId',foreignField:'_id',as:'linkedMobile'}},
+  {$match:{$or:[{mobileMoneyRecordId:null},{'linkedMobile.status':{$ne:'voided_internal'}}]}},
   {$group:{_id:{network:'$network',operation:'$operation',
      providerCurrency:'$providerCurrency',cashCurrency:'$cashCurrency'},
    count:{$sum:1},providerMinor:{$sum:'$providerAmountMinor'},

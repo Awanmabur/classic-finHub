@@ -40,8 +40,8 @@ async function main(){
  assert.equal(String((await funds.models(conn).account.findById(wallet._id).lean()).cashDrawerAccountId),String(drawer._id));
  await assert.rejects(
   record(request('cash_in',100,999900,{paymentAccountId:String(bank._id),feeTreatment:'payment_collected'})),
-  error=>error.status===409&&/does not match/i.test(error.message),
-  'Cashier cannot override the mapped physical drawer');
+  error=>error.status===409&&/cash drawer|cash account/i.test(error.message),
+  'An unrelated bank account cannot be selected as the physical cash drawer');
  assert.equal(await balance(wallet),'1000000');
  assert.equal(await balance(drawer),'500000');
  const firstInput=request('cash_in',10000,990000,{fee:'100',feeTreatment:'payment_collected'}),first=await record(firstInput);

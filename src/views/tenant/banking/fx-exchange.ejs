@@ -1,0 +1,70 @@
+<section class="view show">
+ <section class="card">
+  <div class="cardHead">
+   <div><b>Cross-currency customer account transfer</b><span>Real internal account balances · approved Buy/Sell rate</span></div>
+   <a class="btn" href="/tenant/banking">Banking</a>
+  </div>
+  <div class="cardBody">
+   <p class="tiny">Use this only when both accounts are held by the same customer in this branch. FinHub atomically debits the source liability and credits the destination liability in their own currencies. This is an internal financial-book transfer, not an external bank wire or evidence of an outside payment.</p>
+   <% if(!data.accounts.length){ %><p>Open two active customer accounts in different currencies before transferring.</p><a class="btn" href="/tenant/accounts">Manage customer accounts</a><% }else if(!data.rates.length){ %><p>No active Buy/Sell rate exists for the required currency direction.</p><a class="btn" href="/tenant/forex">Set approved exchange rates</a><% }else{ %>
+   <form method="post" action="/tenant/banking/exchange" autocomplete="off">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
+    <div class="formSection">
+     <div class="formSectionTitle">Customer accounts</div>
+     <div class="row2">
+      <label class="field">Debit source account
+       <select class="control" name="sourceAccountId" required><option value="">Select posted customer balance</option>
+        <% data.accounts.forEach(a=>{ %>
+         <option value="<%= a._id %>"><%= a.customerName %> · ****<%= a.accountNumber.slice(-4) %> · <%= a.currency %></option>
+        <% }) %>
+       </select>
+      </label>
+      <label class="field">Credit destination account
+       <select class="control" name="destinationAccountId" required><option value="">Select same customer's other currency account</option>
+        <% data.accounts.forEach(a=>{ %>
+         <option value="<%= a._id %>"><%= a.customerName %> · ****<%= a.accountNumber.slice(-4) %> · <%= a.currency %></option>
+        <% }) %>
+       </select>
+      </label>
+     </div>
+     <div class="row2">
+      <label class="field">Amount to exchange (source account currency)
+       <input class="control" name="amount" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" maxlength="32" required placeholder="Enter exact source amount">
+      </label>
+      <label class="field">Approved exchange rate
+       <select class="control" name="rateChoice" required><option value="">Choose currency pair and direction</option>
+        <% data.rates.forEach(r=>{ %>
+         <option value="<%= r._id %>:<%= r.revision %>:<%= r.rateDecimal %>"><%= r.fromCurrency %> → <%= r.toCurrency %> · <%= r.side==='buy'?'Buy':'Sell' %> · <%= r.rateDecimal %></option>
+        <% }) %>
+       </select>
+      </label>
+     </div>
+     <label class="field">Customer-approved voucher / instruction reference
+      <input class="control" name="evidenceReference" minlength="6" maxlength="120" required placeholder="Signed instruction, receipt or verifiable customer authorization">
+     </label>
+     <label class="field"><input type="checkbox" name="confirmCustomerAuthority" value="yes" required> The customer approved the actual two-currency transfer and the source and destination account details have been checked.</label>
+     <button class="btn btnPrimary" type="submit">Post internal currency exchange</button>
+    </div>
+   </form><% } %>
+  </div>
+ </section>
+ <section class="card" style="margin-top:14px">
+  <div class="cardHead"><b>Completed internal currency exchanges</b><span><%= data.records.length %> recent</span></div>
+  <div class="cardBody">
+   <% if(!data.records.length){ %><p class="tiny">No internal account currency exchanges have been posted in this branch.</p><% }else{ %>
+    <div class="tableWrap"><table aria-label="Posted internal banking forex exchanges">
+     <thead><tr><th>Posted</th><th>Source account debit</th><th>Destination account credit</th><th>Rate</th><th>Customer instruction</th><th>Type</th></tr></thead>
+     <tbody><% data.records.forEach(r=>{ %>
+      <tr><td><%= formatLocalDate(r.postedAt,r.branchId) %></td>
+       <td><%= data.formatMoneyMinor(r.sourceAmountMinor,r.sourceCurrency) %></td>
+       <td><%= data.formatMoneyMinor(r.destinationAmountMinor,r.destinationCurrency) %></td>
+       <td><%= r.rateSide.toUpperCase() %> <%= r.rateDecimal %></td>
+       <td><%= r.evidenceReference %></td><td>Posted internally · no external bank payment</td>
+      </tr>
+     <% }) %></tbody>
+    </table></div>
+   <% } %>
+  </div>
+ </section>
+</section>

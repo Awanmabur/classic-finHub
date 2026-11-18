@@ -127,6 +127,13 @@ for p in / /signin /robots.txt /sitemap.xml; do
  [[ "$code" = 200 ]] || fail "Canary $p HTTP $code"
 done
 docker rm -f "$CANARY" >/dev/null
+if [[ "${CLASSICFIN_VERIFY_ONLY:-false}" = true ]]; then
+ COMPLETE=1
+ echo "FOREX / CROSS-MODULE RELEASE VERIFIED WITHOUT PRODUCTION CUTOVER: $SHA"
+ echo "Financial integrations, unit tests, image build and isolated canary passed."
+ echo "Live production services and money posting policies unchanged."
+ exit 0
+fi
 echo "=== PRODUCTION CUTOVER WITH ROLLBACK ==="
 for n in classicfin-web-only classicfin-worker classicfin-notifications; do
  docker rename "$n" "$n$SUFFIX"

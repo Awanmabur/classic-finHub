@@ -37,6 +37,13 @@ const moneySchema = new mongoose.Schema({
   walletBalanceBeforeMinor:{type:mongoose.Schema.Types.Decimal128,default:null,immutable:true},walletBalanceAfterMinor:{type:mongoose.Schema.Types.Decimal128,default:null,immutable:true},
   walletObservationId:{type:mongoose.Schema.Types.ObjectId,default:null,immutable:true},fundsSourceRef:{type:String,default:null,immutable:true},fundJournalIds:{type:[mongoose.Schema.Types.ObjectId],default:[],immutable:true},
   physicalCashMovementMinor:{type:mongoose.Schema.Types.Decimal128,default:null,immutable:true},
+  // Cross-currency Mobile Money is ONE customer operation shared with Forex.
+  // Electronic principal is in currency; cash principal is in cashCurrency.
+  // fxSettlementId references the single Treasury-posted Forex leg, never a second posting.
+  fxSettlementId:{type:mongoose.Schema.Types.ObjectId,default:null,immutable:true},
+  cashCurrency:{type:String,enum:currencyCodes,default:null,immutable:true},
+  cashAmountMinor:{type:mongoose.Schema.Types.Decimal128,default:null,immutable:true},
+  exchangeRateDecimal:{type:String,default:null,immutable:true},
   entrySource:{type:String,enum:['manual','sms'],default:'manual',immutable:true},
   smsInboxId:{type:mongoose.Schema.Types.ObjectId,default:null,immutable:true},
   idempotencyKey: { type: String, required: true, immutable: true, match: /^[0-9a-f-]{36}$/ },
@@ -76,6 +83,7 @@ const moneySchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now, immutable: true }
 }, { strict: 'throw', versionKey: false });
 moneySchema.index({ idempotencyKey: 1 }, { unique: true });
+moneySchema.index({fxSettlementId:1},{unique:true,partialFilterExpression:{fxSettlementId:{$type:'objectId'}}});
 moneySchema.index({cashSessionId:1,reviewState:1,correctionState:1});
 moneySchema.index({ network: 1, networkReference: 1 }, { unique: true });
 moneySchema.index({ createdAt: -1 });

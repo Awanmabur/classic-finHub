@@ -245,3 +245,36 @@ test('cross-currency exchange shows exact provider and drawer currency, quote mo
  assert.match(ready,/name="providerAppConfirmed"/);
  assert.match(ready,/name="cashHandoverConfirmed"/);
 });
+
+test('currency conversion stays inside original cashier form and does not change same-currency posting',async()=>{
+ const base=options();
+ base.data.operation='cash_out';
+ base.formatLocalDate=()=> '18 Nov 2026';
+ const fx={
+  selected:true,operation:'withdraw_provider_receive_cash',
+  wallets:[{id:'507f1f77bcf86cd799439041',name:'MTN UGX wallet',network:'MTN',currency:'UGX'}],
+  drawers:[{id:'507f1f77bcf86cd799439042',name:'SSP drawer',currency:'SSP'}],
+  input:{fx:'1',walletAccountId:'507f1f77bcf86cd799439041',cashAccountId:'507f1f77bcf86cd799439042',providerAmount:'1000'},
+  result:{operation:'withdraw_provider_receive_cash',network:'MTN',walletAccountId:'507f1f77bcf86cd799439041',
+   cashAccountId:'507f1f77bcf86cd799439042',providerCurrency:'UGX',cashCurrency:'SSP',
+   providerAmountMinor:'1000',cashAmountMinor:'400000',walletDeltaMinor:'1000',cashDeltaMinor:'-400000',
+   rateSide:'buy',rateDecimal:'4',rateId:'507f1f77bcf86cd799439043',rateVersion:1,
+   rateExpiresAt:new Date('2026-11-19T13:00:00Z')},
+  quoteRate:{units:1000,rate:'4000',text:'1,000 UGX'},
+  canExecute:true,blockers:[],error:null,history:[],
+  idempotencyKey:requestKey,selectedBranchId:base.operationBranch._id,
+  formatMoneyMinor:(minor,currency)=>currency+' '+minor
+ };
+ base.data.fxState=fx;
+ let html=await render('entry',base);
+ assert.match(html,/Different-currency withdrawal/);
+ assert.match(html,/1,000 UGX = 4000 SSP/);
+ assert.match(html,/action="\/tenant\/mobile-money\/fx\/record"/);
+ assert.match(html,/name="cashHandoverConfirmed"/);
+ assert.doesNotMatch(html,/action="\/tenant\/mobile-money\/cash-out"[^>]*data-mobile-money-form/);
+ assert.doesNotMatch(html,/regulatoryAuthorizationReference|providerAuthorizationReference/);
+ base.data.fxState={...fx,selected:false,result:null,history:[]};
+ html=await render('entry',base);
+ assert.match(html,/action="\/tenant\/mobile-money\/cash-out"[^>]*data-mobile-money-form/);
+ assert.doesNotMatch(html,/action="\/tenant\/mobile-money\/fx\/record"/);
+});

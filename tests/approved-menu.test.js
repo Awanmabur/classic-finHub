@@ -10,7 +10,7 @@ const {permissionsFor}=require('../src/config/roles');
 const approved={
  Overview:['Today snapshot','New transaction','Last receipt','Remote owner dashboard'],
  'Money Transfer':['Send money / Generate PIN','Payout by PIN','Pending payout queue','Branch transfer balances','Money transfer record','Transfer fee summary','Transfer report summary'],
- 'Mobile Money':['Deposit','Withdrawal','Onboarding guide','Network activity','Cash impact','Mobile money report'],
+ 'Mobile Money':['Deposit','Withdrawal','Cross-currency exchange','Cross-currency history','FX provider authorization','Onboarding guide','Network activity','Cash impact','Mobile money report'],
  'Forex Operations':['Buy forex from customer','Sell forex to customer','Active rate board','Forex cash impact','Forex operation records','Forex report summary'],
  'Banking Operations':['Customers directory','New customer','Customer logbook','Accounts directory','New account','Deposit','Withdraw','Account transfer','Account balances','Account movements','Banking report summary'],
  'Operation Reports':['Daily business report','Open day','Close day','Add expense','Approvals & corrections','Manual movement review','Cash control review','Export CSV','Print report','General reports page','Opening cash report','Closing cash / expected cash','Transaction summary','Expenses report','Transfer report','Mobile report','Banking report'],
@@ -29,7 +29,7 @@ function paths(menu){return menu.flatMap(group=>group.items.map(item=>item.href)
 test('fully entitled owner retains approved groups with wallet controls and no disabled portal',()=>{
  const menu=tenantMenu(subscribed(),owner);
  assert.deepEqual(Object.fromEntries(menu.map(group=>[group.label,group.items.map(item=>item.label)])),approved);
- assert.equal(menu.length,7);assert.equal(menu.reduce((sum,group)=>sum+group.items.length,0),71);
+ assert.equal(menu.length,7);assert.equal(menu.reduce((sum,group)=>sum+group.items.length,0),74);
  assert(!menu.some(group=>/Phase 2/i.test(group.label)));
  for(const href of ['/tenant/users','/tenant/audit','/tenant/workspace/roles'])assert.equal(paths(menu).filter(path=>path===href).length,1,href+' is not duplicated');
  for(const item of menu.flatMap(group=>group.items)){
@@ -37,7 +37,8 @@ test('fully entitled owner retains approved groups with wallet controls and no d
   assert.doesNotMatch(item.href,/javascript:|undefined|#|\?/);
  }
  assert.deepEqual(menu.find(group=>group.label==='Mobile Money').items.map(item=>[item.label,item.href]),[
-  ['Deposit','/tenant/mobile-money/cash-in'],['Withdrawal','/tenant/mobile-money/cash-out'],['Onboarding guide','/tenant/mobile-money/onboarding'],['Network activity','/tenant/mobile-money/network-activity'],['Cash impact','/tenant/mobile-money/cash-impact'],['Mobile money report','/tenant/mobile-money/report']
+  ['Deposit','/tenant/mobile-money/cash-in'],['Withdrawal','/tenant/mobile-money/cash-out'],
+  ['Cross-currency exchange','/tenant/mobile-money/fx'],['Cross-currency history','/tenant/mobile-money/fx/history'],['FX provider authorization','/tenant/mobile-money/fx/authorizations'],['Onboarding guide','/tenant/mobile-money/onboarding'],['Network activity','/tenant/mobile-money/network-activity'],['Cash impact','/tenant/mobile-money/cash-impact'],['Mobile money report','/tenant/mobile-money/report']
  ]);
 });
 
@@ -89,6 +90,10 @@ test('expanded navigation still requires module entitlement, assignment and fixe
  const menu=tenantMenu(tenant,operator),operatorPaths=paths(menu);
  assert(menu.some(group=>group.label==='Mobile Money'&&group.items.length===6));
  assert(operatorPaths.includes('/tenant/mobile-money/report'));
+ assert(!operatorPaths.includes('/tenant/mobile-money/fx'),'Cross-currency requires Forex module assignment');
+ const fxOperator=actor('Mobile Money Operator',['mobile_money','forex']);
+ assert(paths(tenantMenu(tenant,fxOperator)).includes('/tenant/mobile-money/fx'),'Authorized operator sees exchange');
+ assert(!paths(tenantMenu(tenant,fxOperator)).includes('/tenant/mobile-money/fx/authorizations'),'Operator cannot independently approve rights');
  for(const forbidden of ['/tenant/workspace','/tenant/workspace/profile','/tenant/workspace/subscription','/tenant/users','/tenant/branches','/tenant/expenses/new','/tenant/customers/new','/tenant/reports','/tenant/approvals'])
   assert(!operatorPaths.includes(forbidden),`Unassigned or privileged path exposed: ${forbidden}`);
  assert(!tenantMenu(tenant,{...operator,allowedModules:[]}).some(group=>group.label==='Mobile Money'));

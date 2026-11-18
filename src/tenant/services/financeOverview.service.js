@@ -154,9 +154,9 @@ async function postedForexActivity(conn,tenant,user,branch,period={}){
  const timeZone=period.timeZone||businessTime.forBranch(branch);
  const scope=branchScope(user,{operationBranch:branch,viewBranchId:period.viewBranchId,viewBranch:period.viewBranch});
  if(scope===null)return null;
- const bounds=businessTime.dayBounds({from:period.from,to:period.to},timeZone,366,period.now||new Date());
+ const {$gte,$lt}=businessTime.dayBounds({from:period.from,to:period.to},timeZone,366,period.now||new Date());
  const Execution=require('../funded/models').models(conn).execution;
- const executions=await Execution.find({sourceType:'forex',status:'posted_manual',...scope,reviewedAt:bounds})
+ const executions=await Execution.find({sourceType:'forex',status:'posted_manual',...scope,reviewedAt:{$gte,$lt}})
   .select('sourceSnapshot reviewedAt').sort({reviewedAt:-1,_id:-1}).limit(1001).lean();
  if(executions.length>1000)return {limited:true,count:null,bought:[],sold:[]};
  const bought=new Map(),sold=new Map();let count=0;
@@ -197,11 +197,11 @@ async function postedBankingInternalFxActivity(conn,tenant,user,branch,period={}
  if(period.moduleKey!=='banking'||!hasModuleForUser(tenant,user,'accounts')||!hasModuleForUser(tenant,user,'forex'))return null;
  const scope=branchScope(user,{operationBranch:branch,viewBranchId:period.viewBranchId,viewBranch:period.viewBranch});
  if(scope===null)return null;
- const bounds=businessTime.dayBounds({from:period.from,to:period.to},
+ const {$gte,$lt}=businessTime.dayBounds({from:period.from,to:period.to},
   period.timeZone||businessTime.forBranch(branch),366,period.now||new Date());
  const Model=require('../schemas/BankingInternalFx.schema').model(conn);
  const rows=await Model.find({...scope,tenantId:tenant._id,
-  postedAt:bounds}).select('sourceCurrency destinationCurrency sourceAmountMinor destinationAmountMinor')
+  postedAt:{$gte,$lt}}).select('sourceCurrency destinationCurrency sourceAmountMinor destinationAmountMinor')
   .sort({postedAt:-1,_id:-1}).limit(1001).maxTimeMS(3000).lean();
  if(rows.length>1000)return {limited:true,count:null,source:[],destination:[]};
  const from=new Map(),to=new Map();
@@ -218,10 +218,10 @@ async function postedTransferPayoutFxActivity(conn,tenant,user,branch,period={})
  if(period.moduleKey!=='money_transfer'||!hasModuleForUser(tenant,user,'forex'))return null;
  const scope=branchScope(user,{operationBranch:branch,viewBranchId:period.viewBranchId,viewBranch:period.viewBranch});
  if(scope===null)return null;
- const bounds=businessTime.dayBounds({from:period.from,to:period.to},period.timeZone||businessTime.forBranch(branch),366,period.now||new Date());
+ const {$gte,$lt}=businessTime.dayBounds({from:period.from,to:period.to},period.timeZone||businessTime.forBranch(branch),366,period.now||new Date());
  const rows=await require('../funded/models').models(conn).execution.find({...scope,
   sourceType:'money_transfer',action:'transfer_payout',status:'posted_manual',
-  payoutFx:{$ne:null},reviewedAt:bounds})
+  payoutFx:{$ne:null},reviewedAt:{$gte,$lt}})
   .select('sourceSnapshot payoutFx').sort({reviewedAt:-1,_id:-1}).limit(1001).maxTimeMS(3000).lean();
  if(rows.length>1000)return {limited:true,count:null,sent:[],received:[]};
  const sent=new Map(),received=new Map();let count=0;

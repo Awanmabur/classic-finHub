@@ -176,8 +176,39 @@ async function main(){
  await core.tenantUserModel(conn).create({_id:pendingActor.id,name:'Pending operator',email:`${pendingActor.id}@example.invalid`,passwordHash:'scratch-not-a-real-password',role:pendingActor.role,branchId:pendingActor.branchId,allowedModules:pendingActor.allowedModules,status:'active',authVersion:0});
  await cash.open(conn,tenant,pendingActor,{openingCash:'5000'});
  const pendingSnapshot=await workspace.snapshot(conn,tenant,pendingActor,emptyOverview,branch);assert.deepEqual(pendingSnapshot.cash,[]);assert.equal(pendingSnapshot.currentCashShift,null);assert.equal(pendingSnapshot.dayStatus,'PENDING');
+ const bankFx=require('../src/tenant/services/bankingInternalFx.service');
+ const usdAccount=(await directory.accountCreate(conn,tenant,owner,{
+  customerId:String(customer._id),accountNumber:'FUNDED-USD-'+nonce.toUpperCase(),
+  currency:'USD',type:'Current Account',status:'active',risk:'Low',idempotencyKey:crypto.randomUUID()
+ })).record;
+ const ugxUsdProposal=await forex.proposeRate(conn,tenant,owner,{fromCurrency:'UGX',toCurrency:'USD',
+  side:'buy',rateDecimal:'0.00027',validHours:24,note:'Exact rate for real internal customer account currency exchange'});
+ const ugxUsdRate=await forex.decideRate(conn,tenant,reviewer,ugxUsdProposal._id,reviewData);
+ const fxBankInput={sourceAccountId:String(accountA._id),destinationAccountId:String(usdAccount._id),
+  rateId:String(ugxUsdRate._id),rateVersion:String(ugxUsdRate.revision),rateDecimal:ugxUsdRate.rateDecimal,
+  amount:'2000',evidenceReference:'BANKFX-CLIENT-'+nonce,confirmCustomerAuthority:'yes',
+  idempotencyKey:crypto.randomUUID()};
+ assert.equal(await customerBook(accountA),5000n);
+ assert.equal(await customerBook(usdAccount),0n);
+ const bankFxPosted=await bankFx.convert(conn,tenant,owner,branch,fxBankInput);
+ assert.equal(bankFxPosted.record.state,'posted_internal');
+ assert.equal(bankFxPosted.record.journalIds.length,2);
+ assert.equal((await bankFx.convert(conn,tenant,owner,branch,fxBankInput)).duplicate,true);
+ assert.equal(await customerBook(accountA),3000n,'Bank FX source liability debited once');
+ assert.equal(await customerBook(usdAccount),54n,'Bank FX USD customer liability credited once');
+ const journalBeforeDenied=await core.ledgerJournalModel(conn).countDocuments();
+ await assert.rejects(bankFx.convert(conn,tenant,owner,branch,{...fxBankInput,idempotencyKey:crypto.randomUUID(),
+  evidenceReference:'BANKFX-INSUFFICIENT-'+nonce,amount:'20000'}),
+  error=>error.status===409&&/Insufficient/.test(error.message));
+ assert.equal(await core.ledgerJournalModel(conn).countDocuments(),journalBeforeDenied);
+ await assert.rejects(bankFx.convert(conn,tenant,auditor,branch,{...fxBankInput,idempotencyKey:crypto.randomUUID(),
+  evidenceReference:'BANKFX-UNAUTHORIZED-'+nonce}),{status:403});
+ await assert.rejects(bankFx.convert(other,tenant,owner,branch,{...fxBankInput,idempotencyKey:crypto.randomUUID(),
+  evidenceReference:'BANKFX-CROSS-TENANT-'+nonce}),{status:403});
+ assert.equal((await bankFx.history(conn,tenant,owner,branch)).length,1);
+ for(const ccy of ['UGX','USD'])assert.equal((await ledger.trialBalance(conn,{branchId:String(branch._id),currency:ccy})).balanced,true);
  const logs=JSON.stringify(await core.auditEventModel(conn).find({}).lean());assert(!logs.includes(revealed.pin),'audit must never contain payout PIN');
- console.log('PASS: actual manual banking deposits/withdrawals/internal transfers, customer liability balances, FX stock/settlement/explicit fees, legacy same-branch transfer collection/payable/PIN once-only verification/payout, maker-checker, cash closing, ledger integrity, concurrency/idempotency, insufficient-fund rollback, privacy, revocation and role-scoped cash dashboard snapshots across all four operator modules.');
+ console.log('PASS: native-currency manual banking and transfers, linked Forex trades, atomic internal Banking customer account FX, idempotency, insufficient balance rollback, journals, payout PIN and role/tenant security.');
 }
 async function cleanup(){if(mongoose.connection.readyState===1&&mongoose.connection.name===platformName&&/^cfh_funded_probe_[a-f0-9]{16}$/.test(platformName)){for(const connection of connections)await connection.db.dropDatabase();await mongoose.connection.db.dropDatabase();}await mongoose.disconnect();}
 main().catch(error=>{console.error('FUNDED OPERATIONS INTEGRATION FAILED:',error.stack||error.message);process.exitCode=1;}).finally(()=>cleanup().catch(error=>{console.error('Funded scratch cleanup failed:',error.message);process.exitCode=1;}));

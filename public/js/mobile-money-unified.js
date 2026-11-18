@@ -3,6 +3,7 @@
 // No client quote is trusted at finalization: the server recomputes and fences
 // the approved rate, native-currency amount and both Treasury accounts.
 (()=>{
+ const initialized=new WeakSet();
  const format=(value,code)=>{
   if(!/^-?[0-9]+$/.test(String(value)))return '—';
   const decimals=code==='UGX'?0:2,base=10n**BigInt(decimals);
@@ -12,7 +13,8 @@
    (decimals?'.'+(magnitude%base).toString().padStart(decimals,'0'):'');
  };
  function init(form){
-  if(!form?.matches('[data-mobile-money-form][data-unified-currency="true"]'))return;
+  if(!form?.matches('[data-mobile-money-form][data-unified-currency="true"]')||initialized.has(form))return;
+  initialized.add(form);
   const wallet=form.querySelector('[data-wallet-account]');
   const drawer=form.querySelector('[data-payment-account]');
   const network=form.elements.namedItem('network');
@@ -191,5 +193,6 @@
   });
   selectWallet();refresh();
  }
+ window.ClassicFinMobileUnified=Object.freeze({initialise:init});
  document.querySelectorAll('[data-mobile-money-form][data-unified-currency="true"]').forEach(init);
 })();

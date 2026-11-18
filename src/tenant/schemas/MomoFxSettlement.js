@@ -28,7 +28,7 @@ const recordSchema=new Schema({
  providerEvidenceKind:{type:String,enum:['signed_provider','operator_attested'],required:true,immutable:true},
  providerSettlementState:{type:String,enum:['verified','unverified'],required:true,immutable:true},
  cashConfirmedAt:{type:Date,required:true,immutable:true},
- complianceGrantId:{type:O,required:true,immutable:true},
+ complianceGrantId:{type:O,default:null,immutable:true},
  journalBatchId:{type:O,required:true,immutable:true},
  fxProfitState:{type:String,enum:['unmeasured_cost_basis'],required:true,default:'unmeasured_cost_basis',immutable:true},
  settledAt:{type:Date,required:true,immutable:true}

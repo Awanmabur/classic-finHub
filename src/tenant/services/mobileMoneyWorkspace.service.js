@@ -99,7 +99,7 @@ async function workspace(conn,actor,input={},options={}){
   Model.aggregate([
    {$match:match},
    {$group:{
-    _id:{currency:'$currency',network:'$network',operation:'$operation',source:{$ifNull:['$entrySource','manual']},paymentMethod:{$ifNull:['$paymentMethod','Cash']},voided:{$or:[{$eq:['$status','voided_internal']},{$eq:['$correctionState','voided']}] }},
+    _id:{currency:'$currency',cashCurrency:{$ifNull:['$cashCurrency','$currency']},network:'$network',operation:'$operation',source:{$ifNull:['$entrySource','manual']},paymentMethod:{$ifNull:['$paymentMethod','Cash']},voided:{$or:[{$eq:['$status','voided_internal']},{$eq:['$correctionState','voided']}] }},
     count:{$sum:1},amountMinor:{$sum:'$amountMinor'},feeMinor:{$sum:'$feeMinor'},
     cashMovementMinor:{$sum:{$ifNull:['$physicalCashMovementMinor',{$cond:[{$eq:['$operation','cash_in']},'$amountMinor',{$multiply:['$amountMinor',-1]}]}]}}
    }}

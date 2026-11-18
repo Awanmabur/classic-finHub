@@ -36,8 +36,10 @@ module.exports=function operationWorkspaceRoutes({renderTenant,moduleKey}){
     data.canFx=require('../services/moduleAccess.service').hasModuleForUser(req.tenant,req.user,'forex')&&
      require('../services/moduleAccess.service').hasPermission(req.user,'forex.quotes.create');
     Object.assign(data,{workspaceTitle:title,workspaceOperation:operation,
-     originModule:moduleKey==='forex'&&['mobile_money','banking','money_transfer'].includes(req.query.originModule)?
-      req.query.originModule:'forex'});
+     originModule:moduleKey==='forex'&&['banking','money_transfer'].includes(req.query.originModule)?
+      req.query.originModule:'forex',
+     originRecordId:moduleKey==='forex'&&/^[a-f0-9]{24}$/i.test(String(req.query.originRecordId||''))?
+      req.query.originRecordId:''});
     renderTenant(req,res,`${definition.path}/index`,title,moduleKey==='forex'?'Real Buy/Sell exchange quotations and direct cashier-confirmed Treasury posting.':'Record instructions and review their status.',data);
    }catch(error){next(error);}
   });

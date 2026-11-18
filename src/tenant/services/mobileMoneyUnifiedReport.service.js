@@ -112,7 +112,7 @@ async function generate(conn,tenant,actor,input={},timeZone='UTC'){
    feeTreatment:{$ifNull:['$feeTreatment','record_only']},reviewState:{$ifNull:['$reviewState','awaiting_review']},status:'$status',
    voided:{$or:[{$eq:['$status','voided_internal']},{$eq:['$correctionState','voided']}]}},
   count:{$sum:1},amountMinor:{$sum:'$amountMinor'},feeMinor:{$sum:'$feeMinor'},
-  cashMovementMinor:{$sum:{$cond:[{$eq:[{$ifNull:['$paymentMethod','Cash']},'Cash']},
+  cashMovementMinor:{$sum:{$cond:[{$and:[{$eq:[{$ifNull:['$paymentMethod','Cash']},'Cash']},{$eq:[{$ifNull:['$cashCurrency','$currency']},'$currency']}]},
     {$ifNull:['$physicalCashMovementMinor',{$cond:[{$eq:['$operation','cash_in']},'$amountMinor',{$multiply:['$amountMinor',-1]}]}]},0]}},
   estimatedCommissionMinor:{$sum:{$convert:{input:'$agentCommissionEstimate.amountMinor',to:'decimal',onError:0,onNull:0}}},
   commissionMissingCount:{$sum:{$cond:[{$ifNull:['$agentCommissionEstimate.scheduleId',false]},0,1]}},

@@ -43,6 +43,5 @@
     <% } else { %><section class="card"><div class="cardHead"><b><%= data.operation === 'cash_out' ? 'Withdrawal' : 'Deposit' %></b></div><div class="cardBody"><p class="tiny"><%= data.canRecord ? branchProblem : 'Your role has read-only access to these records.' %></p></div></section><% } %>
     <section class="card"><div class="cardHead"><div><b><%= data.operation === 'cash_out' ? 'Withdrawal' : 'Deposit' %> activity</b><br><span>Recorded operations</span></div><a class="btn" href="/tenant/mobile-money/history">All history</a></div><div class="cardBody richPageGrid"><%- include('_filters',{filterAction:entryPath,fixedOperation:data.operation}) %><%- include('_activity',{activityRecords:data.records,activityPath:entryPath}) %></div></section>
   </div>
-  <script src="/js/mobile-money-unified.js" defer></script>
   <p class="tiny">Cash-In and Cash-Out exchange real physical cash with provider float. The assigned operator must have an independently approved cash shift. Commission estimates come from provider rate sheets and are never treated as a confirmed payout. <a href="/tenant/mobile-money">Review recorded transactions</a>.</p>
 </section>

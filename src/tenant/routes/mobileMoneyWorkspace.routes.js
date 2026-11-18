@@ -167,45 +167,15 @@ module.exports=function routes({renderTenant}){
      {records,summary,formatMoneyMinor:require('../services/mobileMoney.service').formatMoneyMinor});
   }catch(e){next(e);}
  });
- router.get('/fx',async(req,res,next)=>{
-  try{
-   if(!req.operationBranch)return res.status(409).send('Select an operating branch');
-   if(!hasPermission(req.user,'treasury.view')||!(hasPermission(req.user,'forex.view')||req.user.role==='Mobile Money Operator')||
-      !require('../services/moduleAccess.service').hasModuleForUser(req.tenant,req.user,'forex'))
-    return res.status(403).send('Forex and Treasury access is required');
-   const branch=req.operationBranch;
-   const funds=await require('../services/mobileMoneyFunds.service').context(req.tenantDb,req.tenant,req.user,branch);
-   const eligible=row=>row.state==='active'&&row.reconciliation==='matched'&&row.expectedMinor!=null;
-   const wallets=funds.wallets.filter(eligible),drawers=funds.paymentAccounts.filter(row=>row.kind==='cash'&&eligible(row));
-   let result=null,error=null;
-   if(req.query.walletAccountId||req.query.cashAccountId||req.query.providerAmountMinor||req.query.providerAmount){
-    try{result=await require('../services/momoFxPreview.service').preview(req.tenantDb,req.tenant,req.user,branch,req.query);}
-    catch(e){error=e.message;}
-   }
-   const postingEnabled=process.env.CLASSICFIN_MOMO_FX_POSTING_ENABLED==='true';
-   let grantApproved=false;
-   if(result&&postingEnabled){
-    grantApproved=Boolean(await require('../schemas/MomoFxSettlement').grants(req.tenantDb).exists({
-     tenantId:req.tenant._id,branchId:branch._id,walletAccountId:result.walletAccountId,
-     cashAccountId:result.cashAccountId,providerNetwork:result.network,
-     permittedCurrencyPair:result.providerCurrency+'/'+result.cashCurrency,
-     status:'approved',expiresAt:{$gt:new Date()},
-     requestedBy:{$ne:null},approvedBy:{$ne:null},reviewedAt:{$ne:null},
-     providerAuthorizationReference:{$ne:''},regulatoryAuthorizationReference:{$ne:''}
-    }));
-   }
-   const neededPermission=result?.operation==='withdraw_provider_receive_cash'?'mobile_money.cash_out':'mobile_money.cash_in';
-   const canExecute=postingEnabled&&grantApproved&&hasPermission(req.user,neededPermission)&&hasPermission(req.user,'treasury.observe');
-   const blockers=[];
-   if(!postingEnabled)blockers.push('Cross-currency posting is disabled at platform level.');
-   if(!grantApproved)blockers.push('No active approved authorization for this exact provider wallet and cash drawer.');
-   if(!hasPermission(req.user,neededPermission))blockers.push('Your account lacks the required Mobile Money transaction permission.');
-   if(!hasPermission(req.user,'treasury.observe'))blockers.push('Your account lacks Treasury transaction permission.');
-   res.set('Cache-Control','private, no-store');
-   renderTenant(req,res,'mobile-money/fx','Cross-currency Mobile Money',
-    'Approved exchange-rate preview using actual wallet and cash balances; no provider transaction is executed.',
-    {wallets,drawers,result,error,input:req.query,idempotencyKey:randomUUID(),canExecute,postingEnabled,grantApproved,blockers,selectedBranchId:String(branch._id),formatMoneyMinor:require('../services/mobileMoney.service').formatMoneyMinor});
-  }catch(e){next(e);}
+ // Preserve old links while keeping currency exchange in the existing cashier screen.
+ router.get('/fx',(req,res)=>{
+  const operation=req.query.operation==='deposit_cash_send_provider'?'cash-in':'cash-out';
+  const q=new URLSearchParams({fx:'1'});
+  for(const key of ['walletAccountId','cashAccountId','providerAmount']){
+   const value=req.query[key];
+   if(typeof value==='string'&&value.length<=120)q.set(key,value);
+  }
+  res.redirect(303,'/tenant/mobile-money/'+operation+'?'+q.toString());
  });
  router.get('/fx/preview',async(req,res,next)=>{
   try{

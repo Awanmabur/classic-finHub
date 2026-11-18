@@ -13,6 +13,8 @@ const schema=new mongoose.Schema({
  operation:{type:String,enum:['buy','sell','quote'],default:'quote',immutable:true},
  originModule:{type:String,enum:['forex','mobile_money','banking','money_transfer'],default:'forex',immutable:true},
  originRecordId:{type:O,default:null,immutable:true},
+ originNetwork:{type:String,default:'',maxlength:40,immutable:true},
+ originOperation:{type:String,enum:['cash_in','cash_out',''],default:'',immutable:true},
  rateId:{type:O,required:true,immutable:true},
  fromCurrency:{type:String,enum:forexCurrencyCodes,required:true,immutable:true},toCurrency:{type:String,enum:forexCurrencyCodes,required:true,immutable:true},
  rateDecimal:{type:String,required:true,immutable:true},

@@ -13,8 +13,8 @@ function id(value){if(!OID.test(String(value||'')))throw fail('Invalid authoriza
 function ref(value,label){if(typeof value!=='string'||! /^[A-Za-z0-9][A-Za-z0-9 ./_:#-]{7,199}$/.test(value.trim()))throw fail('Enter a genuine '+label+' document reference (8–200 characters)');return value.trim();}
 function expires(value){if(typeof value!=='string'||! /^\d{4}-\d{2}-\d{2}$/.test(value))throw fail('Enter the documented authorization expiry date');
  const date=new Date(value+'T23:59:59.999Z');
- if(!Number.isFinite(date.getTime())||date.toISOString().slice(0,10)!==value||date.getTime()<=Date.now()||date.getTime()>Date.now()+366*86400000)
-  throw fail('Authorization must have a genuine future expiry within one year');
+ if(!Number.isFinite(date.getTime())||date.toISOString().slice(0,10)!==value||date.getTime()<=Date.now()||date.getTime()>Date.now()+10*366*86400000)
+  throw fail('Authorization must have a genuine future expiry (up to ten years)');
  return date;
 }
 async function access(conn,tenant,actor,branch){

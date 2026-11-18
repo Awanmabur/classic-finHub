@@ -230,12 +230,31 @@ async function main(){
   idempotencyKey:crypto.randomUUID()};
  assert.equal(await customerBook(accountA),5000n);
  assert.equal(await customerBook(usdAccount),0n);
+ const bankFxPreview=await bankFx.preview(conn,tenant,owner,branch,fxBankInput);
+ assert.equal(bankFxPreview.sourceLabel,'UGX 2,000');
+ assert.equal(bankFxPreview.destinationLabel,'USD 0.54');
+ const anotherCustomer=(await directory.customerCreate(conn,tenant,owner,{
+  name:'Second customer',phone:'+256700555111',type:'Individual',idempotencyKey:crypto.randomUUID()
+ })).record;
+ const wrongOwnerAccount=(await directory.accountCreate(conn,tenant,owner,{
+  customerId:String(anotherCustomer._id),accountNumber:'FOREIGN-OWNER-'+nonce.toUpperCase(),
+  currency:'USD',type:'Current Account',status:'active',risk:'Low',idempotencyKey:crypto.randomUUID()
+ })).record;
+ await assert.rejects(bankFx.preview(conn,tenant,owner,branch,{
+  ...fxBankInput,destinationAccountId:String(wrongOwnerAccount._id)
+ }),error=>error.status===409&&/same customer/.test(error.message));
+ await assert.rejects(bankFx.convert(conn,tenant,owner,branch,{
+  ...fxBankInput,idempotencyKey:crypto.randomUUID(),destinationAccountId:String(wrongOwnerAccount._id)
+ }),error=>error.status===409&&/same customer/.test(error.message));
  const bankFxPosted=await bankFx.convert(conn,tenant,owner,branch,fxBankInput);
  assert.equal(bankFxPosted.record.state,'posted_internal');
  assert.equal(bankFxPosted.record.journalIds.length,2);
  assert.equal((await bankFx.convert(conn,tenant,owner,branch,fxBankInput)).duplicate,true);
  assert.equal(await customerBook(accountA),3000n,'Bank FX source liability debited once');
  assert.equal(await customerBook(usdAccount),54n,'Bank FX USD customer liability credited once');
+ await assert.rejects(bankFx.convert(conn,tenant,owner,branch,{...fxBankInput,
+  idempotencyKey:crypto.randomUUID(),rateDecimal:'0.00028'}),
+  error=>error.status===409&&/rate/.test(error.message),'client cannot change an approved Forex rate');
  const actualBankFx=await require('../src/tenant/services/financeOverview.service').postedBankingInternalFxActivity(
   conn,tenant,owner,branch,{moduleKey:'banking',timeZone:'Africa/Juba'});
  assert.equal(actualBankFx.count,1);

@@ -32,6 +32,7 @@ const recordSchema=new Schema({
  journalBatchId:{type:O,required:true,immutable:true},
  // Link to the ordinary Mobile Money transaction; one source, one set of journals.
  mobileMoneyRecordId:{type:O,default:null,immutable:true},
+ forexQuoteId:{type:O,default:null,immutable:true},
  sourceModule:{type:String,enum:['mobile_money'],default:'mobile_money',immutable:true},
  fxProfitState:{type:String,enum:['unmeasured_cost_basis'],required:true,default:'unmeasured_cost_basis',immutable:true},
  settledAt:{type:Date,required:true,immutable:true}
@@ -42,6 +43,7 @@ for(const op of ['updateOne','updateMany','replaceOne','findOneAndUpdate','findO
 recordSchema.pre('save',function(next){next(this.isNew?null:new Error('Posted cross-currency evidence is append-only'));});
 recordSchema.index({tenantId:1,idempotencyKey:1},{unique:true});
 recordSchema.index({tenantId:1,mobileMoneyRecordId:1},{unique:true,partialFilterExpression:{mobileMoneyRecordId:{$type:'objectId'}}});
+recordSchema.index({tenantId:1,forexQuoteId:1},{unique:true,partialFilterExpression:{forexQuoteId:{$type:'objectId'}}});
 recordSchema.index({tenantId:1,network:1,providerReference:1},{unique:true});
 recordSchema.index({tenantId:1,providerEvidenceId:1},{unique:true});
 recordSchema.index({tenantId:1,branchId:1,settledAt:-1,_id:-1});

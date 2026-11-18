@@ -6,6 +6,13 @@
   </div>
   <div class="cardBody">
    <p class="tiny">Use this only when both accounts are held by the same customer in this branch. FinHub atomically debits the source liability and credits the destination liability in their own currencies. This is an internal financial-book transfer, not an external bank wire or evidence of an outside payment.</p>
+   <form method="get" action="/tenant/banking/exchange" class="row2" style="margin-bottom:12px">
+    <label class="field">Find customer by name or account number
+     <input class="control" name="q" value="<%= data.search||'' %>" maxlength="60" placeholder="Customer or account number">
+    </label>
+    <button class="btn" type="submit">Search accounts</button>
+   </form>
+   <% if(data.truncated){ %><p class="tiny">Showing the first 100 results. Search for the customer before posting an exchange.</p><% } %>
    <% if(!data.accounts.length){ %><p>Open two active customer accounts in different currencies before transferring.</p><a class="btn" href="/tenant/accounts">Manage customer accounts</a><% }else if(!data.rates.length){ %><p>No active Buy/Sell rate exists for the required currency direction.</p><a class="btn" href="/tenant/forex">Set approved exchange rates</a><% }else{ %>
    <form method="post" action="/tenant/banking/exchange/preview" autocomplete="off">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">

@@ -5,7 +5,7 @@
  <label class="field">Currency conversion rate (required when drawer currency differs from collected funds)
   <select class="control" name="rateChoice"><option value="">No FX — pay in collected currency</option>
    <% data.fxRates.forEach(rate=>{ %>
-    <option value="<%= rate._id %>:<%= rate.revision %>:<%= rate.rateDecimal %>"><%= rate.fromCurrency %> → <%= rate.toCurrency %> · Buy <%= rate.rateDecimal %> · expires <%= new Date(rate.expiresAt).toISOString().slice(0,16).replace('T',' ') %> UTC</option>
+    <option value="<%= rate._id %>:<%= rate.revision %>:<%= rate.rateDecimal %>"><% const rd=data.rateDisplay(rate.rateDecimal,rate.fromCurrency); %><%= rate.fromCurrency %> → <%= rate.toCurrency %> · Buy · <%= rd.text %> = <%= rd.rate %> <%= rate.toCurrency %> · expires <%= new Date(rate.expiresAt).toISOString().slice(0,16).replace('T',' ') %> UTC</option>
    <% }) %>
   </select>
   <span class="tiny">Choose the exact rate matching the selected payout cash currency. The server calculates and locks the receiver amount; no payout takes place until the actual cash posting.</span>

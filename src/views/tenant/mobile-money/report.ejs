@@ -69,6 +69,21 @@
   </div>
  </section>
  <section class="card">
+  <div class="cardHead"><b>Cross-currency Mobile Money transactions</b><span>Electronic float and physical cash are reported separately</span></div>
+  <div class="cardBody tableWrap" role="region" aria-label="Cross-currency transaction report">
+   <table><thead><tr><th>Network</th><th>Transaction</th><th>Count</th><th>Electronic money</th><th>Physical cash</th><th>Provider unverified</th></tr></thead><tbody>
+    <% if(!(report.fxRows||[]).length){ %><tr><td colspan="6">No cross-currency operations in this period.</td></tr><% } %>
+    <% (report.fxRows||[]).forEach(row=>{ %><tr data-search-row>
+     <td><%= row.network %></td>
+     <td><%= row.operation==='withdraw_provider_receive_cash'?'Customer withdrawal':'Customer deposit' %></td>
+     <td><%= row.count %></td><td><%= row.providerFormatted %></td>
+     <td><%= row.cashFormatted %></td><td><%= row.unverified %></td>
+    </tr><% }) %>
+   </tbody></table>
+   <p class="tiny">Each exchange appears once here. Provider principal and cash paid or received are different currencies and are never added together or counted as profit. Unverified provider events remain explicitly identified.</p>
+  </div>
+ </section>
+ <section class="card">
   <div class="cardHead"><b>Approved operating expenses by currency</b><span>Shared branch costs are not arbitrarily allocated to networks</span></div>
   <div class="cardBody">
    <% if(!report.expensesAccessible){ %><p class="tiny">Expense totals unavailable: the Expenses module or reporting permissions are not assigned. A true net-profit figure cannot be established here.</p><% }

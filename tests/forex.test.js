@@ -45,6 +45,12 @@ test('FX rates are exact fixed-point decimals and conversion does not use floati
 test('Input validation requires valid pair, expiry, idempotency and explanations',()=>{
  const rate={fromCurrency:'UGX',toCurrency:'USD',rateDecimal:'0.000275',note:'Market reference documented by an operator',validHours:'24'};
  assert.equal(fx.rateInput(rate).toCurrency,'USD');
+ assert.equal(fx.rateInput({...rate,referenceUnits:'1000',rateDecimal:'0.275'}).rateDecimal,'0.000275');
+ assert.equal(fx.rateInput({...rate,referenceUnits:'1000',rateDecimal:'350'}).rateDecimal,'0.35');
+ assert.equal(fx.rateInput({...rate,referenceUnits:'100',rateDecimal:'29.4'}).rateDecimal,'0.294');
+ assert.equal(fx.rateInput({...rate,referenceUnits:'1',rateDecimal:'0.000275'}).rateDecimal,'0.000275');
+ fail(()=>fx.rateInput({...rate,referenceUnits:'10'}),400);
+ fail(()=>fx.rateInput({...rate,referenceUnits:'10000',rateDecimal:'0.00000001'}),400);
  fail(()=>fx.rateInput({...rate,toCurrency:'UGX'}),400);
  fail(()=>fx.rateInput({...rate,validHours:0}),400);
  fail(()=>fx.rateInput({...rate,note:'tiny'}),400);

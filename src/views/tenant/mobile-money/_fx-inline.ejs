@@ -1,0 +1,72 @@
+<% const fx=data.fxState, q=fx?.result, fxCashOut=data.operation==='cash_out', operationPath=fxCashOut?'cash-out':'cash-in'; %>
+<section class="card mobileMoneyEntry" id="mobileCrossCurrency" aria-label="Mobile Money cross-currency operation">
+ <div class="cardHead"><div><b><%= fxCashOut?'Withdrawal':'Deposit' %> · Different currency</b><br><span>Existing Mobile Money operation · same cashier, real wallet and drawer</span></div></div>
+ <div class="cardBody" style="display:grid;gap:14px">
+  <form method="get" action="/tenant/mobile-money/<%= operationPath %>" autocomplete="off">
+   <input type="hidden" name="fx" value="1">
+   <div class="formSection">
+    <div class="formSectionTitle">Amount and accounts</div>
+    <div class="row2">
+     <label class="field">Provider wallet
+      <select class="control" name="walletAccountId" required>
+       <option value="">Select mobile wallet</option>
+       <% fx.wallets.forEach(w=>{ %><option value="<%= w.id %>" <%= fx.input.walletAccountId===w.id?'selected':'' %>><%= w.name %> · <%= w.network %> · <%= w.currency %></option><% }) %>
+      </select>
+     </label>
+     <label class="field">Physical cash drawer
+      <select class="control" name="cashAccountId" required>
+       <option value="">Select cash drawer</option>
+       <% fx.drawers.forEach(d=>{ %><option value="<%= d.id %>" <%= fx.input.cashAccountId===d.id?'selected':'' %>><%= d.name %> · <%= d.currency %></option><% }) %>
+      </select>
+     </label>
+    </div>
+    <label class="field">Customer's Mobile Money amount (provider currency)
+     <input class="control" name="providerAmount" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" value="<%= fx.input.providerAmount||'' %>" placeholder="Enter actual amount" required>
+    </label>
+    <p class="tiny"><%= fxCashOut?'Customer transfers electronic money; cashier pays cash in the selected currency.':'Cashier receives physical cash; customer receives electronic money in the wallet currency.' %></p>
+    <button class="btn btnPrimary" type="submit">Calculate exchange</button>
+   </div>
+  </form>
+  <% if(fx.error){ %><p role="alert"><b>Quote unavailable:</b> <%= fx.error %></p><% } %>
+  <% if(q){ %>
+   <div class="formSection">
+    <div class="formSectionTitle">Confirmed rate preview · <%= q.rateSide.toUpperCase() %></div>
+    <div class="summary">
+     <div class="sumRow"><span><%= fxCashOut?'Customer sends via provider':'Customer receives via provider' %></span><b><%= fx.formatMoneyMinor(q.providerAmountMinor,q.providerCurrency) %></b></div>
+     <div class="sumRow"><span><%= fxCashOut?'Customer receives cash':'Customer pays cash' %></span><b><%= fx.formatMoneyMinor(q.cashAmountMinor,q.cashCurrency) %></b></div>
+     <div class="sumRow"><span>Approved rate</span><b><%= fx.quoteRate.text %> = <%= fx.quoteRate.rate %> <%= q.cashCurrency %></b></div>
+     <div class="sumRow"><span>Wallet book change</span><b><%= fx.formatMoneyMinor(q.walletDeltaMinor,q.providerCurrency) %></b></div>
+     <div class="sumRow"><span>Drawer book change</span><b><%= fx.formatMoneyMinor(q.cashDeltaMinor,q.cashCurrency) %></b></div>
+     <div class="sumRow"><span>Rate expiry</span><b><%= formatLocalDate(q.rateExpiresAt,fx.selectedBranchId) %></b></div>
+    </div>
+    <p class="tiny">This is a calculation, not a provider payment. Check the approved rate against your actual business quote and ensure you have enough cash before handing money over.</p>
+   </div>
+   <% if(fx.canExecute){ %>
+    <form method="post" action="/tenant/mobile-money/fx/record" autocomplete="off" class="formSection" data-momo-fx-post>
+     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+     <input type="hidden" name="idempotencyKey" value="<%= fx.idempotencyKey %>">
+     <% ['operation','network','walletAccountId','cashAccountId','providerCurrency','cashCurrency','providerAmountMinor','cashAmountMinor','rateId','rateVersion','rateDecimal'].forEach(field=>{ %><input type="hidden" name="<%= field %>" value="<%= q[field] %>"><% }) %>
+     <div class="formSectionTitle">Finalize actual Mobile Money transaction</div>
+     <label class="field">Actual provider transaction reference
+      <input class="control" name="providerReference" required minlength="6" maxlength="120" pattern="[A-Za-z0-9._:/\\-]{6,120}" placeholder="From the provider application">
+     </label>
+     <label class="field"><input type="checkbox" name="providerAppConfirmed" value="yes" required> Provider transaction actually confirmed.</label>
+     <label class="field"><input type="checkbox" name="cashHandoverConfirmed" value="yes" required> The displayed cash amount was physically received or paid.</label>
+     <p class="tiny">Finalizes native-currency books in one transaction. Actual provider settlement is separately reconciled and is not asserted by this entry.</p>
+     <button class="btn btnPrimary" type="submit">Finalize actual exchange</button>
+    </form>
+   <% }else{ %>
+    <p role="status"><b>Cannot post yet:</b> <%= fx.blockers.join(' ') %> Contact your Tenant Owner if this exact account pair or your operator access needs enabling.</p>
+   <% } %>
+  <% } %>
+  <% if(fx.history.length){ %>
+   <div class="formSection">
+    <div class="formSectionTitle">Recent completed cross-currency transactions</div>
+    <div class="tableWrap"><table><thead><tr><th>Provider</th><th>Electronic money</th><th>Cash</th><th>Recorded</th></tr></thead><tbody>
+    <% fx.history.forEach(item=>{ %><tr><td><%= item.network %></td><td><%= fx.formatMoneyMinor(item.providerAmountMinor.toString(),item.providerCurrency) %></td>
+    <td><%= fx.formatMoneyMinor(item.cashAmountMinor.toString(),item.cashCurrency) %></td><td><%= formatLocalDate(item.createdAt,fx.selectedBranchId) %></td></tr><% }) %>
+    </tbody></table></div>
+   </div>
+  <% } %>
+ </div>
+</section>

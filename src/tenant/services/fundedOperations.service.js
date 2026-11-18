@@ -396,7 +396,17 @@ async function payoutContext(conn,tenant,actor,state){
  if(!verification||String(verification.branchId)!==String((await resolveTransactionBranch(conn,current.actor))._id))return {verification:null,idempotencyKey:crypto.randomUUID()};
  const collection=await fundedModels(conn).execution.findOne({_id:verification.collectionExecutionId,status:'posted_manual'}).lean();
  const source=collection?await models.transferOrderModel(conn).findOne({_id:collection.sourceId,status:'collected_manual'}).lean():null;
- return source?{verification,collection,source,payoutAccounts:(await availableAccounts(conn,current.tenant,current.actor,verification.branchId,'money_transfer')).filter(account=>account.kind==='cash'&&account.currency===source.currency&&String(account.operatorId)===String(actor.id)),verificationToken:state.token,idempotencyKey:crypto.randomUUID()}:{verification:null,idempotencyKey:crypto.randomUUID()};
+ if(!source)return {verification:null,idempotencyKey:crypto.randomUUID()};
+ const available=(await availableAccounts(conn,current.tenant,current.actor,verification.branchId,'money_transfer'))
+  .filter(account=>account.kind==='cash'&&String(account.operatorId)===String(actor.id));
+ const canFx=hasModuleForUser(current.tenant,current.actor,'forex')&&hasPermission(current.actor,'forex.quotes.create');
+ const rates=canFx?await models.forexRateModel(conn).find({
+  branchId:verification.branchId,fromCurrency:source.currency,toCurrency:{$ne:source.currency},
+  side:'buy',status:'active',reviewedBy:{$ne:null},expiresAt:{$gt:new Date()}
+ }).select('_id fromCurrency toCurrency rateDecimal revision expiresAt').sort({toCurrency:1}).limit(30).lean():[];
+ return {verification,collection,source,payoutAccounts:available.filter(a=>a.currency===source.currency||
+  canFx&&rates.some(r=>r.toCurrency===a.currency)),fxRates:rates,
+  verificationToken:state.token,idempotencyKey:crypto.randomUUID()};
 }
 async function requestPayout(conn,tenant,actor,input={}){
  const v=formInput(input),current=await context(conn,tenant,actor,'money_transfer','money_transfer.payout');await prepareIndexes(conn);

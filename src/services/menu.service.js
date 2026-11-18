@@ -49,6 +49,11 @@ function tenantMenu(tenant,user) {
   group('Mobile Money',mobile?[
     item('Deposit','mobile-money/cash-in','fa-arrow-down',{transactionKind:can('mobile_money.cash_in')?'cash_in':null}),
     item('Withdrawal','mobile-money/cash-out','fa-arrow-up',{transactionKind:can('mobile_money.cash_out')?'cash_out':null}),
+    ...(module('forex')&&can('treasury.view')&&(can('forex.view')||user.role==='Mobile Money Operator')?[
+      item('Cross-currency exchange','mobile-money/fx','fa-right-left'),
+      item('Cross-currency history','mobile-money/fx/history','fa-clock-rotate-left'),
+      ...(['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(user.role)&&can('treasury.view')?[item('FX provider authorization','mobile-money/fx/authorizations','fa-shield-halved')]:[])
+    ]:[]),
     item('Onboarding guide','mobile-money/onboarding','fa-book-open'),
     item('Network activity','mobile-money/network-activity','fa-tower-broadcast'),
     item('Cash impact','mobile-money/cash-impact','fa-cash-register'),

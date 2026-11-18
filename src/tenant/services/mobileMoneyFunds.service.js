@@ -92,14 +92,20 @@ async function apply(conn,session,authorization,values,{requireObservation=false
     kind:'cash',currency:values.currency,operatorId:authorization.actor.id,
     status:'active',reconciliationState:'matched',openingApprovedAt:{$ne:null}};
    let drawer;
-   if(wallet.cashDrawerAccountId){
+   if(values.paymentAccountId){
+    // A teller may select between their own independently opened, reconciled
+    // drawers. Never infer a different branch, owner, or currency.
+    drawer=await fundsModels.models(conn).account.findOne({...cashQuery,
+     _id:oid(values.paymentAccountId)}).session(session).lean();
+    if(!drawer)throw fail('Selected physical cash drawer is unavailable or outside your assigned shift',409);
+   }else if(wallet.cashDrawerAccountId){
     drawer=await fundsModels.models(conn).account.findOne({...cashQuery,_id:wallet.cashDrawerAccountId}).session(session).lean();
-    if(!drawer)throw fail('This provider wallet is linked to another operator or an unavailable cash drawer. Ask the Tenant Owner to review its mapping.',409);
+    if(!drawer)throw fail('This provider wallet is linked to an unavailable cash drawer',409);
    }else{
     const eligible=await fundsModels.models(conn).account.find(cashQuery).limit(2).session(session).lean();
     if(eligible.length!==1)throw fail(eligible.length?
-     'More than one physical drawer qualifies. The Tenant Owner must map the network wallet to the real drawer in Treasury.':
-     'There is no approved cash drawer assigned to this login. Record the transaction using the actual drawer operator’s account and approved cash shift; do not create a duplicate cash drawer.',409);
+     'Select your actual physical cash drawer before finalizing.':
+     'There is no approved cash drawer assigned to this login.',409);
     drawer=eligible[0];
    }
    if(values.paymentAccountId&&String(values.paymentAccountId)!==String(drawer._id))

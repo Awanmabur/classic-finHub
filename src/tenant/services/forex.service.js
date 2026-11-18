@@ -73,8 +73,9 @@ function rateInput(input){
 }
 function quoteInput(input){
  const originModule=input?.originModule||'forex';
- if(!['forex','banking','money_transfer'].includes(originModule))throw fail('Choose Forex, Banking or Money Transfer for this quote; Mobile Money uses its dedicated wallet-to-drawer settlement');
- const originRecordId=require('./forexOrigin.service').originId(input?.originRecordId,originModule);
+ if(originModule!=='forex'||input?.originRecordId)
+  throw fail('Use Banking account exchange or PIN-verified Money Transfer payout for cross-module conversion. Standalone Forex cannot also settle those original funds.',409);
+ const originRecordId=null;
  const operation=input?.operation||'quote';
  if(!['buy','sell','quote'].includes(operation))throw fail('Invalid exchange operation');
  const rateId=id(input?.rateId);const customerLabel=text(input?.customerLabel,'customer reference',2,120);

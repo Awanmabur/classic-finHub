@@ -103,6 +103,11 @@ function routes({renderTenant}){
    renderTenant(req,res,'money-transfer/detail','Transfer Request Details',
     'Transfer instructions and independently reviewed manual collections and payouts.',{
      order,formatMoneyMinor,
+     canFx:order.status==='collected_manual'&&
+      require('../services/moduleAccess.service').hasModuleForUser(req.tenant,req.user,'forex')&&
+      hasPermission(req.user,'forex.quotes.create')&&
+      (req.user.role==='Tenant Owner'||String(req.user.id)===String(order.createdBy))&&
+      String(req.operationBranch?._id||'')===String(order.branchId),
     pendingMovementId:pendingMovement&&(req.user.role!=='Money Transfer Operator'||String(pendingMovement.createdBy)===String(req.user.id))?pendingMovement._id:null,
      canRecordManual:!pendingMovement&&writeRoles.has(req.user.role)&&hasPermission(req.user,'money_transfer.create')&&hasPermission(req.user,'treasury.view')&&
       (req.user.role==='Tenant Owner'||String(order.createdBy)===String(req.user.id))&&String(req.operationBranch?._id||'')===String(order.branchId)&&

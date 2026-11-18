@@ -42,7 +42,7 @@
       <label class="field">Network transaction reference<input class="control" name="networkReference" placeholder="Reference from the provider transaction" pattern="[A-Za-z0-9._:\/\-]{5,100}" minlength="5" maxlength="100" required><span class="tiny">Captured automatically for received SMS transactions; enter the provider reference for a manual transaction.</span></label>
     </div>
     <div class="formSection">
-      <div class="formSectionTitle">3. Amount and balance checks</div>
+      <div class="formSectionTitle">3. Amount and accounts</div>
       <div class="row2">
         <label class="field" data-mobile-currency-field <%= entryVerifiedMarket(selectedEntryNetwork)?'hidden':'' %>>Currency (derived from network)<select class="control" name="currency" data-mobile-currency required><% entryCurrencyOptions.forEach(option=>{ %><option value="<%= option.code %>" <%= option.code===entryCurrency?'selected':'' %>><%= option.label %></option><% }) %></select></label>
         <label class="field">Amount (<span data-mobile-currency-label><%= entryCurrency %></span>)<input class="control" type="text" inputmode="decimal" name="amount" placeholder="0" pattern="<%= entryAmountPattern %>" required></label>

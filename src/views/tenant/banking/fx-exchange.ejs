@@ -7,7 +7,7 @@
   <div class="cardBody">
    <p class="tiny">Use this only when both accounts are held by the same customer in this branch. FinHub atomically debits the source liability and credits the destination liability in their own currencies. This is an internal financial-book transfer, not an external bank wire or evidence of an outside payment.</p>
    <% if(!data.accounts.length){ %><p>Open two active customer accounts in different currencies before transferring.</p><a class="btn" href="/tenant/accounts">Manage customer accounts</a><% }else if(!data.rates.length){ %><p>No active Buy/Sell rate exists for the required currency direction.</p><a class="btn" href="/tenant/forex">Set approved exchange rates</a><% }else{ %>
-   <form method="post" action="/tenant/banking/exchange" autocomplete="off">
+   <form method="post" action="/tenant/banking/exchange/preview" autocomplete="off">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
     <div class="formSection">
@@ -44,7 +44,7 @@
       <input class="control" name="evidenceReference" minlength="6" maxlength="120" required placeholder="Signed instruction, receipt or verifiable customer authorization">
      </label>
      <label class="field"><input type="checkbox" name="confirmCustomerAuthority" value="yes" required> The customer approved the actual two-currency transfer and the source and destination account details have been checked.</label>
-     <button class="btn btnPrimary" type="submit">Post internal currency exchange</button>
+     <button class="btn btnPrimary" type="submit">Review exact exchange amounts</button>
     </div>
    </form><% } %>
   </div>

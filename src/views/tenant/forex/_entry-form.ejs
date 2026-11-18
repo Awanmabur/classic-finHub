@@ -9,11 +9,7 @@
  <p class="tiny">Enabled currencies: <%= operatingCurrencies.length?operatingCurrencies.map(c=>c==='KES'?'KSH':c).join(', '):'none' %>. A separately approved, unexpired exchange rate is required before recording a quote or operation.</p>
  <a class="btn" href="/tenant/forex">Configure a real exchange rate</a>
 <% }else{ %>
-<input type="hidden" name="originModule" value="<%= data.originModule||'forex' %>">
-<input type="hidden" name="originRecordId" value="<%= data.originRecordId||'' %>">
-<% if(data.originModule&&data.originModule!=='forex'){ %>
- <p class="tiny">Linked to actual <%= data.originModule.replaceAll('_',' ') %> instruction <%= data.originRecordId||'not selected' %>. Exchange is available only after verified collection/posting, and posts actual Treasury currency movements. It does not itself send a bank payment or pay the remittance beneficiary.</p>
-<% } %>
+<input type="hidden" name="originModule" value="forex">
 <div class="formSection"><div class="formSectionTitle">Customer and operation</div>
  <div class="row2"><label class="field">Operation<input class="control" value="<%= operation==='buy'?'Buy forex from customer':operation==='sell'?'Sell forex to customer':'Indicative quotation' %>" readonly></label><label class="field">Customer name<input name="customerLabel" class="control" minlength="2" maxlength="120" placeholder="Customer full name" required></label></div>
  <label class="field">Customer phone<input class="control" name="customerPhone" type="tel" required maxlength="16" placeholder="+211..."></label>

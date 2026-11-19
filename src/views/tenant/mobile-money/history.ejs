@@ -10,8 +10,8 @@
     </form><p class="tiny">Results are restricted to your role, assigned branch and any operator-only scope. Maximum custom range: 90 days. Use Next to explore older results without loading entire tenant histories.</p></div>
   </section>
   <section class="card" style="margin-top:14px"><div class="cardHead"><b>Recorded activity</b><span><%= data.records.items.length %> records on this page</span></div>
-    <div class="cardBody tableWrap"><table><thead><tr><th>Date · <%= historyZone %></th><th>TX ID / Provider reference</th><th>Network</th><th>Operation</th><th>Entry source</th><th>Payment method</th><th>Amount</th><th>Recorded fee</th><th>Agent commission estimate</th><th>Provider charge estimate</th><th>Internal record</th><th>Correction</th><th>Attention signals</th></tr></thead><tbody>
-      <% if(!data.records.items.length){ %><tr><td colspan="13">No records in this date range.</td></tr><% } %>
+    <div class="cardBody tableWrap"><table><thead><tr><th>Date · <%= historyZone %></th><th>TX ID / Provider reference</th><th>Network</th><th>Operation</th><th>Entry source</th><th>Payment method</th><th>Amount</th><th>Recorded fee</th><th>Agent commission estimate</th><th>Provider charge estimate</th><th>Internal record</th><th>Balance after posting</th><th>Correction</th><th>Attention signals</th></tr></thead><tbody>
+      <% if(!data.records.items.length){ %><tr><td colspan="14">No records in this date range.</td></tr><% } %>
       <% data.records.items.forEach(t=>{ %><tr data-search-row>
         <td><%= historyLocalDate(t.createdAt) %></td>
         <td><a href="/tenant/mobile-money/<%= t._id %>"><%= t.networkReference %></a></td>
@@ -23,6 +23,14 @@
         <td><%= t.customerNetworkFeeEstimate?money(t.currency,amountFromMinor(t.customerNetworkFeeEstimate.amountMinor,t.currency))+' · approved v'+t.customerNetworkFeeEstimate.version:
           t.customerNetworkChargePublishedReference?money(t.currency,amountFromMinor(t.customerNetworkChargePublishedReference.amountMinor,t.currency))+' · published reference only':'—' %></td>
         <td><%= t.status==='voided_internal'?'Voided internally':t.fundingState==='book_recorded'?'Recorded in books':t.status==='recorded'?'Recorded':t.status==='pending_verification'?'Historical entry · review evidence':t.status.replaceAll('_',' ') %></td>
+        <td>
+         <% if(t.balanceAfter?.length){ %>
+          <details><summary><%= t.balanceAfter.length %> booked account balance<%= t.balanceAfter.length===1?'':'s' %></summary>
+           <% t.balanceAfter.forEach(x=>{ %><div class="tiny"><%= x.account %> (<%= x.kind %>) · <%= x.change %> · <strong><%= x.balanceAfter %> after</strong></div><% }) %>
+          </details>
+         <% }else if(t.fundingState==='book_recorded'){ %><span class="tiny">Historical snapshot unavailable or restricted</span>
+         <% }else{ %><span class="tiny">Not posted</span><% } %>
+        </td>
         <td><%= (t.correctionState||'none').replaceAll('_',' ') %></td><td><%= (t.riskSignals||[]).join(', ').replaceAll('_',' ')||'None' %></td>
       </tr><% }) %>
     </tbody></table></div>

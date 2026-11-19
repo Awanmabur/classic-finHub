@@ -1,7 +1,8 @@
 <% const viewZone=typeof businessTimeZone==='string'?businessTimeZone:'UTC';
 const localWhen=typeof formatLocalDate==='function'?formatLocalDate:
  (value=>new Date(value).toISOString().slice(0,16).replace('T',' ')); %>
-<section class="view show financialReportsPage"><section class="card"><div class="cardHead"><b>Request <%= data.order.reference %></b><span><%= data.order.status.replaceAll('_',' ') %></span><a class="btn" href="/tenant/money-transfer/history">History</a></div><div class="cardBody">
+<section class="view show financialReportsPage">
+<%- include('../partials/record-balances',{recordStatus:data.order.status}) %><section class="card"><div class="cardHead"><b>Request <%= data.order.reference %></b><span><%= data.order.status.replaceAll('_',' ') %></span><a class="btn" href="/tenant/money-transfer/history">History</a></div><div class="cardBody">
 <% if(data.order.status==='paid_out_manual'){ %><p class="tiny">Collection and payout were independently reviewed and posted to the manual funds book. The linked movements retain the supporting evidence and reviewer decisions.</p><% }else if(data.order.status==='collected_manual'){ %><p class="tiny">The manual collection was independently reviewed and posted. A payout PIN is available from the collection movement; payout requires receiver verification and a different reviewer.</p><% }else{ %><p class="tiny">This transfer instruction has not changed the funds book. Record the actual collection and obtain independent review to issue the payout PIN.</p><% } %>
 <div class="summary">
 <div class="sumRow"><span>From branch</span><b><%= data.order.originBranchName||'Original operating branch' %></b></div><div class="sumRow"><span>To branch</span><b><%= data.order.destinationBranchName||data.order.originBranchName||'Original operating branch' %></b></div>

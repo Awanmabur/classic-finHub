@@ -83,8 +83,9 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
   // provider sheets are snapshotted separately as expected commission/network
   // charges, not booked as fee income. Preserve historical records unchanged.
   if(options.requireFunds===true){
-   // toMinor() deliberately returns a safe integer Number, not BigInt.
-   if(values.feeMinor!==0)throw bad('Mobile Money does not charge an additional agent fee; only the approved provider sheet applies',400);
+   // Current manual amounts use Number; legacy configured-price mode uses
+   // BigInt zero. Compare by value so neither path can reject a valid zero.
+   if(BigInt(String(values.feeMinor))!==0n)throw bad('Mobile Money does not charge an additional agent fee; only the approved provider sheet applies',400);
    values.feeMinor=0;
   }
   const feeTreatmentSpecified=typeof input.feeTreatment==='string'&&input.feeTreatment!=='';

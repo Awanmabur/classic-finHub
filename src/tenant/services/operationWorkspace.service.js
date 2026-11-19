@@ -79,7 +79,34 @@ async function records(conn,tenant,actor,key,query={},timeZone='UTC'){
  if(cursor)filter.$or=[{createdAt:{$lt:cursor.at}},{createdAt:cursor.at,_id:{$lt:new mongoose.Types.ObjectId(cursor.id)}}];
  const found=await spec.model(conn).find(filter).sort({createdAt:-1,_id:-1}).limit(41).lean();
  const visible=found.slice(0,40);
- return {items:visible.map(row=>describe(key,row)),nextCursor:found.length>40?mobile.encodeCursor(visible.at(-1)):null,filters};
+ const items=visible.map(row=>describe(key,row));
+ // Attach only real, persisted after-posting balances. An unposted request
+ // does not have a cash/float balance change and must never show a fake one.
+ if(items.length&&hasPermission(actor,'treasury.view')){
+  const sources=[];
+  const ids=visible.map(row=>row._id);
+  const executions=await require('../funded/models').models(conn).execution.find({
+   sourceType:key,sourceId:{$in:ids},status:'posted_manual'
+  }).select('_id sourceId action').limit(121).maxTimeMS(5000).lean();
+  if(executions.length>120)throw fail('Narrow the report to see all balance snapshots',422);
+  for(const row of visible){
+   if(key==='forex'&&row.originModule==='mobile_money'&&row.status==='posted_manual'&&
+     /^[a-f0-9-]{36}$/i.test(String(row.idempotencyKey||'')))
+    sources.push({recordId:row._id,sourceType:'forex',sourceRef:'MFX:'+row.idempotencyKey,
+     stage:'Linked Mobile Money / Forex'});
+  }
+  for(const execution of executions){
+   sources.push({recordId:execution.sourceId,sourceType:key,
+    sourceRef:'FUNDED:'+execution._id,stage:execution.action==='transfer_payout'?'Cash payout':
+     execution.action==='transfer_collect'?'Cash collection':'Posted movement'});
+   if(key==='money_transfer'&&execution.action==='transfer_payout')
+    sources.push({recordId:execution.sourceId,sourceType:key,
+     sourceRef:'BRANCH_PAYOUT:'+execution._id+':ORIGIN',stage:'Origin branch transfer'});
+  }
+  const snapshots=await require('./recordBalances.service').snapshots(conn,tenant,actor,sources);
+  for(const item of items)item.balanceAfter=snapshots.get(String(item._id))||[];
+ }
+ return {items,nextCursor:found.length>40?mobile.encodeCursor(visible.at(-1)):null,filters};
 }
 async function report(conn,tenant,actor,key,query={},timeZone='UTC'){
  authorize(tenant,actor,key);
@@ -124,11 +151,39 @@ async function report(conn,tenant,actor,key,query={},timeZone='UTC'){
   volume:formatAmount(row.volume?.toString()||'0',row._id.currency),
   fees:spec.fees?formatAmount(row.fees?.toString()||'0',row._id.currency):'',
   target:key==='forex'?formatAmount(row.target?.toString()||'0',row._id.targetCurrency):''}));
- return {moduleKey:key,label:spec.label,currencies:spec.currencies,filters,rows,incomeRows,timeZone,total:rows.reduce((sum,row)=>sum+row.count,0),
+ return {moduleKey:key,label:spec.label,currencies:spec.currencies,filters,rows,incomeRows,timeZone,
+  stats:financialStatsFromGroups(found,key),total:rows.reduce((sum,row)=>sum+row.count,0),
   canExport:hasPermission(actor,`${key}.report`)||hasPermission(actor,'reports.export'),
   note:key==='forex'?'Quotations remain separate from posted manual exchanges. Finalized cashier-confirmed exchanges update the foreign stock and settlement books; check the cash movement report for physical drawer effects.':
    key==='banking'?'Pending instructions remain separate from posted manual operations. Reviewed manual movements update the selected funds and internal customer accounts together.':
     'Pending requests remain separate from collected and paid-out manual transfers. Independently reviewed collection posts the funds and payable, then enables one-time PIN access; provider settlement remains separate.'};
+}
+function financialStatsFromGroups(groups,key){
+ const completed=new Set(key==='forex'?['posted_manual']:key==='money_transfer'?
+  ['paid_out_manual']:['posted_manual']);
+ const collected=new Set(key==='money_transfer'?['collected_manual']:[]);
+ const failed=new Set(['rejected','cancelled','expired','reversed_manual']);
+ const total=groups.reduce((s,row)=>s+Number(row.count||0),0);
+ const countWhere=pred=>groups.reduce((s,row)=>s+(pred(row._id.status)?Number(row.count||0):0),0);
+ const posted=countWhere(s=>completed.has(s)),collectedCount=countWhere(s=>collected.has(s));
+ const stopped=countWhere(s=>failed.has(s)),pending=Math.max(0,total-posted-collectedCount-stopped);
+ const postedAmounts=new Map(),targetAmounts=new Map();
+ for(const row of groups){
+  if(!completed.has(row._id.status)&&!collected.has(row._id.status))continue;
+  const currency=row._id.currency,amount=String(row.volume??'');
+  if(currencyCodes.includes(currency)&&/^-?\d+$/.test(amount))
+   postedAmounts.set(currency,(postedAmounts.get(currency)||0n)+BigInt(amount));
+  if(key==='forex'){
+   const to=row._id.targetCurrency,target=String(row.target??'');
+   if(currencyCodes.includes(to)&&/^-?\d+$/.test(target))
+    targetAmounts.set(to,(targetAmounts.get(to)||0n)+BigInt(target));
+  }
+ }
+ const formatRows=map=>[...map].sort(([a],[b])=>a.localeCompare(b))
+  .map(([currency,minor])=>({currency,formatted:formatAmount(minor,currency)}));
+ return {total,posted,collected:collectedCount,pending,stopped,
+  postedVolumes:formatRows(postedAmounts),targetVolumes:formatRows(targetAmounts),
+  completedLabel:key==='money_transfer'?'Paid out':key==='forex'?'Posted exchanges':'Posted movements'};
 }
 function csv(report){
  const headers=['Date ('+(report.timeZone||'UTC')+')','Operation','Status','Currency','Records','Requested / quoted amount','Proposed fees','Target currency','Target quoted amount','Source module','Provider network','Original operation'];
@@ -173,4 +228,4 @@ async function formContext(conn,tenant,actor,key,operationBranch,input={}){
   canPropose:service.operator(actor)&&hasPermission(actor,'forex.rate_manage'),canQuote:service.operator(actor)&&hasPermission(actor,'forex.quotes.create'),
   canRateReview:service.reviewer(actor)&&hasPermission(actor,'forex.rate_review'),canQuoteReview:service.reviewer(actor)&&hasPermission(actor,'forex.quotes.review')};
 }
-module.exports={definitions,definition,authorize,scopeFor,filtersFor,queryFor,describe,records,report,csv,formContext,formatAmount,fail};
+module.exports={definitions,definition,authorize,scopeFor,filtersFor,queryFor,describe,records,report,financialStatsFromGroups,csv,formContext,formatAmount,fail};

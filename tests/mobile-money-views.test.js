@@ -47,7 +47,7 @@ test('approved mobile money entry preserves the protected server contract and as
   const currency = html.match(/<select\b[^>]*name="currency"[^>]*>([\s\S]*?)<\/select>/);
   assert(currency,'Approved currency control must be present');
   assert.deepEqual([...currency[1].matchAll(/<option\b[^>]*value="([^"]+)"/g)].map(match=>match[1]),['UGX','USD','SSP','KES']);
-  assert.match(html,/Assigned branch/);
+  assert.doesNotMatch(html,/Operating at <strong>Assigned branch/,'The assigned branch is now visible in the shared top navigation, not repeated on the entry form');
   const transactionForm = html.match(/<form[^>]+data-mobile-money-form[\s\S]*?<\/form>/)[0];
   assert.equal([...transactionForm.matchAll(/\bname="fee"/g)].length,1,'Mobile Money must render exactly one fee input; duplicate names crash form initialization');
   assert.doesNotMatch(transactionForm,/<(?:select|input)[^>]+name="branchId"/);

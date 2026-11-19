@@ -60,6 +60,20 @@ function operatorEvidence(proof,input,actor){
  return {verifiedAt:null,cashConfirmedAt:new Date(),
   evidenceId:'OP:'+input.idempotencyKey,evidenceKind:'operator_attested',settlementState:'unverified'};
 }
+// A provider reference identifies one payment independently of browser keys.
+// Exact retries return the original record, never an additional money posting.
+function sameRecordedExchange(existing,actor,input){
+ return existing.providerReference===input.providerReference&&existing.network===input.network&&
+  existing.operation===input.operation&&String(existing.actorId)===String(actor.id)&&
+  String(existing.walletAccountId)===String(input.walletAccountId)&&
+  String(existing.cashAccountId)===String(input.cashAccountId)&&
+  String(existing.branchId)===String(input.branchId||'')&&
+  String(existing.providerAmountMinor)===String(input.providerAmountMinor)&&
+  String(existing.cashAmountMinor)===String(input.cashAmountMinor)&&
+  existing.providerCurrency===input.providerCurrency&&existing.cashCurrency===input.cashCurrency&&
+  String(existing.rateId)===String(input.rateId)&&
+  existing.rateVersion===Number(input.rateVersion)&&existing.rateDecimal===input.rateDecimal;
+}
 function dec(value){return mongoose.Types.Decimal128.fromString(String(value));}
 async function settleVerified(conn,tenant,actor,input,proof){
  // Application-level kill switch, independent of tenant and branch grants.
@@ -82,25 +96,27 @@ async function settleVerified(conn,tenant,actor,input,proof){
  await Promise.all([ensureTreasury(conn),ensureFxIndexes(conn),ensureTenantIndexes(conn)]);
  const existing=await Record.findOne({tenantId:tenant._id,idempotencyKey:input.idempotencyKey}).lean();
  if(existing){
-  if(existing.providerReference!==input.providerReference||existing.network!==input.network||
-     existing.operation!==input.operation||String(existing.actorId)!==String(actor.id)||
-     String(existing.walletAccountId)!==input.walletAccountId||
-     String(existing.cashAccountId)!==input.cashAccountId||
-     String(existing.branchId)!==String(input.branchId||'')||
-     String(existing.providerAmountMinor)!==String(input.providerAmountMinor)||
-     String(existing.cashAmountMinor)!==String(input.cashAmountMinor)||
-     existing.providerCurrency!==input.providerCurrency||existing.cashCurrency!==input.cashCurrency||
-     String(existing.rateId)!==String(input.rateId)||
-     existing.rateVersion!==Number(input.rateVersion)||
-     existing.rateDecimal!==String(input.rateDecimal))
-    throw fail('Idempotency reference already used for another exchange');
+  if(!sameRecordedExchange(existing,actor,input))
+   throw fail('This request key belongs to a different recorded exchange. Open Mobile Money history.',409);
   return {record:existing,duplicate:true};
  }
  const Mobile=mobileTransactionModel(conn);
  const used=await Record.findOne({tenantId:tenant._id,network:input.network,
-  providerReference:input.providerReference}).select('_id').lean();
+  providerReference:input.providerReference}).lean();
+ if(used){
+  const original=used.mobileMoneyRecordId?await Mobile.findById(used.mobileMoneyRecordId).lean():null;
+  const phone=String(input.customerPhone||'').trim().replace(/[ ()-]/g,'');
+  // Exact replays with a fresh request key retain their original immutable
+  // journal, even if the cashier reopened the form after a lost response.
+  if(sameRecordedExchange(used,actor,input)&&original&&
+   original.status!=='voided_internal'&&original.correctionState!=='voided'&&
+   String(original.customerPhone||'')===phone&&
+   (!String(input.customer||'').trim()||String(original.customer)===String(input.customer).trim()))
+   return {record:used,mobile:original,duplicate:true};
+  throw fail('This provider reference belongs to an existing transaction. Check Mobile Money history; a new operation needs its own genuine provider reference.',409);
+ }
  const ordinaryUsed=await Mobile.findOne({network:input.network,networkReference:input.providerReference}).select('_id').lean();
- if(used||ordinaryUsed)throw fail('This provider transaction reference is already recorded; never post it again');
+ if(ordinaryUsed)throw fail('This provider reference is already recorded in Mobile Money. Check the existing transaction in history; do not post it again.',409);
  const session=await conn.startSession();
  try{
   let result;

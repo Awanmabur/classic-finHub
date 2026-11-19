@@ -9,6 +9,16 @@
    const shiftStateLabel=state=>({pending_open:'Opening count needs verification',open:'Open · recording',submitted:'Closing count awaiting review',approved:'Closed and reconciled',opening_rejected:'Opening rejected',disputed:'Count disputed'})[state]||String(state).replaceAll('_',' '); %>
 <section class="view show">
  <%- include('../../partials/operation-branch', {currentBranch, branchProblem, user}) %>
+ <% const visibleShifts=data.shifts?.items||[];
+    const shiftCounts=[
+     ['Open shifts',visibleShifts.filter(s=>s.status==='open').length],
+     ['Awaiting count review',visibleShifts.filter(s=>['pending_open','submitted'].includes(s.status)).length],
+     ['Disputed',visibleShifts.filter(s=>s.status==='disputed').length],
+     ['Reconciled',visibleShifts.filter(s=>s.status==='approved').length]
+    ]; %>
+ <div class="grid3 overviewStatsGrid moduleStatsGrid" aria-label="Cash control summary of loaded records" style="margin-bottom:12px">
+  <% shiftCounts.forEach(([name,count])=>{ %><div class="stat"><div class="k"><%= name %> · current page</div><div class="v"><%= count %></div></div><% }); %>
+ </div>
   <section class="card">
     <div class="cardHead"><b>Physical cash reconciliation</b><span>Per operator · branch · currency</span></div>
     <div class="cardBody">
@@ -57,7 +67,7 @@
         <td><%= regionalTime(shift.createdAt,shift.branchId) %></td><td><%= data.branchNames?.[String(shift.branchId)] || shift.branchId %></td><td><%= data.operatorNames?.[String(shift.operatorId)] || shift.operatorId %></td>
         <td><span class="tag"><%= shiftStateLabel(shift.status) %></span></td><td><%= shift.currency %></td>
         <td><%= cashLabel(shift.openingMinor,shift.currency) %></td><td><%= shift.recordCount %></td>
-        <td><a class="btn" href="/tenant/cash/shifts/<%= shift._id %>">View shift</a></td>
+        <td><a class="btn" href="/tenant/cash/shifts/<%= shift._id %>"><%= ['open','disputed','submitted','pending_open'].includes(shift.status)?'Reconcile / review':'View cash record' %></a></td>
       </tr><% }) %>
     </tbody></table></div>
     <% if(data.shifts.nextCursor){ %><div class="cardBody"><a class="btn" href="/tenant/cash/shifts?cursor=<%= encodeURIComponent(data.shifts.nextCursor) %>">Next page</a></div><% } %>

@@ -23,7 +23,7 @@ module.exports=function expensesRoutes({renderTenant}){
  router.get('/expenses',page);router.get('/expenses/new',requirePermission('expenses.create'),page);
  router.post('/expenses',requirePermission('expenses.create'),throttle,async(req,res,next)=>{try{
   const result=await expenses.create(req.tenantDb,req.tenant,req.user,req.body,{requireFunds:true});
-  flash(req,'good',result.duplicate?'Expense already recorded. No duplicate was created.':'Expense submitted for independent review. Pending expenses do not reduce cash.');
+  flash(req,'good',result.duplicate?'Expense already submitted; no duplicate record or balance movement.':'Expense saved with its exact funding account. Automatic deduction happens once after independent approval; pending expenses do not change balances.');
   require('../services/branchView.service').followRecord(req,result.record);
   res.redirect(303,`/tenant/expenses/${result.record._id}`);
  }catch(error){next(error);}});
@@ -31,7 +31,7 @@ module.exports=function expensesRoutes({renderTenant}){
   const record=await expenses.detail(req.tenantDb,req.tenant,req.user,req.params.id),perms=permissions(req.user);
   const independent=String(record.operatorId)!==String(req.user.id)&&String(record.pendingChange?.requestedBy||'')!==String(req.user.id);
   renderTenant(req,res,'expenses/detail','Expense details','Original evidence, independent decisions, and correction history.',{
-   record,permissions:perms,format:mobile.formatMoneyMinor,fundChoices:perms.review?await expenses.fundChoices(req.tenantDb,req.tenant,req.user,{expenseId:req.params.id}):[],
+   record,permissions:perms,format:mobile.formatMoneyMinor,fundChoices:await expenses.fundChoices(req.tenantDb,req.tenant,req.user,{expenseId:req.params.id}),
    canReview:perms.review&&independent&&record.status==='pending_review'&&!record.pendingChange,
    canDecide:perms.review&&independent&&!!record.pendingChange,canChange:['pending_review','approved'].includes(record.status)&&!record.pendingChange});
  }catch(error){next(error);}});
@@ -40,7 +40,7 @@ module.exports=function expensesRoutes({renderTenant}){
   ['correct','expenses.correct',(req)=>expenses.requestChange(req.tenantDb,req.tenant,req.user,req.params.id,req.body,'correct'),'Correction requested. Current evidence is preserved until independent approval.'],
   ['void','expenses.void',(req)=>expenses.requestChange(req.tenantDb,req.tenant,req.user,req.params.id,req.body,'void'),'Void requested. The expense remains in the audit history.'],
   ['decide-change','expenses.review',(req)=>expenses.decideChange(req.tenantDb,req.tenant,req.user,req.params.id,req.body),'Correction decision saved and audited.']]){
-  router.post(`/expenses/:id/${action}`,requirePermission(permission),throttle,async(req,res,next)=>{try{await execute(req);flash(req,'good',message);
+  router.post(`/expenses/:id/${action}`,requirePermission(permission),throttle,async(req,res,next)=>{try{const result=await execute(req);flash(req,'good',action==='review'?(result.status==='approved'?'Expense approved. The selected cash, wallet or bank account was deducted automatically once.':'Expense rejected; no account balance was deducted.'):message);
    res.redirect(303,`/tenant/expenses/${req.params.id}`);}catch(error){next(error);}});
  }
  return router;

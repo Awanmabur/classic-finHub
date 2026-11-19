@@ -72,7 +72,18 @@ async function main(){
   const input=quoteInput(),created=await forex.createQuote(a.conn,a.tenant,maker,input);
   assert.equal(created.quote.status,'quoted');assert.equal(created.quote.targetMinor.toString(),'550');
   assert.equal(created.quote.operation,'buy');assert.equal(created.quote.capture.commission,'0');assert.equal(created.quote.capture.externalReference,'FX-SLIP');
-  await assert.rejects(forex.createQuote(a.conn,a.tenant,maker,{...input,commission:'0.2'}),e=>e.status===400&&/additional fee/.test(e.message),'new Forex exchanges cannot collect extra customer fees');
+  await assert.rejects(forex.createQuote(a.conn,a.tenant,maker,{...input,commission:'0.2'}),e=>e.status===409,
+   'changing the fee on a previously used quote key is an idempotency conflict');
+  await assert.rejects(forex.createQuote(a.conn,a.tenant,maker,{...input,
+   idempotencyKey:crypto.randomUUID(),commission:'0.2'}),e=>e.status===400&&/additional fee/.test(e.message),
+   'new Forex exchanges cannot collect extra customer fees');
+  // Emulate an immutable historical quote recorded under the old commission
+  // policy: exact repeat must be readable/replayable, without creating money.
+  await forexQuoteModel(a.conn).collection.updateOne({_id:created.quote._id},{$set:{'capture.commission':'0.1'}});
+  const historical=await forex.createQuote(a.conn,a.tenant,maker,{...input,commission:'0.1'});
+  assert.equal(historical.duplicate,true,'historical fee evidence must remain idempotent');
+  assert.equal(historical.quote.capture.commission,'0.1');
+  await forexQuoteModel(a.conn).collection.updateOne({_id:created.quote._id},{$set:{'capture.commission':'0'}});
   const replay=await forex.createQuote(a.conn,a.tenant,maker,input);
   assert.equal(replay.duplicate,true);assert.equal(String(replay.quote._id),String(created.quote._id));
   await assert.rejects(forex.createQuote(a.conn,a.tenant,maker,{...input,amount:'30000'}),e=>e.status===409);

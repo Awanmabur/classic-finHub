@@ -60,7 +60,8 @@
      const summaryCurrencyView=context==='tenant'&&(currentPath==='/tenant/dashboard'||
       /^\/tenant\/(?:money-transfer|banking|forex)\/(?:records|movements|report|fees|cash-impact|pending-payouts)$/.test(currentPath)||
       currentPath==='/tenant/mobile-money/report');
-     const currencyChoices=summaryCurrencyView?[{code:'',label:'All currencies'},...availableCurrencies]:dashboardCurrencies;
+     const summaryCurrencyOptions=summaryCurrencyView&&currentPath.startsWith('/tenant/forex/')&&Array.isArray(data.currencies)?data.currencies.map(code=>({code,label:code==='KES'?'KSH':code})):availableCurrencies;
+     const currencyChoices=summaryCurrencyView?[{code:'',label:'All currencies'},...summaryCurrencyOptions]:dashboardCurrencies;
      const currencyFilterParams=new URLSearchParams(typeof branchViewReturnTo==='string'?branchViewReturnTo.split('?')[1]||'':'');
      const requestedDisplayCurrency=currencyFilterParams.get('currency');
      const mobileMarketDefault=(mobileOperationPage||momoOnlyDashboard)&&dashboardCurrencies.length?

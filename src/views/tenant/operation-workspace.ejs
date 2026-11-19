@@ -16,25 +16,6 @@ const reportMode=!['records','pending','payout'].includes(data.mode);
 %>
 <section class="view show financialReportsPage">
  <%- include('partials/module-finance',{moduleKey}) %>
- <% if(data.stats){const stats=data.stats; %>
- <section aria-label="<%= data.label %> record statistics" class="moduleRecordStats" style="margin-top:12px">
-  <div class="grid3 overviewStatsGrid moduleStatsGrid">
-   <% [
-    {label:'Records in selected period',value:stats.total},
-    {label:stats.completedLabel,value:stats.posted},
-    {label:moduleKey==='money_transfer'?'Collected · awaiting payout':'Not yet posted',value:moduleKey==='money_transfer'?stats.collected:stats.pending},
-    {label:'Rejected / cancelled / expired',value:stats.stopped}
-   ].forEach(item=>{ %><div class="stat"><div class="k"><%= item.label %></div><div class="v"><%= item.value %></div></div><% }) %>
-  </div>
-  <% if(stats.postedVolumes?.length){ %>
-  <div class="summary" style="margin-top:12px"><b><%= moduleKey==='forex'?'Posted Forex source amounts':'Posted operation amounts' %> · by currency</b>
-   <% stats.postedVolumes.forEach(row=>{ %><div class="sumRow"><span><%= row.currency==='KES'?'KSH':row.currency %></span><b><%= row.formatted %></b></div><% }); %>
-   <% if(moduleKey==='forex'){ %><b>Target currency amounts</b><% stats.targetVolumes.forEach(row=>{ %><div class="sumRow"><span><%= row.currency==='KES'?'KSH':row.currency %></span><b><%= row.formatted %></b></div><% }); %><% } %>
-   <p class="tiny">Native currencies are never added together. Transaction amounts are not commission or Forex profit.</p>
-  </div>
-  <% } %>
- </section>
- <% } %>
  <section class="card">
   <div class="cardHead"><b><%= data.title %></b><span><%= data.total %> internal record<%= data.total===1?'':'s' %> in range</span></div>
   <div class="cardBody">

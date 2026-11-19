@@ -6,7 +6,21 @@
  <label class="field">Paid to / vendor<div class="control"><input name="vendor" placeholder="Optional vendor" maxlength="120"></div></label></div>
  <div class="row2"><label class="field">Payment method<div class="control"><select name="paymentMethod"><option>Cash</option><option>Mobile Money</option><option>Bank</option></select></div></label>
  <label class="field">Reference<div class="control"><input name="reference" placeholder="Receipt / voucher no." maxlength="120"></div></label></div>
+ <label class="field" for="expensePaidFrom">Paid from · actual funds account
+  <select class="control" id="expensePaidFrom" name="treasuryAccountId" required aria-describedby="expenseSourceHint">
+   <option value="">Choose the cash drawer, provider wallet, or bank account</option>
+   <% (data.fundChoices||[]).forEach(account=>{ %>
+    <option value="<%= account._id %>" data-expense-currency="<%= account.currency %>" data-expense-kind="<%= account.kind %>">
+     <%= account.name %> · <%= account.currency==='KES'?'KSH':account.currency %> · <%= account.balance %>
+    </option>
+   <% }) %>
+  </select>
+ </label>
+ <p class="tiny" id="expenseSourceHint" role="status" aria-live="polite">Select the actual account that funded this expense. The amount is deducted from that account's ledger automatically after approval.</p>
+ <% if(!(data.fundChoices||[]).length){ %>
+  <p class="tiny" role="status">There is no verified spendable account available for this branch. <a href="/tenant/treasury">Set up or reconcile the funding account</a> before recording an expense.</p>
+ <% } %>
  <label class="field">Description<div class="control"><input name="description" placeholder="Optional description" maxlength="400"></div></label>
  <p class="tiny" id="expenseBranchHint"><%= expenseBranch?`Operating branch: ${expenseBranch.name}. Choose the actual expense currency; its funds and cash shift stay separate.`:'Assign an active operating branch before adding an expense.' %></p>
- <p class="tiny">Submitted expenses require independent review. Cash expenses require a verified open cash shift; cash changes only after approval. Mobile Money and Bank record evidence without executing a payment.</p>
+ <p class="tiny">The expense is submitted for independent review. Approval immediately records one balanced deduction from the chosen cash, float, or bank book; no additional transfer or manual balance adjustment is required. Cash expenses also require a verified open shift. This entry does not initiate an external payment.</p>
 </div>

@@ -1,0 +1,37 @@
+<%
+// One approved stat component for Platform and Tenant. Only the data differs.
+// Monetary amounts remain separated by their native currency.
+const statItems=typeof items!=='undefined'&&Array.isArray(items)?items:[];
+const statCurrency=typeof currencyFilter==='string'?currencyFilter:'';
+const statShown=statCurrency?statItems.filter(item=>item.currency===statCurrency):statItems;
+const statValue=typeof value==='undefined'||value==null?
+ (statShown.length===1?statShown[0].formatted:statShown.length?'By currency':typeof empty==='string'?empty:'—'):value;
+const statExtra=typeof secondaryRows!=='undefined'&&Array.isArray(secondaryRows)?
+ (statCurrency?secondaryRows.filter(item=>item.currency===statCurrency):secondaryRows):[];
+const statTextual=typeof textual==='boolean'&&textual;
+const statNote=typeof note==='string'?note:'';
+const statTone=typeof noteTone==='string'&&['warn','bad','good'].includes(noteTone)?noteTone:'';
+const statNoteDot=typeof noteDot==='boolean'&&noteDot;
+const statLabelCurrency=code=>code==='KES'?'KSH':code;
+const statFormattedAmount=value=>String(value==null?'—':value).replace(/^KES\s/,'KSH ');
+%>
+<div class="stat<%= statTextual?' stat--text':'' %>"<% if(typeof id==='string'&&id){ %> id="<%= id %>"<% } %><% if(typeof tooltip==='string'&&tooltip){ %> title="<%= tooltip %>"<% } %>>
+ <div class="k"><%= title %></div>
+ <div class="v"<% if(typeof valueId==='string'&&valueId){ %> id="<%= valueId %>"<% } %>><%= statValue %></div>
+ <% if(statShown.length){ %>
+ <div class="overviewCurrencyLines" aria-label="<%= title %> amounts by original currency">
+  <% statShown.forEach(row=>{ %>
+   <div class="overviewCurrencyLine"><span><%= statLabelCurrency(row.currency) %><% if(Number.isInteger(row.count)){ %> · <%= row.count %> transaction<%= row.count===1?'':'s' %><% } %></span><b><%= statFormattedAmount(row.formatted) %></b></div>
+  <% }) %>
+ </div>
+ <% } %>
+ <% if(statExtra.length){ %>
+ <div class="overviewCurrencyLines" aria-label="<%= typeof secondaryTitle==='string'?secondaryTitle:'Additional posted amounts' %>">
+  <div class="s"><%= typeof secondaryTitle==='string'?secondaryTitle:'Additional posted amounts' %></div>
+  <% statExtra.forEach(row=>{ %>
+   <div class="overviewCurrencyLine"><span><%= statLabelCurrency(row.currency) %></span><b><%= statFormattedAmount(row.formatted) %></b></div>
+  <% }) %>
+ </div>
+ <% } %>
+ <% if(statNote){ %><div class="s"><% if(statNoteDot){ %><span class="dot<%= statTone?' '+statTone:'' %>" aria-hidden="true"></span><% } %><span><%= statNote %></span></div><% } %>
+</div>

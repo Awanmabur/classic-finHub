@@ -65,10 +65,20 @@ const reportMode=!['records','pending','payout'].includes(data.mode);
  </section>
  <% if(!reportMode){ %>
  <section class="card" style="margin-top:14px"><div class="cardHead"><b><%= data.mode==='pending'?'Collected funds awaiting payout':'Recorded activity' %></b><span><%= data.records.items.length %> records on this page</span></div>
-  <div class="cardBody tableWrap"><table><thead><tr><th>Date · <%= operationReportZone %></th><th>Reference</th><th>Customer / parties</th><th>Operation</th><th>Amount</th><% if(moduleKey==='forex'){ %><th>Target quote</th><th>Source / network</th><% } %><% if(moduleKey==='money_transfer'){ %><th>Proposed fee</th><% } %><th>Internal status</th><th>Details</th></tr></thead><tbody>
-   <% if(!data.records.items.length){ %><tr><td colspan="9">No records match these filters in your authorized scope.</td></tr><% } %>
+  <div class="cardBody tableWrap"><table><thead><tr><th>Date · <%= operationReportZone %></th><th>Reference</th><th>Customer / parties</th><th>Operation</th><th>Amount</th><% if(moduleKey==='forex'){ %><th>Target quote</th><th>Source / network</th><% } %><% if(moduleKey==='money_transfer'){ %><th>Proposed fee</th><% } %><th>Internal status</th><th>Balance after posting</th><th>Details</th></tr></thead><tbody>
+   <% if(!data.records.items.length){ %><tr><td colspan="11">No records match these filters in your authorized scope.</td></tr><% } %>
    <% data.records.items.forEach(row=>{ %><tr data-search-row><td><%= operationDisplayDate(row.createdAt) %></td><td><%= row.reference %></td><td><%= row.party %></td><td><%= row.activity %></td><td><%= row.volume %></td><% if(moduleKey==='forex'){ %><td><%= row.target %></td>
- <td><%= row.originModule==='mobile_money'?'Mobile Money · '+(row.originNetwork||'')+' · '+(row.originOperation==='cash_out'?'Withdrawal':'Deposit'):row.originModule==='banking'?'Banking':row.originModule==='money_transfer'?'Money Transfer':'Direct Forex' %></td><% } %><% if(moduleKey==='money_transfer'){ %><td><%= row.fee %></td><% } %><td><span class="tag"><%= row.status.replaceAll('_',' ') %></span></td><td><a class="btn" href="<%= row.href %>">Open record</a></td></tr><% }) %>
+ <td><%= row.originModule==='mobile_money'?'Mobile Money · '+(row.originNetwork||'')+' · '+(row.originOperation==='cash_out'?'Withdrawal':'Deposit'):row.originModule==='banking'?'Banking':row.originModule==='money_transfer'?'Money Transfer':'Direct Forex' %></td><% } %><% if(moduleKey==='money_transfer'){ %><td><%= row.fee %></td><% } %><td><span class="tag"><%= row.status.replaceAll('_',' ') %></span></td>
+ <td>
+  <% if(row.balanceAfter?.length){ %><details><summary><%= row.balanceAfter.length %> booked balance<%= row.balanceAfter.length===1?'':'s' %></summary>
+   <% row.balanceAfter.forEach(balance=>{ %>
+    <div class="tiny"><b><%= balance.stage %></b> · <%= balance.account %> (<%= balance.kind %>)</div>
+    <div class="tiny"><%= balance.change %> movement · <strong><%= balance.balanceAfter %> after</strong></div>
+   <% }); %></details>
+  <% }else if(['posted_manual','paid_out_manual','collected_manual'].includes(row.status)){ %>
+   <span class="tiny">Historical snapshot unavailable or restricted</span>
+  <% }else{ %><span class="tiny">Not posted</span><% } %>
+ </td><td><a class="btn" href="<%= row.href %>">Open record</a></td></tr><% }) %>
   </tbody></table></div>
   <% if(data.records.nextCursor){ filterQuery.set('cursor',data.records.nextCursor); %><div class="cardBody"><a class="btn" href="?<%= filterQuery.toString() %>">Next page</a></div><% } %>
  </section>

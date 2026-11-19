@@ -98,11 +98,14 @@
     <section class="mobileMoneyCurrencyBlock">
      <h3><%= code(row.currency) %></h3>
      <div class="networkBalanceGrid">
-      <div class="networkBalanceStat"><span>Deposit / Withdrawal</span><strong><%= row.depositCount %> / <%= row.withdrawalCount %></strong></div>
-      <div class="networkBalanceStat"><span>Transaction volume</span><strong><%= row.volumeMinorFormatted %></strong><small>Customer principal, not income</small></div>
-      <div class="networkBalanceStat"><span>Electronic float change</span><strong><%= row.floatMovementMinorFormatted %></strong><small>Net movement during selected period</small></div>
-      <div class="networkBalanceStat"><span>Expected network commission</span><strong><%= row.estimatedCommissionMinorFormatted %></strong><small><%= row.commissionMissingCount?row.commissionMissingCount+' transaction(s) without an approved sheet':'From approved provider sheets; not yet received' %></small></div>
-      <div class="networkBalanceStat"><span>Commission actually received</span><strong><%= row.receivedCommissionMinorFormatted %></strong><small>Verified provider payout entries</small></div>
+      <% [
+       {title:'Deposits / Withdrawals',value:row.depositCount+' / '+row.withdrawalCount,note:'Recorded transaction counts'},
+       {title:'Transaction volume',value:row.volumeMinorFormatted,note:'Customer principal, not income'},
+       {title:'Electronic float change',value:row.floatMovementMinorFormatted,note:'Net movement in selected period'},
+       {title:'Expected network commission',value:row.estimatedCommissionMinorFormatted,
+        note:row.commissionMissingCount?row.commissionMissingCount+' transactions without an approved sheet':'Approved commission sheets · not yet received'},
+       {title:'Commission actually received',value:row.receivedCommissionMinorFormatted,note:'Verified provider payout entries'}
+      ].forEach(card=>{ %><%- include('../../partials/stat-card',{...card,extraClass:'networkBalanceStat'}) %><% }) %>
      </div>
      <p class="tiny">Customer network charges from approved provider sheets: <b><%= row.customerNetworkChargeEstimateMinorFormatted %></b> · Charged by the network, never included in agent earnings.</p>
      <% if(BigInt(String(row.collectedFeeMinor||'0'))!==0n){ %>

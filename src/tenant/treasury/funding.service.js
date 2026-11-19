@@ -72,7 +72,7 @@ async function review(conn,tenant,actor,fundingId,input={}){
   const authorization=await treasury.access(conn,tenant,actor,{permission:'treasury.review',session,fence:true});
   const filter={_id:recordId,tenantId:authorization.tenant._id,...(authorization.actor.role==='Tenant Owner'?{}:{branchId:authorization.actor.branchId})};
   const initial=await model(conn).findOne(filter).session(session).lean();if(!initial)throw fail('Funding request not found',404);
-  if(String(initial.requestedBy)===authorization.actor.id||String(initial.operatingActorId)===authorization.actor.id)throw fail('A different person must review the funding request and assigned account',403);
+  if((String(initial.requestedBy)===authorization.actor.id||String(initial.operatingActorId)===authorization.actor.id)&&!require('../services/reviewPolicy').canSelfReviewRoutine(authorization.actor,initial.branchId))throw fail('A different authorized person must review this funding request',403);
   if(initial.status!=='pending_review'){
    if(initial.status===(input.decision==='approve'?'posted':'rejected')&&String(initial.reviewedBy)===authorization.actor.id&&initial.reviewNote===note)return {funding:initial,duplicate:true};
    throw fail('Funding request has already been reviewed',409);

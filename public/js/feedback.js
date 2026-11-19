@@ -30,7 +30,7 @@
     const action=new URL(event.submitter?.getAttribute('formaction')||form.action,location.origin);
     // These handoffs render private one-time HTML or use the dedicated,
     // durable financial submission handlers. Preserve their normal behavior.
-    if(action.origin!==location.origin||action.pathname==='/logout'||action.pathname==='/tenant/view-branch'||/^\/platform\/tenants(?:\/[a-f0-9]{24}\/owner-invitation)?\/?$/i.test(action.pathname)||/\/reveal-pin\/?$/i.test(action.pathname)||action.pathname==='/tenant/backups/action'||form.matches('[data-mobile-money-form],[data-transfer-form],[data-forex-form],[data-funded-form],[data-payout-form],[data-expense-form]'))return;
+    if(action.origin!==location.origin||action.pathname==='/logout'||action.pathname==='/tenant/view-branch'||/^\/platform\/tenants(?:\/[a-f0-9]{24}\/owner-invitation)?\/?$/i.test(action.pathname)||/\/reveal-pin\/?$/i.test(action.pathname)||action.pathname==='/tenant/backups/action'||action.pathname==='/tenant/users/invite'||form.matches('[data-mobile-money-form],[data-transfer-form],[data-forex-form],[data-funded-form],[data-payout-form],[data-expense-form]'))return;
     event.preventDefault();if(submitting.has(form)||!form.reportValidity())return;
     const fields=new URLSearchParams(new FormData(form));if(event.submitter?.name)fields.append(event.submitter.name,event.submitter.value);
     const buttons=[...form.elements].filter(node=>node.tagName==='BUTTON'&&node.type==='submit'),states=buttons.map(button=>({button,disabled:button.disabled,html:button.innerHTML}));

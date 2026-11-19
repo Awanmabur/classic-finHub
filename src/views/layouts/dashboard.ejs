@@ -77,7 +77,7 @@
   <a class="skip-link" href="#workspaceContent">Skip to workspace</a>
   <div class="grain" aria-hidden="true"></div>
   <div class="wrap"><div class="shell">
-    <%- include('../partials/dashboard-sidebar', { context, menu, currentPath, tenant, user }) %>
+    <%- include('../partials/dashboard-sidebar', { context, menu, currentPath, tenant, user, canViewBranches:typeof canViewBranches!=='undefined'&&canViewBranches, viewBranches:typeof viewBranches!=='undefined'?viewBranches:[], viewBranchId:typeof viewBranchId!=='undefined'?viewBranchId:'', branchViewReturnTo:typeof branchViewReturnTo!=='undefined'?branchViewReturnTo:currentPath }) %>
     <main class="panel main" id="workspaceContent" tabindex="-1">
       <%- include('../partials/flash', { flash }) %>
       <dialog id="dashboardSignoutDialog" class="dashboardSignoutDialog" aria-labelledby="dashboardSignoutTitle" aria-describedby="dashboardSignoutDescription">
@@ -91,8 +91,12 @@
         <div class="topActions">
           <button class="btn btnIcon mobileOnly headerMenu" id="menuBtn" type="button" aria-label="Open menu" aria-controls="sidePanel" aria-expanded="false">☰</button>
           <% if(context==='tenant'){ %>
-            <div class="headerScope">
-              <% if(typeof canViewBranches!=='undefined'&&canViewBranches){ %><form method="post" action="/tenant/view-branch" class="ctrl" data-branch-view-form><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="returnTo" value="<%= branchViewReturnTo %>"><select name="viewBranchId" aria-label="Viewing branch"><option value="all" <%= viewBranchId==='all'?'selected':'' %>>All branches</option><% viewBranches.forEach(branch=>{ %><option value="<%= branch._id %>" <%= String(branch._id)===viewBranchId?'selected':'' %>><%= branch.name %></option><% }) %></select><noscript><button class="btn" type="submit">View branch</button></noscript></form><% } %>
+            <div class="headerIdentity" aria-label="Signed-in user and operating branch">
+              <% if(assignedOperationBranch){ %><span data-operating-branch data-branch-name="<%= assignedOperationBranch.name %>" data-branch-currency="<%= assignedOperationBranch.currency %>" hidden></span><% } %>
+              <strong><%= user?.name||'Account' %></strong>
+              <span title="Operating branch, separate from the viewing branch"><%= assignedOperationBranch?.name||'No operating branch' %> · <%= user?.role||'Operator' %></span>
+              </div>
+            <div class="headerScope" aria-label="Reporting currency">
               <% if(!summaryCurrencyView&&dashboardCurrencies.length===1&&(mobileOperationPage||momoOnlyDashboard)){ %>
                <span class="ctrl" aria-label="Network currency"><%= dashboardCurrencies[0].label %></span>
               <% }else{ %>
@@ -101,17 +105,7 @@
             <div class="ctrl headerSearch"><input id="search" type="search" aria-label="Search loaded records" placeholder="Search name, phone, ref, PIN, account…"></div>
             <div class="headerButtons">
               <% if(visiblePaths.has('/tenant/notifications')){ %><a class="btn headerNotice" id="phase2NotifyBtn" href="/tenant/notifications">Notifications <span class="phase2Badge" id="phase2NotifyCount"><%= data.workspaceSnapshot?.notificationUnread??'—' %></span></a><% } %>
-              <div class="headerIdentity" aria-label="Signed-in user and operating branch">
-                <% if(assignedOperationBranch){ %><span data-operating-branch data-branch-name="<%= assignedOperationBranch.name %>" data-branch-currency="<%= assignedOperationBranch.currency %>" hidden></span><% } %>
-                <strong><%= user?.name||'Account' %></strong>
-                <span title="Operating branch, separate from the viewing branch"><%= assignedOperationBranch?.name||'No operating branch' %> · <%= user?.role||'Operator' %></span>
-              </div>
-              <div class="headerAccountActions">
-                <a class="btn" href="<%= tenant?.websiteHref||'/' %>" aria-label="Visit website"><i class="fa-solid fa-globe" aria-hidden="true"></i> Website</a>
-                <form method="post" action="/logout"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn" type="submit"><i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i> Logout</button></form>
-              </div>
               <div class="headerPrimaryActions">
-                <% if(['Tenant Owner','Branch Manager'].includes(user.role)){ %><form method="post" action="/tenant/backups/action" class="headerDriveForm"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btnIcon" type="submit" title="Google Drive backups" aria-label="Google Drive backups"><i class="fa-brands fa-google-drive" aria-hidden="true"></i></button></form><% } %>
                 <% if(visiblePaths.has('/tenant/last-receipt')){ %><a class="btn" id="lastReceiptBtn" href="<%= data.workspaceSnapshot?.latestAcknowledgement?.href||'/tenant/last-receipt' %>">Last receipt</a><% } %>
                 <% if(transactionOptions.length){ %><button class="btn btnPrimary" id="newTransactionBtn" type="button" data-open-transaction>New transaction</button><% } %>
               </div>

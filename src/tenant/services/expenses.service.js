@@ -150,6 +150,9 @@ async function create(conn,tenant,actor,input={},options={}){
  ({actor,tenant}=await access(conn,tenant,actor,'expenses.create'));id(actor.id);
  const branch=await require('./transactionBranch.service').resolveTransactionBranch(conn,actor,input),currency=branchCurrency.resolve(branch,input.currency),value=values(input,currency);
  const paymentMethod=text(input.paymentMethod,'payment method',4,20),requestedFundId=fundId(input.treasuryAccountId);
+ // A new, web-recorded expense must identify the account that actually paid.
+ // Never guess the debit source from a payment method or debit a random wallet.
+ if(options.requireFunds===true&&!requestedFundId)throw fail('Choose the actual cash drawer, Mobile Money wallet, or bank account that paid this expense.',400);
  const sourcePolicy=options.requireFunds===true||requestedFundId||await hasFunds(conn,tenant,branch._id,currency,paymentMethod)?'funded_required':'legacy_untracked';
  if(!['Cash','Mobile Money','Bank'].includes(paymentMethod))throw fail('Invalid expense payment method');
  if(!UUID.test(String(input.idempotencyKey||'')))throw fail('Reload the form to generate a valid form reference');

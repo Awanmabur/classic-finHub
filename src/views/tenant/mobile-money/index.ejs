@@ -7,7 +7,7 @@
    const visibleCashAccounts=(data.funds?.paymentAccounts||[]).filter(a=>a.kind==='cash');
    const visibleWalletAccounts=data.funds?.wallets||[];
    const pendingFunds=[...visibleCashAccounts,...visibleWalletAccounts].filter(a=>a.expectedMinor===null||a.expectedMinor===undefined||a.state!=='active'||a.reconciliation!=='matched');
-   const readyCashAccounts=visibleCashAccounts.filter(a=>a.state==='active'&&a.reconciliation==='matched'&&a.expectedMinor!==null&&a.expectedMinor!==undefined);
+   const readyCashAccounts=visibleCashAccounts.filter(a=>a.state==='active'&&a.reconciliation==='matched'&&a.expectedMinor!==null&&a.expectedMinor!==undefined&&a.postingReady!==false);
    const readyWalletAccounts=visibleWalletAccounts.filter(a=>a.state==='active'&&a.reconciliation==='matched'&&a.expectedMinor!==null&&a.expectedMinor!==undefined);
    // Both native-currency and cross-currency service use one real provider
    // wallet and one assigned physical drawer; a mismatched currency is not

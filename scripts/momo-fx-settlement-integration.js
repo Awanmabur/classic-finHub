@@ -127,7 +127,7 @@ async function main(){
  await assert.rejects(settleManuallyConfirmed(conn,tenant,owner,{
   ...manualInput,idempotencyKey:crypto.randomUUID(),providerReference:'NOT-CONFIRMED-'+nonce,
   transactionConfirmed:'no'
- }),error=>error.status===400&&/Confirm the actual provider/.test(error.message),
+ }),error=>error.status===400&&/Use the Record button/.test(error.message),
   'No cashier confirmation must never result in internal financial posting');
  // A bad format rejects the entire Mongo transaction, not just the phone field.
  const beforeInvalidPhone=await balances();

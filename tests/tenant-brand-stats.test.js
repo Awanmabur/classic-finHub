@@ -42,3 +42,23 @@ test('Default overview counts all transactions but never adds unlike currencies,
  assert.doesNotMatch(usd,/UGX 2,000/,'Selected USD stats must not show UGX volumes');
  assert.match(usd,/USD 11.00/);
 });
+
+test('Forex records reuse a single approved dashboard stat grid instead of generating duplicate cards',async()=>{
+ const data={moduleKey:'forex',label:'Forex',basePath:'/tenant/forex',title:'Forex operation records',mode:'records',total:2,
+  currencies:['UGX','USD','SSP','KES'],filters:{from:'2026-11-01',to:'2026-11-19',status:'',kind:'',currency:''},
+  records:{items:[],nextCursor:null},rows:[],canExport:false,note:'Posted records retain their original currencies',
+  stats:{total:2,posted:1,pending:1,collected:0,stopped:0,completedLabel:'Posted exchanges',
+   postedVolumes:[{currency:'UGX',formatted:'UGX 10,000'}],
+   targetVolumes:[{currency:'SSP',formatted:'SSP 8,000.00'}]},
+  financeOverview:{available:true,moduleEarnings:[],byModule:[]}};
+ const html=await ejs.renderFile(path.resolve(__dirname,'../src/views/tenant/forex/workspace.ejs'),{
+  data,user:{name:'Owner',role:'Tenant Owner',permissions:['*']},businessTimeZone:'Africa/Juba',
+  currencyLabel:currency=>currency==='KES'?'KSH':currency
+ });
+ assert.equal((html.match(/class="grid3 overviewStatsGrid moduleStatsGrid"/g)||[]).length,1);
+ assert.doesNotMatch(html,/class="moduleRecordStats"/,'The second duplicate stats section must not be recreated');
+ assert.match(html,/Transactions in selected period/);
+ assert.match(html,/Posted exchanges/);
+ assert.match(html,/UGX 10,000/);
+ assert.match(html,/SSP 8,000.00/);
+});

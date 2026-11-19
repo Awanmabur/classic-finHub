@@ -88,3 +88,27 @@ test('cross-currency records appear in existing Mobile Money CSV without combini
  assert.match(csv,/"MTN","withdraw_provider_receive_cash","UGX","SSP","1","1000","90000","1"/);
  assert.doesNotMatch(csv,/91000/,'unlike currencies must not be summed');
 });
+
+test('linked UGX to SSP withdrawals and deposits keep wallet principal and SSP cash in separate currencies',()=>{
+ const groups=[
+  {_id:{network:'MTN',currency:'UGX',cashCurrency:'SSP',paymentMethod:'Cash',
+   operation:'cash_out',entrySource:'manual',feeTreatment:'record_only',
+   status:'recorded',reviewState:'not_required',voided:false},
+   count:1,amountMinor:'1000',cashMovementMinor:'-90000',feeMinor:'0',estimatedCommissionMinor:'10'},
+  {_id:{network:'MTN',currency:'UGX',cashCurrency:'SSP',paymentMethod:'Cash',
+   operation:'cash_in',entrySource:'manual',feeTreatment:'record_only',
+   status:'recorded',reviewState:'not_required',voided:false},
+   count:1,amountMinor:'500',cashMovementMinor:'50000',feeMinor:'0',estimatedCommissionMinor:'8'}
+ ];
+ const result=reporting.summarize(groups,[],[]);
+ assert.equal(result.currencies.length,1,'electronic principal is UGX');
+ assert.equal(result.currencies[0].volumeMinor,1500n);
+ assert.equal(result.currencies[0].floatMovementMinor,500n);
+ assert.equal(result.currencies[0].cashImpactMinor,0n,'SSP must never be recorded as UGX cash');
+ assert.equal(result.currencies[0].estimatedCommissionMinor,18n,'approved sheet estimates included');
+ assert.equal(result.cashCurrencies.length,1);
+ assert.equal(result.cashCurrencies[0].currency,'SSP');
+ assert.equal(result.cashCurrencies[0].inMinor,50000n);
+ assert.equal(result.cashCurrencies[0].outMinor,90000n);
+ assert.equal(result.cashCurrencies[0].movementMinor,-40000n);
+});

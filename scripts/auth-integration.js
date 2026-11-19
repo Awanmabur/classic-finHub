@@ -154,17 +154,18 @@ async function main() {
     const moneyPage=await fetch(`${base}/tenant/mobile-money`,{headers:{cookie:operator.cookie}});
     assert.equal(moneyPage.status,200);
     const moneyHtml=await moneyPage.text();
-    const ref=`INT-${nonce}`;
+    const ref=`INT-${nonce}`; // Deliberately forged reference must be ignored for manual postings.
     const recordFields={idempotencyKey:crypto.randomUUID(),customer:'Auth Probe Customer',network:'MTN',networkReference:ref,
       currency:'UGX',amount:'120000',fee:'0',feeTreatment:'payment_collected',paymentMethod:'Cash',
       walletAccountId:String(walletFund._id),paymentAccountId:String(cashFund._id),observedWalletBalance:'880000',observationEvidenceReference:`AUTH-ACTUAL-${nonce}`};
+    const serverTxId=require('../src/tenant/services/mobileMoney.service').manualReference(recordFields.idempotencyKey);
     const post=(route,cookie,token,fields)=>fetch(`${base}${route}`,{method:'POST',redirect:'manual',
       headers:{cookie,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({_csrf:token,...fields}).toString()});
     // Physical cash recording requires an independently verified opening count.
     // Exercise the real HTTP workflow instead of bypassing the cash controls in a fixture.
     const beforeOpening=await post('/tenant/mobile-money/cash-in',operator.cookie,csrf(moneyHtml),recordFields);
     assert.equal(beforeOpening.status,409,'recording without an open cash shift must fail');assert.match(await beforeOpening.text(),/Open and independently verify the assigned operator cash drawer/);
-    assert.equal(await require('../src/tenant/models').mobileTransactionModel(tenantDb).countDocuments({networkReference:ref}),0);
+    assert.equal(await require('../src/tenant/models').mobileTransactionModel(tenantDb).countDocuments({networkReference:serverTxId}),0);
     const opened=await post('/tenant/mobile-money/shifts/open',operator.cookie,csrf(moneyHtml),{openingCash:'0'});
     assert.equal(opened.status,303);
     const shift=await require('../src/tenant/models').cashSessionModel(tenantDb).findOne({operatorId:owners.find(o=>o.suffix==='operator').account._id,status:'pending_open'}).lean();
@@ -178,8 +179,8 @@ async function main() {
     assert.equal(approved.status,303);
     const record=await post('/tenant/mobile-money/cash-in',operator.cookie,csrf(moneyHtml),recordFields);
     assert.equal(record.status,303);
-    const created=await require('../src/tenant/models').mobileTransactionModel(tenantDb).findOne({networkReference:ref}).lean();
-    assert(created); assert.equal(created.status,'recorded');assert.equal(created.reviewState,'not_required');assert.equal(created.fundingState,'book_recorded');
+    const created=await require('../src/tenant/models').mobileTransactionModel(tenantDb).findOne({idempotencyKey:recordFields.idempotencyKey}).lean();
+    assert(created); assert.equal(created.networkReference,serverTxId,'Manual HTTP posting ignores supplied refs and creates a stable TX ID'); assert.equal(created.status,'recorded');assert.equal(created.reviewState,'not_required');assert.equal(created.fundingState,'book_recorded');
     assert.equal(String((await treasuryModels.models(tenantDb).account.findById(walletFund._id)).bookBalanceMinor),'880000');
     assert.equal(String((await treasuryModels.models(tenantDb).account.findById(cashFund._id)).bookBalanceMinor),'120000');
     assert.equal((await treasuryModels.models(tenantDb).observation.findById(created.walletObservationId)).status,'pending_review');

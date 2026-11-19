@@ -227,7 +227,7 @@ async function settleVerified(conn,tenant,actor,input,proof){
     expiresAt:new Date(rate.expiresAt),
     status:'posted_manual',manualPostedAt:new Date(),
     note:'Linked '+wallet.network+' Mobile Money '+(operation==='cash_out'?'withdrawal':'deposit')+
-     ', provider ref '+input.providerReference+'. One Treasury posting; external provider confirmation is separately unverified.'
+     ', transaction ID '+input.providerReference+'. One Treasury posting; external provider confirmation is separately unverified.'
    }],{session});
    const [record]=await Record.create([{_id:crossId,mobileMoneyRecordId:mobileId,
     forexQuoteId:forexRecord._id,sourceModule:'mobile_money',
@@ -257,16 +257,16 @@ async function settleVerified(conn,tenant,actor,input,proof){
  }finally{await session.endSession();}
 }
 async function settleManuallyConfirmed(conn,tenant,actor,input){
- // One affirmative cashier attestation covers two real-world acts.
- // Existing direct service callers with two confirmations remain supported,
- // but no confirmation still means no posting.
+ // Record is the cashier's affirmative action; no second checkbox is needed.
+ // It creates internal custody evidence, NOT verified provider settlement.
  const confirmed=input?.transactionConfirmed==='yes' ||
   (input?.providerAppConfirmed==='yes'&&input?.cashHandoverConfirmed==='yes');
+ const providerReference=require('./mobileMoney.service').manualReference(input?.idempotencyKey);
+ const values={...input,providerReference};
  const proof={mode:'operator_attested_unverified',actorId:String(actor?.id||''),
-  providerReference:input?.providerReference,
-  providerAppConfirmed:confirmed,cashHandoverConfirmed:confirmed};
+  providerReference,providerAppConfirmed:confirmed,cashHandoverConfirmed:confirmed};
  if(!hasPermission(actor,input?.operation==='withdraw_provider_receive_cash'?'mobile_money.cash_out':'mobile_money.cash_in'))
   throw fail('Mobile Money transaction permission is required',403);
- return settleVerified(conn,tenant,actor,input,proof);
+ return settleVerified(conn,tenant,actor,values,proof);
 }
 module.exports={settleVerified,settleManuallyConfirmed};

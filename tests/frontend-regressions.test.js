@@ -130,11 +130,16 @@ test('overview restores approved snapshot cards and quick actions using real aut
   const html = await overview('Tenant Owner', ['*'], ['/tenant/money-transfer', '/tenant/mobile-money', '/tenant/banking', '/tenant/forex', '/tenant/reports', '/tenant/treasury'], {
     hasTransfer: true, transferRecords: {items: []}, hasMobileMoney: true, summary: {total: 23, awaitingReview: 2, recent: [], summaries: []},
     hasBanking: true, bankingRecords: {items: []}, hasForex: true, forexRecords: {items: []},
-    workspaceSnapshot:{todayVolumes:{money_transfer:{formatted:'UGX 41,000'},mobile_money:{formatted:'UGX 230,000'},banking:{formatted:'UGX 75,000'},forex:{formatted:'UGX 32,000'}}}
+    workspaceSnapshot:{todayVolumes:{money_transfer:{formatted:'UGX 41,000'},mobile_money:{formatted:'UGX 230,000'},banking:{formatted:'UGX 75,000'},forex:{formatted:'UGX 32,000'}},
+      todayByCurrency:{money_transfer:[{currency:'UGX',formatted:'UGX 41,000',count:1}],mobile_money:[{currency:'UGX',formatted:'UGX 230,000',count:1}],
+       banking:[{currency:'UGX',formatted:'UGX 75,000',count:1}],forex:[{currency:'UGX',formatted:'UGX 32,000',count:1}]}}
   });
   assert.match(html, /Today snapshot/);
   for (const label of ['Money transfer volume', 'Mobile money volume', 'Banking volume', 'Forex volume', 'New money transfer', 'New mobile money', 'New banking', 'New forex', 'View reports', 'Cash drawer by currency']) assert(html.includes(label), label);
-  for(const [id,value] of [['ovTransfer','UGX 41,000'],['ovMobile','UGX 230,000'],['ovBanking','UGX 75,000'],['ovForex','UGX 32,000']])assert(html.includes(`class="v" id="${id}">${value}</div>`));
+  for(const [id,value] of [['ovTransfer','UGX 41,000'],['ovMobile','UGX 230,000'],['ovBanking','UGX 75,000'],['ovForex','UGX 32,000']]){
+    assert(html.includes(`class="v" id="${id}">1 transaction</div>`),'All-currency default counts records instead of adding money');
+    assert(html.includes(value),'Currency amounts remain visible individually');
+   }
   assert.doesNotMatch(html, /Load demo|id="branchSelect"|class="v">23<\/div>/);
   assert.match(html,/href="\/tenant\/money-transfer\/send" data-transaction-kind="transfer"/);
   assert.match(html,/href="\/tenant\/banking\/deposit" data-transaction-kind="banking_deposit"/);

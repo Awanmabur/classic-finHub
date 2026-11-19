@@ -1,14 +1,17 @@
 <% const regionalZone=typeof businessTimeZone==='string'?businessTimeZone:'UTC';
  const regionalTime=typeof formatLocalDate==='function'?formatLocalDate:(v=>new Date(v).toISOString()); %>
 <% const cashLabel=(value,currency)=>typeof formatMoneyMinor==='function'?formatMoneyMinor(value,currency):money(currency,amountFromMinor(value,currency)); %>
+<% const expectedCash=BigInt(String(data.shift.openingMinor))+BigInt(String(data.shift.provisionalMovementMinor));
+ const shiftStatus=({pending_open:'Waiting for opening count verification',open:'Open · recording',submitted:'Closing count under review',approved:'Closed · reconciled',disputed:'Cash discrepancy under review',opening_rejected:'Opening count rejected'})[data.shift.status]||data.shift.status; %>
 <section class="view show">
   <section class="card">
-    <div class="cardHead"><b>Shift <%= data.shift._id %></b><span class="tag"><%= data.shift.status %></span><a class="btn" href="/tenant/cash/shifts">All shifts</a></div>
+    <div class="cardHead"><b>Cash shift · <%= data.shift.currency==='KES'?'KSH':data.shift.currency %> · <%= String(data.shift._id).slice(-8).toUpperCase() %></b><span class="tag"><%= shiftStatus %></span><a class="btn" href="/tenant/cash/shifts">All shifts</a></div>
     <div class="cardBody">
       <p class="tiny">Recorded transactions already affect the internal cash book. This shift tracks physical cash only; network settlement and electronic float are separate.</p>
       <div class="grid3">
         <div class="stat"><div class="k">Opening cash</div><div class="v"><%= cashLabel(data.shift.openingMinor,data.shift.currency) %></div></div>
-        <div class="stat"><div class="k">Provisional movement</div><div class="v"><%= cashLabel(data.shift.provisionalMovementMinor,data.shift.currency) %></div></div>
+        <div class="stat"><div class="k">Net recorded cash movement</div><div class="v"><%= cashLabel(data.shift.provisionalMovementMinor,data.shift.currency) %></div></div>
+        <div class="stat"><div class="k">Expected cash now</div><div class="v"><%= cashLabel(String(expectedCash),data.shift.currency) %></div></div>
         <div class="stat"><div class="k">Recorded operations</div><div class="v"><%= data.shift.recordCount %></div></div>
       </div>
       <% if(data.shift.submittedAt){ %>
@@ -26,7 +29,7 @@
           <div class="rowBtns"><button class="btn btnPrimary" name="decision" value="approve">Verify and open shift</button><button class="btn" name="decision" value="reject">Reject opening count</button></div>
         </form>
       <% } %>
-      <% if(data.canSubmit){ const expectedNow=BigInt(String(data.shift.openingMinor))+BigInt(String(data.shift.provisionalMovementMinor)); %>
+      <% if(data.canSubmit){ const expectedNow=expectedCash; %>
         <div class="summary"><div class="sumRow"><span>System closing cash from posted movements</span><b><%= cashLabel(String(expectedNow),data.shift.currency) %></b></div></div>
         <form method="post" action="/tenant/cash/shifts/<%= data.shift._id %>/submit" style="margin-top:14px">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
@@ -57,7 +60,7 @@
   <section class="card" style="margin-top:14px"><div class="cardHead"><b>Closing count history</b><span>Preserved across disputed and resubmitted counts</span></div>
     <div class="cardBody tableWrap"><table><thead><tr><th>Local time</th><th>Declared</th><th>Estimated</th><th>Difference</th><th>Explanation</th></tr></thead><tbody>
       <% if(!data.shift.closeHistory.length){ %><tr><td colspan="5">Shift has not been submitted.</td></tr><% } %>
-      <% data.shift.closeHistory.forEach(entry=>{ %><tr><td><%= regionalTime(entry.at,data.shift?.branchId) %></td><td><%= entry.declaredMinor %></td><td><%= entry.expectedMinor %></td><td><%= entry.varianceMinor %></td><td><%= entry.note %></td></tr><% }) %>
+      <% data.shift.closeHistory.forEach(entry=>{ %><tr><td><%= regionalTime(entry.at,data.shift?.branchId) %></td><td><%= cashLabel(entry.declaredMinor,data.shift.currency) %></td><td><%= cashLabel(entry.expectedMinor,data.shift.currency) %></td><td><%= cashLabel(entry.varianceMinor,data.shift.currency) %></td><td><%= entry.note %></td></tr><% }) %>
     </tbody></table></div>
   </section>
 </section>

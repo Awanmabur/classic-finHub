@@ -35,7 +35,15 @@ async function preview(conn,tenant,actor,branch,input){
   providerAmountMinor:input.providerAmountMinor!==undefined?String(input.providerAmountMinor):String(require('../treasury/service').major(String(input.providerAmount||''),wallet.currency)),rateDecimal:rate.rateDecimal,
   rateSide:rate.side,rateId:String(rate._id),rateVersion:rate.revision,approved:true,
   expiresAt:new Date(rate.expiresAt).toISOString()});
- return {...value,branchId:String(branch._id),walletAccountId:walletId,cashAccountId:cashId,
+ // Cashier sees approved-sheet amounts without treating expected commission
+ // or the customer's network charge as an extra agent fee or realized income.
+ const estimates=await require('../pricing/networkTariffService').transactionEstimates(
+  conn,tenant,branch,{network:wallet.network,currency:wallet.currency,
+   operation:operation==='withdraw_provider_receive_cash'?'cash_out':'cash_in',
+   amountMinor:value.providerAmountMinor,at:new Date()});
+ return {...value,expectedCommissionMinor:estimates.agentCommissionEstimate?.amountMinor??null,
+  customerNetworkChargeMinor:estimates.customerNetworkFeeEstimate?.amountMinor??null,
+  branchId:String(branch._id),walletAccountId:walletId,cashAccountId:cashId,
   network:wallet.network,walletName:wallet.name,cashName:cash.name,rateExpiresAt:rate.expiresAt,
   financialPosting:process.env.CLASSICFIN_MOMO_FX_POSTING_ENABLED==='true'?'manual_book_recording':'disabled',providerVerification:'required'};
 }

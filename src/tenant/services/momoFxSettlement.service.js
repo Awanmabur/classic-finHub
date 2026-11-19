@@ -56,7 +56,7 @@ function operatorEvidence(proof,input,actor){
  if(!proof||proof.mode!=='operator_attested_unverified'||
     proof.actorId!==String(actor.id)||proof.providerReference!==input.providerReference||
     proof.providerAppConfirmed!==true||proof.cashHandoverConfirmed!==true)
-  throw fail('Confirm the actual provider-app transaction and cash handover before recording',400);
+  throw fail('Use the Record button on the current transaction form. No extra confirmation is needed.',400);
  return {verifiedAt:null,cashConfirmedAt:new Date(),
   evidenceId:'OP:'+input.idempotencyKey,evidenceKind:'operator_attested',settlementState:'unverified'};
 }

@@ -911,3 +911,58 @@ textarea,textarea.control,.field textarea,.tenantCleanField textarea{border-radi
 @media(max-width:1050px){.appointmentList{grid-template-columns:1fr}}
 @media(max-width:700px){.appointmentFilters{grid-template-columns:1fr!important}.appointmentCard .sumRow{flex-wrap:wrap}.appointmentCard .sumRow > span{flex-basis:100%}.appointmentCard .sumRow > b{text-align:left}.appointmentDecision .row2{grid-template-columns:1fr!important}.sideFoot .accountActions > form,.sideFoot .accountActions > a{flex-basis:110px}}
 @media(prefers-reduced-motion:reduce){.signoutProgressIcon{animation-duration:2s}}
+
+/* Tenant navigation: preserve the existing functions, but establish a
+   predictable hierarchy instead of wrapping unrelated controls together. */
+body[data-workspace="tenant"] .topbar{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;padding:4px 2px 15px;min-width:0}
+body[data-workspace="tenant"] .topActions{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;width:100%;min-width:0}
+body[data-workspace="tenant"] .tenantHeaderIdentityGroup{display:flex;align-items:center;gap:8px;flex:0 1 190px;min-width:0}
+body[data-workspace="tenant"] .headerIdentity{display:flex;flex-direction:column;justify-content:center;gap:2px;min-width:0;max-width:100%;line-height:1.25}
+body[data-workspace="tenant"] .headerIdentity strong{display:block;font-size:12px;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body[data-workspace="tenant"] .headerIdentity>span:not([hidden]){display:block;font-size:10px;color:var(--muted);font-weight:500;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body[data-workspace="tenant"] .tenantHeaderControlGroup{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex:1 1 500px;flex-wrap:wrap;min-width:0}
+body[data-workspace="tenant"] .tenantHeaderControlGroup>.headerScope{display:flex;min-width:0;align-items:center}
+body[data-workspace="tenant"] .tenantHeaderControlGroup .ctrl,
+body[data-workspace="tenant"] .tenantHeaderControlGroup .btn{min-height:36px;height:36px;max-width:100%;padding:6px 10px;font-size:11px;line-height:1.2;margin:0}
+body[data-workspace="tenant"] .tenantHeaderControlGroup .btnIcon{width:36px;padding:6px;flex:0 0 36px}
+body[data-workspace="tenant"] .headerScope select,
+body[data-workspace="tenant"] .headerBranchView select{min-width:0;max-width:170px;font-size:11px}
+body[data-workspace="tenant"] .headerScope .ctrl{min-width:0}
+body[data-workspace="tenant"] .headerSearch{flex:1 1 140px;max-width:210px;min-width:110px}
+body[data-workspace="tenant"] .headerSearch input{min-width:0;width:100%}
+body[data-workspace="tenant"] .headerButtons,
+body[data-workspace="tenant"] .headerPrimaryActions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:nowrap;gap:7px;min-width:0}
+body[data-workspace="tenant"] .headerDriveForm,
+body[data-workspace="tenant"] .headerBranchView{margin:0;flex-shrink:0}
+body[data-workspace="tenant"] .headerNotice{position:relative;flex:0 0 36px}
+body[data-workspace="tenant"] .headerNotice .phase2Badge{position:absolute;right:-4px;top:-7px;min-width:17px;min-height:17px;padding:2px 3px;font-size:9px;line-height:1;text-align:center}
+body[data-workspace="tenant"] .topbar>.title{min-width:0}
+body[data-workspace="tenant"] .topbar>.title h2{font-size:20px;line-height:1.25}
+body[data-workspace="tenant"] .topbar>.title p{font-size:12px;line-height:1.45;max-width:75ch}
+@media(max-width:1050px){
+ body[data-workspace="tenant"] .topActions{align-items:flex-start}
+ body[data-workspace="tenant"] .tenantHeaderIdentityGroup{flex:1 1 170px}
+ body[data-workspace="tenant"] .tenantHeaderControlGroup{flex:1 1 100%;justify-content:flex-start}
+ body[data-workspace="tenant"] .headerSearch{max-width:none}
+}
+@media(max-width:700px){
+ body[data-workspace="tenant"] .topbar{gap:9px}
+ body[data-workspace="tenant"] .topActions{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
+ body[data-workspace="tenant"] .tenantHeaderIdentityGroup{width:100%;min-width:0}
+ body[data-workspace="tenant"] .tenantHeaderIdentityGroup .headerIdentity{flex:1;min-width:0}
+ body[data-workspace="tenant"] .tenantHeaderControlGroup{width:100%;gap:6px;justify-content:flex-start}
+ body[data-workspace="tenant"] .tenantHeaderControlGroup .ctrl,
+ body[data-workspace="tenant"] .tenantHeaderControlGroup .btn{min-height:34px;height:34px;padding:5px 8px;font-size:10px}
+ body[data-workspace="tenant"] .tenantHeaderControlGroup .btnIcon{width:34px;flex-basis:34px;padding:5px}
+ body[data-workspace="tenant"] .headerScope{flex:0 1 82px}
+ body[data-workspace="tenant"] .headerScope select{max-width:85px}
+ body[data-workspace="tenant"] .headerBranchView select{max-width:125px}
+ body[data-workspace="tenant"] .headerSearch{order:2;flex:1 1 100%;max-width:none;min-width:0}
+ body[data-workspace="tenant"] .headerButtons{flex:1 1 auto;margin-left:auto;justify-content:flex-end;gap:6px}
+ body[data-workspace="tenant"] .headerLastReceipt{width:34px;padding:5px!important}
+ body[data-workspace="tenant"] .headerLastReceipt span{display:none}
+ body[data-workspace="tenant"] .headerPrimaryActions{gap:6px}
+ body[data-workspace="tenant"] #newTransactionBtn{padding:5px 9px}
+ body[data-workspace="tenant"] .topbar>.title h2{font-size:18px}
+ body[data-workspace="tenant"] .topbar>.title p{font-size:11px;margin-top:3px}
+}

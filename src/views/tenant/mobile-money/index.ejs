@@ -67,11 +67,12 @@
     <% }else if(overviewAccounts.length){ %>
     <div class="networkBalanceGrid">
      <% overviewAccounts.forEach(account=>{ %>
-      <div class="networkBalanceStat">
-       <span><%= account.kind==='cash'?'Physical cash': 'Electronic float · '+(account.network==='MTN SSD'?'MTN South Sudan':account.network) %></span>
-       <strong><%= account.expected||'Opening balance not approved' %></strong>
-       <small><%= account.name %> · <%= account.currency %> · <%= account.reconciliation||'Not reconciled' %></small>
-      </div>
+      <%- include('../../partials/stat-card',{
+       title:account.kind==='cash'?'Physical cash':'Electronic float · '+(account.network==='MTN SSD'?'MTN South Sudan':account.network),
+       value:account.expected||'Opening balance not approved',
+       note:account.name+' · '+(account.currency==='KES'?'KSH':account.currency)+' · '+(account.reconciliation||'Not reconciled'),
+       extraClass:'networkBalanceStat'
+      }) %>
      <% }) %>
     </div>
     <% }else{ %><p class="tiny">No active cash drawer or mobile network wallet is assigned to this operating branch. Configure accounts and approve their opening balances in Treasury. Opening a cash shift alone does not create a treasury wallet.</p><% } %>

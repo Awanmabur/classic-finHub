@@ -52,9 +52,10 @@ test('tenant header groups branch/currency and receipt/transaction controls with
     canViewBranches:true,viewBranchId:'branch-one',viewBranches:[{_id:'branch-one',name:'Main'}],branchViewReturnTo:'/tenant/dashboard'});
   const header=html.slice(html.indexOf('<div class="topbar">'),html.indexOf('<section class="view'));
   assert.match(header,/class="headerIdentity"[\s\S]*class="headerScope" aria-label="Reporting currency"[\s\S]*id="currencySelect"/);
-  assert.doesNotMatch(header,/action="\/tenant\/view-branch"/,'Viewing-branch selector moves out of the requested compact header');
-  assert.match(html,/class="sidebarBranchView" data-branch-view-form/,'Viewing-branch selector remains operable in sidebar');
-  assert.match(html,/action="\/tenant\/view-branch"[\s\S]*name="_csrf" value="test"/);
+  assert.match(header,/action="\/tenant\/view-branch"[\s\S]*name="_csrf" value="test"/,'Branch selector is visible in the authorized top bar');
+  assert.match(header,/class="ctrl headerBranchView" data-branch-view-form/);
+  assert.match(header,/class="headerDriveForm"/,'Owner Google Drive action is back in the header');
+  assert.doesNotMatch(html,/class="sidebarBranchView"/,'No duplicated sidebar branch selector');
   assert.match(header,/class="headerPrimaryActions">[\s\S]*id="lastReceiptBtn"[\s\S]*id="newTransactionBtn"/);
   assert.equal((html.match(/id="menuBtn"/g)||[]).length,1);
   assert.equal((html.match(/id="currencySelect"/g)||[]).length,1);

@@ -168,7 +168,7 @@ async function main(){
   'one linked Forex operation per real Mobile Money customer transaction');
  assert(activity.positions.some(row=>row.kind==='cash'&&row.currency==='SSP'&&row.bookFormatted==='SSP 451.00'),
   'actual SSP drawer book must be visible on UGX provider filter');
- assert(activity.positions.some(row=>row.kind==='wallet'&&row.currency==='UGX'&&row.bookFormatted==='UGX 10.60'),
+ assert(activity.positions.some(row=>row.kind==='wallet'&&row.currency==='UGX'&&row.bookFormatted==='UGX 1,060'),
   'actual UGX float book must be visible beside the SSP drawer');
  const savedExport=reportService.csv(activity);
  assert(savedExport.includes('Actual physical cash flows by drawer currency'));

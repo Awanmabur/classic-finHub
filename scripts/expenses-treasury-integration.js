@@ -29,12 +29,10 @@ async function main(){
  };
  const owner=await person('Tenant Owner'),maker=await person('Mobile Money Operator'),reviewer=await person('Reconciliation Officer'),other=await person('Mobile Money Operator');
  const shift=await cash.open(conn,tenant,maker,{currency:'KES',openingCash:'1000.00'});await cash.decideOpening(conn,tenant,reviewer,shift._id,{decision:'approve',note});
- const unconfigured=(await expenses.create(conn,tenant,maker,{expenseType:'Unconfigured bank expense',currency:'KES',amount:'5.00',paymentMethod:'Bank',reference:'PENDING-SOURCE',
-  idempotencyKey:crypto.randomUUID(),sourcePolicy:'legacy_untracked',requireFunds:false},{requireFunds:true})).record;
- assert.equal(unconfigured.sourcePolicy,'funded_required','request fields cannot disable the HTTP funds requirement');
- await assert.rejects(expenses.review(conn,tenant,reviewer,unconfigured._id,{decision:'approve',note}),{status:409});
- assert.equal((await expenseModel(conn).findById(unconfigured._id)).status,'pending_review');
- await expenses.review(conn,tenant,reviewer,unconfigured._id,{decision:'reject',note});
+ await assert.rejects(expenses.create(conn,tenant,maker,{expenseType:'Unconfigured bank expense',currency:'KES',amount:'5.00',paymentMethod:'Bank',reference:'PENDING-SOURCE',
+  idempotencyKey:crypto.randomUUID(),sourcePolicy:'legacy_untracked',requireFunds:false},{requireFunds:true}),{status:400},
+  'Real web expenses cannot be saved without selecting the exact cash, bank, or wallet source');
+ assert.equal(await expenseModel(conn).countDocuments(),0,'Missing debit source creates no pending record or journal');
  const readShift=async()=>core.cashSessionModel(conn).findById(shift._id).lean();
  async function openFund(kind,name,amount,network=''){
   const account=await treasury.createAccount(conn,tenant,owner,{code:name.toUpperCase(),name:`Verified ${name}`,kind,currency:'KES',network,operatorId:kind==='cash'||kind==='wallet'?maker.id:'',isDefault:true});
@@ -54,6 +52,10 @@ async function main(){
  assert.equal(reviews.filter(row=>row.status==='fulfilled').length,1);assert.equal(reviews.filter(row=>row.status==='rejected'&&row.reason.status===409).length,1);
  let posted=await expenseModel(conn).findById(record._id).lean();assert(posted.treasuryBatchId);assert.equal(String(posted.postedTreasuryAccountId),String(cashFund._id));
  assert.equal(await balance(cashFund),'90000');assert.equal(String((await readShift()).provisionalMovementMinor),'-10000','the drawer is reduced exactly once');
+ const accountSnapshots=require('../src/tenant/services/recordBalances.service');
+ const sourceAfter=await accountSnapshots.forRecord(conn,tenant,owner,'expenses',posted);
+ assert(sourceAfter.some(item=>item.kind==='cash'&&item.currency==='KES'&&item.balanceAfter==='KES 900.00'),
+  'Approved expense shows the actual original cash drawer balance after its automatic deduction');
  const batch=await models(conn).batch.findById(posted.treasuryBatchId).lean(),lines=await core.ledgerPostingModel(conn).find({journalId:{$in:batch.journalIds}}).lean();
  assert.equal(lines.length,2);assert.equal(lines.reduce((sum,line)=>sum+BigInt(String(line.amountMinor))*(line.side==='debit'?1n:-1n),0n),0n);
  await expenses.requestChange(conn,tenant,maker,record._id,{...cashInput,amount:'120.00',note:'Original receipt confirms the corrected operating expense amount'});

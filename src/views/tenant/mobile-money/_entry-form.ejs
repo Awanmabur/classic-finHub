@@ -33,7 +33,7 @@
     </div>
     <div class="formSection" aria-label="Provider wallet and cash drawer">
       <div class="formSectionTitle">1. <%= entryOperation==='cash_in'?'Cash drawer → provider float wallet':'Provider float wallet → cash drawer' %></div>
-      <%- include('_funds-context') %>
+      <%- include('_funds-context',{entryOperation}) %>
       <p class="tiny">Choose your actual cash drawer and provider wallet. Their currencies are detected automatically; Forex runs in the background when they differ. Other cashiers' accounts remain unavailable.</p>
     </div>
     <div class="formSection">

@@ -73,7 +73,7 @@ function sameDetails(record,values,{feeTreatmentSpecified=true}={}){
     (!values.observedWalletBalance||String(record.observedWalletBalance||'')===values.observedWalletBalance);
 }
 async function recordMobileMoney(conn, operator, input, operation, tenant, sourceContext = null, options = {}) {
-  if(!operator?.id || !['Tenant Owner','Mobile Money Operator'].includes(operator.role))throw bad('This role cannot record Mobile Money operations',403);
+  if(!operator?.id || !['Tenant Owner','Branch Manager','Mobile Money Operator'].includes(operator.role))throw bad('This role cannot record Mobile Money operations',403);
   const values = validate(input, operation);
   // New agent cash-in/out is physical cash exchanged against provider float.
   // Keep historical Bank/Wallet Balance records readable; do not create new ones.

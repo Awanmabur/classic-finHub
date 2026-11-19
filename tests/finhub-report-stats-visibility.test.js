@@ -11,11 +11,14 @@ const financialData={
  byModule:[{moduleKey:'forex',totals:[{currency:'UGX',formatted:'UGX 100,000'}]}],
  moduleEarnings:[{moduleKey:'forex',income:[{currency:'SSP',formatted:'SSP 2,000'}],expenses:[],net:[{currency:'SSP',formatted:'SSP 2,000'}]}]
 };
-test('legacy two-column rule excludes explicit overview and module stats containers',()=>{
- const css=source('public/css/dashboard-layout.css');
- assert.match(css,/:has\(>\.stat\):not\(\.overviewStatsGrid\):not\(\.moduleStatsGrid\)/);
- assert.match(css,/@media \(min-width:900px\)[\s\S]*?#workspaceContent #view-overview \.overviewStatsGrid,[\s\S]*?repeat\(4,minmax\(0,1fr\)\)!important/);
- assert.match(css,/#workspaceContent \.financialModuleOverview \.moduleStatsGrid/);
+test('single shared stat stylesheet enforces 4-up PC and 2-up phone in tenant and platform',()=>{
+ const css=source('public/css/stat-system.css');
+ const legacy=source('public/css/dashboard-layout.css');
+ assert.match(css,/#workspaceContent :is\(\.grid3,\.stats,\.backupStats,[\s\S]*?:has\(>\.stat\)\{[\s\S]*?repeat\(4,minmax\(0,1fr\)\)!important/);
+ assert.match(css,/@media \(max-width:1100px\)[\s\S]*?:has\(>\.stat\)\{[\s\S]*?repeat\(2,minmax\(0,1fr\)\)!important/);
+ assert.match(css,/@media \(max-width:600px\)[\s\S]*?:has\(>\.stat\)\{[\s\S]*?repeat\(2,minmax\(0,1fr\)\)!important/);
+ assert.doesNotMatch(legacy,/:has\(>\.stat\):not\(\.overviewStatsGrid\)/,'Do not reintroduce competing legacy two-column desktop grid');
+ assert.match(legacy,/#workspaceContent \.financialModuleOverview \.moduleStatsGrid/);
 });
 test('Forex report summary actually renders financial stats before the record table',async()=>{
  const file=path.join(root,'src/views/tenant/operation-workspace.ejs');

@@ -36,7 +36,7 @@
   <div class="cardHead"><div><b>Individual Mobile Money transactions</b><br><span>One row per customer record, with its own reference, amount and currency</span></div></div>
   <div class="cardBody tableWrap" tabindex="0" role="region" aria-label="Individual Mobile Money transaction records">
    <table>
-    <thead><tr><th>Recorded · <%= zone %></th><th>Reference</th><th>Network</th><th>Operation</th><th>Provider amount</th><th>Physical cash movement</th><th>Expected agent commission</th><th>Provider customer charge</th><th>Status</th></tr></thead>
+    <thead><tr><th>Recorded · <%= zone %></th><th>TX ID / Provider reference</th><th>Network</th><th>Operation</th><th>Provider amount</th><th>Physical cash movement</th><th>Expected agent commission</th><th>Provider customer charge</th><th>Status</th></tr></thead>
     <tbody>
      <% if(!(report.recordItems||[]).length){ %><tr><td colspan="9">No individual transactions match these filters.</td></tr><% } %>
      <% (report.recordItems||[]).forEach(item=>{ %>
@@ -64,7 +64,7 @@
   <div class="cardHead"><div><b>Individual linked Forex records</b><br><span>Each exchange remains a separate, traceable record. It does not create a second cash or float posting.</span></div></div>
   <div class="cardBody tableWrap" tabindex="0" role="region" aria-label="Individual linked Forex exchange records">
    <table>
-    <thead><tr><th>Recorded · <%= zone %></th><th>Provider reference</th><th>Network</th><th>Exchange type</th><th>Electronic float amount</th><th>Physical cash amount</th><th>Rate</th><th>Provider settlement</th><th>Forex profit</th></tr></thead>
+    <thead><tr><th>Recorded · <%= zone %></th><th>TX ID / Provider reference</th><th>Network</th><th>Exchange type</th><th>Electronic float amount</th><th>Physical cash amount</th><th>Rate</th><th>Provider settlement</th><th>Forex profit</th></tr></thead>
     <tbody>
      <% if(!(report.fxItems||[]).length){ %><tr><td colspan="9">No individual cross-currency exchanges for these filters.</td></tr><% } %>
      <% (report.fxItems||[]).forEach(item=>{ %>

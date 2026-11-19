@@ -19,7 +19,7 @@ test('operational forms show the account branch and never submit a branch select
  for(const file of files){
   const html=await render(file);
   assert.doesNotMatch(html,/<(?:select|input)\b[^>]*name="branchId"/,file);
-  assert.match(html,/Operating at <strong>Nairobi Main<\/strong> · KSH/,file);
+  assert.doesNotMatch(html,/Operating at <strong>Nairobi Main<\/strong>/,file+' should not duplicate top navigation branch information');
   if(file==='mobile-money/index'){
    const currency=html.match(/<select\b[^>]*name="currency"[^>]*>([\s\S]*?)<\/select>/);
    assert(currency,'Approved currency control must be present');
@@ -60,6 +60,6 @@ test('a branch default does not hide its other enabled transaction currencies',a
   const currency=html.match(/<select\b[^>]*name="currency"[^>]*>([\s\S]*?)<\/select>/);assert(currency,file);
   assert.deepEqual([...currency[1].matchAll(/<option\b[^>]*value="([^"]+)"/g)].map(match=>match[1]),['UGX','USD','SSP','KES']);
   assert.match(currency[1],/value="USD" selected/);
-  assert.match(html,/Operating at <strong>Nairobi Main<\/strong> · USD/);
+  assert.doesNotMatch(html,/Operating at <strong>Nairobi Main<\/strong>/);
  }
 });

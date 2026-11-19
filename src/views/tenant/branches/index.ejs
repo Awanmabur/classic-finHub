@@ -7,9 +7,9 @@
 <link rel="stylesheet" href="/css/branches.css?v=<%= branchAssetVersion %>">
 <section class="view show branchWorkspace">
   <div class="grid3">
-    <div class="stat"><div class="k">Active branches</div><div class="v"><%= activeBranches.length %></div><div class="s"><span class="dot"></span>Within your workspace</div></div>
-    <div class="stat"><div class="k">Plan branch limit</div><div class="v"><%= data.plan?.limits.branches||0 %></div><div class="s">Platform-enforced</div></div>
-    <div class="stat"><div class="k">Operations</div><div class="v">Controlled</div><div class="s">Historical records are retained</div></div>
+    <%- include('../../partials/stat-card',{title:'Active branches',value:activeBranches.length,note:'Within your workspace'}) %>
+    <%- include('../../partials/stat-card',{title:'Plan branch limit',value:data.plan?.limits?.branches??'Not set',note:'Limit from the current subscription'}) %>
+    <%- include('../../partials/stat-card',{title:'Archived branches',value:data.branches.filter(branch=>branch.status==='archived').length,note:'Historical branch records are retained'}) %>
   </div>
   <section class="card branchDirectory">
     <div class="cardHead branchDirectoryHead"><div><b>Branches</b><br><span>Branch locations and operating currencies</span></div><% if(data.canManage){ %><button class="btn btnPrimary" type="button" data-branch-open="branchCreateDialog" aria-controls="branchCreateDialog"><i class="fa-solid fa-plus" aria-hidden="true"></i> Create branch</button><% } %></div>

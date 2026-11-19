@@ -89,7 +89,7 @@ function summarize(transactionGroups,payoutGroups,expenseGroups){
   }
   // Report physical cash by ACTUAL drawer currency even if provider float is
   // in UGX/KES. This is the same transaction, not a duplicate settlement.
-  if(group._id.paymentMethod==='Cash'){
+  if((group._id.paymentMethod||'Cash')==='Cash'){
    if(!cashCurrencies.has(cashCurrency))cashCurrencies.set(cashCurrency,{currency:cashCurrency,count:0,movementMinor:0n,inMinor:0n,outMinor:0n});
    const actual=cashCurrencies.get(cashCurrency),delta=whole(group.cashMovementMinor);
    actual.count+=group.count;actual.movementMinor+=delta;

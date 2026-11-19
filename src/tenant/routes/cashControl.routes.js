@@ -24,7 +24,7 @@ module.exports=({renderTenant})=>{
     branchNames:Object.fromEntries(branches.map(row=>[String(row._id),row.name])),operatorNames:Object.fromEntries(operators.map(row=>[String(row._id),row.name])),canOpen:cash.opener(req.user),canReview:cash.reviewer(req.user)});
   }catch(error){next(error);}
  });
- router.post('/day/open',guard,throttle,async(req,res,next)=>{try{const shift=await cash.open(req.tenantDb,req.tenant,req.user,req.body);flash(req,'good','Opening count submitted for independent verification.');require('../services/branchView.service').followRecord(req,shift);res.redirect(303,'/tenant/cash/shifts');}catch(error){next(error);}});
+ router.post('/day/open',guard,throttle,async(req,res,next)=>{try{const shift=await cash.open(req.tenantDb,req.tenant,req.user,req.body);flash(req,'good','Opening count submitted for authorized verification.');require('../services/branchView.service').followRecord(req,shift);res.redirect(303,'/tenant/cash/shifts');}catch(error){next(error);}});
  router.get('/cash/shifts/:id',guard,async(req,res,next)=>{try{
   const shift=await cash.detail(req.tenantDb,req.tenant,req.user,req.params.id);
   renderTenant(req,res,'mobile-money/shift-detail','Cash control review','Counted cash and the funds book.',{shift,
@@ -33,7 +33,7 @@ module.exports=({renderTenant})=>{
    canReviewOpening:cash.reviewer(req.user)&&shift.status==='pending_open'&&(String(shift.operatorId)!==String(req.user.id)||require('../services/reviewPolicy').canSelfReviewRoutine(req.user,shift.branchId)),
    canApprove:shift.varianceMinor==null||String(shift.varianceMinor)==='0'||(req.user.role==='Tenant Owner'&&String(shift.operatorId)!==String(req.user.id))});
  }catch(error){next(error);}});
- for(const [action,method,verb] of [['verify-opening','decideOpening','Opening count reviewed.'],['submit','submit','Closing count submitted for independent review.'],['decide','decide','Cash reconciliation decision recorded.']])router.post(`/cash/shifts/:id/${action}`,guard,throttle,async(req,res,next)=>{
+ for(const [action,method,verb] of [['verify-opening','decideOpening','Opening count reviewed.'],['submit','submit','Closing count submitted for review.'],['decide','decide','Cash reconciliation decision recorded.']])router.post(`/cash/shifts/:id/${action}`,guard,throttle,async(req,res,next)=>{
   try{const shift=await cash[method](req.tenantDb,req.tenant,req.user,req.params.id,req.body);flash(req,'good',verb);require('../services/branchView.service').followRecord(req,shift);res.redirect(303,`/tenant/cash/shifts/${req.params.id}`);}catch(error){next(error);}
  });
  return router;

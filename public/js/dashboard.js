@@ -494,11 +494,22 @@
     const sourceFromHTML=html=>new DOMParser().parseFromString(html,'text/html').querySelector('form');
     const keepTemplate=(key,source)=>{templates.delete(key);templates.set(key,{html:source.outerHTML,savedAt:Date.now()});while(templates.size>24)templates.delete(templates.keys().next().value);};
     let previousFocus = null, activeRequest = null, requestVersion = 0, saving = false, currentKind = null;
+    const statusHome=status.parentElement,statusAnchor=status.nextSibling;
+    status.tabIndex=-1;
     const message = (text, failed = false) => {
+      // In a modal, failures belong immediately BEFORE the active form,
+      // never behind it or behind the scrollable sheet.
+      const activeForm=formHost.querySelector('form:not([data-operation-loading])');
+      if(failed&&activeForm)formHost.insertBefore(status,activeForm);
+      else if(status.parentElement!==statusHome)statusHome.insertBefore(status,statusAnchor);
       status.hidden = !text;
       status.textContent = text;
       status.setAttribute('role', failed ? 'alert' : 'status');
       status.classList.toggle('failed', failed);
+      if(failed&&text){
+        status.focus({preventScroll:true});
+        status.scrollIntoView({block:'start',behavior:'smooth'});
+      }
     };
     const selectKind = kind => {
       currentKind=kind;

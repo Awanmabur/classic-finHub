@@ -4,7 +4,8 @@ const steps=['Tenant Owner','Branch Manager','Approval Officer','Reconciliation 
 const decision=new mongoose.Schema({
  stepIndex:{type:Number,required:true,min:0,max:2}, actorId:{type:O,required:true},
  role:{type:String,required:true,enum:steps},decision:{type:String,required:true,enum:['approve','reject']},
- note:{type:String,required:true,minlength:12,maxlength:400},at:{type:Date,required:true}
+ note:{type:String,required:true,minlength:12,maxlength:400},at:{type:Date,required:true},
+ selfReviewed:{type:Boolean,default:false}
 },{_id:false,strict:'throw'});
 const schema=new mongoose.Schema({
  reference:{type:String,required:true,immutable:true},

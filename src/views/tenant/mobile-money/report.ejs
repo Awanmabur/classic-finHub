@@ -36,9 +36,9 @@
   <div class="cardHead"><div><b>Individual Mobile Money transactions</b><br><span>One row per customer record, with its own reference, amount and currency</span></div></div>
   <div class="cardBody tableWrap" tabindex="0" role="region" aria-label="Individual Mobile Money transaction records">
    <table>
-    <thead><tr><th>Recorded · <%= zone %></th><th>TX ID / Provider reference</th><th>Network</th><th>Operation</th><th>Provider amount</th><th>Physical cash movement</th><th>Expected agent commission</th><th>Provider customer charge</th><th>Status</th></tr></thead>
+    <thead><tr><th>Recorded · <%= zone %></th><th>TX ID / Provider reference</th><th>Network</th><th>Operation</th><th>Provider amount</th><th>Physical cash movement</th><th>Expected agent commission</th><th>Provider customer charge</th><th>Status</th><th>Balance after posting</th></tr></thead>
     <tbody>
-     <% if(!(report.recordItems||[]).length){ %><tr><td colspan="9">No individual transactions match these filters.</td></tr><% } %>
+     <% if(!(report.recordItems||[]).length){ %><tr><td colspan="10">No individual transactions match these filters.</td></tr><% } %>
      <% (report.recordItems||[]).forEach(item=>{ %>
       <tr data-search-row>
        <td><%= when(item.createdAt) %></td>
@@ -52,6 +52,9 @@
        <td><%= item.customerNetworkFeeEstimate?.amountMinor!=null?money(item.customerNetworkFeeEstimate.amountMinor,item.currency):'Not configured' %></td>
        <td><%= item.status==='voided_internal'||item.correctionState==='voided'?'Voided':
         item.fundingState==='book_recorded'?'Recorded in books':(item.status||'Recorded').replaceAll('_',' ') %></td>
+       <td><% if(item.balanceAfter?.length){ %><details><summary><%= item.balanceAfter.length %> cash/float balance<%= item.balanceAfter.length===1?'':'s' %></summary>
+        <% item.balanceAfter.forEach(x=>{ %><div class="tiny"><%= x.account %> · <%= x.change %> · <strong><%= x.balanceAfter %> after</strong></div><% }) %></details>
+       <% }else{ %><span class="tiny"><%= item.fundingState==='book_recorded'?'Historical snapshot unavailable or restricted':'Not posted' %></span><% } %></td>
       </tr>
      <% }) %>
     </tbody>
@@ -64,9 +67,9 @@
   <div class="cardHead"><div><b>Individual linked Forex records</b><br><span>Each exchange remains a separate, traceable record. It does not create a second cash or float posting.</span></div></div>
   <div class="cardBody tableWrap" tabindex="0" role="region" aria-label="Individual linked Forex exchange records">
    <table>
-    <thead><tr><th>Recorded · <%= zone %></th><th>TX ID / Provider reference</th><th>Network</th><th>Exchange type</th><th>Electronic float amount</th><th>Physical cash amount</th><th>Rate</th><th>Provider settlement</th><th>Forex profit</th></tr></thead>
+    <thead><tr><th>Recorded · <%= zone %></th><th>TX ID / Provider reference</th><th>Network</th><th>Exchange type</th><th>Electronic float amount</th><th>Physical cash amount</th><th>Rate</th><th>Provider settlement</th><th>Forex profit</th><th>Balance after posting</th></tr></thead>
     <tbody>
-     <% if(!(report.fxItems||[]).length){ %><tr><td colspan="9">No individual cross-currency exchanges for these filters.</td></tr><% } %>
+     <% if(!(report.fxItems||[]).length){ %><tr><td colspan="10">No individual cross-currency exchanges for these filters.</td></tr><% } %>
      <% (report.fxItems||[]).forEach(item=>{ %>
       <tr data-search-row>
        <td><%= when(item.settledAt) %></td>
@@ -77,7 +80,7 @@
        <td><%= money(item.cashAmountMinor,item.cashCurrency) %></td>
        <td><%= item.rateSide.toUpperCase() %> · <%= item.rateDecimal %></td>
        <td><%= item.providerSettlementState==='verified'?'Verified provider evidence':'Cashier recorded · external unverified' %></td>
-       <td>Not measured · cost basis missing</td>
+       <td>Not measured · cost basis missing</td><td><% if(item.balanceAfter?.length){ %><details><summary>Original balance snapshots</summary><% item.balanceAfter.forEach(x=>{ %><div class="tiny"><%= x.account %> · <%= x.change %> · <strong><%= x.balanceAfter %> after</strong></div><% }); %></details><% }else{ %><span class="tiny">Historical snapshot unavailable or restricted</span><% } %></td>
       </tr>
      <% }) %>
     </tbody>

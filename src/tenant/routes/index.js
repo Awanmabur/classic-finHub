@@ -160,7 +160,7 @@ for (const [path,op,permission] of [['cash-in','cash_in','mobile_money.cash_in']
        const result=await require('../services/momoFxSettlement.service').settleManuallyConfirmed(
          req.tenantDb,req.tenant,req.user,{
           ...serverQuote,idempotencyKey:req.body.idempotencyKey,branchId:String(req.operationBranch._id),
-          providerReference:req.body.networkReference,customer:req.body.customer,
+          customer:req.body.customer,
           customerPhone:req.body.customerPhone,customerNote:req.body.customerNote,
           transactionConfirmed:req.body.transactionConfirmed
          });

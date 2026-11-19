@@ -127,3 +127,19 @@ test('historical untracked Mobile Money entries never invent physical cash or fl
  assert.equal(result.cashCurrencies.length,0,'no real posted cash recorded');
  assert.equal(result.currencies[0].cashImpactMinor,0n);
 });
+
+test('corrected original cross-currency records stay in audit volume but do not inflate active cash or float',()=>{
+ const groups=[{
+  _id:{fundingState:'book_recorded',network:'MTN',currency:'UGX',
+   cashCurrency:'SSP',paymentMethod:'Cash',operation:'cash_out',
+   entrySource:'manual',feeTreatment:'record_only',status:'voided_internal',
+   reviewState:'not_required',voided:true},
+  count:1,amountMinor:'1000',cashMovementMinor:'-90000',feeMinor:'0',
+  estimatedCommissionMinor:'0'
+ }];
+ const result=reporting.summarize(groups,[],[]);
+ assert.equal(result.currencies[0].voidedCount,1);
+ assert.equal(result.currencies[0].volumeMinor,0n);
+ assert.equal(result.currencies[0].floatMovementMinor,0n);
+ assert.equal(result.cashCurrencies.length,0);
+});

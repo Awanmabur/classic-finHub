@@ -16,7 +16,9 @@
  <label class="field">Assigned operator<select class="control" name="operatorId" required><option value="">Choose an active operator</option><% data.operators.forEach(operator=>{ %><option value="<%= operator._id %>"><%= operator.name %> · <%= operator.role %></option><% }) %></select></label>
  <label class="field">Provider network<select class="control" name="network" required><option value="MTN">MTN</option><option value="MTN SSD">MTN SSD (South Sudan)</option><option value="Airtel">Airtel</option><option value="M-Pesa">M-Pesa</option></select></label>
  <label class="field">Trusted SMS senders<input class="control" name="allowedSenders" maxlength="300" required placeholder="MTNMOMO, 12345"><span class="tiny">Exact sender names or numbers, separated by commas. Use senders verified on this phone.</span></label>
- <label class="moduleChoice"><input type="checkbox" name="autoRecord" value="on"><span>Automatically record supported confirmations</span></label>
- <p class="tiny">Keep this unchecked until your actual provider messages match the supported format and the independently verified cash shift is open. Failed or incomplete records stay in the inbox. Manual entry remains available on every SMS-assisted plan.</p>
+ <label class="moduleChoice"><input type="checkbox" name="autoRecord" value="on"><span class="checkOptionText">
+  <strong>Automatically record supported confirmations</strong>
+  <small>Enable only when provider SMS matches a supported format and a verified cash shift is open. Incomplete records stay in the inbox; manual entry remains available.</small>
+ </span></label>
  <button class="btn btnPrimary" type="submit">Enroll Android phone</button></form></div></section><% } %>
 </section>

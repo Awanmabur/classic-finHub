@@ -64,7 +64,7 @@ async function decideOpening(conn,tenant,actor,shiftId,input={}){
  const reason=note(input.note);await ensureTenantIndexes(conn);
  const tx=await conn.startSession();let result;
  try{await tx.withTransaction(async()=>{
-  result=await cashSessionModel(conn).findOneAndUpdate({_id:id(shiftId),status:'pending_open',operatorId:{$ne:id(actor.id)},...scope(actor)},
+  result=await cashSessionModel(conn).findOneAndUpdate({_id:id(shiftId),status:'pending_open',...(require('./reviewPolicy').canSelfReviewRoutine(actor,actor.branchId)?{}:{operatorId:{$ne:id(actor.id)}}),...scope(actor)},
    {$set:{status:input.decision==='approve'?'open':'opening_rejected',openingVerifiedBy:id(actor.id),openingVerifiedAt:new Date(),openingReviewNote:reason},
     ...(input.decision==='reject'?{$unset:{activeKey:''}}:{}),$inc:{revision:1}},{session:tx,new:true});
   if(!result)throw fail('Opening request unavailable, already reviewed, outside your branch or self-approval attempted',409);
@@ -210,7 +210,7 @@ async function decide(conn,tenant,actor,shiftId,input={}){
  await ensureTenantIndexes(conn);
  const tx=await conn.startSession();let result;
  try{await tx.withTransaction(async()=>{
-  result=await cashSessionModel(conn).findOneAndUpdate({_id:id(shiftId),status:'submitted',operatorId:{$ne:id(actor.id)},...scope(actor)},
+  result=await cashSessionModel(conn).findOneAndUpdate({_id:id(shiftId),status:'submitted',...(require('./reviewPolicy').canSelfReviewRoutine(actor,actor.branchId)?{}:{operatorId:{$ne:id(actor.id)}}),...scope(actor)},
    {$set:{status:input.decision==='approve'?'approved':'disputed',reviewedBy:id(actor.id),reviewedAt:new Date(),reviewNote:reason},
     ...(input.decision==='approve'?{$unset:{activeKey:''}}:{}),$inc:{revision:1}},
    {new:true,session:tx});
@@ -218,14 +218,15 @@ async function decide(conn,tenant,actor,shiftId,input={}){
   // A Branch Manager may reconcile exact matches, but only a Tenant Owner or
   // Reconciliation Officer may accept a discrepancy. The transaction will
   // roll back when this authorization fails.
-  if(input.decision==='approve'&&minor(result.varianceMinor)!==0n&&actor.role==='Branch Manager')
+  if(input.decision==='approve'&&minor(result.varianceMinor)!==0n&&
+     (actor.role==='Branch Manager'||String(result.operatorId)===String(actor.id)))
    throw fail('Cash variance approvals require a Tenant Owner or Reconciliation Officer',403);
   if(result.treasuryObservationId){
    const funds=require('../treasury/service'),authorization=await funds.access(conn,tenant,actor,{permission:'treasury.review',session:tx,fence:true});
    await funds.reviewObservationInSession(conn,tx,authorization,result.treasuryObservationId,{decision:input.decision==='approve'?'approve':'reject',note:reason});
   }
   await auditEventModel(conn).create([{action:`mobile_money.shift.${input.decision==='approve'?'approved':'disputed'}`,
-   actorId:id(actor.id),targetId:result._id,metadata:{branchId:String(result.branchId),currency:result.currency,varianceMinor:String(result.varianceMinor)}}],{session:tx});
+   actorId:id(actor.id),targetId:result._id,metadata:{branchId:String(result.branchId),currency:result.currency,varianceMinor:String(result.varianceMinor),selfReviewed:String(result.operatorId)===String(actor.id)}}],{session:tx});
  });return result;
  }finally{await tx.endSession();}
 }

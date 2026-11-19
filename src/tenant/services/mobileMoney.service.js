@@ -412,7 +412,9 @@ async function recent(conn,{operatorId,branchId}={}){
 // CSV content is escaped so spreadsheet apps cannot evaluate attacker-supplied formulae.
 function csvCell(value) {
   let s = String(value ?? '');
-  if (/^[\s\u0000-\u001f]*[=+@\-\t\r]/.test(s)) s = "'"+s;
+  // Strict signed decimal values are not spreadsheet formulas; leave them numeric.
+  // All other leading =,+,@,- and control characters remain neutralized.
+  if (!/^-?(?:0|[1-9]\d*)(?:\.\d+)?$/.test(s) && /^[\s\u0000-\u001f]*[=+@\-\t\r]/.test(s)) s = "'"+s;
   return '"'+s.replace(/"/g,'""')+'"';
 }
 function toCsv(items) {

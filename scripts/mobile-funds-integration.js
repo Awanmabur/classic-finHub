@@ -40,7 +40,11 @@ async function main(){
  assert.equal(String((await funds.models(conn).account.findById(wallet._id).lean()).cashDrawerAccountId),String(drawer._id));
  await assert.rejects(
   record(request('cash_in',100,999900,{paymentAccountId:String(bank._id),feeTreatment:'payment_collected'})),
-  error=>error.status===409&&/cash drawer|cash account|physical cash/i.test(error.message),
+  error=>{
+   if(error.status!==409||!/cash drawer|cash account|physical cash/i.test(error.message))
+    throw Error('Unexpected financial rejection when selecting bank as cash: status '+error.status+', reason '+error.message);
+   return true;
+  },
   'An unrelated bank account cannot be selected as the physical cash drawer');
  assert.equal(await balance(wallet),'1000000');
  assert.equal(await balance(drawer),'500000');

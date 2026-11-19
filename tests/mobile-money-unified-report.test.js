@@ -24,16 +24,16 @@ test('daily weekly monthly quarterly and annual windows are UTC and have explici
 });
 test('by-network and currency report keeps volume, collected fees, estimates and paid commissions separate',()=>{
  const transactions=[
-  {_id:{network:'MTN',currency:'UGX',operation:'cash_in',entrySource:'manual',feeTreatment:'record_only',status:'pending_verification',reviewState:'awaiting_review',voided:false},
+  {_id:{fundingState:'book_recorded',network:'MTN',currency:'UGX',operation:'cash_in',entrySource:'manual',feeTreatment:'record_only',status:'pending_verification',reviewState:'awaiting_review',voided:false},
    count:1,amountMinor:'250000',feeMinor:'200',cashMovementMinor:'250000',estimatedCommissionMinor:'500'},
-  {_id:{network:'MTN',currency:'UGX',operation:'cash_out',entrySource:'sms',feeTreatment:'payment_collected',status:'pending_verification',reviewState:'accepted',voided:false},
+  {_id:{fundingState:'book_recorded',network:'MTN',currency:'UGX',operation:'cash_out',entrySource:'sms',feeTreatment:'payment_collected',status:'pending_verification',reviewState:'accepted',voided:false},
    count:1,amountMinor:'100000',feeMinor:'1000',cashMovementMinor:'-99000',estimatedCommissionMinor:'600'},
-  {_id:{network:'Airtel',currency:'UGX',operation:'cash_in',entrySource:'manual',feeTreatment:'record_only',status:'voided_internal',reviewState:'awaiting_review',voided:true},
+  {_id:{fundingState:'book_recorded',network:'Airtel',currency:'UGX',operation:'cash_in',entrySource:'manual',feeTreatment:'record_only',status:'voided_internal',reviewState:'awaiting_review',voided:true},
    count:1,amountMinor:'900000',feeMinor:'80000',cashMovementMinor:'900000',estimatedCommissionMinor:'1000'},
-  {_id:{network:'MTN SSD',currency:'SSP',operation:'cash_in',entrySource:'sms',feeTreatment:'record_only',status:'pending_verification',reviewState:'accepted',voided:false},
+  {_id:{fundingState:'book_recorded',network:'MTN SSD',currency:'SSP',operation:'cash_in',entrySource:'sms',feeTreatment:'record_only',status:'pending_verification',reviewState:'accepted',voided:false},
    count:1,amountMinor:'1000',feeMinor:'0',cashMovementMinor:'1000',estimatedCommissionMinor:'0'}
  ];
- const payouts=[{_id:{network:'MTN',currency:'UGX'},amountMinor:'700',grossMinor:'700',taxMinor:'0',costMinor:'0'}];
+ const payouts=[{_id:{fundingState:'book_recorded',network:'MTN',currency:'UGX'},amountMinor:'700',grossMinor:'700',taxMinor:'0',costMinor:'0'}];
  const expenses=[{_id:{currency:'UGX'},count:2,amountMinor:'1500'}];
  const result=reporting.summarize(transactions,payouts,expenses);
  assert.equal(result.currencies.length,2);
@@ -52,7 +52,7 @@ test('by-network and currency report keeps volume, collected fees, estimates and
 });
 test('legacy wallet commissions are flagged but not combined into actual provider payout',()=>{
  const result=reporting.summarize([{
-  _id:{network:'MTN',currency:'UGX',operation:'cash_in',entrySource:'manual',feeTreatment:'wallet_commission',status:'pending_verification',reviewState:'accepted',voided:false},
+  _id:{fundingState:'book_recorded',network:'MTN',currency:'UGX',operation:'cash_in',entrySource:'manual',feeTreatment:'wallet_commission',status:'pending_verification',reviewState:'accepted',voided:false},
   count:1,amountMinor:'10000',feeMinor:'400',cashMovementMinor:'10000',estimatedCommissionMinor:'400'
  }],[],[]);
  assert.equal(result.currencies[0].legacyWalletFeeMinor,400n);
@@ -61,7 +61,7 @@ test('legacy wallet commissions are flagged but not combined into actual provide
 
 test('published provider fee-sheet references appear in reports but never become collected fees or commission income',()=>{
  const result=reporting.summarize([{
-  _id:{network:'MTN',currency:'UGX',operation:'cash_out',entrySource:'manual',
+  _id:{fundingState:'book_recorded',network:'MTN',currency:'UGX',operation:'cash_out',entrySource:'manual',
    feeTreatment:'record_only',status:'recorded',reviewState:'not_required',voided:false},
   count:1,amountMinor:'50000',feeMinor:'0',cashMovementMinor:'-50000',
   estimatedCommissionMinor:'0',customerNetworkChargeEstimateMinor:'0',
@@ -91,11 +91,11 @@ test('cross-currency records appear in existing Mobile Money CSV without combini
 
 test('linked UGX to SSP withdrawals and deposits keep wallet principal and SSP cash in separate currencies',()=>{
  const groups=[
-  {_id:{network:'MTN',currency:'UGX',cashCurrency:'SSP',paymentMethod:'Cash',
+  {_id:{fundingState:'book_recorded',network:'MTN',currency:'UGX',cashCurrency:'SSP',paymentMethod:'Cash',
    operation:'cash_out',entrySource:'manual',feeTreatment:'record_only',
    status:'recorded',reviewState:'not_required',voided:false},
    count:1,amountMinor:'1000',cashMovementMinor:'-90000',feeMinor:'0',estimatedCommissionMinor:'10'},
-  {_id:{network:'MTN',currency:'UGX',cashCurrency:'SSP',paymentMethod:'Cash',
+  {_id:{fundingState:'book_recorded',network:'MTN',currency:'UGX',cashCurrency:'SSP',paymentMethod:'Cash',
    operation:'cash_in',entrySource:'manual',feeTreatment:'record_only',
    status:'recorded',reviewState:'not_required',voided:false},
    count:1,amountMinor:'500',cashMovementMinor:'50000',feeMinor:'0',estimatedCommissionMinor:'8'}
@@ -111,4 +111,19 @@ test('linked UGX to SSP withdrawals and deposits keep wallet principal and SSP c
  assert.equal(result.cashCurrencies[0].inMinor,50000n);
  assert.equal(result.cashCurrencies[0].outMinor,90000n);
  assert.equal(result.cashCurrencies[0].movementMinor,-40000n);
+});
+
+test('historical untracked Mobile Money entries never invent physical cash or float movements',()=>{
+ const result=reporting.summarize([{
+  _id:{network:'MTN',currency:'UGX',cashCurrency:'UGX',
+   fundingState:'legacy_untracked',paymentMethod:'Cash',operation:'cash_in',
+   entrySource:'manual',feeTreatment:'record_only',status:'recorded',
+   reviewState:'not_required',voided:false},
+  count:1,amountMinor:'100000',feeMinor:'0',cashMovementMinor:'100000',
+  estimatedCommissionMinor:'20'
+ }],[],[]);
+ assert.equal(result.currencies[0].volumeMinor,100000n,'historical recorded volume remains visible');
+ assert.equal(result.currencies[0].floatMovementMinor,0n,'historical volume must not invent float');
+ assert.equal(result.cashCurrencies.length,0,'no real posted cash recorded');
+ assert.equal(result.currencies[0].cashImpactMinor,0n);
 });

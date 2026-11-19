@@ -11,8 +11,12 @@
    const entryNeedsWallet=network=>['mGURUSH','Digi Cash'].includes(network)&&!entryEligibleWallets.some(w=>w.network===network);
    const selectedEntryNetwork=(entryNetworks.includes('MTN')&&entryCurrencyOptions.some(c=>c.code==='UGX')?'MTN':null)||entryNetworks.find(n=>entryNetworkCurrencies[n]&&entryCurrencyOptions.some(c=>c.code===entryNetworkCurrencies[n]))||entryNetworks.find(n=>!entryNetworkCurrencies[n])||entryNetworks[0];
    const entryCurrency=entryVerifiedMarket(selectedEntryNetwork)||data.entryCurrency||currentBranch.currency;
-   const entryAmountPattern = entryCurrency === 'UGX' ? '[0-9]{1,11}' : '[0-9]{1,11}([.][0-9]{1,2})?';
-   const entryCurrencyLabel = typeof currencyLabel === 'function' ? currencyLabel(entryCurrency) : (entryCurrency === 'KES' ? 'KSH' : entryCurrency); %>
+   const initialCash=(data.funds?.paymentAccounts||[]).filter(a=>a.kind==='cash'&&a.assignedToOperator&&a.state==='active'&&a.reconciliation==='matched'&&a.expectedMinor!==null&&a.postingReady!==false);
+   const initialPreferredCash=initialCash.find(a=>a.currency==='SSP'&&a.isDefault)||initialCash.find(a=>a.currency==='SSP')||(initialCash.length===1?initialCash[0]:null);
+   const entryInputCurrency=entryOperation==='cash_in'?(initialPreferredCash?.currency||entryCurrency):entryCurrency;
+   const entryAmountPattern = entryInputCurrency === 'UGX' ? '[0-9]{1,11}' : '[0-9]{1,11}([.][0-9]{1,2})?';
+   const entryCurrencyLabel = typeof currencyLabel === 'function' ? currencyLabel(entryCurrency) : (entryCurrency === 'KES' ? 'KSH' : entryCurrency);
+   const entryInputCurrencyLabel=entryInputCurrency==='KES'?'KSH':entryInputCurrency; %>
 <form class="card mobileMoneyEntry" method="post" action="/tenant/mobile-money/<%= entryOperation === 'cash_in' ? 'cash-in' : 'cash-out' %>" autocomplete="off" data-mobile-money-form data-unified-currency="true" data-operation="<%= entryOperation %>" data-currency="<%= entryCurrency %>" data-currency-label="<%= entryCurrencyLabel %>">
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
   <input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
@@ -49,7 +53,7 @@
       <div class="formSectionTitle">3. Amount and accounts</div>
       <div class="row2">
         <label class="field" data-mobile-currency-field <%= entryVerifiedMarket(selectedEntryNetwork)?'hidden':'' %>>Currency (derived from network)<select class="control" name="currency" data-mobile-currency required><% entryCurrencyOptions.forEach(option=>{ %><option value="<%= option.code %>" <%= option.code===entryCurrency?'selected':'' %>><%= option.label %></option><% }) %></select></label>
-        <label class="field"><span data-mobile-entry-amount-label><%= entryOperation==='cash_in'?'Customer cash received':'Wallet withdrawal amount' %></span> (<span data-mobile-currency-label><%= entryCurrency %></span>)<input class="control" type="text" inputmode="decimal" name="amount" placeholder="0" pattern="<%= entryAmountPattern %>" required></label>
+        <label class="field"><span data-mobile-entry-amount-label><%= entryOperation==='cash_in'?'Customer cash received':'Wallet withdrawal amount' %></span> (<span data-mobile-currency-label><%= entryInputCurrencyLabel %></span>)<input class="control" type="text" inputmode="decimal" name="amount" placeholder="0" pattern="<%= entryAmountPattern %>" required></label>
       </div>
       <input type="hidden" name="paymentMethod" value="Cash">
       <p class="tiny" data-momo-account-notice hidden aria-live="polite"></p>

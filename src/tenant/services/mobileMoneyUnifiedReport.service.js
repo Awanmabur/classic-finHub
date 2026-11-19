@@ -179,8 +179,12 @@ async function generate(conn,tenant,actor,input={},timeZone='UTC'){
  const accountScope={tenantId:tenant._id,status:{$ne:'archived'},kind:{$in:['wallet','cash']},
   ...(scope.branchId?{branchId:scope.branchId}:{}),
   ...(scope.operatorId?{operatorId:scope.operatorId}:{}),
-  ...(input.network?{ $or:[{kind:'cash'},{kind:'wallet',network:input.network}] }:{}),
-  ...(input.currency?{currency:input.currency}:{})};
+  // A UGX wallet filter must still show its SSP (or other currency)
+  // physical drawer: otherwise a real cross-currency cash impact disappears.
+  ...(input.network||input.currency?{$and:[
+   ...(input.network?[{$or:[{kind:'cash'},{kind:'wallet',network:input.network}]}]:[]),
+   ...(input.currency?[{$or:[{kind:'cash'},{kind:'wallet',currency:input.currency}]}]:[])
+  ]}:{})};
  const positionQuery=positionsAllowed?treasuryModels(conn).account.find(accountScope)
   .select('name network currency kind bookBalanceMinor lastObservedMinor lastVarianceMinor lastObservationAt reconciliationState status openingBalanceMinor branchId')
   .sort({currency:1,kind:1,name:1}).limit(301).lean():Promise.resolve([]);

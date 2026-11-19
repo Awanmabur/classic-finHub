@@ -57,7 +57,10 @@ test('compact appointment rows link to full preview, which retains decisions',as
 test('logout remains CSRF-protected POST and centered progress only affects presentation',()=>{
  const sidebar=read('src/views/partials/dashboard-sidebar.ejs');
  const script=read('public/js/dashboard.js');
- assert.equal((sidebar.match(/method="post" action="\/logout"/g)||[]).length,2);
+ const header=read('src/views/layouts/dashboard.ejs');
+ assert.equal((sidebar.match(/method="post" action="\/logout"/g)||[]).length,1,'Platform sidebar retains its logout');
+ assert.equal((header.match(/method="post" action="\/logout"/g)||[]).length,1,'Tenant header retains its own CSRF-protected logout');
+ assert.match(header,/href="\/" aria-label="Visit website"/);
  assert.match(sidebar,/name="_csrf" value="<%= csrfToken %>"/);
  assert.match(script,/form\[action="\/logout"\]/);
  assert.match(script,/signoutDialog\.showModal\(\)/);

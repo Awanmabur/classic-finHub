@@ -11,6 +11,32 @@
       <% group.items.forEach((item,itemIndex)=>{const active=activeItem?.key===groupIndex+':'+itemIndex; %><a href="<%= item.href %>"<% if(item.transactionKind==='choose'){ %> data-open-transaction<% } else if(item.transactionKind){ %> data-transaction-kind="<%= item.transactionKind %>"<% } %> class="subitem <%= active?'active':'' %>" <%- active?'aria-current="page"':'' %>><% if(context==='platform'){ %><i class="fa-solid <%= item.icon %>" aria-hidden="true"></i><span><%= item.label %></span><% } else { %><%= item.label %><% } %></a><% }) %>
     </div><% }) %>
   </nav>
+  <% if(context==='tenant'){ %>
+  <div class="sideFoot tenantSideFoot" aria-label="Workspace account controls">
+    <% if(canViewBranches){ %>
+    <form method="post" action="/tenant/view-branch" class="sidebarBranchView" data-branch-view-form>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="returnTo" value="<%= branchViewReturnTo %>">
+      <label for="sidebarViewingBranch">Viewing branch</label>
+      <select id="sidebarViewingBranch" name="viewBranchId" aria-label="Viewing branch">
+        <option value="all" <%= viewBranchId==='all'?'selected':'' %>>All branches</option>
+        <% viewBranches.forEach(branch=>{ %><option value="<%= branch._id %>" <%= String(branch._id)===viewBranchId?'selected':'' %>><%= branch.name %></option><% }) %>
+      </select>
+      <noscript><button class="btn" type="submit">Apply viewing branch</button></noscript>
+    </form>
+    <% } %>
+    <% if(['Tenant Owner','Branch Manager'].includes(user?.role)){ %>
+    <form method="post" action="/tenant/backups/action" class="sidebarBackupForm">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button class="btn" type="submit"><i class="fa-brands fa-google-drive" aria-hidden="true"></i> Google Drive backup</button>
+    </form>
+    <% } %>
+    <form method="post" action="/logout" class="sidebarLogoutForm">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button class="btn" type="submit"><i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i> Logout</button>
+    </form>
+  </div>
+  <% } %>
   <% if(context==='platform'){ %>
   <div class="sideFoot">
     <div class="mini"><div><b><%= user?.name||'Account' %></b><span><%= user?.role||'Super Admin' %></span></div></div>

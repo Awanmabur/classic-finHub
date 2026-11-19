@@ -82,7 +82,9 @@ function sameDetails(record,values,{feeTreatmentSpecified=true}={}){
 }
 async function recordMobileMoney(conn, operator, input, operation, tenant, sourceContext = null, options = {}) {
   if(!operator?.id || !['Tenant Owner','Branch Manager','Mobile Money Operator'].includes(operator.role))throw bad('This role cannot record Mobile Money operations',403);
-  const values = validate(sourceContext?input:
+  // The SMS inbox retains the provider-reported fee as evidence. Never treat
+  // it as an additional cashier fee or credit it to operator revenue.
+  const values = validate(sourceContext?{...input,fee:'0'}:
    {...input,networkReference:manualReference(input?.idempotencyKey)}, operation);
   const feeTreatmentSpecified=typeof input.feeTreatment==='string'&&input.feeTreatment!=='';
   const expectedFeeTreatment=input.walletFeePolicy===''?undefined:input.walletFeePolicy;
@@ -102,6 +104,8 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
   if(prior){
     // Historic manually-entered references remain immutable on exact retries.
     if(!sourceContext&&prior.entrySource==='manual')values.networkReference=prior.networkReference;
+    if(sourceContext&&prior.entrySource==='sms'&&String(prior.smsInboxId)===String(sourceContext.smsInboxId))
+     values.feeMinor=BigInt(String(prior.feeMinor)); // historical exact replay, never a new fee
     const pricing=await require('../pricing/apply').resolve(conn,tenant,operatingBranch,input,{operation:'mobile_money.'+operation,currency:values.currency,amountMinor:values.amountMinor,network:values.network,existing:prior,providedMinor:values.feeMinor,source:sourceContext?'sms':'manual'});
     if(pricing)values.feeMinor=BigInt(pricing.feeMinor);
     if((sourceContext && String(prior.smsInboxId)!==source.smsInboxId) || String(prior.operatorId)!==String(operator.id)||prior.operation!==operation||

@@ -11,3 +11,20 @@ test('approved report keeps date filters and presents real cash movement evidenc
  assert.doesNotMatch(html,/No posted cash effect|Recorded fees, Wallet Balance and Bank payments are excluded/);
  const csv=reports.csv(report);assert.match(csv,/Net cash movement minor units/);assert.match(csv,/"9100"/);assert.match(csv,/"107"/);
 });
+
+test('daily report CSV includes posted fee income independently of principal and preserves currencies',()=>{
+ const report={key:'daily',timeZone:'Africa/Juba',income:[],impact:{},postedCash:[],rows:[],
+  realizedIncome:[
+   {module:'Money Transfer',currency:'SSP',count:2,amount:'SSP 20.00',amountMinor:'2000'},
+   {module:'Mobile Money',currency:'UGX',count:1,amount:'UGX 150',amountMinor:'150'},
+   {module:'Banking',currency:'KES',count:3,amount:'KES 42.00',amountMinor:'4200'}
+  ]};
+ const csv=reports.csv(report);
+ assert.match(csv,/"Money Transfer","Verified posted fee income","posted","SSP","2"/);
+ assert.match(csv,/"Mobile Money","Verified posted fee income","posted","UGX","1"/);
+ assert.match(csv,/"Banking","Verified posted fee income","posted","KES","3"/);
+ assert.match(csv,/"150"/);
+ assert.match(csv,/"2000"/);
+ assert.match(csv,/"4200"/);
+ assert.doesNotMatch(csv,/Total profit/);
+});

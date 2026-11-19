@@ -75,15 +75,15 @@ async function main(){
  const proposedSellRate=await forex.proposeRate(conn,tenant,owner,{fromCurrency:'USD',toCurrency:'UGX',side:'sell',rateDecimal:'3700.01',validHours:24,note:'Separately approved customer USD selling price for manual settlement'});
  const sellRate=await forex.decideRate(conn,tenant,reviewer,proposedSellRate._id,reviewData);
  async function quote(operation,amount,commission,originModule='forex',originRecordId=null){return (await forex.createQuote(conn,tenant,owner,{operation,originModule,originRecordId,rateId:String(operation==='sell'?sellRate._id:rate._id),customerLabel:'Actual customer',customerPhone:'+256700123456',amount,commission,note:'Customer agreed to the displayed manual exchange terms and counted notes',settlementMethod:'Cash',idempotencyKey:crypto.randomUUID()})).quote;}
- const buySource=await quote('buy','10','100'),buy=await manual('forex',buySource,{foreignAccountId:String(stock._id),settlementAccountId:String(cashFund._id)});
+ const buySource=await quote('buy','10','0'),buy=await manual('forex',buySource,{foreignAccountId:String(stock._id),settlementAccountId:String(cashFund._id)});
  await assert.rejects(funded.finalizeForex(conn,tenant,owner,buy.execution._id,{confirmFundsExchanged:'yes'}),{status:403},'missing receipt evidence confirmation cannot post');
  assert.equal((await funded.finalizeForex(conn,tenant,owner,buy.execution._id,{confirmFundsExchanged:'yes',confirmEvidenceChecked:'yes'})).execution.status,'posted_manual');
  assert((await funded.finalizeForex(conn,tenant,owner,buy.execution._id,{})).duplicate,'retry cannot post duplicate movement');
- assert.equal(await book(stock),101000n);assert.equal(await book(cashFund),970100n);
- const sellSource=await quote('sell','5','50'),sell=await manual('forex',sellSource,{foreignAccountId:String(stock._id),settlementAccountId:String(cashFund._id)});
+ assert.equal(await book(stock),101000n);assert.equal(await book(cashFund),970000n);
+ const sellSource=await quote('sell','5','0'),sell=await manual('forex',sellSource,{foreignAccountId:String(stock._id),settlementAccountId:String(cashFund._id)});
  await funded.finalizeForex(conn,tenant,owner,sell.execution._id,{confirmFundsExchanged:'yes',confirmEvidenceChecked:'yes'});
  assert.equal((await fundedModel.models(conn).execution.findById(sell.execution._id)).reviewedBy,null,'cashier confirmation must never claim independent review');
- assert.equal(await book(stock),100500n);assert.equal(await book(cashFund),988650n);
+ assert.equal(await book(stock),100500n);assert.equal(await book(cashFund),988500n);
  const originReports=require('../src/tenant/services/financeOverview.service');
  assert.equal((await originReports.postedOriginFxActivity(conn,tenant,owner,branch,{moduleKey:'banking',timeZone:'Africa/Juba'})).count,0,
   'standalone Forex trades cannot be misattributed to Banking');
@@ -103,7 +103,7 @@ async function main(){
   error=>error.status===409&&/Money Transfer payout/.test(error.message),
   'No transfer, collected or uncollected, may be converted outside the PIN-verified remittance posting path');
  const collection=await manual('money_transfer',transferSource,{collectionAccountId:String(cashFund._id),clearingAccountId:String(clearing._id)});await funded.review(conn,tenant,reviewer,collection.execution._id,reviewData);
- assert.equal(await book(cashFund),1008850n);assert.equal(await book(clearing),20000n);assert.equal((await core.transferOrderModel(conn).findById(transferSource._id)).status,'collected_manual');
+ assert.equal(await book(cashFund),1008700n);assert.equal(await book(clearing),20000n);assert.equal((await core.transferOrderModel(conn).findById(transferSource._id)).status,'collected_manual');
  await assert.rejects(quote('buy','2','0','banking',String(depositSource._id)),
   {status:409},'banking trades must use internal account currency conversion, not unlinked manual Forex');
  await assert.rejects(quote('sell','5','0','money_transfer',String(transferSource._id)),
@@ -113,10 +113,10 @@ async function main(){
  await assert.rejects(funded.checkPayout(conn,tenant,owner,{pin:revealed.pin,senderPhone:'+256700999999',receiverNameCheck:'Verified receiver'}),{status:404});
  const checked=await funded.checkPayout(conn,tenant,owner,{pin:revealed.pin,senderPhone:'+256700111222',receiverNameCheck:'Verified receiver',identityDocument:'RECEIVER-PASSPORT'});
  const payoutInput=requestData({verificationToken:checked.token,payoutAccountId:String(cashFund._id)}),payout=await funded.requestPayout(conn,tenant,owner,payoutInput);
- assert.equal(await book(cashFund),1008850n,'matching the PIN and submitting payout cannot release cash before independent review');assert((await funded.requestPayout(conn,tenant,owner,payoutInput)).duplicate);
+ assert.equal(await book(cashFund),1008700n,'matching the PIN and submitting payout cannot release cash before independent review');assert((await funded.requestPayout(conn,tenant,owner,payoutInput)).duplicate);
  await assert.rejects(funded.requestPayout(conn,tenant,owner,{...payoutInput,verificationToken:crypto.randomBytes(32).toString('hex')}),{status:409});
  await assert.rejects(funded.requestPayout(conn,tenant,owner,{...payoutInput,idempotencyKey:crypto.randomUUID()}),{status:409},'verification is consumed once');
- await funded.review(conn,tenant,reviewer,payout.execution._id,reviewData);assert.equal(await book(cashFund),988850n);assert.equal(await book(clearing),0n);assert.equal((await core.transferOrderModel(conn).findById(transferSource._id)).status,'paid_out_manual');
+ await funded.review(conn,tenant,reviewer,payout.execution._id,reviewData);assert.equal(await book(cashFund),988700n);assert.equal(await book(clearing),0n);assert.equal((await core.transferOrderModel(conn).findById(transferSource._id)).status,'paid_out_manual');
  await assert.rejects(funded.review(conn,tenant,reviewer,payout.execution._id,reviewData),{status:409});await assert.rejects(funded.checkPayout(conn,tenant,owner,{pin:revealed.pin,senderPhone:'+256700111222'}),{status:404});
  for(let i=0;i<10;i++)await assert.rejects(funded.checkPayout(conn,tenant,owner,{pin:'123456',senderPhone:'+256700199999'}),{status:404});
  await assert.rejects(funded.checkPayout(conn,tenant,owner,{pin:'123456',senderPhone:'+256700199999'}),{status:429},'same phone and branch guesses are limited across database-backed attempts');

@@ -90,7 +90,10 @@ function quoteInput(input){
  if(!Number.isSafeInteger(validMinutes)||validMinutes<5||validMinutes>60)throw fail('Quote validity must be 5–60 minutes');
  const idempotencyKey=text(input?.idempotencyKey,'form reference',36,36);
  if(!UUID.test(idempotencyKey))throw fail('Reload the form to obtain a valid request identifier');
- return {rateId,customerLabel,amount,note,validMinutes,idempotencyKey,operation,originModule,originRecordId,capture:require('./operationCapture.service').parse('forex',{...input,commission:require('../pricing/apply').mode(input)?'0':input?.commission})};
+ // Parse the submitted historical charge for immutable idempotent retries.
+ // The no-extra-fee policy is applied ONLY after looking up the same key.
+ const commission=require('../pricing/apply').mode(input)?'0':input?.commission;
+ return {rateId,customerLabel,amount,note,validMinutes,idempotencyKey,operation,originModule,originRecordId,capture:require('./operationCapture.service').parse('forex',{...input,commission})};
 }
 async function proposeRate(conn,tenant,actor,input){
  moduleAccess(tenant,actor,'forex.rate_manage');if(!operator(actor))throw fail('Only assigned Forex staff may propose rates',403);
@@ -180,6 +183,7 @@ async function createQuote(conn,tenant,actor,input){
   if(pricing)v.capture.commission=require('../pricing/apply').decimal(pricing.feeMinor,existing.toCurrency);
   if(!equivalent(existing,actor,branchId,{...v,sourceMinor:base}))throw fail('Request reference reused with different quote details',409);
   return {quote:existing,duplicate:true};}
+ if(v.capture.commission!=='0')throw fail('Forex exchanges do not charge an additional fee; use the approved Buy/Sell rate',400);
  const session=await conn.startSession();let quote;
  try{await session.withTransaction(async()=>{
   const authorization=await financialAuth.fenceAction(conn,session,actor,tenant,'forex','forex.quotes.create',{branchId});
@@ -190,8 +194,9 @@ async function createQuote(conn,tenant,actor,input){
    {$inc:{revision:1}},{session,new:true});
   if(!rate)throw fail('The approved rate is unavailable, expires too soon, or does not match the Buy/Sell operation',409);
   const {sourceMinor,targetMinor}=quoteEconomics(v,rate);
-  const pricing=await require('../pricing/apply').resolve(conn,authorization.tenant,branchId,input,{operation:'forex.'+v.operation,currency:rate.toCurrency,amountMinor:targetMinor,providedMinor:require('./operationCapture.service').commissionMinor(v.capture,rate.toCurrency),field:'commission',session});
-  if(pricing){v.pricing=pricing;v.capture.commission=require('../pricing/apply').decimal(pricing.feeMinor,rate.toCurrency);quoteEconomics(v,rate);}
+  // Do not apply legacy "additional commission" pricing on new direct Forex.
+  // Historical quotes and their immutable captured fees are retained.
+  // The exchange rate alone is not yet a measured realized profit.
   const branch=await branchModel(conn).findOneAndUpdate({_id:branchId,status:'active'},{$inc:{revision:1}},{session,new:true});
   if(!branch)throw fail('Assigned branch is unavailable',409);
   enabledPair(branch,rate.fromCurrency,rate.toCurrency);

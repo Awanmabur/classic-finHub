@@ -20,7 +20,7 @@ const originalRecord=mobile.recordMobileMoney;
 async function tenant(){return Tenant.findById(tenantId).lean();}
 async function actor(){return capture.operatorFrom(await User.findById(operatorDoc._id).lean());}
 async function receive(enrollment,messageId,receivedAt=new Date().toISOString()){
-  const value={messageId,sender:'MTNMOMO',receivedAt,body:`MTN Cash In: UGX 1,000; Fee: UGX 10; Customer: Race Customer; Ref: ${messageId}-${nonce}`};
+  const value={messageId,sender:'MTNMOMO',receivedAt,body:`MTN Cash In: UGX 1,000; Fee: UGX 0; Customer: Race Customer; Ref: ${messageId}-${nonce}`};
   const raw=Buffer.from(JSON.stringify(value)),timestamp=String(Math.floor(Date.now()/1000));
   return capture.receive(enrollment.device.deviceId,raw,value,{timestamp,
     signature:crypto.createHmac('sha256',Buffer.from(enrollment.secret,'hex')).update(timestamp+'.').update(raw).digest('hex')});

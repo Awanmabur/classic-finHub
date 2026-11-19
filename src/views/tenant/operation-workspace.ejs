@@ -14,12 +14,13 @@ const filterQuery=new URLSearchParams();
 ['from','to','status','currency','kind'].forEach(key=>{if(data.filters[key])filterQuery.set(key,data.filters[key]);});
 const reportMode=!['records','pending','payout'].includes(data.mode);
 %>
-<section class="view show">
+<section class="view show financialReportsPage">
  <%- include('partials/module-finance',{moduleKey}) %>
  <section class="card">
   <div class="cardHead"><b><%= data.title %></b><span><%= data.total %> internal record<%= data.total===1?'':'s' %> in range</span></div>
   <div class="cardBody">
-   <nav class="rowBtns" aria-label="<%= data.label %> sections"><% links.forEach(([path,label])=>{ %><a class="btn" href="<%= data.basePath+path %>"><%= label %></a><% }) %></nav>
+   <% if(reportMode){ %><details class="financialReportMore"><summary>Related actions and pages</summary><nav class="rowBtns" aria-label="<%= data.label %> sections"><% links.forEach(([path,label])=>{ %><a class="btn" href="<%= data.basePath+path %>"><%= label %></a><% }) %></nav></details>
+   <% }else{ %><nav class="rowBtns" aria-label="<%= data.label %> sections"><% links.forEach(([path,label])=>{ %><a class="btn" href="<%= data.basePath+path %>"><%= label %></a><% }) %></nav><% } %>
    <p class="tiny"><%= data.note %></p>
   </div>
  </section>
@@ -60,5 +61,22 @@ const reportMode=!['records','pending','payout'].includes(data.mode);
  <td><%= row.source==='mobile_money'?'Mobile Money · '+(row.network||'')+' · '+(row.sourceOperation==='cash_out'?'Withdrawal':'Deposit'):row.source==='banking'?'Banking':row.source==='money_transfer'?'Money Transfer':'Direct Forex' %></td><% } %><% if(moduleKey==='money_transfer'){ %><td><%= row.fees %></td><% } %><td><%= row.status.replaceAll('_',' ') %></td></tr><% }) %>
   </tbody></table></div>
  </section>
+ <% if(['money_transfer','banking'].includes(moduleKey)){ %>
+ <section class="card">
+  <div class="cardHead"><div><b>Actual posted fees</b><br><span>Received fee income, not transaction principal or pending quoted fees</span></div></div>
+  <div class="cardBody tableWrap" tabindex="0" role="region" aria-label="Posted fee income by day and currency">
+   <table><thead><tr><th>Date · <%= operationReportZone %></th><th>Currency</th><th>Posted transactions</th><th>Fee income</th></tr></thead><tbody>
+    <% if(!(data.incomeRows||[]).length){ %><tr><td colspan="4">No independently posted fee income in this period.</td></tr><% } %>
+    <% (data.incomeRows||[]).forEach(row=>{ %><tr><td><%= row.day %></td><td><%= row.currency==='KES'?'KSH':row.currency %></td><td><%= row.count %></td><td><%= row.amount %></td></tr><% }) %>
+   </tbody></table>
+  </div>
+ </section>
+ <% } %>
+ <% if(moduleKey==='forex'){ %>
+ <section class="card"><div class="cardBody">
+  <b>Forex profit</b>
+  <p class="tiny">Not yet measurable: exchange amounts and Buy/Sell rates are recorded, but the cost basis of exchanged currency inventory is not. Never count exchanged principal as profit. Posted exchanges remain distinguishable from quotations.</p>
+ </div></section>
+ <% } %>
  <% } %>
 </section>

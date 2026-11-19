@@ -156,7 +156,7 @@ async function main() {
     const moneyHtml=await moneyPage.text();
     const ref=`INT-${nonce}`;
     const recordFields={idempotencyKey:crypto.randomUUID(),customer:'Auth Probe Customer',network:'MTN',networkReference:ref,
-      currency:'UGX',amount:'120000',fee:'100',feeTreatment:'payment_collected',paymentMethod:'Cash',
+      currency:'UGX',amount:'120000',fee:'0',feeTreatment:'payment_collected',paymentMethod:'Cash',
       walletAccountId:String(walletFund._id),paymentAccountId:String(cashFund._id),observedWalletBalance:'880000',observationEvidenceReference:`AUTH-ACTUAL-${nonce}`};
     const post=(route,cookie,token,fields)=>fetch(`${base}${route}`,{method:'POST',redirect:'manual',
       headers:{cookie,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({_csrf:token,...fields}).toString()});
@@ -181,7 +181,7 @@ async function main() {
     const created=await require('../src/tenant/models').mobileTransactionModel(tenantDb).findOne({networkReference:ref}).lean();
     assert(created); assert.equal(created.status,'recorded');assert.equal(created.reviewState,'not_required');assert.equal(created.fundingState,'book_recorded');
     assert.equal(String((await treasuryModels.models(tenantDb).account.findById(walletFund._id)).bookBalanceMinor),'880000');
-    assert.equal(String((await treasuryModels.models(tenantDb).account.findById(cashFund._id)).bookBalanceMinor),'120100');
+    assert.equal(String((await treasuryModels.models(tenantDb).account.findById(cashFund._id)).bookBalanceMinor),'120000');
     assert.equal((await treasuryModels.models(tenantDb).observation.findById(created.walletObservationId)).status,'pending_review');
     const reviewer=await signIn('reviewer');
     const reviewerFull=await finishMfa('reviewer',reviewer,'challenge');

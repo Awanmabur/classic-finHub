@@ -40,18 +40,22 @@ async function main(){
  assert.equal(String((await funds.models(conn).account.findById(wallet._id).lean()).cashDrawerAccountId),String(drawer._id));
  await assert.rejects(
   record(request('cash_in',100,999900,{paymentAccountId:String(bank._id),feeTreatment:'payment_collected'})),
-  error=>error.status===409&&/cash drawer|cash account/i.test(error.message),
+  error=>{
+   if(error.status!==409||!/cash drawer|cash account|physical cash/i.test(error.message))
+    throw Error('Unexpected financial rejection when selecting bank as cash: status '+error.status+', reason '+error.message);
+   return true;
+  },
   'An unrelated bank account cannot be selected as the physical cash drawer');
  assert.equal(await balance(wallet),'1000000');
  assert.equal(await balance(drawer),'500000');
- const firstInput=request('cash_in',10000,990000,{fee:'100',feeTreatment:'payment_collected'}),first=await record(firstInput);
- assert.equal(first.created.fundingState,'book_recorded');assert.equal(String(first.created.physicalCashMovementMinor),'10100');assert.equal(await balance(wallet),'990000');assert.equal(await balance(drawer),'510100');assert.equal((await record(firstInput)).duplicate,true);
+ const firstInput=request('cash_in',10000,990000,{fee:'0',feeTreatment:'payment_collected'}),first=await record(firstInput);
+ assert.equal(first.created.fundingState,'book_recorded');assert.equal(String(first.created.physicalCashMovementMinor),'10000');assert.equal(await balance(wallet),'990000');assert.equal(await balance(drawer),'510000');assert.equal((await record(firstInput)).duplicate,true);
  await assert.rejects(record({...firstInput,feeTreatment:'record_only'}),{status:409});await accept(first);
  const firstObservation=await funds.models(conn).observation.findById(first.created.walletObservationId).lean();assert.equal(firstObservation.status,'approved');assert.equal(String(firstObservation.varianceMinorAtReview),'0');
  await assert.rejects(treasury.configureAccount(conn,tenant,owner,wallet._id,{name:wallet.name,isDefault:'true',feeTreatment:'wallet_commission'}),{status:400},'Speculative commission policies cannot be enabled for new transactions');
- const second=await record(request('cash_out',5000,995000,{fee:'0',feeTreatment:'payment_collected'}));await accept(second);assert.equal(await balance(wallet),'995000');assert.equal(await balance(drawer),'505100');
+ const second=await record(request('cash_out',5000,995000,{fee:'0',feeTreatment:'payment_collected'}));await accept(second);assert.equal(await balance(wallet),'995000');assert.equal(await balance(drawer),'505000');
  await treasury.configureAccount(conn,tenant,owner,wallet._id,{name:wallet.name,isDefault:'true',feeTreatment:'record_only'});
- const third=await record(request('cash_in',2000,993000,{paymentMethod:'Cash',paymentAccountId:String(drawer._id),feeTreatment:'record_only'}));await accept(third);assert.equal(await balance(drawer),'507100');assert.equal(await balance(wallet),'993000');
+ const third=await record(request('cash_in',2000,993000,{paymentMethod:'Cash',paymentAccountId:String(drawer._id),feeTreatment:'record_only'}));await accept(third);assert.equal(await balance(drawer),'507000');assert.equal(await balance(wallet),'993000');
  await assert.rejects(record(request('cash_in',1000,0,{paymentMethod:'Bank',paymentAccountId:String(bank._id)})),{status:400},'New agent entries use physical cash, not bank or customer-wallet payments');
  const usageBefore=(await Usage.findOne({tenantId:tenant._id,metric:'mobile_money_records'})).quantity,countBefore=await core.mobileTransactionModel(conn).countDocuments(),auditBefore=await core.auditEventModel(conn).countDocuments();
  await assert.rejects(record(request('cash_in',2000000,0)),error=>error.status===409&&/Insufficient/.test(error.message));
@@ -59,29 +63,29 @@ async function main(){
  const wrong=await record(request('cash_in',1000,991950));assert.equal(await balance(wallet),'992000');assert.equal((await funds.models(conn).account.findById(wallet._id)).status,'held');
  await assert.rejects(record(request('cash_in',1,991999)),{status:409});await accept(wrong);assert.equal((await funds.models(conn).account.findById(wallet._id)).status,'held');
  const adjustment=await treasury.requestAdjustment(conn,tenant,operator,wrong.created.walletObservationId,{reason:'Investigated the actual provider statement and documented the remaining fifty-unit variance',idempotencyKey:crypto.randomUUID()});await treasury.reviewAdjustment(conn,tenant,reviewer,adjustment.adjustment._id,{decision:'approve',note:'Independent evidence confirms the fifty-unit reconciliation adjustment'});assert.equal(await balance(wallet),'991950');
- const corrected=await record(request('cash_out',100,992050));await accept(corrected);await mobile.requestVoid(conn,operator,corrected.created._id,'The manual cash-out was an incorrect duplicate instruction');await mobile.decideVoid(conn,reviewer,corrected.created._id,'approve','Original wallet and cash evidence confirms the internal void');assert.equal(await balance(wallet),'991950');assert.equal(await balance(drawer),'508100');
- await cash.submit(conn,tenant,operator,shift._id,{countedCash:'508100',note:'Counted physical closing cash agrees with all reviewed movements'});const submitted=await core.cashSessionModel(conn).findById(shift._id).lean();assert(submitted.treasuryObservationId);await cash.decide(conn,tenant,reviewer,shift._id,{decision:'approve',note:'Independent closing count and source ledger are in agreement'});assert.equal((await funds.models(conn).account.findById(drawer._id)).lastObservedMinor.toString(),'508100');
+ const corrected=await record(request('cash_out',100,992050));await accept(corrected);await mobile.requestVoid(conn,operator,corrected.created._id,'The manual cash-out was an incorrect duplicate instruction');await mobile.decideVoid(conn,reviewer,corrected.created._id,'approve','Original wallet and cash evidence confirms the internal void');assert.equal(await balance(wallet),'991950');assert.equal(await balance(drawer),'508000');
+ await cash.submit(conn,tenant,operator,shift._id,{countedCash:'508000',note:'Counted physical closing cash agrees with all reviewed movements'});const submitted=await core.cashSessionModel(conn).findById(shift._id).lean();assert(submitted.treasuryObservationId);await cash.decide(conn,tenant,reviewer,shift._id,{decision:'approve',note:'Independent closing count and source ledger are in agreement'});assert.equal((await funds.models(conn).account.findById(drawer._id)).lastObservedMinor.toString(),'508000');
  assert.equal((await require('../src/tenant/services/ledger.service').trialBalance(conn,{branchId:branch._id,currency:'UGX'})).balanced,true);
  const viewer=mobile.visibleRecordForRole(first.created.toObject?first.created.toObject():first.created,'Viewer');assert.equal(viewer.walletBalanceAfterMinor,undefined);
- const context=await require('../src/tenant/services/mobileMoneyFunds.service').context(conn,tenant,operator,branch);assert(context.wallets.some(row=>row.id===String(wallet._id)&&row.expected==='UGX 991,950'));assert(context.paymentAccounts.some(row=>row.id===String(drawer._id)&&row.expected==='UGX 508,100'));
- const newShift=await cash.open(conn,tenant,operator,{openingCash:'508100'});await cash.decideOpening(conn,tenant,reviewer,newShift._id,{decision:'approve',note:'Independent next shift opening cash matches the Treasury cash account'});
+ const context=await require('../src/tenant/services/mobileMoneyFunds.service').context(conn,tenant,operator,branch);assert(context.wallets.some(row=>row.id===String(wallet._id)&&row.expected==='UGX 991,950'));assert(context.paymentAccounts.some(row=>row.id===String(drawer._id)&&row.expected==='UGX 508,000'));
+ const newShift=await cash.open(conn,tenant,operator,{openingCash:'508000'});await cash.decideOpening(conn,tenant,reviewer,newShift._id,{decision:'approve',note:'Independent next shift opening cash matches the Treasury cash account'});
  const dailyInput=request('cash_in',100,0,{paymentMethod:'Cash',fee:'0'});
  for(const field of ['observedWalletBalance','observationEvidenceReference','feeTreatment','paymentAccountId','walletAccountId'])delete dailyInput[field];
  const daily=await record(dailyInput);
  assert.equal(daily.created.fundingState,'book_recorded');assert.equal(daily.created.feeTreatment,'record_only');assert.equal(daily.created.walletObservationId,null,'daily entries do not require a repeated actual balance declaration');
  assert.equal(String(daily.created.walletAccountId),String(wallet._id));assert.equal(String(daily.created.paymentAccountId),String(drawer._id));
  assert.equal((await funds.models(conn).account.findById(wallet._id).lean()).cashDrawerAccountId?.toString(),String(drawer._id));
- assert.equal(await balance(wallet),'991850');assert.equal(await balance(drawer),'508200');
+ assert.equal(await balance(wallet),'991850');assert.equal(await balance(drawer),'508100');
  await treasury.configureAccount(conn,tenant,owner,wallet._id,{name:wallet.name,isDefault:'true',feeTreatment:'record_only'});
  const dailyCount=await core.mobileTransactionModel(conn).countDocuments();
  assert.equal((await record(dailyInput)).duplicate,true,'retry keeps the original wallet policy even after its configuration changes');
- assert.equal(await core.mobileTransactionModel(conn).countDocuments(),dailyCount);assert.equal(await balance(wallet),'991850');assert.equal(await balance(drawer),'508200');
+ assert.equal(await core.mobileTransactionModel(conn).countDocuments(),dailyCount);assert.equal(await balance(wallet),'991850');assert.equal(await balance(drawer),'508100');
  await assert.rejects(record({...dailyInput,feeTreatment:'payment_collected'}),{status:409},'a changed fee treatment cannot reuse the posted operation reference');
  const changedPolicy={...dailyInput,idempotencyKey:crypto.randomUUID(),networkReference:'POLICY-'+crypto.randomBytes(8).toString('hex'),walletFeePolicy:'payment_collected'};
  await assert.rejects(record(changedPolicy),error=>error.status===409&&/settings changed|policy changed/i.test(error.message),'a changed wallet policy cannot silently change the customer preview');
- assert.equal(await core.mobileTransactionModel(conn).countDocuments(),dailyCount);assert.equal(await balance(wallet),'991850');assert.equal(await balance(drawer),'508200');
+ assert.equal(await core.mobileTransactionModel(conn).countDocuments(),dailyCount);assert.equal(await balance(wallet),'991850');assert.equal(await balance(drawer),'508100');
  await assert.rejects(record({...changedPolicy,idempotencyKey:crypto.randomUUID(),networkReference:'FORGED-'+crypto.randomBytes(8).toString('hex'),walletFeePolicy:'record_only',feeTreatment:'payment_collected'}),error=>error.status===409&&/configured.*Wallets/i.test(error.message),'ordinary daily posts cannot override the configured wallet policy');
- assert.equal(await core.mobileTransactionModel(conn).countDocuments(),dailyCount);assert.equal(await balance(drawer),'508200');
+ assert.equal(await core.mobileTransactionModel(conn).countDocuments(),dailyCount);assert.equal(await balance(drawer),'508100');
  assert.equal((await require('../src/tenant/services/ledger.service').trialBalance(conn,{branchId:branch._id,currency:'UGX'})).balanced,true);
  // One branch/operator keeps independent exact cash and network books in
  // multiple selected currencies. MTN SSD never shares MTN's reference space.

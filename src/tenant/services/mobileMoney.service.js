@@ -75,10 +75,6 @@ function sameDetails(record,values,{feeTreatmentSpecified=true}={}){
 async function recordMobileMoney(conn, operator, input, operation, tenant, sourceContext = null, options = {}) {
   if(!operator?.id || !['Tenant Owner','Branch Manager','Mobile Money Operator'].includes(operator.role))throw bad('This role cannot record Mobile Money operations',403);
   const values = validate(input, operation);
-  // New agent cash-in/out is physical cash exchanged against provider float.
-  // Keep historical Bank/Wallet Balance records readable; do not create new ones.
-  if(options.requireFunds===true && values.paymentMethod!=='Cash')
-    throw bad('Agent deposits and withdrawals require physical Cash against the selected provider float. Bank and customer-wallet operations belong to their dedicated modules.',400);
   const feeTreatmentSpecified=typeof input.feeTreatment==='string'&&input.feeTreatment!=='';
   const expectedFeeTreatment=input.walletFeePolicy===''?undefined:input.walletFeePolicy;
   if(expectedFeeTreatment!==undefined&&!['record_only','payment_collected','wallet_commission'].includes(expectedFeeTreatment))throw bad('Reload the transaction to use the current wallet settings');
@@ -102,6 +98,22 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
       !sameDetails(prior,values,{feeTreatmentSpecified}))throw bad('This operation reference was already used for different details.',409);
     return {created:prior,duplicate:true};
   }
+  // Only NEW funded posts must meet the current no-extra-fee, physical cash
+  // policy. A byte-for-byte retry of an existing historic operation remains
+  // idempotent and does not repost or alter original journal evidence.
+  // New agent cash-in/out is physical cash exchanged against provider float.
+  // Keep historical Bank/Wallet Balance records readable; do not create new ones.
+  if(options.requireFunds===true && values.paymentMethod!=='Cash')
+    throw bad('Agent deposits and withdrawals require physical Cash against the selected provider float. Bank and customer-wallet operations belong to their dedicated modules.',400);
+  // Current agent operations do not levy an extra customer fee. Approved
+  // provider sheets are snapshotted separately as expected commission/network
+  // charges, not booked as fee income. Preserve historical records unchanged.
+  if(options.requireFunds===true){
+   // Current manual amounts use Number; legacy configured-price mode uses
+   // BigInt zero. Compare by value so neither path can reject a valid zero.
+   if(BigInt(String(values.feeMinor))!==0n)throw bad('Mobile Money does not charge an additional agent fee; only the approved provider sheet applies',400);
+   values.feeMinor=0;
+  }
   const Audit = auditEventModel(conn);
   const session = await conn.startSession();
   let created;
@@ -114,7 +126,7 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
       require('./branchCurrency.service').resolve(branch,values.currency);
       if(smsAuthorization?.receivedAt)
         await require('./cashDrawer.service').assertSmsWithinShift(conn,session,authorization.actor,branch._id,values.currency,smsAuthorization.receivedAt);
-      const pricing=await require('../pricing/apply').resolve(conn,authorization.tenant,branch,input,{operation:'mobile_money.'+operation,currency:values.currency,amountMinor:values.amountMinor,network:values.network,providedMinor:values.feeMinor,session,source:sourceContext?'sms':'manual'});
+      const pricing=options.requireFunds===true?null:await require('../pricing/apply').resolve(conn,authorization.tenant,branch,input,{operation:'mobile_money.'+operation,currency:values.currency,amountMinor:values.amountMinor,network:values.network,providedMinor:values.feeMinor,session,source:sourceContext?'sms':'manual'});
       if(pricing){values.pricing=pricing;values.feeMinor=BigInt(pricing.feeMinor);if(values.feeMinor>values.amountMinor)throw bad('Configured fee cannot exceed the amount',409);}
       // Immutable informational reference only. Approved network tariff quotes
       // never change principal cash/float, customer fee, provider settlement
@@ -400,7 +412,9 @@ async function recent(conn,{operatorId,branchId}={}){
 // CSV content is escaped so spreadsheet apps cannot evaluate attacker-supplied formulae.
 function csvCell(value) {
   let s = String(value ?? '');
-  if (/^[\s\u0000-\u001f]*[=+@\-\t\r]/.test(s)) s = "'"+s;
+  // Strict signed decimal values are not spreadsheet formulas; leave them numeric.
+  // All other leading =,+,@,- and control characters remain neutralized.
+  if (!/^-?(?:0|[1-9]\d*)(?:\.\d+)?$/.test(s) && /^[\s\u0000-\u001f]*[=+@\-\t\r]/.test(s)) s = "'"+s;
   return '"'+s.replace(/"/g,'""')+'"';
 }
 function toCsv(items) {

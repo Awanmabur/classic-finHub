@@ -69,7 +69,7 @@ async function main(){
     const response=await fetch(base+endpoint,{method:'POST',headers:{'Content-Type':'application/json','X-SMS-Timestamp':timestamp,'X-SMS-Signature':signed},body});
     const text=await response.text();return {status:response.status,text,json:response.headers.get('content-type')?.includes('json')?JSON.parse(text):null};
   }
-  const first=payload('android-100',`MTN Cash In: UGX 1,000; Fee: UGX 10; Customer: SMS Customer; Ref: SMS-${nonce}`);
+  const first=payload('android-100',`MTN Cash In: UGX 1,000; Fee: UGX 0; Customer: SMS Customer; Ref: SMS-${nonce}`);
   assert.equal((await deliver(first,{secret:'0'.repeat(64)})).status,401);
   assert.equal((await deliver(first,{timestamp:String(Math.floor(Date.now()/1000)-301)})).status,401);
   assert.equal((await deliver({...first,tenantId:String(tenant._id)})).status,400,'clients cannot select tenant');
@@ -85,10 +85,16 @@ async function main(){
   assert.equal(pythonExit,0,'Android relay process completes');assert.deepEqual(JSON.parse(pythonOutput),{status:200,accepted:true},'Python relay signs bytes accepted by the real server and retries remain idempotent');
   const inboxId=accepted.json.id,record=await models.mobileTransactionModel(conn).findOne().lean();
   assert.equal(record.entrySource,'sms');assert.equal(String(record.smsInboxId),inboxId);assert.equal(record.status,'recorded');assert.equal(record.reviewState,'not_required');
+  assert.equal(String(record.feeMinor),'0','Trusted SMS capture does not invent an extra agent customer fee');
   assert.equal(String(record.branchId),String(branch._id));assert.equal(String(record.operatorId),operator.id);
   assert.equal((await deliver(first)).json.duplicate,true);assert.equal(await models.mobileTransactionModel(conn).countDocuments(),1);
   assert.equal((await deliver({...first,body:first.body+' changed'})).status,409);
   assert.equal((await Usage.findOne()).quantity,1,'duplicates do not consume quota');
+  const providerFee=payload('android-fee-'+nonce,`MTN Cash In: UGX 1,200; Fee: UGX 10; Customer: Provider Fee; Ref: FEE-${nonce}`);
+  const flagged=await deliver(providerFee);
+  assert.equal(flagged.status,202);
+  assert.equal(flagged.json.state,'needs_review','Nonzero SMS fee is evidence requiring manual reconciliation, not an automatic agent fee');
+  assert.equal(await models.mobileTransactionModel(conn).countDocuments(),1,'Unsupported fee treatment must never change the funds books');
   const unknown=payload('android-101','You received money. Ambiguous operation and missing fee.');
   const captured=await deliver(unknown);assert.equal(captured.status,202);assert.equal(captured.json.state,'needs_review');
   const rawStored=await models.smsInboxModel(conn).findById(captured.json.id).select('+bodyEncrypted').lean();
@@ -173,7 +179,7 @@ async function main(){
   assert(await models.auditEventModel(conn).exists({action:'sms.device.revoked'}));
   // A newly published capture allowance leaves one unit for the separate
   // South Sudan device; the existing UGX drawer remains independent.
-  await Tenant.updateOne({_id:tenant._id},{$set:{'subscription.limits.smsPerMonth':9}});
+  await Tenant.updateOne({_id:tenant._id},{$set:{'subscription.limits.smsPerMonth':10}});
   tenant=await Tenant.findById(tenant._id).lean();
   const originalMovement=String((await models.cashSessionModel(conn).findById(shift._id)).provisionalMovementMinor);
   await openFund('cash','SMS_SSP_CASH','SSP','','0.00');
@@ -182,17 +188,17 @@ async function main(){
   await cash.decideOpening(conn,tenant,owner,sspShift._id,{decision:'approve',note:'Independent physical SSP opening count checked separately from the UGX drawer'});
   tenant=await Tenant.findById(tenant._id).lean();
   const ssd=await capture.enroll(conn,tenant,owner,{operatorId:operator.id,name:'MTN South Sudan Android',network:'MTN SSD',allowedSenders:'MTNSSD',autoRecord:'on'});
-  const ssdPayload={messageId:'ssd-sspcents-1',sender:'MTNSSD',receivedAt:new Date().toISOString(),body:`MTN SSD Cash In: SSP 1,000.25; Fee: SSP 10.05; Customer: SSP Customer; Ref: SSD-${nonce}`};
+  const ssdPayload={messageId:'ssd-sspcents-1',sender:'MTNSSD',receivedAt:new Date().toISOString(),body:`MTN SSD Cash In: SSP 1,000.25; Fee: SSP 0; Customer: SSP Customer; Ref: SSD-${nonce}`};
   const ssdRaw=Buffer.from(JSON.stringify(ssdPayload)),ssdAt=String(Math.floor(Date.now()/1000));
   const ssdHeaders={timestamp:ssdAt,signature:crypto.createHmac('sha256',Buffer.from(ssd.secret,'hex')).update(ssdAt+'.').update(ssdRaw).digest('hex')};
   const ssdResult=await capture.receive(ssd.device.deviceId,ssdRaw,ssdPayload,ssdHeaders);
   assert.equal(ssdResult.state,'recorded');
   const ssdInbox=await models.smsInboxModel(conn).findById(ssdResult.id).lean(),ssdRecord=await models.mobileTransactionModel(conn).findById(ssdInbox.recordId).lean();
-  assert.equal(ssdRecord.network,'MTN SSD');assert.equal(ssdRecord.currency,'SSP');assert.equal(String(ssdRecord.amountMinor),'100025');assert.equal(String(ssdRecord.feeMinor),'1005');
+  assert.equal(ssdRecord.network,'MTN SSD');assert.equal(ssdRecord.currency,'SSP');assert.equal(String(ssdRecord.amountMinor),'100025');assert.equal(String(ssdRecord.feeMinor),'0');
   assert.equal(String(ssdRecord.cashSessionId),String(sspShift._id));assert.equal(String((await models.cashSessionModel(conn).findById(shift._id)).provisionalMovementMinor),originalMovement);
   assert.equal(String((await models.cashSessionModel(conn).findById(sspShift._id)).provisionalMovementMinor),'100025');
   assert.equal((await capture.receive(ssd.device.deviceId,ssdRaw,ssdPayload,ssdHeaders)).duplicate,true);
-  assert.equal((await Usage.findOne({tenantId:tenant._id})).quantity,9);
+  assert.equal((await Usage.findOne({tenantId:tenant._id})).quantity,9,'Only successfully accepted SMS deliveries consume the provider capture allowance; review-only financial rejection does not');
   console.log('PASS: signed HTTP Android delivery, sender/tenant/signature/time rejection, encrypted credentials/SMS, scoped automatic recording, pending verification, duplicate safety, unknown review, verified-shift control, branch/staff reassignment, SMS quota atomicity, manual entry at full SMS quota, interrupted-recording recovery, browser auth/CSRF and revocation');
   console.log('PASS: enrolled MTN SSD device records explicit SSP confirmations with exact cents into its own verified SSP drawer; UGX drawer and duplicate/quota protections remain intact.');
 }

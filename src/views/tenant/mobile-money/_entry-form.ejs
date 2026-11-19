@@ -62,11 +62,12 @@
        <% if(!entryBalances.length){ %><p class="tiny">No cash or float account is available. Configure the agent accounts in Treasury.</p><% } %>
       </div>
     </div>
-    <%- include('../partials/operation-pricing',{pricingOperation:'mobile_money.'+entryOperation,pricingField:'fee'}) %>
+    <input type="hidden" name="fee" value="0">
+    <p class="tiny">No extra agent fee. Approved provider sheets determine expected agent commission and any provider customer network charge.</p>
     <section class="mobileQuoteSummary" data-mobile-provider-quote aria-live="polite" hidden>
       <div class="summary">
        <div class="sumRow" data-quote-commission-row hidden><span>Expected agent commission</span><b data-mobile-agent-commission></b></div>
-       <div class="sumRow" data-quote-customer-row hidden><span>Network customer charge</span><b data-mobile-provider-charge></b></div>
+       <div class="sumRow" data-quote-customer-row hidden><span>Provider network charge to customer (not agent income)</span><b data-mobile-provider-charge></b></div>
       </div>
       <p class="tiny" data-mobile-quote-note></p>
     </section>

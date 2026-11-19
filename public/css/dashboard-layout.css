@@ -377,3 +377,36 @@ form[method="get"] .field>.control{min-width:0;width:100%}
   white-space:normal;overflow-wrap:anywhere;font-size:clamp(12px,3.5vw,18px)
  }
 }
+
+
+/* Finance reporting: consistent spacing only. Preserve the approved theme,
+   colors, cards, radii, effects and responsive forms across the project. */
+#workspaceContent .financialReportsPage{
+ display:flex;flex-direction:column;align-items:stretch;gap:16px;min-width:0
+}
+#workspaceContent .financialReportsPage > :is(.card,.grid,.grid3,.stats,.summary,.networkBalanceGrid){
+ margin-top:0!important;margin-bottom:0!important;min-width:0
+}
+#workspaceContent .financialReportsPage .cardHead{gap:10px;flex-wrap:wrap;align-items:center}
+#workspaceContent .financialReportsPage .cardBody{
+ padding:clamp(14px,1.6vw,21px);min-width:0
+}
+#workspaceContent .financialReportsPage .cardBody.workspaceStack,
+#workspaceContent .financialReportsPage .mobileMoneyCurrencyBlock{display:grid;gap:14px;min-width:0}
+#workspaceContent .financialReportsPage .networkBalanceGrid{gap:12px}
+#workspaceContent .financialReportsPage .networkBalanceStat{min-width:0;padding:14px;border-radius:var(--r2,16px)}
+#workspaceContent .financialReportsPage .networkBalanceStat strong{overflow-wrap:anywhere}
+#workspaceContent .financialReportsPage .financialReportMore{width:100%;min-width:0}
+#workspaceContent .financialReportsPage .financialReportMore summary{cursor:pointer;font-weight:700;padding:6px 0}
+#workspaceContent .financialReportsPage .financialReportMore nav{padding-top:12px}
+#workspaceContent .financialReportsPage .cardBody.tableWrap{display:block;overflow-x:auto;overscroll-behavior-x:contain}
+#workspaceContent .financialReportsPage .tableWrap th,
+#workspaceContent .financialReportsPage .tableWrap td{padding:11px 13px;vertical-align:top}
+#workspaceContent .financialReportsPage .tableWrap td small{display:block;margin-top:3px}
+@media(max-width:700px){
+ #workspaceContent .financialReportsPage{gap:12px}
+ #workspaceContent .financialReportsPage .cardBody{padding:14px}
+ #workspaceContent .financialReportsPage .networkBalanceGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+ #workspaceContent .financialReportsPage .networkBalanceStat{padding:11px}
+ #workspaceContent .financialReportsPage .cardHead .rowBtns{width:100%}
+}

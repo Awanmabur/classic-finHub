@@ -69,7 +69,7 @@ async function main(){
     const response=await fetch(base+endpoint,{method:'POST',headers:{'Content-Type':'application/json','X-SMS-Timestamp':timestamp,'X-SMS-Signature':signed},body});
     const text=await response.text();return {status:response.status,text,json:response.headers.get('content-type')?.includes('json')?JSON.parse(text):null};
   }
-  const first=payload('android-100',`MTN Cash In: UGX 1,000; Fee: UGX 10; Customer: SMS Customer; Ref: SMS-${nonce}`);
+  const first=payload('android-100',`MTN Cash In: UGX 1,000; Fee: UGX 0; Customer: SMS Customer; Ref: SMS-${nonce}`);
   assert.equal((await deliver(first,{secret:'0'.repeat(64)})).status,401);
   assert.equal((await deliver(first,{timestamp:String(Math.floor(Date.now()/1000)-301)})).status,401);
   assert.equal((await deliver({...first,tenantId:String(tenant._id)})).status,400,'clients cannot select tenant');
@@ -85,10 +85,16 @@ async function main(){
   assert.equal(pythonExit,0,'Android relay process completes');assert.deepEqual(JSON.parse(pythonOutput),{status:200,accepted:true},'Python relay signs bytes accepted by the real server and retries remain idempotent');
   const inboxId=accepted.json.id,record=await models.mobileTransactionModel(conn).findOne().lean();
   assert.equal(record.entrySource,'sms');assert.equal(String(record.smsInboxId),inboxId);assert.equal(record.status,'recorded');assert.equal(record.reviewState,'not_required');
+  assert.equal(String(record.feeMinor),'0','Trusted SMS capture does not invent an extra agent customer fee');
   assert.equal(String(record.branchId),String(branch._id));assert.equal(String(record.operatorId),operator.id);
   assert.equal((await deliver(first)).json.duplicate,true);assert.equal(await models.mobileTransactionModel(conn).countDocuments(),1);
   assert.equal((await deliver({...first,body:first.body+' changed'})).status,409);
   assert.equal((await Usage.findOne()).quantity,1,'duplicates do not consume quota');
+  const providerFee=payload('android-fee-'+nonce,`MTN Cash In: UGX 1,200; Fee: UGX 10; Customer: Provider Fee; Ref: FEE-${nonce}`);
+  const flagged=await deliver(providerFee);
+  assert.equal(flagged.status,202);
+  assert.equal(flagged.json.state,'needs_review','Nonzero SMS fee is evidence requiring manual reconciliation, not an automatic agent fee');
+  assert.equal(await models.mobileTransactionModel(conn).countDocuments(),1,'Unsupported fee treatment must never change the funds books');
   const unknown=payload('android-101','You received money. Ambiguous operation and missing fee.');
   const captured=await deliver(unknown);assert.equal(captured.status,202);assert.equal(captured.json.state,'needs_review');
   const rawStored=await models.smsInboxModel(conn).findById(captured.json.id).select('+bodyEncrypted').lean();

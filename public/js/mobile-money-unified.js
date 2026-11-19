@@ -29,14 +29,11 @@
   const message=form.querySelector('[data-momo-unified-message]');
   const rateRow=form.querySelector('[data-momo-rate-row]');
   const rateText=form.querySelector('[data-momo-rate]');
-  const confirm=form.querySelector('[data-momo-cross-confirm]');
   const total=form.querySelector('[data-mobile-total]');
   const totalLabel=form.querySelector('[data-mobile-total-label]');
   const rateId=form.elements.namedItem('fxRateId');
   const rateVersion=form.elements.namedItem('fxRateVersion');
   const cashAmount=form.elements.namedItem('fxCashAmountMinor');
-  const reference=form.elements.namedItem('networkReference');
-  const transactionCheck=form.elements.namedItem('transactionConfirmed');
   if(!wallet||!drawer||!network||!currency||!amount||!submit||!rateId||!rateVersion||!cashAmount)return;
   let version=0,timer=null,abort=null,ready=false;
   const available=option=>Boolean(option.value)&&!option.disabled&&
@@ -91,10 +88,6 @@
    if(mode)mode.textContent=same?'Same currency · no exchange':different?'Different currency · automatic Forex':'Select wallet and cash drawer';
    if(cashCode)cashCode.textContent=dc?'('+ (dc==='KES'?'KSH':dc)+')':'';
    if(totalLabel)totalLabel.textContent=form.dataset.operation==='cash_out'?'Cash paid to customer':'Cash received from customer';
-   if(confirm){
-    confirm.hidden=!different;
-    if(transactionCheck)transactionCheck.required=different;
-   }
    const amountText=String(amount.value||'').trim(),scale=wc==='UGX'?0:2;
    const valid=(scale===0?/^[1-9][0-9]{0,10}$/:/^(?:0|[1-9][0-9]{0,10})(?:\.[0-9]{1,2})?$/).test(amountText)&&Number(amountText)>0;
    if(!w?.value||!d?.value){showError('Choose an active wallet and your actual physical cash drawer.');submit.disabled=true;return;}
@@ -169,7 +162,7 @@
       ' ('+result.rateSide+')';
      if(cashText)cashText.textContent=format(result.cashAmountMinor,dc);
      if(total)total.textContent=format(result.cashAmountMinor,dc);
-     if(message)message.textContent='Confirm the real provider transaction and cash handover, then finalize once. The Forex record is linked automatically; no second cash/float posting.';
+     if(message)message.textContent='Check the displayed cash and float amounts, then record once. Forex is linked automatically without a second cash/float posting.';
      ready=true;submit.disabled=false;
     }catch(e){if(nonce!==version||e.name==='AbortError')return;
      showError(e.message||'Unable to confirm exchange quote');submit.disabled=true;}
@@ -188,8 +181,8 @@
   form.addEventListener('submit',e=>{
    const w=wallet.selectedOptions?.[0],d=drawer.selectedOptions?.[0];
    if(!ready||!w?.value||!d?.value){e.preventDefault();showError('Wait until the amount and accounts are validated.');return;}
-   if(w.dataset.currency!==d.dataset.currency&&(!rateId.value||!transactionCheck?.checked)){
-    e.preventDefault();showError('Confirm that the provider transfer and physical cash handover really happened before finalizing.');
+   if(w.dataset.currency!==d.dataset.currency&&!rateId.value){
+    e.preventDefault();showError('An owner-approved exchange quote is required before recording.');
    }
   });
   selectWallet();refresh();

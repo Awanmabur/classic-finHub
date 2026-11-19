@@ -17,7 +17,7 @@ function text(value,label,min=1,max=120){if(typeof value!=='string'||value.trim(
 function moduleAccess(tenant,actor,permission){
  if(!hasModuleForUser(tenant,actor,'banking')||!hasPermission(actor,permission))throw fail('Banking module or role permission unavailable',403);
 }
-const operator=actor=>['Tenant Owner','Banking Operator'].includes(actor?.role);
+const operator=actor=>['Tenant Owner','Branch Manager','Banking Operator'].includes(actor?.role);
 const reviewer=actor=>['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(actor?.role);
 function branchScope(actor){
  if(['Tenant Owner','Auditor'].includes(actor?.role))return require('./branchView.service').readScope(actor);

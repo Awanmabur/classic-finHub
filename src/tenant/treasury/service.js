@@ -242,7 +242,20 @@ async function reviewObservationInSession(conn,session,authorization,observation
  const observation=await Observation.findOne({_id:oid(observationId,'observation'),tenantId:authorization.tenant._id,status:'pending_review',...scope(authorization.actor)}).session(session).lean();
  if(!observation)throw fail('Observation is unavailable, already reviewed or outside your branch',409);
  const account=await loadAccount(conn,authorization,observation.accountId,{session,fence:true});
- if(String(observation.requestedBy)===authorization.actor.id||String(account.operatorId||'')===authorization.actor.id)throw fail('A different person must review the evidence and operator drawer',403);
+ const selfReviewed=String(observation.requestedBy)===authorization.actor.id||
+  String(account.operatorId||'')===authorization.actor.id;
+ if(selfReviewed){
+  const privileged=require('../services/reviewPolicy').canSelfReviewRoutine(authorization.actor,account.branchId);
+  if(!privileged)throw fail('A different authorized person must review the evidence and operator drawer',403);
+  // Routine opening or a verified zero-variance cash/float checkpoint can be
+  // signed by a branch manager/owner. Discrepancies and adjustments never can.
+  if(observation.kind!=='opening'){
+   const atObservation=await expectedAt(conn,account,new Date(observation.observedAt),session);
+   if(observation.kind!=='checkpoint'||atObservation===null||
+      BigInt(String(observation.actualMinor))!==atObservation)
+    throw fail('A different authorized person must review a disputed balance',403);
+  }
+ }
  if(account.status==='archived')throw fail('Archived funds accounts cannot receive balance approval',409);
  let expected=null,variance=null,journalId=null;
  if(decision==='approve'&&observation.kind==='opening'){
@@ -263,7 +276,7 @@ async function reviewObservationInSession(conn,session,authorization,observation
  }else if(observation.kind==='opening')await Account.updateOne({_id:account._id,pendingOpeningId:observation._id},{$set:{pendingOpeningId:null},$inc:{revision:1}},{session});
  const updated=await Observation.findOneAndUpdate({_id:observation._id,status:'pending_review'},{$set:{status:decision==='approve'?'approved':'rejected',reviewedBy:authorization.actor.id,reviewedAt:new Date(),reviewNote:note,expectedMinorAtReview:expected===null?null:decimal(expected),varianceMinorAtReview:variance===null?null:decimal(variance),openingJournalId:journalId}},{session,new:true});
  if(!updated)throw fail('Observation was reviewed concurrently',409);
- await audit(conn,session,authorization.actor,`treasury.observation.${decision==='approve'?'approved':'rejected'}`,observation._id,{branchId:String(account.branchId),accountId:String(account._id),kind:observation.kind,currency:account.currency,varianceMinor:variance===null?null:String(variance)});return updated;
+ await audit(conn,session,authorization.actor,`treasury.observation.${decision==='approve'?'approved':'rejected'}`,observation._id,{branchId:String(account.branchId),accountId:String(account._id),kind:observation.kind,currency:account.currency,varianceMinor:variance===null?null:String(variance),selfReviewed});return updated;
 }
 async function reviewObservation(conn,tenant,actor,observationId,input){await ensure(conn);return transaction(conn,async session=>{const authorization=await access(conn,tenant,actor,{permission:'treasury.review',session,fence:true});return reviewObservationInSession(conn,session,authorization,observationId,input);});}
 function stableHash(value){return crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');}

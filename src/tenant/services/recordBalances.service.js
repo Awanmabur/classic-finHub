@@ -79,4 +79,27 @@ async function snapshots(conn,tenant,actor,sources=[]){
    a.kind.localeCompare(b.kind)||a.account.localeCompare(b.account));
  return output;
 }
-module.exports={snapshots,canRead};
+// Called only after the existing record detail handler authorizes the source.
+// A quote/request without a posted Treasury batch has no historical balance.
+async function forRecord(conn,tenant,actor,key,record){
+ if(!hasPermission(actor,'treasury.view')||!record?._id)return [];
+ const sources=[];
+ if(key==='mobile_money'&&record.fundingState==='book_recorded'&&record.fundsSourceRef)
+  sources.push({recordId:record._id,sourceType:record.fundsSourceRef.startsWith('MFX:')?'forex':'mobile_money',sourceRef:record.fundsSourceRef,stage:'Cash / float'});
+ if(key==='forex'&&record.originModule==='mobile_money'&&record.status==='posted_manual'&&
+    /^[a-f0-9-]{36}$/i.test(String(record.idempotencyKey||'')))
+  sources.push({recordId:record._id,sourceType:'forex',sourceRef:'MFX:'+record.idempotencyKey,stage:'Linked Mobile Money / Forex'});
+ if(['forex','banking','money_transfer'].includes(key)){
+  const executions=await require('../funded/models').models(conn).execution.find({
+   sourceType:key,sourceId:record._id,status:'posted_manual'
+  }).select('_id action').limit(6).maxTimeMS(5000).lean();
+  for(const exec of executions){
+   sources.push({recordId:record._id,sourceType:key,sourceRef:'FUNDED:'+exec._id,
+    stage:exec.action==='transfer_collect'?'Cash collection':exec.action==='transfer_payout'?'Cash payout':'Posted movement'});
+   if(key==='money_transfer'&&exec.action==='transfer_payout')
+    sources.push({recordId:record._id,sourceType:key,sourceRef:'BRANCH_PAYOUT:'+exec._id+':ORIGIN',stage:'Origin branch transfer'});
+  }
+ }
+ return (await snapshots(conn,tenant,actor,sources)).get(String(record._id))||[];
+}
+module.exports={snapshots,forRecord,canRead};

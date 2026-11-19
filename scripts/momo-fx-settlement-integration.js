@@ -122,7 +122,6 @@ async function main(){
  const manualQuote=await preview(conn,tenant,owner,branch,{operation:'withdraw_provider_receive_cash',
   walletAccountId:String(wallet._id),cashAccountId:String(drawer._id),providerAmountMinor:'10'});
  const manualInput={...manualQuote,branchId:String(branch._id),idempotencyKey:crypto.randomUUID(),
-  providerReference:'MANUAL-'+crypto.randomBytes(8).toString('hex'),
   customer:'Actual customer',customerPhone:'+256771234567',
   transactionConfirmed:'yes'};
  await assert.rejects(settleManuallyConfirmed(conn,tenant,owner,{
@@ -142,6 +141,9 @@ async function main(){
   'Valid Uganda international phone must persist on the ordinary MoMo record');
  assert.equal(manual.record.providerSettlementState,'unverified');
  assert.equal(manual.record.providerEvidenceKind,'operator_attested');
+ assert.equal(manual.record.providerReference,require('../src/tenant/services/mobileMoney.service').manualReference(manualInput.idempotencyKey));
+ assert.equal(manual.mobile.networkReference,manual.record.providerReference);
+ assert.equal(manual.mobile.entrySource,'manual','Generated TX is an internal manual reference');
  assert.equal(manual.record.providerVerifiedAt,null);
  assert.equal((await settleManuallyConfirmed(conn,tenant,owner,manualInput)).duplicate,true);
  assert.equal((await settleManuallyConfirmed(conn,tenant,owner,{

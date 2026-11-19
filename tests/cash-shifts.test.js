@@ -93,7 +93,10 @@ test('independent opening approval and variance review enforce role and branch b
  const {entitledTenant}=require('./helpers/entitlement');
  const tenant=entitledTenant({enabledModules:['mobile_money']});
  const target={_id:shiftId,branchId,operatorId,currency:'UGX',openingMinor:'10000',varianceMinor:'-500',status:'pending_open'};
- const actions=[];const noop={createIndexes:async()=>{}};
+ const actions=[];const noop={createIndexes:async()=>{},
+  findOne:filter=>({select:()=>({session:()=>({lean:async()=>filter.role==='Branch Manager'?{
+   role:'Branch Manager',branchId:filter.branchId,authVersion:0
+  }:null})})})};
  const shifts={createIndexes:async()=>{},findOneAndUpdate:async(filter,update,options)=>{
    assert(options.session,'shift decision must be transactional');
    if((filter.operatorId?.$ne&&String(filter.operatorId.$ne)===operatorId)||String(filter.branchId)!==branchId||filter.status!==target.status)return null;

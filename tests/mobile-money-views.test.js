@@ -127,6 +127,17 @@ test('report shows every customer and linked Forex record on its own row without
  assert.doesNotMatch(html,/Linked Mobile Money exchanges/);
 });
 
+test('Mobile Money report defaults to all permitted records even when one wallet market is active',async()=>{
+ const locals=options();
+ locals.data.networkMarkets=[{network:'MTN',currency:'UGX',label:'MTN MoMo Uganda'}];
+ const html=await render('report',locals);
+ assert.match(html,/<option value="">All networks<\/option>/);
+ assert.match(html,/<option value="">All currencies<\/option>/);
+ assert.doesNotMatch(html,/<input type="hidden" name="network" value="MTN">/);
+ const route=require('node:fs').readFileSync(path.join(__dirname,'../src/tenant/routes/mobileMoneyWorkspace.routes.js'),'utf8');
+ assert.match(route,/const filters=report\?\{\.\.\.req\.query\}:market\.withDefaultFilters/);
+});
+
 test('cash impact retains all approved cards and separates physical cash from recorded commissions',async()=>{
   const html = await render('cash-impact',options());
   for(const label of ['Deposit','Withdrawal','Net impact']) assert.ok(html.includes(label));

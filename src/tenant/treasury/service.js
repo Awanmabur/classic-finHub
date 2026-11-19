@@ -502,9 +502,19 @@ async function accountDetail(conn,tenant,actor,accountId){
 }
 async function reviewQueue(conn,tenant,actor){
  const authorization=await access(conn,tenant,actor,{permission:'treasury.review'});
- const observations=await models(conn).observation.find({tenantId:authorization.tenant._id,status:'pending_review',requestedBy:{$ne:authorization.actor.id},...scope(authorization.actor)}).sort({createdAt:1}).limit(101).lean();
- const accountIds=observations.map(row=>row.accountId),accounts=await models(conn).account.find({_id:{$in:accountIds}}).lean(),byId=new Map(accounts.filter(account=>canSee(account,authorization)&&String(account.operatorId||'')!==authorization.actor.id).map(account=>[String(account._id),account]));
- return observations.filter(row=>byId.has(String(row.accountId))).slice(0,100).map(row=>({...row,account:byId.get(String(row.accountId))}));
+ const privileged=require('../services/reviewPolicy').canSelfReviewRoutine(authorization.actor,authorization.actor.branchId);
+ const observations=await models(conn).observation.find({tenantId:authorization.tenant._id,status:'pending_review',
+  ...(privileged?{}:{requestedBy:{$ne:authorization.actor.id}}),...scope(authorization.actor)}).sort({createdAt:1}).limit(101).lean();
+ const accountIds=observations.map(row=>row.accountId),accounts=await models(conn).account.find({_id:{$in:accountIds}}).lean(),
+  byId=new Map(accounts.filter(account=>canSee(account,authorization)).map(account=>[String(account._id),account]));
+ return observations.filter(row=>{
+  const account=byId.get(String(row.accountId));if(!account)return false;
+  const self=String(row.requestedBy)===authorization.actor.id||String(account.operatorId||'')===authorization.actor.id;
+  if(!self)return true;
+  return require('../services/reviewPolicy').canSelfReviewRoutine(authorization.actor,account.branchId)&&
+   (row.kind==='opening'||(row.kind==='checkpoint'&&row.varianceMinorAtRequest!==null&&
+    BigInt(String(row.varianceMinorAtRequest))===0n));
+ }).slice(0,100).map(row=>({...row,account:byId.get(String(row.accountId))}));
 }
 async function requestAdjustment(conn,tenant,actor,observationId,input){
  await ensure(conn);return transaction(conn,async session=>{

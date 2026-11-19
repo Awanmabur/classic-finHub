@@ -67,6 +67,13 @@ async function main(){
     assert.equal(changed.status,'active');assert(changed.authVersion>1);
     await assert.rejects(branches.archive(tenant,owner,String(second._id)),e=>e.status===409);
     await staff.updateStaff(tenant,owner,userId,{name:'Updated Staff',role:'Mobile Money Operator',branchId:String(second._id),allowedModules:['mobile_money']});
+    // Financial self-review requires the owner's *persisted* role, not just
+    // an in-memory actor. This fixture creates the actual authenticated owner.
+    owner.branchId=String(second._id);owner.authVersion=0;
+    await tenantUserModel(conn).create({_id:owner.id,name:'Persisted administration owner',
+     email:`persisted-owner-${nonce}@example.invalid`,passwordHash:'scratch-only',
+     role:'Tenant Owner',status:'active',branchId:owner.branchId,
+     allowedModules:['mobile_money','money_transfer'],authVersion:0});
     const operator={id:userId,role:'Mobile Money Operator',branchId:String(second._id),allowedModules:['mobile_money'],authVersion:(await tenantUserModel(conn).findById(userId).lean()).authVersion};
     const shift=await cash.open(conn,tenant,operator,{openingCash:'0'});
     await cash.decideOpening(conn,tenant,owner,String(shift._id),{decision:'approve',note:'Independent opening cash count for administration integration'});

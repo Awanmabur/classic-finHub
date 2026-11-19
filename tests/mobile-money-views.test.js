@@ -351,7 +351,7 @@ test('cashier form displays real wallets and SSP-first authorized drawers withou
  ]};
  base.data.operation='cash_out';
  const html=await render('entry',base);
- assert.match(html,/1\. Provider wallet and physical cash drawer/);
+ assert.match(html,/1\. Provider float wallet → cash drawer/);
  assert.match(html,/option value="ssp-drawer"[^>]*selected/);
  assert.match(html,/option value="other-drawer"[^>]*disabled/);
  assert.match(html,/option value="other-wallet"[^>]*disabled/);

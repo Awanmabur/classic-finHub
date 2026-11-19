@@ -54,7 +54,9 @@ async function main(){
   }
   const incompatible={customer:'Currency mismatch',network:currency==='USD'?'MTN SSD':'MTN',currency,amount:'1.00',fee:'0',networkReference:`CCY-WRONG-${nonce}-${currency}`,idempotencyKey:crypto.randomUUID()};
   await assert.rejects(mobile.recordMobileMoney(conn,owner,incompatible,'cash_in',tenant),{status:409});
-  const day=require('../src/utils/businessTime').localDay(new Date(),require('../src/utils/businessTime').forBranch(branch));
+  const businessTime=require('../src/utils/businessTime');
+  const timeZone=businessTime.forBranch(branch);
+  const day=businessTime.localDay(new Date(),timeZone);
   const summary=await mobileWorkspace.workspace(conn,owner,{from:day,to:day,currency});
   assert.equal(summary.summary.total,2);assert.equal(summary.summary.byCurrency.length,1);
   assert.equal(summary.summary.byCurrency[0].volumeMinor,'14690');assert.equal(summary.summary.byCurrency[0].cashImpactMinor,'10000');
@@ -83,7 +85,7 @@ async function main(){
   const quote=await forex.createQuote(conn,tenant,owner,{rateId:String(rate._id),customerLabel:'Currency customer',amount:'12.34',operation:'buy',note:'Internal unexecuted quote for exact currency test',validMinutes:15,idempotencyKey:crypto.randomUUID()});
   assert.equal(String(quote.quote.sourceMinor),'1234');assert.equal(String(quote.quote.targetMinor),'3085');
   for(const key of ['money_transfer','banking','forex']){
-   const report=await operations.report(conn,tenant,owner,key,{from:day,to:day,currency});
+   const report=await operations.report(conn,tenant,owner,key,{from:day,to:day,currency},timeZone);
    assert.equal(report.total,1);assert.equal(report.rows[0].currency,currency);
    assert.match(operations.csv(report),new RegExp(currency));
   }

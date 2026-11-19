@@ -44,7 +44,8 @@ test('agent transaction shows approved-sheet quotes without additional customer 
 
 test('agent form selects authorized cash and provider float without customer wallet/bank entry',()=>{
  const form=source('src/views/tenant/mobile-money/_entry-form.ejs');
- const template=source('src/views/tenant/mobile-money/_funds-context.ejs');
+ const template=['_funds-context.ejs','_funds-wallet-account.ejs','_funds-cash-account.ejs']
+  .map(name=>source('src/views/tenant/mobile-money/'+name)).join('\n');
  const scripts=source('public/js/dashboard.js');
  const service=source('src/tenant/services/mobileMoney.service.js');
  assert.match(form,/name="paymentMethod" value="Cash"/);

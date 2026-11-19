@@ -21,7 +21,7 @@ function rateParts(value){
 }
 function quote(input){
  if(!input||typeof input!=='object'||Array.isArray(input))throw fail('Invalid exchange request');
- const {operation,providerCurrency,cashCurrency,providerAmountMinor,rateDecimal,rateSide,rateId,rateVersion,approved,expiresAt}=input;
+ const {operation,providerCurrency,cashCurrency,providerAmountMinor,cashAmountMinor,rateDecimal,rateSide,rateId,rateVersion,approved,expiresAt}=input;
  if(!['withdraw_provider_receive_cash','deposit_cash_send_provider'].includes(operation))throw fail('Invalid exchange direction');
  const foreign=iso(providerCurrency),cash=iso(cashCurrency);
  if(foreign===cash)throw fail('Cross-currency exchange needs two different currencies');
@@ -31,12 +31,28 @@ function quote(input){
    ||!Number.isSafeInteger(rateVersion)||rateVersion<1)throw fail('Current approved rate is required');
  if(typeof expiresAt!=='string'||!Number.isFinite(Date.parse(expiresAt))||Date.parse(expiresAt)<=Date.now())
    throw fail('Approved exchange rate has expired');
- const n=positiveMinor(providerAmountMinor,'provider'),rate=rateParts(rateDecimal);
+ const rate=rateParts(rateDecimal);
  // Rate convention: one whole provider unit equals rateDecimal whole cash units.
- const numerator=n*rate*10n**BigInt(currencies[cash]);
- const denominator=100000000n*10n**BigInt(currencies[foreign]);
- const cashMinor=(numerator+denominator/2n)/denominator;
- if(cashMinor<=0n||cashMinor>MAX)throw fail('Calculated cash payout is out of range');
+ // Deposit starts with the ACTUAL cash received. Convert inversely and round
+ // the wallet payout to its native minor unit; never replace counted cash with
+ // a reverse-calculated approximation.
+ const depositFromCash=expected==='sell'&&cashAmountMinor!==undefined;
+ let n,cashMinor;
+ if(depositFromCash){
+  cashMinor=positiveMinor(cashAmountMinor,'cash');
+  const numerator=cashMinor*100000000n*10n**BigInt(currencies[foreign]);
+  const denominator=rate*10n**BigInt(currencies[cash]);
+  n=(numerator+denominator/2n)/denominator;
+  if(n<=0n||n>MAX)throw fail('Cash amount converts to zero or exceeds provider limits');
+  if(providerAmountMinor!==undefined&&positiveMinor(providerAmountMinor,'provider')!==n)
+   throw fail('Provider amount does not match the approved cash-first deposit quote');
+ }else{
+  n=positiveMinor(providerAmountMinor,'provider');
+  const numerator=n*rate*10n**BigInt(currencies[cash]);
+  const denominator=100000000n*10n**BigInt(currencies[foreign]);
+  cashMinor=(numerator+denominator/2n)/denominator;
+  if(cashMinor<=0n||cashMinor>MAX)throw fail('Calculated cash payout is out of range');
+ }
  const withdrawal=expected==='buy';
  return Object.freeze({
   operation,providerCurrency:foreign,cashCurrency:cash,rateSide:expected,

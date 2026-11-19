@@ -27,7 +27,8 @@ test('cash-drawer association is configured once by owner and enforced in funds 
  const config=file('src/tenant/treasury/service.js');
  const funds=file('src/tenant/services/mobileMoneyFunds.service.js');
  const view=file('src/views/tenant/treasury/detail.ejs');
- const form=file('src/views/tenant/mobile-money/_funds-context.ejs');
+ const form=['_funds-context.ejs','_funds-wallet-account.ejs','_funds-cash-account.ejs']
+  .map(name=>file('src/views/tenant/mobile-money/'+name)).join('\n');
  const scripts=file('public/js/dashboard.js');
  assert.match(schema,/cashDrawerAccountId/);
  assert.match(config,/account\.operatorId&&String\(drawer\.operatorId\)/);

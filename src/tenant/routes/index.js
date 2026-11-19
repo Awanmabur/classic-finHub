@@ -150,11 +150,13 @@ for (const [path,op,permission] of [['cash-in','cash_in','mobile_money.cash_in']
        const direction=op==='cash_out'?'withdraw_provider_receive_cash':'deposit_cash_send_provider';
        const serverQuote=await require('../services/momoFxPreview.service').preview(
         req.tenantDb,req.tenant,req.user,req.operationBranch,{
-         operation:direction,walletAccountId:walletId,cashAccountId:cashId,providerAmount:String(req.body.amount||'')
+         operation:direction,walletAccountId:walletId,cashAccountId:cashId,
+         ...(op==='cash_in'?{cashAmount:String(req.body.amount||'')}:{providerAmount:String(req.body.amount||'')})
         });
        if(String(req.body.fxRateId||'')!==serverQuote.rateId||
          String(req.body.fxRateVersion||'')!==String(serverQuote.rateVersion)||
-         String(req.body.fxCashAmountMinor||'')!==serverQuote.cashAmountMinor){
+         String(req.body.fxCashAmountMinor||'')!==serverQuote.cashAmountMinor||
+         String(req.body.fxProviderAmountMinor||'')!==serverQuote.providerAmountMinor){
          const error=new Error('Exchange quote changed. Recalculate and confirm the actual cash amount before finalizing.');
          error.status=409;throw error;
        }

@@ -31,8 +31,16 @@ async function preview(conn,tenant,actor,branch,input){
  const rate=await forexRateModel(conn).findOne({branchId:branch._id,fromCurrency:wallet.currency,
   toCurrency:cash.currency,side,status:'active',reviewedBy:{$ne:null},expiresAt:{$gt:new Date()}}).lean();
  if(!rate)throw fail('No active Buy/Sell rate for this currency direction. Ask the authorized owner to set the rate');
+ const fromCash=operation==='deposit_cash_send_provider'&&
+  (input.cashAmountMinor!==undefined||input.cashAmount!==undefined);
+ const money=require('../treasury/service');
+ const amountInput=fromCash?
+  {cashAmountMinor:input.cashAmountMinor!==undefined?String(input.cashAmountMinor):
+   String(money.major(String(input.cashAmount||''),cash.currency))}:
+  {providerAmountMinor:input.providerAmountMinor!==undefined?String(input.providerAmountMinor):
+   String(money.major(String(input.providerAmount||''),wallet.currency))};
  const value=quote({operation,providerCurrency:wallet.currency,cashCurrency:cash.currency,
-  providerAmountMinor:input.providerAmountMinor!==undefined?String(input.providerAmountMinor):String(require('../treasury/service').major(String(input.providerAmount||''),wallet.currency)),rateDecimal:rate.rateDecimal,
+  ...amountInput,rateDecimal:rate.rateDecimal,
   rateSide:rate.side,rateId:String(rate._id),rateVersion:rate.revision,approved:true,
   expiresAt:new Date(rate.expiresAt).toISOString()});
  // Cashier sees approved-sheet amounts without treating expected commission

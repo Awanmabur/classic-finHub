@@ -11,8 +11,12 @@
    const entryNeedsWallet=network=>['mGURUSH','Digi Cash'].includes(network)&&!entryEligibleWallets.some(w=>w.network===network);
    const selectedEntryNetwork=(entryNetworks.includes('MTN')&&entryCurrencyOptions.some(c=>c.code==='UGX')?'MTN':null)||entryNetworks.find(n=>entryNetworkCurrencies[n]&&entryCurrencyOptions.some(c=>c.code===entryNetworkCurrencies[n]))||entryNetworks.find(n=>!entryNetworkCurrencies[n])||entryNetworks[0];
    const entryCurrency=entryVerifiedMarket(selectedEntryNetwork)||data.entryCurrency||currentBranch.currency;
-   const entryAmountPattern = entryCurrency === 'UGX' ? '[0-9]{1,11}' : '[0-9]{1,11}([.][0-9]{1,2})?';
-   const entryCurrencyLabel = typeof currencyLabel === 'function' ? currencyLabel(entryCurrency) : (entryCurrency === 'KES' ? 'KSH' : entryCurrency); %>
+   const initialCash=(data.funds?.paymentAccounts||[]).filter(a=>a.kind==='cash'&&a.assignedToOperator&&a.state==='active'&&a.reconciliation==='matched'&&a.expectedMinor!==null&&a.postingReady!==false);
+   const initialPreferredCash=initialCash.find(a=>a.currency==='SSP'&&a.isDefault)||initialCash.find(a=>a.currency==='SSP')||(initialCash.length===1?initialCash[0]:null);
+   const entryInputCurrency=entryOperation==='cash_in'?(initialPreferredCash?.currency||entryCurrency):entryCurrency;
+   const entryAmountPattern = entryInputCurrency === 'UGX' ? '[0-9]{1,11}' : '[0-9]{1,11}([.][0-9]{1,2})?';
+   const entryCurrencyLabel = typeof currencyLabel === 'function' ? currencyLabel(entryCurrency) : (entryCurrency === 'KES' ? 'KSH' : entryCurrency);
+   const entryInputCurrencyLabel=entryInputCurrency==='KES'?'KSH':entryInputCurrency; %>
 <form class="card mobileMoneyEntry" method="post" action="/tenant/mobile-money/<%= entryOperation === 'cash_in' ? 'cash-in' : 'cash-out' %>" autocomplete="off" data-mobile-money-form data-unified-currency="true" data-operation="<%= entryOperation %>" data-currency="<%= entryCurrency %>" data-currency-label="<%= entryCurrencyLabel %>">
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
   <input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
@@ -28,9 +32,9 @@
       <% if(entryCan('mobile_money.cash_out')){ %><a class="chip <%= entryOperation === 'cash_out' ? 'active' : '' %>" href="/tenant/mobile-money/cash-out" data-mobile-operation="cash_out" <%- entryOperation === 'cash_out' ? 'aria-current="page"' : '' %>>Customer withdrawal</a><% } %>
     </div>
     <div class="formSection" aria-label="Provider wallet and cash drawer">
-      <div class="formSectionTitle">1. Provider wallet and physical cash drawer</div>
-      <%- include('_funds-context') %>
-      <p class="tiny">Your approved SSP cash drawer is preferred where assigned. For other cash currencies, choose your real drawer; the system handles Forex within this transaction. Other cashiers' accounts remain unavailable.</p>
+      <div class="formSectionTitle">1. <%= entryOperation==='cash_in'?'Cash drawer → provider float wallet':'Provider float wallet → cash drawer' %></div>
+      <%- include('_funds-context',{entryOperation}) %>
+      <p class="tiny">Choose your actual cash drawer and provider wallet. Their currencies are detected automatically; Forex runs in the background when they differ. Other cashiers' accounts remain unavailable.</p>
     </div>
     <div class="formSection">
       <div class="formSectionTitle">2. Customer and network</div>
@@ -49,7 +53,7 @@
       <div class="formSectionTitle">3. Amount and accounts</div>
       <div class="row2">
         <label class="field" data-mobile-currency-field <%= entryVerifiedMarket(selectedEntryNetwork)?'hidden':'' %>>Currency (derived from network)<select class="control" name="currency" data-mobile-currency required><% entryCurrencyOptions.forEach(option=>{ %><option value="<%= option.code %>" <%= option.code===entryCurrency?'selected':'' %>><%= option.label %></option><% }) %></select></label>
-        <label class="field">Amount (<span data-mobile-currency-label><%= entryCurrency %></span>)<input class="control" type="text" inputmode="decimal" name="amount" placeholder="0" pattern="<%= entryAmountPattern %>" required></label>
+        <label class="field"><span data-mobile-entry-amount-label><%= entryOperation==='cash_in'?'Customer cash received':'Wallet withdrawal amount' %></span> (<span data-mobile-currency-label><%= entryInputCurrencyLabel %></span>)<input class="control" type="text" inputmode="decimal" name="amount" placeholder="0" pattern="<%= entryAmountPattern %>" required></label>
       </div>
       <input type="hidden" name="paymentMethod" value="Cash">
       <p class="tiny" data-momo-account-notice hidden aria-live="polite"></p>
@@ -80,6 +84,7 @@
       <div class="sumRow"><span>Exchange type</span><b data-momo-unified-mode>Choose wallet and drawer</b></div>
       <div class="sumRow"><span>Customer cash <span data-momo-cash-currency></span></span>
        <b data-momo-unified-cash>—</b></div>
+      <div class="sumRow"><span><%= entryOperation==='cash_in'?'Float deposited to recipient':'Float received from recipient' %></span><b data-momo-float-amount>—</b></div>
       <div class="sumRow" data-momo-rate-row hidden><span>Owner's locked exchange rate</span>
        <b data-momo-rate>—</b></div>
       <p class="tiny" data-momo-unified-message>Accounts and amounts are checked against real cash and float. Different currencies use a locked rate, with Forex recorded in the background.</p>
@@ -87,12 +92,13 @@
     <input type="hidden" name="fxRateId" value="">
     <input type="hidden" name="fxRateVersion" value="">
     <input type="hidden" name="fxCashAmountMinor" value="">
+    <input type="hidden" name="fxProviderAmountMinor" value="">
 
     <div class="summary">
       <div class="sumRow"><span data-mobile-total-label><%= entryOperation==='cash_out'?'Physical cash paid to customer':'Physical cash received from customer' %></span><b data-mobile-total>—</b></div>
     </div>
     <details class="logicNote"><summary>Additional details</summary><div class="row2"><label class="field">Customer name<input class="control" name="customer" placeholder="Optional customer name" minlength="2" maxlength="120" autocomplete="name"></label><label class="field">Customer ID / note<input class="control" name="customerNote" placeholder="Optional verification or note" maxlength="400"></label></div></details>
-    <p class="tiny">Record only after the actual cash and float exchange. A manual TX ID will appear in the transaction history; provider settlement remains separately unverified.</p>
+    <p class="tiny">Record only after receiving the customer's cash and completing the provider operation. The deposit and any linked Forex are recorded together once. A manual TX ID is generated; external provider settlement remains separately unverified.</p>
     <div class="rowBtns"><button class="btn btnPrimary" type="submit" data-mobile-submit-label><%= entryOperation==='cash_in'?'Record deposit':'Record withdrawal' %></button></div>
   </div>
 </form>

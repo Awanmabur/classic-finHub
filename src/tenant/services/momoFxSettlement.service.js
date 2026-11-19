@@ -160,7 +160,9 @@ async function settleVerified(conn,tenant,actor,input,proof){
     revision:Number(input.rateVersion)}).session(session).lean();
    if(!rate)throw fail('Approved rate was replaced or expired; obtain a fresh quote');
    const q=quote({operation:input.operation,providerCurrency:wallet.currency,cashCurrency:cash.currency,
-    providerAmountMinor:input.providerAmountMinor,rateDecimal:rate.rateDecimal,
+    providerAmountMinor:input.providerAmountMinor,
+    ...(input.operation==='deposit_cash_send_provider'?{cashAmountMinor:input.cashAmountMinor}:{}),
+    rateDecimal:rate.rateDecimal,
     rateSide:rate.side,rateId:String(rate._id),rateVersion:rate.revision,
     approved:true,expiresAt:new Date(rate.expiresAt).toISOString()});
    if(q.cashAmountMinor!==String(input.cashAmountMinor)||

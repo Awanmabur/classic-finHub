@@ -85,11 +85,12 @@ async function main(){
  });
  async function exercise(operation,amount){
   const q=await preview(conn,tenant,owner,branch,{operation,walletAccountId:String(wallet._id),
-   cashAccountId:String(drawer._id),providerAmountMinor:amount});
+   cashAccountId:String(drawer._id),
+   ...(operation==='deposit_cash_send_provider'?{cashAmountMinor:amount}:{providerAmountMinor:amount})});
   const providerReference='TEST-'+crypto.randomBytes(8).toString('hex'),key=crypto.randomUUID();
   const input={...q,branchId:String(branch._id),idempotencyKey:key,providerReference};
   const proof={providerStatus:'confirmed',cashHandoverConfirmed:true,providerReference,
-   network:'MTN',currency:'UGX',amountMinor:amount,
+   network:'MTN',currency:'UGX',amountMinor:q.providerAmountMinor,
    evidenceId:'VERIFIED-'+crypto.randomBytes(8).toString('hex'),
    verifiedAt:new Date().toISOString(),cashConfirmedAt:new Date().toISOString()};
   sign(proof);
@@ -116,8 +117,9 @@ async function main(){
  const withdraw=await exercise('withdraw_provider_receive_cash','100');
  assert.equal(withdraw.q.cashAmountMinor,'9000');
  assert.deepEqual(await balances(),{wallet:'1100',drawer:'41000'});
- const deposit=await exercise('deposit_cash_send_provider','50');
+ const deposit=await exercise('deposit_cash_send_provider','5000');
  assert.equal(deposit.q.cashAmountMinor,'5000');
+ assert.equal(deposit.q.providerAmountMinor,'50','cash-first preview calculates native UGX float correctly');
  assert.deepEqual(await balances(),{wallet:'1050',drawer:'46000'});
  const manualQuote=await preview(conn,tenant,owner,branch,{operation:'withdraw_provider_receive_cash',
   walletAccountId:String(wallet._id),cashAccountId:String(drawer._id),providerAmountMinor:'10'});

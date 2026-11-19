@@ -28,6 +28,11 @@ test('Every tenant dashboard uses its own brand, with website/logout and operato
  assert.match(html,/Juba West · Tenant Owner/);
  assert.match(html,/data-operating-branch data-branch-name="Juba West" data-branch-currency="SSP"/);
  assert.match(html,/aria-label="Visit website"/);
+ const tenantPublished=fixture('');
+ tenantPublished.tenant.websiteHref='/t/nile-exchange';
+ const publishedHtml=await ejs.renderFile(template,tenantPublished);
+ assert.match(publishedHtml,/href="\/t\/nile-exchange" aria-label="Visit website"/,'Published tenant website stays reachable from navigation');
+ assert.match(html,/href="\/" aria-label="Visit website"/,'Unpublished tenant site uses an available platform public link');
  assert.match(html,/<form method="post" action="\/logout"><input type="hidden" name="_csrf" value="test-csrf"/);
  assert.equal((html.match(/action="\/logout"/g)||[]).length,1,'One visible tenant signout action');
  assert.match(html,/name="currency" aria-label="Display currency"><option value="" selected>All currencies/);

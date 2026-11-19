@@ -11,7 +11,13 @@
    const effectiveKeys=new Set([...activePlanModules,...activeAddonGrants.map(g=>g.moduleKey)]);
    const moduleLabel=key=>data.modules?.find(m=>m.key===key)?.name||key.replaceAll('_',' ');
    const setupDescription=data.tenant.setupStatus==='invited'?'Owner activation pending':data.tenant.setupStatus==='complete'?'Owner setup completed':'Setup status unavailable'; %>
-<section class="view show platformTenantDetailPage"><div class="grid3"><div class="stat"><div class="k">Tenant</div><div class="v"><%= data.tenant.name %></div><div class="s"><span class="dot"></span><%= data.tenant.status %></div></div><div class="stat"><div class="k">Owner</div><div class="v" style="font-size:14px"><%= data.tenant.owner %></div><div class="s"><%= data.tenant.email %></div></div><div class="stat"><div class="k">Modules</div><div class="v"><%= effectiveKeys.size %></div><div class="s"><span class="dot warn"></span>Currently entitled, not all assigned</div></div></div><% if(data.tenant.setupStatus==='invited'){ %>
+<section class="view show platformTenantDetailPage"><div class="grid3">
+ <% [
+  {title:'Tenant',value:data.tenant.name,textual:true,note:data.tenant.status,noteDot:true,noteTone:tenantCanOperate?'good':'warn'},
+  {title:'Owner',value:data.tenant.owner,textual:true,note:data.tenant.email||'No owner email'},
+  {title:'Modules enabled',value:effectiveKeys.size,note:'Currently entitled, not all assigned'}
+ ].forEach(card=>{ %><%- include('../../partials/stat-card',card) %><% }) %>
+</div><% if(data.tenant.setupStatus==='invited'){ %>
 <section class="card" style="margin-top:14px"><div class="cardHead"><b>Owner activation</b><span>Invitation pending</span></div><div class="cardBody"><p class="tiny">If the original activation page was interrupted or its link was lost, create a replacement for the existing workspace. Earlier unused links will expire.</p><form method="post" action="/platform/tenants/<%= data.tenant.id||data.tenant._id %>/owner-invitation"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="revision" value="<%= data.tenant.__v||0 %>"><label class="field">Reason (12–400 characters)<textarea class="control" name="reason" minlength="12" maxlength="400" rows="2" required placeholder="Explain why the owner needs a replacement activation link"></textarea></label><button class="btn" type="submit">Create replacement owner activation link</button></form></div></section>
 <% } %>
 <section class="card" style="margin-top:14px" aria-label="Current tenant setup and access">

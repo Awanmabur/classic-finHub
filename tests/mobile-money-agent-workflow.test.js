@@ -22,13 +22,15 @@ test('additional genuine regional network identities are configurable but not si
  assert.match(service,/Configure an independently approved provider float wallet before recording/);
 });
 
-test('agent transaction shows confirmed-rate estimates separately from configured customer fee',()=>{
+test('agent transaction shows approved-sheet quotes without additional customer fee',()=>{
  const template=source('src/views/tenant/mobile-money/_entry-form.ejs');
  const quoteJs=source('public/js/mobile-money-quote.js');
  assert.match(template,/data-mobile-provider-quote/);
  assert.match(template,/data-mobile-agent-commission/);
  assert.match(template,/data-mobile-provider-charge/);
- assert.match(template,/include\('\.\.\/partials\/operation-pricing'/);
+ assert.doesNotMatch(template,/include\('\.\.\/partials\/operation-pricing'/);
+ assert.match(template,/name="fee" value="0"/);
+ assert.match(template,/No extra agent fee/);
  assert.match(quoteJs,/\/tenant\/mobile-money\/quote/);
  assert.match(quoteJs,/const hasCommission=Boolean\(data\.agentCommission\?\.amount\)/);
  assert.match(quoteJs,/area\.hidden=true/);

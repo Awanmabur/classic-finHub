@@ -1,7 +1,7 @@
 <% const detailZone=typeof businessTimeZone==='string'?businessTimeZone:'UTC';
    const detailLocalDate=typeof formatLocalDate==='function'?formatLocalDate:
     (value=>new Date(value).toISOString().slice(0,16).replace('T',' ')); %>
-<section class="view show">
+<section class="view show financialReportsPage">
  <% if(data.record?.fxSettlementId){ %>
  <section class="card"><div class="cardBody"><b>Cross-currency Mobile Money · linked Forex</b>
   <p>Wallet currency: <%= data.record.currency %> · Cash currency: <%= data.record.cashCurrency %> ·
@@ -20,7 +20,7 @@
     <p><b>Customer ID / note:</b> <%= data.record.customerNote || 'Not provided' %></p>
     <p><b>Payment method:</b> <%= data.record.paymentMethod || 'Cash' %></p>
     <p><b>Amount:</b> <%= money(data.record.currency,amountFromMinor(data.record.amountMinor,data.record.currency)) %></p>
-    <p><b><%= data.record.feeTreatment==='payment_collected'?'Customer fee collected':data.record.feeTreatment==='wallet_commission'?'Wallet commission recorded':'Recorded fee (not confirmed as income)' %>:</b> <%= money(data.record.currency,amountFromMinor(data.record.feeMinor,data.record.currency)) %></p>
+    <% if(BigInt(String(data.record.feeMinor||'0'))!==0n){ %><p><b>Historical recorded fee, separate from provider commission:</b> <%= money(data.record.currency,amountFromMinor(data.record.feeMinor,data.record.currency)) %></p><% } %>
     <p><b>Recorded (<%= detailZone %>):</b> <%= detailLocalDate(data.record.createdAt) %></p>
     <% if(['accepted','disputed'].includes(data.record.reviewState)){ %><p><b>Historical review outcome:</b> <%= data.record.reviewState.replaceAll('_',' ') %></p><% } %>
     <p><b>Correction:</b> <%= (data.record.correctionState||'none').replaceAll('_',' ') %></p>
@@ -31,9 +31,9 @@
   <% if(data.record){ %>
   <section class="card" style="margin-top:14px"><div class="cardHead"><div><b>Saved network rate estimates</b><br><span>Captured from approved rate sheets or clearly labelled published references at transaction time</span></div><a class="btn" href="/tenant/mobile-money/tariffs">Rate sheets</a></div>
    <div class="cardBody"><div class="summary">
-    <div class="sumRow"><span>Agent commission estimate</span><b><%= data.record.agentCommissionEstimate?data.formatMoneyMinor(data.record.agentCommissionEstimate.amountMinor,data.record.currency):'No verified matching rate' %></b></div>
+    <div class="sumRow"><span>Agent commission expected from sheet</span><b><%= data.record.agentCommissionEstimate?data.formatMoneyMinor(data.record.agentCommissionEstimate.amountMinor,data.record.currency):'No verified matching rate' %></b></div>
     <% if(data.record.agentCommissionEstimate){ %><div class="sumRow"><span>Agent rate sheet version</span><b><%= data.record.agentCommissionEstimate.version %> · Expected only</b></div><% } %>
-    <div class="sumRow"><span>Customer network charge estimate</span><b><%= data.record.customerNetworkFeeEstimate?data.formatMoneyMinor(data.record.customerNetworkFeeEstimate.amountMinor,data.record.currency):'No verified matching rate' %></b></div>
+    <div class="sumRow"><span>Customer's network charge · not agent income</span><b><%= data.record.customerNetworkFeeEstimate?data.formatMoneyMinor(data.record.customerNetworkFeeEstimate.amountMinor,data.record.currency):'No verified matching rate' %></b></div>
     <% if(data.record.customerNetworkFeeEstimate){ %><div class="sumRow"><span>Customer charge sheet version</span><b><%= data.record.customerNetworkFeeEstimate.version %> · Provider charge, not agent earnings</b></div><% } %>
     <% if(data.record.agentCommissionPublishedReference){ const publicRate=data.record.agentCommissionPublishedReference; %>
     <div class="sumRow"><span>Published agent commission reference</span><b><%= data.formatMoneyMinor(publicRate.amountMinor,data.record.currency) %> · Not a confirmed payout</b></div>
@@ -43,7 +43,7 @@
     <div class="sumRow"><span><%= publicCharge.status==='historical_unverified'?'Historical network customer charge (verify current provider rate)':'Published customer network charge' %></span><b><%= data.formatMoneyMinor(publicCharge.amountMinor,data.record.currency) %> · Provider charge reference, not agent earnings</b></div>
     <% } %>
     <% if(!data.record.agentCommissionEstimate&&!data.record.agentCommissionPublishedReference){ %><div class="sumRow"><span>Rate sheet status</span><b>No approved or published reference captured at recording</b></div><% } %>
-    <div class="sumRow"><span>Commission actually received</span><b>Requires separate provider settlement evidence</b></div>
+    <div class="sumRow"><span>Commission actually received</span><b>Tracked separately after a verified provider payout</b></div>
    </div><p class="tiny">Neither estimate changed the customer transaction amount, cash drawer, provider float, journal, profit or income. The signed provider statement and independent settlement review determine actual earnings.</p></div>
   </section>
   <% } %>

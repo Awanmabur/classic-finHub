@@ -3,8 +3,10 @@
   const submitting=new WeakSet(),restorers=new Set();
   const headers=Object.freeze({'X-ClassicFin-Redirect':'json','X-ClassicFin-Background':'true'});
   function show(message,type='bad',{form,focus=true}={}){
-    // Workspace feedback belongs in the main panel, never inside the sidebar or a narrow header form.
-    const host=document.querySelector('main.panel.main')||form||document.querySelector('main')||document.body;
+    // Show input/submit errors immediately above the FORM that needs fixing.
+    // Without a form (for example a global action), keep workspace-level feedback.
+    const host=form?.isConnected&&form.matches?.('form')?form:
+      document.querySelector('main.panel.main')||document.querySelector('main')||document.body;
     const previous=host.querySelector(':scope > [data-session-flash]');
     if(previous)previous.dataset.feedbackMessage='';
     let target=[...host.children].find(node=>node.matches?.('[data-feedback-message]'));

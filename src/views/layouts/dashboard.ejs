@@ -3,7 +3,8 @@
 <head>
   <% const layoutTenantName=context==='tenant'?String(tenant?.name||'Tenant workspace'):'ClassicFin Hub';
      const layoutTenantInitial=layoutTenantName.trim().split(/\s+/).slice(0,2).map(x=>x[0]).join('').replace(/[^a-z0-9]/gi,'').toUpperCase()||'T';
-     const tenantFavicon=encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#082c52"/><text x="32" y="42" fill="#fff" font-size="25" font-family="sans-serif" text-anchor="middle">'+layoutTenantInitial+'</text></svg>'); %>
+     const tenantFaviconColor=/^#[0-9a-fA-F]{6}$/.test(String(tenant?.brandPrimary||''))?tenant.brandPrimary:'#4b5563';
+     const tenantFavicon=encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="'+tenantFaviconColor+'"/><text x="32" y="42" fill="#fff" font-size="25" font-family="sans-serif" text-anchor="middle">'+layoutTenantInitial+'</text></svg>'); %>
   <% if(context==='tenant'){ %><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<%= tenantFavicon %>"><% } else { %><link rel="icon" type="image/png" href="/images/classicfinhub-logo.png"><% } %>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />

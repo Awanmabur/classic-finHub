@@ -104,6 +104,9 @@ async function decide(conn,tenant,actor,requestId,input){
   const Case=approvalRequestModel(conn),now=new Date();
   const current=await Case.findOne({_id:objectId(requestId),...scope(actor)}).session(session);
   if(!current)throw fail('Approval request is outside your scope',404);
+  if(require('./reviewPolicy').canSelfReviewRoutine(actor,current.branchId)&&
+    !await require('./reviewPolicy').persistedRoutineReviewer(conn,session,actor,current.branchId))
+   throw fail('Current owner or assigned manager identity is required to approve',403);
   if(!canDecide(actor,current,now))throw fail('Request expired, already decided, or this reviewer is not independent and assigned',409);
   const completed=decision==='approve'&&current.currentStep===current.steps.length-1;
   const nextStatus=decision==='reject'?'rejected':completed?'approved':'pending';

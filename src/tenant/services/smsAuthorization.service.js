@@ -38,7 +38,7 @@ async function authorizeRecording(conn,session,operator,tenant,context,branchId,
     {$set:{processingUntil:new Date(now.getTime()+60000)}},{session,new:true}).lean();
   if(!inbox)throw fail('SMS recording lease or operator assignment is unavailable.',403);
   if(values.idempotencyKey!==idempotencyKey(inbox.deviceId,inbox.messageId))throw fail('SMS recording reference is invalid.',403);
-  const expected=require('./mobileMoney.service').validate({...inbox.fields,idempotencyKey:values.idempotencyKey},inbox.fields?.operation);
+  const expected=require('./mobileMoney.service').validate({...inbox.fields,fee:'0',idempotencyKey:values.idempotencyKey},inbox.fields?.operation);
   if(['operation','customer','customerPhone','customerNote','paymentMethod','network','networkReference','currency','amountMinor','feeMinor','idempotencyKey','observedWalletBalance','observationEvidenceReference','feeTreatment']
     .some(key=>String(expected[key])!==String(values[key])))throw fail('SMS draft changed before recording. Review it again.',409);
   const authorized=await fenceDeviceContext(conn,session,{deviceId:inbox.deviceId,tenantId:tenant._id,actor:operator,branchId});

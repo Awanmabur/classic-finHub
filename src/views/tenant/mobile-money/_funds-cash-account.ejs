@@ -1,0 +1,17 @@
+ <% const usableCash=(funds.paymentAccounts||[]).filter(a=>a.kind==='cash'&&a.assignedToOperator&&a.state==='active'&&a.reconciliation==='matched'&&a.expectedMinor!==null&&a.postingReady!==false);
+    const preferredSSP=usableCash.find(a=>a.currency==='SSP'&&a.isDefault)||usableCash.find(a=>a.currency==='SSP');
+    const selectedCash=preferredSSP||(usableCash.length===1?usableCash[0]:null); %>
+ <label class="field" data-payment-account-field><%= entryOperation==='cash_in'?'Cash drawer · customer pays':'Cash drawer · customer receives' %>
+  <select class="control" name="paymentAccountId" data-payment-account required>
+   <option value="">Select cash drawer</option>
+   <% (funds.paymentAccounts||[]).filter(a=>a.kind==='cash').forEach(account=>{ %>
+    <option value="<%= account.id %>" data-method="Cash" data-currency="<%= account.currency %>"
+     data-state="<%= account.state %>" data-reconciliation="<%= account.reconciliation %>"
+     data-assigned="<%= account.assignedToOperator?'true':'false' %>" data-posting-ready="<%= account.postingReady===false?'false':'true' %>" data-opened="<%= account.expectedMinor!==null?'true':'false' %>"
+     data-expected-minor="<%= account.expectedMinor??'' %>"
+     <%= !account.assignedToOperator||account.state!=='active'||account.reconciliation!=='matched'||account.expectedMinor===null||account.postingReady===false?'disabled':'' %>
+     <%= selectedCash?.id===account.id?'selected':'' %>><%= account.name %> · <%= account.currency==='KES'?'KSH':account.currency %><%= !account.assignedToOperator?' (assigned to another cashier)':account.state!=='active'||account.reconciliation!=='matched'||account.expectedMinor===null?' (opening or reconciliation required)':account.postingReady===false?' ('+(account.postingReason||'Cash shift not ready')+')':'' %></option>
+   <% }) %>
+  </select>
+  <% if(!usableCash.length){ %><span class="tiny" role="status">No cash drawer is currently available for posting. <% const myDrawers=(funds.paymentAccounts||[]).filter(a=>a.kind==='cash'&&a.assignedToOperator); %><% if(myDrawers.some(a=>a.postingReady===false)){ %><%= myDrawers.find(a=>a.postingReady===false)?.postingReason||'Your cash shift needs review' %>. <a href="/tenant/cash/shifts">Review cash shift</a>.<% }else if((funds.paymentAccounts||[]).some(a=>a.kind==='cash'&&!a.assignedToOperator)){ %>Existing drawers are assigned to other staff. Use your assigned drawer. <% }else{ %>Create and approve your actual cash account and shift first. <% } %><a href="/tenant/treasury">Review Treasury accounts</a>.</span><% } %>
+ </label>

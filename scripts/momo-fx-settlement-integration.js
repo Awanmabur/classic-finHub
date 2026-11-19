@@ -149,6 +149,32 @@ async function main(){
   providerAppConfirmed:'yes',cashHandoverConfirmed:'yes'
  })).duplicate,true,'Legacy two-checkbox confirmations remain compatible without reposting');
  assert.deepEqual(await balances(),{wallet:'1060',drawer:'45100'});
+ // Exercise the actual MongoDB-backed existing Mobile Money report, not
+ // only a standalone pure summarizer. The report must follow the real books.
+ const businessDay=require('../src/utils/businessTime').localDay(new Date(),'Africa/Juba');
+ const reportService=require('../src/tenant/services/mobileMoneyUnifiedReport.service');
+ const activity=await reportService.generate(conn,tenant,owner,
+  {period:'custom',from:businessDay,to:businessDay,currency:'UGX'},'Africa/Juba');
+ const ugx=activity.currencies.find(row=>row.currency==='UGX');
+ const ssp=activity.cashCurrencies.find(row=>row.currency==='SSP');
+ assert(ugx&&ssp,'UGX filter must retain the real SSP cash movement');
+ assert.equal(ugx.volumeMinor,160n);
+ assert.equal(ugx.floatMovementMinor,60n,'one electronic provider entry per customer transaction');
+ assert.equal(ugx.cashImpactMinor,0n,'SSP physical cash must never be folded into UGX float');
+ assert.equal(ssp.inMinor,5000n);
+ assert.equal(ssp.outMinor,9900n);
+ assert.equal(ssp.movementMinor,-4900n);
+ assert.equal(activity.fxRows.reduce((sum,row)=>sum+row.count,0),3,
+  'one linked Forex operation per real Mobile Money customer transaction');
+ assert(activity.positions.some(row=>row.kind==='cash'&&row.currency==='SSP'&&row.bookFormatted==='SSP 451.00'),
+  'actual SSP drawer book must be visible on UGX provider filter');
+ assert(activity.positions.some(row=>row.kind==='wallet'&&row.currency==='UGX'&&row.bookFormatted==='UGX 10.60'),
+  'actual UGX float book must be visible beside the SSP drawer');
+ const savedExport=reportService.csv(activity);
+ assert(savedExport.includes('Actual physical cash flows by drawer currency'));
+ assert(savedExport.includes('"SSP","3","5000","9900","-4900"'));
+ assert(savedExport.includes('Net provider float movement'));
+
 
  const beforeSecurityChecks=await balances();
  await assert.rejects(settleVerified(conn,tenant,owner,{
@@ -209,6 +235,13 @@ async function main(){
  const linked=await core.forexQuoteModel(conn).findOne({originModule:'mobile_money',originRecordId:manual.mobile._id}).lean();
  assert.equal(linked.status,'reversed_manual');
  assert.deepEqual(await balances(),{wallet:'1050',drawer:'46000'},'Both native-currency balances reverse once');
+ const correctedReport=await reportService.generate(conn,tenant,owner,
+  {period:'custom',from:businessDay,to:businessDay,currency:'UGX'},'Africa/Juba');
+ assert.equal(correctedReport.currencies.find(row=>row.currency==='UGX').floatMovementMinor,50n);
+ assert.equal(correctedReport.cashCurrencies.find(row=>row.currency==='SSP').movementMinor,-4000n);
+ assert.equal(correctedReport.fxRows.reduce((sum,row)=>sum+row.count,0),2,
+  'voided MoMo exchange must be absent from active Forex report while audit survives');
+
  assert.equal(await tm.models(conn).batch.countDocuments({sourceRef:{$regex:/^MFX:/}}),3,'Reverse never re-posts original Forex custody');
  assert.equal(await tm.models(conn).batch.countDocuments({sourceRef:'MM-VOID:'+manual.mobile._id}),1,'One linked correction journal');
  await assert.rejects(mobile.decideVoid(conn,reviewer,manual.mobile._id,'approve',

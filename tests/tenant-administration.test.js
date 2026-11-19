@@ -38,13 +38,15 @@ test('module middleware refuses access without assigned module, even with a priv
   check({tenant,user:operator},denied,()=>passed=true);
   assert.equal(passed,true);
 });
-test('Branch Manager is MFA protected, scoped to permitted branch staff, and cannot approve financial entries',()=>{
+test('Branch Manager is MFA protected, scoped to branch staff, and can review authorized routine entries',()=>{
   assert(INVITABLE.includes('Branch Manager'));
   assert(requiresTenantMfa('Branch Manager'));
   const manager={role:'Branch Manager',permissions:permissionsFor('Branch Manager'),branchId:id,allowedModules:['mobile_money']};
   assert(permissionsFor('Branch Manager').includes('branches.view'));
   assert(!permissionsFor('Branch Manager').includes('users.manage'));
-  assert(!permissionsFor('Branch Manager').includes('mobile_money.review'));
+  assert(permissionsFor('Branch Manager').includes('mobile_money.review'));
+  assert(permissionsFor('Branch Manager').includes('treasury.manage'));
+  assert(!permissionsFor('Branch Manager').includes('branches.manage'));
   const menu=tenantMenu(tenant,manager).flatMap(g=>g.items.map(x=>x.href));
   assert(menu.includes('/tenant/branches'));
   assert(menu.includes('/tenant/users'));

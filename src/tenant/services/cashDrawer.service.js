@@ -17,7 +17,7 @@ function allowed(tenant,actor){
  if(!['mobile_money','money_transfer','banking','forex','expenses'].some(key=>hasModuleForUser(tenant,actor,key)))throw fail('An assigned operational module is required for cash controls',403);
  if(!['Tenant Owner','Mobile Money Operator','Money Transfer Operator','Banking Operator','Forex Operator','Branch Manager','Reconciliation Officer','Auditor'].includes(actor?.role))throw fail('Cash controls require authorized operations staff',403);
 }
-function opener(actor){return ['Tenant Owner','Mobile Money Operator','Money Transfer Operator','Banking Operator','Forex Operator'].includes(actor?.role);}
+function opener(actor){return ['Tenant Owner','Branch Manager','Mobile Money Operator','Money Transfer Operator','Banking Operator','Forex Operator'].includes(actor?.role);}
 function reviewer(actor){return ['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(actor?.role);}
 async function open(conn,tenant,actor,input={}){
  allowed(tenant,actor);if(!opener(actor))throw fail('Not permitted to open cash shifts',403);
@@ -89,7 +89,10 @@ async function bindFundAccount(conn,session,account,balanceBeforeMinor,options={
   if(options.allowNoActiveShift&&!unfinished)return null;
   throw fail('Open and independently verify the assigned operator cash drawer before posting cash movements',409);
  }
- if(minor(shift.openingMinor)+minor(shift.provisionalMovementMinor)!==BigInt(String(balanceBeforeMinor)))throw fail('The drawer and confirmed cash account do not match. Reconcile the opening count before posting.',409);
+ if(minor(shift.openingMinor)+minor(shift.provisionalMovementMinor)!==BigInt(String(balanceBeforeMinor))){
+  const error=fail('Cash shift and cash-book balances are out of sync. No funds were posted. Check the assigned cash drawer, shift opening and any intervening movements; reconcile the difference before retrying.',409);
+  error.code='CASH_SHIFT_BOOK_MISMATCH';throw error;
+ }
  if(!shift.treasuryAccountId)await cashSessionModel(conn).updateOne({_id:shift._id,treasuryAccountId:null},{$set:{treasuryAccountId:account._id,treasuryBoundAt:new Date(),treasuryBaselineMinor:decimal(balanceBeforeMinor)}},{session});
  return shift;
 }

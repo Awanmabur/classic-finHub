@@ -47,6 +47,20 @@
    </div><p class="tiny">Neither estimate changed the customer transaction amount, cash drawer, provider float, journal, profit or income. The signed provider statement and independent settlement review determine actual earnings.</p></div>
   </section>
   <% } %>
+  <% if(data.canViewFunds&&data.record.fundingState==='book_recorded'){ %>
+  <section class="card" style="margin-top:14px" aria-label="Balances after this transaction">
+   <div class="cardHead"><b>Cash &amp; float after this record</b><span>Original posted Treasury snapshots · not today's balances</span></div>
+   <div class="cardBody">
+    <% if(data.afterBalances?.length){ %><div class="summary">
+     <% data.afterBalances.forEach(balance=>{ %>
+      <div class="sumRow"><span><%= balance.account %> · <%= balance.kind %> · <%= balance.currency==='KES'?'KSH':balance.currency %></span>
+       <b><%= balance.balanceAfter %></b></div>
+      <p class="tiny"><%= balance.stage %> · Movement: <%= balance.change %></p>
+     <% }); %>
+    </div><% }else{ %><p class="tiny">Historical cash/float snapshot is unavailable for this record. Current Treasury balances cannot prove the amount at the time of posting.</p><% } %>
+   </div>
+  </section>
+  <% } %>
   <% if(data.canViewFunds){ const observation=data.walletObservation; %>
   <section class="card" style="margin-top:14px"><div class="cardHead"><div><b>Wallet balance and evidence</b><br><span>Book amounts at this entry and the reported network balance</span></div><a class="btn" href="/tenant/treasury">Balances &amp; reconciliation</a></div><div class="cardBody">
     <% if(data.record.fundingState==='book_recorded'){ %><div class="summary">

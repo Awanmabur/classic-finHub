@@ -197,10 +197,16 @@ async function main(){
  },{...withdraw.proof,providerReference:'FORGED-'+nonce}),
   error=>error.status===403&&/signature/.test(error.message),
   'a user-edited provider reference must invalidate provider proof');
- await assert.rejects(settleVerified(conn,tenant,owner,{
+ const replay=await settleVerified(conn,tenant,owner,{
   ...withdraw.input,idempotencyKey:crypto.randomUUID()
- },withdraw.proof),error=>error.status===409&&/already/.test(error.message),
-  'a different request key cannot double-spend the same provider receipt');
+ },withdraw.proof);
+ assert.equal(replay.duplicate,true,'a fresh form key must replay an identical provider receipt without reposting');
+ assert.equal(String(replay.record._id),String(withdraw.settled.record._id));
+ assert.equal(String(replay.mobile._id),String(withdraw.settled.mobile._id));
+ await assert.rejects(settleVerified(conn,tenant,owner,{
+  ...withdraw.input,idempotencyKey:crypto.randomUUID(),customerPhone:'+211912345678'
+ },withdraw.proof),error=>error.status===409&&/existing transaction/.test(error.message),
+  'reusing a provider reference for a different customer remains blocked');
  assert.deepEqual(await balances(),beforeSecurityChecks,'forged or replayed provider receipts must never move custody');
  assert.equal(await records(conn).countDocuments({tenantId:tenant._id}),3);
  assert.equal(await core.mobileTransactionModel(conn).countDocuments({branchId:branch._id,fxSettlementId:{$ne:null}}),3);

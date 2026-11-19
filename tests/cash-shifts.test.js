@@ -96,7 +96,7 @@ test('independent opening approval and variance review enforce role and branch b
  const actions=[];const noop={createIndexes:async()=>{}};
  const shifts={createIndexes:async()=>{},findOneAndUpdate:async(filter,update,options)=>{
    assert(options.session,'shift decision must be transactional');
-   if(String(filter.operatorId.$ne)===operatorId||String(filter.branchId)!==branchId||filter.status!==target.status)return null;
+   if((filter.operatorId?.$ne&&String(filter.operatorId.$ne)===operatorId)||String(filter.branchId)!==branchId||filter.status!==target.status)return null;
    const copy={...target,...update.$set};actions.push({filter,update});return copy;
  }};
  const audits={createIndexes:async()=>{},create:async(entries,opts)=>{assert(opts.session);actions.push(entries[0]);}};
@@ -105,7 +105,10 @@ test('independent opening approval and variance review enforce role and branch b
    FinancialOperationV1:noop,VerifiedFinancialEvidenceV1:noop,FinancialExceptionV1:noop,TransferContactV1:noop,TransferOrderV1:noop,BankReferenceV1:noop,BankingRequestV1:noop,ForexRateV1:noop,ForexQuoteV1:noop,ApprovalPolicyV1:noop,ApprovalRequestV1:noop,NotificationMessageV1:noop,RiskAlertDispatchCursorV1:noop,NotificationTemplateV1:noop,NotificationPreferenceV1:noop,SmsInboxV1:noop,TransferSmsDeliveryV1:noop};
  const conn={models,startSession:async()=>({withTransaction:async fn=>fn(),endSession:async()=>{}})};
  const manager={id:id(),branchId,role:'Branch Manager',allowedModules:['mobile_money']};
- await assert.rejects(cash.decideOpening(conn,tenant,{...manager,id:operatorId},shiftId,{decision:'approve',note:'Self verification forbidden'}),{status:409});
+ const selfReviewed=await cash.decideOpening(conn,tenant,{...manager,id:operatorId},shiftId,{decision:'approve',note:'Matching opening count verified by assigned manager'});
+ assert.equal(selfReviewed.status,'open');
+ assert(actions.some(x=>x.action==='mobile_money.shift.opening_approved'&&x.metadata.selfReviewed===true));
+ actions.length=0;
  await assert.rejects(cash.decideOpening(conn,tenant,{...manager,branchId:otherBranch},shiftId,{decision:'approve',note:'Wrong branch verification'}),{status:409});
  const verified=await cash.decideOpening(conn,tenant,manager,shiftId,{decision:'approve',note:'Opening cash was independently counted'});
  assert.equal(verified.status,'open');assert(actions.some(x=>x.action==='mobile_money.shift.opening_approved'));
@@ -127,7 +130,7 @@ test('opening review and report control forms render only for explicitly permitt
  const variance=await ejs.renderFile(f,{formatMoneyMinor:mobile.formatMoneyMinor,data:{shift:{...item,status:'submitted',submittedAt:new Date(),declaredClosingMinor:'9000',expectedClosingMinor:'10000',varianceMinor:'-1000'},
    canReviewOpening:false,canSubmit:false,canReview:true,canApprove:false},csrfToken:'proof'});
  assert.doesNotMatch(variance,/name="decision" value="approve"/);
- assert.match(variance,/Tenant Owner or Reconciliation Officer approval/);
+ assert.match(variance,/A discrepancy needs a different authorized supervisor/);
 });
 
 test('cash close computes exact minor-unit variances for matched, short and excess counts',async()=>{

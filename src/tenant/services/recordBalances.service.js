@@ -29,7 +29,7 @@ async function snapshots(conn,tenant,actor,sources=[]){
  if(sources.length>MAX_SOURCES)throw Error('Too many historical balance sources');
  const seen=new Map();
  for(const source of sources){
-  if(!OID.test(String(source.recordId||''))||!['mobile_money','forex','banking','money_transfer'].includes(source.sourceType))continue;
+  if(!OID.test(String(source.recordId||''))||!['mobile_money','forex','banking','money_transfer','expenses'].includes(source.sourceType))continue;
   if(typeof source.sourceRef!=='string'||source.sourceRef.length>120)continue;
   const key=source.sourceType+'|'+source.sourceRef;
   if(!seen.has(key))seen.set(key,[]);
@@ -89,6 +89,16 @@ async function forRecord(conn,tenant,actor,key,record){
  if(key==='forex'&&record.originModule==='mobile_money'&&record.status==='posted_manual'&&
     /^[a-f0-9-]{36}$/i.test(String(record.idempotencyKey||'')))
   sources.push({recordId:record._id,sourceType:'forex',sourceRef:'MFX:'+record.idempotencyKey,stage:'Linked Mobile Money / Forex'});
+ if(key==='expenses'){
+  if(record.treasuryBatchId)
+   sources.push({recordId:record._id,sourceType:'expenses',
+    sourceRef:String(record._id)+':expense:'+(record.postingSequence||1),
+    stage:'Approved expense debit'});
+  if(record.lastReversalBatchId)
+   sources.push({recordId:record._id,sourceType:'expenses',
+    sourceRef:String(record._id)+':expense-reversal:'+(record.postingSequence||1),
+    stage:'Expense correction / reversal'});
+ }
  if(['forex','banking','money_transfer'].includes(key)){
   const executions=await require('../funded/models').models(conn).execution.find({
    sourceType:key,sourceId:record._id,status:'posted_manual'

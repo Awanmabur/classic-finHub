@@ -42,6 +42,7 @@
       <div class="networkBalanceStat"><span>Expected network commission</span><strong><%= row.estimatedCommissionMinorFormatted %></strong><small><%= row.commissionMissingCount?row.commissionMissingCount+' transaction(s) without an approved sheet':'From approved provider sheets; not yet received' %></small></div>
       <div class="networkBalanceStat"><span>Commission actually received</span><strong><%= row.receivedCommissionMinorFormatted %></strong><small>Verified provider payout entries</small></div>
      </div>
+     <p class="tiny">Customer network charges from approved provider sheets: <b><%= row.customerNetworkChargeEstimateMinorFormatted %></b> · Charged by the network, never included in agent earnings.</p>
      <% if(BigInt(String(row.collectedFeeMinor||'0'))!==0n){ %>
       <p class="tiny">Historical separately collected fees: <%= row.collectedFeeMinorFormatted %>. New agent transactions do not require extra customer fees.</p>
      <% } %>
@@ -89,13 +90,13 @@
   <div class="cardHead"><b>Network breakdown</b></div>
   <div class="cardBody tableWrap" tabindex="0" role="region" aria-label="Network results">
    <table>
-    <thead><tr><th>Network</th><th>Currency</th><th>Deposits</th><th>Withdrawals</th><th>Volume</th><th>Expected commission</th><th>Commission received</th></tr></thead>
+    <thead><tr><th>Network</th><th>Currency</th><th>Deposits</th><th>Withdrawals</th><th>Volume</th><th>Expected agent commission</th><th>Provider charge to customer</th><th>Commission received</th></tr></thead>
     <tbody>
-     <% if(!groups.length){ %><tr><td colspan="7">No network activity for these filters.</td></tr><% } %>
+     <% if(!groups.length){ %><tr><td colspan="8">No network activity for these filters.</td></tr><% } %>
      <% groups.forEach(row=>{ %>
       <tr><td><b><%= row.network %></b></td><td><%= code(row.currency) %></td><td><%= row.depositCount %></td><td><%= row.withdrawalCount %></td>
        <td><%= row.volumeMinorFormatted %></td><td><%= row.commissionMissingCount&&String(row.estimatedCommissionMinor)==='0'?'No approved sheet':row.estimatedCommissionMinorFormatted %></td>
-       <td><%= row.receivedCommissionMinorFormatted %></td></tr>
+       <td><%= row.customerNetworkChargeEstimateMinorFormatted %></td><td><%= row.receivedCommissionMinorFormatted %></td></tr>
      <% }) %>
     </tbody>
    </table>

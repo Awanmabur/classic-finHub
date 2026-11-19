@@ -185,6 +185,46 @@
     e.preventDefault();showError('An owner-approved exchange quote is required before recording.');
    }
   });
+  // Full-page entries stay in place on a rejected POST, instead of sending
+  // the cashier to an error page behind a dialog or losing the entered values.
+  // The shared transaction dialog has its own single-submit handler.
+  if(!form.closest('[data-operation-dialog]')){
+   const feedback=form.querySelector('[data-mobile-form-feedback]');
+   const submitButton=form.querySelector('[data-mobile-submit-label]');
+   let saving=false;
+   const showInline=(message)=>{
+    if(!feedback)return;
+    feedback.querySelector('[data-mobile-form-feedback-text]').textContent=message;
+    feedback.hidden=false;
+    feedback.focus({preventScroll:true});
+    feedback.scrollIntoView({block:'start',behavior:'smooth'});
+   };
+   const hideInline=()=>{if(feedback)feedback.hidden=true;};
+   form.addEventListener('input',hideInline);
+   form.addEventListener('change',hideInline);
+   form.addEventListener('submit',async event=>{
+    if(event.defaultPrevented)return;
+    event.preventDefault();
+    if(saving||!form.reportValidity())return;
+    if(!ready){showInline('Check the amount, wallet and cash drawer before recording.');return;}
+    saving=true;hideInline();
+    if(submitButton)submitButton.disabled=true;
+    const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),20000);
+    try{
+     const result=await fetch(form.action,{method:'POST',credentials:'same-origin',
+      headers:{'Content-Type':'application/x-www-form-urlencoded','X-ClassicFin-Redirect':'json','X-ClassicFin-Background':'true',Accept:'application/json, text/plain, text/html'},
+      body:new URLSearchParams(new FormData(form)),signal:controller.signal});
+     const outcome=await window.ClassicFinFeedback.response(result);
+     if(result.ok&&outcome.redirect){
+      if(outcome.flash?.type==='bad'){showInline(outcome.flash.message);return;}
+      location.assign(outcome.redirect);return;
+     }
+     showInline(outcome.message||'Transaction not saved. Check the highlighted fields and try again.');
+    }catch{
+     showInline('Could not confirm whether this transaction saved. Check Mobile Money history before recording it again.');
+    }finally{clearTimeout(timeout);saving=false;if(submitButton)submitButton.disabled=false;}
+   });
+  }
   selectWallet();refresh();
  }
  window.ClassicFinMobileUnified=Object.freeze({initialise:init});

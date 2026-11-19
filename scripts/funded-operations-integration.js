@@ -64,6 +64,11 @@ async function main(){
  const concurrent=await Promise.allSettled([funded.review(conn,tenant,reviewer,deposit.execution._id,reviewData),funded.review(conn,tenant,reviewer,deposit.execution._id,reviewData)]);
  assert.equal(concurrent.filter(row=>row.status==='fulfilled').length,1);assert.equal(concurrent.filter(row=>row.status==='rejected'&&row.reason.status===409).length,1);
  assert.equal(await book(cashFund),1010000n);assert.equal(await customerBook(accountA),10000n);assert.equal((await core.bankingRequestModel(conn).findById(depositSource._id)).status,'posted_manual');
+ const historicalBalances=require('../src/tenant/services/recordBalances.service');
+ const depositHistory=await historicalBalances.forRecord(conn,tenant,owner,'banking',
+  await core.bankingRequestModel(conn).findById(depositSource._id).lean());
+ assert(depositHistory.some(row=>row.kind==='cash'&&row.currency==='UGX'&&row.balanceAfter==='UGX 1,010,000'),
+  'Banking detail must show original posted cash after this specific deposit');
  const withdrawalSource=await bankSource('withdrawal_request','3000'),withdrawal=await manual('banking',withdrawalSource,{cashAccountId:String(cashFund._id)});await funded.review(conn,tenant,reviewer,withdrawal.execution._id,reviewData);
  assert.equal(await book(cashFund),1007000n);assert.equal(await customerBook(accountA),7000n);
  const internalSource=await bankSource('transfer_request','2000',accountB._id),internal=await manual('banking',internalSource);await funded.review(conn,tenant,reviewer,internal.execution._id,reviewData);
@@ -80,6 +85,12 @@ async function main(){
  assert.equal((await funded.finalizeForex(conn,tenant,owner,buy.execution._id,{confirmFundsExchanged:'yes',confirmEvidenceChecked:'yes'})).execution.status,'posted_manual');
  assert((await funded.finalizeForex(conn,tenant,owner,buy.execution._id,{})).duplicate,'retry cannot post duplicate movement');
  assert.equal(await book(stock),101000n);assert.equal(await book(cashFund),970000n);
+ const boughtHistory=await historicalBalances.forRecord(conn,tenant,owner,'forex',
+  await core.forexQuoteModel(conn).findById(buySource._id).lean());
+ assert(boughtHistory.some(row=>row.currency==='USD'&&row.balanceAfter==='USD 1,010.00'),
+  'Forex source stock has exact original after-balance');
+ assert(boughtHistory.some(row=>row.currency==='UGX'&&row.balanceAfter==='UGX 970,000'),
+  'Forex settlement drawer has exact original after-balance');
  const sellSource=await quote('sell','5','0'),sell=await manual('forex',sellSource,{foreignAccountId:String(stock._id),settlementAccountId:String(cashFund._id)});
  await funded.finalizeForex(conn,tenant,owner,sell.execution._id,{confirmFundsExchanged:'yes',confirmEvidenceChecked:'yes'});
  assert.equal((await fundedModel.models(conn).execution.findById(sell.execution._id)).reviewedBy,null,'cashier confirmation must never claim independent review');
@@ -117,6 +128,10 @@ async function main(){
  await assert.rejects(funded.requestPayout(conn,tenant,owner,{...payoutInput,verificationToken:crypto.randomBytes(32).toString('hex')}),{status:409});
  await assert.rejects(funded.requestPayout(conn,tenant,owner,{...payoutInput,idempotencyKey:crypto.randomUUID()}),{status:409},'verification is consumed once');
  await funded.review(conn,tenant,reviewer,payout.execution._id,reviewData);assert.equal(await book(cashFund),988700n);assert.equal(await book(clearing),0n);assert.equal((await core.transferOrderModel(conn).findById(transferSource._id)).status,'paid_out_manual');
+ const payoutHistory=await historicalBalances.forRecord(conn,tenant,owner,'money_transfer',
+  await core.transferOrderModel(conn).findById(transferSource._id).lean());
+ assert(payoutHistory.some(row=>row.currency==='UGX'&&row.balanceAfter==='UGX 988,700'),
+  'Transfer record shows actual post-payout cash balance without displaying a pending request as paid');
  await assert.rejects(funded.review(conn,tenant,reviewer,payout.execution._id,reviewData),{status:409});await assert.rejects(funded.checkPayout(conn,tenant,owner,{pin:revealed.pin,senderPhone:'+256700111222'}),{status:404});
  for(let i=0;i<10;i++)await assert.rejects(funded.checkPayout(conn,tenant,owner,{pin:'123456',senderPhone:'+256700199999'}),{status:404});
  await assert.rejects(funded.checkPayout(conn,tenant,owner,{pin:'123456',senderPhone:'+256700199999'}),{status:429},'same phone and branch guesses are limited across database-backed attempts');

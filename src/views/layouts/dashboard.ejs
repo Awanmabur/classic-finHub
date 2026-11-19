@@ -65,7 +65,8 @@
      const mobileMarketDefault=(mobileOperationPage||momoOnlyDashboard)&&dashboardCurrencies.length?
        (dashboardCurrencies.some(option=>option.code===data.mobileMoneySelectedCurrency)?data.mobileMoneySelectedCurrency:
         dashboardCurrencies.some(option=>option.code===data.mobileMarket?.currency)?data.mobileMarket.currency:dashboardCurrencies[0].code):null;
-     const selectedDisplayCurrency=summaryCurrencyView?(data.dashboardCurrency||data.filters?.currency||''):
+     const selectedDisplayCurrency=summaryCurrencyView?(data.dashboardCurrency||data.filters?.currency||
+       (availableCurrencies.some(option=>option.code===requestedDisplayCurrency)?requestedDisplayCurrency:'')||''):
       (mobileMarketDefault||data.workspaceSnapshot?.selectedCurrency||data.filters?.currency||data.selectedCurrency||data.entryCurrency||
        (dashboardCurrencies.some(option=>option.code===requestedDisplayCurrency)?requestedDisplayCurrency:null)||
        assignedOperationBranch?.currency||'UGX');
@@ -99,6 +100,7 @@
             <div class="headerButtons">
               <% if(visiblePaths.has('/tenant/notifications')){ %><a class="btn headerNotice" id="phase2NotifyBtn" href="/tenant/notifications">Notifications <span class="phase2Badge" id="phase2NotifyCount"><%= data.workspaceSnapshot?.notificationUnread??'—' %></span></a><% } %>
               <div class="headerIdentity" aria-label="Signed-in user and operating branch">
+                <% if(assignedOperationBranch){ %><span data-operating-branch data-branch-name="<%= assignedOperationBranch.name %>" data-branch-currency="<%= assignedOperationBranch.currency %>" hidden></span><% } %>
                 <strong><%= user?.name||'Account' %></strong>
                 <span title="Operating branch, separate from the viewing branch"><%= assignedOperationBranch?.name||'No operating branch' %> · <%= user?.role||'Operator' %></span>
               </div>

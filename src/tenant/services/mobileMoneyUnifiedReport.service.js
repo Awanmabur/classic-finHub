@@ -194,7 +194,7 @@ async function generate(conn,tenant,actor,input={},timeZone='UTC'){
   {createdAt:cursor.at,_id:{$lt:new Types.ObjectId(cursor.id)}}
  ]}]}:match;
  const recordQuery=mobileTransactionModel(conn).find(recordScope)
-  .select('_id createdAt network networkReference operation currency cashCurrency amountMinor physicalCashMovementMinor feeMinor agentCommissionEstimate customerNetworkFeeEstimate status correctionState fundingState fxSettlementId exchangeRateDecimal')
+  .select('_id createdAt network networkReference operation currency cashCurrency amountMinor physicalCashMovementMinor feeMinor agentCommissionEstimate customerNetworkFeeEstimate status correctionState fundingState fundsSourceRef fxSettlementId exchangeRateDecimal')
   .sort({createdAt:-1,_id:-1}).limit(take+1).maxTimeMS(5000).lean();
  const fxCursor=mobile.decodeCursor(input.fxCursor);
  const fxRecordScope=fxCursor?{$and:[fxScope,{$or:[
@@ -202,7 +202,7 @@ async function generate(conn,tenant,actor,input={},timeZone='UTC'){
   {settledAt:fxCursor.at,_id:{$lt:new Types.ObjectId(fxCursor.id)}}
  ]}]}:fxScope;
  const fxRecordQuery=require('../schemas/MomoFxSettlement').records(conn).find(fxRecordScope)
-  .select('_id settledAt network providerReference operation providerCurrency cashCurrency providerAmountMinor cashAmountMinor rateDecimal rateSide providerSettlementState fxProfitState mobileMoneyRecordId')
+  .select('_id settledAt network providerReference operation providerCurrency cashCurrency providerAmountMinor cashAmountMinor rateDecimal rateSide providerSettlementState fxProfitState mobileMoneyRecordId idempotencyKey')
   .sort({settledAt:-1,_id:-1}).limit(take+1).maxTimeMS(5000).lean();
  const positionQuery=positionsAllowed?treasuryModels(conn).account.find(accountScope)
   .select('name network currency kind bookBalanceMinor lastObservedMinor lastVarianceMinor lastObservationAt lastExpectedAtObservationMinor lastObservationStale reconciliationState status openingBalanceMinor branchId')
@@ -225,10 +225,19 @@ async function generate(conn,tenant,actor,input={},timeZone='UTC'){
   providerFormatted:format(group.providerMinor,group._id.providerCurrency),
   cashFormatted:format(group.cashMinor,group._id.cashCurrency)
  }));
+ const recordAfterSources=positionsAllowed?[
+  ...recordRows.slice(0,take).filter(row=>row.fundingState==='book_recorded'&&row.fundsSourceRef)
+   .map(row=>({recordId:row._id,sourceType:row.fundsSourceRef.startsWith('MFX:')?'forex':'mobile_money',
+    sourceRef:row.fundsSourceRef,stage:'Mobile Money'})),
+  ...fxRecordRows.slice(0,take).filter(row=>/^[a-f0-9-]{36}$/i.test(String(row.idempotencyKey||'')))
+   .map(row=>({recordId:row._id,sourceType:'forex',sourceRef:'MFX:'+row.idempotencyKey,stage:'Linked Forex'})
+ ]:[];
+ const afterSnapshots=recordAfterSources.length?
+  await require('./recordBalances.service').snapshots(conn,tenant,actor,recordAfterSources):new Map();
  return {window,...summarize(transactions,payouts,expenses),fxRows,positions,positionsAccessible:positionsAllowed,expensesAccessible,
-  recordItems:recordRows.slice(0,take).map(row=>mobile.visibleRecordForRole(row,actor.role)),
+  recordItems:recordRows.slice(0,take).map(row=>({...mobile.visibleRecordForRole(row,actor.role),balanceAfter:afterSnapshots.get(String(row._id))||[]})),
   recordNextCursor:recordRows.length>take?mobile.encodeCursor(recordRows[take-1]):null,
-  fxItems:fxRecordRows.slice(0,take),
+  fxItems:fxRecordRows.slice(0,take).map(row=>({...row,balanceAfter:afterSnapshots.get(String(row._id))||[]})),
   fxNextCursor:fxRecordRows.length>take?
    mobile.encodeCursor({createdAt:fxRecordRows[take-1].settledAt,_id:fxRecordRows[take-1]._id}):null,
   payoutsAccessible:hasPayoutScope,

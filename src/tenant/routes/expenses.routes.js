@@ -31,7 +31,9 @@ module.exports=function expensesRoutes({renderTenant}){
   const record=await expenses.detail(req.tenantDb,req.tenant,req.user,req.params.id),perms=permissions(req.user);
   const independent=String(record.operatorId)!==String(req.user.id)&&String(record.pendingChange?.requestedBy||'')!==String(req.user.id);
   renderTenant(req,res,'expenses/detail','Expense details','Original evidence, independent decisions, and correction history.',{
-   record,permissions:perms,format:mobile.formatMoneyMinor,fundChoices:await expenses.fundChoices(req.tenantDb,req.tenant,req.user,{expenseId:req.params.id}),
+   record,permissions:perms,format:mobile.formatMoneyMinor,fundChoices:(perms.review||String(record.operatorId)===String(req.user.id))?
+    await expenses.fundChoices(req.tenantDb,req.tenant,req.user,{expenseId:req.params.id}):[],
+   afterBalances:await require('../services/recordBalances.service').forRecord(req.tenantDb,req.tenant,req.user,'expenses',record),
    canReview:perms.review&&independent&&record.status==='pending_review'&&!record.pendingChange,
    canDecide:perms.review&&independent&&!!record.pendingChange,canChange:['pending_review','approved'].includes(record.status)&&!record.pendingChange});
  }catch(error){next(error);}});

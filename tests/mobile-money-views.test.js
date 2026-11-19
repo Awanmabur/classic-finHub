@@ -92,12 +92,39 @@ test('network activity and report use supplied totals, retained status, filters 
   assert.match(network,/cursor=next-key/);
   const report = await render('report',options());
   for(const label of ['Mobile Money report','Transaction volume','Physical cash movement','Cash and float reconciliation','Network breakdown','Income and expenses']) assert.ok(report.includes(label));
-  assert.match(report,/\/tenant\/mobile-money\/report\/unified\.csv\?/);
+  assert.match(report,/\/tenant\/mobile-money\/report\/export\.csv\?/);
   assert.doesNotMatch(report,/Report basis/);
   assert.doesNotMatch(report,/Entry source/);
   assert.match(report,/Reporting period/);
   const readonly = options(); readonly.data.canExport=false;
   assert.doesNotMatch(await render('report',readonly),/Export CSV/);
+});
+
+test('report shows every customer and linked Forex record on its own row without merging currencies',async()=>{
+ const locals=options();
+ locals.data.reportData.recordItems=[{
+  _id:'507f1f77bcf86cd799439081',createdAt:new Date('2026-11-19T09:00:00Z'),
+  network:'MTN',networkReference:'MO-UNIQUE-001',operation:'cash_out',
+  currency:'UGX',amountMinor:'1000',cashCurrency:'SSP',physicalCashMovementMinor:'-90000',
+  agentCommissionEstimate:{amountMinor:'25'},customerNetworkFeeEstimate:{amountMinor:'50'},
+  status:'recorded',fundingState:'book_recorded',fxSettlementId:'507f1f77bcf86cd799439082'
+ }];
+ locals.data.reportData.fxItems=[{
+  _id:'507f1f77bcf86cd799439082',settledAt:new Date('2026-11-19T09:00:01Z'),
+  network:'MTN',providerReference:'FX-UNIQUE-001',operation:'withdraw_provider_receive_cash',
+  providerCurrency:'UGX',providerAmountMinor:'1000',cashCurrency:'SSP',cashAmountMinor:'90000',
+  rateSide:'buy',rateDecimal:'90',providerSettlementState:'unverified'
+ }];
+ const html=await render('report',locals);
+ assert.match(html,/Individual Mobile Money transactions/);
+ assert.match(html,/Individual linked Forex records/);
+ assert.match(html,/MO-UNIQUE-001/);
+ assert.match(html,/FX-UNIQUE-001/);
+ assert.match(html,/UGX 1000/);
+ assert.match(html,/SSP -90000/);
+ assert.match(html,/SSP 90000/);
+ assert.match(html,/same underlying cash\/float posting/);
+ assert.doesNotMatch(html,/Linked Mobile Money exchanges/);
 });
 
 test('cash impact retains all approved cards and separates physical cash from recorded commissions',async()=>{

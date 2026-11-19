@@ -109,7 +109,7 @@ async function decide(conn,tenant,actor,requestId,input){
   const nextStatus=decision==='reject'?'rejected':completed?'approved':'pending';
   updated=await Case.findOneAndUpdate({_id:current._id,status:'pending',revision:current.revision,currentStep:current.currentStep,
    expiresAt:{$gt:now}},{$set:{status:nextStatus,...(nextStatus!=='pending'?{terminalBy:actor.id,terminalAt:now,terminalNote:note}:{})},
-   $inc:{currentStep:decision==='approve'?1:0,revision:1},$push:{decisions:{stepIndex:current.currentStep,actorId:actor.id,role:actor.role,decision,note,at:now}}},
+   $inc:{currentStep:decision==='approve'?1:0,revision:1},$push:{decisions:{stepIndex:current.currentStep,actorId:actor.id,role:actor.role,decision,note,at:now,selfReviewed:String(current.requesterId)===String(actor.id)}}},
    {new:true,session,runValidators:true});
   if(!updated)throw fail('Approval changed concurrently. Refresh and retry.',409);
   await auditEventModel(conn).create([{action:`approvals.request.${nextStatus==='pending'?'step_approved':nextStatus}`,

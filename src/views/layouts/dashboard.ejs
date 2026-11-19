@@ -106,6 +106,26 @@
             <div class="ctrl headerSearch"><input id="search" type="search" aria-label="Search loaded records" placeholder="Search name, phone, ref, PIN, account…"></div>
             <div class="headerButtons">
               <% if(visiblePaths.has('/tenant/notifications')){ %><a class="btn headerNotice" id="phase2NotifyBtn" href="/tenant/notifications">Notifications <span class="phase2Badge" id="phase2NotifyCount"><%= data.workspaceSnapshot?.notificationUnread??'—' %></span></a><% } %>
+              <% if(typeof canViewBranches!=='undefined'&&canViewBranches){ %>
+              <form method="post" action="/tenant/view-branch" class="ctrl headerBranchView" data-branch-view-form>
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <input type="hidden" name="returnTo" value="<%= typeof branchViewReturnTo!=='undefined'?branchViewReturnTo:currentPath %>">
+                <label for="headerViewingBranch" class="visuallyHidden">Viewing branch</label>
+                <select id="headerViewingBranch" name="viewBranchId" aria-label="Viewing branch">
+                  <option value="all" <%= typeof viewBranchId!=='undefined'&&viewBranchId==='all'?'selected':'' %>>All branches</option>
+                  <% (typeof viewBranches!=='undefined'?viewBranches:[]).forEach(branch=>{ %>
+                  <option value="<%= branch._id %>" <%= typeof viewBranchId!=='undefined'&&String(branch._id)===String(viewBranchId)?'selected':'' %>><%= branch.name %></option>
+                  <% }) %>
+                </select>
+                <noscript><button class="btn" type="submit">Apply</button></noscript>
+              </form>
+              <% } %>
+              <% if(['Tenant Owner','Branch Manager'].includes(user.role)){ %>
+              <form method="post" action="/tenant/backups/action" class="headerDriveForm">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button class="btn btnIcon" type="submit" aria-label="Google Drive backup" title="Google Drive backup"><i class="fa-brands fa-google-drive" aria-hidden="true"></i></button>
+              </form>
+              <% } %>
               <div class="headerPrimaryActions">
                 <% if(visiblePaths.has('/tenant/last-receipt')){ %><a class="btn" id="lastReceiptBtn" href="<%= data.workspaceSnapshot?.latestAcknowledgement?.href||'/tenant/last-receipt' %>">Last receipt</a><% } %>
                 <% if(transactionOptions.length){ %><button class="btn btnPrimary" id="newTransactionBtn" type="button" data-open-transaction>New transaction</button><% } %>

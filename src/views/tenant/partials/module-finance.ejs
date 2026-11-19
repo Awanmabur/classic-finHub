@@ -3,6 +3,7 @@
    const moduleAssets=(moduleFinance.byModule||[]).find(item=>item.moduleKey===moduleKey)?.totals||[];
    const sharedTreasuryAssets=(moduleFinance.byModule||[]).find(item=>item.moduleKey==='shared')?.totals||[];
    const showSharedForex=moduleKey==='forex'&&!moduleAssets.length&&sharedTreasuryAssets.length>0;
+   const recordStats=data.stats||null;
    const financialCards=[
     {title:showSharedForex?'Shared Treasury · reference':'Operating assets · book',items:showSharedForex?sharedTreasuryAssets:moduleAssets,
       empty:moduleKey==='forex'?'Set up Forex stock and settlement balances in Treasury':'No opened module-specific accounts',
@@ -10,23 +11,28 @@
     {title:'Posted income · '+(moduleFinance.periodLabel||'today'),items:modulePosting.income||[],empty:'No income posted',note:'Actual collected fees and recognized income only. Currency trading gains require matched inventory cost.'},
     {title:'Posted expenses · '+(moduleFinance.periodLabel||'today'),items:modulePosting.expenses||[],empty:'No expenses posted',note:'Actual booked expenses only, not anticipated costs.'},
     {title:'Posted net income · '+(moduleFinance.periodLabel||'today'),items:modulePosting.net||[],empty:'No posted net income',note:moduleKey==='forex'?'Operating income less booked expenses; Forex trading profit is not fabricated without verified inventory cost basis.':'Posted income less posted expenses.'}
-   ]; %>
-<% if(moduleFinance.available){ %>
+   ];
+   const recordCards=recordStats?[
+    {title:'Transactions in selected period',value:recordStats.total+' records',items:[],note:'One count per saved record; pending instructions are not posted transactions.'},
+    {title:recordStats.completedLabel,value:recordStats.posted+' posted',items:recordStats.postedVolumes,secondaryRows:moduleKey==='forex'?recordStats.targetVolumes:[],secondaryTitle:'Target currencies',note:'Posted amounts in native currencies; not revenue or Forex profit.'},
+    {title:moduleKey==='money_transfer'?'Collected · awaiting payout':'Not yet posted',value:String(moduleKey==='money_transfer'?recordStats.collected:recordStats.pending),items:[],note:'Pending records have no posted balance movement.'},
+    {title:'Cancelled / rejected / expired',value:String(recordStats.stopped),items:[],note:'Kept for audit and excluded from posted transaction totals.'}
+   ]:null;
+   const cardsToDisplay=recordCards||financialCards;
+   const reportCurrency=data.filters?.currency||'';
+ %>
+<% if(moduleFinance.available||recordStats){ %>
 <section class="financialModuleOverview" aria-label="Financial summary for this module" style="margin-top:12px">
  <div class="grid3 overviewStatsGrid moduleStatsGrid">
-  <% financialCards.forEach(card=>{ %>
-  <div class="stat" title="<%= card.note %>">
-   <div class="k"><%= card.title %></div>
-   <% if(!card.items.length){ %><div class="v"><%= card.empty %></div>
-   <% }else{ %><div class="overviewCurrencyLines">
-    <% card.items.forEach(row=>{ %><div class="overviewCurrencyLine">
-      <span><%= row.currency==='KES'?'KSH':row.currency %></span>
-      <b><%= row.formatted.replace(/^KES /,'KSH ') %></b>
-    </div><% }); %>
-   </div><% } %>
-   <div class="s"><%= card.note %></div>
-  </div><% }); %>
- </div>
+  <% cardsToDisplay.forEach(card=>{ %>
+   <%- include('overview-stat-card',{
+    title:card.title,items:card.items||[],value:recordCards?card.value:null,
+    empty:card.empty||'—',note:card.note||'',currencyFilter:reportCurrency,
+    secondaryRows:card.secondaryRows||[],secondaryTitle:card.secondaryTitle||'',
+    tooltip:card.note||''
+   }) %>
+  <% }); %>
+  </div>
  <% if(moduleKey==='money_transfer'&&moduleFinance.transferPayoutFxActivity){ const fx=moduleFinance.transferPayoutFxActivity; %>
  <section class="card" style="margin-top:12px" aria-label="Actual cross-currency PIN payouts">
   <div class="cardHead"><b>Cross-currency remittances · actually paid</b><span>Native-currency Treasury ledger · PIN verified</span></div>

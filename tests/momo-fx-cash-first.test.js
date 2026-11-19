@@ -65,5 +65,5 @@ test('settlement cannot change the derived wallet amount or use wrong rate side'
  assert.throws(()=>quote({...q,providerAmountMinor:'4999'}),/Provider amount does not match/);
  assert.throws(()=>quote({...q,rateSide:'buy'}),/Wrong approved/);
  assert.throws(()=>quote({...q,cashCurrency:'UGX'}),/different currencies/);
- assert.throws(()=>quote({...q,rateDecimal:'0.00000001',cashAmountMinor:'1'}),/converts to zero/);
+ assert.throws(()=>quote({...q,rateDecimal:'1000000000',cashAmountMinor:'1'}),/converts to zero/);
 });

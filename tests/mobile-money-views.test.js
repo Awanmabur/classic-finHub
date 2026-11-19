@@ -38,8 +38,8 @@ test('approved mobile money entry preserves the protected server contract and as
   assert.match(html,/action="\/tenant\/mobile-money\/cash-in"/);
   assert.match(html,/name="_csrf" value="protected-csrf"/);
   assert.match(html,new RegExp(`name="idempotencyKey" value="${requestKey}"`));
-  for(const field of ['customer','customerPhone','network','networkReference','customerNote','amount','fee','currency','paymentMethod']) assert.match(html,new RegExp(`name="${field}"`));
-  for(const label of ['Customer and network','Customer phone','Customer name','Network transaction reference','Customer ID / note','Amount and accounts','No extra agent fee','Physical cash received from customer','Record deposit']) assert.ok(html.includes(label),label);
+  for(const field of ['customer','customerPhone','network','customerNote','amount','fee','currency','paymentMethod']) assert.match(html,new RegExp(`name="${field}"`));
+  for(const label of ['Customer and network','Customer phone','Customer name','Customer ID / note','Amount and accounts','No extra agent fee','Physical cash received from customer','Record deposit']) assert.ok(html.includes(label),label);
   assert.match(html,/<option value="Africell" data-market-currency=""(?: selected| disabled)*>Africell<\/option>/);
   assert.match(html,/name="paymentMethod" value="Cash"/);
   assert.doesNotMatch(html,/<option value="Wallet Balance">/);
@@ -297,7 +297,11 @@ test('one original cashier form supports same/cross currency without a second pa
  assert.ok(!html.includes('name="providerAppConfirmed"'));
  assert.ok(!html.includes('name="cashHandoverConfirmed"'));
  assert.equal((html.match(/name="transactionConfirmed"/g)||[]).length,1,
-  'Only one actual-provider-and-cash confirmation is required in the existing form');
+  'Record submit button must carry the acknowledgement');
+ assert.doesNotMatch(html,/type="checkbox" name="transactionConfirmed"/);
+ assert.doesNotMatch(html,/name="networkReference"/);
+ assert.doesNotMatch(html,/data-mobile-reference/);
+ assert.match(html,/type="submit" name="transactionConfirmed" value="yes"/);
  assert.ok(!html.includes('action="/tenant/mobile-money/fx/record"'));
  assert.ok(!html.includes('regulatoryAuthorizationReference'));
  const script=require('node:fs').readFileSync(path.resolve(__dirname,'../public/js/mobile-money-unified.js'),'utf8');
@@ -350,8 +354,8 @@ test('cashier form displays real wallets and SSP-first authorized drawers withou
  assert.match(html,/option value="other-wallet"[^>]*disabled/);
  assert.match(html,/assigned to another cashier/);
  const walletStart=html.indexOf('name="walletAccountId"');
- assert(walletStart>0 && walletStart<html.indexOf('name="networkReference"'),
-  'Cashier needs to see the wallet first, before typing provider reference');
+ assert(walletStart>0 && walletStart<html.indexOf('name="amount"'),
+  'Cashier must choose a wallet before entering the amount');
  assert.equal((html.match(/name="walletAccountId"/g)||[]).length,1);
  assert.equal((html.match(/name="paymentAccountId"/g)||[]).length,1);
 });

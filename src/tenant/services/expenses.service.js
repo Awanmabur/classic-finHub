@@ -192,7 +192,7 @@ async function review(conn,tenant,actor,expenseId,input={}){
   ({actor,tenant}=await access(conn,tenant,actor,'expenses.review',session));
   const old=await expenseModel(conn).findOne({_id:id(expenseId),...scopeFor(actor)}).session(session).lean();
   if(!old)throw fail('Expense not found within your permissions',404);
-  if(String(old.operatorId)===String(actor.id))throw fail('A different authorized person must review this expense',403);
+  if(String(old.operatorId)===String(actor.id)&&!require('./reviewPolicy').canSelfReviewRoutine(actor,old.branchId))throw fail('A different authorized person must review this expense',403);
   if(old.status!=='pending_review'||old.pendingChange)throw fail('Expense was reviewed or has an unresolved correction',409);
   const funded=input.decision==='approve'&&await requiresBook(conn,tenant,old,session);let posting={},batchId=null;
   if(funded){

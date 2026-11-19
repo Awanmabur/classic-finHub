@@ -1,7 +1,8 @@
 <% const viewZone=typeof businessTimeZone==='string'?businessTimeZone:'UTC';
 const localWhen=typeof formatLocalDate==='function'?formatLocalDate:
  (value=>new Date(value).toISOString().slice(0,16).replace('T',' ')); %>
-<section class="view show financialReportsPage"><section class="card"><div class="cardHead"><b>Forex quotation <%= data.quote.reference %></b><span><%= data.quote.status.replaceAll('_',' ') %></span></div><div class="cardBody">
+<section class="view show financialReportsPage">
+<%- include('../partials/record-balances',{recordStatus:data.quote.status}) %><section class="card"><div class="cardHead"><b>Forex quotation <%= data.quote.reference %></b><span><%= data.quote.status.replaceAll('_',' ') %></span></div><div class="cardBody">
  <% if(data.quote?.originModule==='mobile_money'){ %>
  <section class="card"><div class="cardBody">
   <b>Source: Mobile Money · <%= data.quote.originNetwork %> · <%= data.quote.originOperation==='cash_out'?'Withdrawal':'Deposit' %></b>

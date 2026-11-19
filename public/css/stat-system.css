@@ -150,3 +150,40 @@
   gap:6px!important
  }
 }
+
+/* Shared checkbox + paragraph alignment. The checkbox begins the first
+ * text line and explanatory text wraps beneath the text, not beneath the box. */
+#workspaceContent label.checkline,
+#workspaceContent label.moduleChoice,
+#workspaceContent label.branchCurrencyChoice{
+ display:grid!important;
+ grid-template-columns:17px minmax(0,1fr)!important;
+ align-items:start!important;
+ column-gap:9px!important;row-gap:0!important;
+ line-height:1.35!important;
+ cursor:pointer;
+ min-width:0;
+ text-align:left;
+}
+#workspaceContent :is(label.checkline,label.moduleChoice,label.branchCurrencyChoice)>input[type="checkbox"]{
+ grid-column:1!important;grid-row:1!important;
+ position:static!important;
+ justify-self:start;align-self:start;
+ width:16px!important;height:16px!important;
+ min-width:16px;flex:0 0 auto;
+ margin:2px 0 0!important;padding:0!important;
+ accent-color:var(--primary);
+}
+#workspaceContent :is(label.checkline,label.moduleChoice,label.branchCurrencyChoice)>:is(span,.checkOptionText){
+ grid-column:2!important;grid-row:1!important;
+ margin:0!important;min-width:0!important;
+ line-height:1.4;overflow-wrap:anywhere;
+}
+#workspaceContent .checkOptionText small{
+ display:block;color:var(--muted);font-size:11px;
+ line-height:1.4;margin-top:4px
+}
+#workspaceContent .checkOptionText strong{display:block;font-weight:650}
+#workspaceContent .moduleChoiceGrid,#workspaceContent .branchCurrencyChoices{
+ align-items:start;
+}

@@ -10,7 +10,7 @@
  <section class="card" style="margin-top:14px"><div class="cardHead"><b>My delivery preferences</b><span>In-app is always available</span></div><div class="cardBody">
  <p class="tiny">Email requires your opt-in and a separately configured delivery provider. Provider acceptance is not a read or delivery receipt. Essential account-security notices are handled by the platform independently of this module.</p>
  <form method="post" action="/tenant/notifications/preferences" class="rowBtns"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
- <label class="field"><input type="checkbox" name="emailOptIn" value="on" <%= data.prefs.emailOptIn?'checked':'' %>> Also request email delivery to my registered account email</label>
+ <label class="checkline"><input type="checkbox" name="emailOptIn" value="on" <%= data.prefs.emailOptIn?'checked':'' %>><span>Also request email delivery to my registered account email</span></label>
  <button class="btn btnPrimary" type="submit">Save preference</button></form></div></section>
  <% if(data.canSend){ %><section class="card" style="margin-top:14px"><div class="cardHead"><b>Send staff notification</b><span>One active, authorized recipient per request</span></div><div class="cardBody">
  <form method="get" action="/tenant/notifications" class="rowBtns"><label class="field">Find recipient by name<input class="control" name="search" value="<%= data.search %>" maxlength="80" placeholder="Type staff name"></label><button class="btn" type="submit">Search</button></form>
@@ -28,7 +28,7 @@
  <label class="field">Subject<input class="control" name="subject" minlength="3" maxlength="120" required></label>
  <label class="field">Message body<textarea class="control" name="body" rows="4" minlength="5" maxlength="1000" required></textarea></label>
  <p class="tiny">Allowed text variables: <code>{{recipient_name}}</code>, <code>{{tenant_name}}</code>, <code>{{sender_name}}</code>. No HTML or arbitrary URLs are interpreted.</p>
- <label class="field"><input type="checkbox" name="emailAvailable" value="on"> Allow optional email when the recipient opted in</label>
+ <label class="checkline"><input type="checkbox" name="emailAvailable" value="on"><span>Allow optional email when the recipient opted in</span></label>
  <button type="submit" class="btn btnPrimary">Publish template version</button></form></div></section>
  <section class="card" style="margin-top:14px"><div class="cardHead"><b>Active templates</b><span>Owner-controlled</span></div><div class="cardBody tableWrap"><table><thead><tr><th>Template</th><th>Version</th><th>Email permitted</th><th>Action</th></tr></thead><tbody>
  <% data.templates.forEach(t=>{ %><tr><td><%= t.name %> <span class="tiny">(<%= t.code %>)</span></td><td><%= t.version %></td><td><%= t.emailAvailable?'Yes':'No' %></td><td><form method="post" action="/tenant/notifications/templates/<%= t.code %>/retire"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn" type="submit">Retire</button></form></td></tr><% }) %>

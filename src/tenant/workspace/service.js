@@ -201,9 +201,10 @@ async function publicLanding(conn,tenant){
 // provider verification from tenant branding or receipt preferences.
 async function receiptIdentity(conn,tenant){
  context(conn,tenant);
- const saved=await models(conn).config.findOne({tenantId:tenantId(tenant)}).select('profile.name profile.supportPhone branding').lean();
+ const saved=await models(conn).config.findOne({tenantId:tenantId(tenant)}).select('profile.name profile.supportPhone branding landing.publishedAt').lean();
  const config=combine(tenant,saved);
  return {name:config.profile.name,supportPhone:config.profile.supportPhone,prefix:config.branding.prefix,
+   websiteHref:saved?.landing?.publishedAt?'/t/'+encodeURIComponent(tenant.slug):'/',
   template:config.branding.template,footerNote:config.branding.receiptNote,
   primary:/^#[a-fA-F0-9]{6}$/.test(config.branding.primary)?config.branding.primary:'#082c52',
   secondary:/^#[a-fA-F0-9]{6}$/.test(config.branding.secondary)?config.branding.secondary:'#0d4f91'};

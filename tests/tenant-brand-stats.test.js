@@ -31,12 +31,13 @@ test('Every tenant dashboard uses its own brand, and Logout is the final sidebar
  const sidebar=html.slice(html.indexOf('<aside class="panel side"'),html.indexOf('</aside>'));
  const header=html.slice(html.indexOf('<div class="topbar">'),html.indexOf('<div class="title">'));
  assert.match(sidebar,/class="sidebarLogoutForm"/);
- assert.match(sidebar,/class="sidebarBackupForm"/);
+ assert.doesNotMatch(sidebar,/class="sidebarBackupForm"/,'Backup icon moved to header');
+ assert.match(header,/class="headerDriveForm"/,'Owner backup icon remains available');
  assert.match(sidebar,/<form method="post" action="\/logout" class="sidebarLogoutForm">/);
  assert.match(sidebar,/name="_csrf" value="test-csrf"/);
  assert.equal((html.match(/action="\/logout"/g)||[]).length,1);
  assert.doesNotMatch(header,/action="\/logout"/);
- assert(sidebar.indexOf('class="sidebarBackupForm"')<sidebar.indexOf('class="sidebarLogoutForm"'));
+ assert(sidebar.indexOf('class="sidebarLogoutForm"')>=0,'Logout stays as the final sidebar control');
  assert.match(html,/name="currency" aria-label="Display currency"><option value="" selected>All currencies/);
 });
 test('Tenant header is ordered account, currency, search, notifications, receipt and new transaction',async()=>{
@@ -51,11 +52,13 @@ test('Tenant header is ordered account, currency, search, notifications, receipt
  const html=await ejs.renderFile(template,args);
  const header=html.slice(html.indexOf('<div class="topbar">'),html.indexOf('<div class="title">'));
  const positions=['class="headerIdentity"','class="headerScope"','class="ctrl headerSearch"','id="phase2NotifyBtn"',
-  'id="lastReceiptBtn"','id="newTransactionBtn"'].map(token=>header.indexOf(token));
+  'class="headerBranchView"','class="headerDriveForm"','id="lastReceiptBtn"','id="newTransactionBtn"'].map(token=>header.indexOf(token));
  assert(positions.every(index=>index>=0),JSON.stringify(positions));
  assert(positions.every((index,i)=>i===0||index>positions[i-1]),'Header action order must match cashier workflow');
- assert.doesNotMatch(header,/Visit website|action="\/logout"|data-branch-view-form/);
- assert.match(html,/class="sidebarBranchView" data-branch-view-form/);
+ assert.doesNotMatch(header,/Visit website|action="\/logout"/);
+ assert.match(header,/class="ctrl headerBranchView" data-branch-view-form/);
+ assert.match(header,/class="headerDriveForm"/);
+ assert.doesNotMatch(html,/class="sidebarBranchView"/,'Do not duplicate authorized branch selector');
  assert.match(html,/action="\/tenant\/view-branch"/);
  assert.match(html,/name="viewBranchId" aria-label="Viewing branch"/);
 });

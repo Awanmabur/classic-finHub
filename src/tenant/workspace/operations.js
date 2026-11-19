@@ -52,7 +52,13 @@ function build({tenant,actor,allBranches,people,accounts=[],shifts=[],rates=[],c
  const moduleRows=[];
  const check=(id,label,state,detail,href,action)=>({id,label,state,detail,href,action});
  const checks=[check('branches','Operating branches',branches.length?'ready':'blocked',branches.length?`${branches.length} active ${branches.length===1?'branch':'branches'} in this view.`:'Create an active operating branch before recording transactions.','/tenant/branches','Manage branches')];
- const operators=people.filter(person=>Object.entries(SPECS).some(([module,spec])=>hasModuleForUser(tenant,staffActor(person),module)&&hasPermission(staffActor(person),spec.create)));
+ // An assigned manager may perform cashier operations when they actually
+ // hold a cashier's funds, but an unfunded supervisor is not an unprepared
+ // teller who blocks the branch's operational readiness.
+ const operators=people.filter(person=>(
+  person.role!=='Branch Manager'||accounts.some(account=>key(account.operatorId)===key(person._id))
+ )&&Object.entries(SPECS).some(([module,spec])=>
+  hasModuleForUser(tenant,staffActor(person),module)&&hasPermission(staffActor(person),spec.create)));
  const unassigned=operators.filter(person=>!operationBranch(person,allBranches)||!activeBranchIds.has(operationBranch(person,allBranches)));
  const relevantUnassigned=unassigned.filter(person=>allView||key(person._id)===actor.id||branchIds.has(key(person.branchId)));
  checks.push(check('assignments','Staff operating assignments',relevantUnassigned.length?'blocked':'ready',relevantUnassigned.length?`${relevantUnassigned.length} active operating ${relevantUnassigned.length===1?'account needs':'accounts need'} an active branch assignment.`:'Active operating accounts in this view have a resolvable branch.','/tenant/users','Assign staff'));

@@ -233,10 +233,14 @@ async function settleVerified(conn,tenant,actor,input,proof){
  }finally{await session.endSession();}
 }
 async function settleManuallyConfirmed(conn,tenant,actor,input){
+ // One affirmative cashier attestation covers two real-world acts.
+ // Existing direct service callers with two confirmations remain supported,
+ // but no confirmation still means no posting.
+ const confirmed=input?.transactionConfirmed==='yes' ||
+  (input?.providerAppConfirmed==='yes'&&input?.cashHandoverConfirmed==='yes');
  const proof={mode:'operator_attested_unverified',actorId:String(actor?.id||''),
   providerReference:input?.providerReference,
-  providerAppConfirmed:input?.providerAppConfirmed==='yes',
-  cashHandoverConfirmed:input?.cashHandoverConfirmed==='yes'};
+  providerAppConfirmed:confirmed,cashHandoverConfirmed:confirmed};
  if(!hasPermission(actor,input?.operation==='withdraw_provider_receive_cash'?'mobile_money.cash_out':'mobile_money.cash_in'))
   throw fail('Mobile Money transaction permission is required',403);
  return settleVerified(conn,tenant,actor,input,proof);

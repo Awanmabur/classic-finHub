@@ -12,6 +12,26 @@ function summary(account){return {id:String(account._id),name:account.name,kind:
  expected:account.openingBalanceMinor===null?null:money(account.bookBalanceMinor,account.currency),observed:account.lastObservedMinor===null?null:money(account.lastObservedMinor,account.currency),
  observedAt:account.lastObservationAt,variance:account.lastVarianceMinor===null?null:money(account.lastVarianceMinor,account.currency),state:account.status,reconciliation:account.reconciliationState,
  expectedMinor:account.openingBalanceMinor===null?null:String(account.bookBalanceMinor),lastFour:String(account.accountReference||'').slice(-4),isDefault:Boolean(account.selectionKey),cashDrawerAccountId:account.cashDrawerAccountId?String(account.cashDrawerAccountId):null,feeTreatment:account.feeTreatment||'record_only'};}
+// A reconciled Treasury cash account is not necessarily available for
+// posting: the operator must also have a verified, matching cash shift.
+function cashPostingStatus(account,shift){
+ if(account.kind!=='cash')return {postingReady:false,postingReason:'Not a physical cash drawer'};
+ if(!shift)return {postingReady:false,postingReason:'Open and verify the cash shift for this currency first'};
+ if(shift.status==='pending_open'||!shift.openingVerifiedAt)
+  return {postingReady:false,postingReason:'Cash shift opening is awaiting independent verification'};
+ if(shift.status!=='open')
+  return {postingReady:false,postingReason:'Cash shift is not open; complete shift reconciliation first'};
+ if(shift.treasuryAccountId&&String(shift.treasuryAccountId)!==String(account._id))
+  return {postingReady:false,postingReason:'The open cash shift belongs to a different cash account'};
+ try{
+  const expected=BigInt(String(shift.openingMinor))+BigInt(String(shift.provisionalMovementMinor));
+  if(expected!==BigInt(String(account.bookBalanceMinor)))
+   return {postingReady:false,postingReason:'Physical cash shift and confirmed cash book differ; reconcile the opening or intervening movements'};
+ }catch(error){
+  return {postingReady:false,postingReason:'Cash shift balance is unavailable; review its opening and transactions'};
+ }
+ return {postingReady:true,postingReason:''};
+}
 async function context(conn,tenant,actor,branch){
  const trusted=await treasury.access(conn,tenant,actor,{permission:'mobile_money.view',sourceType:'mobile_money'});
  if(!['Tenant Owner','Mobile Money Operator','Branch Manager','Reconciliation Officer','Auditor'].includes(trusted.actor.role)&&
@@ -25,6 +45,16 @@ async function context(conn,tenant,actor,branch){
  const query={tenantId:trusted.tenant._id,branchId:branch._id,currency:{$in:currencies},status:{$ne:'archived'},
   ...(allBranchAccounts?{}:{$or:[{operatorId:trusted.actor.id},{operatorId:null}]})};
  const accounts=await fundsModels.models(conn).account.find(query).sort({name:1}).limit(200).lean();
+ const personalCash=accounts.filter(row=>row.kind==='cash'&&String(row.operatorId||'')===String(trusted.actor.id));
+ const shiftCurrencies=[...new Set(personalCash.map(row=>row.currency))];
+ const shifts=shiftCurrencies.length?await core.cashSessionModel(conn).find({
+  branchId:branch._id,operatorId:trusted.actor.id,
+  currency:{$in:shiftCurrencies},status:{$in:['open','pending_open','disputed','submitted']}
+ }).select('_id currency status openingMinor provisionalMovementMinor openingVerifiedAt treasuryAccountId createdAt')
+  .sort({createdAt:-1}).limit(80).lean():[];
+ const byCurrency=new Map();
+ for(const shift of shifts){if(!byCurrency.has(shift.currency))byCurrency.set(shift.currency,shift);}
+
  let customerAccounts=[];
  if(hasModuleForUser(trusted.tenant,trusted.actor,'accounts')&&hasPermission(trusted.actor,'accounts.view')){
   const rows=await directory.accountModel(conn).aggregate([{$match:{branchId:branch._id,currency:{$in:currencies},status:'active'}},
@@ -33,7 +63,11 @@ async function context(conn,tenant,actor,branch){
   const balances=new Map(postings.map(row=>[String(row._id),String(row.amount)]));
   customerAccounts=rows.map(row=>({id:String(row._id),name:row.customer.name,last4:row.accountNumber.slice(-4),currency:row.currency,balance:money(balances.get(String(row.ledgerAccountId))||'0',row.currency)}));
  }
- return {wallets:accounts.filter(account=>account.kind==='wallet').map(account=>({...summary(account),assignedToOperator:String(account.operatorId||'')===String(actor.id),shared:!account.operatorId})),paymentAccounts:accounts.filter(account=>['cash','bank'].includes(account.kind)).map(account=>({...summary(account),assignedToOperator:String(account.operatorId||'')===String(actor.id)})),customerAccounts,setupHref:'/tenant/treasury'};
+ return {wallets:accounts.filter(account=>account.kind==='wallet').map(account=>({...summary(account),assignedToOperator:String(account.operatorId||'')===String(actor.id),shared:!account.operatorId})),paymentAccounts:accounts.filter(account=>['cash','bank'].includes(account.kind)).map(account=>{
+  const assigned=String(account.operatorId||'')===String(trusted.actor.id);
+  const availability=account.kind==='cash'&&assigned?cashPostingStatus(account,byCurrency.get(account.currency)):{postingReady:false,postingReason:''};
+  return {...summary(account),assignedToOperator:assigned,...availability};
+ }),customerAccounts,setupHref:'/tenant/treasury'};
 }
 async function shouldTrack(conn,tenant,values,required){
  if(required||values.walletAccountId)return true;
@@ -132,4 +166,4 @@ async function apply(conn,session,authorization,values,{requireObservation=false
   walletBalanceBeforeMinor:String(wallet.bookBalanceMinor),walletBalanceAfterMinor:String(BigInt(String(wallet.bookBalanceMinor))+walletDelta),walletObservationId:observation?._id||null,
   physicalCashMovementMinor:values.paymentMethod==='Cash'?String(paymentDelta):'0',fundJournalIds:applied.journalIds||[]};
 }
-module.exports={context,summary,shouldTrack,apply,selectFund};
+module.exports={cashPostingStatus,context,summary,shouldTrack,apply,selectFund};

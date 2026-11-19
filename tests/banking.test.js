@@ -92,7 +92,10 @@ test('Banking role scope and branch assignment must not be supplied by client',(
  assert.throws(()=>bank.requestScope({...operator,branchId:null}),e=>e.status===403);
  assert(!permissionsFor('Banking Operator').includes('banking.review'));
  assert(permissionsFor('Reconciliation Officer').includes('banking.review'));
- assert(!permissionsFor('Branch Manager').includes('banking.requests.create'));
+ assert(permissionsFor('Branch Manager').includes('banking.requests.create'));
+ assert(!hasModuleForUser(tenant(),actor('Branch Manager',[]),'banking'),'Manager cannot create without assignment');
+ assert.throws(()=>bank.moduleAccess(tenant(),actor('Branch Manager',[]),'banking.requests.create'),{status:403});
+ assert.deepEqual(bank.branchScope(actor('Branch Manager')),{branchId:branch});
  assert.throws(()=>bank.moduleAccess({...tenant(),moduleGrants:[grant('reports')]},operator,'banking.view'),e=>e.status===403);
 });
 test('Standalone Operations Reports remains independent and only includes entitled banking source',()=>{

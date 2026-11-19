@@ -123,12 +123,21 @@ async function main(){
   walletAccountId:String(wallet._id),cashAccountId:String(drawer._id),providerAmountMinor:'10'});
  const manualInput={...manualQuote,branchId:String(branch._id),idempotencyKey:crypto.randomUUID(),
   providerReference:'MANUAL-'+crypto.randomBytes(8).toString('hex'),
-  providerAppConfirmed:'yes',cashHandoverConfirmed:'yes'};
+  transactionConfirmed:'yes'};
+ await assert.rejects(settleManuallyConfirmed(conn,tenant,owner,{
+  ...manualInput,idempotencyKey:crypto.randomUUID(),providerReference:'NOT-CONFIRMED-'+nonce,
+  transactionConfirmed:'no'
+ }),error=>error.status===400&&/Confirm the actual provider/.test(error.message),
+  'No cashier confirmation must never result in internal financial posting');
  const manual=await settleManuallyConfirmed(conn,tenant,owner,manualInput);
  assert.equal(manual.record.providerSettlementState,'unverified');
  assert.equal(manual.record.providerEvidenceKind,'operator_attested');
  assert.equal(manual.record.providerVerifiedAt,null);
  assert.equal((await settleManuallyConfirmed(conn,tenant,owner,manualInput)).duplicate,true);
+ assert.equal((await settleManuallyConfirmed(conn,tenant,owner,{
+  ...manualInput,transactionConfirmed:undefined,
+  providerAppConfirmed:'yes',cashHandoverConfirmed:'yes'
+ })).duplicate,true,'Legacy two-checkbox confirmations remain compatible without reposting');
  assert.deepEqual(await balances(),{wallet:'1060',drawer:'45100'});
 
  const beforeSecurityChecks=await balances();

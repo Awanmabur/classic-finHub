@@ -1,12 +1,15 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <link rel="icon" type="image/png" href="/images/classicfinhub-logo.png">
+  <% const layoutTenantName=context==='tenant'?String(tenant?.name||'Tenant workspace'):'ClassicFin Hub';
+     const layoutTenantInitial=layoutTenantName.trim().split(/\s+/).slice(0,2).map(x=>x[0]).join('').replace(/[^a-z0-9]/gi,'').toUpperCase()||'T';
+     const tenantFavicon=encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#082c52"/><text x="32" y="42" fill="#fff" font-size="25" font-family="sans-serif" text-anchor="middle">'+layoutTenantInitial+'</text></svg>'); %>
+  <% if(context==='tenant'){ %><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<%= tenantFavicon %>"><% } else { %><link rel="icon" type="image/png" href="/images/classicfinhub-logo.png"><% } %>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title><%= pageTitle %> — ClassicFin Hub</title>
+  <title><%= pageTitle %> — <%= layoutTenantName %></title>
   <meta name="robots" content="noindex,nofollow" />
-  <meta name="description" content="Protected ClassicFin Hub operations workspace." />
+  <meta name="description" content="Protected <%= layoutTenantName %> operations workspace." />
   <link rel="stylesheet" href="/vendor/inter/inter.css?v=<%= assetVersion %>">
   <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css?v=<%= assetVersion %>" />
   <% if(context==='tenant'){ %><link rel="stylesheet" href="/tenant/workspace/theme.css?v=<%= assetVersion %>" /><link rel="stylesheet" href="/css/approved-tenant.css?v=<%= assetVersion %>" /><% } else { %><link rel="stylesheet" href="/css/dashboard.css?v=<%= assetVersion %>" /><% } %>
@@ -51,15 +54,21 @@
        momoOnlyDashboard?(data.mobileMarkets||[]).map(m=>m.currency):[];
      const dashboardCurrencies=mobileMarketCurrencies.length?
        availableCurrencies.filter(option=>mobileMarketCurrencies.includes(option.code)):availableCurrencies;
+     // Reports and the overview default to every original currency. Entries
+     // keep a concrete currency so the transaction dialog remains valid.
+     const summaryCurrencyView=context==='tenant'&&(currentPath==='/tenant/dashboard'||
+      /^\/tenant\/(?:money-transfer|banking|forex)\/(?:records|movements|report|fees|cash-impact|pending-payouts)$/.test(currentPath)||
+      currentPath==='/tenant/mobile-money/report');
+     const currencyChoices=summaryCurrencyView?[{code:'',label:'All currencies'},...availableCurrencies]:dashboardCurrencies;
      const currencyFilterParams=new URLSearchParams(typeof branchViewReturnTo==='string'?branchViewReturnTo.split('?')[1]||'':'');
      const requestedDisplayCurrency=currencyFilterParams.get('currency');
      const mobileMarketDefault=(mobileOperationPage||momoOnlyDashboard)&&dashboardCurrencies.length?
        (dashboardCurrencies.some(option=>option.code===data.mobileMoneySelectedCurrency)?data.mobileMoneySelectedCurrency:
         dashboardCurrencies.some(option=>option.code===data.mobileMarket?.currency)?data.mobileMarket.currency:dashboardCurrencies[0].code):null;
-     const selectedDisplayCurrency=mobileMarketDefault||
-       data.workspaceSnapshot?.selectedCurrency||data.filters?.currency||data.selectedCurrency||data.entryCurrency||
+     const selectedDisplayCurrency=summaryCurrencyView?(data.dashboardCurrency||data.filters?.currency||''):
+      (mobileMarketDefault||data.workspaceSnapshot?.selectedCurrency||data.filters?.currency||data.selectedCurrency||data.entryCurrency||
        (dashboardCurrencies.some(option=>option.code===requestedDisplayCurrency)?requestedDisplayCurrency:null)||
-       assignedOperationBranch?.currency||'UGX';
+       assignedOperationBranch?.currency||'UGX');
      const pageContent = include(view, { data, money, tenant, user, context, quickActions, visiblePaths, transactionOptions });
      const hasPageSearch = pageContent.includes('data-search-row'); %>
   <a class="skip-link" href="#workspaceContent">Skip to workspace</a>
@@ -81,14 +90,22 @@
           <% if(context==='tenant'){ %>
             <div class="headerScope">
               <% if(typeof canViewBranches!=='undefined'&&canViewBranches){ %><form method="post" action="/tenant/view-branch" class="ctrl" data-branch-view-form><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="returnTo" value="<%= branchViewReturnTo %>"><select name="viewBranchId" aria-label="Viewing branch"><option value="all" <%= viewBranchId==='all'?'selected':'' %>>All branches</option><% viewBranches.forEach(branch=>{ %><option value="<%= branch._id %>" <%= String(branch._id)===viewBranchId?'selected':'' %>><%= branch.name %></option><% }) %></select><noscript><button class="btn" type="submit">View branch</button></noscript></form><% } %>
-              <% if(dashboardCurrencies.length===1&&(mobileOperationPage||momoOnlyDashboard)){ %>
+              <% if(!summaryCurrencyView&&dashboardCurrencies.length===1&&(mobileOperationPage||momoOnlyDashboard)){ %>
                <span class="ctrl" aria-label="Network currency"><%= dashboardCurrencies[0].label %></span>
               <% }else{ %>
-              <form method="get" action="<%= currentPath %>" class="ctrl" data-dashboard-currency-form><% for(const [key,value] of currencyFilterParams){if(!['currency','page','cursor','_csrf'].includes(key)){ %><input type="hidden" name="<%= key %>" value="<%= value %>"><% }} %><select id="currencySelect" name="currency" aria-label="Display currency"><% dashboardCurrencies.forEach(option=>{ %><option value="<%= option.code %>" <%= selectedDisplayCurrency===option.code?'selected':'' %>><%= option.label %></option><% }) %></select><button type="submit" hidden>Apply currency</button><noscript><button type="submit" class="btn">Apply currency</button></noscript></form><% } %>
+              <form method="get" action="<%= currentPath %>" class="ctrl" data-dashboard-currency-form><% for(const [key,value] of currencyFilterParams){if(!['currency','page','cursor','_csrf'].includes(key)){ %><input type="hidden" name="<%= key %>" value="<%= value %>"><% }} %><select id="currencySelect" name="currency" aria-label="Display currency"><% currencyChoices.forEach(option=>{ %><option value="<%= option.code %>" <%= selectedDisplayCurrency===option.code?'selected':'' %>><%= option.label %></option><% }) %></select><button type="submit" hidden>Apply currency</button><noscript><button type="submit" class="btn">Apply currency</button></noscript></form><% } %>
             </div>
             <div class="ctrl headerSearch"><input id="search" type="search" aria-label="Search loaded records" placeholder="Search name, phone, ref, PIN, account…"></div>
             <div class="headerButtons">
               <% if(visiblePaths.has('/tenant/notifications')){ %><a class="btn headerNotice" id="phase2NotifyBtn" href="/tenant/notifications">Notifications <span class="phase2Badge" id="phase2NotifyCount"><%= data.workspaceSnapshot?.notificationUnread??'—' %></span></a><% } %>
+              <div class="headerIdentity" aria-label="Signed-in user and operating branch">
+                <strong><%= user?.name||'Account' %></strong>
+                <span title="Operating branch, separate from the viewing branch"><%= assignedOperationBranch?.name||'No operating branch' %> · <%= user?.role||'Operator' %></span>
+              </div>
+              <div class="headerAccountActions">
+                <a class="btn" href="/" aria-label="Visit website"><i class="fa-solid fa-globe" aria-hidden="true"></i> Website</a>
+                <form method="post" action="/logout"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn" type="submit"><i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i> Logout</button></form>
+              </div>
               <div class="headerPrimaryActions">
                 <% if(['Tenant Owner','Branch Manager'].includes(user.role)){ %><form method="post" action="/tenant/backups/action" class="headerDriveForm"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btnIcon" type="submit" title="Google Drive backups" aria-label="Google Drive backups"><i class="fa-brands fa-google-drive" aria-hidden="true"></i></button></form><% } %>
                 <% if(visiblePaths.has('/tenant/last-receipt')){ %><a class="btn" id="lastReceiptBtn" href="<%= data.workspaceSnapshot?.latestAcknowledgement?.href||'/tenant/last-receipt' %>">Last receipt</a><% } %>
@@ -106,7 +123,7 @@
     </main>
   </div></div>
   <div class="menuOverlay" id="menuOverlay"></div>
-  <% if(transactionOptions.length){ %><%- include('../partials/transaction-modal', {transactionOptions,visiblePaths,seedDisplayCurrency:selectedDisplayCurrency}) %><% } %>
+  <% if(transactionOptions.length){ %><%- include('../partials/transaction-modal', {transactionOptions,visiblePaths,seedDisplayCurrency:selectedDisplayCurrency||assignedOperationBranch?.currency||'UGX'}) %><% } %>
   <% if(context === 'tenant'){ %><%- include('../partials/offline-queue') %><script src="/js/offline-workspace.js?v=<%= assetVersion %>" defer></script><script src="/js/customer-accounts.js?v=<%= assetVersion %>" defer></script><% } %>
   <script src="/js/operation-pricing.js?v=<%= assetVersion %>" defer></script>
   <script src="/js/dashboard.js?v=<%= assetVersion %>" defer></script>

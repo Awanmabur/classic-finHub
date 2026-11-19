@@ -6,12 +6,13 @@
    const financialActions=quickActions.filter(action=>['transfer','mobile_money','forex_buy','banking_deposit'].includes(action.kind));
    const opener=quickActions.find(action=>action.kind==='cash_shift_open');
    const overviewCurrencies=typeof currencyOptions==='undefined'?[{code:'UGX',label:'UGX'},{code:'USD',label:'USD'},{code:'SSP',label:'SSP'},{code:'KES',label:'KSH'}]:currencyOptions;
-   const currencyRows=overviewCurrencies;
+   const currencyRows=data.dashboardCurrency?overviewCurrencies.filter(x=>x.code===data.dashboardCurrency):overviewCurrencies;
+   const filterMoney=items=>data.dashboardCurrency?(items||[]).filter(x=>x.currency===data.dashboardCurrency):(items||[]);
    const cards=[['hasTransfer','money_transfer','Money transfer volume','ovTransfer','Send + payout'],['hasMobileMoney','mobile_money','Mobile money volume','ovMobile','Deposits + withdrawals'],['hasBanking','banking','Banking volume','ovBanking','Deposit/withdraw/transfer'],['hasForex','forex','Forex volume','ovForex','Buy + sell exchange']];
    const hasSources=cards.some(([flag])=>data[flag]);
    const canConfigureFunds=(user.permissions||[]).some(p=>p==='*'||p==='treasury.view');
-   const cashFunds=(data.mobileFunds?.paymentAccounts||[]).filter(a=>a.kind==='cash');
-   const floatFunds=data.mobileFunds?.wallets||[];
+   const cashFunds=(data.mobileFunds?.paymentAccounts||[]).filter(a=>a.kind==='cash'&&(!data.dashboardCurrency||a.currency===data.dashboardCurrency));
+   const floatFunds=(data.mobileFunds?.wallets||[]).filter(a=>!data.dashboardCurrency||a.currency===data.dashboardCurrency);
    const fundsVisibility=data.mobileFundsState==='all_branches'?'Choose a viewing branch for balance details':data.mobileFundsState==='branch_required'?'No operating branch is selected':data.mobileFunds?.visibilityRestricted?'Restricted by role':null;
    const canSeeCash=visiblePaths.has('/tenant/treasury'); %>
 <section class="view show" id="view-overview">
@@ -37,7 +38,7 @@
      tooltip:"Today's recorded operations. Monetary amounts stay in native currencies."
    }) %><% }) %>
         <% if(data.hasMobileMoney){ %>
-        <% [['cash',cashFunds,'Physical cash · book balance','ovCash'],['float',floatFunds,'Electronic float · wallet balance','ovFloat']].forEach(([type,accounts,label,id])=>{const totals=(data.mobileBookTotals?.[type]||[]);const unapproved=accounts.filter(a=>a.expectedMinor===null||a.expectedMinor===undefined); %>
+        <% [['cash',cashFunds,'Physical cash · book balance','ovCash'],['float',floatFunds,'Electronic float · wallet balance','ovFloat']].forEach(([type,accounts,label,id])=>{const totals=filterMoney(data.mobileBookTotals?.[type]);const unapproved=accounts.filter(a=>a.expectedMinor===null||a.expectedMinor===undefined); %>
         <div class="stat" data-dashboard-fund-stat="<%= type %>" title="Approved opening balances plus recorded internal funds movements, not live provider balances.">
           <div class="k"><%= label %></div>
           <% if(fundsVisibility){ %><div class="v" id="<%= id %>"><%= fundsVisibility %></div>
@@ -65,24 +66,24 @@
         <div class="stat">
           <div class="k">Posted net income · today</div>
           <% if(finance.mixedRegion){ %><div class="v">Choose a branch</div>
-          <% } else if(!(finance.postedNet||[]).length){ %><div class="v">No posted income or expense</div>
+          <% } else if(!filterMoney(finance.postedNet).length){ %><div class="v">No posted income or expense</div>
           <% } else { %><div class="overviewCurrencyLines">
-            <% finance.postedNet.forEach(row=>{ %><div class="overviewCurrencyLine"><span><%= row.currency==='KES'?'KSH':row.currency %></span><b><%= row.formatted.replace(/^KES /,'KSH ') %></b></div><% }); %>
+            <% filterMoney(finance.postedNet).forEach(row=>{ %><div class="overviewCurrencyLine"><span><%= row.currency==='KES'?'KSH':row.currency %></span><b><%= row.formatted.replace(/^KES /,'KSH ') %></b></div><% }); %>
           </div><% } %><div class="s">Posted income less posted expenses; excludes unmeasured FX trading gains</div>
         </div>
         <div class="stat">
           <div class="k">Posted income · today</div>
           <% if(finance.mixedRegion){ %><div class="v">Choose a branch</div>
-          <% } else if(!(finance.postedIncome||[]).length){ %><div class="v">No posted income</div>
+          <% } else if(!filterMoney(finance.postedIncome).length){ %><div class="v">No posted income</div>
           <% } else { %><div class="overviewCurrencyLines">
-            <% finance.postedIncome.forEach(row=>{ %><div class="overviewCurrencyLine"><span><%= row.currency==='KES'?'KSH':row.currency %></span><b><%= row.formatted.replace(/^KES /,'KSH ') %></b></div><% }); %>
+            <% filterMoney(finance.postedIncome).forEach(row=>{ %><div class="overviewCurrencyLine"><span><%= row.currency==='KES'?'KSH':row.currency %></span><b><%= row.formatted.replace(/^KES /,'KSH ') %></b></div><% }); %>
           </div><% } %><div class="s">Only accounting income entries, not network fee estimates</div>
         </div>
         <div class="stat">
           <div class="k">Operating assets · book balances</div>
-          <% if(!(finance.bookAssets||[]).length){ %><div class="v">No approved asset openings</div>
+          <% if(!filterMoney(finance.bookAssets).length){ %><div class="v">No approved asset openings</div>
           <% } else { %><div class="overviewCurrencyLines">
-            <% finance.bookAssets.forEach(row=>{ %><div class="overviewCurrencyLine"><span><%= row.currency==='KES'?'KSH':row.currency %></span><b><%= row.formatted.replace(/^KES /,'KSH ') %></b></div><% }); %>
+            <% filterMoney(finance.bookAssets).forEach(row=>{ %><div class="overviewCurrencyLine"><span><%= row.currency==='KES'?'KSH':row.currency %></span><b><%= row.formatted.replace(/^KES /,'KSH ') %></b></div><% }); %>
           </div><% } %><div class="s">Cash, float, bank and FX stock; not owner equity or live network balances</div>
         </div>
         <div class="stat">
@@ -94,7 +95,7 @@
       <% if(finance.byModule?.length){ %>
       <details class="financialModuleBalances" style="margin-top:12px"><summary><strong>Operating assets by module and currency</strong></summary>
         <div class="summary">
-          <% finance.byModule.forEach(module=>{module.totals.forEach(row=>{ %>
+          <% finance.byModule.forEach(module=>{filterMoney(module.totals).forEach(row=>{ %>
             <div class="sumRow"><span><%= module.moduleKey==='shared'?'Shared treasury':module.moduleKey.replaceAll('_',' ') %> · <%= row.currency==='KES'?'KSH':row.currency %></span>
               <b><%= row.formatted.replace(/^KES /,'KSH ') %></b></div>
           <% });}); %>

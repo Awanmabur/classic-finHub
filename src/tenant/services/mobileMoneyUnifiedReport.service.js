@@ -230,7 +230,7 @@ async function generate(conn,tenant,actor,input={},timeZone='UTC'){
    .map(row=>({recordId:row._id,sourceType:row.fundsSourceRef.startsWith('MFX:')?'forex':'mobile_money',
     sourceRef:row.fundsSourceRef,stage:'Mobile Money'})),
   ...fxRecordRows.slice(0,take).filter(row=>/^[a-f0-9-]{36}$/i.test(String(row.idempotencyKey||'')))
-   .map(row=>({recordId:row._id,sourceType:'forex',sourceRef:'MFX:'+row.idempotencyKey,stage:'Linked Forex'})
+   .map(row=>({recordId:row._id,sourceType:'forex',sourceRef:'MFX:'+row.idempotencyKey,stage:'Linked Forex'}))
  ]:[];
  const afterSnapshots=recordAfterSources.length?
   await require('./recordBalances.service').snapshots(conn,tenant,actor,recordAfterSources):new Map();

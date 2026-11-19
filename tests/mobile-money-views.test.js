@@ -291,17 +291,20 @@ test('one original cashier form supports same/cross currency without a second pa
  const html=await render('entry',base);
  assert.ok(html.includes('action="/tenant/mobile-money/cash-out"'));
  assert.ok(html.includes('data-mobile-money-form'));
- for(const name of ['walletAccountId','paymentAccountId','fxRateId','fxCashAmountMinor','transactionConfirmed'])
+ for(const name of ['walletAccountId','paymentAccountId','fxRateId','fxCashAmountMinor'])
   assert.ok(html.includes('name="'+name+'"'),name);
  assert.ok(html.includes('data-momo-unified-preview'));
  assert.ok(!html.includes('name="providerAppConfirmed"'));
  assert.ok(!html.includes('name="cashHandoverConfirmed"'));
- assert.equal((html.match(/name="transactionConfirmed"/g)||[]).length,1,
-  'Record submit button must carry the acknowledgement');
+ assert.doesNotMatch(html,/name="transactionConfirmed"/);
+ assert.match(html,/data-mobile-form-feedback[^>]+role="alert"/);
+ assert.match(html,/data-mobile-form-feedback-text/);
+ assert(html.indexOf('data-mobile-form-feedback')<html.indexOf('class="cardHead"'),
+  'Form errors must render before the heading and fields');
  assert.doesNotMatch(html,/type="checkbox" name="transactionConfirmed"/);
  assert.doesNotMatch(html,/name="networkReference"/);
  assert.doesNotMatch(html,/data-mobile-reference/);
- assert.match(html,/type="submit" name="transactionConfirmed" value="yes"/);
+ assert.match(html,/type="submit" data-mobile-submit-label/);
  assert.ok(!html.includes('action="/tenant/mobile-money/fx/record"'));
  assert.ok(!html.includes('regulatoryAuthorizationReference'));
  const script=require('node:fs').readFileSync(path.resolve(__dirname,'../public/js/mobile-money-unified.js'),'utf8');

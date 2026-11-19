@@ -18,7 +18,7 @@ function text(value,label,min,max){if(typeof value!=='string'||value.trim().leng
 function requireModuleAccess(tenant,actor,permission){
  if(!hasModuleForUser(tenant,actor,'money_transfer')||!hasPermission(actor,permission))throw fail('Money Transfer module or role permission is unavailable',403);
 }
-function writeActor(actor){return actor?.role==='Tenant Owner'||actor?.role==='Money Transfer Operator';}
+function writeActor(actor){return ['Tenant Owner','Branch Manager','Money Transfer Operator'].includes(actor?.role);}
 function reviewActor(actor){return ['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(actor?.role);}
 function branchScope(actor){
  if(['Tenant Owner','Auditor'].includes(actor?.role))return require('./branchView.service').readScope(actor);

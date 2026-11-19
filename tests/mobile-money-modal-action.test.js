@@ -52,10 +52,17 @@ test('record action provides cashier acknowledgement in both full page and modal
  const entry=source('src/views/tenant/mobile-money/_entry-form.ejs');
  const modal=source('public/js/dashboard.js');
  const unified=source('public/js/mobile-money-unified.js');
- assert.match(entry,/type="submit" name="transactionConfirmed" value="yes"/);
+ assert.match(entry,/type="submit" data-mobile-submit-label/);
+ assert.doesNotMatch(entry,/name="transactionConfirmed"/);
+ const routes=source('src/tenant/routes/index.js');
+ assert.match(routes,/transactionConfirmed:'yes'/,'Authenticated Record POST must work without a submitter value');
+ assert.doesNotMatch(routes,/transactionConfirmed:req\.body\.transactionConfirmed/);
  assert.doesNotMatch(entry,/type="checkbox" name="transactionConfirmed"/);
  assert.doesNotMatch(entry,/name="networkReference"/);
- assert.match(modal,/if\(event\.submitter\?\.name\)data\.set\(event\.submitter\.name,event\.submitter\.value\)/,
-  'The dialog must serialize the submit button acknowledgement');
+ assert.match(modal,/formHost\.insertBefore\(status,activeForm\)/,
+  'Dialog failures belong directly before the active form');
+ assert.match(modal,/status\.scrollIntoView/);
  assert.doesNotMatch(unified,/transactionCheck\?\.checked/);
+ assert.match(unified,/form\.closest\('\[data-operation-dialog\]'\)/);
+ assert.match(unified,/showInline\(outcome\.message/);
 });

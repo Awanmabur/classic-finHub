@@ -64,6 +64,9 @@ async function decideOpening(conn,tenant,actor,shiftId,input={}){
  const reason=note(input.note);await ensureTenantIndexes(conn);
  const tx=await conn.startSession();let result;
  try{await tx.withTransaction(async()=>{
+  if(require('./reviewPolicy').canSelfReviewRoutine(actor,actor.branchId)&&
+    !await require('./reviewPolicy').persistedRoutineReviewer(conn,tx,actor,actor.branchId))
+   throw fail('Self-review requires the current authorized owner or assigned manager role',403);
   result=await cashSessionModel(conn).findOneAndUpdate({_id:id(shiftId),status:'pending_open',...(require('./reviewPolicy').canSelfReviewRoutine(actor,actor.branchId)?{}:{operatorId:{$ne:id(actor.id)}}),...scope(actor)},
    {$set:{status:input.decision==='approve'?'open':'opening_rejected',openingVerifiedBy:id(actor.id),openingVerifiedAt:new Date(),openingReviewNote:reason},
     ...(input.decision==='reject'?{$unset:{activeKey:''}}:{}),$inc:{revision:1}},{session:tx,new:true});
@@ -210,6 +213,9 @@ async function decide(conn,tenant,actor,shiftId,input={}){
  await ensureTenantIndexes(conn);
  const tx=await conn.startSession();let result;
  try{await tx.withTransaction(async()=>{
+  if(require('./reviewPolicy').canSelfReviewRoutine(actor,actor.branchId)&&
+    !await require('./reviewPolicy').persistedRoutineReviewer(conn,tx,actor,actor.branchId))
+   throw fail('Self-review requires the current authorized owner or assigned manager role',403);
   result=await cashSessionModel(conn).findOneAndUpdate({_id:id(shiftId),status:'submitted',...(require('./reviewPolicy').canSelfReviewRoutine(actor,actor.branchId)?{}:{operatorId:{$ne:id(actor.id)}}),...scope(actor)},
    {$set:{status:input.decision==='approve'?'approved':'disputed',reviewedBy:id(actor.id),reviewedAt:new Date(),reviewNote:reason},
     ...(input.decision==='approve'?{$unset:{activeKey:''}}:{}),$inc:{revision:1}},

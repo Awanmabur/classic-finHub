@@ -34,7 +34,11 @@
   const rateId=form.elements.namedItem('fxRateId');
   const rateVersion=form.elements.namedItem('fxRateVersion');
   const cashAmount=form.elements.namedItem('fxCashAmountMinor');
-  if(!wallet||!drawer||!network||!currency||!amount||!submit||!rateId||!rateVersion||!cashAmount)return;
+  const providerAmount=form.elements.namedItem('fxProviderAmountMinor');
+  const providerText=form.querySelector('[data-momo-float-amount]');
+  const entryCurrencyLabel=form.querySelector('[data-mobile-currency-label]');
+  const entryAmountLabel=form.querySelector('[data-mobile-entry-amount-label]');
+  if(!wallet||!drawer||!network||!currency||!amount||!submit||!rateId||!rateVersion||!cashAmount||!providerAmount)return;
   let version=0,timer=null,abort=null,ready=false;
   const available=option=>Boolean(option.value)&&!option.disabled&&
     option.dataset.state==='active'&&option.dataset.reconciliation==='matched'&&
@@ -48,7 +52,7 @@
    wallet.value=preferred.length===1?preferred[0].value:candidates.length===1?candidates[0].value:'';
   }
   function resetQuote(){
-   ready=false;rateId.value='';rateVersion.value='';cashAmount.value='';
+   ready=false;rateId.value='';rateVersion.value='';cashAmount.value='';providerAmount.value='';
    if(abort)abort.abort();clearTimeout(timer);version++;
    if(rateRow)rateRow.hidden=true;
   }
@@ -67,7 +71,13 @@
    // Keep the actual wallet identity visible even when it is the only
    // eligible wallet. It is auto-selected, but must not seem to disappear.
    if(field)field.hidden=false;
-   amount.pattern=code==='UGX'?'[0-9]{1,11}':'[0-9]{1,11}([.][0-9]{1,2})?';
+   // Deposit is CASH -> FLOAT, withdrawal is FLOAT -> CASH.
+   // Both currencies are inferred from the selected Treasury accounts.
+   const cashCode=drawer.selectedOptions?.[0]?.dataset.currency||'';
+   const sourceCode=form.dataset.operation==='cash_in'?cashCode:code;
+   amount.pattern=sourceCode==='UGX'?'[0-9]{1,11}':'[0-9]{1,11}([.][0-9]{1,2})?';
+   if(entryCurrencyLabel)entryCurrencyLabel.textContent=sourceCode==='KES'?'KSH':sourceCode;
+   if(entryAmountLabel)entryAmountLabel.textContent=form.dataset.operation==='cash_in'?'Customer cash received':'Wallet withdrawal amount';
    for(const stat of form.querySelectorAll('[data-balance-kind]')){
     stat.hidden=(stat.dataset.balanceKind==='wallet'&&stat.dataset.balanceAccount!==wallet.value)||
      (stat.dataset.balanceKind==='cash'&&stat.dataset.balanceAccount!==drawer.value);
@@ -77,6 +87,7 @@
    if(message)message.textContent=text;
    if(cashText)cashText.textContent='—';
    if(total)total.textContent='—';
+   if(providerText)providerText.textContent='—';
   }
   async function refresh(){
    resetQuote();
@@ -88,10 +99,12 @@
    if(mode)mode.textContent=same?'Same currency · no exchange':different?'Different currency · automatic Forex':'Select wallet and cash drawer';
    if(cashCode)cashCode.textContent=dc?'('+ (dc==='KES'?'KSH':dc)+')':'';
    if(totalLabel)totalLabel.textContent=form.dataset.operation==='cash_out'?'Cash paid to customer':'Cash received from customer';
-   const amountText=String(amount.value||'').trim(),scale=wc==='UGX'?0:2;
+   const amountText=String(amount.value||'').trim();
+   const sourceCode=form.dataset.operation==='cash_in'?dc:wc;
+   const scale=sourceCode==='UGX'?0:2;
    const valid=(scale===0?/^[1-9][0-9]{0,10}$/:/^(?:0|[1-9][0-9]{0,10})(?:\.[0-9]{1,2})?$/).test(amountText)&&Number(amountText)>0;
    if(!w?.value||!d?.value){showError('Choose an active wallet and your actual physical cash drawer.');submit.disabled=true;return;}
-   if(!valid){showError('Enter the provider wallet amount to calculate what the customer receives or pays.');submit.disabled=true;return;}
+   if(!valid){showError(form.dataset.operation==='cash_in'?'Enter the actual cash amount received from the customer.':'Enter the provider wallet withdrawal amount.');submit.disabled=true;return;}
    if(same){
     const minor=wc==='UGX'?BigInt(amountText):
       BigInt((amountText.split('.')[0]||'0'))*100n+
@@ -124,6 +137,7 @@
     if(mode)mode.textContent='Same-currency Mobile Money';
     if(cashText)cashText.textContent=format(cashMinor,dc);
     if(total)total.textContent=format(cashMinor,dc);
+    if(providerText)providerText.textContent=format(minor,wc);
     if(message)message.textContent='One Mobile Money transaction with the configured fee policy; cash and float update in '+wc+'. No Forex posting.';
     ready=true;submit.disabled=false;return;
    }
@@ -141,7 +155,7 @@
      url.searchParams.set('operation',form.dataset.operation==='cash_out'?'withdraw_provider_receive_cash':'deposit_cash_send_provider');
      url.searchParams.set('walletAccountId',w.value);
      url.searchParams.set('cashAccountId',d.value);
-     url.searchParams.set('providerAmount',amountText);
+     url.searchParams.set(form.dataset.operation==='cash_in'?'cashAmount':'providerAmount',amountText);
      const response=await fetch(url.toString(),{credentials:'same-origin',cache:'no-store',
       headers:{Accept:'application/json'},signal:abort.signal});
      const result=await response.json();
@@ -157,11 +171,13 @@
       throw new Error('Insufficient '+(form.dataset.operation==='cash_out'?dc+' physical cash':wc+' electronic float')+' for this exchange');
      rateId.value=result.rateId;rateVersion.value=String(result.rateVersion);
      cashAmount.value=result.cashAmountMinor;
+     providerAmount.value=result.providerAmountMinor;
      if(rateRow)rateRow.hidden=false;
      if(rateText)rateText.textContent='1,000 '+wc+' = '+(Number(result.rateDecimal)*1000).toLocaleString('en-US',{maximumFractionDigits:6})+' '+dc+
       ' ('+result.rateSide+')';
      if(cashText)cashText.textContent=format(result.cashAmountMinor,dc);
      if(total)total.textContent=format(result.cashAmountMinor,dc);
+     if(providerText)providerText.textContent=format(result.providerAmountMinor,wc);
      if(message)message.textContent='Check the displayed cash and float amounts, then record once. Forex is linked automatically without a second cash/float posting.';
      ready=true;submit.disabled=false;
     }catch(e){if(nonce!==version||e.name==='AbortError')return;
@@ -181,7 +197,7 @@
   form.addEventListener('submit',e=>{
    const w=wallet.selectedOptions?.[0],d=drawer.selectedOptions?.[0];
    if(!ready||!w?.value||!d?.value){e.preventDefault();showError('Wait until the amount and accounts are validated.');return;}
-   if(w.dataset.currency!==d.dataset.currency&&!rateId.value){
+   if(w.dataset.currency!==d.dataset.currency&&(!rateId.value||!providerAmount.value)){
     e.preventDefault();showError('An owner-approved exchange quote is required before recording.');
    }
   });

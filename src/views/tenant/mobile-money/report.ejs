@@ -61,6 +61,33 @@
  </section>
 
  <section class="card">
+  <div class="cardHead"><div><b>Individual linked Forex records</b><br><span>Each exchange remains a separate, traceable record. It does not create a second cash or float posting.</span></div></div>
+  <div class="cardBody tableWrap" tabindex="0" role="region" aria-label="Individual linked Forex exchange records">
+   <table>
+    <thead><tr><th>Recorded · <%= zone %></th><th>Provider reference</th><th>Network</th><th>Exchange type</th><th>Electronic float amount</th><th>Physical cash amount</th><th>Rate</th><th>Provider settlement</th><th>Forex profit</th></tr></thead>
+    <tbody>
+     <% if(!(report.fxItems||[]).length){ %><tr><td colspan="9">No individual cross-currency exchanges for these filters.</td></tr><% } %>
+     <% (report.fxItems||[]).forEach(item=>{ %>
+      <tr data-search-row>
+       <td><%= when(item.settledAt) %></td>
+       <td><%= item.providerReference %></td>
+       <td><%= item.network %></td>
+       <td><%= item.operation==='withdraw_provider_receive_cash'?'Withdrawal':'Deposit' %></td>
+       <td><%= money(item.providerAmountMinor,item.providerCurrency) %></td>
+       <td><%= money(item.cashAmountMinor,item.cashCurrency) %></td>
+       <td><%= item.rateSide.toUpperCase() %> · <%= item.rateDecimal %></td>
+       <td><%= item.providerSettlementState==='verified'?'Verified provider evidence':'Cashier recorded · external unverified' %></td>
+       <td>Not measured · cost basis missing</td>
+      </tr>
+     <% }) %>
+    </tbody>
+   </table>
+   <p class="tiny">A cross-currency customer operation has one Mobile Money record and one linked Forex record. Both refer to the same underlying cash/float posting; they must never be added together as two transactions.</p>
+  </div>
+  <% if(report.fxNextCursor){ %><div class="cardBody"><a class="btn" href="/tenant/mobile-money/report?<%= nextPage('fxCursor',report.fxNextCursor) %>">Next Forex records</a></div><% } %>
+ </section>
+
+ <section class="card">
   <div class="cardHead"><div><b>Business activity by currency</b><br><span>Provider wallet denomination · no mixing currencies</span></div></div>
   <div class="cardBody workspaceStack">
    <% if(!totals.length){ %><p class="tiny">No activity for these filters.</p><% } %>
@@ -133,33 +160,6 @@
     </tbody>
    </table>
   </div>
- </section>
-
- <section class="card">
-  <div class="cardHead"><div><b>Individual linked Forex records</b><br><span>Each exchange remains a separate, traceable record. It does not create a second cash or float posting.</span></div></div>
-  <div class="cardBody tableWrap" tabindex="0" role="region" aria-label="Individual linked Forex exchange records">
-   <table>
-    <thead><tr><th>Recorded · <%= zone %></th><th>Provider reference</th><th>Network</th><th>Exchange type</th><th>Electronic float amount</th><th>Physical cash amount</th><th>Rate</th><th>Provider settlement</th><th>Forex profit</th></tr></thead>
-    <tbody>
-     <% if(!(report.fxItems||[]).length){ %><tr><td colspan="9">No individual cross-currency exchanges for these filters.</td></tr><% } %>
-     <% (report.fxItems||[]).forEach(item=>{ %>
-      <tr data-search-row>
-       <td><%= when(item.settledAt) %></td>
-       <td><%= item.providerReference %></td>
-       <td><%= item.network %></td>
-       <td><%= item.operation==='withdraw_provider_receive_cash'?'Withdrawal':'Deposit' %></td>
-       <td><%= money(item.providerAmountMinor,item.providerCurrency) %></td>
-       <td><%= money(item.cashAmountMinor,item.cashCurrency) %></td>
-       <td><%= item.rateSide.toUpperCase() %> · <%= item.rateDecimal %></td>
-       <td><%= item.providerSettlementState==='verified'?'Verified provider evidence':'Cashier recorded · external unverified' %></td>
-       <td>Not measured · cost basis missing</td>
-      </tr>
-     <% }) %>
-    </tbody>
-   </table>
-   <p class="tiny">A cross-currency customer operation has one Mobile Money record and one linked Forex record. Both refer to the same underlying cash/float posting; they must never be added together as two transactions.</p>
-  </div>
-  <% if(report.fxNextCursor){ %><div class="cardBody"><a class="btn" href="/tenant/mobile-money/report?<%= nextPage('fxCursor',report.fxNextCursor) %>">Next Forex records</a></div><% } %>
  </section>
 
  <section class="card">

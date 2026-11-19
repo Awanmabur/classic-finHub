@@ -54,7 +54,7 @@ test('tenant header groups branch/currency and receipt/transaction controls with
   assert.match(header,/class="headerIdentity"[\s\S]*class="headerScope" aria-label="Reporting currency"[\s\S]*id="currencySelect"/);
   assert.match(header,/action="\/tenant\/view-branch"[\s\S]*name="_csrf" value="test"/,'Branch selector is visible in the authorized top bar');
   assert.match(header,/class="ctrl headerBranchView" data-branch-view-form/);
-  assert.match(header,/class="headerDriveForm"/,'Owner Google Drive action is back in the header');
+  assert.doesNotMatch(header,/class="headerDriveForm"/,'Super Admin fixture must not receive a tenant owner action');
   assert.doesNotMatch(html,/class="sidebarBranchView"/,'No duplicated sidebar branch selector');
   assert.match(header,/class="headerPrimaryActions">[\s\S]*id="lastReceiptBtn"[\s\S]*id="newTransactionBtn"/);
   assert.equal((html.match(/id="menuBtn"/g)||[]).length,1);

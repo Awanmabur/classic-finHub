@@ -66,17 +66,19 @@
  </section>
 
  <section class="card">
-  <div class="cardHead"><div><b>Cash and float reconciliation</b><br><span>Current account balances, not historical period-end balances</span></div><a class="btn" href="/tenant/treasury">Reconcile</a></div>
+  <div class="cardHead"><div><b>Cash and float reconciliation</b><br><span>Current book compared with the LAST independently counted balance, not a live provider reading</span></div><a class="btn" href="/tenant/treasury">Reconcile</a></div>
   <div class="cardBody tableWrap" tabindex="0" role="region" aria-label="Actual and expected account balances">
    <% if(!report.positionsAccessible){ %><p class="tiny">Treasury permission is needed to view balances and verification.</p><% } %>
    <table>
-    <thead><tr><th>Account</th><th>Currency</th><th>Expected book</th><th>Last verified actual</th><th>Difference</th><th>Reconciliation</th></tr></thead>
+    <thead><tr><th>Account</th><th>Currency</th><th>Current expected book</th><th>Actual at last count</th><th>Book at last count</th><th>Difference at last count</th><th>Checked</th><th>State</th></tr></thead>
     <tbody>
-     <% if(!positions.length){ %><tr><td colspan="6">No accessible live cash or provider wallet balances.</td></tr><% } %>
+     <% if(!positions.length){ %><tr><td colspan="8">No accessible cash or provider wallet balances.</td></tr><% } %>
      <% positions.forEach(row=>{ %>
       <tr><td><b><%= row.kind==='wallet'?'Float · '+(row.network||'Provider'):'Cash drawer' %></b><small><%= row.name %></small></td>
-       <td><%= code(row.currency) %></td><td><%= row.bookFormatted %></td><td><%= row.actualFormatted %></td>
-       <td><%= row.varianceFormatted %></td><td><%= row.status %></td></tr>
+       <td><%= code(row.currency) %></td><td><%= row.bookFormatted %></td><td><%= row.actualFormatted %></td><td><%= row.comparedBookFormatted %></td>
+       <td><%= row.varianceFormatted %></td>
+       <td><%= row.observedAt?new Date(row.observedAt).toLocaleString('en-GB',{timeZone:zone,day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):'Not checked' %></td>
+       <td><%= row.status %></td></tr>
      <% }) %>
     </tbody>
    </table>

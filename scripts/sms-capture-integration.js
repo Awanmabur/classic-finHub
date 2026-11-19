@@ -93,8 +93,12 @@ async function main(){
   const providerFee=payload('android-fee-'+nonce,`MTN Cash In: UGX 1,200; Fee: UGX 10; Customer: Provider Fee; Ref: FEE-${nonce}`);
   const flagged=await deliver(providerFee);
   assert.equal(flagged.status,202);
-  assert.equal(flagged.json.state,'needs_review','Nonzero SMS fee is evidence requiring manual reconciliation, not an automatic agent fee');
-  assert.equal(await models.mobileTransactionModel(conn).countDocuments(),1,'Unsupported fee treatment must never change the funds books');
+  assert.equal(flagged.json.state,'recorded','Provider SMS fee is evidence, not an added agent fee');
+  const providerFeeRecord=await models.mobileTransactionModel(conn).findOne({networkReference:'FEE-'+nonce}).lean();
+  assert.equal(String(providerFeeRecord.feeMinor),'0','No additional operator fee is charged for an SMS provider network fee');
+  const providerFeeInbox=await models.smsInboxModel(conn).findById(flagged.json.id).lean();
+  assert.equal(providerFeeInbox.fields.fee,'10','Original SMS network fee is retained for audit');
+  assert.equal(await models.mobileTransactionModel(conn).countDocuments(),2,'Each independent provider receipt has one distinct record');
   const unknown=payload('android-101','You received money. Ambiguous operation and missing fee.');
   const captured=await deliver(unknown);assert.equal(captured.status,202);assert.equal(captured.json.state,'needs_review');
   const rawStored=await models.smsInboxModel(conn).findById(captured.json.id).select('+bodyEncrypted').lean();
@@ -102,14 +106,14 @@ async function main(){
   tenant=await Tenant.findById(tenant._id).lean();
   await assert.rejects(capture.recordDraft(conn,tenant,owner,captured.json.id,{operation:'cash_in'}),{status:403},'owner cannot impersonate device operator');
   const confirmed=await capture.recordDraft(conn,tenant,operator,captured.json.id,{operation:'cash_in',customer:'Reviewed customer',network:'MTN',networkReference:'REVIEW-'+nonce,currency:'UGX',amount:'2000',fee:'0'});
-  assert(confirmed.created._id);assert.equal(await models.mobileTransactionModel(conn).countDocuments(),2);
+  assert(confirmed.created._id);assert.equal(await models.mobileTransactionModel(conn).countDocuments(),3);
   const noShift=await User.create({name:'No Shift Operator',email:`no-shift-${nonce}@example.invalid`,passwordHash:'unused',role:'Mobile Money Operator',branchId:String(branch._id),allowedModules:['mobile_money','sms_capture']});
   tenant=await Tenant.findById(tenant._id).lean();
   const other=await capture.enroll(conn,tenant,owner,{operatorId:String(noShift._id),name:'No Shift Android',network:'MTN',allowedSenders:'MTNMOMO',autoRecord:'on'});
   const otherValue=payload('no-shift-1',`MTN Cash In: UGX 1,000; Fee: UGX 10; Customer: No Shift; Ref: NOSHIFT-${nonce}`),otherRaw=Buffer.from(JSON.stringify(otherValue)),timestamp=String(Math.floor(Date.now()/1000));
   const failed=await capture.receive(other.device.deviceId,otherRaw,otherValue,{timestamp,signature:crypto.createHmac('sha256',Buffer.from(other.secret,'hex')).update(timestamp+'.').update(otherRaw).digest('hex')});
   assert.equal(failed.state,'needs_review','missing verified cash shift never creates financial record');
-  assert.equal(await models.mobileTransactionModel(conn).countDocuments(),2);
+  assert.equal(await models.mobileTransactionModel(conn).countDocuments(),3);
   tenant=await Tenant.findById(tenant._id).lean();
   const secondOperator=capture.operatorFrom(noShift.toObject());
   assert.equal(String((await capture.getDraft(conn,tenant,owner,captured.json.id))._id),captured.json.id,'owner may inspect the tenant inbox');
@@ -141,11 +145,12 @@ async function main(){
   assert.equal((await Usage.findOne({tenantId:tenant._id})).quantity,8,'failed capture never increments an exhausted quota');
   const fullQuotaDuplicate=await deliver(first);
   assert.equal(fullQuotaDuplicate.status,200,fullQuotaDuplicate.text);assert.equal(fullQuotaDuplicate.json.duplicate,true);
-  assert.equal(await models.mobileTransactionModel(conn).countDocuments(),2,'duplicates remain idempotent after the SMS allocation is exhausted');
+  assert.equal(await models.mobileTransactionModel(conn).countDocuments(),3,'duplicates remain idempotent after the SMS allocation is exhausted');
   const manual=await require('../src/tenant/services/mobileMoney.service').recordMobileMoney(conn,operator,{customer:'Manual customer',network:'MTN',
     networkReference:'MANUAL-'+nonce,currency:'UGX',amount:'500',fee:'0',idempotencyKey:crypto.randomUUID()},'cash_in',tenant);
   assert.equal(manual.created.entrySource,'manual','manual entry stays available independently of the SMS capture quota');
-  assert.equal(await models.mobileTransactionModel(conn).countDocuments(),3);
+  assert.match(manual.created.networkReference,/^TX-[a-f0-9-]{36}$/,'Manual records have server-generated internal TX IDs');
+  assert.equal(await models.mobileTransactionModel(conn).countDocuments(),4);
   assert.equal((await Usage.findOne({tenantId:tenant._id})).quantity,8,'manual entry never consumes SMS units');
   // Tenant browser endpoints still require an authenticated account and CSRF.
   let cookie='';
@@ -169,7 +174,7 @@ async function main(){
   assert.equal(String(retried.created._id),String(record._id));
   const relinked=await models.smsInboxModel(conn).findById(inboxId).lean();
   assert.equal(relinked.state,'recorded');assert.equal(String(relinked.recordId),String(record._id));
-  assert.equal(await models.mobileTransactionModel(conn).countDocuments(),3,'crash recovery never creates another transaction');
+  assert.equal(await models.mobileTransactionModel(conn).countDocuments(),4,'crash recovery never creates another transaction');
   assert.equal((await Usage.findOne({tenantId:tenant._id})).quantity,8,'crash recovery never consumes another SMS unit');
   assert.equal((await FinancialUsage.findById(financialBeforeRecovery._id)).quantity,financialBeforeRecovery.quantity,'crash recovery never consumes another financial unit');
   await capture.revoke(conn,tenant,owner,enrolled.device.deviceId);

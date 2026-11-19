@@ -8,7 +8,7 @@ const display=value==null?(shownRows.length===1?shownRows[0].formatted:(shownRow
 %>
 <div class="stat" <% if(typeof id==='string'&&id){ %>id="<%= id %>"<% } %> <% if(typeof tooltip==='string'&&tooltip){ %>title="<%= tooltip %>"<% } %>>
  <div class="k"><%= title %></div>
- <div class="v"><%= display %></div>
+ <div class="v" <% if(typeof valueId==='string'&&valueId){ %>id="<%= valueId %>"<% } %>><%= display %></div>
  <% if(shownRows.length){ %>
  <div class="overviewCurrencyLines" aria-label="<%= title %> amounts by original currency">
   <% shownRows.forEach(row=>{ %>

@@ -16,7 +16,7 @@ function id(value){if(!OID.test(String(value||'')))throw fail('Select a valid fu
 function text(value,label,min,max){if(typeof value!=='string'||value.trim().length<min||value.trim().length>max||/[<>\u0000-\u001f\u007f]/.test(value))throw fail(`Enter a valid ${label}`);return value.trim();}
 function hash(value){return crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');}
 async function transaction(conn,fn){const session=await conn.startSession();try{let result;await session.withTransaction(async()=>{result=await fn(session);},{readConcern:{level:'snapshot'}});return result;}finally{await session.endSession();}}
-async function audit(conn,session,actor,action,row){await core.auditEventModel(conn).create([{action,actorId:actor.id,targetId:row._id,metadata:{branchId:String(row.branchId),currency:row.currency,sourceAccountId:String(row.sourceAccountId),destinationAccountId:String(row.destinationAccountId),amountMinor:String(row.amountMinor)}}],{session});}
+async function audit(conn,session,actor,action,row){await core.auditEventModel(conn).create([{action,actorId:actor.id,targetId:row._id,metadata:{branchId:String(row.branchId),currency:row.currency,sourceAccountId:String(row.sourceAccountId),destinationAccountId:String(row.destinationAccountId),amountMinor:String(row.amountMinor),selfReviewed:action.startsWith('treasury.funding.')&&String(row.requestedBy)===String(actor.id)}}],{session});}
 function validatePair(source,destination,branchId,{ready=true}={}){
  if(String(source._id)===String(destination._id))throw fail('Choose different source and destination accounts');
  if(!KINDS.includes(source.kind)||!KINDS.includes(destination.kind))throw fail('Funding transfers support cash, bank and wallet accounts');
@@ -67,7 +67,7 @@ async function request(conn,tenant,actor,input={}){
 }
 async function review(conn,tenant,actor,fundingId,input={}){
  if(!['approve','reject'].includes(input.decision))throw fail('Choose approve or reject');
- const note=text(input.note,'independent funding review',12,400),recordId=id(fundingId);await Promise.all([treasury.ensure(conn),ensureIndexes(conn)]);
+ const note=text(input.note,'funding review',12,400),recordId=id(fundingId);await Promise.all([treasury.ensure(conn),ensureIndexes(conn)]);
  return transaction(conn,async session=>{
   const authorization=await treasury.access(conn,tenant,actor,{permission:'treasury.review',session,fence:true});
   const filter={_id:recordId,tenantId:authorization.tenant._id,...(authorization.actor.role==='Tenant Owner'?{}:{branchId:authorization.actor.branchId})};

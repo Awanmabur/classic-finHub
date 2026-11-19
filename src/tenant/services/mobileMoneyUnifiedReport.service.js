@@ -186,7 +186,7 @@ async function generate(conn,tenant,actor,input={},timeZone='UTC'){
    ...(input.currency?[{$or:[{kind:'cash'},{kind:'wallet',currency:input.currency}]}]:[])
   ]}:{})};
  const positionQuery=positionsAllowed?treasuryModels(conn).account.find(accountScope)
-  .select('name network currency kind bookBalanceMinor lastObservedMinor lastVarianceMinor lastObservationAt reconciliationState status openingBalanceMinor branchId')
+  .select('name network currency kind bookBalanceMinor lastObservedMinor lastVarianceMinor lastObservationAt lastExpectedAtObservationMinor lastObservationStale reconciliationState status openingBalanceMinor branchId')
   .sort({currency:1,kind:1,name:1}).limit(301).lean():Promise.resolve([]);
  const [transactions,payouts,expenses,fxGroups,positionRows]=await Promise.all([txQuery,payoutQuery,expenseQuery,fxQuery,positionQuery]);
  if(positionRows.length>300)throw fail('Too many cash and float accounts. Narrow the branch or currency filter.',422);
@@ -194,8 +194,9 @@ async function generate(conn,tenant,actor,input={},timeZone='UTC'){
   bookFormatted:format(account.bookBalanceMinor,account.currency),
   actualFormatted:account.lastObservedMinor===null?'Not checked':format(account.lastObservedMinor,account.currency),
   varianceFormatted:account.lastVarianceMinor===null?'—':format(account.lastVarianceMinor,account.currency),
-  status:account.status==='active'?account.reconciliationState:account.status,
-  observedAt:account.lastObservationAt||null}));
+  status:account.lastObservationStale?'needs fresh count':account.status!=='active'?account.status:account.reconciliationState==='matched'?'matched at last count':account.reconciliationState,
+  observedAt:account.lastObservationAt||null,
+  comparedBookFormatted:account.lastExpectedAtObservationMinor===null?'Not checked':format(account.lastExpectedAtObservationMinor,account.currency)}));
  if(fxGroups.length>500)throw fail('Too many currency exchange report groups. Narrow the dates.',422);
  const fxRows=fxGroups.map(group=>({
   network:group._id.network,operation:group._id.operation,
@@ -211,18 +212,26 @@ async function generate(conn,tenant,actor,input={},timeZone='UTC'){
 }
 function csv(report){
  const fields=['Network','Currency','Deposit count','Withdrawal count','Deposit principal','Withdrawal principal',
-  'Net physical cash movement','Fees recorded (not income)','Explicitly collected agent fees',
+  'Net physical cash movement in provider currency only','Net provider float movement','Fees recorded (not income)','Explicitly collected agent fees',
   'Legacy wallet fee recognition','Estimated agent commission (unreceived)','Transactions without approved agent commission rate','Estimated provider customer network charge (approved sheet)','Published agent commission reference (not a payout)','Published customer network charge (not agent revenue)','Configured operating cost estimate','Provider commission actually received',
   'Provider gross commission','Withheld tax','Provider deductions','Unreviewed records','Provider-unverified records','Voided records'];
  const rows=[fields,...report.networks.map(row=>[
   row.network,row.currency,row.depositCount,row.withdrawalCount,
-  row.depositMinor,row.withdrawalMinor,row.cashImpactMinor,row.recordedFeeMinor,row.collectedFeeMinor,
+  row.depositMinor,row.withdrawalMinor,row.cashImpactMinor,row.floatMovementMinor,row.recordedFeeMinor,row.collectedFeeMinor,
   row.legacyWalletFeeMinor,row.estimatedCommissionMinor,row.commissionMissingCount,row.customerNetworkChargeEstimateMinor,row.publishedCommissionReferenceMinor,row.publishedCustomerChargeReferenceMinor,row.configuredCostEstimateMinor,row.receivedCommissionMinor,
   row.grossCommissionMinor,row.withheldTaxMinor,row.providerCostMinor,row.pendingReviewCount,row.providerUnverifiedCount,row.voidedCount
  ].map(v=>typeof v==='bigint'?String(v):v)),
  ['Business period ('+report.window.timeZone+')',report.window.from+' to '+report.window.to],
  ['Expenses scope','All approved branch expenses, not allocated by provider'],
  ...report.expenses.map(e=>['Approved expenses '+e.currency,e.amountMinor]),
+ ['Actual physical cash flows by drawer currency (NOT provider currency)'],
+ ['Cash currency','Posted transaction count','Cash received minor units','Cash paid out minor units','Net cash movement minor units'],
+ ...(report.cashCurrencies||[]).map(row=>[row.currency,row.count,row.inMinor,row.outMinor,row.movementMinor]),
+ ['Current book balances and last independently observed balances (different timestamps)'],
+ ['Account','Kind','Network','Currency','Current book','Last observed','Expected at last observation','Difference at last observation','Last observed time','State at last observation'],
+ ...(report.positionsAccessible?(report.positions||[]).map(row=>[
+   row.name,row.kind,row.network||'',row.currency,row.bookFormatted,row.actualFormatted,row.comparedBookFormatted,
+   row.varianceFormatted,row.observedAt?new Date(row.observedAt).toISOString():'',row.status]):[]),
  ['Cross-currency Mobile Money (separate native currencies; never sum principals)'],
  ['Network','Operation','Provider currency','Cash currency','Count','Provider principal minor','Cash principal minor','Externally unverified'],
  ...(report.fxRows||[]).map(r=>[r.network,r.operation,r.providerCurrency,r.cashCurrency,

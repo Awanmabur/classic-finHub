@@ -116,7 +116,7 @@ function routes({renderTenant}){
      canPayout:order.status==='collected_manual'&&hasPermission(req.user,'money_transfer.payout'),
      canCancel:order.status==='requested'&&(req.user.role==='Tenant Owner'||String(order.createdBy)===String(req.user.id)),
      canReview:order.status==='requested'&&new Date(order.expiresAt)>new Date()&&
-      reviewerRoles.has(req.user.role)&&hasPermission(req.user,'money_transfer.review')&&String(order.createdBy)!==String(req.user.id)
+      reviewerRoles.has(req.user.role)&&hasPermission(req.user,'money_transfer.review')&&(String(order.createdBy)!==String(req.user.id)||require('../services/reviewPolicy').canSelfReviewRoutine(req.user,order.branchId))
     });
   }catch(e){next(e);}
  });

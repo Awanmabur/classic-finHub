@@ -106,7 +106,7 @@ test('independent opening approval and variance review enforce role and branch b
  const models={SecureTenantUser:noop,SecureStaffInvite:noop,SecureBranch:noop,SecureCashSession:shifts,
    SecureMobileTransaction:noop,SecureAuditEvent:audits,LedgerAccountV2:noop,LedgerJournalV2:noop,LedgerPostingV2:noop,
    FinancialOperationV1:noop,VerifiedFinancialEvidenceV1:noop,FinancialExceptionV1:noop,TransferContactV1:noop,TransferOrderV1:noop,BankReferenceV1:noop,BankingRequestV1:noop,ForexRateV1:noop,ForexQuoteV1:noop,ApprovalPolicyV1:noop,ApprovalRequestV1:noop,NotificationMessageV1:noop,RiskAlertDispatchCursorV1:noop,NotificationTemplateV1:noop,NotificationPreferenceV1:noop,SmsInboxV1:noop,TransferSmsDeliveryV1:noop};
- const conn={models,startSession:async()=>({withTransaction:async fn=>fn(),endSession:async()=>{}})};
+ const conn={models,startSession:async()=>({inTransaction:()=>true,withTransaction:async fn=>fn(),endSession:async()=>{}})};
  const manager={id:id(),branchId,role:'Branch Manager',allowedModules:['mobile_money']};
  const selfReviewed=await cash.decideOpening(conn,tenant,{...manager,id:operatorId},shiftId,{decision:'approve',note:'Matching opening count verified by assigned manager'});
  assert.equal(selfReviewed.status,'open');

@@ -146,8 +146,7 @@ for (const [path,op,permission] of [['cash-in','cash_in','mobile_money.cash_in']
           ...serverQuote,idempotencyKey:req.body.idempotencyKey,branchId:String(req.operationBranch._id),
           providerReference:req.body.networkReference,customer:req.body.customer,
           customerPhone:req.body.customerPhone,customerNote:req.body.customerNote,
-          providerAppConfirmed:req.body.providerAppConfirmed,
-          cashHandoverConfirmed:req.body.cashHandoverConfirmed
+          transactionConfirmed:req.body.transactionConfirmed
          });
        flash(req,'good',result.duplicate?
         'This exchange was already recorded; no duplicate cash or float posting.':

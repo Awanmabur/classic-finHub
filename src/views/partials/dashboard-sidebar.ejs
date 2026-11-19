@@ -13,7 +13,7 @@
   </nav>
   <% if(context==='tenant'){ %>
   <div class="sideFoot tenantSideFoot" aria-label="Workspace account controls">
-    <% if(canViewBranches){ %>
+    <% if(typeof canViewBranches!=='undefined'&&canViewBranches){ %>
     <form method="post" action="/tenant/view-branch" class="sidebarBranchView" data-branch-view-form>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <input type="hidden" name="returnTo" value="<%= branchViewReturnTo %>">
@@ -27,12 +27,12 @@
     <% } %>
     <% if(['Tenant Owner','Branch Manager'].includes(user?.role)){ %>
     <form method="post" action="/tenant/backups/action" class="sidebarBackupForm">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="_csrf" value="<%= typeof csrfToken!=='undefined'?csrfToken:'' %>">
       <button class="btn" type="submit"><i class="fa-brands fa-google-drive" aria-hidden="true"></i> Google Drive backup</button>
     </form>
     <% } %>
     <form method="post" action="/logout" class="sidebarLogoutForm">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="_csrf" value="<%= typeof csrfToken!=='undefined'?csrfToken:'' %>">
       <button class="btn" type="submit"><i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i> Logout</button>
     </form>
   </div>

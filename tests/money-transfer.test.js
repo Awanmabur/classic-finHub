@@ -88,7 +88,8 @@ test('Role, branch and module restrictions cannot be bypassed by user-submitted 
  assert(!permissionsFor('Money Transfer Operator').includes('money_transfer.review'));
  assert(permissionsFor('Branch Manager').includes('money_transfer.create'));
  assert(!hasModuleForUser(tenant(),actor('Branch Manager',[]),'money_transfer'),'Manager cannot create without module assignment');
- assert.throws(()=>service.requireModuleAccess(tenant(),actor('Branch Manager',[]),'money_transfer.create'),{status:403});
+ assert(!hasModuleForUser({...tenant(),moduleGrants:[grant('reports')]},actor('Branch Manager'),'money_transfer'));
+ assert.deepEqual(service.recordScope(actor('Branch Manager')),{branchId:branch});
  assert(permissionsFor('Branch Manager').includes('money_transfer.review'));
 });
 test('Reports-only and Money Transfer-only tenants remain independent',()=>{

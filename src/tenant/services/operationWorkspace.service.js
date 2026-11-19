@@ -97,13 +97,34 @@ async function report(conn,tenant,actor,key,query={},timeZone='UTC'){
  if(key==='forex')values.target={$sum:'$targetMinor'};
  const found=await spec.model(conn).aggregate([{$match:match},{$group:values},{$sort:{'_id.day':-1,'_id.currency':1,'_id.kind':1,'_id.status':1}},{$limit:1001}]);
  if(found.length>1000)throw fail('Report has more than 1,000 groups. Narrow the dates or filters.',422);
+ // Only posted manual fees belong in realized fee income. Quoted fees on
+ // pending transfers, banking requests and Forex quotation principal do not.
+ const incomeEligible=(key==='money_transfer'||key==='banking');
+ const incomeMatch=incomeEligible?{
+  sourceType:key,action:key==='banking'?'banking':'transfer_collect',
+  status:'posted_manual',reviewedAt:filters.dateBounds,
+  ...scopeFor(actor,key),
+  ...(filters.currency?{'sourceSnapshot.currency':filters.currency}:{})
+ }:null;
+ const incomeGroups=incomeEligible?await require('../funded/models').models(conn).execution.aggregate([
+  {$match:incomeMatch},
+  {$group:{_id:{currency:'$sourceSnapshot.currency',
+   day:{$dateToString:{date:'$reviewedAt',format:'%Y-%m-%d',timezone:timeZone}}},
+   amount:{$sum:{$convert:{input:'$sourceSnapshot.feeMinor',to:'decimal',onError:0,onNull:0}}},count:{$sum:1}}},
+  {$sort:{'_id.day':-1,'_id.currency':1}},{$limit:501}
+ ]).option({maxTimeMS:8000}):[];
+ if(incomeGroups.length>500)throw fail('Too many posted fee groups. Narrow the reporting period.',422);
+ const incomeRows=incomeGroups.filter(row=>String(row.amount)!=='0').map(row=>({
+  day:row._id.day,currency:row._id.currency,count:row.count,
+  amount:formatAmount(row.amount.toString(),row._id.currency)
+ }));
  const rows=found.map(row=>({day:row._id.day,status:row._id.status,kind:row._id.kind,currency:row._id.currency,
   targetCurrency:row._id.targetCurrency||'',source:row._id.source||'',
   network:row._id.network||'',sourceOperation:row._id.sourceOperation||'',count:row.count,
   volume:formatAmount(row.volume?.toString()||'0',row._id.currency),
   fees:spec.fees?formatAmount(row.fees?.toString()||'0',row._id.currency):'',
   target:key==='forex'?formatAmount(row.target?.toString()||'0',row._id.targetCurrency):''}));
- return {moduleKey:key,label:spec.label,currencies:spec.currencies,filters,rows,timeZone,total:rows.reduce((sum,row)=>sum+row.count,0),
+ return {moduleKey:key,label:spec.label,currencies:spec.currencies,filters,rows,incomeRows,timeZone,total:rows.reduce((sum,row)=>sum+row.count,0),
   canExport:hasPermission(actor,`${key}.report`)||hasPermission(actor,'reports.export'),
   note:key==='forex'?'Quotations remain separate from posted manual exchanges. Finalized cashier-confirmed exchanges update the foreign stock and settlement books; check the cash movement report for physical drawer effects.':
    key==='banking'?'Pending instructions remain separate from posted manual operations. Reviewed manual movements update the selected funds and internal customer accounts together.':

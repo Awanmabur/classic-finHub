@@ -174,6 +174,20 @@ async function main(){
  assert(savedExport.includes('Actual physical cash flows by drawer currency'));
  assert(savedExport.includes('"SSP","3","5000","9900","-4900"'));
  assert(savedExport.includes('Net provider float movement'));
+ const approvedReports=require('../src/tenant/services/approvedReports.service');
+ const nativeCash=await approvedReports.postedCash(conn,tenant,
+  {branchId:branch._id},activity.window.bounds,['mobile_money']);
+ const sspCash=nativeCash.find(row=>row.currency==='SSP'&&row.sourceType==='mobile_money');
+ assert(sspCash,'Mobile Money-only tenants must see cash posted through its linked Forex journal');
+ assert.equal(sspCash.netMinor,'-4900');
+ assert.equal(sspCash.count,3,'each customer exchange creates ONE cash movement');
+ assert.deepEqual(await approvedReports.postedCash(conn,tenant,{branchId:branch._id},
+  activity.window.bounds,['forex']),[],'Forex-only reporting must not leak MoMo-owned cash movements');
+ const both=await approvedReports.postedCash(conn,tenant,{branchId:branch._id},
+  activity.window.bounds,['mobile_money','forex']);
+ assert.equal(both.find(row=>row.currency==='SSP'&&row.sourceType==='mobile_money').netMinor,'-4900');
+ assert.equal(both.filter(row=>row.currency==='SSP').length,1,
+  'having both module entitlements must not duplicate the cash balance');
 
 
  const beforeSecurityChecks=await balances();
@@ -241,6 +255,10 @@ async function main(){
  assert.equal(correctedReport.cashCurrencies.find(row=>row.currency==='SSP').movementMinor,-4000n);
  assert.equal(correctedReport.fxRows.reduce((sum,row)=>sum+row.count,0),2,
   'voided MoMo exchange must be absent from active Forex report while audit survives');
+ const correctedCash=await approvedReports.postedCash(conn,tenant,{branchId:branch._id},
+  correctedReport.window.bounds,['mobile_money']);
+ assert.equal(correctedCash.find(row=>row.currency==='SSP').netMinor,'-4000',
+  'after correction the Mobile Money journal report includes exactly one reversing movement');
 
  assert.equal(await tm.models(conn).batch.countDocuments({sourceRef:{$regex:/^MFX:/}}),3,'Reverse never re-posts original Forex custody');
  assert.equal(await tm.models(conn).batch.countDocuments({sourceRef:'MM-VOID:'+manual.mobile._id}),1,'One linked correction journal');

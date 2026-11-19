@@ -47,3 +47,15 @@ test('popup lifecycle synchronizes action wording on reuse, first mount, cached 
  assert.match(pricing,/No extra agent service fee is configured/);
  assert.match(pricing,/Network charges and provider commission are separate/);
 });
+
+test('record action provides cashier acknowledgement in both full page and modal with no checkbox',()=>{
+ const entry=source('src/views/tenant/mobile-money/_entry-form.ejs');
+ const modal=source('public/js/dashboard.js');
+ const unified=source('public/js/mobile-money-unified.js');
+ assert.match(entry,/type="submit" name="transactionConfirmed" value="yes"/);
+ assert.doesNotMatch(entry,/type="checkbox" name="transactionConfirmed"/);
+ assert.doesNotMatch(entry,/name="networkReference"/);
+ assert.match(modal,/if\(event\.submitter\?\.name\)data\.set\(event\.submitter\.name,event\.submitter\.value\)/,
+  'The dialog must serialize the submit button acknowledgement');
+ assert.doesNotMatch(unified,/transactionCheck\?\.checked/);
+});

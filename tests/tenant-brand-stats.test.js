@@ -17,7 +17,7 @@ const fixture=dashboardCurrency=>({
    todayByCurrency:{money_transfer:[{currency:'UGX',count:2,formatted:'UGX 2,000'},{currency:'USD',count:3,formatted:'USD 11.00'}]}},
   financeOverview:{available:false}}
 });
-test('Every tenant dashboard uses its own brand, with website/logout and operator in top navigation',async()=>{
+test('Every tenant dashboard uses its own brand, and Logout is the final sidebar action',async()=>{
  const html=await ejs.renderFile(template,fixture(''));
  assert.match(html,/<title>Overview — Nile Exchange &amp; Services<\/title>/);
  assert.match(html,/<h1>Nile Exchange &amp; Services<\/h1>/);
@@ -27,15 +27,37 @@ test('Every tenant dashboard uses its own brand, with website/logout and operato
  assert.match(html,/Grace Operator/);
  assert.match(html,/Juba West · Tenant Owner/);
  assert.match(html,/data-operating-branch data-branch-name="Juba West" data-branch-currency="SSP"/);
- assert.match(html,/aria-label="Visit website"/);
- const tenantPublished=fixture('');
- tenantPublished.tenant.websiteHref='/t/nile-exchange';
- const publishedHtml=await ejs.renderFile(template,tenantPublished);
- assert.match(publishedHtml,/href="\/t\/nile-exchange" aria-label="Visit website"/,'Published tenant website stays reachable from navigation');
- assert.match(html,/href="\/" aria-label="Visit website"/,'Unpublished tenant site uses an available platform public link');
- assert.match(html,/<form method="post" action="\/logout"><input type="hidden" name="_csrf" value="test-csrf"/);
- assert.equal((html.match(/action="\/logout"/g)||[]).length,1,'One visible tenant signout action');
+ assert.doesNotMatch(html,/aria-label="Visit website"/);
+ const sidebar=html.slice(html.indexOf('<aside class="panel side"'),html.indexOf('</aside>'));
+ const header=html.slice(html.indexOf('<div class="topbar">'),html.indexOf('<div class="title">'));
+ assert.match(sidebar,/class="sidebarLogoutForm"/);
+ assert.match(sidebar,/class="sidebarBackupForm"/);
+ assert.match(sidebar,/<form method="post" action="\/logout" class="sidebarLogoutForm">/);
+ assert.match(sidebar,/name="_csrf" value="test-csrf"/);
+ assert.equal((html.match(/action="\/logout"/g)||[]).length,1);
+ assert.doesNotMatch(header,/action="\/logout"/);
+ assert(sidebar.indexOf('class="sidebarBackupForm"')<sidebar.indexOf('class="sidebarLogoutForm"'));
  assert.match(html,/name="currency" aria-label="Display currency"><option value="" selected>All currencies/);
+});
+test('Tenant header is ordered account, currency, search, notifications, receipt and new transaction',async()=>{
+ const args=fixture('');
+ args.menu[0].items.push({label:'Notifications',href:'/tenant/notifications'},
+  {label:'Last receipt',href:'/tenant/last-receipt'},
+  {label:'Money Transfer',href:'/tenant/money-transfer'});
+ args.canViewBranches=true;
+ args.viewBranches=[{_id:'507f1f77bcf86cd799439011',name:'Juba West'}];
+ args.viewBranchId='all';
+ args.branchViewReturnTo='/tenant/dashboard';
+ const html=await ejs.renderFile(template,args);
+ const header=html.slice(html.indexOf('<div class="topbar">'),html.indexOf('<div class="title">'));
+ const positions=['class="headerIdentity"','class="headerScope"','class="ctrl headerSearch"','id="phase2NotifyBtn"',
+  'id="lastReceiptBtn"','id="newTransactionBtn"'].map(token=>header.indexOf(token));
+ assert(positions.every(index=>index>=0),JSON.stringify(positions));
+ assert(positions.every((index,i)=>i===0||index>positions[i-1]),'Header action order must match cashier workflow');
+ assert.doesNotMatch(header,/Visit website|action="\/logout"|data-branch-view-form/);
+ assert.match(html,/class="sidebarBranchView" data-branch-view-form/);
+ assert.match(html,/action="\/tenant\/view-branch"/);
+ assert.match(html,/name="viewBranchId" aria-label="Viewing branch"/);
 });
 test('Default overview counts all transactions but never adds unlike currencies, then filters on selection',async()=>{
  const all=await ejs.renderFile(template,fixture(''));

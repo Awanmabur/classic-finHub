@@ -39,7 +39,6 @@
         <% }else{ %><label class="field">Network<select class="control" name="network" required><% entryNetworks.forEach(network=>{ %><option value="<%= network %>" data-market-currency="<%= entryVerifiedMarket(network) %>"<%- network===selectedEntryNetwork?' selected':'' %><%- (entryNetworkCurrencies[network]&&!entryCurrencyOptions.some(c=>c.code===entryNetworkCurrencies[network]))||entryNeedsWallet(network)?' disabled':'' %>><%= network==='MTN SSD'?'MTN MoMo South Sudan':network==='MTN'?'MTN MoMo Uganda':network %></option><% }) %></select></label><% } %>
         <label class="field">Customer phone<input class="control" type="tel" name="customerPhone" placeholder="<%= entryCurrency==='UGX'?'+256...':entryCurrency==='SSP'?'+211...':entryCurrency==='KES'?'+254...':'International number...' %>" inputmode="tel" maxlength="24" required autocomplete="tel"></label>
       </div>
-      <label class="field">Network transaction reference<input class="control" name="networkReference" placeholder="Reference from the provider transaction" pattern="[A-Za-z0-9._:\/\-]{5,100}" minlength="5" maxlength="100" required><span class="tiny">Captured automatically for received SMS transactions; enter the provider reference for a manual transaction.</span></label>
     </div>
     <div class="formSection">
       <div class="formSectionTitle">3. Amount and accounts</div>
@@ -83,16 +82,12 @@
     <input type="hidden" name="fxRateId" value="">
     <input type="hidden" name="fxRateVersion" value="">
     <input type="hidden" name="fxCashAmountMinor" value="">
-    <section class="formSection" data-momo-cross-confirm hidden>
-      <label class="field"><input type="checkbox" name="transactionConfirmed" value="yes"> I confirm the provider transaction is complete and the displayed cash was actually received or paid.</label>
-    </section>
 
     <div class="summary">
       <div class="sumRow"><span data-mobile-total-label><%= entryOperation==='cash_out'?'Physical cash paid to customer':'Physical cash received from customer' %></span><b data-mobile-total>—</b></div>
-      <div class="sumRow"><span>Reference</span><b class="mono mobileRequestReference" data-mobile-reference><%= data.idempotencyKey %></b></div>
     </div>
     <details class="logicNote"><summary>Additional details</summary><div class="row2"><label class="field">Customer name<input class="control" name="customer" placeholder="Optional customer name" minlength="2" maxlength="120" autocomplete="name"></label><label class="field">Customer ID / note<input class="control" name="customerNote" placeholder="Optional verification or note" maxlength="400"></label></div></details>
-    <p class="tiny">Same currency records one Mobile Money transaction. Different currency records the same customer transaction in Mobile Money and a linked Forex exchange, with a single cash/float posting. Confirm actual provider payment and cash handover first.</p>
-    <div class="rowBtns"><button class="btn btnPrimary" type="submit" data-mobile-submit-label><%= entryOperation==='cash_in'?'Record deposit':'Record withdrawal' %></button></div>
+    <p class="tiny">Record only after the actual cash and float exchange. A manual TX ID will appear in the transaction history; provider settlement remains separately unverified.</p>
+    <div class="rowBtns"><button class="btn btnPrimary" type="submit" name="transactionConfirmed" value="yes" data-mobile-submit-label><%= entryOperation==='cash_in'?'Record deposit':'Record withdrawal' %></button></div>
   </div>
 </form>

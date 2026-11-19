@@ -249,6 +249,13 @@ router.get('/mobile-money/history', requireModule('mobile_money'),requirePermiss
   try{
     const reportZone=await reportTimeZone.forRequest(req);
     const records=await mobile.getTransactionPage(req.tenantDb,{...recordScope(req),from:req.query.from,to:req.query.to,cursor:req.query.cursor,timeZone:reportZone});
+    if(hasPermission(req.user,'treasury.view')){
+     const sources=records.items.filter(row=>row.fundingState==='book_recorded'&&row.fundsSourceRef).map(row=>({
+      recordId:row._id,sourceType:row.fundsSourceRef.startsWith('MFX:')?'forex':'mobile_money',
+      sourceRef:row.fundsSourceRef,stage:'Cash / float'}));
+     const snapshots=await require('../services/recordBalances.service').snapshots(req.tenantDb,req.tenant,req.user,sources);
+     records.items=records.items.map(row=>({...row,balanceAfter:snapshots.get(String(row._id))||[]}));
+    }
     renderTenant(req,res,'mobile-money/history','Mobile Money History',
       'Tenant and branch-scoped operational records, with auditable correction status.',{records});
   }catch(e){next(e);}
@@ -259,6 +266,11 @@ router.get('/mobile-money/:id',requireModule('mobile_money'),requirePermission('
     // Read-only Viewers see lifecycle states without the investigator notes.
     const visible=mobile.visibleRecordForRole(record,req.user.role);
     const canViewFunds=hasPermission(req.user,'treasury.view');
+    const afterBalances=canViewFunds&&record.fundingState==='book_recorded'&&record.fundsSourceRef?
+     (await require('../services/recordBalances.service').snapshots(req.tenantDb,req.tenant,req.user,[{
+      recordId:record._id,sourceType:record.fundsSourceRef.startsWith('MFX:')?'forex':'mobile_money',
+      sourceRef:record.fundsSourceRef,stage:'Cash / float'
+     }])).get(String(record._id))||[]:[];
     const walletObservation=canViewFunds&&record.walletObservationId?await require('../treasury/models').models(req.tenantDb).observation.findOne({
       _id:record.walletObservationId,tenantId:req.tenant._id,branchId:record.branchId,accountId:record.walletAccountId
     }).select('status observedAt actualMinor expectedMinorAtRequest varianceMinorAtRequest expectedMinorAtReview varianceMinorAtReview evidenceType evidenceReference reviewedAt').lean():null;
@@ -269,7 +281,7 @@ router.get('/mobile-money/:id',requireModule('mobile_money'),requirePermission('
       String(record.operatorId)!==String(req.user.id)&&['recorded','pending_verification'].includes(record.status)&&record.correctionState==='requested';
     renderTenant(req,res,'mobile-money/detail','Mobile Money Record',
       'Historical evidence and internal correction decisions. No status claims external settlement.',
-      {record:visible,canRequestCorrection,canReviewCorrection,canViewFunds,walletObservation,formatMoneyMinor:mobile.formatMoneyMinor});
+      {record:visible,canRequestCorrection,canReviewCorrection,canViewFunds,walletObservation,afterBalances,formatMoneyMinor:mobile.formatMoneyMinor});
   }catch(e){next(e);}
 });
 router.get('/audit',requirePermission('audit.view'),async(req,res,next)=>{

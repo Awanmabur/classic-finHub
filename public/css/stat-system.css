@@ -119,15 +119,16 @@
  */
 #workspaceContent :is(.grid3,.stats,.backupStats,.workspaceReadinessStats,.richPageThree,.networkBalanceGrid,.overviewStatsGrid,.moduleStatsGrid):has(>.stat){
  display:grid!important;
- grid-template-columns:repeat(auto-fit,minmax(min(100%,225px),1fr))!important;
+ grid-template-columns:repeat(4,minmax(0,1fr))!important;
  align-items:stretch!important;
  gap:10px!important;
 }
 #workspaceContent :is(.overviewStatsGrid,.moduleStatsGrid):has(>.stat){
  grid-template-columns:repeat(4,minmax(0,1fr))!important;
 }
+/* Tablet and phone use exactly two columns, never arbitrary auto-fit counts. */
 @media (max-width:1100px){
- #workspaceContent :is(.overviewStatsGrid,.moduleStatsGrid):has(>.stat){
+ #workspaceContent :is(.grid3,.stats,.backupStats,.workspaceReadinessStats,.richPageThree,.networkBalanceGrid,.overviewStatsGrid,.moduleStatsGrid):has(>.stat){
   grid-template-columns:repeat(2,minmax(0,1fr))!important;
  }
 }

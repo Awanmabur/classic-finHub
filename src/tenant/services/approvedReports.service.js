@@ -58,14 +58,28 @@ async function cashImpact(conn,scope,dateRange,{legacyOnly=false}={}){
 async function postedCash(conn,tenant,scope,dateRange,sourceKeys){
  const permitted=[...new Set(sourceKeys.filter(key=>Object.hasOwn(cashSources,key)))];
  if(!permitted.length)return [];
+ const mobileAllowed=permitted.includes('mobile_money'),forexAllowed=permitted.includes('forex');
+ const other=permitted.filter(key=>key!=='mobile_money'&&key!=='forex');
+ const sourceMatches=[
+  ...(other.length?[{sourceType:{$in:other}}]:[]),
+  ...(mobileAllowed?[{sourceType:'mobile_money'},{sourceType:'forex',sourceRef:/^MFX:/}]:[]),
+  ...(forexAllowed?[{sourceType:'forex',sourceRef:{$not:/^MFX:/}}]:[])
+ ];
+ // MFX:<uuid> is a single Forex Treasury posting for a Mobile Money
+ // customer operation. Include it in MoMo cash reporting even without the
+ // Forex subscription. Do NOT expose it to Forex-only readers or count twice.
  const funds=require('../treasury/models').models(conn);
  const rows=await funds.movement.aggregate([
-  {$match:{tenantId:id(tenant._id),occurredAt:dateRange,sourceType:{$in:permitted},...(scope.branchId?{branchId:id(scope.branchId)}:{})}},
+  {$match:{tenantId:id(tenant._id),occurredAt:dateRange,$or:sourceMatches,...(scope.branchId?{branchId:id(scope.branchId)}:{})}},
   {$lookup:{from:funds.account.collection.name,localField:'accountId',foreignField:'_id',as:'fund'}},{$unwind:'$fund'},
   {$match:{'fund.kind':'cash','fund.tenantId':id(tenant._id),...(scope.operatorId?{'fund.operatorId':id(scope.operatorId)}:{}),$expr:{$and:[{$eq:['$fund.branchId','$branchId']},{$eq:['$fund.currency','$currency']}]}}},
   {$lookup:{from:funds.batch.collection.name,localField:'batchId',foreignField:'_id',as:'batch'}},{$unwind:'$batch'},
   {$match:{'batch.tenantId':id(tenant._id),...(scope.operatorId?{'batch.operatingActorId':id(scope.operatorId)}:{}),$expr:{$and:[{$eq:['$batch.branchId','$branchId']},{$eq:['$batch.sourceType','$sourceType']}]}}},
-  {$group:{_id:{sourceType:'$sourceType',currency:'$currency'},count:{$sum:1},net:{$sum:'$deltaMinor'},
+  {$addFields:{reportedSource:{$cond:[
+   {$and:[{$eq:['$sourceType','forex']},{$regexMatch:{input:'$sourceRef',regex:/^MFX:/}}]},
+   'mobile_money','$sourceType'
+  ]}}},
+  {$group:{_id:{sourceType:'$reportedSource',currency:'$currency'},count:{$sum:1},net:{$sum:'$deltaMinor'},
    cashIn:{$sum:{$cond:[{$gt:['$deltaMinor',0]},'$deltaMinor',0]}},cashOut:{$sum:{$cond:[{$lt:['$deltaMinor',0]},{$multiply:['$deltaMinor',-1]},0]}}}},
   {$sort:{'_id.sourceType':1,'_id.currency':1}},{$limit:MAX_ROWS+1}
  ]).option({maxTimeMS:5000});

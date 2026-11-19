@@ -45,6 +45,37 @@ test('Operator records and aggregates retain staff and branch scope, while audit
  assert.equal(report.total,3);assert.equal(report.canExport,false);assert.equal(report.rows.length,2);
  assert(!('customerName' in report.rows[0]));
 });
+test('Module-specific statistics count actual posted records and keep each currency separate',()=>{
+ const groups=[
+  {_id:{status:'quoted',currency:'UGX',targetCurrency:'SSP'},count:2,volume:'10000',target:'40000'},
+  {_id:{status:'posted_manual',currency:'UGX',targetCurrency:'SSP'},count:1,volume:'20000',target:'70000'},
+  {_id:{status:'posted_manual',currency:'USD',targetCurrency:'KES'},count:1,volume:'500',target:'50000'},
+  {_id:{status:'cancelled',currency:'USD',targetCurrency:'SSP'},count:1,volume:'900',target:'3500'}
+ ];
+ const stats=service.financialStatsFromGroups(groups,'forex');
+ assert.equal(stats.total,5);assert.equal(stats.posted,2);assert.equal(stats.pending,2);assert.equal(stats.stopped,1);
+ assert.deepEqual(stats.postedVolumes.map(x=>[x.currency,x.formatted]),
+  [['UGX','UGX 20,000'],['USD','USD 5.00']]);
+ assert.deepEqual(stats.targetVolumes.map(x=>[x.currency,x.formatted]),
+  [['KES','KES 500.00'],['SSP','SSP 700.00']]);
+ const transfer=service.financialStatsFromGroups([
+  {_id:{status:'collected_manual',currency:'UGX'},count:2,volume:'30000'},
+  {_id:{status:'paid_out_manual',currency:'SSP'},count:1,volume:'200000'}
+ ],'money_transfer');
+ assert.equal(transfer.total,3);assert.equal(transfer.posted,1);assert.equal(transfer.collected,2);
+ assert.deepEqual(transfer.postedVolumes.map(x=>x.currency),['SSP','UGX']);
+});
+
+test('Record balance access is limited to matching tenant/branch account permissions',()=>{
+ const {canRead}=require('../src/tenant/services/recordBalances.service');
+ const mine={branchId:branch,operatorId:actorId,kind:'cash'};
+ const other={branchId:'507f1f77bcf86cd799439099',operatorId:actorId,kind:'cash'};
+ assert.equal(canRead(actor('Banking Operator'),mine),true);
+ assert.equal(canRead(actor('Banking Operator'),other),false);
+ assert.equal(canRead(actor('Banking Operator'),{...mine,operatorId:'507f1f77bcf86cd799439099'}),false);
+ assert.equal(canRead(actor('Auditor'),other),true);
+});
+
 test('Forex direction is immutable validated input',()=>{
  const input={rateId:branch,customerLabel:'Client',amount:'100',validMinutes:15,note:'Customer requested a buy quotation',operation:'buy',idempotencyKey:crypto.randomUUID()};
  assert.equal(forex.quoteInput(input).operation,'buy');assert.equal(forex.quoteInput({...input,operation:undefined}).operation,'quote');

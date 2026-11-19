@@ -70,8 +70,9 @@ module.exports=function routes({renderTenant}){
  router.get('/:id',requirePermission('forex.view'),async(req,res,next)=>{
   try{const quote=await fx.detail(req.tenantDb,req.tenant,req.user,req.params.id);
    const pendingMovement=await require('../funded/models').models(req.tenantDb).execution.findOne({sourceType:'forex',sourceId:quote._id,status:'pending_review'}).select('_id createdBy').lean();
+   const afterBalances=await require('../services/recordBalances.service').forRecord(req.tenantDb,req.tenant,req.user,'forex',quote);
    renderTenant(req,res,'forex/detail','Forex Quote','Locked quotation details and independently reviewed manual exchange entries.',{
-    quote,amountLabel:fx.amountLabel,
+    quote,afterBalances,amountLabel:fx.amountLabel,
     pendingMovementId:pendingMovement&&(req.user.role!=='Forex Operator'||String(pendingMovement.createdBy)===String(req.user.id))?pendingMovement._id:null,
     canRecordManual:!pendingMovement&&fx.operator(req.user)&&hasPermission(req.user,'forex.quotes.create')&&hasPermission(req.user,'treasury.view')&&
      (req.user.role==='Tenant Owner'||String(quote.createdBy)===String(req.user.id))&&String(req.operationBranch?._id||'')===String(quote.branchId)&&

@@ -69,10 +69,15 @@ async function overview(conn,tenant,user,options={}){
    return {available:false,reason:'Financial totals temporarily unavailable. Check Treasury and reports.'};
   })
  ]);
- const displayWallets=mobileMarket?(mobileFunds?.wallets||[]).filter(a=>a.network===mobileMarket.network&&a.currency===mobileMarket.currency):(mobileFunds?.wallets||[]);
- const {accounts:displayCash,requiresMapping:cashMappingRequired}=marketService.cashForMarket(mobileFunds||{},mobileMarket);
+ // Use all authorized accounts, not merely the first Mobile Money market.
+ // Deduplicate physical cash drawers shared by several provider wallets.
+ const uniqueById=accounts=>[...new Map((accounts||[]).filter(Boolean).map(a=>[String(a.id),a])).values()];
+ const displayWallets=uniqueById(mobileFunds?.wallets);
+ const displayCash=uniqueById((mobileFunds?.paymentAccounts||[]).filter(a=>a.kind==='cash'));
+ const {requiresMapping:cashMappingRequired}=marketService.cashForMarket(mobileFunds||{},mobileMarket);
  const mobileBookTotals={cash:groupedBookTotals(displayCash),float:groupedBookTotals(displayWallets)};
  const data={...flags,financeOverview,mobileFunds,mobileMarkets,mobileMarket,cashMappingRequired,
+  dashboardCurrency:typeof options.currency==='string'?options.currency:'',
   mobileDisplayCashIds:displayCash.map(a=>a.id),mobileBookTotals,mobileFundsState:!hasMobileMoney?'unavailable':wideRead&&options.viewBranchId==='all'?'all_branches':fundsBranch?'resolved':'branch_required',summary:{recent:mobileRows},bankingRecords:{items:bankingRows},forexRecords:{items:forexRows},transferRecords:{items:transferRows}};
  return {...data,workspaceSnapshot:{...workspaceSnapshot,...snapshot.activity(data)}};
 }

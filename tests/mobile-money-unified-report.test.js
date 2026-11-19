@@ -152,6 +152,15 @@ test('CSV contains SSP physical cash and UGX float movements on different rows, 
  report.positionsAccessible=false;
  assert.doesNotMatch(reporting.csv(report),/SSP Cash/,'unprivileged CSV must not reveal account-level balances');
 });
+test('CSV signed money movements remain numeric but formula-like expressions remain escaped',()=>{
+ const {csvCell}=require('../src/tenant/services/mobileMoney.service');
+ assert.equal(csvCell('-90000'),'"-90000"');
+ assert.equal(csvCell('-0.50'),'"-0.50"');
+ assert.equal(csvCell('=HYPERLINK("https://invalid.test")'),'"\'=HYPERLINK(""https://invalid.test"")"');
+ assert.equal(csvCell('-SUM(A1:A2)'),'"\'-SUM(A1:A2)"');
+ assert.equal(csvCell(' +1'),'"\' +1"');
+});
+
 test('corrected original cross-currency records stay in audit volume but do not inflate active cash or float',()=>{
  const groups=[{
   _id:{fundingState:'book_recorded',network:'MTN',currency:'UGX',

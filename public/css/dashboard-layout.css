@@ -535,3 +535,62 @@ body[data-workspace="tenant"] .tenantSideFoot .sidebarLogoutForm{
   padding:8px 9px!important
  }
 }
+
+/* Final tenant cash-desk header correction: branch view and Drive restored
+   to the top; user identity and currency remain opposite on small screens. */
+body[data-workspace="tenant"] .headerIdentity{gap:2px!important;min-width:0}
+body[data-workspace="tenant"] .headerIdentity strong{font-size:13px;line-height:1.25}
+body[data-workspace="tenant"] .headerIdentity span:not([data-operating-branch]){
+ font-size:10px!important;line-height:1.2!important;
+ color:var(--muted);font-weight:450;letter-spacing:0
+}
+body[data-workspace="tenant"] .headerButtons .headerBranchView{
+ display:flex;align-items:center;margin:0!important;padding:0 6px;
+ min-width:95px;max-width:150px;flex:0 1 150px
+}
+body[data-workspace="tenant"] .headerButtons .headerBranchView select{
+ min-width:0;width:100%;min-height:38px;
+ color:var(--text);background:transparent;border:0;
+ font-size:11px;white-space:nowrap;text-overflow:ellipsis
+}
+body[data-workspace="tenant"] .headerButtons .headerDriveForm{margin:0;flex:0 0 auto}
+body[data-workspace="tenant"] .headerButtons .headerDriveForm button{
+ min-width:38px;width:38px;height:38px;display:inline-grid;place-items:center
+}
+body[data-workspace="tenant"] .headerBranchView .visuallyHidden{
+ position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;
+ clip:rect(0 0 0 0);white-space:nowrap;border:0;padding:0
+}
+@media(max-width:520px){
+ body[data-workspace="tenant"] .topbar{
+  grid-template-columns:40px minmax(0,1fr) minmax(100px,122px)!important;
+  grid-template-areas:"menu identity scope" "search search search" "buttons buttons buttons" "title title title"!important;
+  column-gap:8px!important
+ }
+ body[data-workspace="tenant"] .headerIdentity{grid-area:identity;min-width:0;max-width:100%}
+ body[data-workspace="tenant"] .headerIdentity strong{
+  font-size:12px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis
+ }
+ body[data-workspace="tenant"] .headerIdentity span:not([data-operating-branch]){
+  font-size:9.5px!important;line-height:1.18!important;
+  overflow:hidden;max-width:100%;display:block;
+  white-space:nowrap!important;text-overflow:ellipsis
+ }
+ body[data-workspace="tenant"] .headerScope{
+  grid-area:scope!important;justify-self:end!important;
+  align-self:center;max-width:122px!important;width:100%!important;
+  margin:0!important;order:0
+ }
+ body[data-workspace="tenant"] .headerScope .ctrl{
+  padding:7px 5px!important;min-width:0;width:100%!important;
+  max-width:100%!important;flex:1 1 auto!important
+ }
+ body[data-workspace="tenant"] .headerScope [data-dashboard-currency-form] select{
+  font-size:10.5px!important;line-height:1.2;min-height:26px
+ }
+ body[data-workspace="tenant"] .headerButtons{
+  justify-content:flex-start!important;align-items:center;gap:6px!important
+ }
+ body[data-workspace="tenant"] .headerButtons .headerBranchView{max-width:130px;min-width:95px}
+ body[data-workspace="tenant"] .headerPrimaryActions{margin-left:auto}
+}

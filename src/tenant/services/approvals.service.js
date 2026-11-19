@@ -88,10 +88,12 @@ async function create(conn,tenant,actor,input){
  finally{await session.endSession();}
 }
 function canDecide(actor,request,now=new Date()){
- if(request?.status!=='pending'||new Date(request.expiresAt)<=now||String(request.requesterId)===String(actor?.id))return false;
- if(request.steps?.[request.currentStep]!==actor?.role)return false;
+ if(request?.status!=='pending'||new Date(request.expiresAt)<=now)return false;
+ const privileged=require('./reviewPolicy').canSelfReviewRoutine(actor,request.branchId);
+ if(!privileged&&String(request.requesterId)===String(actor?.id))return false;
+ if(!privileged&&request.steps?.[request.currentStep]!==actor?.role)return false;
  if(actor.role!=='Tenant Owner'&&String(actor.branchId||'')!==String(request.branchId))return false;
- return !request.decisions?.some(d=>String(d.actorId)===String(actor.id));
+ return privileged||!request.decisions?.some(d=>String(d.actorId)===String(actor.id));
 }
 async function decide(conn,tenant,actor,requestId,input){
  access(tenant,actor,'approvals.decide');const decision=String(input?.decision||'');
@@ -149,9 +151,11 @@ async function detail(conn,tenant,actor,requestId){
 }
 async function queue(conn,tenant,actor){
  access(tenant,actor,'approvals.decide');if(!ROLES.includes(actor.role))throw fail('No approval role assigned',403);
- return approvalRequestModel(conn).find({...scope(actor),status:'pending',requesterId:{$ne:actor.id},
-  'decisions.actorId':{$ne:actor.id},expiresAt:{$gt:new Date()},
-  $expr:{$eq:[{$arrayElemAt:['$steps','$currentStep']},actor.role]}}).sort({createdAt:1}).limit(30).lean();
+ const privileged=require('./reviewPolicy').canSelfReviewRoutine(actor,actor.branchId);
+ return approvalRequestModel(conn).find({...scope(actor),status:'pending',
+  ...(privileged?{}:{requesterId:{$ne:actor.id},'decisions.actorId':{$ne:actor.id},
+   $expr:{$eq:[{$arrayElemAt:['$steps','$currentStep']},actor.role]}}),
+  expiresAt:{$gt:new Date()}}).sort({createdAt:1}).limit(30).lean();
 }
 async function expireDue(conn,now=new Date(),limit=100){
  if(!(now instanceof Date)||!Number.isFinite(now.getTime())||!Number.isSafeInteger(limit)||limit<1||limit>200)throw fail('Invalid expiry sweep');

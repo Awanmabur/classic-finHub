@@ -198,7 +198,7 @@ async function main(){
   assert.equal(String(ssdRecord.cashSessionId),String(sspShift._id));assert.equal(String((await models.cashSessionModel(conn).findById(shift._id)).provisionalMovementMinor),originalMovement);
   assert.equal(String((await models.cashSessionModel(conn).findById(sspShift._id)).provisionalMovementMinor),'100025');
   assert.equal((await capture.receive(ssd.device.deviceId,ssdRaw,ssdPayload,ssdHeaders)).duplicate,true);
-  assert.equal((await Usage.findOne({tenantId:tenant._id})).quantity,10);
+  assert.equal((await Usage.findOne({tenantId:tenant._id})).quantity,9,'Only successfully accepted SMS deliveries consume the provider capture allowance; review-only financial rejection does not');
   console.log('PASS: signed HTTP Android delivery, sender/tenant/signature/time rejection, encrypted credentials/SMS, scoped automatic recording, pending verification, duplicate safety, unknown review, verified-shift control, branch/staff reassignment, SMS quota atomicity, manual entry at full SMS quota, interrupted-recording recovery, browser auth/CSRF and revocation');
   console.log('PASS: enrolled MTN SSD device records explicit SSP confirmations with exact cents into its own verified SSP drawer; UGX drawer and duplicate/quota protections remain intact.');
 }

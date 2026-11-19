@@ -36,8 +36,7 @@
   const rateVersion=form.elements.namedItem('fxRateVersion');
   const cashAmount=form.elements.namedItem('fxCashAmountMinor');
   const reference=form.elements.namedItem('networkReference');
-  const appCheck=form.elements.namedItem('providerAppConfirmed');
-  const cashCheck=form.elements.namedItem('cashHandoverConfirmed');
+  const transactionCheck=form.elements.namedItem('transactionConfirmed');
   if(!wallet||!drawer||!network||!currency||!amount||!submit||!rateId||!rateVersion||!cashAmount)return;
   let version=0,timer=null,abort=null,ready=false;
   const available=option=>Boolean(option.value)&&!option.disabled&&
@@ -94,7 +93,7 @@
    if(totalLabel)totalLabel.textContent=form.dataset.operation==='cash_out'?'Cash paid to customer':'Cash received from customer';
    if(confirm){
     confirm.hidden=!different;
-    for(const c of [appCheck,cashCheck]){if(c)c.required=different;}
+    if(transactionCheck)transactionCheck.required=different;
    }
    const amountText=String(amount.value||'').trim(),scale=wc==='UGX'?0:2;
    const valid=(scale===0?/^[1-9][0-9]{0,10}$/:/^(?:0|[1-9][0-9]{0,10})(?:\.[0-9]{1,2})?$/).test(amountText)&&Number(amountText)>0;
@@ -189,8 +188,8 @@
   form.addEventListener('submit',e=>{
    const w=wallet.selectedOptions?.[0],d=drawer.selectedOptions?.[0];
    if(!ready||!w?.value||!d?.value){e.preventDefault();showError('Wait until the amount and accounts are validated.');return;}
-   if(w.dataset.currency!==d.dataset.currency&&(!rateId.value||!appCheck.checked||!cashCheck.checked)){
-    e.preventDefault();showError('Confirm the actual provider transfer and physical cash amount before finalizing.');
+   if(w.dataset.currency!==d.dataset.currency&&(!rateId.value||!transactionCheck?.checked)){
+    e.preventDefault();showError('Confirm that the provider transfer and physical cash handover really happened before finalizing.');
    }
   });
   selectWallet();refresh();

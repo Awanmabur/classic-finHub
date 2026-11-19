@@ -1,0 +1,23 @@
+<% const canReadBalances=typeof user==='object'&&user&&
+ ((user.permissions||[]).includes('*')||(user.permissions||[]).includes('treasury.view'));
+   const items=data.afterBalances||[];
+   const posted=['posted_manual','paid_out_manual','collected_manual'].includes(recordStatus); %>
+<section class="card" style="margin-top:14px" aria-label="Balances after the record">
+ <div class="cardHead"><b>Balances after this record</b><span>Immutable account snapshots in native currencies</span></div>
+ <div class="cardBody">
+ <% if(!canReadBalances){ %><p class="tiny">Book balances require authorized Treasury access.</p>
+ <% }else if(items.length){ %>
+  <div class="summary">
+   <% items.forEach(balance=>{ %>
+    <div class="sumRow">
+     <span><%= balance.stage %> · <%= balance.account %> (<%= balance.currency==='KES'?'KSH':balance.currency %>)</span>
+     <b><%= balance.balanceAfter %></b>
+    </div>
+    <p class="tiny"><%= balance.kind %> · Recorded movement: <%= balance.change %></p>
+   <% }); %>
+  </div>
+ <% }else if(posted){ %>
+  <p class="tiny">Historical account snapshot is unavailable. Current account balances must not be presented as the balance at this transaction.</p>
+ <% }else{ %><p class="tiny">No funds were posted for this request or quotation, so it has no balance-after movement.</p><% } %>
+ </div>
+</section>

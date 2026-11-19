@@ -67,13 +67,13 @@ async function decideOpening(conn,tenant,actor,shiftId,input={}){
   result=await cashSessionModel(conn).findOneAndUpdate({_id:id(shiftId),status:'pending_open',...(require('./reviewPolicy').canSelfReviewRoutine(actor,actor.branchId)?{}:{operatorId:{$ne:id(actor.id)}}),...scope(actor)},
    {$set:{status:input.decision==='approve'?'open':'opening_rejected',openingVerifiedBy:id(actor.id),openingVerifiedAt:new Date(),openingReviewNote:reason},
     ...(input.decision==='reject'?{$unset:{activeKey:''}}:{}),$inc:{revision:1}},{session:tx,new:true});
-  if(!result)throw fail('Opening request unavailable, already reviewed, outside your branch or self-approval attempted',409);
+  if(!result)throw fail('Opening request unavailable, already reviewed, outside your branch or already reviewed',409);
   if(result.treasuryOpeningObservationId){
    const funds=require('../treasury/service'),authorization=await funds.access(conn,tenant,actor,{permission:'treasury.review',session:tx,fence:true});
    await funds.reviewObservationInSession(conn,tx,authorization,result.treasuryOpeningObservationId,{decision:input.decision,note:reason});
   }
   await auditEventModel(conn).create([{action:`mobile_money.shift.opening_${input.decision==='approve'?'approved':'rejected'}`,
-    actorId:id(actor.id),targetId:result._id,metadata:{branchId:String(result.branchId),currency:result.currency}}],{session:tx});
+    actorId:id(actor.id),targetId:result._id,metadata:{branchId:String(result.branchId),currency:result.currency,selfReviewed:String(result.operatorId)===String(actor.id)}}],{session:tx});
  });return result;
  }finally{await tx.endSession();}
 }

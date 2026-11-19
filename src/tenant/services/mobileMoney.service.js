@@ -27,6 +27,14 @@ function formatMoneyMinor(value, currency) {
   return `${currency} ${int < 0n ? '-' : ''}${whole.toLocaleString('en-US')}${cents}`;
 }
 function bad(message, status=400) { const e = new Error(message); e.status = status; return e; }
+// The server owns manual transaction IDs; only SMS imports preserve genuine
+// provider references. A repeat with the same request key has the same ID.
+function manualReference(idempotencyKey){
+ const value=String(idempotencyKey||'');
+ if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value))
+  throw bad('Expired form reference. Reload the page and retry.');
+ return 'TX-'+value.toLowerCase();
+}
 function validate(input, operation) {
   if (!['cash_in','cash_out'].includes(operation)) throw bad('Unsupported operation');
   if(input.customer!==undefined&&typeof input.customer!=='string')throw bad('Enter a valid customer name');
@@ -74,7 +82,8 @@ function sameDetails(record,values,{feeTreatmentSpecified=true}={}){
 }
 async function recordMobileMoney(conn, operator, input, operation, tenant, sourceContext = null, options = {}) {
   if(!operator?.id || !['Tenant Owner','Branch Manager','Mobile Money Operator'].includes(operator.role))throw bad('This role cannot record Mobile Money operations',403);
-  const values = validate(input, operation);
+  const values = validate(sourceContext?input:
+   {...input,networkReference:manualReference(input?.idempotencyKey)}, operation);
   const feeTreatmentSpecified=typeof input.feeTreatment==='string'&&input.feeTreatment!=='';
   const expectedFeeTreatment=input.walletFeePolicy===''?undefined:input.walletFeePolicy;
   if(expectedFeeTreatment!==undefined&&!['record_only','payment_collected','wallet_commission'].includes(expectedFeeTreatment))throw bad('Reload the transaction to use the current wallet settings');
@@ -91,6 +100,8 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
   // allowance was subsequently exhausted. It must never consume another unit.
   const prior=await Model.findOne({idempotencyKey:values.idempotencyKey}).lean();
   if(prior){
+    // Historic manually-entered references remain immutable on exact retries.
+    if(!sourceContext&&prior.entrySource==='manual')values.networkReference=prior.networkReference;
     const pricing=await require('../pricing/apply').resolve(conn,tenant,operatingBranch,input,{operation:'mobile_money.'+operation,currency:values.currency,amountMinor:values.amountMinor,network:values.network,existing:prior,providedMinor:values.feeMinor,source:sourceContext?'sms':'manual'});
     if(pricing)values.feeMinor=BigInt(pricing.feeMinor);
     if((sourceContext && String(prior.smsInboxId)!==source.smsInboxId) || String(prior.operatorId)!==String(operator.id)||prior.operation!==operation||
@@ -426,4 +437,4 @@ function toCsv(items) {
   ]);
   return rows.map(row=>row.map(csvCell).join(',')).join('\r\n')+'\r\n';
 }
-module.exports = { currencies, toMinor, fromMinor, formatMoneyMinor, validate, dateBounds, recordMobileMoney, reviewMobileMoney, getReviewQueue, requestVoid, decideVoid, getVoidQueue, getTransactions, getTransactionPage, getRecordDetails, visibleRecordForRole, encodeCursor, decodeCursor, getSummary, recent, toCsv, csvCell };
+module.exports = { manualReference, currencies, toMinor, fromMinor, formatMoneyMinor, validate, dateBounds, recordMobileMoney, reviewMobileMoney, getReviewQueue, requestVoid, decideVoid, getVoidQueue, getTransactions, getTransactionPage, getRecordDetails, visibleRecordForRole, encodeCursor, decodeCursor, getSummary, recent, toCsv, csvCell };

@@ -9,13 +9,14 @@ const statValue=typeof value==='undefined'||value==null?
 const statExtra=typeof secondaryRows!=='undefined'&&Array.isArray(secondaryRows)?
  (statCurrency?secondaryRows.filter(item=>item.currency===statCurrency):secondaryRows):[];
 const statTextual=typeof textual==='boolean'&&textual;
+const statExtraClass=typeof extraClass==='string'&&/^[a-zA-Z0-9 _-]{1,120}$/.test(extraClass)?extraClass.trim():'';
 const statNote=typeof note==='string'?note:'';
 const statTone=typeof noteTone==='string'&&['warn','bad','good'].includes(noteTone)?noteTone:'';
 const statNoteDot=typeof noteDot==='boolean'&&noteDot;
 const statLabelCurrency=code=>code==='KES'?'KSH':code;
 const statFormattedAmount=value=>String(value==null?'—':value).replace(/^KES\s/,'KSH ');
 %>
-<div class="stat<%= statTextual?' stat--text':'' %>"<% if(typeof id==='string'&&id){ %> id="<%= id %>"<% } %><% if(typeof tooltip==='string'&&tooltip){ %> title="<%= tooltip %>"<% } %>>
+<div class="stat<%= statTextual?' stat--text':'' %><%= statExtraClass?' '+statExtraClass:'' %>"<% if(typeof id==='string'&&id){ %> id="<%= id %>"<% } %><% if(typeof tooltip==='string'&&tooltip){ %> title="<%= tooltip %>"<% } %>>
  <div class="k"><%= title %></div>
  <div class="v"<% if(typeof valueId==='string'&&valueId){ %> id="<%= valueId %>"<% } %>><%= statValue %></div>
  <% if(statShown.length){ %>

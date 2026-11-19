@@ -16,6 +16,11 @@
 <form class="card mobileMoneyEntry" method="post" action="/tenant/mobile-money/<%= entryOperation === 'cash_in' ? 'cash-in' : 'cash-out' %>" autocomplete="off" data-mobile-money-form data-unified-currency="true" data-operation="<%= entryOperation %>" data-currency="<%= entryCurrency %>" data-currency-label="<%= entryCurrencyLabel %>">
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
   <input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
+  <div class="sessionFeedback feedback-bad" data-mobile-form-feedback role="alert" aria-live="assertive" tabindex="-1" hidden>
+   <span class="feedbackIcon" aria-hidden="true">!</span>
+   <div class="feedbackContent"><strong>Transaction not recorded</strong><p data-mobile-form-feedback-text></p></div>
+   <button type="button" class="feedbackDismiss" data-feedback-dismiss aria-label="Dismiss message">×</button>
+  </div>
   <div class="cardHead"><div><b>Mobile Money - <%= entryLabel %></b><br><span>Customer, network, and amount details</span></div></div>
   <div class="cardBody mobileMoneyFormBody">
     <div class="seg childActions" aria-label="Mobile money operation">
@@ -62,7 +67,7 @@
       </div>
     </div>
     <input type="hidden" name="fee" value="0">
-    <p class="tiny">No extra agent fee. Approved provider sheets determine expected agent commission and any provider customer network charge.</p>
+    <p class="tiny">No extra agent fee is added. Expected commission is calculated automatically.</p>
     <section class="mobileQuoteSummary" data-mobile-provider-quote aria-live="polite" hidden>
       <div class="summary">
        <div class="sumRow" data-quote-commission-row hidden><span>Expected agent commission</span><b data-mobile-agent-commission></b></div>
@@ -88,6 +93,6 @@
     </div>
     <details class="logicNote"><summary>Additional details</summary><div class="row2"><label class="field">Customer name<input class="control" name="customer" placeholder="Optional customer name" minlength="2" maxlength="120" autocomplete="name"></label><label class="field">Customer ID / note<input class="control" name="customerNote" placeholder="Optional verification or note" maxlength="400"></label></div></details>
     <p class="tiny">Record only after the actual cash and float exchange. A manual TX ID will appear in the transaction history; provider settlement remains separately unverified.</p>
-    <div class="rowBtns"><button class="btn btnPrimary" type="submit" name="transactionConfirmed" value="yes" data-mobile-submit-label><%= entryOperation==='cash_in'?'Record deposit':'Record withdrawal' %></button></div>
+    <div class="rowBtns"><button class="btn btnPrimary" type="submit" data-mobile-submit-label><%= entryOperation==='cash_in'?'Record deposit':'Record withdrawal' %></button></div>
   </div>
 </form>

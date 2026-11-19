@@ -49,7 +49,7 @@ test('report separates provider status and review and audit pages render tenant 
     filters:{from:'',to:'',source:'all'},sources:[{key:'workspace',label:'Workspace activity'},{key:'mobile_money',label:'Mobile Money'}],total:1,
     note:'No amounts are confirmed settled.'};
   const html=await page('Auditor','reports',{report,canExport:true});
-  assert.match(html,/Operations reporting hub/);
+  assert.match(html,/Operations reports/);
   assert.match(html,/Mobile Money/);
   assert.match(html,/pending verification/);
   const audit=await page('Auditor','audit',{logs:[{createdAt:new Date(),actorId:record.operatorId,action:'mobile_money.review.accepted',targetId:record._id}]});

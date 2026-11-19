@@ -433,7 +433,7 @@ function csvCell(value) {
   return '"'+s.replace(/"/g,'""')+'"';
 }
 function toCsv(items) {
-  const rows = [['Date (UTC)','Operation','Customer','Network','Reference','Currency','Amount','Fee','Operational Record Status','Internal Review','Correction State','Risk Signals','Reviewed At (UTC)','Review Note']];
+  const rows = [['Date (UTC)','Operation','Customer','Network','TX ID / Provider reference','Currency','Amount','Fee','Operational Record Status','Internal Review','Correction State','Risk Signals','Reviewed At (UTC)','Review Note']];
   for (const r of items) rows.push([
     new Date(r.createdAt).toISOString(), r.operation, r.customer, r.network, r.networkReference,
     r.currency, fromMinor(r.amountMinor,r.currency).toFixed(currencies[r.currency]),

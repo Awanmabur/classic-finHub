@@ -29,9 +29,9 @@ module.exports=({renderTenant})=>{
   const shift=await cash.detail(req.tenantDb,req.tenant,req.user,req.params.id);
   renderTenant(req,res,'mobile-money/shift-detail','Cash control review','Counted cash and the funds book.',{shift,
    canSubmit:cash.opener(req.user)&&String(shift.operatorId)===String(req.user.id)&&['open','disputed'].includes(shift.status),
-   canReview:cash.reviewer(req.user)&&String(shift.operatorId)!==String(req.user.id)&&shift.status==='submitted',
-   canReviewOpening:cash.reviewer(req.user)&&String(shift.operatorId)!==String(req.user.id)&&shift.status==='pending_open',
-   canApprove:shift.varianceMinor==null||String(shift.varianceMinor)==='0'||req.user.role!=='Branch Manager'});
+   canReview:cash.reviewer(req.user)&&shift.status==='submitted'&&(String(shift.operatorId)!==String(req.user.id)||require('../services/reviewPolicy').canSelfReviewRoutine(req.user,shift.branchId)),
+   canReviewOpening:cash.reviewer(req.user)&&shift.status==='pending_open'&&(String(shift.operatorId)!==String(req.user.id)||require('../services/reviewPolicy').canSelfReviewRoutine(req.user,shift.branchId)),
+   canApprove:shift.varianceMinor==null||String(shift.varianceMinor)==='0'||(req.user.role==='Tenant Owner'&&String(shift.operatorId)!==String(req.user.id))});
  }catch(error){next(error);}});
  for(const [action,method,verb] of [['verify-opening','decideOpening','Opening count reviewed.'],['submit','submit','Closing count submitted for independent review.'],['decide','decide','Cash reconciliation decision recorded.']])router.post(`/cash/shifts/:id/${action}`,guard,throttle,async(req,res,next)=>{
   try{const shift=await cash[method](req.tenantDb,req.tenant,req.user,req.params.id,req.body);flash(req,'good',verb);require('../services/branchView.service').followRecord(req,shift);res.redirect(303,`/tenant/cash/shifts/${req.params.id}`);}catch(error){next(error);}

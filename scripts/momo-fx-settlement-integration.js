@@ -123,13 +123,23 @@ async function main(){
   walletAccountId:String(wallet._id),cashAccountId:String(drawer._id),providerAmountMinor:'10'});
  const manualInput={...manualQuote,branchId:String(branch._id),idempotencyKey:crypto.randomUUID(),
   providerReference:'MANUAL-'+crypto.randomBytes(8).toString('hex'),
+  customer:'Actual customer',customerPhone:'+256771234567',
   transactionConfirmed:'yes'};
  await assert.rejects(settleManuallyConfirmed(conn,tenant,owner,{
   ...manualInput,idempotencyKey:crypto.randomUUID(),providerReference:'NOT-CONFIRMED-'+nonce,
   transactionConfirmed:'no'
  }),error=>error.status===400&&/Confirm the actual provider/.test(error.message),
   'No cashier confirmation must never result in internal financial posting');
+ // A bad format rejects the entire Mongo transaction, not just the phone field.
+ const beforeInvalidPhone=await balances();
+ await assert.rejects(settleManuallyConfirmed(conn,tenant,owner,{
+  ...manualInput,idempotencyKey:crypto.randomUUID(),
+  providerReference:'INVALID-PHONE-'+nonce,customerPhone:'771+ABC'
+ }),error=>error.status===400&&/Customer phone/.test(error.message));
+ assert.deepEqual(await balances(),beforeInvalidPhone,'Invalid phone must never partially post cash or float');
  const manual=await settleManuallyConfirmed(conn,tenant,owner,manualInput);
+ assert.equal(manual.mobile.customerPhone,'+256771234567',
+  'Valid Uganda international phone must persist on the ordinary MoMo record');
  assert.equal(manual.record.providerSettlementState,'unverified');
  assert.equal(manual.record.providerEvidenceKind,'operator_attested');
  assert.equal(manual.record.providerVerifiedAt,null);

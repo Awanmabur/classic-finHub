@@ -166,7 +166,8 @@ async function settleVerified(conn,tenant,actor,input,proof){
      BigInt(q.cashAmountMinor),{bookManaged:true});
    const operation=input.operation==='withdraw_provider_receive_cash'?'cash_out':'cash_in';
    const customerPhone=String(input.customerPhone||'').trim().replace(/[ ()-]/g,'');
-   if(customerPhone&&!/^\\+?\\d{7,15}$/.test(customerPhone))throw fail('Invalid customer phone',400);
+   if(customerPhone&&!/^\+?\d{7,15}$/.test(customerPhone))
+    throw fail('Customer phone must contain 7 to 15 digits, optionally beginning with +country code',400);
    const customer=String(input.customer||customerPhone||'Customer').trim();
    const customerNote=String(input.customerNote||'').trim();
    if(customer.length<2||customer.length>120||customerNote.length>400)

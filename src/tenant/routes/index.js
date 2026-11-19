@@ -26,7 +26,23 @@ router.use(async(req,res,next)=>{try{
  next();
 }catch(error){next(error);}});
 router.use(require('../../middleware/requireOfflineContext'));
-router.use((req,res,next)=>{const phone=phoneCountry;res.locals.phoneDefaults=phone.defaults(req);if(req.method==='POST')for(const field of ['phone','senderPhone','receiverPhone','customerPhone','supportPhone','nextOfKinPhone','legacyReceiverPhone'])if(typeof req.body?.[field]==='string'&&req.body[field])req.body[field]=phone.normalize(req.body[field],field==='senderPhone'&&req.body.senderCountry?req.body.senderCountry:field==='receiverPhone'&&req.body.receiverCountry?req.body.receiverCountry:req.get('x-classicfin-phone-country')||res.locals.phoneDefaults.country);next();});
+router.use((req,res,next)=>{
+ const phone=phoneCountry;
+ res.locals.phoneDefaults=phone.defaults(req);
+ if(req.method==='POST'){
+  const momoCashTransaction=/^\/mobile-money\/(?:cash-in|cash-out)\/?$/.test(req.path);
+  for(const field of ['phone','senderPhone','receiverPhone','customerPhone','supportPhone','nextOfKinPhone','legacyReceiverPhone']){
+   if(typeof req.body?.[field]!=='string'||!req.body[field])continue;
+   let country=field==='senderPhone'&&req.body.senderCountry?req.body.senderCountry:
+    field==='receiverPhone'&&req.body.receiverCountry?req.body.receiverCountry:
+    req.get('x-classicfin-phone-country')||res.locals.phoneDefaults.country;
+   if(momoCashTransaction&&field==='customerPhone')
+    country=phone.mobileMoneyCountry(req.body.network,req.body.currency,country);
+   req.body[field]=phone.normalize(req.body[field],country);
+  }
+ }
+ next();
+});
 router.post('/view-branch',require('../services/branchView.service').change);
 // Only owners and auditors have tenant-wide visibility. Other users are branch scoped;
 // legacy unassigned users have no implicit access to other branches.

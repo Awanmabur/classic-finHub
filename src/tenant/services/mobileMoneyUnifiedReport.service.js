@@ -62,7 +62,7 @@ function summarize(transactionGroups,payoutGroups,expenseGroups){
   return [networks.get(key),currencies.get(currency)];
  };
  for(const group of transactionGroups){
-  const {network,currency,operation,entrySource,feeTreatment,voided,reviewState,status}=group._id;
+  const {network,currency,operation,entrySource,feeTreatment,voided,reviewState,status,fundingState}=group._id;
   const cashCurrency=group._id.cashCurrency||currency;
   if(!network||!Object.hasOwn(mobile.currencies,currency))throw fail('Unsupported transaction currency/provider in report',409);
   const rows=ensure(network,currency);
@@ -75,8 +75,8 @@ function summarize(transactionGroups,payoutGroups,expenseGroups){
    if(status==='pending_verification'||status==='recorded')row.providerUnverifiedCount+=group.count;
    row[operation==='cash_in'?'depositMinor':'withdrawalMinor']+=amount;
    row.volumeMinor+=amount;
-   row.floatMovementMinor+=operation==='cash_out'?amount:-amount;
-   if(cashCurrency===currency)row.cashImpactMinor+=whole(group.cashMovementMinor);
+   if(fundingState==='book_recorded')row.floatMovementMinor+=operation==='cash_out'?amount:-amount;
+   if(fundingState==='book_recorded'&&cashCurrency===currency)row.cashImpactMinor+=whole(group.cashMovementMinor);
    row.recordedFeeMinor+=fees;
    if(feeTreatment==='payment_collected')row.collectedFeeMinor+=fees;
    if(feeTreatment==='wallet_commission')row.legacyWalletFeeMinor+=fees;
@@ -89,7 +89,7 @@ function summarize(transactionGroups,payoutGroups,expenseGroups){
   }
   // Report physical cash by ACTUAL drawer currency even if provider float is
   // in UGX/KES. This is the same transaction, not a duplicate settlement.
-  if((group._id.paymentMethod||'Cash')==='Cash'){
+  if(fundingState==='book_recorded'&&(group._id.paymentMethod||'Cash')==='Cash'){
    if(!cashCurrencies.has(cashCurrency))cashCurrencies.set(cashCurrency,{currency:cashCurrency,count:0,movementMinor:0n,inMinor:0n,outMinor:0n});
    const actual=cashCurrencies.get(cashCurrency),delta=whole(group.cashMovementMinor);
    actual.count+=group.count;actual.movementMinor+=delta;
@@ -123,6 +123,7 @@ async function generate(conn,tenant,actor,input={},timeZone='UTC'){
  const txQuery=mobileTransactionModel(conn).aggregate([{$match:match},{$group:{
   _id:{network:'$network',currency:'$currency',operation:'$operation',entrySource:{$ifNull:['$entrySource','manual']},
    cashCurrency:{$ifNull:['$cashCurrency','$currency']},paymentMethod:{$ifNull:['$paymentMethod','Cash']},
+   fundingState:{$ifNull:['$fundingState','legacy_untracked']},
    feeTreatment:{$ifNull:['$feeTreatment','record_only']},reviewState:{$ifNull:['$reviewState','awaiting_review']},status:'$status',
    voided:{$or:[{$eq:['$status','voided_internal']},{$eq:['$correctionState','voided']}]}},
   count:{$sum:1},amountMinor:{$sum:'$amountMinor'},feeMinor:{$sum:'$feeMinor'},

@@ -19,8 +19,8 @@
 .navGroup::before{left:calc(var(--navigation-inset) + 13px)}
 .navGroup .subitem.active,.navGroup .subitem:hover,.navGroup .subitem:focus-visible{transform:none!important}
 
-/* Default legacy stat groups stay two-column. The approved overview and module summary use dedicated responsive 4/2/1 grids. */
-#workspaceContent :has(>.stat):not(.overviewStatsGrid):not(.moduleStatsGrid){display:grid;grid-template-columns:repeat(2,minmax(0,1fr))!important}
+/* Stat-grid columns now belong to the single shared stat-system.css.
+   Do not force old two-column layouts on desktop or on unrelated card bodies. */
 .stat .k,.stat .s{line-height:1.45;overflow-wrap:anywhere}
 .stat .v{white-space:normal;overflow-wrap:anywhere;text-overflow:clip}
 .stat .s{align-items:flex-start}

@@ -58,8 +58,13 @@ test('Approved reports have all operation report sections and protect invalid sc
 
 test('Approved expense modal renders all requested fields, CSRF and no branch selector',async()=>{
  const html=await ejs.renderFile(path.join(__dirname,'../src/views/tenant/expenses/_modal.ejs'),{
-  data:{openModal:true,idempotencyKey:crypto.randomUUID()},operationBranch:{name:'Main',currency:'USD'},csrfToken:'csrf',currencyLabel:code=>code});
- for(const label of ['Expense details','Expense type','Currency','Amount','Paid to / vendor','Payment method','Reference','Description','Add expense','Clear','Close'])assert(html.includes(label),label);
+  data:{openModal:true,idempotencyKey:crypto.randomUUID(),currencyChoices:[{code:'USD',label:'USD'}],selectedCurrency:'USD',
+   fundChoices:[{_id:id(),name:'Main bank account',kind:'bank',currency:'USD',balance:'USD 5,000.00'}]},
+  operationBranch:{name:'Main',currency:'USD'},csrfToken:'csrf',currencyLabel:code=>code});
+ for(const label of ['Expense details','Expense type','Currency','Amount','Paid to / vendor','Payment method','Paid from','Reference','Description','Add expense','Clear','Close'])assert(html.includes(label),label);
+ assert.match(html,/name="treasuryAccountId" required/);
+ assert.match(html,/data-expense-currency="USD" data-expense-kind="bank"/);
+ assert.match(html,/Main bank account/);
  assert.match(html,/name="_csrf" value="csrf"/);assert.match(html,/action="\/tenant\/expenses"/);
  assert(!html.includes('name="branchId"'));assert(!html.includes('localStorage'));
 });

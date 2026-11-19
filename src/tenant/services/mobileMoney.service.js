@@ -79,6 +79,13 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
   // Keep historical Bank/Wallet Balance records readable; do not create new ones.
   if(options.requireFunds===true && values.paymentMethod!=='Cash')
     throw bad('Agent deposits and withdrawals require physical Cash against the selected provider float. Bank and customer-wallet operations belong to their dedicated modules.',400);
+  // Current agent operations do not levy an extra customer fee. Approved
+  // provider sheets are snapshotted separately as expected commission/network
+  // charges, not booked as fee income. Preserve historical records unchanged.
+  if(options.requireFunds===true){
+   if(values.feeMinor!==0n)throw bad('Mobile Money does not charge an additional agent fee; only the approved provider sheet applies',400);
+   values.feeMinor=0n;
+  }
   const feeTreatmentSpecified=typeof input.feeTreatment==='string'&&input.feeTreatment!=='';
   const expectedFeeTreatment=input.walletFeePolicy===''?undefined:input.walletFeePolicy;
   if(expectedFeeTreatment!==undefined&&!['record_only','payment_collected','wallet_commission'].includes(expectedFeeTreatment))throw bad('Reload the transaction to use the current wallet settings');
@@ -114,7 +121,7 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
       require('./branchCurrency.service').resolve(branch,values.currency);
       if(smsAuthorization?.receivedAt)
         await require('./cashDrawer.service').assertSmsWithinShift(conn,session,authorization.actor,branch._id,values.currency,smsAuthorization.receivedAt);
-      const pricing=await require('../pricing/apply').resolve(conn,authorization.tenant,branch,input,{operation:'mobile_money.'+operation,currency:values.currency,amountMinor:values.amountMinor,network:values.network,providedMinor:values.feeMinor,session,source:sourceContext?'sms':'manual'});
+      const pricing=options.requireFunds===true?null:await require('../pricing/apply').resolve(conn,authorization.tenant,branch,input,{operation:'mobile_money.'+operation,currency:values.currency,amountMinor:values.amountMinor,network:values.network,providedMinor:values.feeMinor,session,source:sourceContext?'sms':'manual'});
       if(pricing){values.pricing=pricing;values.feeMinor=BigInt(pricing.feeMinor);if(values.feeMinor>values.amountMinor)throw bad('Configured fee cannot exceed the amount',409);}
       // Immutable informational reference only. Approved network tariff quotes
       // never change principal cash/float, customer fee, provider settlement

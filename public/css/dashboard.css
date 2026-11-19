@@ -871,6 +871,8 @@ body.transactionOpen{overflow:hidden}
 .transactionChoice small{display:block;margin-top:4px;color:var(--muted);font-size:12px;line-height:1.45}
 .transactionStatus{margin:0;padding:12px 14px;border:1px solid var(--border);border-radius:16px;color:var(--muted);font-size:13px;line-height:1.5}
 .transactionStatus.failed{border-color:rgba(190,18,60,.25);background:rgba(190,18,60,.05);color:#9f1239}
+.transactionFormHost>.transactionStatus.failed{position:sticky;top:0;z-index:6;margin-bottom:12px;box-shadow:0 8px 24px rgba(48,18,30,.12);font-weight:650;outline-offset:3px}
+.transactionFormHost .sessionFeedback[role="alert"]{position:sticky;top:0;z-index:5;margin-bottom:12px;box-shadow:0 8px 24px rgba(48,18,30,.1)}
 .transactionForm{display:grid;gap:14px;margin:0}
 .transactionForm.row3{grid-template-columns:1fr}
 .transactionForm .cardBody{padding:0}

@@ -410,3 +410,44 @@ form[method="get"] .field>.control{min-width:0;width:100%}
  #workspaceContent .financialReportsPage .networkBalanceStat{padding:11px}
  #workspaceContent .financialReportsPage .cardHead .rowBtns{width:100%}
 }
+
+
+/* Tenant workspace branding and navigation: reuse the approved dashboard design,
+   replace only the platform logo/name on tenant pages. */
+body[data-workspace="tenant"] .brand .logo{
+ background:linear-gradient(135deg,var(--primary),var(--primary2))!important;
+ color:#fff!important;border-color:transparent!important;display:grid;place-items:center;
+ text-shadow:none;flex:0 0 auto
+}
+body[data-workspace="tenant"] .tenantBrandInitials{
+ display:block;font-size:17px;font-weight:800;line-height:1;letter-spacing:.3px;color:#fff
+}
+body[data-workspace="tenant"] .brand h1{white-space:normal;overflow-wrap:anywhere;font-size:16px;line-height:1.25}
+body[data-workspace="tenant"] .topbar>.topActions{flex-wrap:wrap}
+body[data-workspace="tenant"] .headerButtons{
+ flex:1 1 390px;gap:8px;align-items:center;justify-content:flex-end
+}
+body[data-workspace="tenant"] .headerIdentity{
+ display:grid;gap:2px;min-width:0;max-width:210px;font-size:12px;line-height:1.3
+}
+body[data-workspace="tenant"] .headerIdentity strong,
+body[data-workspace="tenant"] .headerIdentity span{
+ display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+}
+body[data-workspace="tenant"] .headerIdentity span{color:var(--muted);font-size:11px}
+body[data-workspace="tenant"] .headerAccountActions{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+body[data-workspace="tenant"] .headerAccountActions form{margin:0}
+body[data-workspace="tenant"] .headerAccountActions .btn{
+ min-width:0;white-space:nowrap;display:inline-flex;align-items:center;gap:6px
+}
+@media(max-width:1120px){
+ body[data-workspace="tenant"] .headerButtons{justify-content:space-between;gap:10px;flex-wrap:wrap}
+ body[data-workspace="tenant"] .headerIdentity{flex:1 1 150px;max-width:none}
+ body[data-workspace="tenant"] .headerAccountActions{margin-left:auto}
+ body[data-workspace="tenant"] .headerPrimaryActions{order:3;flex:1 1 100%;justify-content:flex-end}
+}
+@media(max-width:520px){
+ body[data-workspace="tenant"] .headerAccountActions .btn{padding:8px;font-size:11px}
+ body[data-workspace="tenant"] .headerAccountActions .btn i{font-size:12px}
+ body[data-workspace="tenant"] .headerScope{max-width:100%}
+}

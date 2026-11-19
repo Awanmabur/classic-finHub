@@ -99,7 +99,7 @@ async function report(conn,tenant,actor,key,query={},timeZone='UTC'){
  if(found.length>1000)throw fail('Report has more than 1,000 groups. Narrow the dates or filters.',422);
  // Only posted manual fees belong in realized fee income. Quoted fees on
  // pending transfers, banking requests and Forex quotation principal do not.
- const incomeEligible=(key==='money_transfer'||key==='banking');
+ const incomeEligible=(key==='money_transfer'||key==='banking')&&typeof conn?.model==='function';
  const incomeMatch=incomeEligible?{
   sourceType:key,action:key==='banking'?'banking':'transfer_collect',
   status:'posted_manual',reviewedAt:filters.dateBounds,

@@ -62,8 +62,8 @@ async function postedCash(conn,tenant,scope,dateRange,sourceKeys){
  const other=permitted.filter(key=>key!=='mobile_money'&&key!=='forex');
  const sourceMatches=[
   ...(other.length?[{sourceType:{$in:other}}]:[]),
-  ...(mobileAllowed?[{sourceType:'mobile_money'},{sourceType:'forex',sourceRef:/^MFX:/}]:[]),
-  ...(forexAllowed?[{sourceType:'forex',sourceRef:{$not:/^MFX:/}}]:[])
+  ...(mobileAllowed?[{sourceType:'mobile_money'},{sourceType:'forex',sourceRef:/^(?:MFX:|MM-VOID:)/}]:[]),
+  ...(forexAllowed?[{sourceType:'forex',sourceRef:{$not:/^(?:MFX:|MM-VOID:)/}}]:[])
  ];
  // MFX:<uuid> is a single Forex Treasury posting for a Mobile Money
  // customer operation. Include it in MoMo cash reporting even without the
@@ -76,7 +76,7 @@ async function postedCash(conn,tenant,scope,dateRange,sourceKeys){
   {$lookup:{from:funds.batch.collection.name,localField:'batchId',foreignField:'_id',as:'batch'}},{$unwind:'$batch'},
   {$match:{'batch.tenantId':id(tenant._id),...(scope.operatorId?{'batch.operatingActorId':id(scope.operatorId)}:{}),$expr:{$and:[{$eq:['$batch.branchId','$branchId']},{$eq:['$batch.sourceType','$sourceType']}]}}},
   {$addFields:{reportedSource:{$cond:[
-   {$and:[{$eq:['$sourceType','forex']},{$regexMatch:{input:'$sourceRef',regex:/^MFX:/}}]},
+   {$and:[{$eq:['$sourceType','forex']},{$regexMatch:{input:'$sourceRef',regex:/^(?:MFX:|MM-VOID:)/}}]},
    'mobile_money','$sourceType'
   ]}}},
   {$group:{_id:{sourceType:'$reportedSource',currency:'$currency'},count:{$sum:1},net:{$sum:'$deltaMinor'},

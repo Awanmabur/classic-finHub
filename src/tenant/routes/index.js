@@ -55,7 +55,9 @@ function recordScope(req){
 function renderTenant(req, res, view, pageTitle, pageSub, data) {
   res.render('layouts/dashboard', {
     context:'tenant', offlineIdentity:require('../services/offlineIdentity')(req), offlineContext:require('../services/offlineIdentity').context(req,res.locals.phoneDefaults), offlineCacheable:req.method==='GET', currentPath:tenantNavigationPath(req.baseUrl + req.path), pageTitle, pageSub,
-    tenant:{...req.tenant,name:req.workspaceIdentity?.name||req.tenant.name}, user:req.user, menu:tenantMenu(req.tenant,req.user),
+    tenant:{...req.tenant,name:req.workspaceIdentity?.name||req.tenant.name,
+      brandPrimary:req.workspaceIdentity?.primary,brandSecondary:req.workspaceIdentity?.secondary},
+     user:req.user, menu:tenantMenu(req.tenant,req.user),
     view:`../tenant/${view}`, data, flash:consumeFlash(req), money, formatUtcDate,
     businessTimeZone:businessTime.forBranch(req.viewBranch||req.operationBranch),
     businessToday:businessTime.localDay(new Date(),businessTime.forBranch(req.viewBranch||req.operationBranch)),

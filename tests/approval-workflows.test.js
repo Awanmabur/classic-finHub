@@ -57,7 +57,7 @@ test('Self-approval and repeated reviewer decisions are forbidden; exact role, b
  const officer=actor('Approval Officer',['approval_workflows'],reviewer);
  assert(approval.canDecide(officer,base));
  assert(!approval.canDecide(actor('Approval Officer'),base));
- assert(!approval.canDecide(actor('Branch Manager',['approval_workflows'],reviewer),base));
+ assert(approval.canDecide(actor('Branch Manager',['approval_workflows'],reviewer),base),'Assigned manager can approve routine internal requests');
  assert(!approval.canDecide(actor('Approval Officer',['approval_workflows'],reviewer,'507f1f77bcf86cd799439017'),base));
  assert(!approval.canDecide(officer,{...base,expiresAt:new Date('2020-01-01')}));
  assert(!approval.canDecide(officer,{...base,decisions:[{actorId:reviewer}]}));

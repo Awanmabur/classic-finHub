@@ -14,12 +14,13 @@ const filterQuery=new URLSearchParams();
 ['from','to','status','currency','kind'].forEach(key=>{if(data.filters[key])filterQuery.set(key,data.filters[key]);});
 const reportMode=!['records','pending','payout'].includes(data.mode);
 %>
-<section class="view show">
+<section class="view show financialReportsPage">
  <%- include('partials/module-finance',{moduleKey}) %>
  <section class="card">
   <div class="cardHead"><b><%= data.title %></b><span><%= data.total %> internal record<%= data.total===1?'':'s' %> in range</span></div>
   <div class="cardBody">
-   <nav class="rowBtns" aria-label="<%= data.label %> sections"><% links.forEach(([path,label])=>{ %><a class="btn" href="<%= data.basePath+path %>"><%= label %></a><% }) %></nav>
+   <% if(reportMode){ %><details class="financialReportMore"><summary>Related actions and pages</summary><nav class="rowBtns" aria-label="<%= data.label %> sections"><% links.forEach(([path,label])=>{ %><a class="btn" href="<%= data.basePath+path %>"><%= label %></a><% }) %></nav></details>
+   <% }else{ %><nav class="rowBtns" aria-label="<%= data.label %> sections"><% links.forEach(([path,label])=>{ %><a class="btn" href="<%= data.basePath+path %>"><%= label %></a><% }) %></nav><% } %>
    <p class="tiny"><%= data.note %></p>
   </div>
  </section>

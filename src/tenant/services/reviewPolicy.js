@@ -14,4 +14,15 @@ function creatorFilter(actor){
  return canSelfReviewRoutine(actor,actor?.branchId)||actor?.role==='Tenant Owner'?
   {}:{createdBy:{$ne:actor.id}};
 }
-module.exports={canSelfReviewRoutine,creatorFilter};
+// A trusted HTTP session is not a substitute for a persisted role fence when
+// the same person is also the financial reviewer. Detect role changes/revokes.
+async function persistedRoutineReviewer(conn,session,actor,branchId){
+ if(!session?.inTransaction()||!canSelfReviewRoutine(actor,branchId))return false;
+ const {tenantUserModel}=require('../models');
+ const filter={_id:actor.id,status:'active',role:actor.role,
+  ...(actor.role==='Branch Manager'?{branchId}: {})};
+ const current=await tenantUserModel(conn).findOne(filter)
+  .select('_id role branchId authVersion').session(session).lean();
+ return Boolean(current)&&Number(current.authVersion||0)===Number(actor.authVersion||0);
+}
+module.exports={canSelfReviewRoutine,creatorFilter,persistedRoutineReviewer};

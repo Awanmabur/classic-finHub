@@ -60,7 +60,7 @@ test('logout remains CSRF-protected POST and centered progress only affects pres
  const header=read('src/views/layouts/dashboard.ejs');
  assert.equal((sidebar.match(/method="post" action="\/logout"/g)||[]).length,1,'Platform sidebar retains its logout');
  assert.equal((header.match(/method="post" action="\/logout"/g)||[]).length,1,'Tenant header retains its own CSRF-protected logout');
- assert.match(header,/href="\/" aria-label="Visit website"/);
+ assert.match(header,/tenant\?\.websiteHref/,'Tenant header uses its own published website when available');
  assert.match(sidebar,/name="_csrf" value="<%= csrfToken %>"/);
  assert.match(script,/form\[action="\/logout"\]/);
  assert.match(script,/signoutDialog\.showModal\(\)/);

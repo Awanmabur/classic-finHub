@@ -3,6 +3,7 @@
 // estimates are never booked as revenue and shared expenses are never allocated
 // to an individual provider without evidence.
 const {mobileTransactionModel}=require('../models');
+const {models:treasuryModels}=require('../treasury/models');
 const {expenseModel}=require('../models/expenses');
 const {model:payoutModel}=require('../pricing/commissionPayoutModels');
 const {hasModuleForUser,hasPermission}=require('./moduleAccess.service');
@@ -40,7 +41,7 @@ const whole=value=>BigInt(String(value??'0'));
 function blank(network,currency){
  return {network,currency,depositCount:0,withdrawalCount:0,manualCount:0,smsCount:0,
   pendingReviewCount:0,providerUnverifiedCount:0,voidedCount:0,
-  depositMinor:0n,withdrawalMinor:0n,volumeMinor:0n,cashImpactMinor:0n,
+  depositMinor:0n,withdrawalMinor:0n,volumeMinor:0n,cashImpactMinor:0n,floatMovementMinor:0n,
   recordedFeeMinor:0n,collectedFeeMinor:0n,legacyWalletFeeMinor:0n,
   estimatedCommissionMinor:0n,commissionMissingCount:0,customerNetworkChargeEstimateMinor:0n,
   publishedCommissionReferenceMinor:0n,publishedCustomerChargeReferenceMinor:0n,configuredCostEstimateMinor:0n,receivedCommissionMinor:0n,grossCommissionMinor:0n,
@@ -53,7 +54,7 @@ function renderRow(row){
  return result;
 }
 function summarize(transactionGroups,payoutGroups,expenseGroups){
- const networks=new Map(),currencies=new Map();
+ const networks=new Map(),currencies=new Map(),cashCurrencies=new Map();
  const ensure=(network,currency)=>{
   const key=network+'|'+currency;
   if(!networks.has(key))networks.set(key,blank(network,currency));
@@ -62,6 +63,7 @@ function summarize(transactionGroups,payoutGroups,expenseGroups){
  };
  for(const group of transactionGroups){
   const {network,currency,operation,entrySource,feeTreatment,voided,reviewState,status}=group._id;
+  const cashCurrency=group._id.cashCurrency||currency;
   if(!network||!Object.hasOwn(mobile.currencies,currency))throw fail('Unsupported transaction currency/provider in report',409);
   const rows=ensure(network,currency);
   for(const row of rows){
@@ -73,7 +75,8 @@ function summarize(transactionGroups,payoutGroups,expenseGroups){
    if(status==='pending_verification'||status==='recorded')row.providerUnverifiedCount+=group.count;
    row[operation==='cash_in'?'depositMinor':'withdrawalMinor']+=amount;
    row.volumeMinor+=amount;
-   row.cashImpactMinor+=whole(group.cashMovementMinor);
+   row.floatMovementMinor+=operation==='cash_out'?amount:-amount;
+   if(cashCurrency===currency)row.cashImpactMinor+=whole(group.cashMovementMinor);
    row.recordedFeeMinor+=fees;
    if(feeTreatment==='payment_collected')row.collectedFeeMinor+=fees;
    if(feeTreatment==='wallet_commission')row.legacyWalletFeeMinor+=fees;
@@ -83,6 +86,14 @@ function summarize(transactionGroups,payoutGroups,expenseGroups){
    row.publishedCommissionReferenceMinor+=whole(group.publishedCommissionReferenceMinor);
    row.publishedCustomerChargeReferenceMinor+=whole(group.publishedCustomerChargeReferenceMinor);
    row.configuredCostEstimateMinor+=whole(group.configuredCostEstimateMinor);
+  }
+  // Report physical cash by ACTUAL drawer currency even if provider float is
+  // in UGX/KES. This is the same transaction, not a duplicate settlement.
+  if(group._id.paymentMethod==='Cash'){
+   if(!cashCurrencies.has(cashCurrency))cashCurrencies.set(cashCurrency,{currency:cashCurrency,count:0,movementMinor:0n,inMinor:0n,outMinor:0n});
+   const actual=cashCurrencies.get(cashCurrency),delta=whole(group.cashMovementMinor);
+   actual.count+=group.count;actual.movementMinor+=delta;
+   if(delta>=0n)actual.inMinor+=delta;else actual.outMinor-=delta;
   }
  }
  for(const group of payoutGroups){
@@ -99,6 +110,8 @@ function summarize(transactionGroups,payoutGroups,expenseGroups){
   amountMinor:String(row.amountMinor),formatted:format(row.amountMinor,row._id.currency)}));
  return {networks:[...networks.values()].sort((a,b)=>a.network.localeCompare(b.network)||a.currency.localeCompare(b.currency)).map(renderRow),
   currencies:[...currencies.values()].sort((a,b)=>a.currency.localeCompare(b.currency)).map(renderRow),
+  cashCurrencies:[...cashCurrencies.values()].sort((a,b)=>a.currency.localeCompare(b.currency)).map(row=>({...row,
+   formatted:format(row.movementMinor,row.currency),inFormatted:format(row.inMinor,row.currency),outFormatted:format(row.outMinor,row.currency)})),
   expenses:expenses.sort((a,b)=>a.currency.localeCompare(b.currency))};
 }
 async function generate(conn,tenant,actor,input={},timeZone='UTC'){
@@ -109,10 +122,11 @@ async function generate(conn,tenant,actor,input={},timeZone='UTC'){
  // Each group keeps voids, methods, commissions, and review states distinct.
  const txQuery=mobileTransactionModel(conn).aggregate([{$match:match},{$group:{
   _id:{network:'$network',currency:'$currency',operation:'$operation',entrySource:{$ifNull:['$entrySource','manual']},
+   cashCurrency:{$ifNull:['$cashCurrency','$currency']},paymentMethod:{$ifNull:['$paymentMethod','Cash']},
    feeTreatment:{$ifNull:['$feeTreatment','record_only']},reviewState:{$ifNull:['$reviewState','awaiting_review']},status:'$status',
    voided:{$or:[{$eq:['$status','voided_internal']},{$eq:['$correctionState','voided']}]}},
   count:{$sum:1},amountMinor:{$sum:'$amountMinor'},feeMinor:{$sum:'$feeMinor'},
-  cashMovementMinor:{$sum:{$cond:[{$and:[{$eq:[{$ifNull:['$paymentMethod','Cash']},'Cash']},{$eq:[{$ifNull:['$cashCurrency','$currency']},'$currency']}]},
+  cashMovementMinor:{$sum:{$cond:[{$eq:[{$ifNull:['$paymentMethod','Cash']},'Cash']},
     {$ifNull:['$physicalCashMovementMinor',{$cond:[{$eq:['$operation','cash_in']},'$amountMinor',{$multiply:['$amountMinor',-1]}]}]},0]}},
   estimatedCommissionMinor:{$sum:{$convert:{input:'$agentCommissionEstimate.amountMinor',to:'decimal',onError:0,onNull:0}}},
   commissionMissingCount:{$sum:{$cond:[{$ifNull:['$agentCommissionEstimate.scheduleId',false]},0,1]}},
@@ -158,7 +172,25 @@ async function generate(conn,tenant,actor,input={},timeZone='UTC'){
   {$sort:{'_id.network':1,'_id.providerCurrency':1,'_id.cashCurrency':1}},
   {$limit:501}
  ]).option({maxTimeMS:8000});
- const [transactions,payouts,expenses,fxGroups]=await Promise.all([txQuery,payoutQuery,expenseQuery,fxQuery]);
+ // Live account positions are distinct from period flows: a date filter
+ // must never mislabel today's book balance as a historical closing balance.
+ const positionsAllowed=hasPermission(actor,'treasury.view');
+ const accountScope={tenantId:tenant._id,status:{$ne:'archived'},kind:{$in:['wallet','cash']},
+  ...(scope.branchId?{branchId:scope.branchId}:{}),
+  ...(scope.operatorId?{operatorId:scope.operatorId}:{}),
+  ...(input.network?{ $or:[{kind:'cash'},{kind:'wallet',network:input.network}] }:{}),
+  ...(input.currency?{currency:input.currency}:{})};
+ const positionQuery=positionsAllowed?treasuryModels(conn).account.find(accountScope)
+  .select('name network currency kind bookBalanceMinor lastObservedMinor lastVarianceMinor lastObservationAt reconciliationState status openingBalanceMinor branchId')
+  .sort({currency:1,kind:1,name:1}).limit(301).lean():Promise.resolve([]);
+ const [transactions,payouts,expenses,fxGroups,positionRows]=await Promise.all([txQuery,payoutQuery,expenseQuery,fxQuery,positionQuery]);
+ if(positionRows.length>300)throw fail('Too many cash and float accounts. Narrow the branch or currency filter.',422);
+ const positions=positionRows.map(account=>({name:account.name,network:account.network,kind:account.kind,currency:account.currency,
+  bookFormatted:format(account.bookBalanceMinor,account.currency),
+  actualFormatted:account.lastObservedMinor===null?'Not checked':format(account.lastObservedMinor,account.currency),
+  varianceFormatted:account.lastVarianceMinor===null?'—':format(account.lastVarianceMinor,account.currency),
+  status:account.status==='active'?account.reconciliationState:account.status,
+  observedAt:account.lastObservationAt||null}));
  if(fxGroups.length>500)throw fail('Too many currency exchange report groups. Narrow the dates.',422);
  const fxRows=fxGroups.map(group=>({
   network:group._id.network,operation:group._id.operation,
@@ -168,7 +200,7 @@ async function generate(conn,tenant,actor,input={},timeZone='UTC'){
   providerFormatted:format(group.providerMinor,group._id.providerCurrency),
   cashFormatted:format(group.cashMinor,group._id.cashCurrency)
  }));
- return {window,...summarize(transactions,payouts,expenses),fxRows,expensesAccessible,
+ return {window,...summarize(transactions,payouts,expenses),fxRows,positions,positionsAccessible:positionsAllowed,expensesAccessible,
   payoutsAccessible:hasPayoutScope,
   note:'Cash/float principal is not revenue. Recorded fees and provider commission estimates are not received income. Provider network charges are not agent revenue. Only posted provider payouts and explicitly collected agent fees are identified as received/collected. Expenses cover all approved branch costs and are not allocated to an individual network. Historical wallet-commission recognition is shown separately to detect double counting. Provider settlement is not established by an internal review.'};
 }

@@ -47,7 +47,7 @@ function amountLabel(value,ccy){const n=BigInt(String(value?.toString?.()??value
 function moduleAccess(tenant,actor,permission){
  if(!hasModuleForUser(tenant,actor,'forex')||!hasPermission(actor,permission))throw fail('Forex subscription or role permission unavailable',403);
 }
-function operator(actor){return ['Tenant Owner','Forex Operator','Banking Operator','Money Transfer Operator'].includes(actor?.role);}
+function operator(actor){return ['Tenant Owner','Branch Manager','Forex Operator','Banking Operator','Money Transfer Operator'].includes(actor?.role);}
 function reviewer(actor){return ['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(actor?.role);}
 function branchScope(actor){
  if(['Tenant Owner','Auditor'].includes(actor?.role))return require('./branchView.service').readScope(actor);

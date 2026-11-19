@@ -15,7 +15,7 @@ test('single shared stat stylesheet enforces 4-up PC and 2-up phone in tenant an
  const css=source('public/css/stat-system.css');
  const legacy=source('public/css/dashboard-layout.css');
  assert.match(css,/#workspaceContent :is\(\.grid3,\.stats,\.backupStats,[\s\S]*?:has\(>\.stat\)\{[\s\S]*?repeat\(4,minmax\(0,1fr\)\)!important/);
- assert.match(css,/@media \(max-width:1100px\)[\s\S]*?:has\(>\.stat\)\{[\s\S]*?repeat\(2,minmax\(0,1fr\)\)!important/);
+ assert.match(css,/@media \(max-width:899\.98px\)[\s\S]*?:has\(>\.stat\)\{[\s\S]*?repeat\(2,minmax\(0,1fr\)\)!important/);
  assert.match(css,/@media \(max-width:600px\)[\s\S]*?:has\(>\.stat\)\{[\s\S]*?repeat\(2,minmax\(0,1fr\)\)!important/);
  assert.doesNotMatch(legacy,/:has\(>\.stat\):not\(\.overviewStatsGrid\)/,'Do not reintroduce competing legacy two-column desktop grid');
  assert.match(legacy,/#workspaceContent \.financialModuleOverview \.moduleStatsGrid/);

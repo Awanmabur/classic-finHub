@@ -106,7 +106,7 @@
                 <span title="Operating branch, separate from the viewing branch"><%= assignedOperationBranch?.name||'No operating branch' %> · <%= user?.role||'Operator' %></span>
               </div>
               <div class="headerAccountActions">
-                <a class="btn" href="/" aria-label="Visit website"><i class="fa-solid fa-globe" aria-hidden="true"></i> Website</a>
+                <a class="btn" href="<%= tenant?.websiteHref||'/' %>" aria-label="Visit website"><i class="fa-solid fa-globe" aria-hidden="true"></i> Website</a>
                 <form method="post" action="/logout"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn" type="submit"><i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i> Logout</button></form>
               </div>
               <div class="headerPrimaryActions">

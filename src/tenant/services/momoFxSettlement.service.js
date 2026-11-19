@@ -172,6 +172,12 @@ async function settleVerified(conn,tenant,actor,input,proof){
    const customerNote=String(input.customerNote||'').trim();
    if(customer.length<2||customer.length>120||customerNote.length>400)
     throw fail('Customer details are invalid',400);
+   // Same approved agent/network sheets as ordinary Mobile Money. These
+   // are immutable ESTIMATES, never automatically realized commission or
+   // an additional customer fee. Cash and float posting stays unchanged.
+   const tariffEstimates=await require('../pricing/networkTariffService').transactionEstimates(
+    conn,tenant,branch,{network:wallet.network,currency:wallet.currency,
+     operation,amountMinor:q.providerAmountMinor,at:new Date(),session});
    const walletAfter=BigInt(String(wallet.bookBalanceMinor))+BigInt(q.walletDeltaMinor);
    const riskSignals=await require('./mobileMoneyRisk.service').assess(conn,session,Mobile,
     {network:wallet.network,operation,currency:wallet.currency,
@@ -183,6 +189,7 @@ async function settleVerified(conn,tenant,actor,input,proof){
     _id:mobileId,idempotencyKey:input.idempotencyKey,operation,customer,customerPhone,customerNote,
     network:wallet.network,networkReference:input.providerReference,
     currency:wallet.currency,amountMinor:dec(q.providerAmountMinor),feeMinor:dec('0'),
+    ...tariffEstimates,
     operatorId:actor.id,branchId:branch._id,status:'recorded',reviewState:'not_required',
     walletAccountId:wallet._id,paymentAccountId:cash._id,paymentMethod:'Cash',
     fundingState:'book_recorded',fundsSourceRef:'MFX:'+input.idempotencyKey,

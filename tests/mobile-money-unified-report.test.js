@@ -128,6 +128,30 @@ test('historical untracked Mobile Money entries never invent physical cash or fl
  assert.equal(result.currencies[0].cashImpactMinor,0n);
 });
 
+
+test('CSV contains SSP physical cash and UGX float movements on different rows, with observation-date evidence',()=>{
+ const report=reporting.summarize([{
+  _id:{network:'MTN',currency:'UGX',cashCurrency:'SSP',paymentMethod:'Cash',fundingState:'book_recorded',
+   operation:'cash_out',entrySource:'manual',feeTreatment:'record_only',status:'recorded',reviewState:'not_required',voided:false},
+  count:1,amountMinor:'1000',cashMovementMinor:'-90000',feeMinor:'0',
+  estimatedCommissionMinor:'10'
+ }],[],[]);
+ report.window={timeZone:'Africa/Juba',from:'2026-11-19',to:'2026-11-19'};
+ report.positionsAccessible=true;
+ report.positions=[{name:'SSP Cash',kind:'cash',network:'',currency:'SSP',bookFormatted:'SSP 400.00',
+  actualFormatted:'SSP 500.00',comparedBookFormatted:'SSP 500.00',varianceFormatted:'SSP 0.00',
+  status:'matched at last count',observedAt:new Date('2026-11-19T05:00:00Z')}];
+ const csv=reporting.csv(report);
+ assert.match(csv,/Net provider float movement/);
+ assert.match(csv,/Actual physical cash flows by drawer currency/);
+ assert.match(csv,/"SSP","1","0","90000","-90000"/);
+ assert.match(csv,/"MTN","UGX","0","1"/);
+ assert.match(csv,/Current book balances and last independently observed balances/);
+ assert.match(csv,/2026-11-19T05:00:00.000Z/);
+ assert.doesNotMatch(csv,/91000/,'UGX and SSP principal cannot be summed');
+ report.positionsAccessible=false;
+ assert.doesNotMatch(reporting.csv(report),/SSP Cash/,'unprivileged CSV must not reveal account-level balances');
+});
 test('corrected original cross-currency records stay in audit volume but do not inflate active cash or float',()=>{
  const groups=[{
   _id:{fundingState:'book_recorded',network:'MTN',currency:'UGX',

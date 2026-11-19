@@ -134,8 +134,9 @@ function routes({renderTenant}){
  router.get('/:id',requirePermission('banking.view'),async(req,res,next)=>{
   try{const request=await bank.detail(req.tenantDb,req.tenant,req.user,req.params.id);
    const pendingMovement=await require('../funded/models').models(req.tenantDb).execution.findOne({sourceType:'banking',sourceId:request._id,status:'pending_review'}).select('_id createdBy').lean();
+   const afterBalances=await require('../services/recordBalances.service').forRecord(req.tenantDb,req.tenant,req.user,'banking',request);
    renderTenant(req,res,'banking/detail','Banking Request Details','Banking instructions and independently reviewed manual book entries.',{
-    request,formatMoneyMinor,
+    request,afterBalances,formatMoneyMinor,
     canFx:hasModuleForUser(req.tenant,req.user,'forex')&&hasModuleForUser(req.tenant,req.user,'accounts')&&
      hasPermission(req.user,'forex.quotes.create')&&hasPermission(req.user,'banking.requests.create')&&
      String(req.operationBranch?._id||'')===String(request.branchId),

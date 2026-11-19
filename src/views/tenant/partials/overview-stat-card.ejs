@@ -16,5 +16,12 @@ const display=value==null?(shownRows.length===1?shownRows[0].formatted:(shownRow
   <% }); %>
  </div>
  <% } %>
- <% if(typeof note==='string'&&note){ %><div class="s"><%= note %></div><% } %>
+ <% if(typeof secondaryRows!=='undefined'&&Array.isArray(secondaryRows)&&secondaryRows.length){ 
+   const shownSecondary=selected?secondaryRows.filter(row=>row.currency===selected):secondaryRows; %>
+  <% if(shownSecondary.length){ %><div class="overviewCurrencyLines" aria-label="<%= typeof secondaryTitle==='string'?secondaryTitle:'Additional posted amounts' %>">
+   <div class="s"><%= typeof secondaryTitle==='string'?secondaryTitle:'Additional posted amounts' %></div>
+   <% shownSecondary.forEach(row=>{ %><div class="overviewCurrencyLine"><span><%= row.currency==='KES'?'KSH':row.currency %></span><b><%= String(row.formatted||'—').replace(/^KES\s/,'KSH ') %></b></div><% }); %>
+  </div><% } %>
+ <% } %>
+  <% if(typeof note==='string'&&note){ %><div class="s"><%= note %></div><% } %>
 </div>

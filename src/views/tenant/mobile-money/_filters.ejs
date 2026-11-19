@@ -3,7 +3,8 @@
    const filterOperation=typeof fixedOperation==='string'?fixedOperation:'';
    const marketOptions=Array.isArray(data.networkMarkets)?data.networkMarkets:[];
    const isUnifiedReport=filterAction==='/tenant/mobile-money/report';
-   const singleMarket=isUnifiedReport&&marketOptions.length===1?marketOptions[0]:null;
+   // Reporting is historical: one currently active wallet must not hide other networks.
+   const singleMarket=null;
    const networksForFilter=marketOptions.length?[...new Set(marketOptions.map(m=>m.network))]:(data.networksAvailable||['MTN','MTN SSD','Airtel','Africell','M-Pesa']);
    const networkFilterOptions=networksForFilter.map(network=>({network,market:marketOptions.find(m=>m.network===network)}));
    const isCustom=data.reportData?.window.key==='custom'; %>

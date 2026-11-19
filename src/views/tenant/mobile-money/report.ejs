@@ -10,7 +10,7 @@
    const code=value=>value==='KES'?'KSH':value;
    const money=(value,currency)=>data.formatMoneyMinor(String(value??'0'),currency);
    const count=key=>groups.reduce((sum,row)=>sum+Number(row[key]||0),0); %>
-<section class="view show mobileMoneyPage workspaceStack" aria-label="Mobile Money business report">
+<section class="view show mobileMoneyPage workspaceStack financialReportsPage" aria-label="Mobile Money business report">
  <%- include('../partials/module-finance',{moduleKey:'mobile_money'}) %>
  <section class="card">
   <div class="cardHead">

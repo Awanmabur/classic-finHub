@@ -151,6 +151,18 @@ async function main(){
   providerAppConfirmed:'yes',cashHandoverConfirmed:'yes'
  })).duplicate,true,'Legacy two-checkbox confirmations remain compatible without reposting');
  assert.deepEqual(await balances(),{wallet:'1060',drawer:'45100'});
+ const recordBalances=require('../src/tenant/services/recordBalances.service');
+ const afterMomo=await recordBalances.forRecord(conn,tenant,owner,'mobile_money',manual.mobile);
+ assert.equal(afterMomo.length,2,'One cross-currency operation changes two native currency accounts');
+ assert(afterMomo.some(x=>x.currency==='UGX'&&x.balanceAfter==='UGX 1,060'),
+  'Original UGX float balance-after is persisted');
+ assert(afterMomo.some(x=>x.currency==='SSP'&&x.balanceAfter==='SSP 451.00'),
+  'Original SSP cash balance-after is persisted');
+ const linkedQuote=await core.forexQuoteModel(conn).findById(manual.record.forexQuoteId).lean();
+ const afterForex=await recordBalances.forRecord(conn,tenant,owner,'forex',linkedQuote);
+ assert.deepEqual(afterForex.map(x=>[x.currency,x.balanceAfter]),
+  afterMomo.map(x=>[x.currency,x.balanceAfter]),
+  'Forex and MoMo views read the same immutable balance snapshots; no new posting');
  // Exercise the actual MongoDB-backed existing Mobile Money report, not
  // only a standalone pure summarizer. The report must follow the real books.
  const businessDay=require('../src/utils/businessTime').localDay(new Date(),'Africa/Juba');

@@ -8,3 +8,18 @@ test('phone normalization never passes arrays or objects to the phone parser',()
  for(const country of [['SS'],{},false,12,null])assert.equal(phone.normalize('0921234567',country),'+211921234567');
  assert.equal(phone.normalize('0700 123 456','ug'),'+256700123456');
 });
+
+test('Mobile Money local phone uses provider wallet country rather than default South Sudan',()=>{
+ for(const [network,currency,local,expected] of [
+  ['MTN','UGX','0771 234 567','+256771234567'],
+  ['Airtel','UGX','0700 123 456','+256700123456'],
+  ['MTN SSD','SSP','0921 234 567','+211921234567'],
+  ['M-Pesa','KES','0712 345678','+254712345678']
+ ]){
+  const country=phone.mobileMoneyCountry(network,currency,'SS');
+  assert.equal(phone.normalize(local,country),expected,network+' '+currency);
+ }
+ assert.equal(phone.normalize('+254 712 345678',phone.mobileMoneyCountry('MTN','UGX')),'+254712345678');
+ assert.equal(phone.mobileMoneyCountry('M-Pesa','KES'),'KE');
+ assert.equal(phone.mobileMoneyCountry('Africell','USD','SS'),'SS');
+});

@@ -39,7 +39,7 @@ test('approved mobile money entry preserves the protected server contract and as
   assert.match(html,/name="_csrf" value="protected-csrf"/);
   assert.match(html,new RegExp(`name="idempotencyKey" value="${requestKey}"`));
   for(const field of ['customer','customerPhone','network','networkReference','customerNote','amount','fee','currency','paymentMethod']) assert.match(html,new RegExp(`name="${field}"`));
-  for(const label of ['Customer and network','Customer phone','Customer name','Network transaction reference','Customer ID / note','Amount and accounts','Additional agent service fee','Physical cash received from customer','Record deposit']) assert.ok(html.includes(label),label);
+  for(const label of ['Customer and network','Customer phone','Customer name','Network transaction reference','Customer ID / note','Amount and accounts','No extra agent fee','Physical cash received from customer','Record deposit']) assert.ok(html.includes(label),label);
   assert.match(html,/<option value="Africell" data-market-currency=""(?: selected| disabled)*>Africell<\/option>/);
   assert.match(html,/name="paymentMethod" value="Cash"/);
   assert.doesNotMatch(html,/<option value="Wallet Balance">/);
@@ -90,13 +90,13 @@ test('network activity and report use supplied totals, retained status, filters 
   assert.match(network,/entrySource=sms/);
   assert.match(network,/cursor=next-key/);
   const report = await render('report',options());
-  for(const label of ['Mobile Money business report','Transaction volume','Net cash movement','Manual / SMS records','Voided originals','Approved operating expenses']) assert.ok(report.includes(label));
+  for(const label of ['Mobile Money report','Transaction volume','Physical cash movement','Cash and float reconciliation','Network breakdown','Income and expenses']) assert.ok(report.includes(label));
   assert.match(report,/\/tenant\/mobile-money\/report\/unified\.csv\?/);
   assert.doesNotMatch(report,/Report basis/);
   assert.doesNotMatch(report,/Entry source/);
   assert.match(report,/Reporting period/);
   const readonly = options(); readonly.data.canExport=false;
-  assert.doesNotMatch(await render('report',readonly),/Export consolidated CSV/);
+  assert.doesNotMatch(await render('report',readonly),/Export CSV/);
 });
 
 test('cash impact retains all approved cards and separates physical cash from recorded commissions',async()=>{

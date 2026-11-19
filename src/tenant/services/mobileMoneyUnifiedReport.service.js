@@ -185,10 +185,29 @@ async function generate(conn,tenant,actor,input={},timeZone='UTC'){
    ...(input.network?[{$or:[{kind:'cash'},{kind:'wallet',network:input.network}]}]:[]),
    ...(input.currency?[{$or:[{kind:'cash'},{kind:'wallet',currency:input.currency}]}]:[])
   ]}:{})};
+ // Display each native-currency customer and Forex record independently.
+ // Both queries are scoped and paginated; they never create another posting.
+ const {Types}=require('mongoose'),take=50;
+ const cursor=mobile.decodeCursor(input.recordCursor);
+ const recordScope=cursor?{$and:[match,{$or:[
+  {createdAt:{$lt:cursor.at}},
+  {createdAt:cursor.at,_id:{$lt:new Types.ObjectId(cursor.id)}}
+ ]}]}:match;
+ const recordQuery=mobileTransactionModel(conn).find(recordScope)
+  .select('_id createdAt network networkReference operation currency cashCurrency amountMinor physicalCashMovementMinor feeMinor agentCommissionEstimate customerNetworkFeeEstimate status correctionState fundingState fxSettlementId exchangeRateDecimal')
+  .sort({createdAt:-1,_id:-1}).limit(take+1).maxTimeMS(5000).lean();
+ const fxCursor=mobile.decodeCursor(input.fxCursor);
+ const fxRecordScope=fxCursor?{$and:[fxScope,{$or:[
+  {settledAt:{$lt:fxCursor.at}},
+  {settledAt:fxCursor.at,_id:{$lt:new Types.ObjectId(fxCursor.id)}}
+ ]}]}:fxScope;
+ const fxRecordQuery=require('../schemas/MomoFxSettlement').records(conn).find(fxRecordScope)
+  .select('_id settledAt network providerReference operation providerCurrency cashCurrency providerAmountMinor cashAmountMinor rateDecimal rateSide providerSettlementState fxProfitState mobileMoneyRecordId')
+  .sort({settledAt:-1,_id:-1}).limit(take+1).maxTimeMS(5000).lean();
  const positionQuery=positionsAllowed?treasuryModels(conn).account.find(accountScope)
   .select('name network currency kind bookBalanceMinor lastObservedMinor lastVarianceMinor lastObservationAt lastExpectedAtObservationMinor lastObservationStale reconciliationState status openingBalanceMinor branchId')
   .sort({currency:1,kind:1,name:1}).limit(301).lean():Promise.resolve([]);
- const [transactions,payouts,expenses,fxGroups,positionRows]=await Promise.all([txQuery,payoutQuery,expenseQuery,fxQuery,positionQuery]);
+ const [transactions,payouts,expenses,fxGroups,positionRows,recordRows,fxRecordRows]=await Promise.all([txQuery,payoutQuery,expenseQuery,fxQuery,positionQuery,recordQuery,fxRecordQuery]);
  if(positionRows.length>300)throw fail('Too many cash and float accounts. Narrow the branch or currency filter.',422);
  const positions=positionRows.map(account=>({name:account.name,network:account.network,kind:account.kind,currency:account.currency,
   bookFormatted:format(account.bookBalanceMinor,account.currency),
@@ -207,6 +226,11 @@ async function generate(conn,tenant,actor,input={},timeZone='UTC'){
   cashFormatted:format(group.cashMinor,group._id.cashCurrency)
  }));
  return {window,...summarize(transactions,payouts,expenses),fxRows,positions,positionsAccessible:positionsAllowed,expensesAccessible,
+  recordItems:recordRows.slice(0,take).map(row=>mobile.visibleRecordForRole(row,actor.role)),
+  recordNextCursor:recordRows.length>take?mobile.encodeCursor(recordRows[take-1]):null,
+  fxItems:fxRecordRows.slice(0,take),
+  fxNextCursor:fxRecordRows.length>take?
+   mobile.encodeCursor({createdAt:fxRecordRows[take-1].settledAt,_id:fxRecordRows[take-1]._id}):null,
   payoutsAccessible:hasPayoutScope,
   note:'Cash/float principal is not revenue. Recorded fees and provider commission estimates are not received income. Provider network charges are not agent revenue. Only posted provider payouts and explicitly collected agent fees are identified as received/collected. Expenses cover all approved branch costs and are not allocated to an individual network. Historical wallet-commission recognition is shown separately to detect double counting. Provider settlement is not established by an internal review.'};
 }

@@ -6,13 +6,12 @@
    const financialActions=quickActions.filter(action=>['transfer','mobile_money','forex_buy','banking_deposit'].includes(action.kind));
    const opener=quickActions.find(action=>action.kind==='cash_shift_open');
    const overviewCurrencies=typeof currencyOptions==='undefined'?[{code:'UGX',label:'UGX'},{code:'USD',label:'USD'},{code:'SSP',label:'SSP'},{code:'KES',label:'KSH'}]:currencyOptions;
-   const currencyRows=data.hasMobileMoney&&!data.hasTransfer&&!data.hasBanking&&!data.hasForex&&data.mobileMarkets?.length?
-    [...new Set(data.mobileMarkets.map(m=>m.currency))].map(code=>({code,label:code==='KES'?'KSH':code})):overviewCurrencies;
+   const currencyRows=overviewCurrencies;
    const cards=[['hasTransfer','money_transfer','Money transfer volume','ovTransfer','Send + payout'],['hasMobileMoney','mobile_money','Mobile money volume','ovMobile','Deposits + withdrawals'],['hasBanking','banking','Banking volume','ovBanking','Deposit/withdraw/transfer'],['hasForex','forex','Forex volume','ovForex','Buy + sell exchange']];
    const hasSources=cards.some(([flag])=>data[flag]);
    const canConfigureFunds=(user.permissions||[]).some(p=>p==='*'||p==='treasury.view');
-   const cashFunds=(data.mobileFunds?.paymentAccounts||[]).filter(a=>a.kind==='cash'&&(!data.mobileMarket||(data.mobileDisplayCashIds||[]).includes(a.id)));
-   const floatFunds=(data.mobileFunds?.wallets||[]).filter(a=>!data.mobileMarket||(a.network===data.mobileMarket.network&&a.currency===data.mobileMarket.currency));
+   const cashFunds=(data.mobileFunds?.paymentAccounts||[]).filter(a=>a.kind==='cash');
+   const floatFunds=data.mobileFunds?.wallets||[];
    const fundsVisibility=data.mobileFundsState==='all_branches'?'Choose a viewing branch for balance details':data.mobileFundsState==='branch_required'?'No operating branch is selected':data.mobileFunds?.visibilityRestricted?'Restricted by role':null;
    const canSeeCash=visiblePaths.has('/tenant/treasury'); %>
 <section class="view show" id="view-overview">
@@ -20,20 +19,23 @@
     <div class="cardBody">
       <% if(snapshot.mixedRegion){ %><p class="tiny">Branches use different timezones. Select a branch from the dashboard header to view accurate local-day transaction totals; cash and float accounts remain independently scoped.</p><% } %>
       <% if(hasSources){ %><div class="grid3 overviewStatsGrid">
-        <% cards.forEach(([flag,key,label,id,sub])=>{if(!data[flag])return;const value=volumes[key]; %><div class="stat" title="Today's active recorded <%= key.replaceAll('_',' ') %> operations and instructions. This total is separate from verified external balances."><div class="k"><%= label %></div><div class="v" id="<%= id %>"><%= value?.formatted||'—' %></div><div class="s"><span class="dot <%= key==='forex'?'warn':'' %>"></span><span><%= key==='mobile_money'&&data.mobileMarket?data.mobileMarket.label+' · '+data.mobileMarket.currency:sub %></span></div>
-           <% const currencyDetail=byCurrency[key]||[];if(snapshot.todayByCurrencyUnavailable?.[key]){ %><div class="s">Currency breakdown temporarily unavailable</div><% } else if(currencyDetail.length){ %>
-           <div class="overviewCurrencyLines" aria-label="<%= label %> by original currency">
-             <% currencyDetail.forEach(item=>{ %><div class="overviewCurrencyLine"><span><%= item.currency==='KES'?'KSH':item.currency %> · <%= item.count %> transaction<%= item.count===1?'':'s' %></span><b><%= item.formatted.replace(/^KES /,'KSH ') %></b></div><% }); %>
-           </div>
-           <% } %>
-           <% const moduleEarning=(finance.moduleEarnings||[]).find(item=>item.moduleKey===key); %>
-           <% if(moduleEarning?.net?.length){ %>
-             <div class="overviewCurrencyLines" title="Posted module ledger income less expenses; excludes unmeasured exchange gains and shared costs">
-               <span class="s">Posted net income (not transaction volume)</span>
-               <% moduleEarning.net.forEach(item=>{ %><div class="overviewCurrencyLine"><span><%= item.currency==='KES'?'KSH':item.currency %></span><b><%= item.formatted.replace(/^KES /,'KSH ') %></b></div><% }); %>
-             </div>
-           <% } else if(finance.available&&key==='forex'){ %><div class="s">Forex trading profit requires stock cost basis; not estimated from turnover.</div><% } %>
-           </div><% }) %>
+        <% cards.forEach(([flag,key,label,id,sub])=>{if(!data[flag])return;
+   const currencyDetail=byCurrency[key]||[];
+   const selected=data.dashboardCurrency||'';
+   const current=currencyDetail.find(row=>row.currency===selected);
+   const unavailable=snapshot.todayByCurrencyUnavailable?.[key];
+   const count=selected?(current?.count||0):currencyDetail.reduce((sum,row)=>sum+row.count,0);
+   const value=unavailable?'Currency breakdown unavailable':selected?(current?.formatted||'No recorded transactions'):
+    count+' transaction'+(count===1?'':'s');
+   const moduleEarning=(finance.moduleEarnings||[]).find(item=>item.moduleKey===key);
+   const note=key==='forex'&&!moduleEarning?.net?.length&&finance.available?
+    'Trading profit requires verified acquisition cost; no estimated profit is shown.':sub;
+   %><%- include('../partials/overview-stat-card',{
+     title:label,value,valueId:id,items:unavailable?[]:currencyDetail,
+     currencyFilter:selected,secondaryRows:moduleEarning?.net||[],
+     secondaryTitle:'Posted net income (not transaction volume)',note,
+     tooltip:"Today's recorded operations. Monetary amounts stay in native currencies."
+   }) %><% }) %>
         <% if(data.hasMobileMoney){ %>
         <% [['cash',cashFunds,'Physical cash · book balance','ovCash'],['float',floatFunds,'Electronic float · wallet balance','ovFloat']].forEach(([type,accounts,label,id])=>{const totals=(data.mobileBookTotals?.[type]||[]);const unapproved=accounts.filter(a=>a.expectedMinor===null||a.expectedMinor===undefined); %>
         <div class="stat" data-dashboard-fund-stat="<%= type %>" title="Approved opening balances plus recorded internal funds movements, not live provider balances.">

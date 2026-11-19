@@ -1,7 +1,7 @@
 <% const regionalZone=typeof businessTimeZone==='string'?businessTimeZone:'UTC';
  const regionalTime=typeof formatLocalDate==='function'?formatLocalDate:(v=>new Date(v).toISOString()); %>
 <% const cashLabel=(value,currency)=>typeof formatMoneyMinor==='function'?formatMoneyMinor(value,currency):money(currency,amountFromMinor(value,currency)); %>
-<% const expectedCash=BigInt(String(data.shift.openingMinor))+BigInt(String(data.shift.provisionalMovementMinor));
+<% const expectedNow=BigInt(String(data.shift.openingMinor))+BigInt(String(data.shift.provisionalMovementMinor));
  const shiftStatus=({pending_open:'Waiting for opening count verification',open:'Open · recording',submitted:'Closing count under review',approved:'Closed · reconciled',disputed:'Cash discrepancy under review',opening_rejected:'Opening count rejected'})[data.shift.status]||data.shift.status; %>
 <section class="view show">
   <section class="card">
@@ -11,7 +11,7 @@
       <div class="grid3">
         <div class="stat"><div class="k">Opening cash</div><div class="v"><%= cashLabel(data.shift.openingMinor,data.shift.currency) %></div></div>
         <div class="stat"><div class="k">Net recorded cash movement</div><div class="v"><%= cashLabel(data.shift.provisionalMovementMinor,data.shift.currency) %></div></div>
-        <div class="stat"><div class="k">Expected cash now</div><div class="v"><%= cashLabel(String(expectedCash),data.shift.currency) %></div></div>
+        <div class="stat"><div class="k">Expected cash now</div><div class="v"><%= cashLabel(String(expectedNow),data.shift.currency) %></div></div>
         <div class="stat"><div class="k">Recorded operations</div><div class="v"><%= data.shift.recordCount %></div></div>
       </div>
       <% if(data.shift.submittedAt){ %>
@@ -29,7 +29,7 @@
           <div class="rowBtns"><button class="btn btnPrimary" name="decision" value="approve">Verify and open shift</button><button class="btn" name="decision" value="reject">Reject opening count</button></div>
         </form>
       <% } %>
-      <% if(data.canSubmit){ const expectedNow=expectedCash; %>
+      <% if(data.canSubmit){ %>
         <div class="summary"><div class="sumRow"><span>System closing cash from posted movements</span><b><%= cashLabel(String(expectedNow),data.shift.currency) %></b></div></div>
         <form method="post" action="/tenant/cash/shifts/<%= data.shift._id %>/submit" style="margin-top:14px">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">

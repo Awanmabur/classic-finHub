@@ -133,8 +133,8 @@ for (const [path,op,permission] of [['cash-in','cash_in','mobile_money.cash_in']
       }
       if(wallet.currency===cash.currency){
        const result=await mobile.recordMobileMoney(req.tenantDb,req.user,req.body,op,req.tenant,null,{requireFunds:true});
-       flash(req,'good',result.duplicate?'This request was already recorded; no duplicate created.':
-        'Transaction recorded as final in Mobile Money. Provider settlement remains independently unverified.');
+       flash(req,'good',result.duplicate?'Already recorded. No duplicate cash or float movement.':
+        (op==='cash_in'?'Deposit':'Withdrawal')+' recorded. TX ID: '+result.created.networkReference);
        require('../services/branchView.service').followRecord(req,result.created);
       }else{
        // Fee and conversion must be the exact same terms the cashier previewed.
@@ -164,9 +164,8 @@ for (const [path,op,permission] of [['cash-in','cash_in','mobile_money.cash_in']
           customerPhone:req.body.customerPhone,customerNote:req.body.customerNote,
           transactionConfirmed:'yes' // Authenticated POST is the final Record acknowledgement
          });
-       flash(req,'good',result.duplicate?
-        'This exchange was already recorded; no duplicate cash or float posting.':
-        'Withdrawal/deposit finalized once in Mobile Money and linked to Forex reporting. External provider settlement remains unverified.');
+       flash(req,'good',result.duplicate?'Already recorded. No duplicate cash or float movement.':
+        (op==='cash_in'?'Deposit':'Withdrawal')+' recorded with Forex. TX ID: '+(result.mobile?.networkReference||result.record.providerReference));
        if(result.mobile)require('../services/branchView.service').followRecord(req,result.mobile);
       }
       res.redirect(303,'/tenant/mobile-money');

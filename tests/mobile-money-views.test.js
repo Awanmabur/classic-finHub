@@ -252,9 +252,13 @@ test('one original cashier form supports same/cross currency without a second pa
  const html=await render('entry',base);
  assert.ok(html.includes('action="/tenant/mobile-money/cash-out"'));
  assert.ok(html.includes('data-mobile-money-form'));
- for(const name of ['walletAccountId','paymentAccountId','fxRateId','fxCashAmountMinor','providerAppConfirmed'])
+ for(const name of ['walletAccountId','paymentAccountId','fxRateId','fxCashAmountMinor','transactionConfirmed'])
   assert.ok(html.includes('name="'+name+'"'),name);
  assert.ok(html.includes('data-momo-unified-preview'));
+ assert.ok(!html.includes('name="providerAppConfirmed"'));
+ assert.ok(!html.includes('name="cashHandoverConfirmed"'));
+ assert.equal((html.match(/name="transactionConfirmed"/g)||[]).length,1,
+  'Only one actual-provider-and-cash confirmation is required in the existing form');
  assert.ok(!html.includes('action="/tenant/mobile-money/fx/record"'));
  assert.ok(!html.includes('regulatoryAuthorizationReference'));
  const script=require('node:fs').readFileSync(path.resolve(__dirname,'../public/js/mobile-money-unified.js'),'utf8');
@@ -350,4 +354,32 @@ test('tenant owner and assigned Mobile Money Operator retain their existing reco
   assert.ok(html.includes('name="walletAccountId"'),role);
   assert.ok(!html.includes('This signed-in session has role'),role);
  }
+});
+
+test('cash shift readiness rejects wrong account, missing verification and mismatched book',()=>{
+ const funds=require('../src/tenant/services/mobileMoneyFunds.service');
+ const account={_id:'507f1f77bcf86cd799439011',kind:'cash',bookBalanceMinor:'2200'};
+ assert.equal(funds.cashPostingStatus(account,null).postingReady,false);
+ const start={status:'open',openingMinor:'2000',provisionalMovementMinor:'200',
+  openingVerifiedAt:new Date(),treasuryAccountId:account._id};
+ assert.equal(funds.cashPostingStatus(account,start).postingReady,true);
+ assert.equal(funds.cashPostingStatus(account,{...start,openingVerifiedAt:null}).postingReady,false);
+ assert.equal(funds.cashPostingStatus(account,{...start,openingMinor:'2001'}).postingReady,false);
+ assert.match(funds.cashPostingStatus(account,{...start,treasuryAccountId:'507f1f77bcf86cd799439099'}).postingReason,/different cash account/);
+ assert.equal(funds.cashPostingStatus(account,{...start,status:'submitted'}).postingReady,false);
+});
+test('assigned Branch Manager retains MoMo posting permissions but cannot review own cash opening',async()=>{
+ const roles=require('../src/config/roles');
+ const manager=roles.permissionsFor('Branch Manager');
+ for(const key of ['mobile_money.cash_in','mobile_money.cash_out','money_transfer.create',
+  'banking.requests.create','forex.quotes.create','treasury.observe'])
+  assert.ok(manager.includes(key),key);
+ assert.ok(!manager.includes('*'));
+ const canOpen=require('../src/tenant/services/cashDrawer.service').opener;
+ assert.equal(canOpen({role:'Tenant Owner'}),true);
+ assert.equal(canOpen({role:'Branch Manager'}),true);
+ const local=options();local.user.role='Branch Manager';local.user.permissions=manager;
+ local.data.operation='cash_out';
+ const html=await render('entry',local);
+ assert.match(html,/data-mobile-money-form/);
 });

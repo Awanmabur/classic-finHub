@@ -100,9 +100,10 @@ function routes({renderTenant}){
  router.get('/:id',requirePermission('money_transfer.view'),async(req,res,next)=>{
   try{const order=await transfer.detail(req.tenantDb,req.tenant,req.user,req.params.id);
    const pendingMovement=await require('../funded/models').models(req.tenantDb).execution.findOne({sourceType:'money_transfer',sourceId:order._id,status:'pending_review'}).select('_id createdBy').lean();
+   const afterBalances=await require('../services/recordBalances.service').forRecord(req.tenantDb,req.tenant,req.user,'money_transfer',order);
    renderTenant(req,res,'money-transfer/detail','Transfer Request Details',
     'Transfer instructions and independently reviewed manual collections and payouts.',{
-     order,formatMoneyMinor,
+     order,afterBalances,formatMoneyMinor,
      canFx:order.status==='collected_manual'&&
       require('../services/moduleAccess.service').hasModuleForUser(req.tenant,req.user,'forex')&&
       hasPermission(req.user,'forex.quotes.create')&&

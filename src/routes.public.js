@@ -174,6 +174,15 @@ router.get('/t/:slug', async (req,res,next)=>{
      seo.tenantMetadata(tenant,landing));
  }catch(err){next(err);}
 });
+router.get('/t/:slug/review',async(req,res,next)=>{
+ try{
+   const reviews=require('./platform/services/businessReviews.service');
+   const tenant=await reviews.eligibleTenant(req.params.slug);
+   res.set({'X-Robots-Tag':'noindex, nofollow','Cache-Control':'private, no-store'});
+   renderPublic(req,res,'business-review-compose','Write a customer review | ClassicFin Hub',
+     {slug:tenant.slug,businessName:tenant.name});
+ }catch(err){next(err);}
+});
 router.post('/t/:slug/reviews',async(req,res,next)=>{
  try{
    await require('./platform/services/actionThrottle.service').consume({

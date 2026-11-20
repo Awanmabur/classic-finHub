@@ -140,6 +140,20 @@ function factory({renderTenant}){
    await render(req,res,page,extra);
   }catch(error){next(error);}});
  }
+ router.get('/reviews',async(req,res,next)=>{
+  try{
+    const reviews=await require('../../platform/services/businessReviews.service').tenantReviews(req.tenantDb,req.tenant,req.user);
+    renderTenant(req,res,'workspace/reviews','Customer reviews','Read customer ratings and respond to approved reviews.',{reviews,
+      canManage:req.user.role==='Tenant Owner'&&hasPermission(req.user,'workspace.manage')});
+  }catch(err){next(err);}
+ });
+ router.post('/reviews/:id/reply',requirePermission('workspace.manage'),throttle,async(req,res,next)=>{
+  try{
+    await require('../../platform/services/businessReviews.service').reply(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
+    flash(req,'good','Your business response has been saved and audited.');
+    res.redirect(303,'/tenant/workspace/reviews');
+  }catch(err){next(err);}
+ });
  router.get('/roles',async(req,res,next)=>{try{await render(req,res,'roles',{roles:service.roles(req.user)});}catch(error){next(error);}});
  router.get('/database',async(req,res,next)=>{try{await render(req,res,'database',{stats:await service.database(req.tenantDb,req.tenant,req.user)});}catch(error){next(error);}});
  router.get('/subscription',async(req,res,next)=>{try{await render(req,res,'subscription',{terms:await service.subscription(req.tenantDb,req.tenant,req.user)});}catch(error){next(error);}});

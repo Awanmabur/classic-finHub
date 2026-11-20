@@ -167,7 +167,7 @@ router.get('/t/:slug', async (req, res, next) => {
     const landing=await require('./tenant/workspace/service').publicLanding(require('./config/mongo').getTenantConnection(tenant.slug),tenant);
     if(!landing)return res.status(404).send('Tenant page not found');
     res.set('Cache-Control','no-store');
-    renderPublic(req, res, 'tenant-landing', `${landing?.name||tenant.name} | ClassicFin Hub`, { tenant,landing });
+    renderPublic(req, res, 'tenant-landing', `${landing?.name||tenant.name} | ClassicFin Hub`, { tenant:{name:tenant.name,slug:tenant.slug},landing });
   } catch (e) { next(e); }
 });
 router.get('/robots.txt', (req,res) => res.type('text/plain').set('Cache-Control','public, max-age=1800').send(seo.robotsTxt()));

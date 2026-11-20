@@ -48,7 +48,26 @@ async function main(){
  saved=await service.save(conn,tenant,owner,'landing',{headline:'Published <script>example()</script>',subtitle:'Published customer description',services:'Mobile Money,Forex',revision:3});assert.equal(saved.revision,4);
  const published=await service.writeEntry(conn,tenant,owner,'landing_section',{name:'Published services',description:'Published body <img src=x onerror=unsafe()>',status:'published',order:'1'});
  const draft=await service.writeEntry(conn,tenant,owner,'landing_section',{name:'Private draft section',description:'Never public until published',status:'draft',order:'2'});
- await service.publish(conn,tenant,owner,{revision:4});let landing=await service.publicLanding(conn,tenant);assert.equal(landing.sections.length,1);assert.equal(landing.sections[0].name,'Published services');
+ const publishedResult=await service.publish(conn,tenant,owner,{revision:4});
+ assert.equal(publishedResult.directorySyncPending,false,'owner publication should appear in the directory');
+ const publishedDirectory=await Tenant.findById(tenant._id).lean();
+ assert.equal(publishedDirectory.directory.name,profile().name);
+ let landing=await service.publicLanding(conn,tenant);assert.equal(landing.sections.length,1);assert.equal(landing.sections[0].name,'Published services');
+ const BusinessReview=require('../src/platform/models/BusinessReview');
+ const PlatformAuditLog=require('../src/platform/models/PlatformAuditLog');
+ await Promise.all([BusinessReview.createIndexes(),PlatformAuditLog.createIndexes()]);
+ const approvedReview=await BusinessReview.create({tenantId:tenant._id,tenantSlug:tenant.slug,
+   authorName:'Scratch reviewer',rating:4,comment:'The local service was courteous and helpful.',
+   status:'approved',approvedAt:new Date(),tokenHash:crypto.randomBytes(32).toString('hex'),
+   networkHash:crypto.randomBytes(32).toString('hex')});
+ const reviews=require('../src/platform/services/businessReviews.service');
+ await reviews.reply(conn,tenant,owner,String(approvedReview._id),{revision:0,reply:'Thank you for visiting our team.'});
+ const replied=await BusinessReview.findById(approvedReview._id).lean();
+ assert.equal(replied.ownerReply,'Thank you for visiting our team.');
+ await assert.rejects(reviews.reply(other,otherTenant,otherOwner,String(approvedReview._id),
+   {revision:1,reply:'Cross-tenant response'}),{status:409},'owners cannot respond to another tenant review');
+ assert.equal(await PlatformAuditLog.countDocuments({action:'business.review.reply_updated',
+   recordId:String(approvedReview._id)}),1);
  await service.save(conn,tenant,owner,'landing',{headline:'Unpublished headline',subtitle:'Private updated description',services:'Mobile Money',revision:5});assert.equal((await service.publicLanding(conn,tenant)).headline,'Published <script>example()</script>','draft changes do not alter published snapshot');
  const edited=await service.writeEntry(conn,tenant,owner,'landing_section',{name:published.name,description:'Edited source section',status:'published',order:'1',revision:0},String(published._id));assert.equal(edited.revision,1);
  await assert.rejects(service.writeEntry(conn,tenant,owner,'landing_section',{name:'Stale section',description:'Unwanted stale content',status:'published',order:'1',revision:0},String(published._id)),{status:409});

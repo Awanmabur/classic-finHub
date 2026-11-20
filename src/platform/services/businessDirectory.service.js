@@ -31,7 +31,9 @@ function card(tenant){
 async function sync(tenant,landing,publishedAt=new Date()){
   const snapshot=publicSnapshot(landing,publishedAt);
   if(!snapshot)throw new Error('A published public landing snapshot is required');
-  return Tenant.updateOne({_id:tenant._id,slug:tenant.slug},
+  // A delayed reconciliation must never overwrite a more recent owner publication.
+  return Tenant.updateOne({_id:tenant._id,slug:tenant.slug,
+    $or:[{'directory.publishedAt':{$exists:false}},{'directory.publishedAt':{$lte:snapshot.publishedAt}}]},
     {$set:{directory:snapshot}},{runValidators:true});
 }
 function ready(){return mongoose.connection.readyState===1;}

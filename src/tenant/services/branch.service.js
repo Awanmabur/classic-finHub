@@ -11,7 +11,7 @@ function requireOwner(actor){if(actor?.role!=='Tenant Owner')throw fail('Only te
 function validId(value){if(!/^[a-f0-9]{24}$/i.test(String(value||'')))throw fail('Invalid branch',400);return value;}
 function validate(input,create=false){
   const name=String(input?.name||'').trim(),address=String(input?.address||'').trim();
-  const code=String(input?.code||'').trim().toLowerCase();
+  const code=String(input?.code|| (create?require('../../utils/autoIdentifier').branchCode(name):'')).trim().toLowerCase();
   if(name.length<2||name.length>100||address.length>240)throw fail('Branch name must be 2–100 characters; address at most 240');
   if(create&&(!/^[a-z0-9][a-z0-9-]{1,30}$/.test(code)||!currencyCodes.includes(input?.currency))) throw fail('Invalid branch code or currency');
   let currencies;

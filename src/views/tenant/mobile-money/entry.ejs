@@ -8,7 +8,7 @@
     ((user.permissions||[]).includes('*')||(user.permissions||[]).includes('treasury.manage')) &&
     data.fxState.wallets.length && data.fxState.drawers.length){ %>
   <details class="card logicNote" style="margin-top:12px">
-   <summary class="cardHead">Exchange rates · owner settings</summary>
+   <summary class="cardHead">Exchange rates · <%= data.fxState?.expiredRates?.length?'renew expired rate':'owner settings' %></summary>
    <form method="post" action="/tenant/mobile-money/fx/rates" class="cardBody" autocomplete="off">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <div class="row2">
@@ -23,7 +23,7 @@
     </div>
     <div class="row2">
      <label class="field">Rate type
-      <select class="control" name="side" required><option value="buy">Buy · customer withdraws in cash</option><option value="sell">Sell · customer deposits cash</option></select></label>
+      <select class="control" name="side" required><option value="buy" <%= data.operation==='cash_out'?'selected':'' %>>Buy · customer withdraws in cash</option><option value="sell" <%= data.operation==='cash_in'?'selected':'' %>>Sell · customer deposits cash</option></select></label>
      <label class="field">Reference amount
       <select class="control" name="rateBaseUnits" required>
        <option value="1">1 unit</option><option value="100">100 units</option><option value="1000" selected>1,000 units</option>
@@ -31,12 +31,15 @@
     </div>
     <label class="field">Target currency amount for the selected reference
      <input class="control" name="quotedRate" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,8})?" required placeholder="Enter your actual operating rate"></label>
-    <input type="hidden" name="validHours" value="24">
-    <p class="tiny">For example, enter 1,000 UGX and its equivalent SSP amount. The system saves a precise per-unit rate. Updating a rate does not change completed transactions.</p>
+    <label class="field">How long this approved rate is valid
+     <select class="control" name="validHours" required><option value="24" selected>24 hours</option><option value="48">48 hours</option><option value="72">72 hours</option></select>
+    </label>
+    <p class="tiny">Rates expire automatically; after expiry the transaction is blocked until a new rate is approved. For UGX/KSH/SSP, use the 1,000-unit reference. A renewed rate never edits a completed transaction.</p>
     <button class="btn btnPrimary" type="submit">Save operating exchange rate</button>
    </form>
   </details>
   <% } %>
+  <% if(data.fxState?.expiredRates?.length){ %><p class="tiny" role="status" aria-live="polite"><strong>Cross-currency rate expired:</strong> <%= data.fxState.expiredRates.map(rate=>rate.fromCurrency+' → '+(rate.toCurrency==='KES'?'KSH':rate.toCurrency)+' ('+rate.side+')').join(', ') %>. A new owner-approved rate is required before recording this currency pair. No funds have been moved by the preview.</p><% } %>
   <div class="grid mobileMoneyEntryGrid">
     <% if(data.canRecord && currentBranch){ %>
       <%- include('_entry-form',{currentBranch,operation:data.operation}) %>

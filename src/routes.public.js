@@ -28,11 +28,11 @@ for (const name of original) router.get(name === 'home' ? '/' : '/' + name, asyn
   res.render('original/' + name, { featuredBusinesses,directoryUnavailable,flash: consumeFlash(req), plans:catalogue.plans, addonModules:store.modules.filter(m=>m.category==='Addon'&&m.runtimeStatus==='enabled'&&m.status==='active'), cataloguePersisted:catalogue.persisted,catalogueUnavailable:Boolean(catalogue.unavailable),selectableModules:require('./utils/selectionOptions').publicModuleOptions() });
   }catch(error){next(error);}
 });
-function renderPublic(req, res, view, title, data = {}) {
+function renderPublic(req, res, view, title, data = {}, pageMetaOverride = null) {
   const path=req.path.replace(/\/+$/,'').toLowerCase()||'/';
   if(seo.INDEXABLE_PATHS.includes(path)&&req.path!==path)return res.redirect(308,path+(req.originalUrl.includes('?')?'?'+req.originalUrl.split('?').slice(1).join('?'):''));
   res.setHeader('Cache-Control','private, no-store');
-  res.render('layouts/public', { title, pageMeta:seo.publicMetadata(req.path,title), jsonLd:seo.jsonLd, view: `../public/${view}`, data, flash: consumeFlash(req), currentPath: req.path,
+  res.render('layouts/public', { title, pageMeta:pageMetaOverride||seo.publicMetadata(req.path,title), jsonLd:seo.jsonLd, view: `../public/${view}`, data, flash: consumeFlash(req), currentPath: req.path,
     modules: store.modules, plans: store.plans, tenants: [], appointments: [] });
 }
 router.get('/marketplace', (req, res) => renderPublic(req, res, 'marketplace', 'Module Marketplace | ClassicFin Hub'));
@@ -153,28 +153,86 @@ router.post('/reset-password', login, async (req, res, next) => {
     res.redirect(303, '/signin');
   } catch (e) { next(e); }
 });
-router.get('/t/:slug', async (req, res, next) => {
-  try {
-    // Fail promptly during a database outage rather than buffering a public
-    // mongoose query for ten seconds. Tenant landing pages are never cached.
-    const mongoose = require('mongoose');
-    const { NAME } = require('./config/mongo');
-    if (!NAME.test(req.params.slug)) return res.status(404).send('Tenant page not found');
-    if (mongoose.connection.readyState !== 1) return res.status(503).send('Tenant pages are temporarily unavailable');
-    const Tenant = require('./platform/models/Tenant');
-    const tenant = await Tenant.findOne({ slug: req.params.slug, status: { $in:['active','trial'] }, setupStatus:{$ne:'invited'} }).lean();
-    if (!tenant) return res.status(404).send('Tenant page not found');
-    // Tenant branding stays private unless owner-published or separately
-    // approved for a minimal public listing by an audited platform administrator.
-    if(tenant.directoryListing?.visibility==='hidden')return res.status(404).send('Tenant page not found');
-    const published=await require('./tenant/workspace/service').publicLanding(require('./config/mongo').getTenantConnection(tenant.slug),tenant);
-    if(!published&&tenant.directoryListing?.visibility!=='published')return res.status(404).send('Tenant page not found');
-    const landing=published||{name:tenant.name,headline:'',subtitle:'',services:[],sections:[],country:'',supportPhone:''};
-    res.set('Cache-Control','no-store');
-    renderPublic(req, res, 'tenant-landing', `${landing.name||tenant.name} | ClassicFin Hub`, {tenant:{name:tenant.name,slug:tenant.slug},landing});
-  } catch (e) { next(e); }
+router.get('/t/:slug', async (req,res,next)=>{
+ try{
+   const mongoose=require('mongoose'),{NAME,getTenantConnection}=require('./config/mongo');
+   if(!NAME.test(req.params.slug))return res.status(404).send('Business profile not found');
+   if(mongoose.connection.readyState!==1)return res.status(503).send('Business profiles are temporarily unavailable');
+   const Tenant=require('./platform/models/Tenant');
+   const tenant=await Tenant.findOne({slug:req.params.slug,
+     status:{$in:['active','trial']},setupStatus:{$ne:'invited'}}).lean();
+   if(!tenant||tenant.directoryListing?.visibility==='hidden')return res.status(404).send('Business profile not found');
+   const landingPublished=await require('./tenant/workspace/service').publicLanding(getTenantConnection(tenant.slug),tenant);
+   if(!landingPublished&&tenant.directoryListing?.visibility!=='published')return res.status(404).send('Business profile not found');
+   const landing=landingPublished||{name:tenant.name,headline:'',subtitle:'',services:[],sections:[],country:'',supportPhone:'',details:{}};
+   const reviewsService=require('./platform/services/businessReviews.service');
+   const [reviews,myReview]=await Promise.all([reviewsService.publicReviews(tenant._id),reviewsService.myReview(tenant.slug,req)]);
+   res.set('Cache-Control','private, no-store');
+   if(landing.publishedAt&&require('./config/env').indexingEnabled)res.removeHeader('X-Robots-Tag');
+   renderPublic(req,res,'tenant-landing',(landing.name||tenant.name)+' | ClassicFin Hub',
+     {tenant:{name:tenant.name,slug:tenant.slug},landing,reviews,myReview},
+     seo.tenantMetadata(tenant,landing));
+ }catch(err){next(err);}
+});
+router.get('/t/:slug/review',async(req,res,next)=>{
+ try{
+   const reviews=require('./platform/services/businessReviews.service');
+   const tenant=await reviews.eligibleTenant(req.params.slug);
+   res.set({'X-Robots-Tag':'noindex, nofollow','Cache-Control':'private, no-store'});
+   renderPublic(req,res,'business-review-compose','Write a customer review | ClassicFin Hub',
+     {slug:tenant.slug,businessName:tenant.name});
+ }catch(err){next(err);}
+});
+router.post('/t/:slug/reviews',async(req,res,next)=>{
+ try{
+   await require('./platform/services/actionThrottle.service').consume({
+     category:'public-business-review',scope:req.params.slug+':'+req.ip,limit:5,windowMs:3600000});
+   const reviews=require('./platform/services/businessReviews.service');
+   const created=await reviews.submit(req.params.slug,req.body,req.ip);
+   res.cookie(created.cookieName,created.token,created.cookieOptions);
+   flash(req,'good','Your review was received for moderation. You can edit or withdraw it from this browser.');
+   res.redirect(303,'/t/'+encodeURIComponent(req.params.slug)+'#business-reviews');
+ }catch(err){next(err);}
+});
+router.get('/t/:slug/my-review',async(req,res,next)=>{
+ try{
+   const service=require('./platform/services/businessReviews.service');
+   await service.eligibleTenant(req.params.slug);
+   const review=await service.myReview(req.params.slug,req);
+   if(!review)return res.status(404).send('No editable review found on this browser.');
+   res.set({'X-Robots-Tag':'noindex, nofollow','Referrer-Policy':'no-referrer'});
+   renderPublic(req,res,'business-review-edit','Edit your customer review',{slug:req.params.slug,review});
+ }catch(err){next(err);}
+});
+router.post('/t/:slug/my-review',async(req,res,next)=>{
+ try{
+   const service=require('./platform/services/businessReviews.service');
+   await service.eligibleTenant(req.params.slug);
+   await require('./platform/services/actionThrottle.service').consume({
+     category:'public-business-review-edit',scope:req.params.slug+':'+req.ip,limit:10,windowMs:3600000});
+   const action=req.body?.action==='withdraw'?'withdraw':'edit';
+   await service.changeMine(req.params.slug,req,req.body,action);
+   if(action==='withdraw')res.clearCookie(service.cookieName(req.params.slug),service.cookieOptions(req.params.slug));
+   flash(req,'good',action==='withdraw'?'Your review has been withdrawn.':'Your review was updated and returned for moderation.');
+   res.redirect(303,action==='withdraw'?'/t/'+encodeURIComponent(req.params.slug):'/t/'+encodeURIComponent(req.params.slug)+'/my-review');
+ }catch(err){next(err);}
 });
 router.get('/robots.txt', (req,res) => res.type('text/plain').set('Cache-Control','public, max-age=1800').send(seo.robotsTxt()));
-router.get('/sitemap.xml', (req,res) => res.type('application/xml').set('Cache-Control','public, max-age=1800').send(seo.sitemapXml()));
+router.get('/sitemap.xml',async(req,res,next)=>{
+ try{
+   const mongoose=require('mongoose');
+   let extra=[];
+   if(mongoose.connection.readyState===1&&require('./config/env').indexingEnabled){
+     const Tenant=require('./platform/models/Tenant');
+     const rows=await Tenant.find({
+       status:{$in:['active','trial']},setupStatus:{$ne:'invited'},
+       'directoryListing.visibility':{$ne:'hidden'},
+       'directory.publishedAt':{$exists:true,$ne:null}
+     }).select('slug').sort({_id:-1}).limit(2000).lean().maxTimeMS(3500);
+     extra=rows.map(t=>'/t/'+t.slug);
+   }
+   res.type('application/xml').set('Cache-Control','public, max-age=300').send(seo.sitemapXml(extra));
+ }catch(error){next(error);}
+});
 router.get('/llms.txt', (req,res) => res.type('text/plain').set('Cache-Control','public, max-age=1800').send(seo.llmsTxt()));
 module.exports = router;

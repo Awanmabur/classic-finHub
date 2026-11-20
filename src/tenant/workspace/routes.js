@@ -29,7 +29,7 @@ function pricingForm(context,rule=null){
  };
 }
 const entryPages={
- landing:{kind:'landing_section',title:'Landing page setup',subtitle:'Public tenant landing page content and published sections.',create:'Add section',modal:'Create landing section',section:'Landing section'},
+ landing:{kind:'landing_section',title:'Business website',subtitle:'Manage your public business website, services and pages.',create:'Add section',modal:'Create landing section',section:'Landing section'},
  kyc:{kind:'kyc_field',title:'Customer/KYC setup',subtitle:'Customer verification field definitions and existing customer records.',create:'Add KYC field',modal:'Create KYC field',section:'KYC field'},
  compliance:{kind:'compliance_rule',title:'Compliance controls',subtitle:'KYC, risk, limits, watchlist, and approval control definitions.',create:'Create rule',modal:'Create compliance rule',section:'Compliance rule'},
  integrations:{kind:'integration',title:'Integrations & API',subtitle:'Integration descriptions and access to configured SMS capture.',create:'Add integration',modal:'Create integration',section:'Integration details'},
@@ -49,8 +49,28 @@ function configForm(section,config,tenant={}){
   title='Edit tenant profile';subtitle='Business identity, owner contact, and default currency.';group='Tenant identity';
   fields=[field('name','Business name',value.name,{required:true,max:150}),field('legalName','Legal name',value.legalName,{max:150}),field('owner','Owner / director',value.owner,{max:150}),field('ownerEmail','Owner email',value.ownerEmail,{type:'email',max:254}),field('supportPhone','Support phone',value.supportPhone,{max:40}),field('subdomain','Subdomain',tenant.slug||'',{displayOnly:true,hint:'The platform manages tenant routing.'}),field('customDomain','Custom domain','Not configured',{displayOnly:true,hint:'Domain registration is managed by the platform.'}),field('country','Country',value.country,{max:80}),field('timezone','Timezone',value.timezone,{required:true,max:80}),select('defaultCurrency','Default currency',value.defaultCurrency,[['UGX','UGX'],['USD','USD'],['SSP','SSP'],['KES','KSH']])];
  }else if(section==='landing'){
-  title='Edit landing headline';subtitle='Public tenant landing page hero content.';group='Landing hero';
-  fields=[field('headline','Headline',value.headline,{required:true,max:200}),field('subtitle','Subtitle',value.subtitle,{type:'textarea',max:1000,full:true}),field('services','Services, comma separated',value.services.join(', '),{max:500,full:true})];
+  title='Edit business website';subtitle='Build your public business website. Save privately, preview, then publish when ready.';group='Public website';
+  const d=value.details||{};
+  fields=[
+    field('headline','Main headline',value.headline,{required:true,max:200,full:true}),
+    field('subtitle','Short introduction',value.subtitle,{type:'textarea',max:1000,full:true}),
+    field('about','About your business',d.about,{type:'textarea',max:3000,full:true,hint:'Your background, experience, customers and what makes your business different.'}),
+    field('category','Business category',d.category,{max:100}),
+    field('services','Services (comma separated)',(value.services||[]).join(', '),{max:500,full:true}),
+    field('address','Street / physical address',d.address,{max:160,full:true}),
+    field('city','City / town',d.city,{max:100}),
+    field('region','State / region',d.region,{max:100}),
+    field('hours','Opening hours',d.hours,{type:'textarea',max:800,full:true,hint:'Example: Mon–Sat 8:00 AM–6:00 PM. Add your local timezone.'}),
+    field('publicEmail','Public business email',d.publicEmail,{type:'email',max:254,hint:'Only this address is published, never the private owner login email.'}),
+    field('whatsapp','Public WhatsApp number',d.whatsapp,{max:40}),
+    field('website','Business website URL (HTTPS)',d.website,{max:300,full:true}),
+    field('facebook','Facebook page URL (HTTPS)',d.facebook,{max:300,full:true}),
+    field('instagram','Instagram URL (HTTPS)',d.instagram,{max:300,full:true}),
+    field('linkedin','LinkedIn URL (HTTPS)',d.linkedin,{max:300,full:true}),
+    field('logoUrl','Public logo image URL (HTTPS)',d.logoUrl,{max:500,full:true,hint:'A direct HTTPS image link. No upload is performed.'}),
+    field('coverUrl','Banner / cover image URL (HTTPS)',d.coverUrl,{max:500,full:true,hint:'A direct HTTPS image link. No upload is performed.'}),
+    field('gallery','Gallery image URLs (up to eight, one per line)',(d.gallery||[]).join('\n'),{type:'textarea',max:3000,full:true})
+  ];
  }else if(section==='receipt'){
   title='Edit receipt settings';subtitle='Receipt identity and saved footer wording.';group='Receipt settings';
   fields=[field('prefix','Receipt prefix',value.prefix,{required:true,max:12,pattern:'[A-Z0-9-]{2,12}'}),field('template','Template name',value.template,{required:true,max:80}),field('qrVerification','QR verification','Not enabled',{displayOnly:true}),field('duplicateProtection','Duplicate protection','Enabled: server reference uniqueness',{displayOnly:true}),field('receiptNote','Receipt note',value.receiptNote,{type:'textarea',max:500,full:true})];
@@ -120,6 +140,20 @@ function factory({renderTenant}){
    await render(req,res,page,extra);
   }catch(error){next(error);}});
  }
+ router.get('/reviews',async(req,res,next)=>{
+  try{
+    const reviews=await require('../../platform/services/businessReviews.service').tenantReviews(req.tenantDb,req.tenant,req.user);
+    renderTenant(req,res,'workspace/reviews','Customer reviews','Read customer ratings and respond to approved reviews.',{reviews,
+      canManage:req.user.role==='Tenant Owner'&&hasPermission(req.user,'workspace.manage')});
+  }catch(err){next(err);}
+ });
+ router.post('/reviews/:id/reply',requirePermission('workspace.manage'),throttle,async(req,res,next)=>{
+  try{
+    await require('../../platform/services/businessReviews.service').reply(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
+    flash(req,'good','Your business response has been saved and audited.');
+    res.redirect(303,'/tenant/workspace/reviews');
+  }catch(err){next(err);}
+ });
  router.get('/roles',async(req,res,next)=>{try{await render(req,res,'roles',{roles:service.roles(req.user)});}catch(error){next(error);}});
  router.get('/database',async(req,res,next)=>{try{await render(req,res,'database',{stats:await service.database(req.tenantDb,req.tenant,req.user)});}catch(error){next(error);}});
  router.get('/subscription',async(req,res,next)=>{try{await render(req,res,'subscription',{terms:await service.subscription(req.tenantDb,req.tenant,req.user)});}catch(error){next(error);}});
@@ -150,7 +184,9 @@ function factory({renderTenant}){
   await service.save(req.tenantDb,req.tenant,req.user,section,req.body);flash(req,'good','Settings saved with an audit entry.');res.redirect(303,'/tenant/workspace/'+section);
  }catch(error){next(error);}});
  router.post('/landing/publish',requirePermission('workspace.manage'),throttle,async(req,res,next)=>{try{
-  await service.publish(req.tenantDb,req.tenant,req.user,req.body);flash(req,'good','Landing page published. Later draft edits will not change the published page.');res.redirect(303,'/tenant/workspace/landing');
+  const result=await service.publish(req.tenantDb,req.tenant,req.user,req.body);
+   flash(req,result.directorySyncPending?'bad':'good',
+     result.directorySyncPending?'Website published, but directory synchronization is pending. Your public page is still available; contact platform support if listing does not appear.':'Business website published. Directory details are synchronized, and later drafts stay private.');res.redirect(303,'/tenant/workspace/landing');
  }catch(error){next(error);}});
  function back(kind){return '/tenant/workspace/'+(Object.keys(entryPages).find(key=>entryPages[key].kind===kind)||'database');}
  for(const suffix of ['', '/:id'])router.post('/entries/:kind'+suffix,requirePermission('workspace.manage'),throttle,async(req,res,next)=>{try{

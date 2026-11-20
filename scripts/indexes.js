@@ -10,6 +10,7 @@ const Tenant = require('../src/platform/models/Tenant');
 const OwnerInvite = require('../src/platform/models/OwnerInvite');
 const Appointment = require('../src/platform/models/Appointment');
 const PlatformAuditLog = require('../src/platform/models/PlatformAuditLog');
+const BusinessReview = require('../src/platform/models/BusinessReview');
 const PlanVersion=require('../src/platform/models/PlanVersion');
 const PlanDraft=require('../src/platform/models/PlanDraft');
 const PlanPublicationLock=require('../src/platform/models/PlanPublicationLock');
@@ -24,7 +25,7 @@ async function main() {
   await connectPlatformMongo();
   const hello = await mongoose.connection.db.admin().command({hello:1});
   if (!hello.setName) throw new Error('Replica set required');
-  for (const model of [AccountIdentity,LoginThrottle,SecurityEvent,PasswordReset,PlatformAdmin,Tenant,OwnerInvite,Appointment,PlatformAuditLog,PlanVersion,PlanDraft,PlanPublicationLock,SmsDevice,SmsUsage,UsageCounter,OutboxEvent,WorkerHeartbeat,ModuleRequest]) await model.createIndexes();
+  for (const model of [AccountIdentity,LoginThrottle,SecurityEvent,PasswordReset,PlatformAdmin,Tenant,OwnerInvite,Appointment,PlatformAuditLog,BusinessReview,PlanVersion,PlanDraft,PlanPublicationLock,SmsDevice,SmsUsage,UsageCounter,OutboxEvent,WorkerHeartbeat,ModuleRequest]) await model.createIndexes();
   const tenants = await Tenant.find({}).select('slug').lean();
   for (const t of tenants) {
     const conn = getTenantConnection(t.slug);

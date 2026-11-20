@@ -31,6 +31,8 @@ const schema = new mongoose.Schema({
   directory: {type: new mongoose.Schema({
     name:{type:String,maxlength:150},headline:{type:String,maxlength:200},
     subtitle:{type:String,maxlength:1000},country:{type:String,maxlength:80},
+    category:{type:String,maxlength:100},city:{type:String,maxlength:100},
+    logoUrl:{type:String,maxlength:500},coverUrl:{type:String,maxlength:500},
     services:{type:[String],default:[]},supportPhone:{type:String,maxlength:40},
     publishedAt:{type:Date,required:true}
   },{_id:false,strict:'throw'}),default:undefined},

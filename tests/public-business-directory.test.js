@@ -30,7 +30,7 @@ test('Only an owner-published snapshot can become a public business listing',()=
 });
 test('Filters are bounded, safe and have stable defaults',()=>{
   assert.deepEqual(directory.normalize({q:' Mobile Money ',page:'2',sort:'name',country:'Uganda',service:'Forex'}),
-    {q:'Mobile Money',country:'Uganda',service:'Forex',page:2,sort:'name'});
+    {q:'Mobile Money',country:'Uganda',service:'Forex',category:'',page:2,sort:'name'});
   assert.equal(directory.normalize({page:'999999',sort:'bad'}).page,50);
   assert.equal(directory.normalize({q:'a'.repeat(1000)}).q.length,80);
   assert.equal(directory.normalize({q:{$ne:null},service:['foo']}).q,'');
@@ -51,24 +51,25 @@ test('Directory supports functional GET filters, paging, links and escapes tenan
     headline:'Funds <script>evil</script>',subtitle:'Description',services:['Forex'],
     country:'Uganda',supportPhone:'+256700000000'};
   const data={directory:{filters:{q:'',country:'',service:'',sort:'recent',page:1},
-    businesses:[fake],total:1,pages:1,countries:['Uganda'],services:['Forex']}};
+    businesses:[fake],total:1,pages:1,countries:['Uganda'],services:['Forex'],categories:[]}};
   const html=await ejs.renderFile(path.join(root,'src/views/public/businesses.ejs'),{data});
   assert.match(html,/method="get" action="\/businesses"/);
   assert.match(html,/name="country"/);
   assert.match(html,/name="service"/);
+  assert.match(html,/name="category"/);
   assert.match(html,/name="sort"/);
   assert.match(html,/href="\/t\/public-test"/);
   assert(!html.includes('<script>alert(1)</script>'));
   assert(!html.includes('<script>evil</script>'));
 });
 test('Individual public profile uses only owner-published fields and no placeholder contacts',async()=>{
-  const data={tenant:{name:'Private legal account'},landing:{
+  const data={tenant:{name:'Private legal account',slug:'published-finance'},landing:{
     name:'Published Finance',headline:'Payments and exchange',subtitle:'Public intro',
     country:'Uganda',services:['Forex','Mobile Money'],sections:[{name:'About',description:'Open daily'}],
     supportPhone:'+256700000000',primary:'#082c52',secondary:'#0d4f91'}};
-  const html=await ejs.renderFile(path.join(root,'src/views/public/tenant-landing.ejs'),{data});
+  const html=await ejs.renderFile(path.join(root,'src/views/public/tenant-landing.ejs'),{data,csrfToken:'testing-csrf',assetVersion:'test'});
   assert.match(html,/Published Finance/);
-  assert.match(html,/Business services/);
+  assert.match(html,/Services & offerings/);
   assert.match(html,/href="tel:\+256700000000"/);
   assert.doesNotMatch(html,/Private legal account/);
   assert.doesNotMatch(html,/fake review|5\.0 stars|sample data/i);

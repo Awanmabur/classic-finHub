@@ -5,7 +5,7 @@ const INDEXABLE_PATHS = Object.freeze([
   '/marketplace', '/product-guide', '/businesses', '/terms', '/privacy', '/cookies', '/refund-policy'
 ]);
 const PRIVATE_PREFIXES = Object.freeze([
-  '/platform', '/tenant', '/t/', '/signin', '/signup', '/accept-invite',
+  '/platform', '/tenant', '/t/*/review', '/t/*/my-review', '/t/*/reviews', '/signin', '/signup', '/accept-invite',
   '/accept-staff-invite', '/mfa', '/forgot-password', '/reset-password', '/logout',
   '/health', '/integrations'
 ]);
@@ -25,10 +25,11 @@ function robotsTxt() {
     `Sitemap: ${appUrl}/sitemap.xml`, ''
   ].join('\n');
 }
-function sitemapXml() {
+function sitemapXml(extraPaths=[]) {
   // No guessed lastmod dates: update timestamps must describe actual content
   // revisions. Authenticated and tenant-branded paths are deliberately absent.
-  const urls = (indexingEnabled?INDEXABLE_PATHS:[]).map(p => `<url><loc>${xml(appUrl+p)}</loc></url>`).join('');
+  const paths=indexingEnabled?[...INDEXABLE_PATHS,...extraPaths.filter(p=>typeof p==='string'&&/^\/t\/[a-z0-9][a-z0-9-]{1,128}$/.test(p))]:[];
+  const urls=[...new Set(paths)].map(p => `<url><loc>${xml(appUrl+p)}</loc></url>`).join('');
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>\n`;
 }
 function publicMetadata(path,title) {
@@ -44,10 +45,40 @@ function publicMetadata(path,title) {
     ]
   }};
 }
+function tenantMetadata(tenant,landing){
+  const path='/t/'+encodeURIComponent(tenant.slug),canonical=appUrl+path;
+  const name=String(landing.name||tenant.name||'Business').slice(0,150);
+  const details=landing.details||{};
+  const description=String(landing.subtitle||landing.headline||name+' business profile').slice(0,220);
+  const title=name+' | Business Profile | ClassicFin Hub';
+  const indexable=Boolean(landing.publishedAt&&tenant.directoryListing?.visibility!=='hidden');
+  const address=details.city&&landing.country?{ '@type':'PostalAddress',
+    addressLocality:String(details.city),addressRegion:String(details.region||''),
+    streetAddress:String(details.address||''),addressCountry:String(landing.country)}:undefined;
+  const org={'@type':'Organization','@id':canonical+'#business',name,url:canonical,description,
+    ...(address?{address}:{}),
+    ...(landing.supportPhone?{telephone:String(landing.supportPhone)}:{}),
+    ...(details.publicEmail?{email:String(details.publicEmail)}:{}),
+    ...(details.logoUrl?{logo:details.logoUrl}:{}),
+    ...(Array.isArray(landing.services)&&landing.services.length?{knowsAbout:landing.services}:{}),
+    ...(details.website?{sameAs:[details.website,...[details.facebook,details.instagram,details.linkedin].filter(Boolean)]}:{})};
+  return {title,description,canonical,image:details.logoUrl||appUrl+'/images/classicfinhub-logo.png',
+    indexable,crawlAllowed:indexingEnabled,graph:{'@context':'https://schema.org','@graph':[
+      org,
+      {'@type':'WebPage','@id':canonical+'#webpage',url:canonical,name:title,description,inLanguage:'en',
+        about:{'@id':canonical+'#business'},isPartOf:{'@id':appUrl+'/#website'}},
+      {'@type':'BreadcrumbList',itemListElement:[
+        {'@type':'ListItem',position:1,name:'Home',item:appUrl+'/'},
+        {'@type':'ListItem',position:2,name:'Businesses',item:appUrl+'/businesses'},
+        {'@type':'ListItem',position:3,name,item:canonical}]}
+      // Reviews are deliberately omitted from rich-result markup: we do not
+      // advertise self-serving LocalBusiness/Organization rating stars.
+    ]}};
+}
 function jsonLd(value){return JSON.stringify(value).replace(/[<>&\u2028\u2029]/g,char=>({'<':'\\u003c','>':'\\u003e','&':'\\u0026','\u2028':'\\u2028','\u2029':'\\u2029'}[char]));}
 function llmsTxt() {
   // A public reading guide, not an indexing guarantee or access-control protocol.
   if(!indexingEnabled)return '# ClassicFin Hub\n\nThis instance has automated indexing disabled. Follow its robots.txt policy.\n';
   return `# ClassicFin Hub\n\n> ClassicFin Hub is a modular financial operations application by Classic Technologies. It supports tenant workspaces, independently reviewed manual funds books, staff permissions, branch controls and reports.\n\n## Product and operation\n\n- [Product guide](${appUrl}/product-guide): current workflows and their operating boundaries.\n- [Business directory](${appUrl}/businesses): owner-published business profiles, services and public contact details.\n- [Home](${appUrl}/): overview and onboarding requests.\n- [Modules](${appUrl}/services): subscribed operational capabilities.\n- [Module marketplace](${appUrl}/marketplace): available module descriptions.\n- [Pricing](${appUrl}/pricing): current published subscription terms.\n- [Plan comparison](${appUrl}/price-compare): published limits and included modules.\n- [About](${appUrl}/about): product and company information.\n- [FAQs](${appUrl}/faq): setup, permissions, manual entry and SMS capture.\n- [Support](${appUrl}/support): contact and onboarding help.\n\n## Policies\n\n- [Terms](${appUrl}/terms)\n- [Privacy](${appUrl}/privacy)\n- [Cookies](${appUrl}/cookies)\n- [Refund and cancellation policy](${appUrl}/refund-policy)\n\n## Reading boundaries\n\nUse public descriptions and current published prices. Financial books and dated observations do not establish live provider balances or automated settlement. Android SMS capture requires a configured gateway and supported message wording; manual entry remains available. Subscription approvals are not proof of payment.\n\nAuthenticated dashboards, customer records, financial reports, gateway endpoints and invitation/reset links are outside these public resources. Respect robots.txt and authentication; never attempt to retrieve private information.\n`;
 }
-module.exports = { INDEXABLE_PATHS, PRIVATE_PREFIXES, PUBLIC_PAGE_META, robotsTxt, sitemapXml, llmsTxt, publicMetadata, jsonLd };
+module.exports = { INDEXABLE_PATHS, PRIVATE_PREFIXES, PUBLIC_PAGE_META, robotsTxt, sitemapXml, llmsTxt, publicMetadata, tenantMetadata, jsonLd };

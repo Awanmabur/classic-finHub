@@ -1,0 +1,23 @@
+<section class="publicReviewEdit">
+  <nav class="businessDirCrumbs" aria-label="Breadcrumb"><a href="/businesses">Businesses</a><i class="fa-solid fa-chevron-right"></i><a href="/t/<%= encodeURIComponent(data.slug) %>">Business profile</a><i class="fa-solid fa-chevron-right"></i><span>Edit your review</span></nav>
+  <div class="publicBusinessReviewForm">
+    <h1>Edit or withdraw your review</h1>
+    <p>This review belongs to this browser's private editing cookie. Updating a published review returns it to moderation; withdrawing hides it permanently. You cannot recover editing access after clearing your browser cookies.</p>
+    <p><strong>Status:</strong> <%= data.review.status %></p>
+    <form class="publicBusinessReviewFields" method="post" action="/t/<%= encodeURIComponent(data.slug) %>/my-review">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="revision" value="<%= data.review.revision %>">
+      <input type="hidden" name="action" value="edit">
+      <label>Display name<input name="authorName" minlength="2" maxlength="80" required value="<%= data.review.authorName %>"></label>
+      <label>Rating<select name="rating" required><% [5,4,3,2,1].forEach(r=>{ %><option value="<%= r %>" <%= r===data.review.rating?'selected':'' %>><%= r %> stars</option><% }) %></select></label>
+      <label class="businessReviewComment">Your review<textarea name="comment" minlength="15" maxlength="1600" required rows="5"><%= data.review.comment %></textarea></label>
+      <button type="submit" class="btn btn-dark">Save review changes</button>
+    </form>
+    <form method="post" action="/t/<%= encodeURIComponent(data.slug) %>/my-review" class="publicReviewWithdraw">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="revision" value="<%= data.review.revision %>">
+      <input type="hidden" name="action" value="withdraw">
+      <button type="submit" class="btn btn-light">Withdraw review</button>
+    </form>
+  </div>
+</section>

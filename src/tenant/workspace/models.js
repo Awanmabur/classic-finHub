@@ -2,14 +2,25 @@
 const {ensureModelIndexes}=require('../../config/ensureModelIndexes');
 const mongoose=require('mongoose');
 const nested=definition=>new mongoose.Schema(definition,{_id:false,strict:'throw'});
+
+const siteDetails=nested({
+ category:{type:String,maxlength:100},about:{type:String,maxlength:3000},
+ address:{type:String,maxlength:160},city:{type:String,maxlength:100},region:{type:String,maxlength:100},
+ publicEmail:{type:String,maxlength:254},website:{type:String,maxlength:300},
+ whatsapp:{type:String,maxlength:40},hours:{type:String,maxlength:800},
+ facebook:{type:String,maxlength:300},instagram:{type:String,maxlength:300},linkedin:{type:String,maxlength:300},
+ logoUrl:{type:String,maxlength:500},coverUrl:{type:String,maxlength:500},
+ gallery:{type:[String],default:[]}
+});
+
 const configSchema=new mongoose.Schema({
  tenantId:{type:mongoose.Schema.Types.ObjectId,required:true,immutable:true},
  revision:{type:Number,required:true,min:0,default:0},
  profile:{type:nested({name:{type:String,maxlength:150},legalName:{type:String,maxlength:150},owner:{type:String,maxlength:150},
   ownerEmail:{type:String,maxlength:254},supportPhone:{type:String,maxlength:40},country:{type:String,maxlength:80},timezone:{type:String,maxlength:80},defaultCurrency:{type:String,enum:['UGX','KES','USD','SSP']}}),default:()=>({})},
- landing:{type:nested({headline:{type:String,maxlength:200},subtitle:{type:String,maxlength:1000},services:{type:[String],default:[]},
+ landing:{type:nested({headline:{type:String,maxlength:200},subtitle:{type:String,maxlength:1000},services:{type:[String],default:[]},details:{type:siteDetails,default:()=>({})},
   publishedAt:Date,publishedBy:mongoose.Schema.Types.ObjectId,published:{type:nested({name:String,headline:String,subtitle:String,services:[String],
-   sections:[nested({name:String,description:String,order:Number})],primary:String,secondary:String,supportPhone:String,country:String}),default:undefined}}),default:()=>({})},
+   sections:[nested({name:String,description:String,order:Number})],primary:String,secondary:String,supportPhone:String,country:String,details:{type:siteDetails,default:()=>({})}}),default:undefined}}),default:()=>({})},
  branding:{type:nested({theme:{type:String,maxlength:80},primary:{type:String,match:/^#[a-fA-F0-9]{6}$/},secondary:{type:String,match:/^#[a-fA-F0-9]{6}$/},
   logoStatus:{type:String,maxlength:80},receiptNote:{type:String,maxlength:500},prefix:{type:String,match:/^[A-Z0-9-]{2,12}$/},template:{type:String,maxlength:80}}),default:()=>({})},
  updatedBy:{type:mongoose.Schema.Types.ObjectId,required:true}

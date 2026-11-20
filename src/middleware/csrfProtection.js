@@ -11,7 +11,8 @@ module.exports = function csrfProtection(req, res, next) {
   const pathname = req.path.toLowerCase();
   // Do not create needless session records for crawlers of informational pages.
   const formPage = publicFormPages.has(pathname) || pathname.startsWith('/platform/') ||
-    pathname === '/platform' || pathname.startsWith('/tenant/') || pathname === '/tenant';
+    pathname === '/platform' || pathname.startsWith('/tenant/') || pathname === '/tenant' ||
+    /^\/t\/[a-z0-9-]+\/(?:review|my-review)$/.test(pathname);
   if (readOnly && formPage && !req.session.csrfToken) req.session.csrfToken = randomBytes(32).toString('hex');
   res.locals.csrfToken = req.session.csrfToken || '';
   if (readOnly) return next();

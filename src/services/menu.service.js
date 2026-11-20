@@ -5,7 +5,7 @@ function platformMenu(user) {
     { label: 'Command Center', items: [{ label:'Dashboard', href:'/platform/dashboard', icon:'fa-gauge-high' }] },
     { label: 'Tenant Operations', items: [{ label:'Tenants', href:'/platform/tenants', icon:'fa-building-user' }, { label:'Create Tenant',href:'/platform/tenants/create',icon:'fa-plus' }] },
     { label: 'Product & Billing', items: [{ label:'Plans',href:'/platform/plans',icon:'fa-tags' }, { label:'Subscriptions',href:'/platform/subscriptions',icon:'fa-file-contract' }, {label:'Modules',href:'/platform/modules',icon:'fa-layer-group'}, {label:'Module Requests',href:'/platform/modules/requests',icon:'fa-clipboard-list'}] },
-    { label: 'Administration', items: [{label:'Appointments',href:'/platform/appointments',icon:'fa-calendar-check'},{label:'Audit Trail',href:'/platform/audit',icon:'fa-shield-halved'},{label:'Background Operations',href:'/platform/operations/queue',icon:'fa-arrows-rotate'}] }
+    { label: 'Administration', items: [{label:'Appointments',href:'/platform/appointments',icon:'fa-calendar-check'},{label:'Customer reviews',href:'/platform/business-reviews',icon:'fa-star'},{label:'Audit Trail',href:'/platform/audit',icon:'fa-shield-halved'},{label:'Background Operations',href:'/platform/operations/queue',icon:'fa-arrows-rotate'}] }
   ];
 }
 function tenantMenu(tenant,user) {
@@ -89,10 +89,10 @@ function tenantMenu(tenant,user) {
     ...(workspace?[item('Tenant profile','workspace/profile','fa-building')]:[]),
     ...(sharedCash?[item('Wallets & balances','treasury','fa-wallet')]:[]),
     ...(workspace&&can('workspace.manage')&&user.role==='Tenant Owner'&&['mobile_money','money_transfer','banking','forex'].some(module)?[item('Fees & commissions','workspace/pricing','fa-coins')]:[]),
-    ...(workspace?[item('Landing page setup','workspace/landing','fa-window-maximize'),item('Branding & receipts','workspace/branding','fa-palette')]:[]),
+    ...(workspace?[item('Business website','workspace/landing','fa-globe'),item('Customer reviews','workspace/reviews','fa-star'),item('Branding & receipts','workspace/branding','fa-palette')]:[]),
     ...(can('branches.view')?[item('Branches & locations','branches','fa-location-dot')]:[]),
     ...(staff?[item('Admins, tellers & users','users','fa-users')]:[]),
-    ...(workspace?[item('Roles & permissions','workspace/roles','fa-user-shield'),...(module('customers')?[item('Customer/KYC setup','workspace/kyc','fa-id-card')]:[]),item('Tenant database','workspace/database','fa-database'),item('Subscription & limits','workspace/subscription','fa-file-contract'),...(module('notifications')?[item('Notification rules','workspace/notification-rules','fa-bell')]:[]),item('Integrations & API','workspace/integrations','fa-plug'),item('Import / export data','workspace/import-export','fa-file-export'),item('Compliance controls','workspace/compliance','fa-shield-halved'),item('Landing preview','workspace/landing-preview','fa-globe'),item('Receipt preview','workspace/receipt-preview','fa-receipt'),...(module('customer_portal')?[item('Customer portal preview','workspace/customer-portal-preview','fa-users-viewfinder')]:[])]:[]),
+    ...(workspace?[item('Roles & permissions','workspace/roles','fa-user-shield'),...(module('customers')?[item('Customer/KYC setup','workspace/kyc','fa-id-card')]:[]),item('Tenant database','workspace/database','fa-database'),item('Subscription & limits','workspace/subscription','fa-file-contract'),...(module('notifications')?[item('Notification rules','workspace/notification-rules','fa-bell')]:[]),item('Integrations & API','workspace/integrations','fa-plug'),item('Import / export data','workspace/import-export','fa-file-export'),item('Compliance controls','workspace/compliance','fa-shield-halved'),item('Website preview','workspace/landing-preview','fa-window-maximize'),item('Receipt preview','workspace/receipt-preview','fa-receipt'),...(module('customer_portal')?[item('Customer portal preview','workspace/customer-portal-preview','fa-users-viewfinder')]:[])]:[]),
     ...(module('notifications')&&can('notifications.view')?[item('Notifications center','notifications','fa-bell')]:[]),
     ...(can('audit.view')?[item('Tenant audit activity','audit','fa-clock-rotate-left')]:[]),
     ...(workspace?[item('System settings','workspace','fa-gear')]:[])

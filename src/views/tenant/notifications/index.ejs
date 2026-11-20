@@ -22,7 +22,7 @@
  <% if(!data.templates.length){ %><p class="tiny">There are no active templates. Ask the Tenant Owner to publish one.</p><% } %>
  </div></section><% } %>
  <% if(data.canManage){ %><section class="card" style="margin-top:14px"><div class="cardHead"><b>Publish a template</b><span>New versions never rewrite old messages</span></div><div class="cardBody">
- <form method="post" action="/tenant/notifications/templates" autocomplete="off" style="display:grid;gap:12px"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
+ <form id="notificationTemplateEditor" method="post" action="/tenant/notifications/templates" autocomplete="off" style="display:grid;gap:12px"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
  <label class="field">Existing template to version (optional)<input class="control" name="code" list="existingNotificationTemplateCodes" pattern="[a-z][a-z0-9_]{2,39}" placeholder="Leave blank to generate new code"><span class="tiny">New template codes are generated automatically. Select a code only to publish a new version of an existing template.</span><datalist id="existingNotificationTemplateCodes"><% data.templates.forEach(t=>{ %><option value="<%= t.code %>"><%= t.name %></option><% }) %></datalist></label>
  <label class="field">Name<input class="control" name="name" minlength="3" maxlength="100" required></label>
  <label class="field">Subject<input class="control" name="subject" minlength="3" maxlength="120" required></label>
@@ -31,7 +31,7 @@
  <label class="checkline"><input type="checkbox" name="emailAvailable" value="on"><span>Allow optional email when the recipient opted in</span></label>
  <button type="submit" class="btn btnPrimary">Publish template version</button></form></div></section>
  <section class="card" style="margin-top:14px"><div class="cardHead"><b>Active templates</b><span>Owner-controlled</span></div><div class="cardBody tableWrap"><table><thead><tr><th>Template</th><th>Version</th><th>Email permitted</th><th>Action</th></tr></thead><tbody>
- <% data.templates.forEach(t=>{ %><tr><td><%= t.name %> <span class="tiny">(<%= t.code %>)</span></td><td><%= t.version %></td><td><%= t.emailAvailable?'Yes':'No' %></td><td><form method="post" action="/tenant/notifications/templates/<%= t.code %>/retire"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn" type="submit">Retire</button></form></td></tr><% }) %>
+ <% data.templates.forEach(t=>{ %><tr><td><%= t.name %> <span class="tiny">(<%= t.code %>)</span></td><td><%= t.version %></td><td><%= t.emailAvailable?'Yes':'No' %></td><td><div class="rowBtns"><button class="btn" type="button" data-edit-notification-template data-code="<%= t.code %>" data-name="<%= t.name %>" data-subject="<%= t.subject %>" data-body="<%= t.body %>" data-email="<%= t.emailAvailable?'true':'false' %>">Edit</button><form method="post" action="/tenant/notifications/templates/<%= t.code %>/retire"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn" type="submit">Retire</button></form></div></td></tr><% }) %>
  </tbody></table></div></section><% } %>
  <% if(data.logs.length){ %><section class="card" style="margin-top:14px"><div class="cardHead"><b>Authorized delivery log</b><span>Email acceptance, retry and suppression states only</span></div><div class="cardBody tableWrap"><table><thead><tr><th>Template</th><th>Created (local)</th><th>Email state</th><th>Attempts</th><th>Failure code</th><% if(data.canManage){ %><th>Recovery</th><% } %></tr></thead><tbody>
  <% data.logs.forEach(n=>{ %><tr><td><%= n.templateCode %></td><td><%= regionalTime(n.createdAt,n.branchId) %></td><td><%= n.emailState %></td><td><%= n.attempts %></td><td><%= n.failureCode||'—' %></td><% if(data.canManage){ %><td>
@@ -41,3 +41,23 @@
  <button class="btn" type="submit">Retry dead-letter email</button></form><% }else{ %>—<% } %></td><% } %></tr><% }) %>
  </tbody></table></div></section><% } %>
 </section>
+
+<script>
+(()=>{
+ const form=document.getElementById('notificationTemplateEditor');
+ if(!form)return;
+ for(const button of document.querySelectorAll('[data-edit-notification-template]')){
+  button.addEventListener('click',()=>{
+   for(const field of ['code','name','subject','body']){
+    const input=form.elements.namedItem(field);
+    if(input)input.value=button.dataset[field]||'';
+   }
+   const checkbox=form.elements.namedItem('emailAvailable');
+   if(checkbox)checkbox.checked=button.dataset.email==='true';
+   form.scrollIntoView({behavior:'smooth',block:'start'});
+   const subject=form.elements.namedItem('subject');
+   if(subject)subject.focus({preventScroll:true});
+  });
+ }
+})();
+</script>

@@ -28,6 +28,11 @@ module.exports=function customerAccountsRoutes({renderTenant}){
  router.post('/customers',...guard('customers','customers.create'),wrap(async(req,res)=>{const result=await service.customerCreate(req.tenantDb,req.tenant,req.user,req.body);flash(req,'good',result.duplicate?'Customer already created.':'Customer created.');require('../services/branchView.service').followRecord(req,result.record);res.redirect(303,`/tenant/customers/${result.record._id}`);}));
  router.post('/customers/:id/update',...guard('customers','customers.manage'),wrap(async(req,res)=>{await service.customerUpdate(req.tenantDb,req.tenant,req.user,req.params.id,req.body);flash(req,'good','Customer updated.');res.redirect(303,`/tenant/customers/${req.params.id}`);}));
  router.post('/customers/:id/archive',...guard('customers','customers.manage'),wrap(async(req,res)=>{await service.customerArchive(req.tenantDb,req.tenant,req.user,req.params.id,req.body);flash(req,'good','Customer archived. The profile and activity remain in the logbook.');res.redirect(303,'/tenant/customers?status=archived');}));
+ router.post('/customers/:id/restore',...guard('customers','customers.manage'),wrap(async(req,res)=>{
+  await service.customerRestore(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
+  flash(req,'good','Customer restored to the active directory with original reference and history.');
+  res.redirect(303,'/tenant/customers/'+req.params.id);
+ }));
  async function accounts(req,res,mode='directory',open=false){const records=await service.accountList(req.tenantDb,req.tenant,req.user,req.query),data={...common(req),records,mode,autoOpen:open,formKind:'account',customerChoices:[]};if(data.canManageAccount&&req.operationBranch)data.customerChoices=await service.customerChoices(req.tenantDb,req.tenant,req.user);renderTenant(req,res,'customer-accounts/accounts',mode==='balances'?'Account balances':'Accounts','Account directory, balances, and account movements.',data);}
  router.get('/accounts',...guard('accounts','accounts.view'),wrap((req,res)=>accounts(req,res)));
  router.get('/accounts/new',...guard('accounts','accounts.manage'),wrap((req,res)=>accounts(req,res,'directory',true)));

@@ -21,7 +21,7 @@ const supportTel=String(landing.supportPhone||'').replace(/[^+0-9]/g,''); %>
       </div>
     </div>
     <div class="publicBusinessIntro">
-      <h2><%= landing.headline||businessName %></h2>
+      <% if(landing.headline){ %><h2><%= landing.headline %></h2><% }else{ %><h2>Business overview</h2><p>This business has not published additional profile information yet.</p><% } %>
       <% if(landing.subtitle){ %><p><%= landing.subtitle %></p><% } %>
     </div>
   </header>
@@ -43,11 +43,5 @@ const supportTel=String(landing.supportPhone||'').replace(/[^+0-9]/g,''); %>
       </div>
     </section>
   <% } %>
-  <section class="publicBusinessContact" id="contact">
-    <div><span>Get in touch</span><h2>Connect with <%= businessName %></h2><p>Use the public contact details shared by this business.</p></div>
-    <div>
-      <% if(supportTel){ %><a class="btn btn-light" href="tel:<%= supportTel %>"><i class="fa-solid fa-phone" aria-hidden="true"></i> <%= landing.supportPhone %></a><% }else{ %><p>Contact details have not been published by this business.</p><% } %>
-      <a href="/businesses" class="publicBusinessBack">Browse other businesses</a>
-    </div>
-  </section>
+
 </div>

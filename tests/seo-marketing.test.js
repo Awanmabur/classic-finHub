@@ -11,7 +11,8 @@ const marketingPages = Object.freeze(['home', 'services', 'about', 'pricing', 'p
 
 test('only canonical public pages are eligible for sitemap inclusion', () => {
   assert.equal(seo.INDEXABLE_PATHS.length, new Set(seo.INDEXABLE_PATHS).size);
-  assert.equal(seo.INDEXABLE_PATHS.length, 13);
+  assert.equal(seo.INDEXABLE_PATHS.length, 14);
+  assert(seo.INDEXABLE_PATHS.includes('/why-classicfin-hub'));
   for (const urlPath of seo.INDEXABLE_PATHS) {
     assert.match(urlPath, /^\/(?:[a-z-]+)?$/);
     assert.equal(seo.PRIVATE_PREFIXES.some(prefix => urlPath === prefix || urlPath.startsWith(prefix + '/')), false);

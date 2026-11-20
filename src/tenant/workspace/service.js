@@ -66,7 +66,7 @@ function websiteUrl(value,max=300){
  if(!raw)return '';
  let url;try{url=new URL(raw);}catch{throw fail('Enter a valid HTTPS website or image address.');}
  if(url.protocol!=='https:'||url.username||url.password||!url.hostname.includes('.')||url.hostname.endsWith('.local')||
- /^(localhost|127\\.|10\\.|192\\.168\\.|172\\.(1[6-9]|2\\d|3[01])\\.)/i.test(url.hostname))
+ /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/i.test(url.hostname))
   throw fail('Public links must use a valid external HTTPS address.');
  return url.href;
 }
@@ -81,7 +81,7 @@ function websiteDetails(input){
   linkedin:websiteUrl(input.linkedin),logoUrl:websiteUrl(input.logoUrl,500),
   coverUrl:websiteUrl(input.coverUrl,500)
  };
- const gallery=base('gallery',3000).split(/[,\\n]+/).map(v=>v.trim()).filter(Boolean);
+ const gallery=base('gallery',3000).split(/[,\n]+/).map(v=>v.trim()).filter(Boolean);
  if(gallery.length>8||new Set(gallery).size!==gallery.length)throw fail('Add up to eight unique HTTPS gallery image URLs.');
  details.gallery=gallery.map(v=>websiteUrl(v,500));
  return details;

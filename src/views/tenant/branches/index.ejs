@@ -7,12 +7,12 @@
 <link rel="stylesheet" href="/css/branches.css?v=<%= branchAssetVersion %>">
 <section class="view show branchWorkspace">
   <div class="grid3">
-    <%- include('../../partials/stat-card',{title:'Active branches',value:activeBranches.length,note:'Within your workspace'}) %>
+    <%- include('../../partials/stat-card',{title:'Active branches',value:data.activeCount??activeBranches.length,note:'Within your workspace'}) %>
     <%- include('../../partials/stat-card',{title:'Plan branch limit',value:data.plan?.limits?.branches??'Not set',note:'Limit from the current subscription'}) %>
-    <%- include('../../partials/stat-card',{title:'Archived branches',value:data.branches.filter(branch=>branch.status==='archived').length,note:'Historical branch records are retained'}) %>
+    <%- include('../../partials/stat-card',{title:'Archived branches',value:data.archivedCount??0,note:'Historical branch records are retained'}) %>
   </div>
   <section class="card branchDirectory">
-    <div class="cardHead branchDirectoryHead"><div><b>Branches</b><br><span>Branch locations and operating currencies</span></div><% if(data.canManage){ %><button class="btn btnPrimary" type="button" data-branch-open="branchCreateDialog" aria-controls="branchCreateDialog"><i class="fa-solid fa-plus" aria-hidden="true"></i> Create branch</button><% } %></div>
+    <div class="cardHead branchDirectoryHead"><div><b><%= data.showArchived?'Archived branches':'Branches' %></b><br><span>Branch locations and operating currencies</span></div><div class="rowBtns"><a class="btn" href="<%= data.showArchived?'/tenant/branches':'/tenant/branches?status=archived' %>"><%= data.showArchived?'Active branches':'Archived ('+(data.archivedCount||0)+')' %></a><% if(data.canManage&&!data.showArchived){ %><button class="btn btnPrimary" type="button" data-branch-open="branchCreateDialog" aria-controls="branchCreateDialog"><i class="fa-solid fa-plus" aria-hidden="true"></i> Create branch</button><% } %></div></div>
     <div class="cardBody">
       <% if(data.canManage&&activeBranches.length){ %>
       <form method="post" action="/tenant/branches/operating" class="branchAssignment" data-branch-write>
@@ -54,7 +54,7 @@
   <div class="sheet"><header class="sheetHead"><div><b id="branchCreateTitle">Create branch</b><br><span>Branch location and operating currencies</span></div><button class="btn btnIcon" type="button" data-branch-close aria-label="Close create branch">×</button></header>
     <div class="sheetBody"><form action="/tenant/branches" method="post" id="branchCreateForm" data-branch-write>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <div class="row2"><label class="field">Name<input class="control" name="name" required minlength="2" maxlength="100" placeholder="Kampala Main"></label><label class="field">Unique code<input class="control" name="code" required maxlength="32" pattern="[a-z0-9][a-z0-9\-]{1,30}" placeholder="kampala-main"></label></div>
+      <label class="field">Branch name<input class="control" name="name" required minlength="2" maxlength="100" placeholder="Kampala Main"></label><p class="tiny">A unique branch code will be generated automatically when you save.</p>
       <label class="field">Default currency<select class="control" name="currency"><% branchCurrencyOptions.forEach(option=>{ %><option value="<%= option.code %>"><%= option.label %></option><% }) %></select></label>
       <label class="field">Business location / address<input class="control" name="address" maxlength="240"></label>
       <label class="field">Local business timezone<input class="control" name="timeZone" list="branchTimeZones" value="Africa/Kampala" required maxlength="64" placeholder="Africa/Kampala"></label>

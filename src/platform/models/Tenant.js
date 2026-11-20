@@ -18,6 +18,15 @@ const schema = new mongoose.Schema({
     priceMonthlyMinor:{type:Number,required:true,min:0},currency:{type:String,enum:['USD'],required:true},
     limits:{users:{type:Number,required:true,min:1},branches:{type:Number,required:true,min:1},recordsPerMonth:{type:Number,required:true,min:0}}
   },{_id:false,strict:'throw'})],default:[]},
+
+  // Public projection only: owner-published landing content, never tenant PII
+  // (owner email, internal staff, account balances, or private customer data).
+  directory: {type: new mongoose.Schema({
+    name:{type:String,maxlength:150},headline:{type:String,maxlength:200},
+    subtitle:{type:String,maxlength:1000},country:{type:String,maxlength:80},
+    services:{type:[String],default:[]},supportPhone:{type:String,maxlength:40},
+    publishedAt:{type:Date,required:true}
+  },{_id:false,strict:'throw'}),default:undefined},
   seatsReserved: { type: Number, default: 1, min: 1 },
   branchCount: { type: Number, default: 0, min: 0 },
   trialEndsAt: { type: Date, default: null },
@@ -36,4 +45,5 @@ const schema = new mongoose.Schema({
   },{_id:false,strict:'throw'}),default:undefined}
 }, { timestamps: true, strict: 'throw', optimisticConcurrency:true });
 schema.index({status:1,createdAt:-1});
+schema.index({status:1,setupStatus:1,'directory.publishedAt':-1});
 module.exports = mongoose.models.Tenant || mongoose.model('Tenant', schema);

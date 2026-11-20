@@ -1,3 +1,53 @@
-<% const landing=data.landing; %>
-<section class="hero"><div class="hero-copy reveal"><p class="kicker"><%= landing?.name||data.tenant.name %></p><h1><%= landing?.headline||data.tenant.name %></h1><p class="lead"><%= landing?.subtitle||'Contact our team for information about our services.' %></p><div class="hero-actions"><a href="/signin" class="btn btn-dark">Tenant login</a><% if(landing?.supportPhone){ %><span class="btn btn-light">Support: <%= landing.supportPhone %></span><% } %></div></div><div class="hero-dashboard reveal"><div class="money-card"><div><span>Our services</span><h2><%= (landing?.services||[]).length %></h2></div><i class="fa-solid fa-layer-group" aria-hidden="true"></i></div><div class="dash-list"><% (landing?.services||[]).forEach(service=>{ %><div><i class="fa-solid fa-check" aria-hidden="true"></i><span><%= service %></span></div><% }) %></div></div></section>
-<% if(landing?.sections?.length){ %><section class="section"><div class="feature-grid"><% landing.sections.forEach(section=>{ %><article class="feature-card"><h2><%= section.name %></h2><p><%= section.description %></p></article><% }) %></div></section><% } %>
+<% const landing=data.landing, tenant=data.tenant;
+const businessName=landing.name||tenant.name;
+const publicPrimary=/^#[0-9a-fA-F]{6}$/.test(landing.primary||'')?landing.primary:'#082c52';
+const publicSecondary=/^#[0-9a-fA-F]{6}$/.test(landing.secondary||'')?landing.secondary:'#0d4f91';
+const supportTel=String(landing.supportPhone||'').replace(/[^+0-9]/g,''); %>
+<div class="publicBusinessProfile" style="--pbPrimary:<%= publicPrimary %>;--pbSecondary:<%= publicSecondary %>">
+  <nav class="businessDirCrumbs" aria-label="Breadcrumb"><a href="/">Home</a><i class="fa-solid fa-chevron-right" aria-hidden="true"></i><a href="/businesses">Businesses</a><i class="fa-solid fa-chevron-right" aria-hidden="true"></i><span aria-current="page"><%= businessName %></span></nav>
+  <header class="publicBusinessHero">
+    <div class="publicBusinessCover" aria-hidden="true"></div>
+    <div class="publicBusinessHeading">
+      <div class="publicBusinessIdentity">
+        <div class="publicBusinessAvatar" aria-hidden="true"><%= businessName.trim().slice(0,1).toUpperCase() %></div>
+        <div><span class="publicBusinessEyebrow"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Published business profile</span>
+          <h1><%= businessName %></h1>
+          <% if(landing.country){ %><p class="publicBusinessLocation"><i class="fa-solid fa-location-dot" aria-hidden="true"></i> <%= landing.country %></p><% } %>
+        </div>
+      </div>
+      <div class="publicBusinessHeroActions">
+        <% if(supportTel){ %><a href="tel:<%= supportTel %>" class="btn btn-dark"><i class="fa-solid fa-phone" aria-hidden="true"></i> Contact business</a><% } %>
+        <a href="/businesses" class="btn btn-light">All businesses</a>
+      </div>
+    </div>
+    <div class="publicBusinessIntro">
+      <h2><%= landing.headline||businessName %></h2>
+      <% if(landing.subtitle){ %><p><%= landing.subtitle %></p><% } %>
+    </div>
+  </header>
+  <% if(landing.services?.length){ %>
+    <section class="publicBusinessSection" id="services">
+      <div class="publicBusinessSectionHead"><span>What we offer</span><h2>Business services</h2></div>
+      <div class="publicBusinessServices">
+        <% landing.services.forEach((service,i)=>{ %><article><span class="publicBusinessServiceIcon"><i class="fa-solid fa-briefcase" aria-hidden="true"></i></span><h3><%= service %></h3></article><% }) %>
+      </div>
+    </section>
+  <% } %>
+  <% if(landing.sections?.length){ %>
+    <section class="publicBusinessSection" id="about">
+      <div class="publicBusinessSectionHead"><span>Business information</span><h2>More about <%= businessName %></h2></div>
+      <div class="publicBusinessDetails">
+        <% landing.sections.forEach(section=>{ %>
+          <article><h3><%= section.name %></h3><p><%= section.description %></p></article>
+        <% }) %>
+      </div>
+    </section>
+  <% } %>
+  <section class="publicBusinessContact" id="contact">
+    <div><span>Get in touch</span><h2>Connect with <%= businessName %></h2><p>Use the public contact details shared by this business.</p></div>
+    <div>
+      <% if(supportTel){ %><a class="btn btn-light" href="tel:<%= supportTel %>"><i class="fa-solid fa-phone" aria-hidden="true"></i> <%= landing.supportPhone %></a><% }else{ %><p>Contact details have not been published by this business.</p><% } %>
+      <a href="/businesses" class="publicBusinessBack">Browse other businesses</a>
+    </div>
+  </section>
+</div>

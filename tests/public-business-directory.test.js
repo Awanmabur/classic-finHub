@@ -69,7 +69,7 @@ test('Individual public profile uses only owner-published fields and no placehol
     supportPhone:'+256700000000',primary:'#082c52',secondary:'#0d4f91'}};
   const html=await ejs.renderFile(path.join(root,'src/views/public/tenant-landing.ejs'),{data,csrfToken:'testing-csrf',assetVersion:'test'});
   assert.match(html,/Published Finance/);
-  assert.match(html,/Business services/);
+  assert.match(html,/Services & offerings/);
   assert.match(html,/href="tel:\+256700000000"/);
   assert.doesNotMatch(html,/Private legal account/);
   assert.doesNotMatch(html,/fake review|5\.0 stars|sample data/i);

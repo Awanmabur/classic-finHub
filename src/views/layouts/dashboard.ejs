@@ -100,15 +100,6 @@
               </div>
             </div>
             <div class="tenantHeaderControlGroup">
-            <div class="headerScope" aria-label="Reporting currency">
-              <% if(!summaryCurrencyView&&dashboardCurrencies.length===1&&(mobileOperationPage||momoOnlyDashboard)){ %>
-               <span class="ctrl" aria-label="Network currency"><%= dashboardCurrencies[0].label %></span>
-              <% }else{ %>
-              <form method="get" action="<%= currentPath %>" class="ctrl" data-dashboard-currency-form><% for(const [key,value] of currencyFilterParams){if(!['currency','page','cursor','_csrf'].includes(key)){ %><input type="hidden" name="<%= key %>" value="<%= value %>"><% }} %><select id="currencySelect" name="currency" aria-label="Display currency"><% currencyChoices.forEach(option=>{ %><option value="<%= option.code %>" <%= selectedDisplayCurrency===option.code?'selected':'' %>><%= option.label %></option><% }) %></select><button type="submit" hidden>Apply currency</button><noscript><button type="submit" class="btn">Apply currency</button></noscript></form><% } %>
-            </div>
-            <div class="ctrl headerSearch"><input id="search" type="search" aria-label="Search loaded records" placeholder="Search name, phone, ref, PIN, account…"></div>
-            <div class="headerButtons">
-              <% if(visiblePaths.has('/tenant/notifications')){ %><a class="btn btnIcon headerNotice" id="phase2NotifyBtn" href="/tenant/notifications" aria-label="Notifications" title="Notifications"><i class="fa-regular fa-bell" aria-hidden="true"></i><span class="phase2Badge" id="phase2NotifyCount"><%= data.workspaceSnapshot?.notificationUnread??'—' %></span></a><% } %>
               <% if(typeof canViewBranches!=='undefined'&&canViewBranches){ %>
               <form method="post" action="/tenant/view-branch" class="ctrl headerBranchView" data-branch-view-form>
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
@@ -123,6 +114,15 @@
                 <noscript><button class="btn" type="submit">Apply</button></noscript>
               </form>
               <% } %>
+            <div class="headerScope" aria-label="Reporting currency">
+              <% if(!summaryCurrencyView&&dashboardCurrencies.length===1&&(mobileOperationPage||momoOnlyDashboard)){ %>
+               <span class="ctrl" aria-label="Network currency"><%= dashboardCurrencies[0].label %></span>
+              <% }else{ %>
+              <form method="get" action="<%= currentPath %>" class="ctrl" data-dashboard-currency-form><% for(const [key,value] of currencyFilterParams){if(!['currency','page','cursor','_csrf'].includes(key)){ %><input type="hidden" name="<%= key %>" value="<%= value %>"><% }} %><select id="currencySelect" name="currency" aria-label="Display currency"><% currencyChoices.forEach(option=>{ %><option value="<%= option.code %>" <%= selectedDisplayCurrency===option.code?'selected':'' %>><%= option.label %></option><% }) %></select><button type="submit" hidden>Apply currency</button><noscript><button type="submit" class="btn">Apply currency</button></noscript></form><% } %>
+            </div>
+            <div class="ctrl headerSearch"><input id="search" type="search" aria-label="Search loaded records" placeholder="Search name, phone, ref, PIN, account…"></div>
+            <div class="headerButtons">
+              <% if(visiblePaths.has('/tenant/notifications')){ %><a class="btn btnIcon headerNotice" id="phase2NotifyBtn" href="/tenant/notifications" aria-label="Notifications" title="Notifications"><i class="fa-regular fa-bell" aria-hidden="true"></i><span class="phase2Badge" id="phase2NotifyCount"><%= data.workspaceSnapshot?.notificationUnread??'—' %></span></a><% } %>
               <% if(['Tenant Owner','Branch Manager'].includes(user.role)){ %>
               <form method="post" action="/tenant/backups/action" class="headerDriveForm">
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">

@@ -36,6 +36,28 @@
     <p class="tiny">No setup task is marked complete based on a plan's current marketing description. These values come from the saved tenant record; branch and account readiness must be checked in the tenant workspace.</p>
   </div>
 </section>
+<% const directoryVisibility=data.tenant.directoryListing?.visibility||'default';
+   const ownerPublished=Boolean(data.tenant.directory?.publishedAt);
+   const isPublicListed=tenantCanOperate&&data.tenant.setupStatus!=='invited'&&directoryVisibility!=='hidden'&&(ownerPublished||directoryVisibility==='published');
+   const directoryAction=isPublicListed?'hide':'publish'; %>
+<details class="card" style="margin-top:14px">
+  <summary class="cardHead"><b>Public business listing</b><span><%= isPublicListed?'Visible in business directory':'Not listed' %> · Super Admin · audited</span></summary>
+  <div class="cardBody">
+    <p class="tiny">The public directory shows the business name and profile link. Extra descriptions, services, country and support phone appear only after the tenant owner publishes them. Private owner emails, contacts, staff and financial records are never listed.</p>
+    <% if(isPublicListed){ %><p><a class="btn" href="/t/<%= data.tenant.slug %>" target="_blank" rel="noopener">View public business profile</a></p><% } %>
+    <% if(tenantCanOperate&&data.tenant.setupStatus!=='invited'){ %>
+    <form method="post" action="/platform/tenants/<%= data.tenant.id %>/public-listing" style="margin-top:12px">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="revision" value="<%= data.tenant.__v||0 %>">
+      <input type="hidden" name="action" value="<%= directoryAction %>">
+      <label class="field">Reason for <%= directoryAction==='publish'?'publishing':'hiding' %> this business (12–400 characters)
+        <textarea class="control" name="reason" minlength="12" maxlength="400" rows="2" required></textarea>
+      </label>
+      <button type="submit" class="btn <%= directoryAction==='publish'?'btnPrimary':'' %>"><%= directoryAction==='publish'?'Publish business listing':'Hide business from directory' %></button>
+    </form>
+    <% }else{ %><p class="tiny">Finish owner setup and activate the workspace before publishing its directory listing.</p><% } %>
+  </div>
+</details>
 <section class="card" style="margin-top:14px" aria-label="Active module entitlements">
  <div class="cardHead"><div><b>Modules — plan vs independent access</b><br><span>Current entitlements, with recorded but inactive assignments shown separately</span></div></div>
  <div class="cardBody">

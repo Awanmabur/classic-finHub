@@ -1,0 +1,59 @@
+<% const directory=data.directory, f=directory.filters; %>
+<div class="businessDirectory">
+  <nav class="businessDirCrumbs" aria-label="Breadcrumb"><a href="/">Home</a><i class="fa-solid fa-chevron-right" aria-hidden="true"></i><span aria-current="page">Businesses</span></nav>
+  <header class="businessDirHero">
+    <span class="kicker">ClassicFin Hub · Public business directory</span>
+    <h1>Discover businesses on ClassicFin Hub</h1>
+    <p>Explore real businesses that have published their public profiles. Search their services, find contact details they choose to share, and visit their individual business pages.</p>
+    <a class="btn btn-light" href="/signup">Register your business</a>
+  </header>
+  <form class="businessDirFilters" method="get" action="/businesses" role="search">
+    <label>Search businesses
+      <input name="q" type="search" maxlength="80" value="<%= f.q %>" placeholder="Business name or service">
+    </label>
+    <label>Country
+      <select name="country">
+        <option value="">All countries</option>
+        <% directory.countries.forEach(country=>{ %><option value="<%= country %>" <%= country===f.country?'selected':'' %>><%= country %></option><% }) %>
+      </select>
+    </label>
+    <label>Service
+      <select name="service">
+        <option value="">All services</option>
+        <% directory.services.forEach(service=>{ %><option value="<%= service %>" <%= service===f.service?'selected':'' %>><%= service %></option><% }) %>
+      </select>
+    </label>
+    <label>Sort by
+      <select name="sort">
+        <option value="recent" <%= f.sort==='recent'?'selected':'' %>>Recently published</option>
+        <option value="name" <%= f.sort==='name'?'selected':'' %>>Business name</option>
+      </select>
+    </label>
+    <div class="businessDirFilterActions">
+      <button class="btn btn-dark" type="submit"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Find businesses</button>
+      <a class="btn btn-light" href="/businesses">Clear</a>
+    </div>
+  </form>
+  <div class="businessDirResultsHeading">
+    <h2>Business profiles</h2>
+    <p><%= directory.total %> <%= directory.total===1?'business':'businesses' %> found</p>
+  </div>
+  <% if(directory.businesses.length){ %>
+    <div class="businessDirGrid">
+      <% directory.businesses.forEach(business=>{ %><%- include('../partials/business-card',{business}) %><% }) %>
+    </div>
+  <% }else{ %>
+    <div class="businessDirEmpty"><i class="fa-solid fa-building-circle-exclamation" aria-hidden="true"></i>
+      <h3><%= f.q||f.service||f.country?'No businesses match those filters':'No public business profiles yet' %></h3>
+      <p><%= f.q||f.service||f.country?'Try another business name, country or service.':'Businesses will appear here when their owners publish their public profiles. No sample or invented listings are shown.' %></p>
+      <a href="<%= f.q||f.service||f.country?'/businesses':'/signup' %>" class="btn btn-dark"><%= f.q||f.service||f.country?'Clear filters':'Register your business' %></a>
+    </div>
+  <% } %>
+  <% if(directory.pages>1){ const linkFor=page=>'/businesses?'+new URLSearchParams({q:f.q,country:f.country,service:f.service,sort:f.sort,page:String(page)}).toString(); %>
+    <nav class="businessDirPages" aria-label="Business results pagination">
+      <% if(f.page>1){ %><a href="<%= linkFor(f.page-1) %>">Previous</a><% } %>
+      <span>Page <%= f.page %> of <%= directory.pages %></span>
+      <% if(f.page<directory.pages){ %><a href="<%= linkFor(f.page+1) %>">Next</a><% } %>
+    </nav>
+  <% } %>
+</div>

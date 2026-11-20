@@ -1,7 +1,7 @@
 <% const landing=data.landing, tenant=data.tenant;
 const businessName=landing.name||tenant.name;
-const publicPrimary=/^#[0-9a-fA-F]{6}$/.test(landing.primary||'')?landing.primary:'#082c52';
-const publicSecondary=/^#[0-9a-fA-F]{6}$/.test(landing.secondary||'')?landing.secondary:'#0d4f91';
+const publicPrimary=/^#[0-9a-fA-F]{6}$/.test(landing.primary||'')?landing.primary:'var(--dark)';
+const publicSecondary=/^#[0-9a-fA-F]{6}$/.test(landing.secondary||'')?landing.secondary:'var(--dark-2)';
 const supportTel=String(landing.supportPhone||'').replace(/[^+0-9]/g,''); %>
 <div class="publicBusinessProfile" style="--pbPrimary:<%= publicPrimary %>;--pbSecondary:<%= publicSecondary %>">
   <nav class="businessDirCrumbs" aria-label="Breadcrumb"><a href="/">Home</a><i class="fa-solid fa-chevron-right" aria-hidden="true"></i><a href="/businesses">Businesses</a><i class="fa-solid fa-chevron-right" aria-hidden="true"></i><span aria-current="page"><%= businessName %></span></nav>
@@ -10,7 +10,7 @@ const supportTel=String(landing.supportPhone||'').replace(/[^+0-9]/g,''); %>
     <div class="publicBusinessHeading">
       <div class="publicBusinessIdentity">
         <div class="publicBusinessAvatar" aria-hidden="true"><%= businessName.trim().slice(0,1).toUpperCase() %></div>
-        <div><span class="publicBusinessEyebrow"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Published business profile</span>
+        <div><span class="publicBusinessEyebrow"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> <%= landing.publishedAt ? "Published business profile" : "ClassicFin Hub business" %></span>
           <h1><%= businessName %></h1>
           <% if(landing.country){ %><p class="publicBusinessLocation"><i class="fa-solid fa-location-dot" aria-hidden="true"></i> <%= landing.country %></p><% } %>
         </div>

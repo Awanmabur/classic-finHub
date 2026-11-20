@@ -131,12 +131,12 @@ async function createAccount(conn,tenant,actor,input,{configurationBranchId=null
  const values=validateAccount(input);await Promise.all([ensure(conn),core.ensureTenantIndexes(conn)]);
  try{return await transaction(conn,async session=>{
   const authorization=await access(conn,tenant,actor,{permission:'treasury.manage',session,fence:true});if(!['Tenant Owner','Branch Manager'].includes(authorization.actor.role))throw fail('Authorized tenant owner or assigned branch manager required',403);
-  if(configurationBranchId&&authorization.actor.role!=='Tenant Owner')throw fail('Only the tenant owner can configure a different branch',403);
+  if(configurationBranchId&&authorization.actor.role==='Branch Manager'&&String(configurationBranchId)!==String(authorization.actor.branchId))throw fail('Branch managers can create accounts only in their assigned branch',403);
   const branch=configurationBranchId?await core.branchModel(conn).findOne({_id:oid(configurationBranchId,'configuration branch'),status:'active'}).session(session).lean():await selectedBranch(conn,authorization,session);
   if(!branch)throw fail('Choose an active branch before adding an account',409);
   if(!authorization.modules.includes(moduleForKind(values.kind))&&moduleForKind(values.kind)!=='shared')throw fail('Subscribe and assign the account financial module first',403);
   require('../services/branchCurrency.service').resolve(branch,values.currency);
-  if(values.operatorId){const operator=await core.tenantUserModel(conn).findOne({_id:values.operatorId,status:'active'}).session(session).lean();if(!operator||(operator.role!=='Tenant Owner'&&String(operator.branchId)!==String(branch._id)))throw fail('Choose an active staff member from this branch',409);}
+  if(values.operatorId){const operator=await core.tenantUserModel(conn).findOne({_id:values.operatorId,status:'active'}).session(session).lean();if(!operator||(operator.role!=='Tenant Owner'&&String(operator.branchId)!==String(branch._id))||(authorization.actor.role==='Branch Manager'&&String(operator.branchId)!==String(branch._id)))throw fail('Choose an active staff member from this branch',409);}
   const accountId=new mongoose.Types.ObjectId(),ledgerCode=`TRS_${accountId.toString().toUpperCase()}`;
   // The user never needs to invent a bookkeeping code. Use the immutable
   // ObjectId suffix so concurrently created accounts have distinct codes.

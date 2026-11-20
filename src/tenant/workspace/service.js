@@ -61,9 +61,34 @@ function fields(input,allowed){
 }
 function email(value){const v=plain(value,254);if(v&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v))throw fail('Enter a valid owner email.');return v.toLowerCase();}
 function phone(value){const v=plain(value,40);if(v&&!/^[+\d][\d ()-]{5,39}$/.test(v))throw fail('Enter a valid support phone.');return v;}
+function websiteUrl(value,max=300){
+ const raw=plain(value,max);
+ if(!raw)return '';
+ let url;try{url=new URL(raw);}catch{throw fail('Enter a valid HTTPS website or image address.');}
+ if(url.protocol!=='https:'||url.username||url.password||!url.hostname.includes('.')||url.hostname.endsWith('.local')||
+ /^(localhost|127\\.|10\\.|192\\.168\\.|172\\.(1[6-9]|2\\d|3[01])\\.)/i.test(url.hostname))
+  throw fail('Public links must use a valid external HTTPS address.');
+ return url.href;
+}
+function websiteDetails(input){
+ const base=(k,n=150)=>plain(input[k],n);
+ const details={
+  category:base('category',100),about:base('about',3000),address:base('address',160),
+  city:base('city',100),region:base('region',100),
+  publicEmail:email(input.publicEmail),website:websiteUrl(input.website),
+  whatsapp:phone(input.whatsapp),hours:base('hours',800),
+  facebook:websiteUrl(input.facebook),instagram:websiteUrl(input.instagram),
+  linkedin:websiteUrl(input.linkedin),logoUrl:websiteUrl(input.logoUrl,500),
+  coverUrl:websiteUrl(input.coverUrl,500)
+ };
+ const gallery=base('gallery',3000).split(/[,\\n]+/).map(v=>v.trim()).filter(Boolean);
+ if(gallery.length>8||new Set(gallery).size!==gallery.length)throw fail('Add up to eight unique HTTPS gallery image URLs.');
+ details.gallery=gallery.map(v=>websiteUrl(v,500));
+ return details;
+}
 function defaults(tenant){return {tenantId:String(tenant._id),revision:0,
  profile:{name:tenant.name||'',legalName:'',owner:tenant.owner||'',ownerEmail:tenant.email||'',supportPhone:tenant.phone||'',country:'',timezone:'Africa/Kampala',defaultCurrency:'UGX'},
- landing:{headline:'',subtitle:'',services:[]},branding:{theme:'ClassicFin',primary:'#082c52',secondary:'#0d4f91',logoStatus:'Not uploaded',receiptNote:'',prefix:'CFH',template:'Standard receipt'}};}
+ landing:{headline:'',subtitle:'',services:[],details:{}},branding:{theme:'ClassicFin',primary:'#082c52',secondary:'#0d4f91',logoStatus:'Not uploaded',receiptNote:'',prefix:'CFH',template:'Standard receipt'}};}
 function combine(tenant,saved){const base=defaults(tenant);return {...base,...saved,profile:{...base.profile,...saved?.profile},landing:{...base.landing,...saved?.landing},branding:{...base.branding,...saved?.branding}};}
 function validateConfig(section,input){
  if(section==='profile'){
@@ -72,10 +97,10 @@ function validateConfig(section,input){
   return {name:plain(input.name,150,true),legalName:plain(input.legalName,150),owner:plain(input.owner,150),ownerEmail:email(input.ownerEmail),supportPhone:phone(input.supportPhone),country:plain(input.country,80),timezone,defaultCurrency:choice(input.defaultCurrency,['UGX','KES','USD','SSP'],'default currency')};
  }
  if(section==='landing'){
-  fields(input,['headline','subtitle','services']);
+  fields(input,['headline','subtitle','services','category','about','address','city','region','publicEmail','website','whatsapp','hours','facebook','instagram','linkedin','logoUrl','coverUrl','gallery']);
   const serviceText=plain(input.services,500),services=serviceText?serviceText.split(',').map(v=>plain(v,80,true)):[];
   if(services.length>12||new Set(services).size!==services.length)throw fail('Use up to 12 different services.');
-  return {headline:plain(input.headline,200,true),subtitle:plain(input.subtitle,1000),services};
+  return {headline:plain(input.headline,200,true),subtitle:plain(input.subtitle,1000),services,details:websiteDetails(input)};
  }
  if(section==='branding'){
   fields(input,['theme','primary','secondary','logoStatus','receiptNote','prefix','template']);
@@ -186,7 +211,7 @@ async function publish(conn,tenant,actor,input){
   if(!current||!current.landing?.headline)throw fail('Save the landing headline, then reload before publishing.',409);
   const settings=combine(tenant,current),sections=await entry.find({...scope,kind:'landing_section',status:'published'}).sort({order:1,createdAt:1}).limit(200).session(session).lean();
   const snapshot={name:settings.profile.name,headline:settings.landing.headline,subtitle:settings.landing.subtitle,services:settings.landing.services,
-   sections:sections.map(v=>({name:v.name,description:v.description,order:v.order})),primary:settings.branding.primary,secondary:settings.branding.secondary,supportPhone:settings.profile.supportPhone,country:settings.profile.country};
+   sections:sections.map(v=>({name:v.name,description:v.description,order:v.order})),primary:settings.branding.primary,secondary:settings.branding.secondary,supportPhone:settings.profile.supportPhone,country:settings.profile.country,details:settings.landing.details||{}};
   const saved=await config.findOneAndUpdate({...scope,revision:expected},{$set:{'landing.published':snapshot,'landing.publishedAt':new Date(),'landing.publishedBy':actorId(actor),updatedBy:actorId(actor)},$inc:{revision:1}},{session,new:true,runValidators:true});
   if(!saved)throw fail('Settings changed. Reload before publishing.',409);
   await audit(conn,session,tenant,actor,'workspace.landing.published',saved._id,{revision:saved.revision,sections:sections.length});return saved.toObject();

@@ -9,7 +9,7 @@ const configSchema=new mongoose.Schema({
   ownerEmail:{type:String,maxlength:254},supportPhone:{type:String,maxlength:40},country:{type:String,maxlength:80},timezone:{type:String,maxlength:80},defaultCurrency:{type:String,enum:['UGX','KES','USD','SSP']}}),default:()=>({})},
  landing:{type:nested({headline:{type:String,maxlength:200},subtitle:{type:String,maxlength:1000},services:{type:[String],default:[]},
   publishedAt:Date,publishedBy:mongoose.Schema.Types.ObjectId,published:{type:nested({name:String,headline:String,subtitle:String,services:[String],
-   sections:[nested({name:String,description:String,order:Number})],primary:String,secondary:String,supportPhone:String}),default:undefined}}),default:()=>({})},
+   sections:[nested({name:String,description:String,order:Number})],primary:String,secondary:String,supportPhone:String,country:String}),default:undefined}}),default:()=>({})},
  branding:{type:nested({theme:{type:String,maxlength:80},primary:{type:String,match:/^#[a-fA-F0-9]{6}$/},secondary:{type:String,match:/^#[a-fA-F0-9]{6}$/},
   logoStatus:{type:String,maxlength:80},receiptNote:{type:String,maxlength:500},prefix:{type:String,match:/^[A-Z0-9-]{2,12}$/},template:{type:String,maxlength:80}}),default:()=>({})},
  updatedBy:{type:mongoose.Schema.Types.ObjectId,required:true}

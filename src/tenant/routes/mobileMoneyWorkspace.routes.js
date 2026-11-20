@@ -26,6 +26,24 @@ module.exports=function routes({renderTenant}){
      req.operationBranch,{...req.query,operation:direction});
    }catch(e){error=e.status>=400&&e.status<500?e.message:'Unable to calculate a safe exchange quote';}
   }
+  // Expose expired rates on the existing cashier screen; never offer expired
+  // prices as executable, and never silently renew owner-approved rates.
+  const side=operation==='cash_out'?'buy':'sell';
+  const now=new Date();
+  const currencyPairs=new Set();
+  for(const wallet of wallets){
+   if(!(wallet.assignedToOperator||wallet.shared))continue;
+   for(const drawer of drawers){
+    if(!drawer.assignedToOperator||wallet.currency===drawer.currency)continue;
+    currencyPairs.add(wallet.currency+'/'+drawer.currency);
+   }
+  }
+  const expiredRates=currencyPairs.size?
+   (await require('../models').forexRateModel(req.tenantDb).find({
+    branchId:req.operationBranch._id,status:'active',reviewedBy:{$ne:null},side,
+    expiresAt:{$lte:now}
+   }).select('fromCurrency toCurrency side expiresAt').lean())
+   .filter(rate=>currencyPairs.has(rate.fromCurrency+'/'+rate.toCurrency)):[];
   const postingEnabled=process.env.CLASSICFIN_MOMO_FX_POSTING_ENABLED==='true';
   const permission=operation==='cash_out'?'mobile_money.cash_out':'mobile_money.cash_in';
   const blockers=[];
@@ -58,7 +76,7 @@ module.exports=function routes({renderTenant}){
    tenantId:req.tenant._id,branchId:req.operationBranch._id,
    ...(['Tenant Owner','Branch Manager','Reconciliation Officer','Auditor'].includes(req.user.role)?{}:{actorId:req.user.id})
   }).sort({createdAt:-1}).limit(5).lean():[];
-  return {selected,operation:direction,wallets,drawers,result,error,canExecute,blockers,
+  return {selected,operation:direction,wallets,drawers,expiredRates,result,error,canExecute,blockers,
    quoteRate:result?require('../services/forexRateUnits.service').display(result.rateDecimal,result.providerCurrency):null,
    idempotencyKey:randomUUID(),history,input:req.query,
    formatMoneyMinor:require('../services/mobileMoney.service').formatMoneyMinor,

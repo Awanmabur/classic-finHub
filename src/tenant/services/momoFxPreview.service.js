@@ -28,9 +28,20 @@ async function preview(conn,tenant,actor,branch,input){
  if(!branchCurrency.supports(branch,wallet.currency)||!branchCurrency.supports(branch,cash.currency))throw fail('Currency disabled in this branch');
  for(const row of [wallet,cash])if(row.operatorId&&String(row.operatorId)!==String(actor.id))throw fail('Account belongs to another cashier',403);
  const side=operation==='withdraw_provider_receive_cash'?'buy':'sell';
- const rate=await forexRateModel(conn).findOne({branchId:branch._id,fromCurrency:wallet.currency,
-  toCurrency:cash.currency,side,status:'active',reviewedBy:{$ne:null},expiresAt:{$gt:new Date()}}).lean();
- if(!rate)throw fail('No active Buy/Sell rate for this currency direction. Ask the authorized owner to set the rate');
+ const rateSelector={branchId:branch._id,fromCurrency:wallet.currency,
+  toCurrency:cash.currency,side,status:'active',reviewedBy:{$ne:null}};
+ const now=new Date();
+ const rate=await forexRateModel(conn).findOne({...rateSelector,expiresAt:{$gt:now}}).lean();
+ if(!rate){
+  const previous=await forexRateModel(conn).findOne(rateSelector)
+   .sort({expiresAt:-1}).select('expiresAt').lean();
+  const pair=wallet.currency+' → '+cash.currency;
+  if(previous?.expiresAt&&new Date(previous.expiresAt)<=now)
+   throw fail('The approved '+side.toUpperCase()+' rate for '+pair+
+    ' expired. No amounts were posted. Ask the owner or authorized branch manager to renew it in Deposit → Exchange rates.',409);
+  throw fail('No approved '+side.toUpperCase()+' rate for '+pair+
+   '. No amounts were posted. Ask the owner or authorized branch manager to set it in Deposit → Exchange rates.',409);
+ }
  const fromCash=operation==='deposit_cash_send_provider'&&
   (input.cashAmountMinor!==undefined||input.cashAmount!==undefined);
  const money=require('../treasury/service');

@@ -594,3 +594,43 @@ body[data-workspace="tenant"] .headerBranchView .visuallyHidden{
  body[data-workspace="tenant"] .headerButtons .headerBranchView{max-width:130px;min-width:95px}
  body[data-workspace="tenant"] .headerPrimaryActions{margin-left:auto}
 }
+
+
+/* Tenant top navigation: username, viewing branch, currency, then utilities.
+   Use wrapping instead of squashing controls or reserving empty grid columns.
+   Do not affect platform admin navigation. */
+body[data-workspace="tenant"] .topbar{display:grid;grid-template-columns:minmax(0,1fr);grid-template-areas:none;gap:12px;align-items:stretch}
+body[data-workspace="tenant"] .topbar>.topActions{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:10px;width:100%;margin:0;min-width:0}
+body[data-workspace="tenant"] .tenantHeaderIdentityGroup{display:flex;align-items:center;gap:9px;flex:0 0 auto;max-width:100%;min-width:0}
+body[data-workspace="tenant"] .tenantHeaderIdentityGroup .headerIdentity{max-width:190px;min-width:0;flex:0 1 auto}
+body[data-workspace="tenant"] .tenantHeaderIdentityGroup .headerIdentity strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body[data-workspace="tenant"] .tenantHeaderControlGroup{display:flex;flex:1 1 550px;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:9px;min-width:0}
+body[data-workspace="tenant"] .tenantHeaderControlGroup>.headerBranchView{order:0;display:flex;flex:0 1 180px;min-width:146px;max-width:240px;padding:0;margin:0}
+body[data-workspace="tenant"] .tenantHeaderControlGroup>.headerBranchView select{width:100%;max-width:none;min-width:0}
+body[data-workspace="tenant"] .tenantHeaderControlGroup>.headerScope{order:1;display:flex;flex:0 0 auto;min-width:80px;width:auto;max-width:none;margin:0}
+body[data-workspace="tenant"] .tenantHeaderControlGroup>.headerSearch{order:2;flex:1 1 165px;max-width:320px;min-width:130px;margin:0}
+body[data-workspace="tenant"] .tenantHeaderControlGroup>.headerButtons{order:3;display:flex;flex:0 1 auto;align-items:center;justify-content:flex-start;width:auto;margin:0;min-width:0;flex-wrap:wrap;gap:8px}
+body[data-workspace="tenant"] .tenantHeaderControlGroup>.headerButtons .headerPrimaryActions{width:auto;flex:0 1 auto;min-width:0;flex-wrap:nowrap;gap:8px}
+body[data-workspace="tenant"] .tenantHeaderControlGroup :is(.ctrl,.btn){min-height:38px}
+body[data-workspace="tenant"] .topbar>.title{grid-area:auto;min-width:0}
+@media(max-width:1120px){
+ body[data-workspace="tenant"] .topbar{grid-template-columns:minmax(0,1fr);grid-template-areas:none}
+ body[data-workspace="tenant"] .topbar>.topActions{display:flex}
+ body[data-workspace="tenant"] .tenantHeaderControlGroup{flex:1 1 100%;justify-content:flex-start}
+ body[data-workspace="tenant"] .topbar .headerSearch{width:auto;max-width:320px;min-width:130px}
+ body[data-workspace="tenant"] .headerScope{justify-self:auto}
+ body[data-workspace="tenant"] .headerButtons{grid-area:auto}
+}
+@media(max-width:700px){
+ body[data-workspace="tenant"] .topbar>.topActions{gap:8px}
+ body[data-workspace="tenant"] .tenantHeaderIdentityGroup{flex:1 1 100%;max-width:100%}
+ body[data-workspace="tenant"] .tenantHeaderControlGroup{gap:8px}
+ body[data-workspace="tenant"] .tenantHeaderControlGroup>.headerBranchView{flex:1 1 148px;max-width:210px;min-width:128px}
+ body[data-workspace="tenant"] .tenantHeaderControlGroup>.headerScope{flex:0 0 80px;min-width:76px}
+ body[data-workspace="tenant"] .tenantHeaderControlGroup>.headerSearch{order:4;flex:1 1 100%;min-width:0;max-width:none;width:100%}
+ body[data-workspace="tenant"] .tenantHeaderControlGroup>.headerButtons{order:3;flex:0 1 auto}
+ body[data-workspace="tenant"] .headerNotice{display:inline-flex}
+ body[data-workspace="tenant"] .tenantHeaderControlGroup>.headerButtons .headerPrimaryActions{width:auto}
+ body[data-workspace="tenant"] .tenantHeaderControlGroup .headerLastReceipt{flex:0 0 36px}
+ body[data-workspace="tenant"] .tenantHeaderControlGroup .headerPrimaryActions>.btn{flex:0 0 auto}
+}

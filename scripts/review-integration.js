@@ -49,7 +49,7 @@ async function main() {
     const shift=await cash.open(a,tenants[0],operator,{openingCash:'0'});
     assert.equal(shift.status,'pending_open');
     await assert.rejects(cash.decideOpening(a,tenants[0],{...operator,role:'Tenant Owner'},String(shift._id),
-      {decision:'approve',note:'The originator cannot approve opening cash'}),e=>e.status===409);
+      {decision:'approve',note:'The originator cannot approve opening cash'}),e=>e.status===403);
     const verified=await cash.decideOpening(a,tenants[0],reviewer,String(shift._id),
       {decision:'approve',note:'Opening notes physically counted with second-person witness'});
     assert.equal(verified.status,'open');
@@ -110,7 +110,7 @@ async function main() {
     assert.equal(String(submitted.expectedClosingMinor),'120000');
     assert.equal(String(submitted.varianceMinor),'-1000');
     await assert.rejects(cash.decide(a,tenants[0],{...operator,role:'Tenant Owner'},String(shift._id),
-      {decision:'approve',note:'Self approval must be denied'}),e=>e.status===409);
+      {decision:'approve',note:'Self approval must be denied'}),e=>e.status===403);
     await assert.rejects(cash.decide(b,tenants[1],reviewer,String(shift._id),
       {decision:'approve',note:'Cannot approve outside tenant'}),e=>e.status===409);
     const approved=await cash.decide(a,tenants[0],reviewer,String(shift._id),{

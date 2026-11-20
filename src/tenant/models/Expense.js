@@ -8,7 +8,8 @@ const change=new Schema({kind:{type:String,enum:['correct','void'],required:true
  {_id:false,strict:'throw'});
 const history=new Schema({action:{type:String,required:true},actorId:{type:Schema.Types.ObjectId,required:true},at:{type:Date,required:true},
  note:{type:String,default:'',maxlength:400},before:{type:snapshot,default:null},after:{type:snapshot,default:null},
- treasuryBatchId:{type:Schema.Types.ObjectId,default:null},reversalBatchId:{type:Schema.Types.ObjectId,default:null}},
+ treasuryBatchId:{type:Schema.Types.ObjectId,default:null},reversalBatchId:{type:Schema.Types.ObjectId,default:null},
+ selfReviewed:{type:Boolean,default:false}},
  {_id:false,strict:'throw'});
 const schema=new Schema({
  recordReference:{type:String,required:true,immutable:true},idempotencyKey:{type:String,required:true,immutable:true},

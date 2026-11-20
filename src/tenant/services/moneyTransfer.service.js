@@ -186,7 +186,7 @@ async function decide(conn,tenant,actor,orderId,input){
  const tx=await conn.startSession();let updated;
  try{await tx.withTransaction(async()=>{
   const authorization=await financialAuth.fenceAction(conn,tx,actor,tenant,'money_transfer','money_transfer.review');
-  updated=await transferOrderModel(conn).findOneAndUpdate({_id:id(orderId),status:'requested',createdBy:{$ne:actor.id},
+  updated=await transferOrderModel(conn).findOneAndUpdate({_id:id(orderId),status:'requested',...require('./reviewPolicy').creatorFilter(actor),
     expiresAt:{$gt:new Date()},...branchScope(actor)},
    {$set:{status:decision==='approve'?'approved_pending_provider':'rejected',reviewedBy:actor.id,
     reviewedAt:new Date(),reviewNote:reason},$inc:{revision:1}}, {session:tx,new:true});
@@ -247,7 +247,7 @@ async function detail(conn,tenant,actor,orderId){
 }
 async function reviewQueue(conn,tenant,actor){
  requireModuleAccess(tenant,actor,'money_transfer.review');if(!reviewActor(actor))throw fail('Review permission required',403);
- return transferOrderModel(conn).find({status:'requested',createdBy:{$ne:id(actor.id)},expiresAt:{$gt:new Date()},...branchScope(actor)})
+ return transferOrderModel(conn).find({status:'requested',...require('./reviewPolicy').creatorFilter(actor),expiresAt:{$gt:new Date()},...branchScope(actor)})
   .sort({createdAt:1}).limit(30).lean();
 }
 async function reportRows({conn,filters,scope,dateRange}){

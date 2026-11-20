@@ -145,7 +145,7 @@ function routes({renderTenant}){
      (req.user.role==='Tenant Owner'||String(request.createdBy)===String(req.user.id))&&String(req.operationBranch?._id||'')===String(request.branchId)&&
      ['requested','approved_pending_bank'].includes(request.status)&&new Date(request.expiresAt)>new Date()&&request.source?.referenceType==='customer_account'&&
      (request.kind!=='transfer_request'||request.destination?.referenceType==='customer_account'),
-    canReview:request.status==='requested'&&new Date(request.expiresAt)>new Date()&&bank.reviewer(req.user)&&hasPermission(req.user,'banking.review')&&String(request.createdBy)!==String(req.user.id),
+    canReview:request.status==='requested'&&new Date(request.expiresAt)>new Date()&&bank.reviewer(req.user)&&hasPermission(req.user,'banking.review')&&(String(request.createdBy)!==String(req.user.id)||require('../services/reviewPolicy').canSelfReviewRoutine(req.user,request.branchId)),
     canCancel:request.status==='requested'&&(req.user.role==='Tenant Owner'||String(request.createdBy)===String(req.user.id))
    });
   }catch(e){next(e);}

@@ -33,7 +33,9 @@ async function main(){
  const posted=await decide(requested.funding);assert.equal(posted.funding.status,'posted');assert.equal(await balance(bank),'800');assert.equal(await balance(wallet),'300');assert(posted.funding.batchId);assert(posted.funding.journalIds.length);
  assert.equal((await decide(requested.funding)).duplicate,true);assert.equal(await funds.models(conn).batch.countDocuments({sourceType:'treasury_funding'}),1);
  assert.equal(BigInt(await balance(bank))+BigInt(await balance(wallet)),1100n,'funding conserves real assets');
- const selfRequested=await funding.request(conn,tenant,owner,input(bank,wallet,10));await assert.rejects(decide(selfRequested.funding,owner),{status:403});await funding.review(conn,tenant,reviewer,selfRequested.funding._id,{decision:'reject',note:'The preparatory request is cancelled without moving any actual funds'});
+ const selfRequested=await funding.request(conn,tenant,owner,input(bank,wallet,10));
+ const selfDenied=await funding.review(conn,tenant,owner,selfRequested.funding._id,{decision:'reject',note:'Owner rejects preparatory request without moving actual funds'});
+ assert.equal(selfDenied.funding.status,'rejected','owner may decide own routine request');
  const cashRequest=await funding.request(conn,tenant,operator,input(drawer,wallet,100));await assert.rejects(decide(cashRequest.funding),error=>error.status===409&&/drawer|shift/i.test(error.message));assert.equal(await balance(drawer),'500');
  const shift=await cash.open(conn,tenant,operator,{openingCash:'500'});await cash.decideOpening(conn,tenant,reviewer,shift._id,{decision:'approve',note:'Opening cash physically counted and independently confirmed'});await decide(cashRequest.funding);assert.equal(await balance(drawer),'400');assert.equal(await balance(wallet),'400');
  assert.equal(String((await core.cashSessionModel(conn).findById(shift._id)).provisionalMovementMinor),'-100','funding changes physical drawer exactly once');
@@ -73,6 +75,15 @@ async function main(){
  assert((await funding.list(conn,tenant,{...owner,viewBranchId:String(east._id)})).every(row=>String(row.branchId)===String(east._id)));
  assert((await funding.list(conn,tenant,{...owner,viewBranchId:'all'})).some(row=>String(row._id)===String(eastFunding.funding._id)));
  const ignoredBody=await treasury.createAccount(conn,tenant,owner,{kind:'bank',code:'BODY_BRANCH_IGNORED',name:'Server branch proof',currency:'UGX',isDefault:false,branchId:String(east._id)});assert.equal(String(ignoredBody.branchId),String(branch._id));
+ // Owner may approve their own routine transfer in the same branch.
+ // Reverse the test funding with a separate traceable transfer and prove
+ // both books conserve their starting balances.
+ const beforeOwn={bank:await balance(bank),wallet:await balance(wallet)};
+ const ownMove=await funding.request(conn,tenant,owner,input(bank,wallet,1));
+ assert.equal((await decide(ownMove.funding,owner)).funding.status,'posted');
+ const ownReturn=await funding.request(conn,tenant,owner,input(wallet,bank,1));
+ assert.equal((await decide(ownReturn.funding,owner)).funding.status,'posted');
+ assert.deepEqual({bank:await balance(bank),wallet:await balance(wallet)},beforeOwn);
  assert.equal((await ledger.trialBalance(conn,{branchId:east._id,currency:'UGX'})).balanced,true);
  console.log('PASS: Wallet funding conserves assets with independent review, exact journals, defaults and operator controls; tenant owners configure and fund a selected branch without changing their operating assignment; branch views isolate history; insufficient/held/foreign sources and stale makers are rejected with full audit rollback.');
 }

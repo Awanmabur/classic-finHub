@@ -90,13 +90,16 @@
       </dialog>
       <div class="topbar">
         <div class="topActions">
-          <button class="btn btnIcon mobileOnly headerMenu" id="menuBtn" type="button" aria-label="Open menu" aria-controls="sidePanel" aria-expanded="false">☰</button>
           <% if(context==='tenant'){ %>
+            <div class="tenantHeaderIdentityGroup">
+              <button class="btn btnIcon mobileOnly headerMenu" id="menuBtn" type="button" aria-label="Open menu" aria-controls="sidePanel" aria-expanded="false">☰</button>
             <div class="headerIdentity" aria-label="Signed-in user and operating branch">
               <% if(assignedOperationBranch){ %><span data-operating-branch data-branch-name="<%= assignedOperationBranch.name %>" data-branch-currency="<%= assignedOperationBranch.currency %>" hidden></span><% } %>
               <strong><%= user?.name||'Account' %></strong>
               <span title="Operating branch, separate from the viewing branch"><%= assignedOperationBranch?.name||'No operating branch' %> · <%= user?.role||'Operator' %></span>
               </div>
+            </div>
+            <div class="tenantHeaderControlGroup">
             <div class="headerScope" aria-label="Reporting currency">
               <% if(!summaryCurrencyView&&dashboardCurrencies.length===1&&(mobileOperationPage||momoOnlyDashboard)){ %>
                <span class="ctrl" aria-label="Network currency"><%= dashboardCurrencies[0].label %></span>
@@ -105,7 +108,7 @@
             </div>
             <div class="ctrl headerSearch"><input id="search" type="search" aria-label="Search loaded records" placeholder="Search name, phone, ref, PIN, account…"></div>
             <div class="headerButtons">
-              <% if(visiblePaths.has('/tenant/notifications')){ %><a class="btn headerNotice" id="phase2NotifyBtn" href="/tenant/notifications">Notifications <span class="phase2Badge" id="phase2NotifyCount"><%= data.workspaceSnapshot?.notificationUnread??'—' %></span></a><% } %>
+              <% if(visiblePaths.has('/tenant/notifications')){ %><a class="btn btnIcon headerNotice" id="phase2NotifyBtn" href="/tenant/notifications" aria-label="Notifications" title="Notifications"><i class="fa-regular fa-bell" aria-hidden="true"></i><span class="phase2Badge" id="phase2NotifyCount"><%= data.workspaceSnapshot?.notificationUnread??'—' %></span></a><% } %>
               <% if(typeof canViewBranches!=='undefined'&&canViewBranches){ %>
               <form method="post" action="/tenant/view-branch" class="ctrl headerBranchView" data-branch-view-form>
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
@@ -127,11 +130,13 @@
               </form>
               <% } %>
               <div class="headerPrimaryActions">
-                <% if(visiblePaths.has('/tenant/last-receipt')){ %><a class="btn" id="lastReceiptBtn" href="<%= data.workspaceSnapshot?.latestAcknowledgement?.href||'/tenant/last-receipt' %>">Last receipt</a><% } %>
+                <% if(visiblePaths.has('/tenant/last-receipt')){ %><a class="btn headerLastReceipt" id="lastReceiptBtn" href="<%= data.workspaceSnapshot?.latestAcknowledgement?.href||'/tenant/last-receipt' %>"><i class="fa-solid fa-receipt" aria-hidden="true"></i><span>Last receipt</span></a><% } %>
                 <% if(transactionOptions.length){ %><button class="btn btnPrimary" id="newTransactionBtn" type="button" data-open-transaction>New transaction</button><% } %>
               </div>
             </div>
+            </div>
           <% } else { %>
+            <button class="btn btnIcon mobileOnly headerMenu" id="menuBtn" type="button" aria-label="Open menu" aria-controls="sidePanel" aria-expanded="false">☰</button>
             <% if(hasPageSearch){ %><div class="ctrl pageSearch headerSearch"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input id="search" type="search" aria-label="Search records on this page" placeholder="Search this page…"></div><% } %>
             <div class="headerButtons"><% if(['/platform/dashboard','/platform/tenants'].includes(currentPath)){ %><a class="btn btnPrimary" href="/platform/tenants/create"><i class="fa-solid fa-plus" aria-hidden="true"></i> Create tenant</a><% } %></div>
           <% } %>

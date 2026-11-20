@@ -155,7 +155,7 @@ async function decide(conn,tenant,actor,requestId,input){
  const session=await conn.startSession();let updated;
  try{await session.withTransaction(async()=>{
   const authorization=await financialAuth.fenceAction(conn,session,actor,tenant,'banking','banking.review');
-  updated=await bankingRequestModel(conn).findOneAndUpdate({_id:id(requestId),status:'requested',createdBy:{$ne:id(actor.id)},expiresAt:{$gt:new Date()},...branchScope(actor)},
+  updated=await bankingRequestModel(conn).findOneAndUpdate({_id:id(requestId),status:'requested',...require('./reviewPolicy').creatorFilter(actor),expiresAt:{$gt:new Date()},...branchScope(actor)},
    {$set:{status:decision==='approve'?'approved_pending_bank':'rejected',reviewedBy:actor.id,reviewedAt:new Date(),reviewNote:note},$inc:{revision:1}},
    {session,new:true});
   if(!updated)throw fail('Request already decided, outside your branch or submitted by yourself',409);
@@ -197,7 +197,7 @@ async function detail(conn,tenant,actor,requestId){
 }
 async function reviewQueue(conn,tenant,actor){
  moduleAccess(tenant,actor,'banking.review');if(!reviewer(actor))throw fail('Review role required',403);
- return bankingRequestModel(conn).find({status:'requested',createdBy:{$ne:id(actor.id)},expiresAt:{$gt:new Date()},...branchScope(actor)}).sort({createdAt:1}).limit(30).lean();
+ return bankingRequestModel(conn).find({status:'requested',...require('./reviewPolicy').creatorFilter(actor),expiresAt:{$gt:new Date()},...branchScope(actor)}).sort({createdAt:1}).limit(30).lean();
 }
 async function reportRows({conn,filters,scope,dateRange}){
  const query={createdAt:dateRange||mobile.dateBounds({from:filters.from,to:filters.to},filters.timeZone||'UTC'),...(scope.branchId?{branchId:new mongoose.Types.ObjectId(id(scope.branchId))}:{}),

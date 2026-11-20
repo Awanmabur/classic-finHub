@@ -34,7 +34,7 @@ module.exports=function expensesRoutes({renderTenant}){
    record,permissions:perms,format:mobile.formatMoneyMinor,fundChoices:(perms.review||String(record.operatorId)===String(req.user.id))?
     await expenses.fundChoices(req.tenantDb,req.tenant,req.user,{expenseId:req.params.id}):[],
    afterBalances:await require('../services/recordBalances.service').forRecord(req.tenantDb,req.tenant,req.user,'expenses',record),
-   canReview:perms.review&&independent&&record.status==='pending_review'&&!record.pendingChange,
+   canReview:perms.review&&(independent||require('../services/reviewPolicy').canSelfReviewRoutine(req.user,record.branchId))&&record.status==='pending_review'&&!record.pendingChange,
    canDecide:perms.review&&independent&&!!record.pendingChange,canChange:['pending_review','approved'].includes(record.status)&&!record.pendingChange});
  }catch(error){next(error);}});
  for(const [action,permission,execute,message] of [

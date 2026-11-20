@@ -199,7 +199,7 @@ async function recordMobileMoney(conn, operator, input, operation, tenant, sourc
 // Internal evidence review ONLY: these decisions do not update provider settlement status,
 // cash balances or ledger accounts. The reviewer must be a second person.
 async function reviewMobileMoney(conn, reviewer, recordId, decision, note) {
-  if (!['Tenant Owner','Reconciliation Officer'].includes(reviewer?.role)) throw bad('Not permitted to review operations', 403);
+  if (!['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(reviewer?.role)) throw bad('Not permitted to review operations', 403);
   if (!/^[a-f0-9]{24}$/i.test(String(recordId || ''))) throw bad('Invalid record ID');
   if (!['accepted','disputed'].includes(decision)) throw bad('Invalid review decision');
   if (typeof note !== 'string' || note.trim().length < 12 || note.trim().length > 400) throw bad('Explain the evidence or reason in 12–400 characters');
@@ -275,7 +275,7 @@ async function requestVoid(conn,actor,recordId,note){
   }finally{await session.endSession();}
 }
 async function decideVoid(conn,reviewer,recordId,decision,note){
-  if(!reviewer?.id||!['Tenant Owner','Reconciliation Officer'].includes(reviewer.role))throw bad('Only independent reconciliation staff can decide a correction',403);
+  if(!reviewer?.id||!['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(reviewer.role))throw bad('Only independent reconciliation staff can decide a correction',403);
   if(!/^[a-f0-9]{24}$/i.test(String(recordId||'')))throw bad('Invalid record ID');
   if(!['approve','deny'].includes(decision))throw bad('Invalid correction decision');
   const reason=validateNote(note);

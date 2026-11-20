@@ -78,7 +78,7 @@ module.exports=function routes({renderTenant}){
      (req.user.role==='Tenant Owner'||String(quote.createdBy)===String(req.user.id))&&String(req.operationBranch?._id||'')===String(quote.branchId)&&
      ['quoted','approved_pending_execution'].includes(quote.status)&&['buy','sell'].includes(quote.operation)&&new Date(quote.expiresAt)>new Date(),
     canReview:quote.operation==='quote'&&quote.status==='quoted'&&new Date(quote.expiresAt)>new Date()&&fx.reviewer(req.user)&&
-     hasPermission(req.user,'forex.quotes.review')&&String(quote.createdBy)!==String(req.user.id),
+     hasPermission(req.user,'forex.quotes.review')&&(String(quote.createdBy)!==String(req.user.id)||require('../services/reviewPolicy').canSelfReviewRoutine(req.user,quote.branchId)),
     canCancel:quote.status==='quoted'&&(req.user.role==='Tenant Owner'||String(quote.createdBy)===String(req.user.id))
    });
   }catch(e){next(e);}

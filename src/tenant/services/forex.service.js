@@ -121,7 +121,7 @@ async function decideRate(conn,tenant,actor,rateId,input){
   // An authorized Tenant Owner may activate their own operational rate;
   // staff-proposed rates still need an independent authorized reviewer.
   const current=await Rate.findOne({_id:id(rateId),status:'pending_review',
-   ...(actor.role==='Tenant Owner'?{}:{proposedBy:{$ne:id(actor.id)}}),
+   ...(require('./reviewPolicy').canSelfReviewRoutine(actor,actor.branchId)?{}:{proposedBy:{$ne:id(actor.id)}}),
    expiresAt:{$gt:new Date()},...branchScope(actor)}).session(session);
   if(!current)throw fail('Rate expired, already reviewed, outside your branch, or proposed by you',409);
   if(decision==='approve'){
@@ -226,7 +226,7 @@ async function decideQuote(conn,tenant,actor,quoteId,input){
  const session=await conn.startSession();let updated;
  try{await session.withTransaction(async()=>{
   const authorization=await financialAuth.fenceAction(conn,session,actor,tenant,'forex','forex.quotes.review');
-  updated=await forexQuoteModel(conn).findOneAndUpdate({_id:id(quoteId),status:'quoted',createdBy:{$ne:id(actor.id)},expiresAt:{$gt:new Date()},...branchScope(actor)},
+  updated=await forexQuoteModel(conn).findOneAndUpdate({_id:id(quoteId),status:'quoted',...require('./reviewPolicy').creatorFilter(actor),expiresAt:{$gt:new Date()},...branchScope(actor)},
    {$set:{status:decision==='approve'?'approved_pending_execution':'rejected',reviewedBy:actor.id,reviewedAt:new Date(),reviewNote:note},$inc:{revision:1}},
    {session,new:true});
   if(!updated)throw fail('Quote expired, already decided, outside your branch or submitted by you',409);
@@ -257,7 +257,7 @@ async function listRates(conn,tenant,actor,{status=null,branchId=null}={}){
 async function rateReviewQueue(conn,tenant,actor){
  moduleAccess(tenant,actor,'forex.rate_review');if(!reviewer(actor))throw fail('Independent reviewer required',403);
  return forexRateModel(conn).find({status:'pending_review',
-  ...(actor.role==='Tenant Owner'?{}:{proposedBy:{$ne:id(actor.id)}}),
+  ...(require('./reviewPolicy').canSelfReviewRoutine(actor,actor.branchId)?{}:{proposedBy:{$ne:id(actor.id)}}),
   expiresAt:{$gt:new Date()},...branchScope(actor)}).sort({createdAt:1}).limit(30).lean();
 }
 async function listQuotes(conn,tenant,actor,{status=null,cursor=null}={}){
@@ -278,7 +278,7 @@ async function detail(conn,tenant,actor,quoteId){
 }
 async function quoteReviewQueue(conn,tenant,actor){
  moduleAccess(tenant,actor,'forex.quotes.review');if(!reviewer(actor))throw fail('Reviewer role required',403);
- return forexQuoteModel(conn).find({status:'quoted',operation:'quote',createdBy:{$ne:id(actor.id)},expiresAt:{$gt:new Date()},...branchScope(actor)}).sort({createdAt:1}).limit(30).lean();
+ return forexQuoteModel(conn).find({status:'quoted',operation:'quote',...require('./reviewPolicy').creatorFilter(actor),expiresAt:{$gt:new Date()},...branchScope(actor)}).sort({createdAt:1}).limit(30).lean();
 }
 async function expireDue(conn,now=new Date(),limit=100){
  if(!(now instanceof Date)||!Number.isFinite(now.getTime())||!Number.isSafeInteger(limit)||limit<1||limit>200)throw fail('Invalid expiry sweep');

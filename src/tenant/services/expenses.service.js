@@ -178,7 +178,7 @@ async function create(conn,tenant,actor,input={},options={}){
   await require('../../platform/services/commercial.service').reserveUsage(tenant,'expenses',session);
   [record]=await Model.create([{...value,branchId,operatorId:actor.id,currency,paymentMethod,cashSessionId,treasuryAccountId:requestedFundId,sourcePolicy,
    original:value,idempotencyKey:input.idempotencyKey,recordReference:`EXP-${crypto.randomBytes(10).toString('hex').toUpperCase()}`,
-   history:[{action:'created',actorId:actor.id,at:new Date(),after:value,note:'Submitted for independent review'}]}],{session});
+   history:[{action:'created',actorId:actor.id,at:new Date(),after:value,note:'Submitted for authorized review'}]}],{session});
   await audit(conn,session,actor,record,'created');
  });return {record,duplicate:false};}
  catch(error){if(error.code===11000){const found=await Model.findOne({idempotencyKey:input.idempotencyKey}).lean();
@@ -192,7 +192,7 @@ async function review(conn,tenant,actor,expenseId,input={}){
   ({actor,tenant}=await access(conn,tenant,actor,'expenses.review',session));
   const old=await expenseModel(conn).findOne({_id:id(expenseId),...scopeFor(actor)}).session(session).lean();
   if(!old)throw fail('Expense not found within your permissions',404);
-  if(String(old.operatorId)===String(actor.id))throw fail('A different authorized person must review this expense',403);
+  if(String(old.operatorId)===String(actor.id)&&!require('./reviewPolicy').canSelfReviewRoutine(actor,old.branchId))throw fail('A different authorized person must review this expense',403);
   if(old.status!=='pending_review'||old.pendingChange)throw fail('Expense was reviewed or has an unresolved correction',409);
   const funded=input.decision==='approve'&&await requiresBook(conn,tenant,old,session);let posting={},batchId=null;
   if(funded){
@@ -203,7 +203,7 @@ async function review(conn,tenant,actor,expenseId,input={}){
   }else await shiftFence(conn,session,old,input.decision==='approve'?-cash.minor(old.amountMinor):0n);
   record=await expenseModel(conn).findOneAndUpdate({_id:old._id,revision:old.revision,status:'pending_review'},{$set:{
    status:input.decision==='approve'?'approved':'rejected',reviewedBy:id(actor.id),reviewedAt:new Date(),reviewNote:reason,...posting},
-   $inc:{revision:1},$push:{history:{action:input.decision==='approve'?'approved':'rejected',actorId:id(actor.id),at:new Date(),note:reason,treasuryBatchId:batchId}}},{new:true,session});
+   $inc:{revision:1},$push:{history:{action:input.decision==='approve'?'approved':'rejected',actorId:id(actor.id),at:new Date(),note:reason,treasuryBatchId:batchId,selfReviewed:String(old.operatorId)===String(actor.id)}}},{new:true,session});
   if(!record)throw fail('Expense changed concurrently',409);await audit(conn,session,actor,record,record.status);
  });return record;}finally{await session.endSession();}
 }

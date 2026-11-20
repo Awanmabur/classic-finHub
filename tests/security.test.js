@@ -99,7 +99,9 @@ test('staff permissions are server-defined and tenant owners cannot be self-invi
   assert.deepEqual(permissionsFor('fake-role'),[]);
   assert(permissionsFor('Branch Manager').includes('branches.view'));
   assert(!permissionsFor('Branch Manager').includes('users.manage'));
-  assert(!permissionsFor('Branch Manager').includes('mobile_money.review'));
+  assert(permissionsFor('Branch Manager').includes('mobile_money.review'));
+  assert(!permissionsFor('Branch Manager').includes('branches.manage'));
+  assert(!permissionsFor('Branch Manager').includes('*'));
   assert.equal(checkStaff({name:'Grace Teller',email:'grace@example.com',role:'Auditor'}).role,'Auditor');
   assert.throws(()=>checkStaff({name:'Bad',email:'bad@example.com',role:'Tenant Owner'}));
   assert.equal(checkStaff({name:'Branch Manager',email:'manager@example.com',role:'Branch Manager'}).role,'Branch Manager');

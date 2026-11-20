@@ -282,7 +282,7 @@ router.get('/mobile-money/:id',requireModule('mobile_money'),requirePermission('
     const canRequestCorrection=['Tenant Owner','Mobile Money Operator'].includes(req.user.role)&&
       String(record.operatorId)===String(req.user.id)&&['recorded','pending_verification'].includes(record.status)&&
       ['none','denied',null,undefined].includes(record.correctionState)&&(record.correctionAttempts||0)<5;
-    const canReviewCorrection=['Tenant Owner','Reconciliation Officer'].includes(req.user.role)&&
+    const canReviewCorrection=['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(req.user.role)&&
       String(record.operatorId)!==String(req.user.id)&&['recorded','pending_verification'].includes(record.status)&&record.correctionState==='requested';
     renderTenant(req,res,'mobile-money/detail','Mobile Money Record',
       'Historical evidence and internal correction decisions. No status claims external settlement.',

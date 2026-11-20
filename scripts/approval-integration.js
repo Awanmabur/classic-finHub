@@ -42,6 +42,10 @@ async function main(){
   const [a,b]=rows,branchId=String(a.branch._id);
   const owner={id:ownerId,role:'Tenant Owner',permissions:permissionsFor('Tenant Owner'),branchId,
    allowedModules:['approval_workflows']};
+  await require('../src/tenant/models').tenantUserModel(a.conn).create({
+   _id:ownerId,name:'Persisted approval owner',email:`owner-${nonce}@example.invalid`,
+   passwordHash:'scratch-only',role:'Tenant Owner',status:'active',branchId,
+   allowedModules:['approval_workflows'],authVersion:0});
   const requester={id:requesterId,role:'Approval Requester',permissions:permissionsFor('Approval Requester'),branchId,
    allowedModules:['approval_workflows']};
   const officer={id:officerId,role:'Approval Officer',permissions:permissionsFor('Approval Officer'),branchId,

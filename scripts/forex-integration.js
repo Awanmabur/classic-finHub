@@ -93,12 +93,12 @@ async function main(){
   await assert.rejects(forex.decideQuote(a.conn,a.tenant,{...maker,role:'Tenant Owner',permissions:['*']},String(created.quote._id),
    {decision:'approve',note:'Attempt to self-approve a customer quote'}),e=>e.status===403);
   await User.updateOne({_id:maker.id},{$set:{role:'Tenant Owner'}});
-  await assert.rejects(forex.decideQuote(a.conn,a.tenant,{...maker,role:'Tenant Owner',permissions:['*']},String(created.quote._id),
-   {decision:'approve',note:'Attempt to self-approve a customer quote'}),e=>e.status===409);
-  await User.updateOne({_id:maker.id},{$set:{role:maker.role}});
-  const approved=await forex.decideQuote(a.conn,a.tenant,reviewer,String(created.quote._id),
-   {decision:'approve',note:'Internal quote approved; execution unavailable'});
+  const approved=await forex.decideQuote(a.conn,a.tenant,{...maker,role:'Tenant Owner',permissions:['*']},String(created.quote._id),
+   {decision:'approve',note:'Persisted owner approves internal quote without external execution'});
   assert.equal(approved.status,'approved_pending_execution');
+  await User.updateOne({_id:maker.id},{$set:{role:maker.role}});
+  await assert.rejects(forex.decideQuote(a.conn,a.tenant,reviewer,String(created.quote._id),
+   {decision:'approve',note:'Already approved quote cannot be approved twice'}),e=>e.status===409);
   const nextRate=await forex.proposeRate(a.conn,a.tenant,maker,{...rateInput,rateDecimal:'0.000280'});
   await forex.decideRate(a.conn,a.tenant,reviewer,String(nextRate._id),
    {decision:'approve',note:'Later rate supersedes earlier rate for new quotations'});

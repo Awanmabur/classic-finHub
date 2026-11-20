@@ -88,10 +88,15 @@ async function create(conn,tenant,actor,input){
  finally{await session.endSession();}
 }
 function canDecide(actor,request,now=new Date()){
- if(request?.status!=='pending'||new Date(request.expiresAt)<=now||String(request.requesterId)===String(actor?.id))return false;
- if(request.steps?.[request.currentStep]!==actor?.role)return false;
+ if(request?.status!=='pending'||new Date(request.expiresAt)<=now)return false;
+ const privileged=require('./reviewPolicy').canSelfReviewRoutine(actor,request.branchId);
+ // An explicitly owner-only approval remains owner-only. Assigning branch
+ // management cannot silently override a policy's final owner sign-off.
+ if(actor?.role==='Branch Manager'&&request.steps?.[request.currentStep]==='Tenant Owner')return false;
+ if(!privileged&&String(request.requesterId)===String(actor?.id))return false;
+ if(!privileged&&request.steps?.[request.currentStep]!==actor?.role)return false;
  if(actor.role!=='Tenant Owner'&&String(actor.branchId||'')!==String(request.branchId))return false;
- return !request.decisions?.some(d=>String(d.actorId)===String(actor.id));
+ return privileged||!request.decisions?.some(d=>String(d.actorId)===String(actor.id));
 }
 async function decide(conn,tenant,actor,requestId,input){
  access(tenant,actor,'approvals.decide');const decision=String(input?.decision||'');
@@ -102,12 +107,15 @@ async function decide(conn,tenant,actor,requestId,input){
   const Case=approvalRequestModel(conn),now=new Date();
   const current=await Case.findOne({_id:objectId(requestId),...scope(actor)}).session(session);
   if(!current)throw fail('Approval request is outside your scope',404);
+  if(require('./reviewPolicy').canSelfReviewRoutine(actor,current.branchId)&&
+    !await require('./reviewPolicy').persistedRoutineReviewer(conn,session,actor,current.branchId))
+   throw fail('Current owner or assigned manager identity is required to approve',403);
   if(!canDecide(actor,current,now))throw fail('Request expired, already decided, or this reviewer is not independent and assigned',409);
   const completed=decision==='approve'&&current.currentStep===current.steps.length-1;
   const nextStatus=decision==='reject'?'rejected':completed?'approved':'pending';
   updated=await Case.findOneAndUpdate({_id:current._id,status:'pending',revision:current.revision,currentStep:current.currentStep,
    expiresAt:{$gt:now}},{$set:{status:nextStatus,...(nextStatus!=='pending'?{terminalBy:actor.id,terminalAt:now,terminalNote:note}:{})},
-   $inc:{currentStep:decision==='approve'?1:0,revision:1},$push:{decisions:{stepIndex:current.currentStep,actorId:actor.id,role:actor.role,decision,note,at:now}}},
+   $inc:{currentStep:decision==='approve'?1:0,revision:1},$push:{decisions:{stepIndex:current.currentStep,actorId:actor.id,role:actor.role,decision,note,at:now,selfReviewed:String(current.requesterId)===String(actor.id)}}},
    {new:true,session,runValidators:true});
   if(!updated)throw fail('Approval changed concurrently. Refresh and retry.',409);
   await auditEventModel(conn).create([{action:`approvals.request.${nextStatus==='pending'?'step_approved':nextStatus}`,
@@ -149,9 +157,12 @@ async function detail(conn,tenant,actor,requestId){
 }
 async function queue(conn,tenant,actor){
  access(tenant,actor,'approvals.decide');if(!ROLES.includes(actor.role))throw fail('No approval role assigned',403);
- return approvalRequestModel(conn).find({...scope(actor),status:'pending',requesterId:{$ne:actor.id},
-  'decisions.actorId':{$ne:actor.id},expiresAt:{$gt:new Date()},
-  $expr:{$eq:[{$arrayElemAt:['$steps','$currentStep']},actor.role]}}).sort({createdAt:1}).limit(30).lean();
+ const privileged=require('./reviewPolicy').canSelfReviewRoutine(actor,actor.branchId);
+ return approvalRequestModel(conn).find({...scope(actor),status:'pending',
+  ...(privileged?(actor.role==='Branch Manager'?{$expr:{$ne:[{$arrayElemAt:['$steps','$currentStep']},'Tenant Owner']}}:{}):
+   {requesterId:{$ne:actor.id},'decisions.actorId':{$ne:actor.id},
+    $expr:{$eq:[{$arrayElemAt:['$steps','$currentStep']},actor.role]}}),
+  expiresAt:{$gt:new Date()}}).sort({createdAt:1}).limit(30).lean();
 }
 async function expireDue(conn,now=new Date(),limit=100){
  if(!(now instanceof Date)||!Number.isFinite(now.getTime())||!Number.isSafeInteger(limit)||limit<1||limit>200)throw fail('Invalid expiry sweep');

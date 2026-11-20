@@ -59,12 +59,10 @@ async function main(){
   await assert.rejects(banking.decide(a.conn,a.tenant,{...operator,role:'Tenant Owner',permissions:['*']},String(created.order._id),
    {decision:'approve',note:'Own request must not be approved by the originator'}),e=>e.status===403);
   await User.updateOne({_id:operator.id},{$set:{role:'Tenant Owner'}});
-  await assert.rejects(banking.decide(a.conn,a.tenant,{...operator,role:'Tenant Owner',permissions:['*']},String(created.order._id),
-   {decision:'approve',note:'Own request must not be approved by the originator'}),e=>e.status===409);
-  await User.updateOne({_id:operator.id},{$set:{role:operator.role}});
-  const accepted=await banking.decide(a.conn,a.tenant,reviewer,String(created.order._id),
-   {decision:'approve',note:'Internal evidence reviewed, bank integration still unavailable'});
+  const accepted=await banking.decide(a.conn,a.tenant,{...operator,role:'Tenant Owner',permissions:['*']},String(created.order._id),
+   {decision:'approve',note:'Persisted owner approves routine banking request without bank execution'});
   assert.equal(accepted.status,'approved_pending_bank');
+  await User.updateOne({_id:operator.id},{$set:{role:operator.role}});
   await assert.rejects(banking.decide(a.conn,a.tenant,reviewer,String(created.order._id),
    {decision:'approve',note:'Repeated decision is forbidden by conditional update'}),e=>e.status===409);
   const modified=await banking.updateReference(a.conn,a.tenant,operator,String(source._id),

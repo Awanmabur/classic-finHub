@@ -24,7 +24,7 @@
       <% if(data.canReviewOpening){ %>
         <form method="post" action="/tenant/cash/shifts/<%= data.shift._id %>/verify-opening" style="margin-top:16px">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-          <p class="tiny">Independently inspect the counted opening cash before allowing recordings. Reject an incorrect starting balance.</p>
+          <p class="tiny">Verify the counted opening cash before allowing recordings. Reject an incorrect starting balance.</p>
           <label class="field">Opening verification evidence (12–400 characters)<textarea class="control" name="note" required minlength="12" maxlength="400" rows="2"></textarea></label>
           <div class="rowBtns"><button class="btn btnPrimary" name="decision" value="approve">Verify and open shift</button><button class="btn" name="decision" value="reject">Reject opening count</button></div>
         </form>
@@ -50,8 +50,8 @@
       <% if(data.canReview){ %>
         <form method="post" action="/tenant/cash/shifts/<%= data.shift._id %>/decide" style="margin-top:16px">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-          <label class="field">Independent review evidence (12–400 characters)<textarea class="control" name="note" required minlength="12" maxlength="400" rows="3"></textarea></label>
-          <div class="rowBtns"><% if(data.canApprove !== false){ %><button class="btn btnPrimary" type="submit" name="decision" value="approve">Approve count</button><% } else { %><p class="tiny">A discrepancy requires Tenant Owner or Reconciliation Officer approval.</p><% } %><button class="btn" type="submit" name="decision" value="dispute">Dispute and return to operator</button></div>
+          <label class="field">Cash count review evidence (12–400 characters)<textarea class="control" name="note" required minlength="12" maxlength="400" rows="3"></textarea></label>
+          <div class="rowBtns"><% if(data.canApprove !== false){ %><button class="btn btnPrimary" type="submit" name="decision" value="approve">Approve count</button><% } else { %><p class="tiny">A discrepancy needs a different authorized supervisor; it cannot be self-approved.</p><% } %><button class="btn" type="submit" name="decision" value="dispute">Dispute and return to operator</button></div>
         </form>
       <% } %>
       <% if(data.shift.reviewNote){ %><p class="tiny">Last supervisor decision: <%= data.shift.reviewNote %></p><% } %>

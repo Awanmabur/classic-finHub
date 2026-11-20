@@ -1,47 +1,122 @@
-<% const landing=data.landing, tenant=data.tenant;
+<%
+const landing=data.landing,tenant=data.tenant,d=landing.details||{};
 const businessName=landing.name||tenant.name;
-const publicPrimary=/^#[0-9a-fA-F]{6}$/.test(landing.primary||'')?landing.primary:'var(--dark)';
-const publicSecondary=/^#[0-9a-fA-F]{6}$/.test(landing.secondary||'')?landing.secondary:'var(--dark-2)';
-const supportTel=String(landing.supportPhone||'').replace(/[^+0-9]/g,''); %>
-<div class="publicBusinessProfile" style="--pbPrimary:<%= publicPrimary %>;--pbSecondary:<%= publicSecondary %>">
+const brandPrimary=/^#[a-fA-F0-9]{6}$/.test(landing.primary||'')?landing.primary:'#082c52';
+const brandSecondary=/^#[a-fA-F0-9]{6}$/.test(landing.secondary||'')?landing.secondary:'#0d4f91';
+const businessPhone=String(landing.supportPhone||'').replace(/[^+0-9]/g,'');
+const whatsapp=String(d.whatsapp||'').replace(/[^0-9]/g,'');
+const reviews=data.reviews||{rows:[],summary:{count:0,avg:0}};
+const published=Boolean(landing.publishedAt);
+const cityParts=[d.city,d.region,landing.country].filter(Boolean).join(', ');
+%>
+<article class="publicBusinessProfile" style="--pbPrimary:<%= brandPrimary %>;--pbSecondary:<%= brandSecondary %>">
   <nav class="businessDirCrumbs" aria-label="Breadcrumb"><a href="/">Home</a><i class="fa-solid fa-chevron-right" aria-hidden="true"></i><a href="/businesses">Businesses</a><i class="fa-solid fa-chevron-right" aria-hidden="true"></i><span aria-current="page"><%= businessName %></span></nav>
   <header class="publicBusinessHero">
-    <div class="publicBusinessCover" aria-hidden="true"></div>
+    <div class="publicBusinessCover">
+      <% if(d.coverUrl){ %><img class="publicBusinessCoverImage" src="<%= d.coverUrl %>" alt="Cover image published by <%= businessName %>" loading="eager" decoding="async"><% } %>
+    </div>
     <div class="publicBusinessHeading">
       <div class="publicBusinessIdentity">
-        <div class="publicBusinessAvatar" aria-hidden="true"><%= businessName.trim().slice(0,1).toUpperCase() %></div>
-        <div><span class="publicBusinessEyebrow"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> <%= landing.publishedAt ? "Published business profile" : "ClassicFin Hub business" %></span>
+        <div class="publicBusinessAvatar">
+          <% if(d.logoUrl){ %><img src="<%= d.logoUrl %>" alt="<%= businessName %> logo" loading="eager" decoding="async"><% }else{ %><span aria-hidden="true"><%= businessName.trim().slice(0,1).toUpperCase() %></span><% } %>
+        </div>
+        <div>
+          <span class="publicBusinessEyebrow"><i class="fa-solid fa-building" aria-hidden="true"></i> <%= published?'Public business website':'ClassicFin Hub business' %></span>
           <h1><%= businessName %></h1>
-          <% if(landing.country){ %><p class="publicBusinessLocation"><i class="fa-solid fa-location-dot" aria-hidden="true"></i> <%= landing.country %></p><% } %>
+          <% if(d.category){ %><p class="publicBusinessCategory"><%= d.category %></p><% } %>
+          <% if(cityParts){ %><p class="publicBusinessLocation"><i class="fa-solid fa-location-dot" aria-hidden="true"></i> <%= cityParts %></p><% } %>
         </div>
       </div>
       <div class="publicBusinessHeroActions">
-        <% if(supportTel){ %><a href="tel:<%= supportTel %>" class="btn btn-dark"><i class="fa-solid fa-phone" aria-hidden="true"></i> Contact business</a><% } %>
-        <a href="/businesses" class="btn btn-light">All businesses</a>
+        <% if(businessPhone){ %><a class="btn btn-dark" href="tel:<%= businessPhone %>"><i class="fa-solid fa-phone" aria-hidden="true"></i> Call business</a><% } %>
+        <% if(whatsapp){ %><a class="btn btn-light" href="https://wa.me/<%= whatsapp %>" target="_blank" rel="noopener noreferrer"><i class="fa-brands fa-whatsapp" aria-hidden="true"></i> WhatsApp</a><% } %>
+        <% if(d.website){ %><a class="btn btn-light" href="<%= d.website %>" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-globe" aria-hidden="true"></i> Website</a><% } %>
       </div>
     </div>
     <div class="publicBusinessIntro">
-      <% if(landing.headline){ %><h2><%= landing.headline %></h2><% }else{ %><h2>Business overview</h2><p>This business has not published additional profile information yet.</p><% } %>
+      <% if(landing.headline){ %><h2><%= landing.headline %></h2><% }else{ %><h2>Business overview</h2><p>Additional business information has not been published yet.</p><% } %>
       <% if(landing.subtitle){ %><p><%= landing.subtitle %></p><% } %>
+      <div class="publicBusinessQuickLinks">
+        <% if(landing.services?.length){ %><a href="#services">Services</a><% } %>
+        <% if(d.about){ %><a href="#about">About</a><% } %>
+        <% if(d.gallery?.length){ %><a href="#gallery">Gallery</a><% } %>
+        <% if(d.address||d.hours||businessPhone||d.publicEmail){ %><a href="#business-contact">Contact & hours</a><% } %>
+        <a href="#business-reviews">Reviews</a>
+      </div>
     </div>
   </header>
+  <% if(d.about){ %>
+  <section class="publicBusinessSection" id="about">
+    <div class="publicBusinessSectionHead"><span>Who we are</span><h2>About <%= businessName %></h2></div>
+    <div class="publicBusinessAbout"><p><%= d.about %></p></div>
+  </section>
+  <% } %>
   <% if(landing.services?.length){ %>
-    <section class="publicBusinessSection" id="services">
-      <div class="publicBusinessSectionHead"><span>What we offer</span><h2>Business services</h2></div>
-      <div class="publicBusinessServices">
-        <% landing.services.forEach((service,i)=>{ %><article><span class="publicBusinessServiceIcon"><i class="fa-solid fa-briefcase" aria-hidden="true"></i></span><h3><%= service %></h3></article><% }) %>
-      </div>
-    </section>
+  <section class="publicBusinessSection" id="services">
+    <div class="publicBusinessSectionHead"><span>Our expertise</span><h2>Services & offerings</h2></div>
+    <div class="publicBusinessServices">
+      <% landing.services.forEach(service=>{ %><article><span class="publicBusinessServiceIcon"><i class="fa-solid fa-briefcase" aria-hidden="true"></i></span><h3><%= service %></h3></article><% }) %>
+    </div>
+  </section>
   <% } %>
   <% if(landing.sections?.length){ %>
-    <section class="publicBusinessSection" id="about">
-      <div class="publicBusinessSectionHead"><span>Business information</span><h2>More about <%= businessName %></h2></div>
-      <div class="publicBusinessDetails">
-        <% landing.sections.forEach(section=>{ %>
-          <article><h3><%= section.name %></h3><p><%= section.description %></p></article>
-        <% }) %>
-      </div>
-    </section>
+  <section class="publicBusinessSection" id="more-info">
+    <div class="publicBusinessSectionHead"><span>Explore more</span><h2>Business information</h2></div>
+    <div class="publicBusinessDetails">
+      <% landing.sections.forEach(section=>{ %><article><h3><%= section.name %></h3><p><%= section.description %></p></article><% }) %>
+    </div>
+  </section>
   <% } %>
-
-</div>
+  <% if(d.gallery?.length){ %>
+  <section class="publicBusinessSection" id="gallery">
+    <div class="publicBusinessSectionHead"><span>See our business</span><h2>Photo gallery</h2></div>
+    <div class="publicBusinessGallery"><% d.gallery.forEach((src,i)=>{ %><a href="<%= src %>" rel="noopener noreferrer" target="_blank" aria-label="View business gallery photo <%= i+1 %>"><img loading="lazy" decoding="async" src="<%= src %>" alt="<%= businessName %> photo <%= i+1 %>"></a><% }) %></div>
+  </section>
+  <% } %>
+  <% if(d.address||d.city||d.hours||businessPhone||d.publicEmail||d.whatsapp||d.facebook||d.instagram||d.linkedin){ %>
+  <section class="publicBusinessSection" id="business-contact">
+    <div class="publicBusinessSectionHead"><span>Get in touch</span><h2>Visit or contact us</h2></div>
+    <div class="publicBusinessDetails">
+      <% if(d.address||cityParts){ %><article><h3><i class="fa-solid fa-location-dot" aria-hidden="true"></i> Location</h3><p><%= [d.address,cityParts].filter(Boolean).join(', ') %></p></article><% } %>
+      <% if(d.hours){ %><article><h3><i class="fa-regular fa-clock" aria-hidden="true"></i> Opening hours</h3><p><%= d.hours %></p></article><% } %>
+      <% if(businessPhone||d.publicEmail||whatsapp){ %><article><h3>Public contact</h3><div class="publicBusinessContactLinks">
+        <% if(businessPhone){ %><a href="tel:<%= businessPhone %>"><i class="fa-solid fa-phone" aria-hidden="true"></i> <%= landing.supportPhone %></a><% } %>
+        <% if(d.publicEmail){ %><a href="mailto:<%= d.publicEmail %>"><i class="fa-solid fa-envelope" aria-hidden="true"></i> <%= d.publicEmail %></a><% } %>
+        <% if(whatsapp){ %><a href="https://wa.me/<%= whatsapp %>" target="_blank" rel="noopener noreferrer"><i class="fa-brands fa-whatsapp" aria-hidden="true"></i> WhatsApp</a><% } %>
+      </div></article><% } %>
+      <% if(d.facebook||d.instagram||d.linkedin){ %><article><h3>Follow our business</h3><div class="publicBusinessContactLinks">
+        <% if(d.facebook){ %><a href="<%= d.facebook %>" target="_blank" rel="noopener noreferrer"><i class="fa-brands fa-facebook" aria-hidden="true"></i> Facebook</a><% } %>
+        <% if(d.instagram){ %><a href="<%= d.instagram %>" target="_blank" rel="noopener noreferrer"><i class="fa-brands fa-instagram" aria-hidden="true"></i> Instagram</a><% } %>
+        <% if(d.linkedin){ %><a href="<%= d.linkedin %>" target="_blank" rel="noopener noreferrer"><i class="fa-brands fa-linkedin" aria-hidden="true"></i> LinkedIn</a><% } %>
+      </div></article><% } %>
+    </div>
+  </section>
+  <% } %>
+  <section class="publicBusinessSection publicBusinessReviews" id="business-reviews">
+    <div class="publicBusinessSectionHead"><span>Customer experience</span><h2>Customer ratings & reviews</h2></div>
+    <p class="publicBusinessReviewSummary"><% if(reviews.summary.count){ %><strong><%= reviews.summary.avg.toFixed(1) %> / 5</strong> from <%= reviews.summary.count %> published <%= reviews.summary.count===1?'review':'reviews' %>.<% }else{ %>No published customer reviews yet.<% } %> Reviews are submitted by visitors and moderated; they do not verify a transaction or imply endorsement by ClassicFin Hub.</p>
+    <% if(reviews.rows.length){ %>
+      <div class="publicBusinessReviewGrid"><% reviews.rows.forEach(review=>{ %>
+        <article class="publicBusinessReviewCard"><div class="publicBusinessReviewStars" aria-label="<%= review.rating %> out of 5 stars"><%= '★'.repeat(review.rating)+'☆'.repeat(5-review.rating) %></div>
+          <h3><%= review.authorName %></h3><p><%= review.comment %></p>
+          <% if(review.ownerReply){ %><div class="publicBusinessOwnerReply"><strong>Business response</strong><p><%= review.ownerReply %></p></div><% } %>
+        </article>
+      <% }) %></div>
+    <% } %>
+    <div class="publicBusinessReviewForm">
+      <h3>Share your experience</h3>
+      <p>Reviews are checked before publication. Please describe your genuine experience. Your public review shows your chosen name, rating and comments. You can edit it later from this browser.</p>
+      <form method="post" action="/t/<%= encodeURIComponent(tenant.slug) %>/reviews" class="publicBusinessReviewFields">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div class="businessReviewTrap" aria-hidden="true"><label>Leave this field empty<input name="website" tabindex="-1" autocomplete="off"></label></div>
+        <label>Your display name<input name="authorName" required minlength="2" maxlength="80" autocomplete="name"></label>
+        <label>Rating<select name="rating" required><option value="">Choose stars</option><% [5,4,3,2,1].forEach(stars=>{ %><option value="<%= stars %>"><%= stars %> stars</option><% }) %></select></label>
+        <label class="businessReviewComment">Your review<textarea name="comment" required minlength="15" maxlength="1600" rows="4" placeholder="Tell others about your real experience"></textarea></label>
+        <button type="submit" class="btn btn-dark">Submit review for moderation</button>
+      </form>
+      <% if(data.myReview){ %><a class="btn btn-light" href="/t/<%= encodeURIComponent(tenant.slug) %>/my-review">Edit or withdraw your review</a><% } %>
+    </div>
+  </section>
+  <div class="publicBusinessShare"><span>Share this business</span><a class="btn btn-light" href="/t/<%= encodeURIComponent(tenant.slug) %>"><i class="fa-solid fa-link" aria-hidden="true"></i> Permanent profile link</a><button type="button" class="btn btn-dark" data-business-copy-url>Copy link</button></div>
+</article>
+<script src="/js/business-profile.js?v=<%= assetVersion %>" defer></script>

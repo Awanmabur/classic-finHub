@@ -80,8 +80,9 @@ test('Public business website escapes untrusted text and shows real contact, rat
  const html=await ejs.renderFile(path.join(__dirname,'../src/views/public/tenant-landing.ejs'),
    {data,csrfToken:'test-csrf',assetVersion:'test'});
  for(const marker of ['Juba Business','Our expertise','Photo gallery','Opening hours',
-   'Customer ratings & reviews','Share your experience','name="_csrf" value="test-csrf"',
+   'Customer ratings & reviews','Share your experience','href="/t/juba-business/review"',
    'https://example.com/cover.webp','href="mailto:info@example.com"'])assert(html.includes(marker),marker);
+ assert(!html.includes('name="_csrf"'),'Public business landing must not start customer CSRF sessions');
  assert(!html.includes('<script>alert(1)</script>'));
  assert(!html.includes('<script>bad()</script>'));
  assert(!html.includes('Internal private tenant name'));
@@ -91,6 +92,7 @@ test('Owner publishing and moderation routes are wired to persistent services wi
  const platformRoutes=read('src/platform/routes/index.js');
  const tenantRoutes=read('src/tenant/workspace/routes.js');
  const csrf=read('src/middleware/csrfProtection.js');
+ assert(publicRoutes.includes("router.get('/t/:slug/review'"));
  assert(publicRoutes.includes("router.post('/t/:slug/reviews'"));
  assert(publicRoutes.includes("router.get('/t/:slug/my-review'"));
  assert(platformRoutes.includes("router.post('/business-reviews/:id/moderate'"));
@@ -99,4 +101,15 @@ test('Owner publishing and moderation routes are wired to persistent services wi
  assert(read('src/views/platform/business-reviews/index.ejs').includes('name="action"'));
  assert(read('src/views/tenant/workspace/reviews.ejs').includes('name="reply"'));
  assert(Tenant.schema.path('directory')?.schema?.path('logoUrl'));
+});
+
+test('Review composition has a separate protected page and public profiles do not issue crawler sessions',async()=>{
+ const data={slug:'juba-business',businessName:'Juba Finance'};
+ const html=await ejs.renderFile(path.join(__dirname,'../src/views/public/business-review-compose.ejs'),{data,csrfToken:'test-token'});
+ assert(html.includes('name="_csrf" value="test-token"'));
+ assert(html.includes('name="website"'),'Honeypot must be submitted only with review form');
+ assert(html.includes('/t/juba-business/reviews'));
+ const csrf=read('src/middleware/csrfProtection.js');
+ assert(csrf.includes('(?:review|my-review)'));
+ assert(!csrf.includes('(?:/my-review)?'));
 });

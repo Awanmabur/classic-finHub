@@ -35,7 +35,7 @@
 .businessDirHero .kicker{color:var(--accent-2)}.businessDirHero h1{font-size:clamp(2rem,4.1vw,3.8rem);line-height:1.12;letter-spacing:-.045em;margin:14px 0}
 .businessDirHero p{font-size:15px;line-height:1.7;color:var(--bg);opacity:.85;max-width:72ch;margin-bottom:22px}
 .businessDirHero .btn{background:var(--paper);color:var(--ink)}
-.businessDirFilters{display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr;gap:13px;padding:21px;border:1px solid var(--bdBorder);border-radius:24px;background:var(--paper,#fff);margin:18px 0 22px;align-items:end}
+.businessDirFilters{display:grid;grid-template-columns:1.35fr repeat(4,minmax(0,1fr));gap:13px;padding:21px;border:1px solid var(--bdBorder);border-radius:24px;background:var(--paper,#fff);margin:18px 0 22px;align-items:end}
 .businessDirFilters label{font-size:12px;font-weight:750;color:var(--ink);display:flex;flex-direction:column;gap:7px;min-width:0}
 .businessDirFilters input,.businessDirFilters select{display:block;background:var(--paper,#fff);color:var(--ink);border:1px solid var(--bdBorder);border-radius:13px;padding:12px 13px;width:100%;min-width:0;height:44px;font:500 13px Inter,Arial,sans-serif}
 .businessDirFilters input:focus-visible,.businessDirFilters select:focus-visible{outline:2px solid var(--bdGold);outline-offset:2px}

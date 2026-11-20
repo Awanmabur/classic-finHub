@@ -113,6 +113,18 @@ docker buildx build --pull --load --file "$ROOT/deploy/Dockerfile" \
 test "$(docker image inspect "$IMAGE" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$SHA"
 NEW_ID="$(docker image inspect "$IMAGE" --format '{{.Id}}')"
 
+# This release adds a new, isolated review collection. Build and migrate before
+# touching any running financial services. Failure leaves production untouched.
+if test -f "$ROOT/scripts/business-reviews-indexes.js"; then
+  echo '=== 4A. VERIFY ADDITIVE BUSINESS REVIEW INDEXES ==='
+  docker run --rm --network bridge --read-only \
+    --tmpfs /tmp:rw,noexec,nosuid,size=32m \
+    --cap-drop ALL --security-opt no-new-privileges:true \
+    --memory 256m --cpus 0.5 --pids-limit 96 \
+    --env-file /etc/classicfin/web.env \
+    "$IMAGE" node scripts/business-reviews-indexes.js
+fi
+
 check_page() {
   local port="$1" path="$2"
   test "$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' \

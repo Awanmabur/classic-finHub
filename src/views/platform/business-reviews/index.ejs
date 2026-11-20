@@ -1,0 +1,27 @@
+<section class="view show">
+ <section class="card">
+  <div class="cardHead"><div><b>Business ratings & reviews</b><br><span>Customer reviews require independent moderation. Businesses can respond to approved reviews but cannot edit customer ratings.</span></div></div>
+  <div class="cardBody">
+   <% if(!data.reviews.length){ %><p>No customer reviews have been submitted.</p><% } %>
+   <div class="workspaceStack">
+   <% data.reviews.forEach(review=>{ %>
+     <article class="card" style="margin-bottom:14px">
+       <div class="cardHead"><div><b><%= review.tenantSlug %> · <%= review.rating %> / 5 stars</b><br><span><%= review.authorName %> · <%= review.status %> · <%= new Date(review.createdAt).toLocaleDateString('en-GB') %></span></div></div>
+       <div class="cardBody"><p style="white-space:pre-line;overflow-wrap:anywhere"><%= review.comment %></p>
+         <% if(review.ownerReply){ %><p class="tiny">Business response: <%= review.ownerReply %></p><% } %>
+         <% const choices=review.status==='pending'?['approve','reject']:review.status==='approved'?['hide']:review.status==='rejected'?['reopen']:[]; %>
+         <% if(choices.length){ %>
+           <form method="post" action="/platform/business-reviews/<%= review._id %>/moderate">
+             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+             <input type="hidden" name="revision" value="<%= review.revision %>">
+             <label class="field">Reason for decision (12–400 characters)<textarea class="control" name="reason" required minlength="12" maxlength="400" rows="2"></textarea></label>
+             <div class="workspaceActions"><% choices.forEach(action=>{ %><button type="submit" class="btn <%= action==='approve'?'btnPrimary':'' %>" name="action" value="<%= action %>"><%= action[0].toUpperCase()+action.slice(1) %> review</button><% }) %></div>
+           </form>
+         <% } %>
+       </div>
+     </article>
+   <% }) %>
+   </div>
+  </div>
+ </section>
+</section>

@@ -56,13 +56,9 @@
   <main class="page smooth-page">
     <%- include('../partials/flash', { flash }) %>
     <%- include(view, { data, modules, plans, tenants, appointments, currentPath }) %>
+    <%- include('../partials/marketing-footer',{footerTopHref:'/'}) %>
   </main>
-  <footer class="footer" id="contact">
-    <div><img src="/images/classicfinhub-logo.png" alt="ClassicFin Hub logo" /><strong>ClassicFin Hub</strong><p>Multi-tenant finance SaaS for Classic Technologies.</p></div>
-    <div><a href="/businesses">Businesses</a><a href="/product-guide">Product guide</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/cookies">Cookies</a><a href="/refund-policy">Refund policy</a></div>
-    <div class="publicContactLinks"><a href="mailto:info@classictechgroup.com">Email</a><a href="tel:+256773364680">Call</a><a href="https://wa.me/256781977217">WhatsApp</a></div>
-    <p>© <span id="year"></span> Classic Technologies. All rights reserved.</p>
-  </footer>
+
   <script src="/js/script.js?v=<%= assetVersion %>"></script>
 <script src="/js/feedback.js?v=<%= typeof assetVersion==='undefined'?'1':assetVersion %>" defer></script>
 </body>

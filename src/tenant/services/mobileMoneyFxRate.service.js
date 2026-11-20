@@ -20,17 +20,21 @@ function inputRate(body){
  catch(e){throw fail(e.message);}
  return {fromCurrency,toCurrency,side,validHours,rateDecimal};
 }
+function canManageRate(actor){
+ return ['Tenant Owner','Branch Manager'].includes(actor?.role)&&
+  hasPermission(actor,'treasury.manage')&&hasPermission(actor,'mobile_money.view')&&
+  hasPermission(actor,'forex.rate_manage')&&hasPermission(actor,'forex.rate_review');
+}
 async function setOwnerRate(conn,tenant,actor,branch,input){
- if(actor?.role!=='Tenant Owner'||!hasModuleForUser(tenant,actor,'mobile_money')||
-    !hasPermission(actor,'treasury.manage')||!hasPermission(actor,'mobile_money.view'))
-  throw fail('Only the Mobile Money tenant owner can set branch exchange rates',403);
+ if(!canManageRate(actor)||!hasModuleForUser(tenant,actor,'mobile_money'))
+  throw fail('An authorized owner or assigned branch manager is required to set exchange rates',403);
  if(!branch?._id||branch.status!=='active')throw fail('Choose an active operating branch',409);
  const v=inputRate(input);
  await ensureTenantIndexes(conn);
  const session=await conn.startSession();
  try{return await session.withTransaction(async()=>{
   const fenced=await auth.fenceAction(conn,session,actor,tenant,'mobile_money','mobile_money.view',{branchId:String(branch._id)});
-  if(fenced.actor.role!=='Tenant Owner'||!hasPermission(fenced.actor,'treasury.manage'))throw fail('Owner permissions changed',403);
+  if(!canManageRate(fenced.actor))throw fail('Exchange rate authority changed. Refresh before saving.',403);
   const active=await branchModel(conn).findOneAndUpdate({_id:branch._id,status:'active'},{$inc:{revision:1}},{session,new:true}).lean();
   if(!active||![v.fromCurrency,v.toCurrency].every(code=>require('./branchCurrency.service').supports(active,code)))
    throw fail('Both exchange currencies must be enabled on the branch',409);
@@ -48,7 +52,7 @@ async function setOwnerRate(conn,tenant,actor,branch,input){
    side:v.side,rateDecimal:v.rateDecimal,status:'active',proposedBy:fenced.actor.id,
    reviewedBy:fenced.actor.id,reviewedAt:new Date(),revision:1,
    expiresAt:new Date(Date.now()+v.validHours*3600000),
-   note:'Tenant owner operating rate for Mobile Money and shared Forex'}],{session});
+   note:'Tenant-authorized operating rate for Mobile Money and shared Forex'}],{session});
   await auditEventModel(conn).create([{action:'mobile_money.fx.rate.activated',actorId:fenced.actor.id,targetId:rate._id,
    metadata:{branchId:String(active._id),pair:v.fromCurrency+'/'+v.toCurrency,side:v.side,rateDecimal:v.rateDecimal}}],{session});
   return rate;
@@ -56,4 +60,4 @@ async function setOwnerRate(conn,tenant,actor,branch,input){
  catch(e){if(e.code===11000)throw fail('A concurrent rate update occurred. Refresh and retry',409);throw e;}
  finally{await session.endSession();}
 }
-module.exports={inputRate,setOwnerRate};
+module.exports={inputRate,canManageRate,setOwnerRate};

@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const src=file=>fs.readFileSync(path.join(__dirname,'..',file),'utf8');
-const {branchCode,catalogCode}=require('../src/utils/autoIdentifier');
+const {branchCode,catalogCode,notificationCode}=require('../src/utils/autoIdentifier');
 const branches=require('../src/tenant/services/branch.service');
 const approvals=require('../src/tenant/services/approvals.service');
 const forex=require('../src/tenant/services/forex.service');
@@ -18,6 +18,7 @@ test('internal identifiers generate securely and stay within existing schema lim
  for(const name of ['🇺🇬','1000','_____','Long '.repeat(45)]){
   assert.match(branchCode(name),/^[a-z0-9][a-z0-9-]{1,30}$/);
   assert.match(catalogCode(name),/^[a-z][a-z0-9_]{1,40}$/);
+  assert.match(notificationCode(name),/^n_[a-z][a-z0-9_]{1,38}$/);
  }
 });
 test('new branches require real name, currency and timezone but no typed code',()=>{
@@ -31,6 +32,13 @@ test('approval policy IDs are generated when creating new policies, existing cod
  const v=approvals.policyInput(input);
  assert.match(v.code,/^daily_expenses_[a-f0-9]{6}$/);
  assert.equal(approvals.policyInput({...input,code:'daily_review'}).code,'daily_review');
+});
+test('new notification templates automatically generate safe codes, existing template versions keep code',()=>{
+ const service=require('../src/tenant/services/notification.service');
+ const data={name:'System Status',subject:'Daily status',body:'This message is saved securely'};
+ const first=service.templateInput(data);
+ assert.match(first.code,/^n_system_status_[a-f0-9]{6}$/);
+ assert.equal(service.templateInput({...data,code:'daily_status'}).code,'daily_status');
 });
 test('tenant header starts with signed-in user then branch then currency, without shared grid area squashing',()=>{
  const markup=src('src/views/layouts/dashboard.ejs');

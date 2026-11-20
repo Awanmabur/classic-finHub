@@ -20,7 +20,12 @@ for (const name of original) router.get(name === 'home' ? '/' : '/' + name, asyn
   const catalogue=['home','pricing','price-compare'].includes(name)
     ? await require('./platform/services/publicPlans.service').publicPlans() : {plans:store.plans,persisted:false};
   if(catalogue.unavailable&&name!=='home')res.status(503).set({'Retry-After':'60','X-Robots-Tag':'noindex, nofollow, noarchive'});
-  res.render('original/' + name, { flash: consumeFlash(req), plans:catalogue.plans, addonModules:store.modules.filter(m=>m.category==='Addon'&&m.runtimeStatus==='enabled'&&m.status==='active'), cataloguePersisted:catalogue.persisted,catalogueUnavailable:Boolean(catalogue.unavailable),selectableModules:require('./utils/selectionOptions').publicModuleOptions() });
+  let featuredBusinesses=[],directoryUnavailable=false;
+  if(name==='home'){
+    try { const featured=await require('./platform/services/businessDirectory.service').featured(10);featuredBusinesses=featured.businesses;directoryUnavailable=featured.unavailable; }
+    catch(error){directoryUnavailable=true;console.error(JSON.stringify({event:'public_business_featured_unavailable',code:error.code||'DIRECTORY_ERROR'}));}
+  }
+  res.render('original/' + name, { featuredBusinesses,directoryUnavailable,flash: consumeFlash(req), plans:catalogue.plans, addonModules:store.modules.filter(m=>m.category==='Addon'&&m.runtimeStatus==='enabled'&&m.status==='active'), cataloguePersisted:catalogue.persisted,catalogueUnavailable:Boolean(catalogue.unavailable),selectableModules:require('./utils/selectionOptions').publicModuleOptions() });
   }catch(error){next(error);}
 });
 function renderPublic(req, res, view, title, data = {}) {
@@ -32,8 +37,14 @@ function renderPublic(req, res, view, title, data = {}) {
 }
 router.get('/marketplace', (req, res) => renderPublic(req, res, 'marketplace', 'Module Marketplace | ClassicFin Hub'));
 router.get('/product-guide', (req,res) => {if(req.path.endsWith('/'))return res.redirect(308,'/product-guide');renderPublic(req,res,'product-guide','Product and operating guide | ClassicFin Hub');});
-router.get('/business-profile', (req,res)=>renderPublic(req,res,'why-classicfin-hub','ClassicFin Hub | Business Profile'));
-router.get('/why-classicfin-hub', (req,res)=>res.redirect(308,'/business-profile'));
+router.get('/businesses', async (req,res,next)=>{
+  try{
+    const directory=await require('./platform/services/businessDirectory.service').search(req.query);
+    if(directory.unavailable)return res.status(503).set({'Retry-After':'60','X-Robots-Tag':'noindex, nofollow'}).send('The business directory is temporarily unavailable.');
+    renderPublic(req,res,'businesses','Businesses on ClassicFin Hub | Public Directory',{directory});
+  }catch(error){next(error);}
+});
+router.get(['/business-profile','/why-classicfin-hub'], (req,res)=>res.redirect(308,'/businesses'));
 router.get('/book-appointment', (req, res) => res.redirect('/#book'));
 router.post(['/book-appointment','/signup'], require('./platform/services/actionThrottle.service').appointment, async (req, res, next) => {
   try {

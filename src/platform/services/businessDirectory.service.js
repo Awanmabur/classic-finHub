@@ -14,10 +14,10 @@ const eligible = Object.freeze({
 const text = (value,limit=120) => typeof value==='string' ? value.trim().slice(0,limit) : '';
 const escaped = value => value.replace(/[|\\{}()[\]^$+*?.]/g,'\\$&');
 function normalize(input={}) {
-  const q=text(input.q,80),country=text(input.country,80),service=text(input.service,80);
+  const q=text(input.q,80),country=text(input.country,80),service=text(input.service,80),category=text(input.category,100);
   const rawPage=Number(input.page),page=Number.isSafeInteger(rawPage)&&rawPage>0?Math.min(50,rawPage):1;
   const sort=input.sort==='name'?'name':'recent';
-  return {q,country,service,page,sort};
+  return {q,country,service,category,page,sort};
 }
 function publicSnapshot(landing,publishedAt=new Date()) {
   if(!landing||!text(landing.name,150)||!text(landing.headline,200))return null;
@@ -57,7 +57,7 @@ async function featured(limit=10){
   return {businesses:tenants.map(card),unavailable:false};
 }
 async function search(input){
-  if(!ready())return {unavailable:true,businesses:[],total:0,filters:normalize(input),countries:[],services:[]};
+  if(!ready())return {unavailable:true,businesses:[],total:0,filters:normalize(input),countries:[],services:[],categories:[]};
   const filters=normalize(input);
   const query={...eligible};
   if(filters.q){
@@ -68,17 +68,20 @@ async function search(input){
   }
   if(filters.country)query['directory.country']=filters.country;
   if(filters.service)query['directory.services']=filters.service;
+  if(filters.category)query['directory.category']=filters.category;
   const sort=filters.sort==='name'?{name:1,_id:1}:{createdAt:-1,_id:-1};
-  const [tenants,total,countries,services]=await Promise.all([
+  const [tenants,total,countries,services,categories]=await Promise.all([
     Tenant.find(query).sort(sort).skip((filters.page-1)*12).limit(12)
       .select('slug name directory').maxTimeMS(3000).lean(),
     Tenant.countDocuments(query).maxTimeMS(3000),
     Tenant.distinct('directory.country',{...eligible,'directory.publishedAt':{$ne:null}}),
-    Tenant.distinct('directory.services',{...eligible,'directory.publishedAt':{$ne:null}})
+    Tenant.distinct('directory.services',{...eligible,'directory.publishedAt':{$ne:null}}),
+    Tenant.distinct('directory.category',{...eligible,'directory.publishedAt':{$ne:null}})
   ]);
   return {unavailable:false,businesses:tenants.map(card),total,filters,
     countries:countries.filter(Boolean).sort().slice(0,100),
     services:services.filter(Boolean).sort().slice(0,100),
+    categories:categories.filter(Boolean).sort().slice(0,100),
     pages:Math.max(1,Math.ceil(total/12))};
 }
 module.exports={normalize,publicSnapshot,sync,featured,search,card,listingFilter:()=>({...eligible})};

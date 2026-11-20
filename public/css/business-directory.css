@@ -84,6 +84,15 @@
 
 /* Marketing controls reuse the site's existing color, typography and button hierarchy. */
 .businessDirectory .btn,.businessShowcase .btn,.publicBusinessProfile .btn{border-radius:999px}
-.businessDirFilters input,.businessDirFilters select{border-radius:var(--radius,18px)}
+.businessDirFilters input,.businessDirFilters select{border-radius:999px}
 .businessCardPrimary.btn{font-size:12px;font-family:Inter,Arial,sans-serif;color:var(--bg);white-space:nowrap}
 .businessCardPrimary.btn:hover{background:var(--accent);color:var(--bg)}
+
+/* Contrast-safe public marketing surfaces: use existing ClassicFin theme tokens. */
+.businessDirHero h1,.businessDirHero p{color:var(--bg)!important}
+.businessDirHero .kicker{color:var(--accent-2)!important;opacity:1}
+.businessCardVerified{color:var(--bg)!important;background:color-mix(in srgb,var(--bg) 14%,transparent)}
+.businessDirFilters input,.businessDirFilters select{border-radius:999px!important}
+.businessDirFilters input::placeholder{color:var(--muted);opacity:1}
+.publicBusinessCover{background:linear-gradient(120deg,color-mix(in srgb,var(--pbPrimary) 75%,var(--dark)),var(--dark))}
+.publicBusinessProfile .publicBusinessEyebrow,.publicBusinessProfile .publicBusinessLocation{color:var(--muted)}

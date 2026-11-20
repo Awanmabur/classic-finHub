@@ -46,7 +46,10 @@ async function main(){
   let page=await request('/t/'+slug);
   assert.equal(page.response.status,200,page.body.slice(0,800));
   assert.match(page.response.headers.get('x-robots-tag')||'',/noindex/,'unpublished basic business has noindex');
-  const token=page.body.match(/name="_csrf" value="([a-f0-9]{64})"/)?.[1];
+  assert(!page.body.includes('name="_csrf"'),'A public business page must not generate a crawler session for reviewing');
+  const compose=await request('/t/'+slug+'/review');
+  assert.equal(compose.response.status,200,compose.body.slice(0,300));
+  const token=compose.body.match(/name="_csrf" value="([a-f0-9]{64})"/)?.[1];
   assert(token,'CSRF token must be issued to anonymous customer on public business page');
   const csrf={_csrf:token};
   const result=await request('/t/'+slug+'/reviews',{...csrf,authorName:'Customer One',rating:'4',

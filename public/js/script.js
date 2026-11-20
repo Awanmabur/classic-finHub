@@ -2,6 +2,17 @@ const body = document.body;
 const cursor = document.querySelector('.cursor-glow');
 const menuBtn = document.getElementById('menuBtn');
 const mobilePanel = document.getElementById('mobilePanel');
+// The marketing pages share the same menu behavior even when their EJS
+// templates contain separately authored navigation markup.
+const mobileCloseBtn = mobilePanel ? document.createElement('button') : null;
+if (mobileCloseBtn) {
+  mobileCloseBtn.type = 'button';
+  mobileCloseBtn.className = 'mobilePanelClose';
+  mobileCloseBtn.setAttribute('aria-label', 'Close navigation menu');
+  mobileCloseBtn.setAttribute('title', 'Close menu');
+  mobileCloseBtn.innerHTML = '<i class="fa-solid fa-xmark" aria-hidden="true"></i>';
+  mobilePanel.prepend(mobileCloseBtn);
+}
 const themeToggle = document.getElementById('themeToggle');
 const themeToggleMobile = document.getElementById('themeToggleMobile');
 const year = document.getElementById('year');
@@ -33,10 +44,12 @@ function setMobileMenu(open) {
   mobilePanel?.classList.toggle('open', open);
   menuBtn?.setAttribute('aria-expanded', String(open));
   menuBtn?.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+  if (open) mobileCloseBtn?.focus({ preventScroll: true });
 }
 menuBtn?.setAttribute('aria-controls', 'mobilePanel');
 setMobileMenu(false);
 menuBtn?.addEventListener('click', () => setMobileMenu(!mobilePanel?.classList.contains('open')));
+mobileCloseBtn?.addEventListener('click', () => { setMobileMenu(false); menuBtn?.focus(); });
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape' && mobilePanel?.classList.contains('open')) { setMobileMenu(false); menuBtn?.focus(); }
 });

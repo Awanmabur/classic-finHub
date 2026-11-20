@@ -52,3 +52,39 @@
 @media(max-width:900px){.businessCardTrack{grid-auto-columns:calc((100% - 12px)/2)}.businessDirGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.businessDirFilters{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:590px){.businessShowcase{padding:17px;border-radius:22px}.businessShowcaseHeading .btn{width:100%;justify-content:center}.businessCardTrack{grid-auto-columns:minmax(260px,88%)}.businessDirFilters{padding:15px;grid-template-columns:1fr}.businessDirFilterActions{justify-content:stretch}.businessDirFilterActions .btn{flex:1}.businessDirGrid{grid-template-columns:1fr}.businessDirHero{border-radius:22px;padding:25px}.businessDirHero p{font-size:13px}.businessCardCover{height:105px}}
 @media(prefers-reduced-motion:reduce){.businessCardTrack{scroll-behavior:auto}}
+
+/* Individual owner-published public business profile, inspired by Academy's cover/identity structure. */
+.publicBusinessProfile{--pbPrimary:#082c52;--pbSecondary:#0d4f91;max-width:1280px;margin:0 auto}
+.publicBusinessHero{border:1px solid var(--line);border-radius:28px;background:var(--paper,#fff);overflow:hidden}
+.publicBusinessCover{height:225px;background:radial-gradient(circle at 75% 20%,rgba(255,255,255,.24),transparent 39%),linear-gradient(135deg,var(--pbPrimary),var(--pbSecondary));position:relative}
+.publicBusinessCover:after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent,rgba(0,0,0,.16))}
+.publicBusinessHeading{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap;padding:0 28px 20px;margin-top:-47px;position:relative}
+.publicBusinessIdentity{display:flex;align-items:end;gap:19px;min-width:0;flex:1}
+.publicBusinessAvatar{height:96px;width:96px;flex-shrink:0;display:grid;place-items:center;background:#fff;border:5px solid var(--paper,#fff);box-shadow:0 14px 32px rgba(0,0,0,.10);border-radius:22px;color:var(--pbPrimary);font-weight:900;font-size:40px}
+.publicBusinessEyebrow{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.09em;color:var(--muted)}
+.publicBusinessIdentity h1{margin:7px 0;font-size:clamp(1.7rem,3.2vw,2.7rem);line-height:1.16;letter-spacing:-.04em;overflow-wrap:anywhere;color:var(--ink)}
+.publicBusinessLocation{font-size:13px;color:var(--muted)}
+.publicBusinessHeroActions{display:flex;gap:10px;flex-wrap:wrap;align-self:end;margin-bottom:5px}
+.publicBusinessHeroActions .btn{display:inline-flex;align-items:center;gap:8px}
+.publicBusinessIntro{padding:20px 30px 29px;border-top:1px solid var(--line)}
+.publicBusinessIntro h2{font-size:clamp(1.3rem,2.3vw,1.9rem);color:var(--ink);margin-bottom:8px}
+.publicBusinessIntro p{color:var(--muted);font-size:14px;line-height:1.8;max-width:85ch;white-space:pre-line;overflow-wrap:anywhere}
+.publicBusinessSection{margin:32px 0}.publicBusinessSectionHead{margin-bottom:17px}
+.publicBusinessSectionHead span{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:var(--pbSecondary)}
+.publicBusinessSectionHead h2{font-size:clamp(1.6rem,2.8vw,2.3rem);color:var(--ink);margin:8px 0}
+.publicBusinessServices{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px}
+.publicBusinessServices article,.publicBusinessDetails article{background:var(--paper,#fff);border:1px solid var(--line);border-radius:21px;padding:21px;min-width:0}
+.publicBusinessServiceIcon{display:grid;place-items:center;height:43px;width:43px;border-radius:14px;color:#fff;background:var(--pbPrimary);margin-bottom:14px}
+.publicBusinessServices h3{font-size:16px;line-height:1.4;overflow-wrap:anywhere;color:var(--ink)}
+.publicBusinessDetails{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.publicBusinessDetails h3{font-size:18px;color:var(--ink);margin-bottom:10px}
+.publicBusinessDetails p{font-size:13px;line-height:1.75;color:var(--muted);white-space:pre-line;overflow-wrap:anywhere}
+.publicBusinessContact{background:linear-gradient(115deg,#082c52,#12587e);color:#fff;padding:32px;border-radius:26px;display:flex;align-items:center;justify-content:space-between;gap:24px;margin:40px 0 18px}
+.publicBusinessContact span{font-size:11px;font-weight:800;color:#f0c982;text-transform:uppercase;letter-spacing:.1em}
+.publicBusinessContact h2{font-size:clamp(1.5rem,2.5vw,2.4rem);margin:12px 0}
+.publicBusinessContact p{font-size:13px;color:rgba(255,255,255,.75);line-height:1.6}
+.publicBusinessContact>div:last-child{display:flex;flex-direction:column;gap:12px;align-items:flex-start}
+.publicBusinessContact .btn{background:#fff;color:#082c52;display:inline-flex;gap:9px;align-items:center}
+.publicBusinessBack{color:#fff;text-decoration:underline;font-size:13px;font-weight:700}
+@media(max-width:850px){.publicBusinessServices{grid-template-columns:repeat(2,minmax(0,1fr))}.publicBusinessContact{flex-direction:column;align-items:start}.publicBusinessHeading{align-items:start}}
+@media(max-width:590px){.publicBusinessCover{height:170px}.publicBusinessHeading{padding:0 18px 18px;gap:12px}.publicBusinessAvatar{width:72px;height:72px;font-size:29px;border-radius:18px}.publicBusinessIdentity{gap:12px;align-items:end}.publicBusinessIdentity h1{font-size:1.55rem}.publicBusinessHeroActions{width:100%}.publicBusinessHeroActions .btn{flex:1;justify-content:center}.publicBusinessIntro{padding:19px}.publicBusinessServices{gap:9px}.publicBusinessServices article,.publicBusinessDetails article{padding:16px}.publicBusinessServices h3{font-size:13px}.publicBusinessDetails{grid-template-columns:1fr}.publicBusinessContact{padding:23px}}

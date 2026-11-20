@@ -33,7 +33,7 @@
     <nav>
       <a href="/" class="<%= currentPath === '/' ? 'active' : '' %>"><i class="fa-solid fa-house"></i><span>Home</span></a>
       <a href="/services" class="<%= currentPath === '/services' ? 'active' : '' %>"><i class="fa-solid fa-table-cells-large"></i><span>Modules</span></a>
-      <a href="/why-classicfin-hub" class="<%= currentPath === '/why-classicfin-hub' ? 'active' : '' %>"><i class="fa-solid fa-circle-question"></i><span>Why ClassicFin Hub</span></a>
+      <a href="/business-profile" class="<%= currentPath === '/why-classicfin-hub' ? 'active' : '' %>"><i class="fa-solid fa-circle-question"></i><span>Business profile</span></a>
       <a href="/marketplace" class="<%= currentPath === '/marketplace' ? 'active' : '' %>"><i class="fa-solid fa-store"></i><span>Marketplace</span></a>
       <a href="/book-appointment" class="<%= currentPath === '/book-appointment' ? 'active' : '' %>"><i class="fa-solid fa-calendar-check"></i><span>Book</span></a>
       <a href="/pricing" class="<%= currentPath === '/pricing' ? 'active' : '' %>"><i class="fa-solid fa-tags"></i><span>Pricing</span></a>
@@ -51,7 +51,7 @@
     <div class="mobile-auth-actions"><a href="/signin">Sign in</a><a href="/signup">Request setup</a></div><button class="mobile-menu-btn" id="menuBtn" aria-label="Open menu"><i class="fa-solid fa-bars-staggered"></i></button>
   </header>
   <nav class="mobile-panel" id="mobilePanel" aria-label="Mobile navigation">
-    <a href="/">Home</a><a href="/services">Modules</a><a href="/why-classicfin-hub">Why ClassicFin Hub</a><a href="/marketplace">Marketplace</a><a href="/book-appointment">Book demo</a><a href="/pricing">Pricing</a><a href="/price-compare">Price compare</a><a href="/support">Support</a><a href="/product-guide">Product guide</a><a href="/signin">Sign in</a><a href="/signup">Request setup</a><button id="themeToggleMobile"><i class="fa-solid fa-moon"></i> Change theme</button>
+    <a href="/">Home</a><a href="/services">Modules</a><a href="/business-profile">Business profile</a><a href="/marketplace">Marketplace</a><a href="/book-appointment">Book demo</a><a href="/pricing">Pricing</a><a href="/price-compare">Price compare</a><a href="/support">Support</a><a href="/product-guide">Product guide</a><a href="/signin">Sign in</a><a href="/signup">Request setup</a><button id="themeToggleMobile"><i class="fa-solid fa-moon"></i> Change theme</button>
   </nav>
   <main class="page smooth-page">
     <%- include('../partials/flash', { flash }) %>
@@ -59,7 +59,7 @@
   </main>
   <footer class="footer" id="contact">
     <div><img src="/images/classicfinhub-logo.png" alt="ClassicFin Hub logo" /><strong>ClassicFin Hub</strong><p>Multi-tenant finance SaaS for Classic Technologies.</p></div>
-    <div><a href="/why-classicfin-hub">Why ClassicFin Hub</a><a href="/product-guide">Product guide</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/cookies">Cookies</a><a href="/refund-policy">Refund policy</a></div>
+    <div><a href="/business-profile">Business profile</a><a href="/product-guide">Product guide</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/cookies">Cookies</a><a href="/refund-policy">Refund policy</a></div>
     <div class="publicContactLinks"><a href="mailto:info@classictechgroup.com">Email</a><a href="tel:+256773364680">Call</a><a href="https://wa.me/256781977217">WhatsApp</a></div>
     <p>© <span id="year"></span> Classic Technologies. All rights reserved.</p>
   </footer>

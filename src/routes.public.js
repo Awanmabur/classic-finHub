@@ -168,6 +168,7 @@ router.get('/t/:slug', async (req,res,next)=>{
    const reviewsService=require('./platform/services/businessReviews.service');
    const [reviews,myReview]=await Promise.all([reviewsService.publicReviews(tenant._id),reviewsService.myReview(tenant.slug,req)]);
    res.set('Cache-Control','private, no-store');
+   if(landing.publishedAt&&require('./config/env').indexingEnabled)res.removeHeader('X-Robots-Tag');
    renderPublic(req,res,'tenant-landing',(landing.name||tenant.name)+' | ClassicFin Hub',
      {tenant:{name:tenant.name,slug:tenant.slug},landing,reviews,myReview},
      seo.tenantMetadata(tenant,landing));

@@ -12,7 +12,7 @@ const schema=require('../src/tenant/schemas/ForexRate.schema');
 
 test('internal identifiers generate securely and stay within existing schema limits',()=>{
  const first=branchCode('Kampala Main 1'),next=branchCode('Kampala Main 1');
- assert.match(first,/^kampala-main-1-[a-f0-9]{6}$/);
+ assert.match(first,/^kampala-main-1-[a-f0-9]{12}$/);
  assert.notEqual(first,next);
  assert(first.length<=32);
  for(const name of ['🇺🇬','1000','_____','Long '.repeat(45)]){
@@ -23,21 +23,21 @@ test('internal identifiers generate securely and stay within existing schema lim
 });
 test('new branches require real name, currency and timezone but no typed code',()=>{
  const v=branches.validate({name:'Gulu Branch',currency:'UGX',address:'Gulu'},true);
- assert.match(v.code,/^gulu-branch-[a-f0-9]{6}$/);
+ assert.match(v.code,/^gulu-branch-[a-f0-9]{12}$/);
  assert.equal(v.name,'Gulu Branch');
  assert.equal(branches.validate({name:'Demo',code:'existing-branch',currency:'USD'},true).code,'existing-branch');
 });
 test('approval policy IDs are generated when creating new policies, existing codes remain valid for versioning',()=>{
  const input={name:'Daily Expenses',category:'general',steps:['Tenant Owner'],expiresHours:24};
  const v=approvals.policyInput(input);
- assert.match(v.code,/^daily_expenses_[a-f0-9]{6}$/);
+ assert.match(v.code,/^daily_expenses_[a-f0-9]{10}$/);
  assert.equal(approvals.policyInput({...input,code:'daily_review'}).code,'daily_review');
 });
 test('new notification templates automatically generate safe codes, existing template versions keep code',()=>{
  const service=require('../src/tenant/services/notification.service');
  const data={name:'System Status',subject:'Daily status',body:'This message is saved securely'};
  const first=service.templateInput(data);
- assert.match(first.code,/^n_system_status_[a-f0-9]{6}$/);
+ assert.match(first.code,/^n_system_status_[a-f0-9]{10}$/);
  assert.equal(service.templateInput({...data,code:'daily_status'}).code,'daily_status');
 });
 test('tenant header starts with signed-in user then branch then currency, without shared grid area squashing',()=>{

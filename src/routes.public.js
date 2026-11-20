@@ -164,9 +164,11 @@ router.get('/t/:slug', async (req, res, next) => {
     const Tenant = require('./platform/models/Tenant');
     const tenant = await Tenant.findOne({ slug: req.params.slug, status: { $in:['active','trial'] }, setupStatus:{$ne:'invited'} }).lean();
     if (!tenant) return res.status(404).send('Tenant page not found');
+    // Tenant branding stays private unless owner-published or separately
+    // approved for a minimal public listing by an audited platform administrator.
+    if(tenant.directoryListing?.visibility==='hidden')return res.status(404).send('Tenant page not found');
     const published=await require('./tenant/workspace/service').publicLanding(require('./config/mongo').getTenantConnection(tenant.slug),tenant);
-    // Existing active tenant businesses must be discoverable even before their
-    // optional public landing is published. Expose no default phone/services/owner.
+    if(!published&&tenant.directoryListing?.visibility!=='published')return res.status(404).send('Tenant page not found');
     const landing=published||{name:tenant.name,headline:'',subtitle:'',services:[],sections:[],country:'',supportPhone:''};
     res.set('Cache-Control','no-store');
     renderPublic(req, res, 'tenant-landing', `${landing.name||tenant.name} | ClassicFin Hub`, {tenant:{name:tenant.name,slug:tenant.slug},landing});

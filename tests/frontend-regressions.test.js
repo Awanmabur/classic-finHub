@@ -17,9 +17,10 @@ function element() {
     style: {}, attributes, events, children: [],
     addEventListener(name, handler) { events[name] = handler; },
     setAttribute(name, value) { attributes[name] = value; },
-    querySelectorAll() { return this.children; },
+    querySelectorAll(selector) { return selector === 'a' ? [] : this.children; },
     querySelector() { return null; },
-    appendChild() {}, focus() { this.focused = true; }
+    appendChild(child) { this.children.push(child); }, prepend(child) { this.children.unshift(child); },
+    focus() { this.focused = true; }
   };
 }
 
@@ -95,6 +96,13 @@ test('public navigation and reveal content survive blocked storage and missing o
   button.events.click();
   assert(panel.classList.contains('open'));
   assert.equal(button.attributes['aria-expanded'], 'true');
+  assert.equal(panel.children.length,1,'public menu gains one real close control');
+  assert.equal(panel.children[0].attributes['aria-label'],'Close navigation menu');
+  assert(panel.children[0].focused,'close control receives keyboard focus on open');
+  panel.children[0].events.click();
+  assert(!panel.classList.contains('open'),'visible close control closes public menu');
+  assert(button.focused,'focus returns to menu opener');
+  button.events.click();
   events.keydown({key: 'Escape'});
   assert(!panel.classList.contains('open'));
   assert(button.focused);

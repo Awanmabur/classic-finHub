@@ -26,7 +26,7 @@ test('Only an owner-published snapshot can become a public business listing',()=
   assert.equal(card.country,'South Sudan');
   assert.equal('email' in card,false);
   assert.equal('owner' in card,false);
-  assert.equal(Tenant.schema.path('directory.publishedAt')!=null,true);
+  assert.ok(Tenant.schema.path('directory')?.schema?.path('publishedAt'));
 });
 test('Filters are bounded, safe and have stable defaults',()=>{
   assert.deepEqual(directory.normalize({q:' Mobile Money ',page:'2',sort:'name',country:'Uganda',service:'Forex'}),

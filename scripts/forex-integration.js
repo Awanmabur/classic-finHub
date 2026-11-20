@@ -121,6 +121,25 @@ async function main(){
   const reports=await forex.reportRows({conn:a.conn,filters:{},scope:{branchId:String(a.branch._id)}});
   assert(reports.some(r=>r.status==='approved_pending_execution'&&r.count===1));
   assert(reports.some(r=>r.status==='cancelled'&&r.count===1));
+  // Retiring a rate must not delete it or rewrite completed historical quotes.
+  const beforeSnapshot=(await forexQuoteModel(a.conn).findById(created.quote._id)).rateDecimal;
+  await assert.rejects(forex.retireRate(a.conn,a.tenant,{...maker,role:'Tenant Owner',permissions:['*']},String(nextRate._id),{
+   note:'A forged owner must never retire an active Forex board price'
+  }),e=>e.status===403);
+  await User.updateOne({_id:maker.id},{$set:{role:'Tenant Owner'}});
+  const retired=await forex.retireRate(a.conn,a.tenant,{...maker,role:'Tenant Owner',permissions:['*']},String(nextRate._id),{
+   note:'Updated customer board price after a new documented market review'
+  });
+  assert.equal(retired.status,'retired');
+  assert.equal((await forexQuoteModel(a.conn).findById(created.quote._id)).rateDecimal,beforeSnapshot);
+  assert(!(await forex.listRates(a.conn,a.tenant,{...maker,role:'Tenant Owner',permissions:['*']},{status:'active'})).some(rate=>String(rate._id)===String(nextRate._id)));
+  assert((await forex.listRates(a.conn,a.tenant,{...maker,role:'Tenant Owner',permissions:['*']},{status:'retired'})).some(rate=>String(rate._id)===String(nextRate._id)));
+  await assert.rejects(forex.retireRate(a.conn,a.tenant,{...maker,role:'Tenant Owner',permissions:['*']},String(nextRate._id),{
+   note:'A retired rate cannot be retired a second time'
+  }),e=>e.status===409);
+  assert.equal(await auditEventModel(a.conn).countDocuments({action:'forex.rate.retired',targetId:retired._id}),1);
+  await User.updateOne({_id:maker.id},{$set:{role:maker.role}});
+  console.log('PASS: Forex rates retire non-destructively, reject forged roles and repeats, and preserve historical pricing');
   console.log('PASS: Forex rate approvals, rate supersession, exact quote snapshots, idempotency, quota, review, expiry, reports and tenant isolation');
  }finally{
   for(const slug of slugs){if(!/^probe-fx-[ab]-[a-f0-9]{16}$/.test(slug))throw Error('Unsafe scratch slug');

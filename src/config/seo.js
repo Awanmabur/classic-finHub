@@ -5,7 +5,7 @@ const INDEXABLE_PATHS = Object.freeze([
   '/marketplace', '/product-guide', '/businesses', '/terms', '/privacy', '/cookies', '/refund-policy'
 ]);
 const PRIVATE_PREFIXES = Object.freeze([
-  '/platform', '/tenant', '/t/*/my-review', '/t/*/reviews', '/signin', '/signup', '/accept-invite',
+  '/platform', '/tenant', '/t/*/review', '/t/*/my-review', '/t/*/reviews', '/signin', '/signup', '/accept-invite',
   '/accept-staff-invite', '/mfa', '/forgot-password', '/reset-password', '/logout',
   '/health', '/integrations'
 ]);

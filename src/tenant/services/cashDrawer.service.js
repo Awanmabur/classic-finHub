@@ -64,13 +64,13 @@ async function decideOpening(conn,tenant,actor,shiftId,input={}){
  const reason=note(input.note);await ensureTenantIndexes(conn);
  const tx=await conn.startSession();let result;
  try{await tx.withTransaction(async()=>{
-  if(require('./reviewPolicy').canSelfReviewRoutine(actor,actor.branchId)&&
-    !await require('./reviewPolicy').persistedRoutineReviewer(conn,tx,actor,actor.branchId))
-   throw fail('Self-review requires the current authorized owner or assigned manager role',403);
   result=await cashSessionModel(conn).findOneAndUpdate({_id:id(shiftId),status:'pending_open',...(require('./reviewPolicy').canSelfReviewRoutine(actor,actor.branchId)?{}:{operatorId:{$ne:id(actor.id)}}),...scope(actor)},
    {$set:{status:input.decision==='approve'?'open':'opening_rejected',openingVerifiedBy:id(actor.id),openingVerifiedAt:new Date(),openingReviewNote:reason},
     ...(input.decision==='reject'?{$unset:{activeKey:''}}:{}),$inc:{revision:1}},{session:tx,new:true});
   if(!result)throw fail('Opening request unavailable, already reviewed, outside your branch or already reviewed',409);
+  if(String(result.operatorId)===String(actor.id)&&
+    !await require('./reviewPolicy').persistedRoutineReviewer(conn,tx,actor,result.branchId))
+   throw fail('Self-review requires the current authorized owner or assigned manager role',403);
   if(result.treasuryOpeningObservationId){
    const funds=require('../treasury/service'),authorization=await funds.access(conn,tenant,actor,{permission:'treasury.review',session:tx,fence:true});
    await funds.reviewObservationInSession(conn,tx,authorization,result.treasuryOpeningObservationId,{decision:input.decision,note:reason});
@@ -213,14 +213,14 @@ async function decide(conn,tenant,actor,shiftId,input={}){
  await ensureTenantIndexes(conn);
  const tx=await conn.startSession();let result;
  try{await tx.withTransaction(async()=>{
-  if(require('./reviewPolicy').canSelfReviewRoutine(actor,actor.branchId)&&
-    !await require('./reviewPolicy').persistedRoutineReviewer(conn,tx,actor,actor.branchId))
-   throw fail('Self-review requires the current authorized owner or assigned manager role',403);
   result=await cashSessionModel(conn).findOneAndUpdate({_id:id(shiftId),status:'submitted',...(require('./reviewPolicy').canSelfReviewRoutine(actor,actor.branchId)?{}:{operatorId:{$ne:id(actor.id)}}),...scope(actor)},
    {$set:{status:input.decision==='approve'?'approved':'disputed',reviewedBy:id(actor.id),reviewedAt:new Date(),reviewNote:reason},
     ...(input.decision==='approve'?{$unset:{activeKey:''}}:{}),$inc:{revision:1}},
    {new:true,session:tx});
   if(!result)throw fail('Shift unavailable, outside your branch or owned by the reviewer',409);
+  if(String(result.operatorId)===String(actor.id)&&
+    !await require('./reviewPolicy').persistedRoutineReviewer(conn,tx,actor,result.branchId))
+   throw fail('Self-review requires the current authorized owner or assigned manager role',403);
   // A Branch Manager may reconcile exact matches, but only a Tenant Owner or
   // Reconciliation Officer may accept a discrepancy. The transaction will
   // roll back when this authorization fails.

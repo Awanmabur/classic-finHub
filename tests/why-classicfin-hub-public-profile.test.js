@@ -18,8 +18,8 @@ test('Business profile is an indexed public page with canonical metadata and bre
  assert(seo.llmsTxt().includes('/business-profile')||!require('../src/config/env').indexingEnabled);
 });
 test('Public profile follows four-per-desktop/two-per-phone academy pattern without invented stats',()=>{
- const html=file('src/views/public/business-profile.ejs');
- const css=file('public/css/business-profile.css');
+ const html=file('src/views/public/why-classicfin-hub.ejs');
+ const css=file('public/css/why-classicfin-hub.css');
  assert.match(html,/<h1>ClassicFin Hub <span>Business Profile<\/span><\/h1>/);
  assert.match(html,/class="whyProfileHighlights"/);
  assert.match(html,/>4<\/b>/);
@@ -31,7 +31,7 @@ test('Public profile follows four-per-desktop/two-per-phone academy pattern with
  assert.match(html,/Mobile Money/);
 });
 test('Public profile is navigable and all calls to action go to real routes or approved contacts',()=>{
- const html=file('src/views/public/business-profile.ejs');
+ const html=file('src/views/public/why-classicfin-hub.ejs');
  const home=file('src/views/original/home.ejs');
  const nav=file('src/views/layouts/public.ejs');
  assert(home.indexOf('id="business-profile"')>0 && home.indexOf('id="business-profile"')<home.indexOf('id="why"'));
@@ -43,7 +43,7 @@ test('Public profile is navigable and all calls to action go to real routes or a
  }
  assert(!/\bhref="#"\b|lorem ipsum|placeholder/i.test(html));
 });
-test('Why ClassicFin Hub page works end-to-end with the app, its style, sitemap and trailing slash redirect',async()=>{
+test('Business profile page works end-to-end with the app, its style, sitemap and trailing slash redirect',async()=>{
  const server=createApp().listen(0);
  await new Promise(resolve=>server.once('listening',resolve));
  const base='http://127.0.0.1:'+server.address().port;
@@ -55,7 +55,7 @@ test('Why ClassicFin Hub page works end-to-end with the app, its style, sitemap 
   assert.match(body,/Book a business demo/);
   assert.match(body,/\/css\/business-profile.css/);
   assert.match(body,/\/images\/classicfinhub-logo.png/);
-  response=await fetch(base+'/css/business-profile.css');
+  response=await fetch(base+'/css/why-classicfin-hub.css');
   assert.equal(response.status,200);
   response=await fetch(base+'/business-profile/',{redirect:'manual'});
   assert.equal(response.status,308);
@@ -68,7 +68,7 @@ test('Why ClassicFin Hub page works end-to-end with the app, its style, sitemap 
 test('New business profile does not introduce a loan module entitlement or touch cash-first settlement logic',()=>{
  const store=require('../src/data/store');
  assert(!store.modules.some(m=>/loan/i.test(m.key)));
- const html=file('src/views/public/business-profile.ejs');
+ const html=file('src/views/public/why-classicfin-hub.ejs');
  assert.doesNotMatch(html,/not currently available or billable/);
  assert(file('src/tenant/services/momoFxSettlement.service.js').includes('deposit_cash_send_provider'));
 });

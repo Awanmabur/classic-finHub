@@ -218,9 +218,12 @@ async function publish(conn,tenant,actor,input){
  });
  // Projection is an idempotent, public-only copy to the platform directory.
  // The tenant publish has committed already; a failed mirror is retried by the reconciliation script.
- try { await require('../../platform/services/businessDirectory.service').sync(tenant,saved.landing.published,saved.landing.publishedAt); }
- catch(error){ console.error(JSON.stringify({event:'public_business_directory_sync_failed',tenantSlug:tenant.slug,errorCode:error.code||'SYNC_FAILED'})); }
- return saved;
+ let directorySynced=false;
+ try {
+   const result=await require('../../platform/services/businessDirectory.service').sync(tenant,saved.landing.published,saved.landing.publishedAt);
+   directorySynced=Boolean(result.matchedCount);
+ }catch(error){console.error(JSON.stringify({event:'public_business_directory_sync_failed',tenantSlug:tenant.slug,errorCode:error.code||'SYNC_FAILED'}));}
+ return {...saved,directorySyncPending:!directorySynced};
 }
 async function publicLanding(conn,tenant){
  context(conn,tenant);

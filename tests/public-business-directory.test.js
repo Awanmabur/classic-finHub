@@ -39,7 +39,7 @@ test('Homepage contains live card slider before unchanged Why section; no invent
   const html=file('src/views/original/home.ejs');
   assert(html.indexOf('id="business-profile"')>0);
   assert(html.indexOf('id="business-profile"')<html.indexOf('id="why"'));
-  assert(html.includes('featuredBusinesses.forEach(business'));
+  assert(html.includes('__publishedBusinesses.forEach(business'));
   assert(html.includes("include('../partials/business-card'"));
   assert(html.includes('id="businessCardsTrack"'));
   assert(html.includes('href="/businesses"'));

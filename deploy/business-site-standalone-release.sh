@@ -69,10 +69,15 @@ bash "$ROOT/deploy/standalone-ui-release.sh"
 
 echo "=== POST-DEPLOY HEALTH AND BUSINESS DIRECTORY ==="
 curl -fsS --max-time 15 https://classicfinhub.com/health/ready
-curl -fsS --max-time 15 https://classicfinhub.com/businesses |
-  grep -Fq 'Discover businesses'
-curl -fsS --max-time 15 https://classicfinhub.com/robots.txt |
-  grep -Fq 'Disallow: /t/*/my-review'
+# Avoid curl SIGPIPE when grep -q exits early under bash pipefail. Capture
+# complete responses and check their content before reporting success.
+PAGE_STAGE="$(mktemp -d /tmp/classicfin-public-verify.XXXXXXXX)"
+cleanup_page_stage() { rm -rf -- "$PAGE_STAGE"; }
+trap cleanup_page_stage EXIT
+curl -fsS --max-time 15 -o "$PAGE_STAGE/businesses.html" https://classicfinhub.com/businesses
+grep -Fq 'Discover businesses' "$PAGE_STAGE/businesses.html"
+curl -fsS --max-time 15 -o "$PAGE_STAGE/robots.txt" https://classicfinhub.com/robots.txt
+grep -Fq 'Disallow: /t/*/my-review' "$PAGE_STAGE/robots.txt"
 for name in classicfin-web-only classicfin-worker classicfin-notifications; do
   test "$(docker inspect -f '{{.State.Health.Status}}' "$name")" = healthy
   img="$(docker inspect -f '{{.Config.Image}}' "$name")"

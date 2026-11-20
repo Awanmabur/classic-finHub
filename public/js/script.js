@@ -44,6 +44,7 @@ function setMobileMenu(open) {
   mobilePanel?.classList.toggle('open', open);
   menuBtn?.setAttribute('aria-expanded', String(open));
   menuBtn?.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+  if (open) mobileCloseBtn?.focus({ preventScroll: true });
 }
 menuBtn?.setAttribute('aria-controls', 'mobilePanel');
 setMobileMenu(false);

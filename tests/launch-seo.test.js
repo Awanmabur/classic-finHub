@@ -24,6 +24,13 @@ test('published public crawler resources enumerate only indexable pages and appl
 });
 test('every advertised public URL returns canonical HTML with social metadata, crawlable content and valid nonce JSON-LD',async()=>{
  for(const path of seo.INDEXABLE_PATHS){
+  // Business listings require real MongoDB; when disconnected, fail closed rather than show fake records.
+  if(path==='/businesses'){
+    const unavailable=await fetch(base+path);
+    assert.equal(unavailable.status,503);
+    assert.match(unavailable.headers.get('x-robots-tag')||'',/noindex/);
+    continue;
+  }
   const response=await fetch(base+path);assert.equal(response.status,200,path);const html=await response.text();
   assert(html.includes('rel="canonical" href="'+env.appUrl+path+'"'),path);assert.match(html,/<h1(?:\s|>)/,path);assert.match(html,/property="og:title"/);assert.match(html,/name="twitter:description"/);
   const match=html.match(/<script type="application\/ld\+json" nonce="([^"]+)">([\s\S]*?)<\/script>/);assert(match,path);const graph=JSON.parse(match[2]);assert.equal(graph['@context'],'https://schema.org');assert(response.headers.get('content-security-policy').includes("'nonce-"+match[1]+"'"));

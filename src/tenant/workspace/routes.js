@@ -184,7 +184,9 @@ function factory({renderTenant}){
   await service.save(req.tenantDb,req.tenant,req.user,section,req.body);flash(req,'good','Settings saved with an audit entry.');res.redirect(303,'/tenant/workspace/'+section);
  }catch(error){next(error);}});
  router.post('/landing/publish',requirePermission('workspace.manage'),throttle,async(req,res,next)=>{try{
-  await service.publish(req.tenantDb,req.tenant,req.user,req.body);flash(req,'good','Landing page published. Later draft edits will not change the published page.');res.redirect(303,'/tenant/workspace/landing');
+  const result=await service.publish(req.tenantDb,req.tenant,req.user,req.body);
+   flash(req,result.directorySyncPending?'bad':'good',
+     result.directorySyncPending?'Website published, but directory synchronization is pending. Your public page is still available; contact platform support if listing does not appear.':'Business website published. Directory details are synchronized, and later drafts stay private.');res.redirect(303,'/tenant/workspace/landing');
  }catch(error){next(error);}});
  function back(kind){return '/tenant/workspace/'+(Object.keys(entryPages).find(key=>entryPages[key].kind===kind)||'database');}
  for(const suffix of ['', '/:id'])router.post('/entries/:kind'+suffix,requirePermission('workspace.manage'),throttle,async(req,res,next)=>{try{

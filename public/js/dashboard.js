@@ -18,6 +18,7 @@
   const side = document.getElementById('sidePanel');
   const overlay = document.getElementById('menuOverlay');
   const menuBtn = document.getElementById('menuBtn');
+  const sideCloseBtn = document.getElementById('sidePanelClose');
   const mobile = window.matchMedia('(max-width:1120px)');
   const scheduleNavigation=handler=>typeof requestAnimationFrame==='function'?requestAnimationFrame(handler):handler();
   const navigation=document.getElementById('nav');
@@ -41,6 +42,7 @@
     else if (restoreFocus) menuBtn?.focus();
   };
   menuBtn?.addEventListener('click', () => setMenu(!side?.classList.contains('show')));
+  sideCloseBtn?.addEventListener('click', () => setMenu(false, true));
   overlay?.addEventListener('click', () => setMenu(false, true));
   mobile.addEventListener('change', () => setMenu(false));
   document.addEventListener('keydown', event => {

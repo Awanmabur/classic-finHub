@@ -16,4 +16,5 @@ function branchCode(name){
 function catalogCode(name){
  return base(name,'_',32)+'_'+crypto.randomBytes(3).toString('hex');
 }
-module.exports={branchCode,catalogCode};
+function notificationCode(name){return 'n_'+base(name,'_',29)+'_'+crypto.randomBytes(3).toString('hex');}
+module.exports={branchCode,catalogCode,notificationCode};

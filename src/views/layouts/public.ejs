@@ -53,10 +53,10 @@
   <nav class="mobile-panel" id="mobilePanel" aria-label="Mobile navigation">
     <a href="/">Home</a><a href="/services">Modules</a><a href="/businesses">Businesses</a><a href="/marketplace">Marketplace</a><a href="/book-appointment">Book demo</a><a href="/pricing">Pricing</a><a href="/price-compare">Price compare</a><a href="/support">Support</a><a href="/product-guide">Product guide</a><a href="/signin">Sign in</a><a href="/signup">Request setup</a><button id="themeToggleMobile"><i class="fa-solid fa-moon"></i> Change theme</button>
   </nav>
-  <main class="page smooth-page">
+  <main class="page smooth-page" id="top">
     <%- include('../partials/flash', { flash }) %>
     <%- include(view, { data, modules, plans, tenants, appointments, currentPath }) %>
-    <%- include('../partials/marketing-footer',{footerTopHref:'/'}) %>
+    <%- include('../partials/marketing-footer',{footerTopHref:'#top'}) %>
   </main>
 
   <script src="/js/script.js?v=<%= assetVersion %>"></script>

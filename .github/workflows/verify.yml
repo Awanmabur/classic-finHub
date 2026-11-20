@@ -37,6 +37,8 @@ jobs:
           done
           docker exec cfh-ci-mongo mongosh --quiet --eval 'if (!db.hello().isWritablePrimary) quit(1)'
       - run: npm run indexes
+      - name: Verify additive public-review indexes
+        run: node scripts/business-reviews-indexes.js
       - name: Verify moderated business reviews on isolated MongoDB
         run: node scripts/business-reviews-integration.js
       - name: Verify atomic approved tariff schedule supersession

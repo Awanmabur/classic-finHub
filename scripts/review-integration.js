@@ -110,7 +110,7 @@ async function main() {
     assert.equal(String(submitted.expectedClosingMinor),'120000');
     assert.equal(String(submitted.varianceMinor),'-1000');
     await assert.rejects(cash.decide(a,tenants[0],{...operator,role:'Tenant Owner'},String(shift._id),
-      {decision:'approve',note:'Self approval must be denied'}),e=>e.status===409);
+      {decision:'approve',note:'Self approval must be denied'}),e=>e.status===403);
     await assert.rejects(cash.decide(b,tenants[1],reviewer,String(shift._id),
       {decision:'approve',note:'Cannot approve outside tenant'}),e=>e.status===409);
     const approved=await cash.decide(a,tenants[0],reviewer,String(shift._id),{

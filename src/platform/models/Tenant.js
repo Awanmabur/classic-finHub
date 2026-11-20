@@ -19,6 +19,13 @@ const schema = new mongoose.Schema({
     limits:{users:{type:Number,required:true,min:1},branches:{type:Number,required:true,min:1},recordsPerMonth:{type:Number,required:true,min:0}}
   },{_id:false,strict:'throw'})],default:[]},
 
+  // Explicit platform approval for a minimal public listing. This does not
+  // publish tenant workspaces, owner contacts or financial information.
+  directoryListing: {type:new mongoose.Schema({
+    visibility:{type:String,enum:['default','published','hidden'],default:'default'},
+    approvedAt:{type:Date,default:null},
+    approvedBy:{type:mongoose.Schema.Types.ObjectId,default:null}
+  },{_id:false,strict:'throw'}),default:()=>({})},
   // Public projection only: owner-published landing content, never tenant PII
   // (owner email, internal staff, account balances, or private customer data).
   directory: {type: new mongoose.Schema({

@@ -15,6 +15,7 @@ const {connectPlatformMongo,getTenantConnection}=require('../src/config/mongo');
 const models=require('../src/tenant/models'),service=require('../src/tenant/workspace/service'),workspace=require('../src/tenant/workspace/models');
 const Tenant=require('../src/platform/models/Tenant'),Identity=require('../src/platform/models/AccountIdentity'),commerce=require('../src/platform/services/commercial.service');
 const mfa=require('../src/platform/services/mfa.service'),createApp=require('../src/app');
+const tenantAdmin=require('../src/platform/services/tenantAdmin.service');
 let connections=[],server;
 const profile=(name='Workspace business')=>({name,legalName:'Workspace Business Limited',owner:'Owner',ownerEmail:'owner@example.invalid',supportPhone:'+256700123456',country:'Uganda',timezone:'Africa/Kampala',defaultCurrency:'UGX'});
 const brand={theme:'Approved theme',primary:'#123456',secondary:'#345678',logoStatus:'Not uploaded',receiptNote:'Saved receipt footer',prefix:'WS',template:'Tenant receipt'};
@@ -22,6 +23,7 @@ const csrf=html=>{const found=html.match(/name="_csrf" value="([a-f0-9]{64})"/);
 async function main(){
  await connectPlatformMongo();require('../src/config/mongoTopology').verifyReplicaPrimary(await mongoose.connection.db.admin().command({hello:1}));
  for(const model of [Tenant,Identity,require('../src/platform/models/LoginThrottle'),require('../src/platform/models/SecurityEvent')])await model.createIndexes();
+ await require('../src/platform/models/PlatformAuditLog').createCollection();
  connections=slugs.map(getTenantConnection);await Promise.all(connections.map(models.ensureTenantIndexes));
  const plan=commerce.planSnapshot({...commerce.asPlanVersion(require('../src/data/store').plans.find(p=>p.code==='agent')),status:'published'});
  const tenants=[];for(let i=0;i<2;i++)tenants.push(await Tenant.create({name:`Workspace ${i}`,slug:slugs[i],dbName:connections[i].name,owner:'Workspace Owner',email:`ws-${i}-${nonce}@example.invalid`,plan:'agent',status:'active',setupStatus:'complete',enabledModules:plan.modules,seatsReserved:2,branchCount:0,subscription:{...plan,status:'granted',source:'manual_admin_grant',generation:1,periodStart:new Date(Date.now()-60000),periodEnd:new Date(Date.now()+86400000)}}));
@@ -70,6 +72,30 @@ async function main(){
  async function request(path,values){const response=await fetch(base+path,{method:values?'POST':'GET',redirect:'manual',headers:{...(cookie?{cookie}:{}),...(values?{'content-type':'application/x-www-form-urlencoded'}:{})},...(values?{body:new URLSearchParams(values).toString()}:{})});cookie=response.headers.get('set-cookie')?.split(';')[0]||cookie;return {response,html:await response.text()};}
  const publicPage=await request('/t/'+tenant.slug);assert.equal(publicPage.response.status,200,publicPage.html);assert.match(publicPage.response.headers.get('cache-control'),/no-store/);assert.match(publicPage.html,/Published &lt;script&gt;/);assert.doesNotMatch(publicPage.html,/Private draft section|Unpublished headline|<script>example\(\)/);
  const otherPage=await request('/t/'+otherTenant.slug);assert.equal(otherPage.response.status,404,'unpublished tenant branding must not become a public fallback page');assert.doesNotMatch(otherPage.html,/Published services|Published customer description|Other workspace/);
+ // Business discovery must never expose unpublished tenant records until
+ // a platform administrator explicitly approves a basic public listing.
+ const listingAdmin={id:String(new mongoose.Types.ObjectId()),name:'Directory Operator',permissions:['*']};
+ const listingReason='Approved basic public listing for this business after tenant onboarding.';
+ const beforeListing=await Tenant.findById(otherTenant._id).lean();
+ await assert.rejects(tenantAdmin.changeDirectoryListing(otherTenant._id,listingAdmin,
+   {action:'publish',reason:listingReason,revision:String(beforeListing.__v+1)}),{status:409});
+ await tenantAdmin.changeDirectoryListing(otherTenant._id,listingAdmin,
+   {action:'publish',reason:listingReason,revision:String(beforeListing.__v)});
+ const approvedPage=await request('/t/'+otherTenant.slug);
+ assert.equal(approvedPage.response.status,200,'approved minimal business profile is reachable');
+ assert.match(approvedPage.html,/Workspace 1/);
+ assert(!approvedPage.html.includes(otherTenant.email),'private tenant owner email must remain hidden');
+ const directoryListed=await request('/businesses');
+ assert.equal(directoryListed.response.status,200);
+ assert(directoryListed.html.includes('/t/'+otherTenant.slug));
+ const afterApproval=await Tenant.findById(otherTenant._id).lean();
+ await tenantAdmin.changeDirectoryListing(otherTenant._id,listingAdmin,
+   {action:'hide',reason:'Hide this business from public discovery pending owner request.',revision:String(afterApproval.__v)});
+ const hiddenPage=await request('/t/'+otherTenant.slug);
+ assert.equal(hiddenPage.response.status,404,'hidden tenant identity remains private');
+ const directoryHidden=await request('/businesses');
+ assert(!directoryHidden.html.includes('/t/'+otherTenant.slug));
+ assert((await require('../src/platform/models/PlatformAuditLog').countDocuments({action:'tenant.public_directory_changed',recordId:String(otherTenant._id)}))===2);
  const anon=await request('/tenant/workspace/profile');assert.equal(anon.response.status,303);assert.equal(anon.response.headers.get('location'),'/signin');
  const signIn=await request('/signin');await request('/signin',{email:tenant.email,password,_csrf:csrf(signIn.html)});const challenge=await request('/mfa/challenge');const verification=await request('/mfa/challenge',{code:mfa.counterCode(secret,Math.floor(Date.now()/30000)),_csrf:csrf(challenge.html)});assert.equal(verification.response.status,303,verification.html);
  for(const path of ['','/profile','/landing','/branding','/roles','/kyc','/database','/subscription','/notification-rules','/integrations','/import-export','/compliance','/landing-preview','/receipt-preview','/customer-portal-preview','/audit','/profile/edit','/branding/edit','/branding/receipt/edit','/landing/headline/edit','/entries/landing_section/new']){const page=await request('/tenant/workspace'+path);assert.equal(page.response.status,200,`${path}: ${page.html.slice(0,600)}`);assert.doesNotMatch(page.html,/passwordHash|mfaSecretEncrypted/);}

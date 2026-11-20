@@ -68,6 +68,20 @@ async function customerArchive(conn,tenant,actor,customerId,input={}){
   await audit(conn,session,actor,record,'customer.archived');return record;
  });
 }
+// Restore an archived profile without recreating identifiers or losing history.
+async function customerRestore(conn,tenant,actor,customerId,input={}){
+ actor=await access(conn,tenant,actor,'customers','customers.manage');await prepare(conn);
+ return transaction(conn,async session=>{
+  await fenceAccess(conn,session,tenant,actor,'customers','customers.manage');
+  const restored=await directory.customerModel(conn).findOneAndUpdate({
+   _id:v.id(customerId),...scope(actor),status:'archived',revision:v.revision(input.revision)},
+   {$set:{status:'active',archivedAt:null,updatedBy:actor.id},$inc:{revision:1}},
+   {session,new:true,runValidators:true});
+  if(!restored)throw v.fail('Archived customer changed or is outside your branch. Reload.',409);
+  await audit(conn,session,actor,restored,'customer.restored');return restored;
+ });
+}
+
 function search(input){const q=v.text(input||'','search',0,100);if(!q)return {};const escaped=q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');return {$or:[{normalizedName:new RegExp('^'+escaped,'i')},{phone:new RegExp('^'+escaped)},{reference:new RegExp('^'+escaped,'i')}]};}
 async function customerList(conn,tenant,actor,input={}){
  const trusted=await context(conn,tenant,actor,'customers','customers.view');actor=trusted.actor;tenant=trusted.tenant;await prepare(conn);const base={...scope(actor),status:input.status==='archived'?'archived':'active'},filter={$and:[base,search(input.q),v.pageFilter(input.cursor)]};
@@ -114,10 +128,10 @@ async function accountUpdate(conn,tenant,actor,accountId,input){
  });
 }
 async function accountList(conn,tenant,actor,input={}){
- actor=await access(conn,tenant,actor,'accounts','accounts.view');await prepare(conn);const base={...scope(actor)},q=v.text(input.q||'','search',0,100);if(q)base.accountNumber=new RegExp('^'+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'i');
+ actor=await access(conn,tenant,actor,'accounts','accounts.view');await prepare(conn);const showClosed=input.status==='closed';const base={...scope(actor),status:showClosed?'closed':{$ne:'closed'}},q=v.text(input.q||'','search',0,100);if(q)base.accountNumber=new RegExp('^'+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'i');
  const rows=await directory.accountModel(conn).find({$and:[base,v.pageFilter(input.cursor)]}).sort({createdAt:-1,_id:-1}).limit(26).lean(),items=rows.slice(0,25);
  const [customers,balances,total]=await Promise.all([directory.customerModel(conn).find({_id:{$in:items.map(x=>x.customerId)},...scope(actor)}).select('name phone reference status').lean(),balancesFor(conn,items),directory.accountModel(conn).countDocuments(base)]);
- const byId=new Map(customers.map(x=>[String(x._id),x]));items.forEach(x=>{x.customer=byId.get(String(x.customerId));x.balance=balances.get(String(x._id));});return {items,nextCursor:rows.length>25?v.nextCursor(items):null,total,q,actor};
+ const byId=new Map(customers.map(x=>[String(x._id),x]));items.forEach(x=>{x.customer=byId.get(String(x.customerId));x.balance=balances.get(String(x._id));});return {items,nextCursor:rows.length>25?v.nextCursor(items):null,total,q,actor,status:showClosed?'closed':'open'};
 }
 async function accountDetail(conn,tenant,actor,accountId){
  actor=await access(conn,tenant,actor,'accounts','accounts.view');await prepare(conn);const record=await directory.accountModel(conn).findOne({_id:v.id(accountId),...scope(actor)}).lean();if(!record)throw v.fail('Account not found in your permitted branch',404);
@@ -161,4 +175,4 @@ async function customerExport(conn,tenant,actor,input={}){
  return Model.find(filter).select(EXPORT_FIELDS.join(' ')).sort({_id:1}).limit(MAX_EXPORT_ROWS).maxTimeMS(10000).lean().cursor({batchSize:100});
 }
 function formatMinor(amount,currency){if(amount==null)return 'Unavailable';const n=String(amount),negative=n.startsWith('-'),digits=negative?n.slice(1):n,scale=currencyOptions.find(x=>x.code===currency)?.scale||0,padded=digits.padStart(scale+1,'0'),whole=scale?padded.slice(0,-scale):digits,fraction=scale?'.'+padded.slice(-scale):'';return `${currencyLabel(currency)} ${negative?'-':''}${whole.replace(/\B(?=(\d{3})+(?!\d))/g,',')}${fraction}`;}
-module.exports={access,scope,customerCreate,customerUpdate,customerArchive,customerList,customerDetail,customerChoices,accountCreate,accountUpdate,accountList,accountDetail,movements,logbook,balancesFor,customerExport,EXPORT_FIELDS,MAX_EXPORT_ROWS,formatMinor,prepare};
+module.exports={access,scope,customerCreate,customerUpdate,customerArchive,customerRestore,customerList,customerDetail,customerChoices,accountCreate,accountUpdate,accountList,accountDetail,movements,logbook,balancesFor,customerExport,EXPORT_FIELDS,MAX_EXPORT_ROWS,formatMinor,prepare};

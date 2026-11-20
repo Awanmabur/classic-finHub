@@ -17,7 +17,7 @@
  </form><% if(!data.policies.length){ %><p class="tiny">No active policy available. A Tenant Owner must publish one.</p><% } %>
  </div></section><% } %>
  <% if(data.canManage){ %><section class="card"><div class="cardHead"><b>Publish approval policy</b><span>Immutable version snapshots</span></div><div class="cardBody">
- <form method="post" action="/tenant/approvals/policies" autocomplete="off" style="display:grid;gap:12px">
+ <form id="approvalPolicyEditor" method="post" action="/tenant/approvals/policies" autocomplete="off" style="display:grid;gap:12px">
  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
  <label class="field">Update an existing policy (optional)<input class="control" name="code" list="existingApprovalPolicyCodes" pattern="[a-z][a-z0-9_]{2,39}" placeholder="Leave blank to create a new policy"><span class="tiny">New policy codes are generated automatically. Select an existing code only to publish a new version of that policy.</span><datalist id="existingApprovalPolicyCodes"><% data.policies.forEach(p=>{ %><option value="<%= p.code %>"><%= p.name %></option><% }) %></datalist></label>
  <label class="field">Policy name<input class="control" name="name" required minlength="3" maxlength="100"></label>
@@ -29,7 +29,7 @@
  </form></div></section><% } %>
  </div>
  <% if(data.canManage){ %><section class="card" style="margin-top:14px"><div class="cardHead"><b>Active policies</b><span>Historical versions retained</span></div><div class="cardBody tableWrap"><table><thead><tr><th>Policy</th><th>Version</th><th>Review steps</th><th>Action</th></tr></thead><tbody>
- <% data.policies.forEach(p=>{ %><tr><td><%= p.name %><div class="tiny"><%= p.code %></div></td><td><%= p.version %></td><td><%= p.steps.map(s=>s.role).join(' → ') %></td><td><form method="post" action="/tenant/approvals/policies/<%= p.code %>/retire"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn" type="submit">Retire</button></form></td></tr><% }) %>
+ <% data.policies.forEach(p=>{ %><tr><td><%= p.name %><div class="tiny"><%= p.code %></div></td><td><%= p.version %></td><td><%= p.steps.map(s=>s.role).join(' → ') %></td><td><div class="rowBtns"><button class="btn" type="button" data-edit-approval-policy data-code="<%= p.code %>" data-name="<%= p.name %>" data-category="<%= p.category %>" data-steps="<%= p.steps.map(s=>s.role).join('|') %>" data-expiry="<%= p.expiresHours %>">Edit</button><form method="post" action="/tenant/approvals/policies/<%= p.code %>/retire"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn" type="submit">Retire</button></form></div></td></tr><% }) %>
  </tbody></table></div></section><% } %>
  <% if(data.reviewQueue.length){ %><section class="card" style="margin-top:14px"><div class="cardHead"><b>Your review queue</b><span>No self-approval</span></div><div class="cardBody txList"><% data.reviewQueue.forEach(r=>{ %><div class="tx"><div class="txMeta"><b><a href="/tenant/approvals/<%= r._id %>"><%= r.subject %></a></b><span><%= r.reference %> · Step <%= r.currentStep+1 %> of <%= r.steps.length %></span></div><a class="btn" href="/tenant/approvals/<%= r._id %>">Review</a></div><% }) %></div></section><% } %>
  <section class="card" style="margin-top:14px"><div class="cardHead"><b>Approval history</b><span>Original requests and decisions retained</span></div><div class="cardBody">
@@ -38,3 +38,34 @@
  <% if(!data.records.items.length){ %><p class="tiny">No requests in the permitted scope.</p><% } %>
  <% if(data.records.nextCursor){ %><a class="btn" href="/tenant/approvals?status=<%= encodeURIComponent(data.status) %>&amp;cursor=<%= encodeURIComponent(data.records.nextCursor) %>">Next page</a><% } %></div></section>
 </section>
+
+<script>
+(()=>{
+ const form=document.getElementById('approvalPolicyEditor');
+ if(!form)return;
+ for(const button of document.querySelectorAll('[data-edit-approval-policy]')){
+  button.addEventListener('click',()=>{
+   for(const field of ['code','name','category']){
+    const input=form.elements.namedItem(field);
+    if(input)input.value=button.dataset[field]||'';
+   }
+   const steps=String(button.dataset.steps||'').split('|');
+   for(let i=1;i<=3;i++){
+    const input=form.elements.namedItem('step'+i);
+    if(input)input.value=steps[i-1]||'';
+   }
+   const expiry=form.elements.namedItem('expiresHours');
+   const custom=form.elements.namedItem('customExpiresHours');
+   if(expiry&&button.dataset.expiry){
+    const hours=String(button.dataset.expiry);
+    const option=Array.from(expiry.options).some(item=>item.value===hours);
+    if(option)expiry.value=hours;
+    if(custom)custom.value=option?'':hours;
+   }
+   form.scrollIntoView({behavior:'smooth',block:'start'});
+   const name=form.elements.namedItem('name');
+   if(name)name.focus({preventScroll:true});
+  });
+ }
+})();
+</script>

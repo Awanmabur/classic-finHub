@@ -85,3 +85,43 @@ test('Directory and its live route have canonical search metadata and no private
   assert.match(routes,/res\.redirect\(308,'\/businesses'\)/);
   assert.match(routes,/businessDirectory\.service/);
 });
+
+
+test('Active tenant businesses have a minimal safe listing without publishing a landing',()=>{
+  const card=directory.card({slug:'live-tenant',name:'Live Tenant Business',status:'active',
+    owner:'Private Owner',email:'private@example.com',phone:'+211123456789',directory:{}});
+  assert.equal(card.slug,'live-tenant');
+  assert.equal(card.name,'Live Tenant Business');
+  assert.equal(card.isPublished,false);
+  assert.equal(card.supportPhone,'');
+  assert.deepEqual(card.services,[]);
+  assert.equal(card.country,'');
+  assert.equal('owner' in card,false);
+  assert.equal('email' in card,false);
+  assert.equal('phone' in card,false);
+  const source=file('src/platform/services/businessDirectory.service.js');
+  assert.match(source,/const eligible = Object.freeze/);
+  assert.match(source,/status:\{\$in:\['active','trial'\]\}/);
+  assert.match(source,/setupStatus:\{\$ne:'invited'\}/);
+  assert.match(source,/Tenant\.find\(eligible\)/);
+  assert.doesNotMatch(source,/Tenant\.find\(published\)/);
+  const routes=file('src/routes.public.js');
+  assert.match(routes,/const landing=published\|\|\{name:tenant\.name/);
+});
+
+test('Directory and tenant profiles share exact existing homepage footer and capsule buttons',()=>{
+  const home=file('src/views/original/home.ejs');
+  const layout=file('src/views/layouts/public.ejs');
+  const footer=file('src/views/partials/marketing-footer.ejs');
+  const style=file('public/css/style.css');
+  const directoryStyle=file('public/css/business-directory.css');
+  const tenantProfile=file('src/views/public/tenant-landing.ejs');
+  assert(home.includes("include('../partials/marketing-footer'"));
+  assert(layout.includes("include('../partials/marketing-footer'"));
+  assert(footer.includes('class="footer-inner"'));
+  assert(footer.includes('class="footer-note"'));
+  assert(!layout.includes('class="publicContactLinks"'));
+  assert.match(style,/\.btn\{min-height:50px;border-radius:999px/);
+  assert(directoryStyle.includes('.businessCardPrimary.btn'));
+  assert(!tenantProfile.includes('class="publicBusinessContact"'));
+});

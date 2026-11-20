@@ -11,10 +11,10 @@ function base(name,separator,maxLength){
  return normalized.slice(0,maxLength).replace(new RegExp(separator+'+$'),'')||'item';
 }
 function branchCode(name){
- return base(name,'-',24)+'-'+crypto.randomBytes(3).toString('hex');
+ return base(name,'-',19)+'-'+crypto.randomBytes(6).toString('hex');
 }
 function catalogCode(name){
- return base(name,'_',32)+'_'+crypto.randomBytes(3).toString('hex');
+ return base(name,'_',29)+'_'+crypto.randomBytes(5).toString('hex');
 }
-function notificationCode(name){return 'n_'+base(name,'_',29)+'_'+crypto.randomBytes(3).toString('hex');}
+function notificationCode(name){return 'n_'+base(name,'_',27)+'_'+crypto.randomBytes(5).toString('hex');}
 module.exports={branchCode,catalogCode,notificationCode};

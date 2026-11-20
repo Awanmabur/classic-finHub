@@ -53,7 +53,7 @@ test('Business profile page works end-to-end with the app, its style, sitemap an
   let body=await response.text();
   assert.match(body,/Business Profile/);
   assert.match(body,/Book a business demo/);
-  assert.match(body,/\/css\/business-profile.css/);
+  assert.match(body,/\/css\/why-classicfin-hub\.css/);
   assert.match(body,/\/images\/classicfinhub-logo.png/);
   response=await fetch(base+'/css/why-classicfin-hub.css');
   assert.equal(response.status,200);

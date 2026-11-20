@@ -7,6 +7,7 @@
   <div class="businessCardBody">
     <div class="businessCardMeta"><% if(business.country){ %><span><i class="fa-solid fa-location-dot" aria-hidden="true"></i> <%= [business.city,business.country].filter(Boolean).join(', ') %></span><% }else{ %><span><%= business.category||'Business profile' %></span><% } %></div>
     <h3><a href="/t/<%= encodeURIComponent(business.slug) %>"><%= business.name %></a></h3>
+    <% if(business.ratingCount>0){ %><p class="businessCardRating"><span aria-label="Average customer rating"><i class="fa-solid fa-star" aria-hidden="true"></i> <%= business.ratingAvg.toFixed(1) %></span> · <%= business.ratingCount %> published <%= business.ratingCount===1?'review':'reviews' %></p><% } %>
     <p class="businessCardHeadline"><%= business.headline || business.subtitle || 'Additional business details have not been published yet.' %></p>
     <% if(business.services.length){ %><div class="businessCardTags"><% business.services.slice(0,3).forEach(service=>{ %><span><%= service %></span><% }) %><% if(business.services.length>3){ %><span>+<%= business.services.length-3 %></span><% } %></div><% } %>
     <div class="businessCardActions">

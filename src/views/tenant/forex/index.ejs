@@ -70,9 +70,16 @@
    from.value=action.dataset.from||'';
    target.value=action.dataset.to||'';
    side.value=action.dataset.side||'';
-   // Use one major source unit to preserve the exact old decimal.
-   // This pre-fills a NEW immutable rate proposal; it does not edit history.
-   update();basis.value='1';amount.value=action.dataset.rate||'';
+   // Show the existing exact price in the approved units (1 or 1,000).
+   // This pre-fills a NEW immutable rate proposal; it never edits past rates.
+   update();
+   const sourceRate=String(action.dataset.rate||'');
+   if(/^(?:0|[1-9]\\d*)(?:\\.\\d{1,8})?$/.test(sourceRate)){
+    const [whole,fraction='']=sourceRate.split('.');
+    const scaled=(BigInt(whole)*100000000n+BigInt(fraction.padEnd(8,'0')))*BigInt(basis.value);
+    const decimals=(scaled%100000000n).toString().padStart(8,'0').replace(/0+$/,'');
+    amount.value=(scaled/100000000n).toString()+(decimals?'.'+decimals:'');
+   }else amount.value='';
    if(note)note.value='';
    form.scrollIntoView({behavior:'smooth',block:'start'});
    amount.focus({preventScroll:true});

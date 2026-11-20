@@ -12,7 +12,7 @@
     <div class="cardHead"><b>Plan configuration</b><span>Draft changes do not change tenant access</span></div>
     <div class="cardBody" style="display:grid;gap:18px">
       <div class="row2">
-        <label class="field">Plan code<input class="control" name="code" required pattern="[a-z][a-z0-9_]{1,40}" maxlength="41" value="<%= values.code||'' %>" <%= editor.existing?'readonly':'' %>><span class="tiny">Use lowercase letters, numbers and underscores. The code stays fixed after creation.</span></label>
+        <% if(editor.existing){ %><label class="field">Plan code<input class="control" value="<%= values.code||'' %>" readonly aria-readonly="true"><span class="tiny">Immutable identifier generated at creation.</span></label><% }else{ %><div class="field"><span>Plan code</span><div class="control" aria-label="Plan code is generated automatically">Generated automatically on save</div><span class="tiny">Permanent unique identifier; no manual typing required.</span></div><% } %>
         <label class="field">Plan name<input class="control" name="name" required minlength="3" maxlength="100" value="<%= values.name||'' %>"></label>
       </div>
       <label class="field">Description<textarea class="control" name="description" rows="3" required minlength="10" maxlength="1000"><%= values.description||'' %></textarea></label>

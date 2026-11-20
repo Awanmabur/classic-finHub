@@ -23,6 +23,8 @@ function publicSnapshot(landing,publishedAt=new Date()) {
   if(!landing||!text(landing.name,150)||!text(landing.headline,200))return null;
   return {name:text(landing.name,150),headline:text(landing.headline,200),
     subtitle:text(landing.subtitle,1000),country:text(landing.country,80),
+    category:text(landing.details?.category,100),city:text(landing.details?.city,100),
+    logoUrl:text(landing.details?.logoUrl,500),coverUrl:text(landing.details?.coverUrl,500),
     services:Array.isArray(landing.services)?[...new Set(landing.services.map(s=>text(s,80)).filter(Boolean))].slice(0,12):[],
     supportPhone:text(landing.supportPhone,40),publishedAt};
 }
@@ -33,6 +35,8 @@ function card(tenant){
     headline:isPublished?String(d.headline||''):'',
     subtitle:isPublished?String(d.subtitle||''):'',
     country:isPublished?String(d.country||''):'',
+    category:isPublished?String(d.category||''):'',city:isPublished?String(d.city||''):'',
+    logoUrl:isPublished?String(d.logoUrl||''):'',coverUrl:isPublished?String(d.coverUrl||''):'',
     services:isPublished&&Array.isArray(d.services)?d.services:[],
     supportPhone:isPublished?String(d.supportPhone||''):'',
     publishedAt:isPublished?d.publishedAt:null,isPublished};

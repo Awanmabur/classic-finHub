@@ -77,4 +77,4 @@ async function search(input){
     services:services.filter(Boolean).sort().slice(0,100),
     pages:Math.max(1,Math.ceil(total/12))};
 }
-module.exports={normalize,publicSnapshot,sync,featured,search,card};
+module.exports={normalize,publicSnapshot,sync,featured,search,card,listingFilter:()=>({...eligible})};

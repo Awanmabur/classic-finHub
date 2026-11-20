@@ -3,6 +3,14 @@
  let lastTrigger=null;
  const close=dialog=>{dialog?.close();lastTrigger?.focus();};
  document.addEventListener('click',async event=>{
+  const copier=event.target.closest('[data-website-copy-path]');
+  if(copier){
+   const url=new URL(copier.dataset.websiteCopyPath,window.location.origin);
+   if(url.origin!==window.location.origin||!url.pathname.startsWith('/t/'))return;
+   try{await navigator.clipboard.writeText(url.href);copier.textContent='Profile link copied';copier.setAttribute('aria-live','polite');}
+   catch{copier.textContent='Open the profile and copy its address';}
+   return;
+  }
   const trigger=event.target.closest('[data-workspace-open]');
   if(trigger){const dialog=document.getElementById(trigger.dataset.workspaceOpen);if(!dialog||typeof dialog.showModal!=='function')return;event.preventDefault();lastTrigger=trigger;dialog.showModal();dialog.querySelector('input:not([type=hidden]),select,textarea')?.focus();return;}
   const cancel=event.target.closest('[data-workspace-close]');if(cancel){const dialog=cancel.closest('dialog');if(dialog)close(dialog);else window.history.back();return;}

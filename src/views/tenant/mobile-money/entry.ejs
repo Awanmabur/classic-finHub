@@ -4,9 +4,10 @@
 <section class="view show mobileMoneyPage">
   <%- include('../../partials/operation-branch',{currentBranch,branchProblem,user}) %>
   <div class="richActions"><a class="btn" href="/tenant/mobile-money/network-activity">Network activity</a><a class="btn" href="/tenant/mobile-money/cash-impact">Cash impact</a><% if((user.permissions||[]).includes('*')||(user.permissions||[]).includes('treasury.view')){ %><a class="btn" href="/tenant/mobile-money/tariffs">Agent rate sheets</a><% } %><% if((user.permissions||[]).some(permission=>['*','mobile_money.report','reports.view'].includes(permission))){ %><a class="btn" href="/tenant/mobile-money/report">Mobile money report</a><% } %><% if(['Tenant Owner','Mobile Money Operator','Branch Manager','Reconciliation Officer','Auditor'].includes(user.role)){ %><a class="btn" href="/tenant/mobile-money/shifts">Manage physical cash shifts</a><% } %></div>
-  <% if(data.fxState && user.role==='Tenant Owner' &&
-    ((user.permissions||[]).includes('*')||(user.permissions||[]).includes('treasury.manage')) &&
-    data.fxState.wallets.length && data.fxState.drawers.length){ %>
+  <% const ratePermissions=user.permissions||[];
+    const canManageOperatingRate=['Tenant Owner','Branch Manager'].includes(user.role)&&
+      (ratePermissions.includes('*')||['treasury.manage','mobile_money.view','forex.rate_manage','forex.rate_review'].every(permission=>ratePermissions.includes(permission)));
+    if(data.fxState && canManageOperatingRate && data.fxState.wallets.length && data.fxState.drawers.length){ %>
   <details class="card logicNote" style="margin-top:12px">
    <summary class="cardHead">Exchange rates · <%= data.fxState?.expiredRates?.length?'renew expired rate':'owner settings' %></summary>
    <form method="post" action="/tenant/mobile-money/fx/rates" class="cardBody" autocomplete="off">

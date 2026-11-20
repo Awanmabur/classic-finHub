@@ -151,3 +151,7 @@
 .businessDirHero .kicker{color:var(--bg)!important;opacity:.94}
 .publicBusinessServiceIcon{background:var(--dark);color:var(--bg)}
 .publicBusinessProfile .publicBusinessCategory{color:var(--ink)}
+
+.businessCardRating{font:700 11px/1.5 Inter,Arial,sans-serif;color:var(--muted);margin:0}
+.businessCardRating span{color:var(--ink);font-weight:850}
+.businessCardRating i{color:var(--accent)}

@@ -388,8 +388,12 @@ router.post('/users/:id/enable',requirePermission('users.manage_branch'),async(r
 });
 router.get('/branches',requirePermission('branches.view'),async(req,res,next)=>{
   try{const branches=await branchService.list(req.tenant);
+    const permitted=req.user.role==='Tenant Owner'?branches:branches.filter(b=>String(b._id)===String(req.user.branchId));
+    const showArchived=req.query.status==='archived';
     renderTenant(req,res,'branches/index','Branch Management','Active branch limits, staff assignments and audited changes.',{
-      branches: req.user.role==='Tenant Owner' ? branches : branches.filter(b=>String(b._id)===String(req.user.branchId)),
+      branches:permitted.filter(b=>b.status===(showArchived?'archived':'active')),
+      activeCount:permitted.filter(b=>b.status==='active').length,
+      archivedCount:permitted.filter(b=>b.status==='archived').length,showArchived,
       plan:planForTenant(req.tenant),canManage:req.user.role==='Tenant Owner'
     });
   }catch(e){next(e);}

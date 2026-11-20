@@ -4,6 +4,7 @@
    const tenantName=String(tenant?.name||'Tenant workspace');
    const tenantInitials=tenantName.trim().split(/\s+/).slice(0,2).map(part=>part[0]).join('').replace(/[^a-z0-9]/gi,'').toUpperCase()||'T'; %>
 <aside class="panel side" id="sidePanel">
+  <button class="btn btnIcon mobileOnly sidePanelClose" id="sidePanelClose" type="button" aria-label="Close navigation menu" title="Close menu"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
   <div class="brand"><div class="logo" aria-hidden="true"><% if(context==='tenant'){ %><span class="tenantBrandInitials"><%= tenantInitials %></span><% } %></div><div><h1><%= context==='platform'?'ClassicFin Platform':tenantName %></h1><p><%= context==='platform'?'Classic Technologies':'Operations workspace' %></p></div></div>
   <nav class="nav" id="nav" aria-label="Workspace navigation">
     <% menu.forEach((group,groupIndex)=>{ %><div class="navGroup">

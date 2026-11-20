@@ -26,7 +26,7 @@ function integer(value,label,min=0,max=100000000){
 function parseForm(input,code){
   const entryMode=text(input.entryMode)||'manual';
   const selected=typeof input.modules==='string'?[input.modules]:Array.isArray(input.modules)?input.modules:[];
-  const terms={code:code||text(input.code),name:text(input.name),description:text(input.description),currency:'USD',
+  const terms={code:code||text(input.code)||require('../../utils/autoIdentifier').catalogCode(text(input.name)),name:text(input.name),description:text(input.description),currency:'USD',
     priceMonthlyMinor:money(input.priceMonthly,'Monthly price'),priceYearlyMinor:money(input.priceYearly,'Yearly price'),
     trialMonths:integer(input.trialMonths,'Trial months',0,3),modules:selected,
     limits:Object.fromEntries(LIMIT_KEYS.map(key=>[key,integer(input['limit_'+key],key,['users','branches'].includes(key)?1:0)])),

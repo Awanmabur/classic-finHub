@@ -24,7 +24,7 @@ function scope(user){
  return {branchId:String(user.branchId)};
 }
 function policyInput(input){
- const code=String(input?.code||'').trim().toLowerCase();if(!CODE.test(code))throw fail('Policy code must be 3–40 lowercase letters, digits or underscores');
+ const code=String(input?.code||require('../../utils/autoIdentifier').catalogCode(input?.name)).trim().toLowerCase();if(!CODE.test(code))throw fail('Policy code must be 3–40 lowercase letters, digits or underscores');
  const name=text(input?.name,'Policy name',3,100),category=String(input?.category||'');if(!CATEGORIES.includes(category))throw fail('Unsupported policy category');
  const steps=Array.isArray(input?.steps)?input.steps:[input?.step1,input?.step2,input?.step3].filter(Boolean);
  if(steps.length<1||steps.length>3||steps.some(r=>!ROLES.includes(r)))throw fail('Choose 1–3 recognized approval roles in order');

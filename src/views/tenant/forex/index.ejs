@@ -13,7 +13,7 @@
 
   </div></section>
  <div class="grid" style="margin-top:14px">
- <% if(data.canPropose && currentBranchId && proposalCurrencies.length>=2 && !['buy','sell'].includes(data.workspaceOperation)){ %><form method="post" action="/tenant/forex/rates" class="card" autocomplete="off"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
+ <% if(data.canPropose && currentBranchId && proposalCurrencies.length>=2 && !['buy','sell'].includes(data.workspaceOperation)){ %><form method="post" action="/tenant/forex/rates" id="forexRateProposalForm" class="card" autocomplete="off"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
   <div class="cardHead"><b>Set Buy/Sell or indicative rate</b><span><%= user.role==='Tenant Owner'?'Owner rates activate immediately':'Staff rate changes need authorization' %></span></div><div class="cardBody" style="display:grid;gap:12px">
    <div class="row2"><label class="field">Source currency<select class="control" name="fromCurrency" data-forex-rate-source required><% proposalCurrencies.forEach((c,i)=>{ %><option value="<%= c %>" <%= i===0?'selected':'' %>><%= c==='EUR'?'EUR (quote only)':c==='KES'?'KSH':c %></option><% }) %></select></label><label class="field">Target currency<select class="control" name="toCurrency" required><% proposalCurrencies.forEach((c,i)=>{ %><option value="<%= c %>" <%= i===1?'selected':'' %>><%= c==='EUR'?'EUR (quote only)':c==='KES'?'KSH':c %></option><% }) %></select></label></div>
    <label class="field">Rate purpose<select class="control" name="side" required><option value="buy">Buy foreign currency from customer</option><option value="sell">Sell foreign currency to customer</option><option value="quote">Indicative quotation only</option></select></label>
@@ -33,10 +33,19 @@
    <label class="field">Source and justification (12–400 characters)<textarea name="note" class="control" rows="2" minlength="12" maxlength="400" required></textarea></label>
    <button class="btn btnPrimary" type="submit"><%= user.role==='Tenant Owner'?'Activate exchange rate':'Submit rate for review' %></button>
   </div></form><% } %>
+ <div class="rowBtns"><a class="btn" href="<%= data.showRetiredRates?'/tenant/forex':'/tenant/forex?rates=retired' %>"><%= data.showRetiredRates?'Hide retired rates':'View retired rates' %></a></div>
  <% if(approvedForexRates.length){ %>
- <section class="card"><div class="cardHead"><b>Approved rate board</b><span>Provider verification not automatic</span></div><div class="cardBody tableWrap"><table><thead><tr><th>Pair</th><th>Purpose</th><th>Rate</th><th>State</th><th>Expires UTC</th></tr></thead><tbody><% data.rates.filter(r=>r.status==='active' && new Date(r.expiresAt)>new Date()).forEach(r=>{ %><tr><td><%= r.fromCurrency %> → <%= r.toCurrency %></td><td><%= r.side==='buy'?'Buy':r.side==='sell'?'Sell':'Indicative' %></td><td><% const rd=data.rateDisplay(r.rateDecimal,r.fromCurrency); %><%= rd.text %> = <%= rd.rate %> <%= r.toCurrency %></td><td><%= r.status %></td><td><%= new Date(r.expiresAt).toISOString().slice(0,16).replace('T',' ') %></td></tr><% }) %></tbody></table></div></section>
+ <section class="card"><div class="cardHead"><b>Approved rate board</b><span>Provider verification not automatic</span></div><div class="cardBody tableWrap"><table><thead><tr><th>Pair</th><th>Purpose</th><th>Rate</th><th>State</th><th>Expires UTC</th><% if(data.canPropose){ %><th>Actions</th><% } %></tr></thead><tbody><% data.rates.filter(r=>r.status==='active' && new Date(r.expiresAt)>new Date()).forEach(r=>{ %><tr><td><%= r.fromCurrency %> → <%= r.toCurrency %></td><td><%= r.side==='buy'?'Buy':r.side==='sell'?'Sell':'Indicative' %></td><td><% const rd=data.rateDisplay(r.rateDecimal,r.fromCurrency); %><%= rd.text %> = <%= rd.rate %> <%= r.toCurrency %></td><td><%= r.status %></td><td><%= new Date(r.expiresAt).toISOString().slice(0,16).replace('T',' ') %></td><% if(data.canPropose){ %><td><% if(String(r.branchId)===String(currentBranchId)){ %>
+  <a class="btn" href="#forexRateProposalForm" data-replace-forex-rate data-from="<%= r.fromCurrency %>" data-to="<%= r.toCurrency %>" data-side="<%= r.side %>" data-rate="<%= r.rateDecimal %>">Replace rate</a>
+  <% if(data.canRateReview){ %><details class="forexRetireAction"><summary>Retire</summary><form method="post" action="/tenant/forex/rates/<%= r._id %>/retire"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><label class="field">Reason<textarea class="control" name="note" minlength="12" maxlength="400" rows="2" required placeholder="Reason to remove this rate from active use"></textarea></label><button class="btn" type="submit">Retire rate</button></form></details><% } %>
+  <% } %></td><% } %></tr><% }) %></tbody></table></div></section>
  <% }else{ %><p class="tiny">No active Forex rate for this branch yet. The Tenant Owner can activate the Buy/Sell rates above; cash exchanges require an active valid rate.</p><% } %>
  </div>
+ <% if(data.showRetiredRates){ %><section class="card" style="margin-top:14px"><div class="cardHead"><b>Retired Forex rates</b><span>Inactive board values retained for audit</span></div><div class="cardBody tableWrap">
+ <table><thead><tr><th>Pair</th><th>Side</th><th>Historical rate</th><th>Retired</th><th>Reason</th></tr></thead><tbody>
+ <% if(!(data.retiredRates||[]).length){ %><tr><td colspan="5">No retired rates for the selected operating branch.</td></tr><% } %>
+ <% (data.retiredRates||[]).forEach(r=>{ %><tr><td><%= r.fromCurrency %> → <%= r.toCurrency %></td><td><%= r.side %></td><td><%= r.rateDecimal %></td><td><%= r.retiredAt?new Date(r.retiredAt).toISOString().slice(0,16).replace('T',' '):'—' %> UTC</td><td><%= r.retireNote||'—' %></td></tr><% }) %>
+ </tbody></table></div></section><% } %>
  <div class="grid" style="margin-top:14px">
  <% if(data.canQuote && currentBranchId && data.workspaceOperation!=='rates'){ %><form class="card" method="post" action="/tenant/forex/quotes" autocomplete="off" data-forex-form><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>"><input type="hidden" name="operation" value="<%= ['buy','sell'].includes(data.workspaceOperation)?data.workspaceOperation:'quote' %>">
   <div class="cardHead"><b><%= data.workspaceOperation==='buy'?'Forex Operations - Buy':data.workspaceOperation==='sell'?'Forex Operations - Sell':'Create a customer quote' %></b><span>Locked rate snapshot · actual cash trade</span></div><div class="cardBody" style="display:grid;gap:12px">
@@ -54,5 +63,28 @@
  if(!from||!basis)return;
  const update=()=>{basis.value=['UGX','KES','SSP'].includes(from.value)?'1000':'1';};
  from.addEventListener('change',update);update();
+ for(const action of document.querySelectorAll('[data-replace-forex-rate]')){
+  action.addEventListener('click',()=>{
+   const target=form.querySelector('[name="toCurrency"]'),side=form.querySelector('[name="side"]'),
+    amount=form.querySelector('[name="quotedRate"]'),note=form.querySelector('[name="note"]');
+   if(!target||!side||!amount)return;
+   from.value=action.dataset.from||'';
+   target.value=action.dataset.to||'';
+   side.value=action.dataset.side||'';
+   // Show the existing exact price in the approved units (1 or 1,000).
+   // This pre-fills a NEW immutable rate proposal; it never edits past rates.
+   update();
+   const sourceRate=String(action.dataset.rate||'');
+   if(/^(?:0|[1-9]\\d*)(?:\\.\\d{1,8})?$/.test(sourceRate)){
+    const [whole,fraction='']=sourceRate.split('.');
+    const scaled=(BigInt(whole)*100000000n+BigInt(fraction.padEnd(8,'0')))*BigInt(basis.value);
+    const decimals=(scaled%100000000n).toString().padStart(8,'0').replace(/0+$/,'');
+    amount.value=(scaled/100000000n).toString()+(decimals?'.'+decimals:'');
+   }else amount.value='';
+   if(note)note.value='';
+   form.scrollIntoView({behavior:'smooth',block:'start'});
+   amount.focus({preventScroll:true});
+  });
+ }
 })();
 </script>

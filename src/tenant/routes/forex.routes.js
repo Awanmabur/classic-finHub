@@ -17,15 +17,17 @@ module.exports=function routes({renderTenant}){
    const branchList=await available(req);
    const selectedId=String(req.operationBranch?._id || '');
    const selected=branchList.find(b=>String(b._id)===selectedId);
-   const [formRates,rates,records,rateQueue,quoteQueue]=await Promise.all([
+   const [formRates,rates,records,rateQueue,quoteQueue,retiredRates]=await Promise.all([
     selected?fx.listRates(req.tenantDb,req.tenant,require('../services/branchView.service').withoutReadView(req.user),{status:'active',branchId:selectedId}):[],
     fx.listRates(req.tenantDb,req.tenant,req.user,{status:'active'}),
     fx.listQuotes(req.tenantDb,req.tenant,req.user),
     fx.reviewer(req.user)&&hasPermission(req.user,'forex.rate_review')?fx.rateReviewQueue(req.tenantDb,req.tenant,req.user):[],
-    fx.reviewer(req.user)&&hasPermission(req.user,'forex.quotes.review')?fx.quoteReviewQueue(req.tenantDb,req.tenant,req.user):[]]);
+    fx.reviewer(req.user)&&hasPermission(req.user,'forex.quotes.review')?fx.quoteReviewQueue(req.tenantDb,req.tenant,req.user):[],
+    selected&&req.query.rates==='retired'?fx.listRates(req.tenantDb,req.tenant,require('../services/branchView.service').withoutReadView(req.user),{status:'retired',branchId:selectedId}):[]]);
    renderTenant(req,res,'forex/index','Forex Rates & Quotes','Active rates, customer quotations and cashier-confirmed manual exchanges.',{
     financeOverview:await require('../services/financeOverview.service').moduleOverview(req.tenantDb,req.tenant,req.user,req.operationBranch,{moduleKey:'forex'}),
-     branches:branchList,formRates:formRates.filter(rate=>fx.enabledRate(selected,rate)),rates,records,rateQueue,quoteQueue,selectedBranchId:selected?selectedId:null,
+     branches:branchList,formRates:formRates.filter(rate=>fx.enabledRate(selected,rate)),rates,records,rateQueue,quoteQueue,retiredRates,
+    showRetiredRates:req.query.rates==='retired',selectedBranchId:selected?selectedId:null,
     currencyChoices:selected?require('../services/branchCurrency.service').options(selected):[],
     canPropose:fx.operator(req.user)&&hasPermission(req.user,'forex.rate_manage'),
     canMobileFx:require('../services/moduleAccess.service').hasModuleForUser(req.tenant,req.user,'mobile_money'),
@@ -45,6 +47,13 @@ module.exports=function routes({renderTenant}){
      decision:'approve',note:'Authorized owner activated branch exchange rate'});
     flash(req,'good','Buy/Sell rate activated and audited. Cashier trades no longer wait for routine approval.');
    }else flash(req,'good','Rate submitted for authorized review.');
+   res.redirect(303,'/tenant/forex');
+  }catch(e){next(e);}
+ });
+ router.post('/rates/:id/retire',requirePermission('forex.rate_manage'),financial,async(req,res,next)=>{
+  try{
+   await fx.retireRate(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
+   flash(req,'good','Rate retired from the active board; past exchange records and audit history remain unchanged.');
    res.redirect(303,'/tenant/forex');
   }catch(e){next(e);}
  });

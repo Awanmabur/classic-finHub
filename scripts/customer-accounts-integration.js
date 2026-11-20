@@ -105,6 +105,23 @@ async function main(){
  const filtered=await service.customerExport(conn,tenant,owner,{q:'Other branch'}),filteredRows=[];for await(const row of filtered)filteredRows.push(row);await filtered.close();assert.equal(filteredRows.length,1);assert.equal(filteredRows[0].name,'Other branch customer');
  await assert.rejects(service.customerExport(conn,tenant,manager),{status:403});await assert.rejects(service.customerExport(other,tenant,owner),{status:403});
  assert(await models.auditEventModel(conn).exists({action:'customer.directory.exported'}));
+ // No financial accounts: owner can hide, find in archive and restore a real
+ // profile without changing its immutable customer reference or tenant scope.
+ const disposable=(await service.customerCreate(conn,tenant,owner,{
+  idempotencyKey:crypto.randomUUID(),name:'Recoverable customer',phone:'+256700998877',
+  type:'Individual'
+ })).record;
+ const archived=await service.customerArchive(conn,tenant,owner,disposable._id,{revision:disposable.revision});
+ assert.equal(archived.status,'archived');
+ assert(!(await service.customerList(conn,tenant,owner)).items.some(x=>String(x._id)===String(disposable._id)));
+ assert((await service.customerList(conn,tenant,owner,{status:'archived'})).items.some(x=>String(x._id)===String(disposable._id)));
+ await assert.rejects(service.customerRestore(conn,tenant,manager,disposable._id,{revision:archived.revision}),{status:409});
+ const recovered=await service.customerRestore(conn,tenant,owner,disposable._id,{revision:archived.revision});
+ assert.equal(recovered.status,'active');assert.equal(recovered.reference,disposable.reference);
+ assert.equal(await models.auditEventModel(conn).countDocuments({action:'customer.restored',targetId:disposable._id}),1);
+ await assert.rejects(service.customerRestore(conn,tenant,owner,disposable._id,{revision:archived.revision}),{status:409});
+ await service.customerArchive(conn,tenant,owner,disposable._id,{revision:recovered.revision});
+
  await Tenant.updateOne({_id:tenant._id},{$set:{enabledModules:['customers']},$inc:{__v:1}});
  assert.equal((await service.logbook(conn,tenant,owner,{customerId:String(customer._id)})).items.length,0,'stale entitlement cannot leak revoked logbook source data');
  assert.equal((await service.customerList(conn,tenant,owner)).accounts,null,'directory counts respect the separately assigned Accounts module');

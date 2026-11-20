@@ -12,10 +12,11 @@ const schema=new mongoose.Schema({
  // One source major unit equals the given number of target major units.
  rateDecimal:{type:String,required:true,immutable:true,match:/^(?:[1-9]\d{0,9}|0)\.\d{1,8}$|^[1-9]\d{0,9}$/},
  proposedBy:{type:O,required:true,immutable:true},
- status:{type:String,enum:['pending_review','active','rejected','superseded','expired'],default:'pending_review'},
+ status:{type:String,enum:['pending_review','active','rejected','superseded','expired','retired'],default:'pending_review'},
  expiresAt:{type:Date,required:true,immutable:true},
  note:{type:String,required:true,maxlength:400,immutable:true},
  reviewedBy:{type:O},reviewedAt:{type:Date},reviewNote:{type:String,maxlength:400},
+ retiredBy:{type:O,default:null},retiredAt:{type:Date,default:null},retireNote:{type:String,default:'',maxlength:400},
  revision:{type:Number,default:0,min:0}
 },{strict:'throw',timestamps:true,versionKey:false});
 schema.index({branchId:1,fromCurrency:1,toCurrency:1,status:1,createdAt:-1});

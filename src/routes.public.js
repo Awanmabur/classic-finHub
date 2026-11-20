@@ -162,12 +162,14 @@ router.get('/t/:slug', async (req, res, next) => {
     if (!NAME.test(req.params.slug)) return res.status(404).send('Tenant page not found');
     if (mongoose.connection.readyState !== 1) return res.status(503).send('Tenant pages are temporarily unavailable');
     const Tenant = require('./platform/models/Tenant');
-    const tenant = await Tenant.findOne({ slug: req.params.slug, status: { $in:['active','trial'] } }).lean();
+    const tenant = await Tenant.findOne({ slug: req.params.slug, status: { $in:['active','trial'] }, setupStatus:{$ne:'invited'} }).lean();
     if (!tenant) return res.status(404).send('Tenant page not found');
-    const landing=await require('./tenant/workspace/service').publicLanding(require('./config/mongo').getTenantConnection(tenant.slug),tenant);
-    if(!landing)return res.status(404).send('Tenant page not found');
+    const published=await require('./tenant/workspace/service').publicLanding(require('./config/mongo').getTenantConnection(tenant.slug),tenant);
+    // Existing active tenant businesses must be discoverable even before their
+    // optional public landing is published. Expose no default phone/services/owner.
+    const landing=published||{name:tenant.name,headline:'',subtitle:'',services:[],sections:[],country:'',supportPhone:''};
     res.set('Cache-Control','no-store');
-    renderPublic(req, res, 'tenant-landing', `${landing?.name||tenant.name} | ClassicFin Hub`, { tenant:{name:tenant.name,slug:tenant.slug},landing });
+    renderPublic(req, res, 'tenant-landing', `${landing.name||tenant.name} | ClassicFin Hub`, {tenant:{name:tenant.name,slug:tenant.slug},landing});
   } catch (e) { next(e); }
 });
 router.get('/robots.txt', (req,res) => res.type('text/plain').set('Cache-Control','public, max-age=1800').send(seo.robotsTxt()));

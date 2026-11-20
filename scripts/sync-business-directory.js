@@ -11,6 +11,7 @@ async function main(){
   if(process.argv.some(arg=>arg.startsWith('--')&&arg!=='--apply'))
     throw new Error('Only --apply is supported');
   await connectPlatformMongo();
+  if(apply)await Tenant.createIndexes();
   let after=null,scanned=0,eligible=0,updated=0,errors=0;
   try{
     while(true){

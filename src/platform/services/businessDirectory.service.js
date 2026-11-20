@@ -4,7 +4,12 @@ const Tenant = require('../models/Tenant');
 
 const eligible = Object.freeze({
   status:{$in:['active','trial']},
-  setupStatus:{$ne:'invited'}
+  setupStatus:{$ne:'invited'},
+  'directoryListing.visibility':{$ne:'hidden'},
+  $or:[
+    {'directory.publishedAt':{$exists:true,$ne:null}},
+    {'directoryListing.visibility':'published'}
+  ]
 });
 const text = (value,limit=120) => typeof value==='string' ? value.trim().slice(0,limit) : '';
 const escaped = value => value.replace(/[|\\{}()[\]^$+*?.]/g,'\\$&');
@@ -53,8 +58,9 @@ async function search(input){
   const query={...eligible};
   if(filters.q){
     const rx=new RegExp(escaped(filters.q),'i');
-    query.$or=[{name:rx},{'directory.name':rx},{'directory.headline':rx},
-      {'directory.subtitle':rx},{'directory.services':rx}];
+    // Keep the publication/approval gate when a name search is added.
+    query.$and=[{$or:[{name:rx},{'directory.name':rx},{'directory.headline':rx},
+      {'directory.subtitle':rx},{'directory.services':rx}]}];
   }
   if(filters.country)query['directory.country']=filters.country;
   if(filters.service)query['directory.services']=filters.service;

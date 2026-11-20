@@ -70,7 +70,7 @@ async function changeMine(slug,req,body,action){
  const revision=String(body?.revision||'');
  if(!/^(0|[1-9]\d{0,8})$/.test(revision)||Number(revision)!==original.revision)throw error('Review changed. Reload and try again.',409);
  const changes=action==='withdraw'?{status:'withdrawn',comment:original.comment}:
-   {...reviewFields(body),status:'pending',approvedAt:null,moderatedAt:null,moderatedBy:null,moderationReason:'',ownerReply:'',ownerReplyAt:null};
+   {...reviewFields({authorName:body?.authorName,rating:body?.rating,comment:body?.comment}),status:'pending',approvedAt:null,moderatedAt:null,moderatedBy:null,moderationReason:'',ownerReply:'',ownerReplyAt:null};
  const result=await Review.updateOne({_id:original._id,revision:original.revision,status:{$ne:'withdrawn'}},{$set:changes,$inc:{revision:1}});
  if(result.modifiedCount!==1)throw error('Review changed. Reload and try again.',409);
 }

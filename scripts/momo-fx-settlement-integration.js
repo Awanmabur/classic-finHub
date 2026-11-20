@@ -36,6 +36,8 @@ let conn;
 const id=()=>String(new mongoose.Types.ObjectId());
 const owner={id:id(),name:'Currency Owner',role:'Tenant Owner',permissions:['*'],authVersion:0};
 const reviewer={id:id(),name:'Independent Reviewer',role:'Reconciliation Officer',permissions:permissionsFor('Reconciliation Officer'),allowedModules:['mobile_money','forex','money_transfer','banking'],authVersion:0};
+const manager={id:id(),name:'Authorized Branch Manager',role:'Branch Manager',
+ permissions:permissionsFor('Branch Manager'),allowedModules:['mobile_money'],authVersion:0};
 async function main(){
  await connectPlatformMongo();
  require('../src/config/mongoTopology').verifyReplicaPrimary(await mongoose.connection.db.admin().command({hello:1}));
@@ -49,7 +51,7 @@ async function main(){
   subscription:{...terms,status:'granted',source:'manual_admin_grant',generation:1,
    periodStart:new Date(Date.now()-60000),periodEnd:new Date(Date.now()+86400000)}});
  const branch=await core.branchModel(conn).create({code:'main',name:'South Sudan exchange test',currency:'SSP',createdBy:owner.id,updatedBy:owner.id});
- for(const actor of [owner,reviewer]){
+ for(const actor of [owner,reviewer,manager]){
   actor.branchId=String(branch._id);
   await core.tenantUserModel(conn).create({_id:actor.id,name:actor.name,email:actor.id+'@example.invalid',passwordHash:'isolated-test',
    role:actor.role,branchId:actor.branchId,allowedModules:actor===owner?modules:actor.allowedModules,
@@ -77,6 +79,34 @@ async function main(){
   assert.equal(rate.status,'active');
   assert.equal(rate.rateDecimal,side==='buy'?'0.9':'1');
  }
+ // An approved rate can still have status=active after its expiry time.
+ // The cashier must see an actionable expired-rate error, not a broken Deposit.
+ const Rate=core.forexRateModel(conn);
+ const oldSell=await Rate.findOne({branchId:branch._id,fromCurrency:'UGX',toCurrency:'SSP',side:'sell',status:'active'});
+ assert(oldSell);
+ await Rate.collection.updateOne({_id:oldSell._id},{$set:{expiresAt:new Date(Date.now()-60000)}});
+ await assert.rejects(
+  preview(conn,tenant,owner,branch,{operation:'deposit_cash_send_provider',
+   walletAccountId:String(wallet._id),cashAccountId:String(drawer._id),cashAmountMinor:'5000'}),
+  error=>error.status===409&&/SELL rate for UGX → SSP expired/.test(error.message)&&/No amounts were posted/.test(error.message));
+ const confirmedBefore=await tm.models(conn).batch.countDocuments();
+ // Only an authorized, persisted branch manager can supply a new explicit
+ // owner/manager-approved price. No rate is prolonged in the background.
+ const renewed=await mobileFxRates.setOwnerRate(conn,tenant,manager,branch,{
+  fromCurrency:'UGX',toCurrency:'SSP',side:'sell',rateBaseUnits:'1000',quotedRate:'1000',validHours:'48'});
+ assert.equal(renewed.status,'active');
+ assert.equal(renewed.rateDecimal,'1');
+ assert.equal((await Rate.findById(oldSell._id)).status,'superseded');
+ assert.equal(await tm.models(conn).batch.countDocuments(),confirmedBefore,
+  'Renewing a rate cannot create a cash or float journal');
+ const renewedQuote=await preview(conn,tenant,owner,branch,{
+  operation:'deposit_cash_send_provider',walletAccountId:String(wallet._id),
+  cashAccountId:String(drawer._id),cashAmountMinor:'5000'});
+ assert.equal(renewedQuote.providerAmountMinor,'50');
+ await assert.rejects(mobileFxRates.setOwnerRate(conn,tenant,{
+  ...reviewer,role:'Branch Manager',permissions:permissionsFor('Branch Manager')
+ },branch,{fromCurrency:'UGX',toCurrency:'SSP',side:'sell',rateBaseUnits:'1000',quotedRate:'1000',validHours:'48'}),
+  error=>error.status===403,'forged manager authority may not change an approved rate');
  await grants(conn).init();await records(conn).init();
  assert.equal(await grants(conn).countDocuments({tenantId:tenant._id}),0);
  const balances=async()=>({

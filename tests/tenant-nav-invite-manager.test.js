@@ -33,6 +33,7 @@ test('internal approval is available to owner or assigned manager without anothe
  const request={status:'pending',requesterId:manager.id,branchId:branch,
   expiresAt:new Date('2999-01-01T00:00:00Z'),steps:['Approval Officer'],currentStep:0,decisions:[]};
  assert.equal(canDecide(manager,request),true);
+ assert.equal(canDecide(manager,{...request,steps:['Tenant Owner']}),false,'owner-only policy sign-off cannot be delegated implicitly');
  assert.equal(canDecide(manager,{...request,branchId:other}),false);
  assert.equal(canDecide(owner,request),true);
  assert.equal(canDecide(operator,{...request,requesterId:operator.id}),false);

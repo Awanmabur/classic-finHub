@@ -87,7 +87,7 @@ test('Directory and its live route have canonical search metadata and no private
 });
 
 
-test('Active tenant businesses have a minimal safe listing without publishing a landing',()=>{
+test('Only published or platform-approved active businesses have safe directory cards',()=>{
   const card=directory.card({slug:'live-tenant',name:'Live Tenant Business',status:'active',
     owner:'Private Owner',email:'private@example.com',phone:'+211123456789',directory:{}});
   assert.equal(card.slug,'live-tenant');
@@ -105,8 +105,15 @@ test('Active tenant businesses have a minimal safe listing without publishing a 
   assert.match(source,/setupStatus:\{\$ne:'invited'\}/);
   assert.match(source,/Tenant\.find\(eligible\)/);
   assert.doesNotMatch(source,/Tenant\.find\(published\)/);
+  const allowed=directory.listingFilter();
+  assert.equal(allowed['directoryListing.visibility'].$ne,'hidden');
+  assert(allowed.$or.some(rule=>rule['directoryListing.visibility']==='published'));
+  assert(allowed.$or.some(rule=>rule['directory.publishedAt']));
+  assert.match(source,/query\.\$and=\[\{\$or:/);
   const routes=file('src/routes.public.js');
-  assert.match(routes,/const landing=published\|\|\{name:tenant\.name/);
+  assert.match(routes,/tenant\.directoryListing\?\.visibility!=='published'/);
+  const adminRoutes=file('src/platform/routes/index.js');
+  assert(adminRoutes.includes("'/tenants/:id/public-listing'"));
 });
 
 test('Directory and tenant profiles share exact existing homepage footer and capsule buttons',()=>{
@@ -124,4 +131,21 @@ test('Directory and tenant profiles share exact existing homepage footer and cap
   assert.match(style,/\.btn\{min-height:50px;border-radius:999px/);
   assert(directoryStyle.includes('.businessCardPrimary.btn'));
   assert(!tenantProfile.includes('class="publicBusinessContact"'));
+});
+
+
+test('Platform publication requires verified admin, reason and revision',()=>{
+ const admin=require('../src/platform/services/tenantAdmin.service');
+ assert.deepEqual(admin.validateDirectoryListing({action:'publish',reason:'Owner has approved the public business card',revision:'0'}),
+   {action:'publish',reason:'Owner has approved the public business card',revision:0});
+ assert.throws(()=>admin.validateDirectoryListing({action:'publish',reason:'Too short',revision:'0'}),{status:400});
+ assert.throws(()=>admin.validateDirectoryListing({action:'publish',reason:'A valid publication explanation',revision:'-1'}),{status:409});
+ assert.throws(()=>admin.validateDirectoryListing({action:'publish',reason:'A valid publication explanation',revision:'0',role:'admin'}),{status:400});
+ const schema=Tenant.schema.path('directoryListing')?.schema;
+ assert(schema?.path('visibility'));
+ assert.deepEqual(schema.path('visibility').enumValues,['default','published','hidden']);
+ const show=file('src/views/platform/tenants/show.ejs');
+ assert(show.includes('name="action" value="<%= directoryAction %>"'));
+ assert(show.includes('name="revision"'));
+ assert(show.includes('name="_csrf"'));
 });

@@ -21,6 +21,19 @@ jobs:
       # Must pass: dependency advisories are not waived for a release.
       - run: npm audit --audit-level=moderate
       - run: npm run check
+      - name: Verify locked-down release checkout is readable by non-root migration runner
+        run: |
+          bash -n deploy/business-site-standalone-release.sh
+          umask 077
+          STAGE="$(mktemp -d /tmp/classicfin-index-ci.XXXXXXXX)"
+          trap 'rm -rf "$STAGE"' EXIT
+          git archive HEAD | tar -xf - -C "$STAGE"
+          test -s "$STAGE/scripts/business-reviews-indexes.js"
+          chmod -R a+rX "$STAGE"
+          docker run --rm --user 1000:1000 --read-only \
+            --mount "type=bind,src=$STAGE,dst=/workspace,readonly" \
+            --workdir /workspace --entrypoint /bin/sh node:22-bookworm-slim \
+            -ec 'test -r scripts/business-reviews-indexes.js && test -r src/config/mongo.js'
       - run: npm test
       - run: npm run perf:assets
       - name: Start isolated MongoDB replica-set container

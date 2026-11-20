@@ -120,6 +120,8 @@
 
 
 
+    <% const __publishedBusinesses=typeof featuredBusinesses!=='undefined'&&Array.isArray(featuredBusinesses)?featuredBusinesses:[];
+       const __businessDirectoryUnavailable=typeof directoryUnavailable!=='undefined'&&directoryUnavailable; %>
     <section class="businessShowcase reveal" id="business-profile" aria-labelledby="businessShowcaseTitle">
       <div class="businessShowcaseHeading">
         <div><p class="kicker">Business profiles</p>
@@ -128,19 +130,19 @@
         </div>
         <a href="/businesses" class="btn btn-dark">Browse all businesses <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
       </div>
-      <% if(featuredBusinesses.length){ %>
+      <% if(__publishedBusinesses.length){ %>
         <div class="businessShowcaseControls">
           <button type="button" data-business-scroll="-1" aria-label="Previous businesses"><i class="fa-solid fa-arrow-left"></i></button>
           <button type="button" data-business-scroll="1" aria-label="Next businesses"><i class="fa-solid fa-arrow-right"></i></button>
         </div>
         <div class="businessCardTrack" id="businessCardsTrack" tabindex="0" role="region" aria-label="Published business profiles">
-          <% featuredBusinesses.forEach(business=>{ %><%- include('../partials/business-card',{business}) %><% }) %>
+          <% __publishedBusinesses.forEach(business=>{ %><%- include('../partials/business-card',{business}) %><% }) %>
         </div>
       <% }else{ %>
         <div class="businessShowcaseEmpty">
           <i class="fa-solid fa-building" aria-hidden="true"></i>
-          <strong><%= directoryUnavailable?'Business profiles are temporarily unavailable':'No businesses have published a public profile yet' %></strong>
-          <p><%= directoryUnavailable?'Try the business directory again shortly.':'Businesses will appear here automatically when their owners publish their profiles.' %></p>
+          <strong><%= __businessDirectoryUnavailable?'Business profiles are temporarily unavailable':'No businesses have published a public profile yet' %></strong>
+          <p><%= __businessDirectoryUnavailable?'Try the business directory again shortly.':'Businesses will appear here automatically when their owners publish their profiles.' %></p>
         </div>
       <% } %>
     </section>

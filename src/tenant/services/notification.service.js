@@ -22,7 +22,7 @@ function access(tenant,user,permission){
  if(!hasModuleForUser(tenant,user,'notifications')||!hasPermission(user,permission))throw fail('Notifications subscription and user permission required',403);
 }
 function templateInput(input){
- const code=String(input?.code||'').trim().toLowerCase();
+ const code=String(input?.code||require('../../utils/autoIdentifier').notificationCode(input?.name)).trim().toLowerCase();
  if(!CODE.test(code)||code.startsWith('system_'))throw fail('Invalid or reserved template code');
  const name=plain(input?.name,'Template name',3,100);
  const subject=plain(input?.subject,'Subject',3,120);

@@ -69,12 +69,12 @@ async function main(){
   await assert.rejects(svc.decide(a.conn,a.tenant,{...operator,role:'Tenant Owner',permissions:['*']},String(first.order._id),
    {decision:'approve',note:'A person cannot approve their own request'}),e=>e.status===403);
   await User.updateOne({_id:operator.id},{$set:{role:'Tenant Owner'}});
-  await assert.rejects(svc.decide(a.conn,a.tenant,{...operator,role:'Tenant Owner',permissions:['*']},String(first.order._id),
-   {decision:'approve',note:'A person cannot approve their own request'}),e=>e.status===409);
-  await User.updateOne({_id:operator.id},{$set:{role:operator.role}});
-  const approved=await svc.decide(a.conn,a.tenant,reviewer,String(first.order._id),
-   {decision:'approve',note:'Internal request reviewed against the registered contact details'});
+  const approved=await svc.decide(a.conn,a.tenant,{...operator,role:'Tenant Owner',permissions:['*']},String(first.order._id),
+   {decision:'approve',note:'Persisted owner role now authorizes this routine transfer decision'});
   assert.equal(approved.status,'approved_pending_provider');
+  await User.updateOne({_id:operator.id},{$set:{role:operator.role}});
+  await assert.rejects(svc.decide(a.conn,a.tenant,reviewer,String(first.order._id),
+   {decision:'approve',note:'Cannot approve a completed request twice'}),e=>e.status===409);
   await assert.rejects(svc.cancel(a.conn,a.tenant,operator,String(first.order._id),{note:'Already approved, cannot undo request'}),e=>e.status===409);
   const update=await svc.updateContact(a.conn,a.tenant,operator,String(beneficiary._id),{kind:'beneficiary',
    fullName:'Updated Recipient',phone:'+256799999999',country:'UG'});

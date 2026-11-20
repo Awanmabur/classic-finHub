@@ -51,7 +51,7 @@ async function main(){
  const publishedResult=await service.publish(conn,tenant,owner,{revision:4});
  assert.equal(publishedResult.directorySyncPending,false,'owner publication should appear in the directory');
  const publishedDirectory=await Tenant.findById(tenant._id).lean();
- assert.equal(publishedDirectory.directory.name,profile().name);
+ assert.equal(publishedDirectory.directory.name,publishedResult.landing.published.name);
  let landing=await service.publicLanding(conn,tenant);assert.equal(landing.sections.length,1);assert.equal(landing.sections[0].name,'Published services');
  const BusinessReview=require('../src/platform/models/BusinessReview');
  const PlatformAuditLog=require('../src/platform/models/PlatformAuditLog');

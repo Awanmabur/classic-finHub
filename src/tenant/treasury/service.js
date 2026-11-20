@@ -87,7 +87,7 @@ async function configureAccount(conn,tenant,actor,accountId,input){
  const feeTreatment=input.feeTreatment||'record_only';if(!['record_only','payment_collected'].includes(feeTreatment))throw fail('Provider commission must be recognized from independently verified payout evidence, not as estimated transaction float. Choose Record only or Verified customer fee collected.');
  return transaction(conn,async session=>{
   const authorization=await access(conn,tenant,actor,{permission:'treasury.manage',session,fence:true});
-  if(authorization.actor.role!=='Tenant Owner')throw fail('Tenant Owner account administration required',403);
+  if(!['Tenant Owner','Branch Manager'].includes(authorization.actor.role))throw fail('Authorized tenant owner or assigned branch manager required',403);
   const account=await loadAccount(conn,authorization,accountId,{session,fence:true});
   if(account.status==='archived')throw fail('Restore this funds account before changing its settings',409);
   // The owner chooses this once, not the agent on every operation. Restrict
@@ -130,7 +130,8 @@ async function configureAccount(conn,tenant,actor,accountId,input){
 async function createAccount(conn,tenant,actor,input,{configurationBranchId=null}={}){
  const values=validateAccount(input);await Promise.all([ensure(conn),core.ensureTenantIndexes(conn)]);
  try{return await transaction(conn,async session=>{
-  const authorization=await access(conn,tenant,actor,{permission:'treasury.manage',session,fence:true});if(authorization.actor.role!=='Tenant Owner')throw fail('Tenant Owner account administration required',403);
+  const authorization=await access(conn,tenant,actor,{permission:'treasury.manage',session,fence:true});if(!['Tenant Owner','Branch Manager'].includes(authorization.actor.role))throw fail('Authorized tenant owner or assigned branch manager required',403);
+  if(configurationBranchId&&authorization.actor.role!=='Tenant Owner')throw fail('Only the tenant owner can configure a different branch',403);
   const branch=configurationBranchId?await core.branchModel(conn).findOne({_id:oid(configurationBranchId,'configuration branch'),status:'active'}).session(session).lean():await selectedBranch(conn,authorization,session);
   if(!branch)throw fail('Choose an active branch before adding an account',409);
   if(!authorization.modules.includes(moduleForKind(values.kind))&&moduleForKind(values.kind)!=='shared')throw fail('Subscribe and assign the account financial module first',403);

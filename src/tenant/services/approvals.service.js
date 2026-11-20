@@ -90,6 +90,9 @@ async function create(conn,tenant,actor,input){
 function canDecide(actor,request,now=new Date()){
  if(request?.status!=='pending'||new Date(request.expiresAt)<=now)return false;
  const privileged=require('./reviewPolicy').canSelfReviewRoutine(actor,request.branchId);
+ // An explicitly owner-only approval remains owner-only. Assigning branch
+ // management cannot silently override a policy's final owner sign-off.
+ if(actor?.role==='Branch Manager'&&request.steps?.[request.currentStep]==='Tenant Owner')return false;
  if(!privileged&&String(request.requesterId)===String(actor?.id))return false;
  if(!privileged&&request.steps?.[request.currentStep]!==actor?.role)return false;
  if(actor.role!=='Tenant Owner'&&String(actor.branchId||'')!==String(request.branchId))return false;
@@ -156,8 +159,9 @@ async function queue(conn,tenant,actor){
  access(tenant,actor,'approvals.decide');if(!ROLES.includes(actor.role))throw fail('No approval role assigned',403);
  const privileged=require('./reviewPolicy').canSelfReviewRoutine(actor,actor.branchId);
  return approvalRequestModel(conn).find({...scope(actor),status:'pending',
-  ...(privileged?{}:{requesterId:{$ne:actor.id},'decisions.actorId':{$ne:actor.id},
-   $expr:{$eq:[{$arrayElemAt:['$steps','$currentStep']},actor.role]}}),
+  ...(privileged?(actor.role==='Branch Manager'?{$expr:{$ne:[{$arrayElemAt:['$steps','$currentStep']},'Tenant Owner']}}:{}):
+   {requesterId:{$ne:actor.id},'decisions.actorId':{$ne:actor.id},
+    $expr:{$eq:[{$arrayElemAt:['$steps','$currentStep']},actor.role]}}),
   expiresAt:{$gt:new Date()}}).sort({createdAt:1}).limit(30).lean();
 }
 async function expireDue(conn,now=new Date(),limit=100){

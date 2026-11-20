@@ -11,7 +11,7 @@ function base(name,separator,maxLength){
  return normalized.slice(0,maxLength).replace(new RegExp(separator+'+$'),'')||'item';
 }
 function branchCode(name){
- return base(name,'-',19)+'-'+crypto.randomBytes(6).toString('hex');
+ return base(name,'-',18)+'-'+crypto.randomBytes(6).toString('hex');
 }
 function catalogCode(name){
  return base(name,'_',29)+'_'+crypto.randomBytes(5).toString('hex');

@@ -1,6 +1,7 @@
 'use strict';
 const mongoose = require('mongoose');
 const Tenant = require('../models/Tenant');
+const BusinessReview = require('../models/BusinessReview');
 
 const eligible = Object.freeze({
   status:{$in:['active','trial']},
@@ -50,11 +51,23 @@ async function sync(tenant,landing,publishedAt=new Date()){
     {$set:{directory:snapshot}},{runValidators:true});
 }
 function ready(){return mongoose.connection.readyState===1;}
+async function withRatings(tenants){
+  if(!tenants.length)return [];
+  const ids=tenants.map(t=>t._id).filter(Boolean);
+  if(!ids.length)return tenants.map(card);
+  const rows=await BusinessReview.aggregate([
+    {$match:{tenantId:{$in:ids},status:'approved'}},
+    {$group:{_id:'$tenantId',count:{$sum:1},average:{$avg:'$rating'}}}
+  ]).option({maxTimeMS:2300});
+  const byTenant=new Map(rows.map(row=>[String(row._id),{
+    ratingCount:row.count,ratingAvg:Number(row.average.toFixed(1))}]));
+  return tenants.map(t=>({...card(t),...(byTenant.get(String(t._id))||{ratingCount:0,ratingAvg:0})}));
+}
 async function featured(limit=10){
   if(!ready())return {businesses:[],unavailable:true};
   const tenants=await Tenant.find(eligible).sort({createdAt:-1,_id:-1})
     .limit(Math.max(1,Math.min(limit,12))).select('slug name directory').maxTimeMS(2500).lean();
-  return {businesses:tenants.map(card),unavailable:false};
+  return {businesses:await withRatings(tenants),unavailable:false};
 }
 async function search(input){
   if(!ready())return {unavailable:true,businesses:[],total:0,filters:normalize(input),countries:[],services:[],categories:[]};
@@ -78,7 +91,7 @@ async function search(input){
     Tenant.distinct('directory.services',{...eligible,'directory.publishedAt':{$ne:null}}),
     Tenant.distinct('directory.category',{...eligible,'directory.publishedAt':{$ne:null}})
   ]);
-  return {unavailable:false,businesses:tenants.map(card),total,filters,
+  return {unavailable:false,businesses:await withRatings(tenants),total,filters,
     countries:countries.filter(Boolean).sort().slice(0,100),
     services:services.filter(Boolean).sort().slice(0,100),
     categories:categories.filter(Boolean).sort().slice(0,100),

@@ -32,7 +32,8 @@ function renderPublic(req, res, view, title, data = {}) {
 }
 router.get('/marketplace', (req, res) => renderPublic(req, res, 'marketplace', 'Module Marketplace | ClassicFin Hub'));
 router.get('/product-guide', (req,res) => {if(req.path.endsWith('/'))return res.redirect(308,'/product-guide');renderPublic(req,res,'product-guide','Product and operating guide | ClassicFin Hub');});
-router.get('/why-classicfin-hub', (req,res)=>renderPublic(req,res,'why-classicfin-hub','Why ClassicFin Hub | Business Profile'));
+router.get('/business-profile', (req,res)=>renderPublic(req,res,'why-classicfin-hub','ClassicFin Hub | Business Profile'));
+router.get('/why-classicfin-hub', (req,res)=>res.redirect(308,'/business-profile'));
 router.get('/book-appointment', (req, res) => res.redirect('/#book'));
 router.post(['/book-appointment','/signup'], require('./platform/services/actionThrottle.service').appointment, async (req, res, next) => {
   try {

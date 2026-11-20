@@ -31,7 +31,7 @@
   <div class="workspaceActions">
   <% if(data.canManage&&site.headline){ %><form method="post" action="/tenant/workspace/landing/publish"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="revision" value="<%= data.config.revision %>"><button class="btn btnPrimary">Publish website updates</button></form><% } %>
   <span class="tiny">Last published: <%= fmtDate(site.publishedAt) %></span>
-  <% if(site.publishedAt){ %><a class="btn" href="/t/<%= tenant.slug %>" target="_blank" rel="noopener noreferrer">Open live website</a><a class="btn" href="https://classicfinhub.com/t/<%= tenant.slug %>" target="_blank" rel="noopener noreferrer">Share profile link</a><% } %>
+  <% if(site.publishedAt){ %><a class="btn" href="/t/<%= tenant.slug %>" target="_blank" rel="noopener noreferrer">Open live website</a><button type="button" class="btn" data-website-copy-path="/t/<%= tenant.slug %>">Copy shareable link</button><% } %>
   </div>
  </div></div>
  <p class="workspaceNote">Only publishing exposes your selected description, service list, photos, business location, contact information, opening hours and custom sections. Draft changes stay private. Use direct HTTPS links for media; this form does not upload files. Reviews are submitted by customers and independently moderated by platform administrators.</p>

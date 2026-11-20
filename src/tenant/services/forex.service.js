@@ -248,8 +248,30 @@ async function cancelQuote(conn,tenant,actor,quoteId,input){
    metadata:{branchId:String(updated.branchId),reference:updated.reference}}],{session});
  });return updated;}finally{await session.endSession();}
 }
+// Hide an active board rate without erasing historical quotes or transactions.
+// Replacing a value always creates a new immutable rate through proposeRate.
+async function retireRate(conn,tenant,actor,rateId,input={}){
+ moduleAccess(tenant,actor,'forex.rate_manage');
+ if(!reviewer(actor)||!hasPermission(actor,'forex.rate_review'))
+  throw fail('Rate retirement requires an authorized owner or branch manager',403);
+ const reason=text(input.note,'rate retirement reason',12,400);
+ await ensureTenantIndexes(conn);
+ const session=await conn.startSession();let retired;
+ try{await session.withTransaction(async()=>{
+  await financialAuth.fenceAction(conn,session,actor,tenant,'forex','forex.rate_review');
+  const Rate=forexRateModel(conn);
+  retired=await Rate.findOneAndUpdate({_id:id(rateId),status:'active',...branchScope(actor)},
+   {$set:{status:'retired',retiredBy:actor.id,retiredAt:new Date(),retireNote:reason},$inc:{revision:1}},
+   {session,new:true,runValidators:true});
+  if(!retired)throw fail('Rate no longer active, already retired or outside your branch',409);
+  await auditEventModel(conn).create([{action:'forex.rate.retired',actorId:actor.id,targetId:retired._id,
+   metadata:{branchId:String(retired.branchId),fromCurrency:retired.fromCurrency,toCurrency:retired.toCurrency,
+    side:retired.side,reason}}],{session});
+ });return retired;}finally{await session.endSession();}
+}
+
 async function listRates(conn,tenant,actor,{status=null,branchId=null}={}){
- moduleAccess(tenant,actor,'forex.view');if(status&&!['pending_review','active','rejected','superseded','expired'].includes(status))throw fail('Invalid rate status');
+ moduleAccess(tenant,actor,'forex.view');if(status&&!['pending_review','active','rejected','superseded','expired','retired'].includes(status))throw fail('Invalid rate status');
  const scope=branchScope(actor);
  if(branchId){id(branchId);if(scope.branchId&&String(scope.branchId)!==String(branchId))throw fail('Cross-branch rate access forbidden',403);scope.branchId=branchId;}
  return forexRateModel(conn).find({...scope,...(status?{status}:{})}).sort({createdAt:-1,_id:-1}).limit(100).lean();
@@ -315,4 +337,4 @@ async function reportRows({conn,filters,scope,dateRange}){
 const unavailable=require('../../utils/unavailableOperation');
 const buy=()=>unavailable('forex currency purchase');const sell=()=>unavailable('forex currency sale');
 module.exports={fail,id,text,currency,rateScaled,minor,converted,amountLabel,enabledRate,moduleAccess,operator,reviewer,branchScope,quoteScope,branchFor,
- rateInput,quoteInput,quoteEconomics,proposeRate,decideRate,createQuote,decideQuote,cancelQuote,listRates,rateReviewQueue,listQuotes,recent,detail,quoteReviewQueue,expireDue,reportRows,buy,sell};
+ rateInput,quoteInput,quoteEconomics,proposeRate,decideRate,retireRate,createQuote,decideQuote,cancelQuote,listRates,rateReviewQueue,listQuotes,recent,detail,quoteReviewQueue,expireDue,reportRows,buy,sell};

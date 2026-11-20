@@ -1,15 +1,15 @@
 <article class="businessCard">
   <div class="businessCardCover">
     <span class="businessCardMonogram" aria-hidden="true"><%= (business.name||'?').trim().slice(0,1).toUpperCase() %></span>
-    <span class="businessCardVerified"><i class="fa-solid fa-globe" aria-hidden="true"></i> Public profile</span>
+    <span class="businessCardVerified"><i class="fa-solid fa-globe" aria-hidden="true"></i> On ClassicFin Hub</span>
   </div>
   <div class="businessCardBody">
-    <div class="businessCardMeta"><% if(business.country){ %><span><i class="fa-solid fa-location-dot" aria-hidden="true"></i> <%= business.country %></span><% }else{ %><span>Financial services</span><% } %></div>
+    <div class="businessCardMeta"><% if(business.country){ %><span><i class="fa-solid fa-location-dot" aria-hidden="true"></i> <%= business.country %></span><% }else{ %><span>Business profile</span><% } %></div>
     <h3><a href="/t/<%= encodeURIComponent(business.slug) %>"><%= business.name %></a></h3>
-    <p class="businessCardHeadline"><%= business.headline || business.subtitle || 'Explore this business profile' %></p>
+    <p class="businessCardHeadline"><%= business.headline || business.subtitle || 'Additional business details have not been published yet.' %></p>
     <% if(business.services.length){ %><div class="businessCardTags"><% business.services.slice(0,3).forEach(service=>{ %><span><%= service %></span><% }) %><% if(business.services.length>3){ %><span>+<%= business.services.length-3 %></span><% } %></div><% } %>
     <div class="businessCardActions">
-      <a href="/t/<%= encodeURIComponent(business.slug) %>" class="businessCardPrimary">View profile <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
+      <a href="/t/<%= encodeURIComponent(business.slug) %>" class="businessCardPrimary btn btn-dark">View profile <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
       <% if(business.supportPhone){ %><a class="businessCardContact" href="tel:<%= business.supportPhone.replace(/[^+0-9]/g,'') %>" aria-label="Call <%= business.name %>"><i class="fa-solid fa-phone"></i></a><% } %>
     </div>
   </div>

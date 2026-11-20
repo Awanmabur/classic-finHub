@@ -17,7 +17,7 @@ function element() {
     style: {}, attributes, events, children: [],
     addEventListener(name, handler) { events[name] = handler; },
     setAttribute(name, value) { attributes[name] = value; },
-    querySelectorAll() { return this.children; },
+    querySelectorAll(selector) { return selector === 'a' ? [] : this.children; },
     querySelector() { return null; },
     appendChild(child) { this.children.push(child); }, prepend(child) { this.children.unshift(child); },
     focus() { this.focused = true; }

@@ -115,6 +115,19 @@ router.post('/tenants/:id/public-listing',async(req,res,next)=>{
     res.redirect(303,'/platform/tenants/'+req.params.id);
   }catch(error){next(error);}
 });
+router.get('/business-reviews',async(req,res,next)=>{
+ try{
+   const reviews=await require('../services/businessReviews.service').pending(80);
+   renderPlatform(req,res,'business-reviews/index','Business reviews','Moderate customer submissions and document decisions.',{reviews});
+ }catch(err){next(err);}
+});
+router.post('/business-reviews/:id/moderate',async(req,res,next)=>{
+ try{
+   await require('../services/businessReviews.service').moderate(req.params.id,req.platformUser,req.body);
+   flash(req,'good','Review decision saved with an audit trail.');
+   res.redirect(303,'/platform/business-reviews');
+ }catch(err){next(err);}
+});
 router.get('/audit',async(req,res,next)=>{
   try{const auditLogs=await platformAudit(100);renderPlatform(req,res,'audit/index','Platform Audit','Immutable review of platform administration actions.',{auditLogs});}catch(e){next(e);}
 });

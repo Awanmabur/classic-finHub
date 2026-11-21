@@ -37,10 +37,10 @@ const status=(done)=>done?'Ready':'Set up';
           <div class="row2">
             <label class="field">Branch name<input class="control" name="name" required minlength="2" maxlength="100" value="Main branch"></label>
             <label class="field">Primary currency<select class="control" name="currency" required>
-              <% data.currencyCodes.forEach(c=>{ %><option value="<%= c %>" <%= c==='SSP'?'selected':'' %>><%= c==='KES'?'KSH':c %></option><% }) %>
+              <option value="">Choose currency</option><% data.currencyCodes.forEach(c=>{ %><option value="<%= c %>"><%= c==='KES'?'KSH':c %></option><% }) %>
             </select></label>
             <label class="field">Local business time zone<select class="control" name="timeZone" required>
-              <% data.timeZones.forEach(zone=>{ %><option value="<%= zone %>" <%= zone==='Africa/Juba'?'selected':'' %>><%= zone.replace('Africa/','').replaceAll('_',' ') %></option><% }) %>
+              <option value="">Choose local time zone</option><% data.timeZones.forEach(zone=>{ %><option value="<%= zone %>"><%= zone.replace('Africa/','').replaceAll('_',' ') %></option><% }) %>
             </select></label>
           </div>
           <p class="tiny">The branch code is generated automatically. The first branch becomes your operating branch. You can add more branches and currencies later.</p>
@@ -108,10 +108,10 @@ const status=(done)=>done?'Ready':'Set up';
             <label class="field">Mobile money provider (only for a float wallet)<select class="control" name="network">
               <option value="">Not a provider wallet</option>
               <% data.networks.forEach(n=>{ %><option value="<%= n %>"><%= n %></option><% }) %>
-            </select></label>
-            <label class="field">Actual cash operator (cash only)<select class="control" name="operatorId">
+            </select><small>For provider wallets, the system enforces that provider’s actual supported currency.</small></label>
+            <label class="field">Cash operator (cash drawer only)<select class="control" name="operatorId">
               <option value="">Owner (default)</option>
-              <% /* More detailed staff custody is available in Treasury. */ %>
+              <% (data.staff||[]).forEach(person=>{ %><option value="<%= person._id %>"><%= person.name %> · <%= person.role %></option><% }) %>
             </select></label>
             <label class="field">Account number / wallet identifier (optional)<input class="control" name="accountReference" maxlength="80" placeholder="Your real provider or bank account reference"></label>
           </div>
@@ -141,9 +141,9 @@ const status=(done)=>done?'Ready':'Set up';
     <div class="cardBody">
       <div class="rowBtns">
         <a class="btn btnPrimary" href="/tenant/dashboard">Open dashboard</a>
-        <a class="btn" href="/tenant/mobile-money/readiness">Check mobile money readiness</a>
+        <% if(data.kinds.includes('wallet')){ %><a class="btn" href="/tenant/mobile-money/readiness">Check mobile money readiness</a><% } %>
         <a class="btn" href="/tenant/workspace/landing">Business website</a>
-        <a class="btn" href="/tenant/workspace/pricing">Fees and commissions</a>
+        <% if(data.kinds.some(kind=>kind==='wallet'||kind==='forex_stock'||kind==='transfer_clearing')){ %><a class="btn" href="/tenant/workspace/pricing">Fees and commissions</a><% } %>
       </div>
       <p class="tiny">If a cash or wallet action is unavailable, follow the specific account's opening or cash-shift instructions. The system should never imply a real balance has been received before it is recorded and verified.</p>
     </div>

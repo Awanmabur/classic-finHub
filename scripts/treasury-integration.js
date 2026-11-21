@@ -34,10 +34,10 @@ async function main(){
  const funding=require('../src/tenant/treasury/funding.service');
  const directSource=await treasury.createAccount(conn,tenant,owner,
   {code:'DIRECT_SRC',name:'Verified source wallet',kind:'wallet',network:'MTN',currency:'UGX',
-   operatorId:operator.id,accountReference:'Existing verified source wallet'});
+   operatorId:operator.id,isDefault:false,accountReference:'Existing verified source wallet'});
  const directDest=await treasury.createAccount(conn,tenant,owner,
   {code:'DIRECT_DST',name:'Verified destination wallet',kind:'wallet',network:'MTN',currency:'UGX',
-   operatorId:operator.id,accountReference:'Existing verified destination wallet'});
+   operatorId:operator.id,isDefault:false,accountReference:'Existing verified destination wallet'});
  await opening(directSource,'2500');await opening(directDest,'100');
  const directInput={sourceAccountId:String(directSource._id),destinationAccountId:String(directDest._id),
   amount:'500',evidenceReference:'DIRECT-MOVE-001',

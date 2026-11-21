@@ -16,10 +16,11 @@ const status=(done)=>done?'Ready':'Set up';
       <a href="/tenant/dashboard" class="btn">Go to dashboard</a>
     </div>
     <div class="cardBody">
-      <div class="grid3 overviewStatsGrid">
+      <div class="setupStatsGrid overviewStatsGrid">
         <div class="stat"><div class="k">Operating branch</div><div class="v"><%= status(hasBranch) %></div><div class="s"><%= branches.length %> active</div></div>
         <div class="stat"><div class="k">Staff access</div><div class="v"><%= activatedStaff %></div><div class="s"><%= invitedStaff %> invitations awaiting employee acceptance</div></div>
-        <div class="stat"><div class="k">Money accounts</div><div class="v"><%= moneyAccounts.length %></div><div class="s"><%= data.readyCount %> with confirmed opening balances</div></div>
+        <div class="stat"><div class="k">Money accounts</div><div class="v"><%= moneyAccounts.length %></div><div class="s">Created funds accounts</div></div>
+        <div class="stat"><div class="k">Ready balances</div><div class="v"><%= data.readyCount %></div><div class="s">Verified usable accounts</div></div>
       </div>
       <p class="tiny">You do not need to configure every module, policy, or integration before starting. Use only the steps your business needs. Staff set their own passwords; the owner does not wait for an administrator to approve them. Creating a money account does not manufacture an opening balance.</p>
     </div>
@@ -127,13 +128,15 @@ const status=(done)=>done?'Ready':'Set up';
       <% if(moneyAccounts.length){ %>
         <div class="tableWrap" style="margin-top:18px">
           <table><thead><tr><th>Account</th><th>Currency</th><th>Opening status</th><th>Next action</th></tr></thead><tbody>
-            <% moneyAccounts.forEach(a=>{const usable=a.status==='active'&&a.openingBalanceMinor!=null&&a.openingApprovedAt&&a.reconciliationState==='matched'; %>
+            <% moneyAccounts.forEach(a=>{const usable=!a.integrityBlocked&&a.status==='active'&&a.openingBalanceMinor!=null&&a.openingApprovedAt&&a.reconciliationState==='matched'; %>
               <tr><td><b><%= a.name %></b><br><span class="tiny"><%= a.kind.replaceAll('_',' ') %></span></td>
                 <td><%= a.currency==='KES'?'KSH':a.currency %></td>
-                <td><span class="tag"><%= usable?'Ready':'Opening not established' %></span></td>
+                <td><span class="tag"><%= a.integrityBlocked?'Ledger review required':usable?'Ready':a.openingBalanceMinor!=null?'Reconciliation required':a.pendingOpeningId?'Opening awaiting review':'Opening not established' %></span></td>
                 <td>
-                  <% if(usable){ %><a class="btn" href="/tenant/treasury/accounts/<%= a._id %>">View balance</a>
+                  <% if(a.integrityBlocked){ %><span class="tiny" role="alert">Financial posting blocked. Ask the platform administrator to restore the missing ledger evidence; do not reconfirm or reset this balance.</span>
+                  <% }else if(usable){ %><a class="btn" href="/tenant/treasury/accounts/<%= a._id %>">View balance</a>
                   <% }else if(a.pendingOpeningId){ %><a class="btn" href="/tenant/treasury/accounts/<%= a._id %>">Resolve existing opening</a>
+                  <% }else if(a.openingBalanceMinor!=null){ %><a class="btn" href="/tenant/treasury/accounts/<%= a._id %>">Review balance</a>
                   <% }else{ %><details>
                     <summary class="btn">Confirm actual opening</summary>
                     <form method="post" action="/tenant/setup/opening/<%= a._id %>">
@@ -147,8 +150,8 @@ const status=(done)=>done?'Ready':'Set up';
                           <%= ['wallet','bank'].includes(a.kind)?'required':'' %>
                           placeholder="Cash count, provider app or statement reference">
                       </label>
-                      <label class="field"><input type="checkbox" name="confirmed" value="yes" required>
-                        I checked this actual starting balance against the cash in my custody, stock count, or real provider/bank statement.
+                      <label class="field setupConfirm"><input type="checkbox" name="confirmed" value="yes" required><span>
+                        I checked this actual starting balance against the cash in my custody, stock count, or real provider/bank statement.</span>
                       </label>
                       <button class="btn btnPrimary" type="submit">Confirm and start using</button>
                     </form>

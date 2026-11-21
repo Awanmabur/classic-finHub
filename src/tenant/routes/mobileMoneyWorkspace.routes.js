@@ -240,8 +240,13 @@ module.exports=function routes({renderTenant}){
      (!shift.treasuryAccountId||String(shift.treasuryAccountId)===String(drawer._id)));
     const rateBuy=!crossCurrency||hasRate(wallet.currency,drawer.currency,'buy');
     const rateSell=!crossCurrency||hasRate(wallet.currency,drawer.currency,'sell');
+    const missing=[];
+    if(!shiftVerified)missing.push('Verified cash shift required');
+    if(crossCurrency&&!postingEnabled)missing.push('Platform must enable cross-currency recording');
+    if(crossCurrency&&!rateBuy)missing.push('Approve Buy rate in this branch');
+    if(crossCurrency&&!rateSell)missing.push('Approve Sell rate in this branch');
     return {network:wallet.network,walletCurrency:wallet.currency,cashCurrency:drawer.currency,
-     mode:crossCurrency?'cross_currency':'same_currency',shiftVerified,
+     mode:crossCurrency?'cross_currency':'same_currency',shiftVerified,missing,
      buyRateReady:rateBuy,sellRateReady:rateSell,
      cashInReady:shiftVerified&&(!crossCurrency||postingEnabled&&rateSell)&&hasPermission(req.user,'mobile_money.cash_in'),
      cashOutReady:shiftVerified&&(!crossCurrency||postingEnabled&&rateBuy)&&hasPermission(req.user,'mobile_money.cash_out')};
@@ -259,7 +264,7 @@ module.exports=function routes({renderTenant}){
     accountCounts:totals,providerAccountCounts:providers,untrackedHistoricalOperationsPresent:Boolean(untracked),
     transactionPairs:pairs,transactionReady:anyReady,transactionGuidance,
     integrityBlockedCount:integrityBlocked.length,crossCurrencyRecordingEnabled:postingEnabled,
-    truncated:rows.length>500,
+    truncated:rows.length>100,
     guidance:!totals.wallet?'Configure a provider wallet for each market and obtain independent opening approval.':
       !totals.cash?'Configure a physical cash account and approve its opening balance.':
       totals.unopened?'Submit opening evidence and obtain independent approval.':

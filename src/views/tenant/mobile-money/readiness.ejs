@@ -21,6 +21,34 @@
    <% if(data.readiness.truncated){ %><p class="tiny">The account inspection reached its safety limit of 500. Ask a tenant administrator to review the complete account inventory.</p><% } %>
   </div>
  </section>
+ <section class="card" aria-label="Actual transaction readiness">
+  <div class="cardHead"><div><b>Can this cashier record transactions?</b><br><span>Verified wallet, drawer, cash shift and rates in this operating branch</span></div></div>
+  <div class="cardBody">
+   <p role="status"><strong><%= data.readiness.transactionReady?'At least one operation is ready':'Transaction setup is incomplete' %>.</strong> <%= data.readiness.transactionGuidance %></p>
+   <% if(data.readiness.integrityBlockedCount){ %><p class="workspaceNote" role="alert"><%= data.readiness.integrityBlockedCount %> funds account(s) have incomplete ledger evidence. Their balances must be reconciled before posting.</p><% } %>
+   <% if(data.readiness.transactionPairs.length){ %>
+    <div class="tableWrap" tabindex="0" role="region" aria-label="Approved cash and provider currency pair readiness">
+     <table><thead><tr><th>Provider float</th><th>Cash currency</th><th>Operation</th><th>Deposit</th><th>Withdrawal</th><th>Missing prerequisite</th></tr></thead><tbody>
+      <% data.readiness.transactionPairs.forEach(pair=>{ %>
+       <tr><td><%= pair.network %> · <%= pair.walletCurrency==='KES'?'KSH':pair.walletCurrency %></td>
+        <td><%= pair.cashCurrency==='KES'?'KSH':pair.cashCurrency %></td>
+        <td><%= pair.mode==='cross_currency'?'Cross-currency':'Same currency' %></td>
+        <td><%= pair.cashInReady?'Ready':'Not ready' %></td><td><%= pair.cashOutReady?'Ready':'Not ready' %></td>
+        <td><%= !pair.shiftVerified?'Open and verify cash shift':pair.mode==='cross_currency'&&!data.readiness.crossCurrencyRecordingEnabled?'Platform FX recording disabled':!pair.sellRateReady||!pair.buyRateReady?'Approve exchange rate for this branch':'Check current permissions' %></td>
+       </tr>
+      <% }); %>
+     </tbody></table>
+    </div>
+   <% }else{ %><p>No verified and assigned wallet/drawer pair is available to this cashier in this branch.</p><% } %>
+   <p class="tiny">Only approved rates belonging to the current operating branch are valid. Cash and float entries are manual internal records; this screen does not claim external provider settlement.</p>
+   <div class="rowBtns">
+    <a class="btn" href="/tenant/branches">Operating branch</a>
+    <a class="btn" href="/tenant/treasury">Cash and float accounts</a>
+    <a class="btn" href="/tenant/cash/shifts">Cash shifts</a>
+    <% if(user.role==='Tenant Owner'){ %><a class="btn" href="/tenant/mobile-money/cash-out?fx=1">Set operating rates</a><% } %>
+   </div>
+  </div>
+ </section>
  <section class="card">
   <div class="cardHead"><b>Provider wallets configured</b></div>
   <div class="cardBody">

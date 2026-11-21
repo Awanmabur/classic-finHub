@@ -70,6 +70,7 @@ function renderTenant(req, res, view, pageTitle, pageSub, data) {
     amountFromMinor:mobile.fromMinor
   });
 }
+router.use('/setup',require('../setup/routes')({renderTenant}));
 router.use('/backups',require('../backups/routes')({renderTenant}));
 router.use('/treasury',require('../treasury/routes')({renderTenant}));
 router.use('/funded',require('./fundedOperations.routes')({renderTenant}));

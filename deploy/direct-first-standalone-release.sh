@@ -19,11 +19,15 @@ while IFS= read -r path; do
     scripts/business-reviews-integration.js|\
     scripts/treasury-integration.js|\
     scripts/workspace-settings-integration.js|\
+    public/js/tenant-quick-setup.js|\
     src/platform/routes/index.js|\
     src/platform/services/businessDirectory.service.js|\
     src/platform/services/businessReviews.service.js|\
     src/platform/services/tenantAdmin.service.js|\
     src/routes.public.js|\
+    src/services/menu.service.js|\
+    src/tenant/routes/index.js|\
+    src/tenant/setup/routes.js|\
     src/tenant/treasury/funding.service.js|\
     src/tenant/treasury/service.js|\
     src/tenant/treasury/routes.js|\
@@ -34,11 +38,16 @@ while IFS= read -r path; do
     src/views/public/business-review-compose.ejs|\
     src/views/public/business-review-edit.ejs|\
     src/views/public/tenant-landing.ejs|\
+    src/views/tenant/setup/index.ejs|\
     src/views/tenant/treasury/_funding-history.ejs|\
     src/views/tenant/treasury/_funding.ejs|\
+    src/views/tenant/treasury/index.ejs|\
+    src/views/tenant/workspace/_operations-guide.ejs|\
     src/views/tenant/workspace/index.ejs|\
     src/views/tenant/workspace/reviews.ejs|\
-    tests/public-business-directory.test.js)
+    tests/public-business-directory.test.js|\
+    tests/approved-menu.test.js|\
+    tests/tenant-quick-setup.test.js)
       ;;
     *)
       echo "Unexpected file $path: release blocked" >&2

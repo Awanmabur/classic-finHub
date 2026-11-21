@@ -229,6 +229,56 @@ async function requestObservationInSession(conn,session,authorization,accountId,
 async function requestObservation(conn,tenant,actor,accountId,input){
  await ensure(conn);return transaction(conn,async session=>{const authorization=await access(conn,tenant,actor,{permission:'treasury.observe',session,fence:true});return requestObservationInSession(conn,session,authorization,accountId,input);});
 }
+async function confirmOwnerOpening(conn,tenant,actor,accountId,input={}){
+ // The established reviewer policy already allows a persisted Tenant Owner to
+ // self-review a routine first opening. Combine both steps atomically so a
+ // sole proprietor does not have to navigate a separate approval queue.
+ if(actor?.role!=='Tenant Owner')throw fail('Only the business owner can confirm an opening balance',403);
+ if(!input||typeof input!=='object'||Array.isArray(input)||
+    Object.keys(input).some(k=>!['actualBalance','evidenceReference','confirmed','idempotencyKey'].includes(k)))
+  throw fail('Unexpected opening balance field');
+ if(input.confirmed!=='yes')throw fail('Confirm that you counted or checked the actual starting balance',400);
+ const reference=String(input.evidenceReference||'').trim();
+ const keyValue=key(input.idempotencyKey);
+ await ensure(conn);
+ return transaction(conn,async session=>{
+  const auth=await access(conn,tenant,actor,{permission:'treasury.observe',session,fence:true});
+  if(auth.actor.role!=='Tenant Owner')throw fail('Only the business owner can confirm the opening',403);
+  const account=await loadAccount(conn,auth,accountId,{session,fence:true});
+  const evidenceType={cash:'cash_count',wallet:'provider_app',bank:'bank_statement',
+    forex_stock:'stock_count',transfer_clearing:'transfer_register'}[account.kind];
+  if(!evidenceType)throw fail('This type of account needs its own opening workflow');
+  if(['wallet','bank'].includes(account.kind)&&reference.length<6)
+   throw fail('Enter a real provider-app or bank statement reference (at least 6 characters).');
+  const evidenceReference=reference||'OWNER-COUNT-'+keyValue;
+  // A retry must not depend on a newly sampled server timestamp.
+  const prior=await models(conn).observation.findOne({idempotencyKey:keyValue}).session(session).lean();
+  if(prior){
+   const actual=major(input.actualBalance,account.currency,{negative:account.kind==='bank'});
+   if(String(prior.requestedBy)!==auth.actor.id||String(prior.accountId)!==String(account._id)||
+      prior.kind!=='opening'||String(prior.actualMinor)!==String(actual)||
+      prior.evidenceReference!==evidenceReference)
+    throw fail('Opening reference reused for different details',409);
+   if(prior.status==='approved')return {observation:prior,duplicate:true};
+   throw fail('The same opening is awaiting resolution; open the account details to review.',409);
+  }
+  const event=await requestObservationInSession(conn,session,auth,accountId,{
+    kind:'opening',actualBalance:input.actualBalance,
+    observedAt:new Date().toISOString(),
+    evidenceType,evidenceReference,
+    note:'Tenant owner confirmed physical count or inspected actual provider statement at opening.',
+    idempotencyKey:keyValue
+  });
+  if(event.duplicate){
+   if(event.observation.status==='approved')return {observation:event.observation,duplicate:true};
+   throw fail('The same opening is awaiting resolution; open the account details to review.',409);
+  }
+  const confirmed=await reviewObservationInSession(conn,session,auth,event.observation._id,{
+    decision:'approve',note:'Tenant Owner directly confirmed opening after checking real evidence.'
+  });
+  return {observation:confirmed,duplicate:false};
+ });
+}
 function opposite(side){return side==='debit'?'credit':'debit';}
 async function writeTreasuryJournal(conn,session,authorization,{branchId,currency,sourceRef,lines}){
  const validated=ledger.validateJournal({branchId:String(branchId),actorId:authorization.actor.id,sourceType:'treasury',sourceRef,currency,lines});
@@ -562,4 +612,4 @@ async function reviewAdjustment(conn,tenant,actor,adjustmentId,input){
   await audit(conn,session,authorization.actor,`treasury.adjustment.${input.decision==='approve'?'approved':'rejected'}`,adjustment._id,{branchId:String(account.branchId),accountId:String(account._id),batchId:batchId?String(batchId):null,deltaMinor:String(adjustment.deltaMinor)});return result;
  });
 }
-module.exports={postCrossCurrencyTransferPayout,postBranchTransferPayout,models,ensure,access,loadAccount,createAccount,configureAccount,archiveUnusedWallet,assertUnusedWalletArchivable,validateAccount,requestObservation,requestObservationInSession,reviewObservation,reviewObservationInSession,applyMovements,reverseMovements,ensureCounterAccount,findAccount,findOperatingAccounts,balanceSnapshot,accountDetail,reviewQueue,requestAdjustment,reviewAdjustment,expectedAt,assertBookIntegrity,format,major,signedMinor,normalizeMovement,parseObservation,scope,moduleForKind,normalSide,fail,KINDS,NETWORKS};
+module.exports={postCrossCurrencyTransferPayout,postBranchTransferPayout,models,ensure,access,loadAccount,createAccount,configureAccount,archiveUnusedWallet,assertUnusedWalletArchivable,validateAccount,requestObservation,requestObservationInSession,confirmOwnerOpening,reviewObservation,reviewObservationInSession,applyMovements,reverseMovements,ensureCounterAccount,findAccount,findOperatingAccounts,balanceSnapshot,accountDetail,reviewQueue,requestAdjustment,reviewAdjustment,expectedAt,assertBookIntegrity,format,major,signedMinor,normalizeMovement,parseObservation,scope,moduleForKind,normalSide,fail,KINDS,NETWORKS};

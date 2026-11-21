@@ -10,6 +10,6 @@
  <p class="tiny"><%= user.role==='Tenant Owner'?'Funding follows the branch of the selected accounts.':'Funding uses your assigned operating branch.' %> Both accounts must already contain reconciled, verified balances in the same branch and currency. The transfer posts instantly as a balanced movement and cannot create new money.</p>
  <% if(data.fundingAccounts.length<2){ %><p class="tiny">Set up two existing funded accounts with validated opening positions first. A cash source also needs an open drawer.</p><% } %>
  <p class="tiny" data-funding-choices-status role="status" aria-live="polite"></p>
- <div class="rowBtns"><button type="submit" class="btn btnPrimary" data-funding-submit <%= data.fundingAccounts.length<2?'disabled':'' %>>Submit funding transfer</button></div>
+ <div class="rowBtns"><button type="submit" class="btn btnPrimary" data-funding-submit <%= data.fundingAccounts.length<2?'disabled':'' %>>Transfer funds now</button></div>
 </form></section>
 <% } %>

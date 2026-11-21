@@ -966,3 +966,6 @@ body[data-workspace="tenant"] .topbar>.title p{font-size:12px;line-height:1.45;m
  body[data-workspace="tenant"] .topbar>.title h2{font-size:18px}
  body[data-workspace="tenant"] .topbar>.title p{font-size:11px;margin-top:3px}
 }
+
+/* Keep each tenant identity in text while showing the actual platform mark. */
+.brand .logo{background:#fff url('/images/classicfinhub-mark.png') center/contain no-repeat!important;border:1px solid rgba(8,44,82,.14)!important;box-shadow:0 4px 14px rgba(8,44,82,.1)!important;flex:0 0 42px}

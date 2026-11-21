@@ -19,6 +19,7 @@ while IFS= read -r path; do
     scripts/business-reviews-integration.js|\
     scripts/treasury-integration.js|\
     scripts/workspace-settings-integration.js|\
+    public/js/tenant-quick-setup.js|\
     src/platform/routes/index.js|\
     src/platform/services/businessDirectory.service.js|\
     src/platform/services/businessReviews.service.js|\

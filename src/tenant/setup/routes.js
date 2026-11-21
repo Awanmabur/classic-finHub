@@ -41,7 +41,7 @@ function branchInput(body){
  const currency=String(body.currency||'');
  const timeZone=String(body.timeZone||'');
  if(!currencyCodes.includes(currency)||!tz.includes(timeZone))throw invalid('Choose the operating currency and local timezone.');
- return {name,currency,timeZone,currencies:[currency]};
+ return {name,currency,timeZone};
 }
 function inviteInput(body,tenant,roles,branches){
  exact(body,['name','email','role','branchId']);

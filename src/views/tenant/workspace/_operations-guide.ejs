@@ -2,12 +2,12 @@
  <div class="cardHead"><div><b id="workspaceOperationsTitle">Wallets &amp; daily operations</b><br><span>Set up once, then use your configured accounts</span></div></div>
  <div class="cardBody workspaceGuide">
   <ol class="workspaceGuideSteps">
-   <li><b>Set up accounts</b><p>Register the accounts and currency stock your branch uses. Choose a branch before adding an account.</p></li>
-   <li><b>Confirm opening balances</b><p>Enter the actual statement or count and obtain an independent review before using the account.</p></li>
+   <li><b>Set up accounts</b><p>Use Quick setup to create your first branch and its real cash or float accounts. Account codes are generated automatically.</p></li>
+   <li><b>Confirm actual opening</b><p>The owner checks real counted cash or a provider statement and confirms a first routine opening in one audited action. Discrepancies still require separate reconciliation.</p></li>
    <li><b>Choose defaults</b><p>Save the default wallet, payment accounts and fee treatment. Configure fees and commissions once; daily entries calculate the matching charge automatically.</p></li>
-   <li><b>Fund and reconcile</b><p>Transfer existing funds between accounts, review funding requests and compare dated actual balances with the book.</p></li>
+   <li><b>Fund and reconcile</b><p>Move existing verified funds instantly between accounts; compare recorded balances with actual counts or statements.</p></li>
   </ol>
   <p class="tiny">Daily transactions use your assigned operating branch. The administrator branch selector changes the records being viewed.</p>
-  <div class="workspaceActions"><a class="btn btnPrimary" href="/tenant/treasury">Wallets &amp; balances</a><% if(data.canManage){ %><a class="btn" href="/tenant/workspace/pricing">Fees &amp; commissions</a><% } %><% if(data.canObserveFunds){ %><a class="btn" href="/tenant/treasury#add-funds">Add funds</a><% } %><% if(data.canReviewFunds){ %><a class="btn" href="/tenant/treasury/review">Review balances</a><% } %></div>
+  <div class="workspaceActions"><% if(user.role==='Tenant Owner'){ %><a class="btn btnPrimary" href="/tenant/setup">Quick setup</a><% } %><a class="btn" href="/tenant/treasury">Wallets &amp; balances</a><% if(data.canManage){ %><a class="btn" href="/tenant/workspace/pricing">Fees &amp; commissions</a><% } %><% if(data.canObserveFunds){ %><a class="btn" href="/tenant/treasury#add-funds">Add funds</a><% } %><% if(data.canReviewFunds){ %><a class="btn" href="/tenant/treasury/review">Review balances</a><% } %></div>
  </div>
 </section>

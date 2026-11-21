@@ -56,7 +56,8 @@
     const headers = new Headers(options.headers); headers.set('X-ClassicFin-Background', 'true');
     try {
       const response = await nativeFetch(value, {...options, headers, signal: controller.signal});
-      if (response.status >= 500) setMode('offline');
+      // HTTP 5xx means the server responded, not that the device disconnected.
+      // Keep the network indicator stable while the caller reports the error.
       return response;
     } catch (error) { if (!options.signal?.aborted) setMode('offline'); throw error; }
     finally { clearTimeout(timer); options.signal?.removeEventListener('abort', cancel); }
@@ -289,7 +290,20 @@
             else { draft.state = 'synced'; draft.resultUrl = destination.pathname + destination.search + destination.hash; draft.syncedAt = Date.now(); delete draft.values; delete draft.display; }
           } catch { status('The server response could not be confirmed. Check history before retrying; the saved reference is unchanged.'); return 'pause'; }
         }
-        else if (response.status === 429 || response.status >= 500) { const retry = Number(response.headers.get('Retry-After')); if (response.status === 429 || Number.isFinite(retry) && retry > 0) retryDelay = Math.min(Math.max(retryDelay, (retry > 0 ? retry : 30) * 1000), 300000); scheduleRecovery(); status('The server is busy. Pending entries will retry later.'); return 'pause'; }
+        else if (response.status >= 500) {
+          // A failed reply may follow a committed financial write. Do not
+          // automatically resubmit it forever, even with an idempotency key.
+          draft.state = 'needs_attention'; draft.retryUncertain = true;
+          draft.problem = 'Server error (HTTP ' + response.status + '). Check transaction history before retrying the SAME reference.';
+          await save(candidate.id, draft);
+          status('Server error. Automatic retry paused; original entry and reference preserved.');
+          return 'pause';
+        }
+        else if (response.status === 429) {
+          const retry = Number(response.headers.get('Retry-After'));
+          retryDelay = Math.min(Math.max(retryDelay, (Number.isFinite(retry) && retry > 0 ? retry : 30) * 1000), 300000);
+          scheduleRecovery(); status('The server is busy. Pending entries will retry later.'); return 'pause';
+        }
         else { const detail = response.headers.get('content-type')?.includes('text/plain') ? (await response.text()).slice(0, 400) : ''; draft.state = 'needs_attention'; draft.problem = `Server rejected this entry (HTTP ${response.status}). ${detail || 'Review balances, rates, references and required fields.'}`; }
         await save(candidate.id, draft);
       };
@@ -319,6 +333,18 @@
       if (draft.problem) card.append(node('p', draft.problem));
       const buttons = node('div', undefined, 'rowBtns');
       if (draft.resultUrl) { const link = node('a', 'Open accepted record', 'btn'); link.href = draft.resultUrl; buttons.append(link); }
+      if (draft.retryUncertain && draft.values) {
+        const retry = node('button', 'Retry same reference', 'btn'); retry.type = 'button';
+        retry.addEventListener('click', async () => {
+          if (!connected()) { status('Reconnect before retrying this saved entry.'); return; }
+          if (!confirm('Check transaction history first. Retry only if the record was not posted. The SAME reference will be reused.')) return;
+          const stored = await read(draft.id); if (!stored) return;
+          const current = await decrypt(stored);
+          if (current.state !== 'needs_attention' || !current.retryUncertain) return;
+          current.state = 'pending'; current.retryUncertain = false; delete current.problem;
+          await save(draft.id, current); await sync({id:draft.id}); await renderQueue();
+        }); buttons.append(retry);
+      }
       const discard = node('button', draft.state === 'synced' ? 'Clear local status' : 'Discard local entry', 'btn'); discard.type = 'button';
       discard.addEventListener('click', async () => { if (draft.state !== 'synced' && !confirm('Discard this device entry? Check server records first if a submission may already have reached the server.')) return; await remove(draft.id); await renderQueue(); await updateBar(); }); buttons.append(discard); card.append(buttons); list.append(card);
     }
@@ -394,7 +420,7 @@
       await sync({id});
       const row = await read(id), draft = row && await decrypt(row);
       if (draft?.state === 'synced') { location.assign(draft.resultUrl); return; }
-      if (draft?.state === 'needs_attention') { rotateReference(form); status(draft.problem); window.ClassicFinFeedback?.show(draft.problem, 'bad', {form}); }
+      if (draft?.state === 'needs_attention') { if (!draft.retryUncertain) rotateReference(form); status(draft.problem); window.ClassicFinFeedback?.show(draft.problem, 'bad', {form}); }
       else { const message = 'Connection interrupted. Your entry is saved and pending sync. Retrying keeps the same reference.'; status(message); window.ClassicFinFeedback?.show(message, 'info', {form}); }
     } catch (error) { status(error.message); window.ClassicFinFeedback?.show(error.message, 'bad', {form}); }
     finally { submitting.delete(form); buttons.forEach((button, index) => { button.disabled = disabled[index]; }); }

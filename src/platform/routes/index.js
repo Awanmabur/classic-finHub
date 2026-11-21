@@ -9,7 +9,7 @@ const appointmentService=require('../services/appointment.service');
 const { platformMenu } = require('../../services/menu.service');
 const { consumeFlash, flash, money, formatUtcDate } = require('../../utils/view');
 const { provisionTenant,regenerateOwnerInvite } = require('../services/tenantProvisioning.service');
-const { changeStatus, updateProfile, changeDirectoryListing }=require('../services/tenantAdmin.service');
+const { changeStatus, updateProfile }=require('../services/tenantAdmin.service');
 const {list: platformAudit}=require('../services/platformAudit.service');
 const businessTime=require('../../utils/businessTime');
 const PlatformAdmin=require('../models/PlatformAdmin');
@@ -108,14 +108,7 @@ router.get('/tenants/:id',async(req,res,next)=>{
 router.post('/tenants/:id/status',async(req,res,next)=>{
   try{await changeStatus(req.params.id,req.platformUser,req.body);flash(req,'good','Tenant status updated with an audit record.');res.redirect(303,'/platform/tenants/'+req.params.id);}catch(e){next(e);}
 });
-router.post('/tenants/:id/public-listing',async(req,res,next)=>{
-  try{
-    await changeDirectoryListing(req.params.id,req.platformUser,req.body);
-    flash(req,'good','Public business listing updated and audited.');
-    res.redirect(303,'/platform/tenants/'+req.params.id);
-  }catch(error){next(error);}
-});
-router.get('/business-reviews',async(req,res,next)=>{
+router.post('/tenants/:irouter.get('/business-reviews',async(req,res,next)=>{
  try{
    const reviews=await require('../services/businessReviews.service').pending(80);
    renderPlatform(req,res,'business-reviews/index','Business reviews','Moderate customer submissions and document decisions.',{reviews});

@@ -16,7 +16,7 @@ const owner={role:'Tenant Owner',id:'1234567890abcdef12345678',permissions:['*']
 const validation=setup.validation;
 test('Quick setup branch only needs business name, region timezone and currency; backend generates branch code',()=>{
  const values=validation.branchInput({name:'Main branch',currency:'SSP',timeZone:'Africa/Juba',_csrf:'test'});
- assert.deepEqual(values,{name:'Main branch',currency:'SSP',timeZone:'Africa/Juba',currencies:['SSP']});
+ assert.deepEqual(values,{name:'Main branch',currency:'SSP',timeZone:'Africa/Juba'});
  assert(!('code' in values));
  assert.throws(()=>validation.branchInput({name:'Main',currency:'SSP',timeZone:'fake/region'}),{status:400});
  assert.throws(()=>validation.branchInput({name:'Main',currency:'SSP',timeZone:'Africa/Juba',status:'active'}),{status:400});

@@ -78,7 +78,7 @@ function dec(value){return mongoose.Types.Decimal128.fromString(String(value));}
 async function settleVerified(conn,tenant,actor,input,proof){
  // Application-level kill switch, independent of tenant and branch grants.
  if(process.env.CLASSICFIN_MOMO_FX_POSTING_ENABLED!=='true')
-  throw fail('Cross-currency financial posting is disabled',503);
+  throw Object.assign(fail('Cross-currency financial recording is disabled until the platform operator completes setup',503),{code:'FX_RECORDING_DISABLED'});
  if(!tenant?._id||!actor?.id||!OID.test(String(input?.walletAccountId||''))||
     !OID.test(String(input?.cashAccountId||''))||!UUID.test(String(input?.idempotencyKey||''))||
     !ref(input.providerReference)||typeof input.network!=='string')

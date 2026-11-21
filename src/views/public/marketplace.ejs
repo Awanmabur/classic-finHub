@@ -1,19 +1,34 @@
-<section class="services marketplace-page">
-  <div class="section-head reveal"><p>Module marketplace</p><h1>Choose the modules your team needs</h1><p>Explore mobile money agent records, branch float and cash controls, reviewed manual money transfers, banking and forex books, reports and optional Android SMS capture. Compare the <a href="/pricing">published plans</a> and read the <a href="/product-guide">operating guide</a> before requesting setup.</p></div>
-  <div class="pricing-grid">
-    <% modules.filter(module=>module.runtimeStatus!=='disabled').forEach(module => { %>
-      <article class="price-card reveal">
-        <span class="plan-badge"><%= module.runtimeStatus==='recording_only'?(module.key==='sms_capture'?'SMS-assisted capture':'Reviewed manual books'):(module.isCore?'Core module':'Addon') %></span>
-        <h3><i class="fa-solid <%= module.icon %>"></i> <%= module.name %></h3>
-        <p><%= module.description %></p>
-        <h4>$<%= module.priceMonthly %><small>/month indicative</small></h4>
-        <a href="/book-appointment" class="btn btn-dark">Discuss module</a>
-      </article>
-    <% }) %>
-  </div>
-  <article class="price-card reveal" style="margin-top:16px;max-width:540px">
-    <span class="plan-badge">Coming soon · Not available to subscribe</span>
-    <h2><i class="fa-solid fa-hand-holding-dollar" aria-hidden="true"></i> Loan Management</h2>
-    <p>Planned loan applications, schedules, disbursements, repayments, aging and collection reporting. We are designing this next; it is not an active module or billable entitlement.</p>
+<section class="services marketplace-page" aria-labelledby="marketplace-title">
+  <header class="marketplace-intro">
+    <p class="marketplace-eyebrow">Module marketplace</p>
+    <h1 id="marketplace-title">Choose the modules your team needs</h1>
+    <p class="marketplace-description">Explore financial operations and reporting modules for your business. Review the <a href="/pricing">published plans</a> and <a href="/product-guide">operating guide</a> before requesting setup.</p>
+  </header>
+  <% const visibleModules = modules.filter(module => module.runtimeStatus !== 'disabled'); %>
+  <% if (visibleModules.length) { %>
+    <div class="marketplace-grid">
+      <% visibleModules.forEach(module => { %>
+        <article class="marketplace-card">
+          <div class="marketplace-card-head">
+            <span class="marketplace-icon" aria-hidden="true"><i class="fa-solid <%= module.icon %>"></i></span>
+            <h2><%= module.name %></h2>
+          </div>
+          <span class="marketplace-status"><%= module.runtimeStatus === 'recording_only' ? (module.key === 'sms_capture' ? 'SMS-assisted records' : 'Recording workflow') : (module.isCore ? 'Core module' : 'Add-on') %></span>
+          <p><%= module.description %></p>
+          <a href="/#book" class="btn btn-dark marketplace-action" aria-label="Discuss <%= module.name %> setup">Discuss module</a>
+        </article>
+      <% }) %>
+    </div>
+  <% } else { %>
+    <p class="marketplace-note">Module enquiries are temporarily unavailable. See the <a href="/services">module overview</a> or contact support.</p>
+  <% } %>
+  <article class="marketplace-card marketplace-upcoming" aria-labelledby="marketplace-loans">
+    <div class="marketplace-card-head">
+      <span class="marketplace-icon" aria-hidden="true"><i class="fa-solid fa-hand-holding-dollar"></i></span>
+      <h2 id="marketplace-loans">Loan Management</h2>
+    </div>
+    <span class="marketplace-status">Coming soon · Not available to subscribe</span>
+    <p>Loan applications, repayment schedules, disbursements, collections and portfolio reporting are planned. This module is not active or billable.</p>
   </article>
+  <p class="marketplace-note">Module availability and actual fees are confirmed during setup. This catalogue does not activate subscriptions or collect payments.</p>
 </section>

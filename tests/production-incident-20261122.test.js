@@ -48,3 +48,13 @@ test('One-time ledger reconstruction is evidence-fenced and requires verified ba
  assert.match(s,/balancesChanged:false/);
  assert.doesNotMatch(s,/dropDatabase\(|deleteMany\(|updateMany\(/);
 });
+
+test('Cross-currency switch is explicit and disabled state gives safe, non-secret feedback',()=>{
+ const env=read('deploy/web.env.example');
+ const settlement=read('src/tenant/services/momoFxSettlement.service.js');
+ const diagnostics=read('src/utils/errorDiagnostics.js');
+ assert.match(env,/CLASSICFIN_MOMO_FX_POSTING_ENABLED=false/);
+ assert.match(settlement,/CLASSICFIN_MOMO_FX_POSTING_ENABLED!=='true'/);
+ assert.match(settlement,/FX_RECORDING_DISABLED/);
+ assert.match(diagnostics,/FX_RECORDING_DISABLED/);
+});

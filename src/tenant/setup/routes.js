@@ -100,7 +100,7 @@ module.exports=function quickSetupRoutes({renderTenant}){
    const kinds=accountKinds(req.tenant,req.user);
    renderTenant(req,res,'setup/index','Start using ClassicFin Hub',
      'Set up your branch, staff and actual money accounts in one place.',{
-       branches,users,invites,accounts,staff,readyCount:ready.length,
+       branches,users,invites,accounts,staff,openingKeys:Object.fromEntries(accounts.map(a=>[String(a._id),randomUUID()])),readyCount:ready.length,
        roles:staffPolicy.managedRoles(req.user),kinds,
        currencyCodes,networks:treasury.NETWORKS,networkCurrencies:networkTariffs.NETWORKS,
        timeZones:tz,kindLabel
@@ -128,6 +128,16 @@ module.exports=function quickSetupRoutes({renderTenant}){
    renderTenant(req,res,'users/invite','Invite sent','Employee can activate access from the private link.',{
      inviteUrl,inviteQueued:require('../../config/inviteMail').configured()
    });
+  }catch(e){handleSetupError(req,res,next,e);}
+ });
+ router.post('/opening/:id',requirePermission('treasury.observe'),throttle,async(req,res,next)=>{
+  try{
+   owner(req);
+   if(!/^[a-f0-9]{24}$/i.test(req.params.id))throw invalid('Choose an actual money account.');
+   exact(req.body,['actualBalance','evidenceReference','confirmed','idempotencyKey']);
+   const result=await treasury.confirmOwnerOpening(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
+   flash(req,'good',result.duplicate?'This opening was already recorded.':'Your counted/checked opening balance is now recorded and ready. The transaction and owner attestation are audited.');
+   res.redirect(303,'/tenant/setup#quick-money');
   }catch(e){handleSetupError(req,res,next,e);}
  });
  router.post('/account',requirePermission('treasury.manage'),throttle,async(req,res,next)=>{

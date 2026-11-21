@@ -14,6 +14,23 @@
  <% if(data.canCash){ %><%- include('_operations-guide') %><% } %>
 <% } %>
 <% if(data.page==='landing'){ %>
+ <% const listingActive=['active','trial'].includes(tenant.status)&&tenant.setupStatus==='complete'&&tenant.directoryListing?.visibility!=='hidden'; %>
+ <div class="card" style="margin-bottom:14px">
+  <div class="cardHead"><div><b>Your live business listing</b><br>
+   <span><%= listingActive?'Public now — no approvals or waiting':'Hidden or account not activated' %></span></div>
+   <% if(listingActive){ %><a class="btn" href="/t/<%= tenant.slug %>" target="_blank" rel="noopener noreferrer">View live profile</a><% } %>
+  </div>
+  <div class="cardBody">
+   <p class="tiny">Once your account is activated, your business name and shareable profile link appear automatically. No platform administrator must approve it. You control the public visibility; contact details, services and images only appear after you publish them.</p>
+   <% if(data.canManage&&user.role==='Tenant Owner'&&['trial','active'].includes(tenant.status)&&tenant.setupStatus==='complete'){ %>
+    <form method="post" action="/tenant/workspace/listing/visibility" class="workspaceActions">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="action" value="<%= listingActive?'hide':'show' %>">
+      <button type="submit" class="btn <%= listingActive?'':'btnPrimary' %>"><%= listingActive?'Hide my public business listing':'Show my business now' %></button>
+    </form>
+   <% } %>
+  </div>
+ </div>
  <% const site=data.config.landing,details=site.details||{};
      const checklist=[
        ['Headline',Boolean(site.headline)],['About',Boolean(details.about)],
@@ -34,7 +51,7 @@
   <% if(site.publishedAt){ %><a class="btn" href="/t/<%= tenant.slug %>" target="_blank" rel="noopener noreferrer">Open live website</a><button type="button" class="btn" data-website-copy-path="/t/<%= tenant.slug %>">Copy shareable link</button><% } %>
   </div>
  </div></div>
- <p class="workspaceNote">Only publishing exposes your selected description, service list, photos, business location, contact information, opening hours and custom sections. Draft changes stay private. Use direct HTTPS links for media; this form does not upload files. Reviews are submitted by customers and independently moderated by platform administrators.</p>
+ <p class="workspaceNote">Your basic business profile is publicly visible immediately after account activation. Publishing additional website details makes only your selected content public. Draft changes stay private. Use direct HTTPS links for media; this form does not upload files. Reviews are submitted by customers and independently moderated by platform administrators.</p>
 <% } %>
 <% if(data.page==='branding'){ const b=data.config.branding; %>
  <div class="card"><div class="cardHead"><div><b>Branding & receipts</b><br><span>Colors, tenant identity, and receipt wording</span></div><div class="workspaceActions"><% if(data.canManage){ %><a class="btn btnPrimary" href="/tenant/workspace/branding/edit" data-workspace-open="workspaceEditor">Edit colors</a><a class="btn" href="/tenant/workspace/branding/receipt/edit" data-workspace-open="workspaceReceiptEditor">Edit receipt settings</a><% } %><a class="btn" href="/tenant/workspace/receipt-preview">Preview receipt</a></div></div><div class="cardBody"><dl class="workspaceFacts"><% [['Theme',b.theme],['Primary color',b.primary],['Secondary color',b.secondary],['Logo status',b.logoStatus],['Receipt prefix',b.prefix],['Template name',b.template],['Receipt footer note',b.receiptNote]].forEach(row=>{ %><div><dt><%= row[0] %></dt><dd><%= row[1]||'—' %></dd></div><% }) %></dl></div></div>

@@ -115,7 +115,7 @@ const status=(done)=>done?'Ready':'Set up';
             </select></label>
             <label class="field">Account number / wallet identifier (optional)<input class="control" name="accountReference" maxlength="80" placeholder="Your real provider or bank account reference"></label>
           </div>
-          <p class="tiny">Creating an account is immediate, but its starting balance is <strong>not confirmed</strong> until you record the actual count, wallet statement or bank evidence. You can move existing verified funds instantly; you cannot create new funds just by entering an amount.</p>
+          <p class="tiny">Creating an account is immediate. Its starting balance is <strong>not confirmed</strong> until you confirm the actual counted cash, stock or provider/bank statement. Owners can confirm routine first openings in one action, with evidence and an audit trail. You can move existing verified funds instantly; you cannot create new funds just by entering an amount.</p>
           <button type="submit" class="btn btnPrimary">Create money account</button>
         </form>
       <% } %>
@@ -127,7 +127,29 @@ const status=(done)=>done?'Ready':'Set up';
               <tr><td><b><%= a.name %></b><br><span class="tiny"><%= a.kind.replaceAll('_',' ') %></span></td>
                 <td><%= a.currency==='KES'?'KSH':a.currency %></td>
                 <td><span class="tag"><%= usable?'Ready':'Opening not established' %></span></td>
-                <td><a class="btn" href="/tenant/treasury/accounts/<%= a._id %>"><%= usable?'View balance':'Record actual opening' %></a></td></tr>
+                <td>
+                  <% if(usable){ %><a class="btn" href="/tenant/treasury/accounts/<%= a._id %>">View balance</a>
+                  <% }else if(a.pendingOpeningId){ %><a class="btn" href="/tenant/treasury/accounts/<%= a._id %>">Resolve existing opening</a>
+                  <% }else{ %><details>
+                    <summary class="btn">Confirm actual opening</summary>
+                    <form method="post" action="/tenant/setup/opening/<%= a._id %>">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                      <input type="hidden" name="idempotencyKey" value="<%= data.openingKeys[String(a._id)] %>">
+                      <label class="field">Actual counted or checked balance (<%= a.currency==='KES'?'KSH':a.currency %>)
+                        <input class="control" name="actualBalance" inputmode="decimal" required placeholder="Real amount, including zero">
+                      </label>
+                      <label class="field">Evidence reference <%= ['wallet','bank'].includes(a.kind)?'(required)':'(optional for physical count)' %>
+                        <input class="control" name="evidenceReference" minlength="6" maxlength="120"
+                          <%= ['wallet','bank'].includes(a.kind)?'required':'' %>
+                          placeholder="Cash count, provider app or statement reference">
+                      </label>
+                      <label class="field"><input type="checkbox" name="confirmed" value="yes" required>
+                        I checked this actual starting balance against the cash in my custody, stock count, or real provider/bank statement.
+                      </label>
+                      <button class="btn btnPrimary" type="submit">Confirm and start using</button>
+                    </form>
+                  </details><% } %>
+                </td></tr>
             <% }) %>
           </tbody></table>
         </div>

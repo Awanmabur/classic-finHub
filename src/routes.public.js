@@ -163,7 +163,8 @@ router.get('/t/:slug', async (req,res,next)=>{
      status:{$in:['active','trial']},setupStatus:{$ne:'invited'}}).lean();
    if(!tenant||tenant.directoryListing?.visibility==='hidden')return res.status(404).send('Business profile not found');
    const landingPublished=await require('./tenant/workspace/service').publicLanding(getTenantConnection(tenant.slug),tenant);
-   if(!landingPublished&&tenant.directoryListing?.visibility!=='published')return res.status(404).send('Business profile not found');
+   // No human listing approval: the business is live after owner activation.
+   // Do not disclose draft profile, private owner contacts or financial records.
    const landing=landingPublished||{name:tenant.name,headline:'',subtitle:'',services:[],sections:[],country:'',supportPhone:'',details:{}};
    const reviewsService=require('./platform/services/businessReviews.service');
    const [reviews,myReview]=await Promise.all([reviewsService.publicReviews(tenant._id),reviewsService.myReview(tenant.slug,req)]);

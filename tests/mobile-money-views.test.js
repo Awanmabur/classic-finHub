@@ -242,12 +242,16 @@ test('authorized balance-readiness view provides actionable account status witho
   branchReady:true,
   accountCounts:{cash:0,wallet:0,bank:0,unopened:2,held:0,needsReconciliation:1,ready:0},
   providerAccountCounts:{},untrackedHistoricalOperationsPresent:true,truncated:false,
-  guidance:'Configure an independently approved provider float wallet.'
+  guidance:'Configure an independently approved provider float wallet.',
+  transactionPairs:[],transactionReady:false,
+  transactionGuidance:'No independently opened cash drawer is available to this cashier.',
+  integrityBlockedCount:0,crossCurrencyRecordingEnabled:false
  };
  const html=await render('readiness',locals);
  assert.match(html,/Physical cash accounts/);
  assert.match(html,/Provider float wallets/);
  assert.match(html,/Opening approval pending/);
+ assert.match(html,/Transaction setup is incomplete/);
  assert.match(html,/historical Mobile Money records without a funds-book posting/);
  assert.match(html,/\/tenant\/cash\/shifts/);
  assert.match(html,/\/tenant\/treasury/);

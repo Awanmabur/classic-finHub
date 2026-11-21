@@ -253,6 +253,33 @@
     notice.textContent = connected() ? 'Submitting your saved entry…' : 'Saved offline — pending sync. Open Pending sync to review.';
     status('Saved on this device. Pending sync; no final receipt has been issued.'); await renderQueue(); await updateBar(); return id;
   }
+  // A server error may follow a committed financial write. Check the original
+  // reference, signed-in operator and branch without submitting a new POST.
+  async function confirmedMobileRecord(draft) {
+    if (!['/tenant/mobile-money/cash-in', '/tenant/mobile-money/cash-out'].includes(draft.action)
+        || !/^[a-f0-9-]{36}$/i.test(String(draft.values?.idempotencyKey || ''))) return null;
+    try {
+      const url = '/tenant/offline/operation-status?' + new URLSearchParams({
+        reference: draft.values.idempotencyKey, action: draft.action, branchId: draft.branchId
+      });
+      const response = await network(url, {credentials: 'same-origin', cache: 'no-store', headers: {Accept: 'application/json'}}, 6000);
+      if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) return null;
+      const result = await response.json();
+      if (result.state !== 'committed' || typeof result.redirect !== 'string' ||
+          !/^\/tenant\/mobile-money\/[a-f0-9]{24}$/i.test(result.redirect)) return null;
+      return result.redirect;
+    } catch { return null; }
+  }
+  async function confirmSavedMobileRecord(id) {
+    const row = await read(id); if (!row) return false;
+    const draft = await decrypt(row);
+    if (!draft.values || !['pending','needs_attention'].includes(draft.state)) return false;
+    const result = await confirmedMobileRecord(draft);
+    if (!result) return false;
+    draft.state='synced'; draft.resultUrl=result; draft.syncedAt=Date.now();
+    delete draft.values; delete draft.display; delete draft.retryUncertain; delete draft.problem;
+    await save(id,draft); return true;
+  }
   async function syncWork(onlyId) {
     if (!await initialize()) return;
     const drafts = (await all('draft')).filter(row => row.state === 'pending' && (!onlyId || row.id === onlyId)).sort((a, b) => a.capturedAt - b.capturedAt);
@@ -291,10 +318,15 @@
           } catch { status('The server response could not be confirmed. Check history before retrying; the saved reference is unchanged.'); return 'pause'; }
         }
         else if (response.status >= 500) {
-          // A failed reply may follow a committed financial write. Do not
-          // automatically resubmit it forever, even with an idempotency key.
+          // Preserve the UUID and reconcile the authoritative record first.
+          if (await confirmSavedMobileRecord(candidate.id)) {
+            status('Transaction confirmed in server records. No duplicate posted.');
+            return;
+          }
           draft.state = 'needs_attention'; draft.retryUncertain = true;
-          draft.problem = 'Server error (HTTP ' + response.status + '). Check transaction history before retrying the SAME reference.';
+          const reference=response.headers.get('X-Error-Reference');
+          draft.problem = 'Server error (HTTP ' + response.status + '). Check transaction history before retrying the SAME reference.' +
+            (/^[a-f0-9-]{36}$/i.test(reference || '') ? ' Error reference: ' + reference : '');
           await save(candidate.id, draft);
           status('Server error. Automatic retry paused; original entry and reference preserved.');
           return 'pause';
@@ -334,6 +366,19 @@
       const buttons = node('div', undefined, 'rowBtns');
       if (draft.resultUrl) { const link = node('a', 'Open accepted record', 'btn'); link.href = draft.resultUrl; buttons.append(link); }
       if (draft.retryUncertain && draft.values) {
+        if (['/tenant/mobile-money/cash-in', '/tenant/mobile-money/cash-out'].includes(draft.action)) {
+          const verify = node('button', 'Check server transaction', 'btn'); verify.type='button';
+          verify.addEventListener('click', async () => {
+            verify.disabled=true;
+            try{
+              if(await confirmSavedMobileRecord(draft.id)){
+                status('Committed entry found. No duplicate transaction was submitted.');
+                await renderQueue();await updateBar();
+              }else status('Could not confirm a server record. Original reference is preserved. Review before retrying.');
+            }finally{verify.disabled=false;}
+          });
+          buttons.append(verify);
+        }
         const retry = node('button', 'Retry same reference', 'btn'); retry.type = 'button';
         retry.addEventListener('click', async () => {
           if (!connected()) { status('Reconnect before retrying this saved entry.'); return; }

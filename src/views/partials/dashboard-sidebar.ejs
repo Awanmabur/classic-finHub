@@ -2,10 +2,10 @@
    const activeItem=navigationItems.filter(item=>currentPath===item.href||currentPath.startsWith(item.href+'/')).sort((a,b)=>b.href.length-a.href.length)[0];
    const symbols={Overview:'▦','Money Transfer':'⇄','Mobile Money':'▣','Forex Operations':'💱','Banking Operations':'🏦','Operation Reports':'▤','Tenant Workspace':'▥'};
    const tenantName=String(tenant?.name||'Tenant workspace');
-    %>
+   const tenantInitials=tenantName.trim().split(/\s+/).slice(0,2).map(part=>part[0]).join('').replace(/[^a-z0-9]/gi,'').toUpperCase()||'T'; %>
 <aside class="panel side" id="sidePanel">
   <button class="btn btnIcon mobileOnly sidePanelClose" id="sidePanelClose" type="button" aria-label="Close navigation menu" title="Close menu"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
-  <div class="brand"><div class="logo" role="img" aria-label="ClassicFin Hub official mark"></div><div><h1><%= context==='platform'?'ClassicFin Platform':tenantName %></h1><p><%= context==='platform'?'Classic Technologies':'Operations workspace' %></p></div></div>
+  <div class="brand"><div class="logo" role="img" aria-label="ClassicFin Hub official mark"></div><div><h1><%= context==='platform'?'ClassicFin Platform':tenantName %></h1><p><% if(context==='tenant'){ %><span class="tenantBrandInitials"><%= tenantInitials %></span> · Operations workspace<% }else{ %>Classic Technologies<% } %></p></div></div>
   <nav class="nav" id="nav" aria-label="Workspace navigation">
     <% menu.forEach((group,groupIndex)=>{ %><div class="navGroup">
       <div class="item <%= activeItem?.key.startsWith(groupIndex+':')?'active':'' %>" role="heading" aria-level="2"><% if(context==='tenant'){ %><%= symbols[group.label]||'▤' %> <%= group.label %><% } else { %><i class="fa-solid fa-folder-tree" aria-hidden="true"></i><span><%= group.label %></span><% } %></div>

@@ -71,7 +71,7 @@ async function verify(conn,session){
 }
 async function run(){
  const apply=process.argv.includes('--apply');
- if(process.argv.some(x=>x!=='--apply'))deny('only --apply is supported');
+ if(process.argv.slice(2).some(x=>x!=='--apply'))deny('only --apply is supported');
  if(process.env.NODE_ENV!=='production')deny('this narrowly scoped repair requires the production environment');
  if(apply&&process.env.CLASSICFIN_REPAIR_BACKUP_VERIFIED!=='RESTORABLE_BACKUP_CONFIRMED')
    deny('verify an independent restorable database backup before --apply');

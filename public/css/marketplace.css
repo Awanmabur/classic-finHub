@@ -1,0 +1,20 @@
+/* Marketplace-specific layout. Keep the approved global design tokens and typography. */
+.marketplace-page{padding-top:30px;padding-bottom:64px}
+.marketplace-page .marketplace-intro{display:block;max-width:860px;margin-bottom:26px}
+.marketplace-page .marketplace-eyebrow{font:800 .75rem/1.4 Inter,Arial,sans-serif;letter-spacing:.11em;text-transform:uppercase;color:var(--accent);margin:0 0 12px}
+.marketplace-page .marketplace-intro h1{font-size:clamp(2rem,4vw,3.3rem);font-weight:800;letter-spacing:-.055em;line-height:1.1;margin:0 0 14px;max-width:850px}
+.marketplace-page .marketplace-description{font:400 1rem/1.7 Inter,Arial,sans-serif;color:var(--muted);max-width:790px;margin:0}
+.marketplace-page .marketplace-description a{color:var(--accent);text-decoration:underline;text-underline-offset:3px;font-weight:700}
+.marketplace-page .marketplace-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:stretch}
+.marketplace-page .marketplace-card{min-width:0;display:flex;flex-direction:column;gap:13px;border:1px solid var(--line);border-radius:var(--radius);padding:24px;background:var(--paper);box-shadow:var(--shadow-soft)}
+.marketplace-page .marketplace-card-head{display:flex;align-items:center;gap:12px;min-width:0}
+.marketplace-page .marketplace-icon{display:grid;place-items:center;flex:0 0 44px;width:44px;height:44px;border-radius:14px;background:var(--soft);color:var(--accent);font-size:1.15rem}
+.marketplace-page .marketplace-card h2{font:800 1.15rem/1.3 Inter,Arial,sans-serif;letter-spacing:-.025em;overflow-wrap:anywhere;margin:0}
+.marketplace-page .marketplace-status{display:inline-flex;align-self:flex-start;width:fit-content;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:999px;padding:5px 10px;font:750 .72rem/1.3 Inter,Arial,sans-serif;letter-spacing:0;text-transform:none}
+.marketplace-page .marketplace-card>p{font:400 .91rem/1.65 Inter,Arial,sans-serif;color:var(--muted);margin:0;overflow-wrap:anywhere}
+.marketplace-page .marketplace-card .marketplace-action{margin-top:auto;align-self:flex-start;min-height:42px}
+.marketplace-page .marketplace-note{margin:22px 0 0;color:var(--muted);font-size:.85rem;line-height:1.6}
+.marketplace-page .marketplace-upcoming{margin-top:24px;max-width:none;box-shadow:none;border-style:dashed}
+.marketplace-page .marketplace-upcoming .marketplace-action{display:none}
+@media(max-width:1050px){.marketplace-page .marketplace-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:680px){.marketplace-page{padding-top:18px;padding-bottom:36px}.marketplace-page .marketplace-intro{margin-bottom:18px}.marketplace-page .marketplace-grid{grid-template-columns:minmax(0,1fr);gap:12px}.marketplace-page .marketplace-card{padding:19px;gap:11px}.marketplace-page .marketplace-intro h1{font-size:clamp(1.85rem,8vw,2.35rem)}.marketplace-page .marketplace-description{font-size:.94rem}.marketplace-page .marketplace-card .marketplace-action{width:100%}}

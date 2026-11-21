@@ -94,14 +94,14 @@ async function moderate(id,actor,body){
  if(!mongoose.isValidObjectId(id))throw error('Review not found.',404);
  if(Object.keys(body||{}).some(k=>!['_csrf','action','revision','reason'].includes(k)))throw error('Invalid moderation fields.');
  const action=body.action;
- if(!['approve','reject','hide','reopen'].includes(action))throw error('Choose a valid moderation action.');
+ if(!['hide','restore'].includes(action))throw error('Choose Hide or Restore for an already published review.');
  const revision=Number(body.revision);
  if(!Number.isSafeInteger(revision)||revision<0)throw error('Refresh review list before moderation.',409);
  const reason=text(body.reason,12,400,'Moderation reason');
  const session=await mongoose.startSession();
  try{await session.withTransaction(async()=>{
-   const currentStatus=action==='hide'?'approved':action==='reopen'?'rejected':'pending';
-   const status=action==='approve'?'approved':action==='reopen'?'pending':'rejected';
+   const currentStatus=action==='hide'?'approved':'rejected';
+   const status=action==='hide'?'rejected':'approved';
    const current=await Review.findOne({_id:id,revision,status:currentStatus}).session(session).lean();
    if(!current)throw error('Review already changed or moderated.',409);
    const updated=await Review.updateOne({_id:id,revision,status:currentStatus},{

@@ -981,3 +981,6 @@ textarea,textarea.control,.field textarea,.tenantCleanField textarea{border-radi
 .platformAccount .accountActions{display:grid;grid-template-columns:1fr;gap:8px;padding:12px 0 0}
 .platformAccount .accountActions>form,.platformAccount .accountActions>a{width:100%;min-width:0;margin:0}
 .platformAccount .accountActions .btn{width:100%;min-height:40px;white-space:normal}
+
+/* Official ClassicFin mark in the platform sidebar. */
+.brand .logo{background:#fff url('/images/classicfinhub-mark.png') center/contain no-repeat!important;border:1px solid rgba(8,44,82,.14)!important;box-shadow:0 4px 14px rgba(8,44,82,.1)!important;flex:0 0 42px}

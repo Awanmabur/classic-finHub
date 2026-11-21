@@ -18,7 +18,7 @@
     <div class="networkBalanceStat"><span>Reconciliation attention</span><strong><%= data.readiness.accountCounts.needsReconciliation %></strong><small>Last observation is not matched</small></div>
    </div>
    <p><%= data.readiness.guidance %></p>
-   <% if(data.readiness.truncated){ %><p class="tiny">The account inspection reached its safety limit of 500. Ask a tenant administrator to review the complete account inventory.</p><% } %>
+   <% if(data.readiness.truncated){ %><p class="tiny">The account and posting-integrity inspection is limited to the first 100 accounts. Ask a tenant administrator to review the complete account inventory.</p><% } %>
   </div>
  </section>
  <section class="card" aria-label="Actual transaction readiness">
@@ -34,7 +34,7 @@
         <td><%= pair.cashCurrency==='KES'?'KSH':pair.cashCurrency %></td>
         <td><%= pair.mode==='cross_currency'?'Cross-currency':'Same currency' %></td>
         <td><%= pair.cashInReady?'Ready':'Not ready' %></td><td><%= pair.cashOutReady?'Ready':'Not ready' %></td>
-        <td><%= !pair.shiftVerified?'Open and verify cash shift':pair.mode==='cross_currency'&&!data.readiness.crossCurrencyRecordingEnabled?'Platform FX recording disabled':!pair.sellRateReady||!pair.buyRateReady?'Approve exchange rate for this branch':'Check current permissions' %></td>
+        <td><%= pair.missing.length?pair.missing.join(' · '):'Check permission and available balance' %></td>
        </tr>
       <% }); %>
      </tbody></table>

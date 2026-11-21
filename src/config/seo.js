@@ -35,7 +35,7 @@ function sitemapXml(extraPaths=[]) {
 function publicMetadata(path,title) {
   const page=PUBLIC_PAGE_META[path]||{},canonical=appUrl+path;
   const description=page.description||'ClassicFin Hub is a modular financial operations workspace by Classic Technologies.';
-  return {title:page.title||title||'ClassicFin Hub',description,canonical,image:appUrl+'/images/classicfinhub-logo.png',indexable:INDEXABLE_PATHS.includes(path),crawlAllowed:indexingEnabled,graph:{
+  return {title:page.title||title||'ClassicFin Hub',description,canonical,image:appUrl+'/images/classicfinhub-social.jpg',indexable:INDEXABLE_PATHS.includes(path),crawlAllowed:indexingEnabled,graph:{
     '@context':'https://schema.org','@graph':[
       {'@type':'Organization','@id':appUrl+'/#organization',name:'Classic Technologies',url:'https://classictechgroup.com'},
       {'@type':'WebSite','@id':appUrl+'/#website',name:'ClassicFin Hub',url:appUrl,publisher:{'@id':appUrl+'/#organization'}},
@@ -62,7 +62,7 @@ function tenantMetadata(tenant,landing){
     ...(details.logoUrl?{logo:details.logoUrl}:{}),
     ...(Array.isArray(landing.services)&&landing.services.length?{knowsAbout:landing.services}:{}),
     ...(details.website?{sameAs:[details.website,...[details.facebook,details.instagram,details.linkedin].filter(Boolean)]}:{})};
-  return {title,description,canonical,image:details.logoUrl||appUrl+'/images/classicfinhub-logo.png',
+  return {title,description,canonical,image:details.logoUrl||appUrl+'/images/classicfinhub-social.jpg',
     indexable,crawlAllowed:indexingEnabled,graph:{'@context':'https://schema.org','@graph':[
       org,
       {'@type':'WebPage','@id':canonical+'#webpage',url:canonical,name:title,description,inLanguage:'en',

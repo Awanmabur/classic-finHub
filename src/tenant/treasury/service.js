@@ -251,6 +251,17 @@ async function confirmOwnerOpening(conn,tenant,actor,accountId,input={}){
   if(['wallet','bank'].includes(account.kind)&&reference.length<6)
    throw fail('Enter a real provider-app or bank statement reference (at least 6 characters).');
   const evidenceReference=reference||'OWNER-COUNT-'+keyValue;
+  // A retry must not depend on a newly sampled server timestamp.
+  const prior=await models(conn).observation.findOne({idempotencyKey:keyValue}).session(session).lean();
+  if(prior){
+   const actual=major(input.actualBalance,account.currency,{negative:account.kind==='bank'});
+   if(String(prior.requestedBy)!==auth.actor.id||String(prior.accountId)!==String(account._id)||
+      prior.kind!=='opening'||String(prior.actualMinor)!==String(actual)||
+      prior.evidenceReference!==evidenceReference)
+    throw fail('Opening reference reused for different details',409);
+   if(prior.status==='approved')return {observation:prior,duplicate:true};
+   throw fail('The same opening is awaiting resolution; open the account details to review.',409);
+  }
   const event=await requestObservationInSession(conn,session,auth,accountId,{
     kind:'opening',actualBalance:input.actualBalance,
     observedAt:new Date().toISOString(),

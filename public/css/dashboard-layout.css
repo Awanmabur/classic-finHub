@@ -415,12 +415,13 @@ form[method="get"] .field>.control{min-width:0;width:100%}
 /* Tenant shell: operator first, then currency, search, notifications,
    receipt and transaction. Keep platform navigation unchanged. */
 body[data-workspace="tenant"] .brand .logo{
- background:linear-gradient(135deg,var(--primary),var(--primary2))!important;
- color:#fff!important;border-color:transparent!important;display:grid;place-items:center;
- text-shadow:none;flex:0 0 auto
+ background:#fff url('/images/classicfinhub-mark.png') center/contain no-repeat!important;
+ color:var(--text)!important;
+ border:1px solid rgba(8,44,82,.14)!important;
+ display:grid;place-items:center;text-shadow:none;flex:0 0 42px
 }
-body[data-workspace="tenant"] .tenantBrandInitials{
- display:block;font-size:17px;font-weight:800;line-height:1;letter-spacing:.3px;color:#fff
+body[data-workspace="tenant"] .brand p .tenantBrandInitials{
+ display:inline;font-size:11px;font-weight:800;line-height:1;letter-spacing:.3px;color:var(--muted)
 }
 body[data-workspace="tenant"] .brand h1{white-space:normal;overflow-wrap:anywhere;font-size:16px;line-height:1.25}
 body[data-workspace="tenant"] .topbar>.topActions{flex-wrap:nowrap;gap:9px}

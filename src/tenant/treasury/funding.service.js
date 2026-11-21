@@ -122,7 +122,7 @@ async function postDirect(conn,tenant,actor,input={}){
        {accountId:String(destination._id),deltaMinor:String(amount)}],
      ledgerLines:[],description:`Internal funds: ${source.name} to ${destination.name}`,
      evidenceReference:values.evidenceReference
-   });
+   },{directFunding:true});
    const [funding]=await Funding.create([{_id:fundingId,...canonical,fingerprint,status:'posted',
      reviewNote:'Auto-posted internal transfer; no independent reviewer',
      batchId:posting.batch?._id||null,journalIds:posting.journalIds||[]}],{session});

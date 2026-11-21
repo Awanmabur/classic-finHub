@@ -1202,5 +1202,5 @@ a:focus-visible,button:focus-visible,.compare-table-wrap:focus-visible{outline:3
 
 /* Official ClassicFin brand assets; retain the approved public layout. */
 .rail-logo img,.mobile-logo img{object-fit:contain!important;max-width:100%;max-height:100%;display:block}
-.classicFinFooterLogo{display:block;width:min(210px,100%);height:auto;max-height:94px;object-fit:contain;object-position:left center;margin-bottom:10px}
+.classicFinFooterLogo{display:block;width:min(210px,100%);height:auto;max-height:112px;object-fit:contain;object-position:center;border-radius:12px;background:#fff;padding:7px 9px;margin-bottom:10px}
 @media(max-width:700px){.classicFinFooterLogo{margin-left:auto;margin-right:auto}}

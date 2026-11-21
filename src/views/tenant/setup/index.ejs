@@ -43,7 +43,7 @@ const status=(done)=>done?'Ready':'Set up';
               <option value="">Choose local time zone</option><% data.timeZones.forEach(zone=>{ %><option value="<%= zone %>"><%= zone.replace('Africa/','').replaceAll('_',' ') %></option><% }) %>
             </select></label>
           </div>
-          <p class="tiny">The branch code is generated automatically. The first branch becomes your operating branch. You can add more branches and currencies later.</p>
+          <p class="tiny">The branch code is generated automatically and supported currencies are enabled for your operations. The selected currency is your primary display currency. Add other locations later only when needed.</p>
           <button class="btn btnPrimary" type="submit">Create and continue</button>
         </form>
       <% }else{ %>

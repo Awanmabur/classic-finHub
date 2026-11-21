@@ -8,7 +8,7 @@
   <label class="field">Funding reference<input class="control" name="evidenceReference" minlength="6" maxlength="120" required placeholder="Bank transfer, receipt or cash reference"></label>
  </div><label class="field">Note / narration<textarea class="control" name="note" minlength="12" maxlength="400" required rows="2" placeholder="Describe the transfer and its supporting receipt or statement"></textarea></label></div>
  <p class="tiny"><%= user.role==='Tenant Owner'?'Funding follows the branch of the selected accounts.':'Funding uses your assigned operating branch.' %> Both accounts must already contain reconciled, verified balances in the same branch and currency. The transfer posts instantly as a balanced movement and cannot create new money.</p>
- <% if(data.fundingAccounts.length<2){ %><p class="tiny">Set up at least two eligible accounts and confirm their opening balances first. A cash source also needs an independently verified open drawer.</p><% } %>
+ <% if(data.fundingAccounts.length<2){ %><p class="tiny">Set up two existing funded accounts with validated opening positions first. A cash source also needs an open drawer.</p><% } %>
  <p class="tiny" data-funding-choices-status role="status" aria-live="polite"></p>
  <div class="rowBtns"><button type="submit" class="btn btnPrimary" data-funding-submit <%= data.fundingAccounts.length<2?'disabled':'' %>>Submit funding transfer</button></div>
 </form></section>

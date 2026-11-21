@@ -103,6 +103,36 @@ async function main(){
  assert.equal((await ledger.trialBalance(conn,{branchId:String(branch._id),currency:'UGX'})).balanced,true);
  const snapshot=await treasury.balanceSnapshot(conn,tenant,owner);assert(snapshot.accounts.every(account=>account.actualIsLive===false));assert.equal(snapshot.accounts.find(account=>String(account._id)===String(wallet._id)).expectedMinor,'9890');
  const movement=await book.models(conn).movement.findOne().lean();await assert.rejects(book.models(conn).movement.updateOne({_id:movement._id},{$set:{deltaMinor:'999'}}),/append-only/);
+ // A tenant owner can confirm the first PHYSICAL CASH opening with one
+ // explicit attestation. Request, audit, balanced journal and existing routine
+ // reviewer permission must all succeed in ONE database transaction.
+ const starterCash=await treasury.createAccount(conn,tenant,owner,{
+  code:'OWNER_QUICK_CASH',name:'Owner counted starting drawer',kind:'cash',currency:'UGX',
+  operatorId:owner.id,isDefault:false});
+ const openingInput={actualBalance:'150',evidenceReference:'OWNER-COUNT-START-001',
+  confirmed:'yes',idempotencyKey:crypto.randomUUID()};
+ await assert.rejects(treasury.confirmOwnerOpening(conn,tenant,operator,starterCash._id,openingInput),
+  e=>e.status===403,'An operator must never self-approve initial funds');
+ await assert.rejects(treasury.confirmOwnerOpening(conn,tenant,owner,starterCash._id,
+  {...openingInput,confirmed:'no'}),e=>e.status===400);
+ const journalsBefore=await core.ledgerJournalModel(conn).countDocuments();
+ const quickOpened=await treasury.confirmOwnerOpening(conn,tenant,owner,starterCash._id,openingInput);
+ assert.equal(quickOpened.duplicate,false);
+ const confirmed=await book.models(conn).account.findById(starterCash._id).lean();
+ assert.equal(confirmed.status,'active');
+ assert.equal(String(confirmed.bookBalanceMinor),'150');
+ assert.equal(String(confirmed.openingBalanceMinor),'150');
+ assert(confirmed.openingApprovedAt);
+ assert.equal(confirmed.reconciliationState,'matched');
+ assert.equal((await treasury.confirmOwnerOpening(conn,tenant,owner,starterCash._id,openingInput)).duplicate,true);
+ assert.equal(await core.ledgerJournalModel(conn).countDocuments(),journalsBefore+1,
+  'A retry must not post the owner-attested opening equity twice');
+ await assert.rejects(treasury.confirmOwnerOpening(conn,tenant,owner,starterCash._id,
+  {...openingInput,actualBalance:'200'}),e=>e.status===409);
+ await assert.rejects(treasury.confirmOwnerOpening(conn,tenant,owner,starterCash._id,
+  {...openingInput,idempotencyKey:crypto.randomUUID()}),e=>e.status===409);
+ assert.equal(String((await book.models(conn).account.findById(starterCash._id)).bookBalanceMinor),'150');
+ assert.equal((await ledger.trialBalance(conn,{branchId:String(branch._id),currency:'UGX'})).balanced,true);
  await Tenant.updateOne({_id:tenant._id},{$set:{enabledModules:[]},$inc:{__v:1}});await assert.rejects(treasury.balanceSnapshot(conn,tenant,owner),e=>e.status===403);
  console.log('PASS: Treasury real independent opening evidence, exact posted funds and cash, balanced journals, idempotency, insufficient-float and mismatch holds, dated checkpoints, explicit suspense adjustments, late-entry invalidation, historical-maker correction, concurrent balance guards, audit rollback, append-only history, live revocation and tenant isolation.');
 }

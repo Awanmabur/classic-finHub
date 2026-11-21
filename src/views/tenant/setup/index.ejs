@@ -1,0 +1,151 @@
+<%
+const branches=data.branches||[];
+const first=branches[0]||null;
+const hasBranch=branches.length>0;
+const moneyAccounts=data.accounts||[];
+const hasMoneyAccount=moneyAccounts.length>0;
+const hasOpening=Number(data.readyCount||0)>0;
+const activatedStaff=Number(data.users||0);
+const invitedStaff=Number(data.invites||0);
+const status=(done)=>done?'Ready':'Set up';
+%>
+<section class="view show" id="tenantQuickSetup">
+  <section class="card">
+    <div class="cardHead"><div><b>Set up once. Start working.</b><br>
+      <span>One place for your branch, staff and money accounts. No setup approval queue.</span></div>
+      <a href="/tenant/dashboard" class="btn">Go to dashboard</a>
+    </div>
+    <div class="cardBody">
+      <div class="grid3 overviewStatsGrid">
+        <div class="stat"><div class="k">Operating branch</div><div class="v"><%= status(hasBranch) %></div><div class="s"><%= branches.length %> active</div></div>
+        <div class="stat"><div class="k">Staff access</div><div class="v"><%= activatedStaff %></div><div class="s"><%= invitedStaff %> invitations awaiting employee acceptance</div></div>
+        <div class="stat"><div class="k">Money accounts</div><div class="v"><%= moneyAccounts.length %></div><div class="s"><%= data.readyCount %> with confirmed opening balances</div></div>
+      </div>
+      <p class="tiny">You do not need to configure every module, policy, or integration before starting. Use only the steps your business needs. Staff set their own passwords; the owner does not wait for an administrator to approve them. Creating a money account does not manufacture an opening balance.</p>
+    </div>
+  </section>
+
+  <section class="card" style="margin-top:14px" id="first-branch">
+    <div class="cardHead"><div><b>1. Your business location</b><br>
+      <span><%= hasBranch?'Ready — transactions use the selected operating branch':'Create the first branch using your local currency and time zone' %></span></div>
+      <% if(hasBranch){ %><a class="btn" href="/tenant/branches">Manage branches</a><% } %>
+    </div>
+    <div class="cardBody">
+      <% if(!hasBranch){ %>
+        <form method="post" action="/tenant/setup/branch">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <div class="row2">
+            <label class="field">Branch name<input class="control" name="name" required minlength="2" maxlength="100" value="Main branch"></label>
+            <label class="field">Primary currency<select class="control" name="currency" required>
+              <% data.currencyCodes.forEach(c=>{ %><option value="<%= c %>" <%= c==='SSP'?'selected':'' %>><%= c==='KES'?'KSH':c %></option><% }) %>
+            </select></label>
+            <label class="field">Local business time zone<select class="control" name="timeZone" required>
+              <% data.timeZones.forEach(zone=>{ %><option value="<%= zone %>" <%= zone==='Africa/Juba'?'selected':'' %>><%= zone.replace('Africa/','').replaceAll('_',' ') %></option><% }) %>
+            </select></label>
+          </div>
+          <p class="tiny">The branch code is generated automatically. The first branch becomes your operating branch. You can add more branches and currencies later.</p>
+          <button class="btn btnPrimary" type="submit">Create and continue</button>
+        </form>
+      <% }else{ %>
+        <p><strong><%= first.name %></strong> · <%= first.currency==='KES'?'KSH':first.currency %> · <%= first.timeZone||'Local time zone not configured' %></p>
+        <p class="tiny">Your branch is available now. Add other locations only when you actually operate them.</p>
+      <% } %>
+    </div>
+  </section>
+
+  <section class="card" style="margin-top:14px" id="quick-team">
+    <div class="cardHead"><div><b>2. Add your staff</b><br>
+      <span>Choose a role once. Access is limited to that role, your subscribed modules and the assigned branch.</span></div>
+      <a class="btn" href="/tenant/users">Manage staff</a>
+    </div>
+    <div class="cardBody">
+      <% if(!hasBranch){ %>
+        <p class="tiny">Create your first branch above before adding staff. This is a real branch assignment, not a separate approval.</p>
+      <% }else{ %>
+        <form method="post" action="/tenant/setup/staff">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <div class="row2">
+            <label class="field">Staff member's name<input class="control" name="name" minlength="2" maxlength="120" required placeholder="Full name"></label>
+            <label class="field">Staff member's email<input class="control" type="email" name="email" maxlength="254" required placeholder="name@example.com"></label>
+            <label class="field">What will they do?<select class="control" name="role" required>
+              <% data.roles.forEach(role=>{ %><option value="<%= role %>" <%= role==='Mobile Money Operator'?'selected':'' %>><%= role %></option><% }) %>
+            </select></label>
+            <label class="field">Work location<select class="control" name="branchId" required>
+              <% branches.forEach(b=>{ %><option value="<%= b._id %>"><%= b.name %></option><% }) %>
+            </select></label>
+          </div>
+          <p class="tiny">The selected role receives only its allowed subscribed modules. The employee gets an activation link and sets their own password; no second administrator approves the invitation.</p>
+          <button class="btn btnPrimary" type="submit">Invite staff</button>
+        </form>
+      <% } %>
+      <% if(!activatedStaff&&!invitedStaff){ %><p class="tiny">You can also operate as the owner initially. Staff are optional for a one-person business.</p><% } %>
+    </div>
+  </section>
+
+  <section class="card" style="margin-top:14px" id="quick-money">
+    <div class="cardHead"><div><b>3. Cash, float and money accounts</b><br>
+      <span>Create the accounts you actually use. The system generates the bookkeeping codes and default settings.</span></div>
+      <a class="btn" href="/tenant/treasury">All balances and accounts</a>
+    </div>
+    <div class="cardBody">
+      <% if(!hasBranch){ %>
+        <p class="tiny">Create your first branch above to assign money accounts to the correct business location.</p>
+      <% }else{ %>
+        <form method="post" action="/tenant/setup/account">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <div class="row2">
+            <label class="field">Money account type<select class="control" name="kind" required>
+              <% data.kinds.forEach(k=>{ %><option value="<%= k %>"><%= data.kindLabel[k]||k %></option><% }) %>
+            </select></label>
+            <label class="field">Branch<select class="control" name="branchId" required>
+              <% branches.forEach(b=>{ %><option value="<%= b._id %>"><%= b.name %></option><% }) %>
+            </select></label>
+            <label class="field">Currency<select class="control" name="currency" required>
+              <% [...new Set(branches.flatMap(b=>b.currencies?.length?b.currencies:[b.currency]))].forEach(c=>{ %>
+                <option value="<%= c %>" <%= c===first.currency?'selected':'' %>><%= c==='KES'?'KSH':c %></option>
+              <% }) %>
+            </select></label>
+            <label class="field">Mobile money provider (only for a float wallet)<select class="control" name="network">
+              <option value="">Not a provider wallet</option>
+              <% data.networks.forEach(n=>{ %><option value="<%= n %>"><%= n %></option><% }) %>
+            </select></label>
+            <label class="field">Actual cash operator (cash only)<select class="control" name="operatorId">
+              <option value="">Owner (default)</option>
+              <% /* More detailed staff custody is available in Treasury. */ %>
+            </select></label>
+            <label class="field">Account number / wallet identifier (optional)<input class="control" name="accountReference" maxlength="80" placeholder="Your real provider or bank account reference"></label>
+          </div>
+          <p class="tiny">Creating an account is immediate, but its starting balance is <strong>not confirmed</strong> until you record the actual count, wallet statement or bank evidence. You can move existing verified funds instantly; you cannot create new funds just by entering an amount.</p>
+          <button type="submit" class="btn btnPrimary">Create money account</button>
+        </form>
+      <% } %>
+
+      <% if(moneyAccounts.length){ %>
+        <div class="tableWrap" style="margin-top:18px">
+          <table><thead><tr><th>Account</th><th>Currency</th><th>Opening status</th><th>Next action</th></tr></thead><tbody>
+            <% moneyAccounts.forEach(a=>{const usable=a.status==='active'&&a.openingBalanceMinor!=null&&a.openingApprovedAt&&a.reconciliationState==='matched'; %>
+              <tr><td><b><%= a.name %></b><br><span class="tiny"><%= a.kind.replaceAll('_',' ') %></span></td>
+                <td><%= a.currency==='KES'?'KSH':a.currency %></td>
+                <td><span class="tag"><%= usable?'Ready':'Opening not established' %></span></td>
+                <td><a class="btn" href="/tenant/treasury/accounts/<%= a._id %>"><%= usable?'View balance':'Record actual opening' %></a></td></tr>
+            <% }) %>
+          </tbody></table>
+        </div>
+      <% } %>
+    </div>
+  </section>
+
+  <section class="card" style="margin-top:14px">
+    <div class="cardHead"><div><b>Start recording real operations</b><br>
+      <span>No need to complete unrelated settings. Use only the modules included in your plan.</span></div></div>
+    <div class="cardBody">
+      <div class="rowBtns">
+        <a class="btn btnPrimary" href="/tenant/dashboard">Open dashboard</a>
+        <a class="btn" href="/tenant/mobile-money/readiness">Check mobile money readiness</a>
+        <a class="btn" href="/tenant/workspace/landing">Business website</a>
+        <a class="btn" href="/tenant/workspace/pricing">Fees and commissions</a>
+      </div>
+      <p class="tiny">If a cash or wallet action is unavailable, follow the specific account's opening or cash-shift instructions. The system should never imply a real balance has been received before it is recorded and verified.</p>
+    </div>
+  </section>
+</section>

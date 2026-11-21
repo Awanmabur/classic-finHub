@@ -40,11 +40,11 @@ async function main(){
    operatorId:operator.id,isDefault:false,accountReference:'Existing verified destination wallet'});
  await opening(directSource,'2500');await opening(directDest,'100');
  const directInput={sourceAccountId:String(directSource._id),destinationAccountId:String(directDest._id),
-  amount:'500',evidenceReference:'DIRECT-MOVE-001',
-  note:'Moving existing verified funds between two active wallets',
-  idempotencyKey:crypto.randomUUID()};
+  amount:'500',idempotencyKey:crypto.randomUUID()};
  const firstDirect=await funding.postDirect(conn,tenant,operator,directInput);
  assert.equal(firstDirect.funding.status,'posted');
+ assert.match(firstDirect.funding.evidenceReference,/^INTERNAL-[0-9a-f-]{36}$/);
+ assert.equal(firstDirect.funding.note,'Internal transfer of existing verified account funds');
  assert.equal(firstDirect.duplicate,false);
  assert(firstDirect.funding.batchId,'Atomically posted transfer must have a funds movement batch');
  assert.equal((await funding.postDirect(conn,tenant,operator,directInput)).duplicate,true);

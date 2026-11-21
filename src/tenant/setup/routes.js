@@ -90,15 +90,19 @@ module.exports=function quickSetupRoutes({renderTenant}){
     tenantUserModel(req.tenantDb).countDocuments({status:'active',role:{$ne:'Tenant Owner'}}).maxTimeMS(3000),
     staffInviteModel(req.tenantDb).countDocuments({status:'pending',expiresAt:{$gt:new Date()}}).maxTimeMS(3000),
     fundModels(req.tenantDb).account.find({tenantId:req.tenant._id,status:{$ne:'archived'}})
-      .select('_id name kind currency network branchId openingBalanceMinor openingApprovedAt pendingOpeningId reconciliationState status')
+      .select('_id name kind currency network branchId ledgerAccountId ledgerCode openingBalanceMinor bookBalanceMinor sequence openingApprovedAt pendingOpeningId reconciliationState status')
       .sort({createdAt:-1,_id:-1}).limit(80).lean().maxTimeMS(3000),
     tenantUserModel(req.tenantDb).find({status:'active',role:{$ne:'Tenant Owner'}})
       .select('_id name role branchId').sort({name:1}).limit(80).lean().maxTimeMS(3000)
    ]);
    // Setup must never report an orphaned opening as a spendable account.
-   const snapshot=await treasury.balanceSnapshot(req.tenantDb,req.tenant,req.user);
-   const blocked=new Set(snapshot.accounts.filter(x=>x.integrityBlocked).map(x=>String(x._id)));
-   for(const account of accounts)account.integrityBlocked=blocked.has(String(account._id));
+   // A new business can use setup before it has any subscribed finance module.
+   // Check existing approved accounts directly without requiring a module view.
+   for(const account of accounts){
+    if(account.openingBalanceMinor===null)continue;
+    try{await treasury.assertBookIntegrity(req.tenantDb,null,account);}
+    catch(error){if(error.status!==503)throw error;account.integrityBlocked=true;}
+   }
    const ready=accounts.filter(x=>!x.integrityBlocked&&x.status==='active'&&x.openingBalanceMinor!=null&&
      x.openingApprovedAt&&x.reconciliationState==='matched');
    const kinds=accountKinds(req.tenant,req.user);

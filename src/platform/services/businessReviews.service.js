@@ -75,7 +75,7 @@ async function changeMine(slug,req,body,action){
  const original=await Review.findOne({tenantSlug:slug,tokenHash:digest('review-edit:'+token)});
  if(!original)throw error('Review editing access has expired.',403);
  if(original.status==='withdrawn')throw error('Withdrawn reviews cannot be restored.',409);
- if(original.status==='rejected')throw error('This review was removed for abuse and cannot be republished. Contact support if this is an error.',403);
+ if(original.status==='rejected'&&action!=='withdraw')throw error('This review was removed for abuse and cannot be republished. Contact support if this is an error.',403);
  const revision=String(body?.revision||'');
  if(!/^(0|[1-9]\d{0,8})$/.test(revision)||Number(revision)!==original.revision)throw error('Review changed. Reload and try again.',409);
  const changes=action==='withdraw'?{status:'withdrawn',comment:original.comment}:

@@ -45,7 +45,8 @@ async function submit(slug,body,ip){
  if(prior>=3)throw error('Review limit reached for this connection. Try again tomorrow.',429);
  const token=crypto.randomBytes(32).toString('hex');
  await Review.create({...fields,tenantId:tenant._id,tenantSlug:tenant.slug,
-   status:'pending',tokenHash:digest('review-edit:'+token),networkHash:net});
+   status:'approved',approvedAt:new Date(),
+   tokenHash:digest('review-edit:'+token),networkHash:net});
  return {token,cookieName:cookieName(slug),cookieOptions:cookieOptions(slug)};
 }
 async function publicReviews(tenantId){
@@ -70,7 +71,9 @@ async function changeMine(slug,req,body,action){
  const revision=String(body?.revision||'');
  if(!/^(0|[1-9]\d{0,8})$/.test(revision)||Number(revision)!==original.revision)throw error('Review changed. Reload and try again.',409);
  const changes=action==='withdraw'?{status:'withdrawn',comment:original.comment}:
-   {...reviewFields({authorName:body?.authorName,rating:body?.rating,comment:body?.comment}),status:'pending',approvedAt:null,moderatedAt:null,moderatedBy:null,moderationReason:'',ownerReply:'',ownerReplyAt:null};
+   {...reviewFields({authorName:body?.authorName,rating:body?.rating,comment:body?.comment}),
+     status:'approved',approvedAt:new Date(),moderatedAt:null,moderatedBy:null,
+     moderationReason:'',ownerReply:'',ownerReplyAt:null};
  const result=await Review.updateOne({_id:original._id,revision:original.revision,status:{$ne:'withdrawn'}},{$set:changes,$inc:{revision:1}});
  if(result.modifiedCount!==1)throw error('Review changed. Reload and try again.',409);
 }

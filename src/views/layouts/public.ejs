@@ -24,6 +24,7 @@
   <link rel="stylesheet" href="/vendor/inter/inter.css?v=<%= assetVersion %>" />
   <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css?v=<%= assetVersion %>" />
   <link rel="stylesheet" href="/css/style.css?v=<%= assetVersion %>" />
+  <% if(currentPath==='/marketplace'){ %><link rel="stylesheet" href="/css/marketplace.css?v=<%= assetVersion %>" /><% } %>
   <% if((currentPath==='/businesses'||currentPath.startsWith('/t/'))){ %><link rel="stylesheet" href="/css/business-directory.css?v=<%= assetVersion %>" /><% } %>
 <link rel="stylesheet" href="/css/feedback.css?v=<%= typeof assetVersion==='undefined'?'1':assetVersion %>">
 </head>

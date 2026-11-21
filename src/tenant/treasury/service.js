@@ -311,9 +311,24 @@ async function postingAuthorization(conn,session,authorization,value,internal={}
      /^MFX:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.sourceRef))||
    value.legs.length!==2||(!internal.reversesBatchId&&value.ledgerLines.length!==0)))
   throw fail('Invalid Mobile Money cross-currency ledger source',403);
+ // Only the dedicated internal-transfer service may request direct posting.
+ // It must be an exact balanced pair moving EXISTING funds, never a single
+ // credit leg, adjustment or provider money creation.
+ const directFunding=internal.directFunding===true;
+ if(directFunding){
+  const legs=value.legs;
+  if(value.sourceType!=='treasury_funding'||!/^FUND:[0-9a-f]{24}$/i.test(value.sourceRef)||
+     legs.length!==2||value.ledgerLines.length!==0||
+     BigInt(legs[0].deltaMinor)>=0n||BigInt(legs[1].deltaMinor)<=0n||
+     BigInt(legs[0].deltaMinor)+BigInt(legs[1].deltaMinor)!==0n||
+     legs[0].accountId===legs[1].accountId)
+   throw fail('Direct funding must be an exactly balanced internal transfer',403);
+ }
  const internalSource=['treasury_adjustment','treasury_funding'].includes(value.sourceType),
   source=internal.momoFx?'mobile_money':internalSource?null:value.sourceType;
- const current=await access(conn,authorization.tenant,authorization.actor,{permission:internalSource?'treasury.review':'treasury.observe',session,fence:true,sourceType:source});
+ const current=await access(conn,authorization.tenant,authorization.actor,{
+  permission:directFunding?'treasury.observe':internalSource?'treasury.review':'treasury.observe',
+  session,fence:true,sourceType:source});
  const branch=await core.branchModel(conn).findOneAndUpdate({_id:value.branchId,status:'active'},{$inc:{revision:1}},{session,new:true}).lean();if(!branch)throw fail('The operating branch is unavailable',409);
  if(current.actor.role!=='Tenant Owner'&&String(current.actor.branchId)!==value.branchId)throw fail('Funds movements cannot cross the assigned branch',403);
  const operatorId=value.operatingActorId||current.actor.id;if(operatorId!==current.actor.id&&!REVIEW_ROLES.includes(current.actor.role))throw fail('Only an authorized reviewer can post a different operator’s execution',403);

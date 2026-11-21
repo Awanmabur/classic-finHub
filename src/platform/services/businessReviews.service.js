@@ -37,8 +37,15 @@ async function eligibleTenant(slug){
  if(!tenant)throw error('Business is not publicly listed.',404);
  return tenant;
 }
-async function submit(slug,body,ip){
+async function submit(slug,body,ip,req=null){
  const tenant=await eligibleTenant(slug),fields=reviewFields(body);
+ const existingToken=cookieToken(req||{headers:{}},slug);
+ if(existingToken){
+  const existing=await Review.findOne({tenantSlug:slug,
+   tokenHash:digest('review-edit:'+existingToken)}).select('status').lean();
+  if(existing&&existing.status!=='withdrawn')
+   throw error('You have already rated this business. Edit your existing review instead.',409);
+ }
  const net=digest('review-net:'+slug+':'+String(ip||'unknown'));
  const prior=await Review.countDocuments({tenantId:tenant._id,networkHash:net,
    createdAt:{$gte:new Date(Date.now()-24*3600*1000)}}).maxTimeMS(3000);
@@ -68,6 +75,7 @@ async function changeMine(slug,req,body,action){
  const original=await Review.findOne({tenantSlug:slug,tokenHash:digest('review-edit:'+token)});
  if(!original)throw error('Review editing access has expired.',403);
  if(original.status==='withdrawn')throw error('Withdrawn reviews cannot be restored.',409);
+ if(original.status==='rejected')throw error('This review was removed for abuse and cannot be republished. Contact support if this is an error.',403);
  const revision=String(body?.revision||'');
  if(!/^(0|[1-9]\d{0,8})$/.test(revision)||Number(revision)!==original.revision)throw error('Review changed. Reload and try again.',409);
  const changes=action==='withdraw'?{status:'withdrawn',comment:original.comment}:

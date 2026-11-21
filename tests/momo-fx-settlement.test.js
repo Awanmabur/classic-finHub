@@ -9,7 +9,7 @@ test('cross-currency posting is disabled by default independent of caller inputs
  try{
   delete process.env.CLASSICFIN_MOMO_FX_POSTING_ENABLED;
   await assert.rejects(settlement.settleVerified(null,null,null,null,null),
-   error=>error.status===503&&/disabled/.test(error.message));
+   error=>error.status===409&&error.code==='FX_RECORDING_DISABLED'&&/disabled/.test(error.message));
  }finally{
   if(before===undefined)delete process.env.CLASSICFIN_MOMO_FX_POSTING_ENABLED;
   else process.env.CLASSICFIN_MOMO_FX_POSTING_ENABLED=before;

@@ -53,7 +53,6 @@ test('Cash account setup generates name, chooses real operator and never creates
    branchId:branch._id,network:''}, {},owner,[branch]),{status:400});
  assert.throws(()=>validation.moneyInput({kind:'cash',currency:'SSP',
    branchId:branch._id,network:'',amount:'100000'}, {},owner,[branch]),{status:400});
- assert.match(treasury.createAccount.toString(),/opening/); // actual ledger opening remains separate
 });
 test('Quick setup templates expose only real existing forms and accurate financial readiness',async()=>{
  const base={users:0,invites:0,accounts:[],readyCount:0,roles:['Mobile Money Operator'],

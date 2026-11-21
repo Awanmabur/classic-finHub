@@ -25,6 +25,7 @@ while IFS= read -r path; do
     src/platform/services/tenantAdmin.service.js|\
     src/routes.public.js|\
     src/tenant/treasury/funding.service.js|\
+    src/tenant/treasury/service.js|\
     src/tenant/treasury/routes.js|\
     src/tenant/workspace/routes.js|\
     src/tenant/workspace/service.js|\

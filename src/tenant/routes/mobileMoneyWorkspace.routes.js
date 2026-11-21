@@ -217,6 +217,8 @@ module.exports=function routes({renderTenant}){
     try{await treasury.assertBookIntegrity(req.tenantDb,null,account);verified.push(account);}
     catch(error){if(error.status!==503)throw error;integrityBlocked.push(account);}
    }
+   // A matching status flag is not sufficient: count only ledgers that passed.
+   totals.ready=verified.length;
    const owned=account=>!account.operatorId||String(account.operatorId)===String(req.user.id);
    const wallets=verified.filter(a=>a.kind==='wallet'&&owned(a));
    const cash=verified.filter(a=>a.kind==='cash'&&String(a.operatorId)===String(req.user.id));

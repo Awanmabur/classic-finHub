@@ -183,6 +183,13 @@ function factory({renderTenant}){
  for(const section of ['profile','landing','branding'])router.post('/'+section,requirePermission('workspace.manage'),throttle,async(req,res,next)=>{try{
   await service.save(req.tenantDb,req.tenant,req.user,section,req.body);flash(req,'good','Settings saved with an audit entry.');res.redirect(303,'/tenant/workspace/'+section);
  }catch(error){next(error);}});
+ router.post('/listing/visibility',requirePermission('workspace.manage'),throttle,async(req,res,next)=>{
+  try{
+    const result=await service.listingVisibility(req.tenantDb,req.tenant,req.user,req.body);
+    flash(req,'good',result.visibility==='hidden'?'Your business is hidden from the directory and its public profile is no longer available.':'Your business is publicly listed now.');
+    res.redirect(303,'/tenant/workspace/landing');
+  }catch(error){next(error);}
+ });
  router.post('/landing/publish',requirePermission('workspace.manage'),throttle,async(req,res,next)=>{try{
   const result=await service.publish(req.tenantDb,req.tenant,req.user,req.body);
    flash(req,result.directorySyncPending?'bad':'good',

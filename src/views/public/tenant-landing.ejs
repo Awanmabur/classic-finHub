@@ -94,7 +94,7 @@ const cityParts=[d.city,d.region,landing.country].filter(Boolean).join(', ');
   <% } %>
   <section class="publicBusinessSection publicBusinessReviews" id="business-reviews">
     <div class="publicBusinessSectionHead"><span>Customer experience</span><h2>Customer ratings & reviews</h2></div>
-    <p class="publicBusinessReviewSummary"><% if(reviews.summary.count){ %><strong><%= reviews.summary.avg.toFixed(1) %> / 5</strong> from <%= reviews.summary.count %> published <%= reviews.summary.count===1?'review':'reviews' %>.<% }else{ %>No published customer reviews yet.<% } %> Reviews are submitted by visitors and moderated; they do not verify a transaction or imply endorsement by ClassicFin Hub.</p>
+    <p class="publicBusinessReviewSummary"><% if(reviews.summary.count){ %><strong><%= reviews.summary.avg.toFixed(1) %> / 5</strong> from <%= reviews.summary.count %> published <%= reviews.summary.count===1?'review':'reviews' %>.<% }else{ %>No published customer reviews yet.<% } %> Reviews appear immediately and may be removed if abusive or fraudulent; they do not verify a transaction or imply endorsement by ClassicFin Hub.</p>
     <% if(reviews.rows.length){ %>
       <div class="publicBusinessReviewGrid"><% reviews.rows.forEach(review=>{ %>
         <article class="publicBusinessReviewCard"><div class="publicBusinessReviewStars" aria-label="<%= review.rating %> out of 5 stars"><%= '★'.repeat(review.rating)+'☆'.repeat(5-review.rating) %></div>
@@ -105,7 +105,7 @@ const cityParts=[d.city,d.region,landing.country].filter(Boolean).join(', ');
     <% } %>
     <div class="publicBusinessReviewForm">
       <h3>Share your experience</h3>
-      <p>Genuine customer feedback helps others understand this business. Reviews are independently moderated, and customers can edit or withdraw their own reviews from the original browser.</p>
+      <p>Genuine customer feedback helps others understand this business. Reviews appear immediately. Customers can edit or withdraw reviews from their original browser, and abusive content can be removed.</p>
       <div class="publicBusinessHeroActions">
         <a class="btn btn-dark" href="/t/<%= encodeURIComponent(tenant.slug) %>/review"><i class="fa-solid fa-star" aria-hidden="true"></i> Write a review</a>
         <% if(data.myReview){ %><a class="btn btn-light" href="/t/<%= encodeURIComponent(tenant.slug) %>/my-review">Edit or withdraw my review</a><% } %>

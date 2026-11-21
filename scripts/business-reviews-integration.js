@@ -56,9 +56,14 @@ async function main(){
     comment:'The service was professional and the team was courteous.',website:''});
   assert.equal(result.response.status,303,result.body.slice(0,150));
   let review=await Review.findOne({tenantId:tenant._id}).lean();
-  assert(review&&review.status==='pending');
+  assert(review&&review.status==='approved');
+  assert(review.approvedAt,'Direct review must have a publication timestamp');
   page=await request('/t/'+slug);
-  assert(!page.body.includes('The service was professional'),'Unmoderated feedback must never appear on public page');
+  assert(page.body.includes('The service was professional'),'Review must appear immediately, with no human approval');
+  const duplicate=await request('/t/'+slug+'/reviews',{...csrf,authorName:'Customer One',rating:'4',
+    comment:'Another review from the same browser must be rejected.',website:''});
+  assert.equal(duplicate.response.status,409,'One browser cannot create multiple active ratings');
+  assert.equal(await Review.countDocuments({tenantId:tenant._id}),1);
   const mine=await request('/t/'+slug+'/my-review');
   assert.equal(mine.response.status,200,mine.body.slice(0,500));
   assert(mine.body.includes('Customer One'),'Customer editing token was not retained');
@@ -66,25 +71,34 @@ async function main(){
     authorName:'Customer One',rating:'5',comment:'Updated review from the same original browser.'});
   assert.equal(edited.response.status,303,edited.body.slice(0,150));
   review=await Review.findOne({tenantId:tenant._id}).lean();
-  assert.equal(review.revision,1);assert.equal(review.rating,5);assert.equal(review.status,'pending');
-  const moderator={id:String(new mongoose.Types.ObjectId()),name:'Scratch moderator',permissions:['*']};
-  await service.moderate(String(review._id),moderator,{action:'approve',revision:1,
-    reason:'Specific customer feedback checked and approved for this scratch business.'});
-  review=await Review.findOne({_id:review._id}).lean();
-  assert.equal(review.status,'approved');
+  assert.equal(review.revision,1);assert.equal(review.rating,5);assert.equal(review.status,'approved');
+  assert(review.approvedAt,'Edited review must publish immediately');
   page=await request('/t/'+slug);
   assert(page.body.includes('Updated review from the same original browser.'));
   assert(page.body.includes('5.0 / 5'));
   const after=await service.myReview(slug,{headers:{cookie:[...cookies].map(([k,v])=>k+'='+v).join('; ')}});
-  assert.equal(after.revision,2);
-  const withdrawn=await request('/t/'+slug+'/my-review',{...csrf,revision:'2',action:'withdraw'});
+  assert.equal(after.revision,1);
+  const withdrawn=await request('/t/'+slug+'/my-review',{...csrf,revision:'1',action:'withdraw'});
   assert.equal(withdrawn.response.status,303,withdrawn.body.slice(0,150));
   review=await Review.findOne({_id:review._id}).lean();
   assert.equal(review.status,'withdrawn');
   page=await request('/t/'+slug);
   assert(!page.body.includes('Updated review from the same original browser.'));
-  assert.equal(await PlatformAuditLog.countDocuments({action:'business.review.moderated',recordId:String(review._id)}),1);
-  console.log('PASS: customer submission, CSRF, private pending feedback, cookie-bound editing, audited approval, public stars, withdrawal and privacy.');
+  // Abuse can still be removed AFTER publication, never an approval queue.
+  const second=await request('/t/'+slug+'/reviews',{...csrf,authorName:'Customer Two',rating:'3',
+    comment:'A real customer rating can also be moderated after publication.',website:''});
+  assert.equal(second.response.status,303);
+  const hiddenReview=await Review.findOne({tenantId:tenant._id,status:'approved'}).lean();
+  assert(hiddenReview);
+  page=await request('/t/'+slug);
+  assert(page.body.includes('A real customer rating can also be moderated after publication.'));
+  const moderator={id:String(new mongoose.Types.ObjectId()),name:'Scratch safety operator',permissions:['*']};
+  await service.moderate(String(hiddenReview._id),moderator,{action:'hide',revision:0,
+    reason:'Reported abusive content removed after its original immediate publication.'});
+  page=await request('/t/'+slug);
+  assert(!page.body.includes('A real customer rating can also be moderated after publication.'));
+  assert.equal(await PlatformAuditLog.countDocuments({action:'business.review.moderated',recordId:String(hiddenReview._id)}),1);
+  console.log('PASS: direct rating publication and edits, CSRF, one active review per browser, post-publication abuse removal, immutable audit and withdrawal.');
  }finally{
   if(server)await new Promise(resolve=>server.close(resolve));
   try{const conn=getTenantConnection(slug);assert.equal(conn.name,tenantDbNameFromSlug(slug));await conn.dropDatabase();}catch(error){console.error('Scratch tenant cleanup:',error.code||error.message);}

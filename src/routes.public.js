@@ -163,7 +163,8 @@ router.get('/t/:slug', async (req,res,next)=>{
      status:{$in:['active','trial']},setupStatus:{$ne:'invited'}}).lean();
    if(!tenant||tenant.directoryListing?.visibility==='hidden')return res.status(404).send('Business profile not found');
    const landingPublished=await require('./tenant/workspace/service').publicLanding(getTenantConnection(tenant.slug),tenant);
-   if(!landingPublished&&tenant.directoryListing?.visibility!=='published')return res.status(404).send('Business profile not found');
+   // No human listing approval: the business is live after owner activation.
+   // Do not disclose draft profile, private owner contacts or financial records.
    const landing=landingPublished||{name:tenant.name,headline:'',subtitle:'',services:[],sections:[],country:'',supportPhone:'',details:{}};
    const reviewsService=require('./platform/services/businessReviews.service');
    const [reviews,myReview]=await Promise.all([reviewsService.publicReviews(tenant._id),reviewsService.myReview(tenant.slug,req)]);
@@ -188,9 +189,9 @@ router.post('/t/:slug/reviews',async(req,res,next)=>{
    await require('./platform/services/actionThrottle.service').consume({
      category:'public-business-review',scope:req.params.slug+':'+req.ip,limit:5,windowMs:3600000});
    const reviews=require('./platform/services/businessReviews.service');
-   const created=await reviews.submit(req.params.slug,req.body,req.ip);
+   const created=await reviews.submit(req.params.slug,req.body,req.ip,req);
    res.cookie(created.cookieName,created.token,created.cookieOptions);
-   flash(req,'good','Your review was received for moderation. You can edit or withdraw it from this browser.');
+   flash(req,'good','Your review is now public. You can edit or withdraw it from this browser.');
    res.redirect(303,'/t/'+encodeURIComponent(req.params.slug)+'#business-reviews');
  }catch(err){next(err);}
 });
@@ -213,7 +214,7 @@ router.post('/t/:slug/my-review',async(req,res,next)=>{
    const action=req.body?.action==='withdraw'?'withdraw':'edit';
    await service.changeMine(req.params.slug,req,req.body,action);
    if(action==='withdraw')res.clearCookie(service.cookieName(req.params.slug),service.cookieOptions(req.params.slug));
-   flash(req,'good',action==='withdraw'?'Your review has been withdrawn.':'Your review was updated and returned for moderation.');
+   flash(req,'good',action==='withdraw'?'Your review has been withdrawn.':'Your updated review is now public.');
    res.redirect(303,action==='withdraw'?'/t/'+encodeURIComponent(req.params.slug):'/t/'+encodeURIComponent(req.params.slug)+'/my-review');
  }catch(err){next(err);}
 });

@@ -5,12 +5,10 @@ const BusinessReview = require('../models/BusinessReview');
 
 const eligible = Object.freeze({
   status:{$in:['active','trial']},
-  setupStatus:{$ne:'invited'},
-  'directoryListing.visibility':{$ne:'hidden'},
-  $or:[
-    {'directory.publishedAt':{$exists:true,$ne:null}},
-    {'directoryListing.visibility':'published'}
-  ]
+  // A completed, active business becomes discoverable immediately.
+  // Only the business name and slug are public until the owner publishes details.
+  setupStatus:'complete',
+  'directoryListing.visibility':{$ne:'hidden'}
 });
 const text = (value,limit=120) => typeof value==='string' ? value.trim().slice(0,limit) : '';
 const escaped = value => value.replace(/[|\\{}()[\]^$+*?.]/g,'\\$&');
@@ -75,7 +73,7 @@ async function search(input){
   const query={...eligible};
   if(filters.q){
     const rx=new RegExp(escaped(filters.q),'i');
-    // Keep the publication/approval gate when a name search is added.
+    // Keep the tenant eligibility and privacy gate when a name search is added.
     query.$and=[{$or:[{name:rx},{'directory.name':rx},{'directory.headline':rx},
       {'directory.subtitle':rx},{'directory.services':rx}]}];
   }

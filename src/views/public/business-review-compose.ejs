@@ -2,14 +2,14 @@
   <nav class="businessDirCrumbs" aria-label="Breadcrumb"><a href="/businesses">Businesses</a><i class="fa-solid fa-chevron-right"></i><a href="/t/<%= encodeURIComponent(data.slug) %>"><%= data.businessName %></a><i class="fa-solid fa-chevron-right"></i><span>Write a review</span></nav>
   <div class="publicBusinessReviewForm">
     <h1>Review <%= data.businessName %></h1>
-    <p>Describe your genuine experience. Your chosen display name, rating and comment can be published after independent moderation. Reviews do not verify that a financial transaction occurred. You can edit or withdraw your review from this browser.</p>
+    <p>Describe your genuine experience. Your chosen display name, rating and comment appears immediately after submission. Reviews do not verify that a financial transaction occurred. You can edit or withdraw your review from this browser.</p>
     <form method="post" action="/t/<%= encodeURIComponent(data.slug) %>/reviews" class="publicBusinessReviewFields">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <div class="businessReviewTrap" aria-hidden="true"><label>Leave this field empty<input name="website" tabindex="-1" autocomplete="off"></label></div>
       <label>Your display name<input name="authorName" required minlength="2" maxlength="80" autocomplete="name"></label>
       <label>Rating<select name="rating" required><option value="">Choose stars</option><% [5,4,3,2,1].forEach(stars=>{ %><option value="<%= stars %>"><%= stars %> stars</option><% }) %></select></label>
       <label class="businessReviewComment">Your review<textarea name="comment" required minlength="15" maxlength="1600" rows="5" placeholder="Tell others about your real experience"></textarea></label>
-      <button type="submit" class="btn btn-dark">Submit for moderation</button>
+      <button type="submit" class="btn btn-dark">Publish review</button>
     </form>
     <a class="btn btn-light" href="/t/<%= encodeURIComponent(data.slug) %>">Back to business website</a>
   </div>

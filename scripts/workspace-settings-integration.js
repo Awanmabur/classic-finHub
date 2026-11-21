@@ -90,31 +90,29 @@ async function main(){
  server=await new Promise(resolve=>{const instance=createApp({sessionStore:new expressSession.MemoryStore()}).listen(0,()=>resolve(instance));});const base=`http://127.0.0.1:${server.address().port}`;let cookie='';
  async function request(path,values){const response=await fetch(base+path,{method:values?'POST':'GET',redirect:'manual',headers:{...(cookie?{cookie}:{}),...(values?{'content-type':'application/x-www-form-urlencoded'}:{})},...(values?{body:new URLSearchParams(values).toString()}:{})});cookie=response.headers.get('set-cookie')?.split(';')[0]||cookie;return {response,html:await response.text()};}
  const publicPage=await request('/t/'+tenant.slug);assert.equal(publicPage.response.status,200,publicPage.html);assert.match(publicPage.response.headers.get('cache-control'),/no-store/);assert.match(publicPage.html,/Published &lt;script&gt;/);assert.doesNotMatch(publicPage.html,/Private draft section|Unpublished headline|<script>example\(\)/);
- const otherPage=await request('/t/'+otherTenant.slug);assert.equal(otherPage.response.status,404,'unpublished tenant branding must not become a public fallback page');assert.doesNotMatch(otherPage.html,/Published services|Published customer description|Other workspace/);
- // Business discovery must never expose unpublished tenant records until
- // a platform administrator explicitly approves a basic public listing.
- const listingAdmin={id:String(new mongoose.Types.ObjectId()),name:'Directory Operator',permissions:['*']};
- const listingReason='Approved basic public listing for this business after tenant onboarding.';
- const beforeListing=await Tenant.findById(otherTenant._id).lean();
- await assert.rejects(tenantAdmin.changeDirectoryListing(otherTenant._id,listingAdmin,
-   {action:'publish',reason:listingReason,revision:String(beforeListing.__v+1)}),{status:409});
- await tenantAdmin.changeDirectoryListing(otherTenant._id,listingAdmin,
-   {action:'publish',reason:listingReason,revision:String(beforeListing.__v)});
- const approvedPage=await request('/t/'+otherTenant.slug);
- assert.equal(approvedPage.response.status,200,'approved minimal business profile is reachable');
- assert.match(approvedPage.html,/Workspace 1/);
- assert(!approvedPage.html.includes(otherTenant.email),'private tenant owner email must remain hidden');
+ // Active and fully activated tenant business names are public immediately.
+ // Detailed owner profile, contacts, drafts and financial records remain private.
+ const basicPage=await request('/t/'+otherTenant.slug);
+ assert.equal(basicPage.response.status,200,'active tenant business is live without admin listing approval');
+ assert.match(basicPage.html,/Workspace 1/);
+ assert(!basicPage.html.includes(otherTenant.email),'private tenant owner email must remain hidden');
+ assert(!basicPage.html.includes('Private draft section'));
  const directoryListed=await request('/businesses');
  assert.equal(directoryListed.response.status,200);
  assert(directoryListed.html.includes('/t/'+otherTenant.slug));
- const afterApproval=await Tenant.findById(otherTenant._id).lean();
- await tenantAdmin.changeDirectoryListing(otherTenant._id,listingAdmin,
-   {action:'hide',reason:'Hide this business from public discovery pending owner request.',revision:String(afterApproval.__v)});
+ await assert.rejects(service.listingVisibility(other,otherTenant,owner,{action:'hide'}),{status:403},
+   'Owner of a separate tenant cannot alter this business');
+ const hidden=await service.listingVisibility(other,otherTenant,otherOwner,{action:'hide'});
+ assert.equal(hidden.visibility,'hidden');
  const hiddenPage=await request('/t/'+otherTenant.slug);
- assert.equal(hiddenPage.response.status,404,'hidden tenant identity remains private');
+ assert.equal(hiddenPage.response.status,404,'owner can hide business without platform administrator');
  const directoryHidden=await request('/businesses');
  assert(!directoryHidden.html.includes('/t/'+otherTenant.slug));
- assert((await require('../src/platform/models/PlatformAuditLog').countDocuments({action:'tenant.public_directory_changed',recordId:String(otherTenant._id)}))===2);
+ const visible=await service.listingVisibility(other,otherTenant,otherOwner,{action:'show'});
+ assert.equal(visible.visibility,'default');
+ assert.equal((await request('/t/'+otherTenant.slug)).response.status,200);
+ assert((await require('../src/platform/models/PlatformAuditLog').countDocuments({
+   action:'tenant.business_listing_visibility_changed',recordId:String(otherTenant._id)}))===2);
  const anon=await request('/tenant/workspace/profile');assert.equal(anon.response.status,303);assert.equal(anon.response.headers.get('location'),'/signin');
  const signIn=await request('/signin');await request('/signin',{email:tenant.email,password,_csrf:csrf(signIn.html)});const challenge=await request('/mfa/challenge');const verification=await request('/mfa/challenge',{code:mfa.counterCode(secret,Math.floor(Date.now()/30000)),_csrf:csrf(challenge.html)});assert.equal(verification.response.status,303,verification.html);
  for(const path of ['','/profile','/landing','/branding','/roles','/kyc','/database','/subscription','/notification-rules','/integrations','/import-export','/compliance','/landing-preview','/receipt-preview','/customer-portal-preview','/audit','/profile/edit','/branding/edit','/branding/receipt/edit','/landing/headline/edit','/entries/landing_section/new']){const page=await request('/tenant/workspace'+path);assert.equal(page.response.status,200,`${path}: ${page.html.slice(0,600)}`);assert.doesNotMatch(page.html,/passwordHash|mfaSecretEncrypted/);}

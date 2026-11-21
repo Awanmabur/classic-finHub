@@ -1,8 +1,8 @@
 <section class="view show workspaceStack">
   <section class="card">
-    <div class="cardHead"><div><b>Customer ratings & reviews</b><br><span>Reply to approved reviews. Customer ratings and comments are controlled by the customer and independently moderated by the platform.</span></div><a class="btn" href="/tenant/workspace/landing">Business website</a></div>
+    <div class="cardHead"><div><b>Customer ratings & reviews</b><br><span>Reply to approved reviews. Customer ratings and comments appear immediately. Owners may reply, and the platform can remove abuse.</span></div><a class="btn" href="/tenant/workspace/landing">Business website</a></div>
     <div class="cardBody">
-      <p class="tiny">Approved customer feedback appears on your public business website. Pending and rejected reviews remain unpublished. Reviews do not verify a real transaction, and a business reply does not alter a customer's rating.</p>
+      <p class="tiny">Submitted customer feedback appears immediately on your public business website. Hidden or withdrawn reviews are not public. Reviews do not verify a real transaction, and a business reply does not alter a customer's rating.</p>
       <% if(!data.reviews.length){ %><p>No reviews submitted for this business yet. Share your published profile link to invite genuine customer feedback.</p><% } %>
       <div class="workspaceStack">
       <% data.reviews.forEach(review=>{ %>

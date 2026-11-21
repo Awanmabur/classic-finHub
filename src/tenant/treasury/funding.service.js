@@ -16,7 +16,7 @@ function id(value){if(!OID.test(String(value||'')))throw fail('Select a valid fu
 function text(value,label,min,max){if(typeof value!=='string'||value.trim().length<min||value.trim().length>max||/[<>\u0000-\u001f\u007f]/.test(value))throw fail(`Enter a valid ${label}`);return value.trim();}
 function hash(value){return crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');}
 async function transaction(conn,fn){const session=await conn.startSession();try{let result;await session.withTransaction(async()=>{result=await fn(session);},{readConcern:{level:'snapshot'}});return result;}finally{await session.endSession();}}
-async function audit(conn,session,actor,action,row){await core.auditEventModel(conn).create([{action,actorId:actor.id,targetId:row._id,metadata:{branchId:String(row.branchId),currency:row.currency,sourceAccountId:String(row.sourceAccountId),destinationAccountId:String(row.destinationAccountId),amountMinor:String(row.amountMinor),selfReviewed:action.startsWith('treasury.funding.')&&String(row.requestedBy)===String(actor.id)}}],{session});}
+async function audit(conn,session,actor,action,row){await core.auditEventModel(conn).create([{action,actorId:actor.id,targetId:row._id,metadata:{branchId:String(row.branchId),currency:row.currency,sourceAccountId:String(row.sourceAccountId),destinationAccountId:String(row.destinationAccountId),amountMinor:String(row.amountMinor),selfReviewed:Boolean(row.reviewedBy)&&String(row.requestedBy)===String(actor.id),autoPosted:action==='treasury.funding.posted'&&!row.reviewedBy}}],{session});}
 function validatePair(source,destination,branchId,{ready=true}={}){
  if(String(source._id)===String(destination._id))throw fail('Choose different source and destination accounts');
  if(!KINDS.includes(source.kind)||!KINDS.includes(destination.kind))throw fail('Funding transfers support cash, bank and wallet accounts');
@@ -65,6 +65,81 @@ async function request(conn,tenant,actor,input={}){
   if(error.code===11000){const prior=await model(conn).findOne({tenantId:tenant._id,requestedBy:actor.id,idempotencyKey:values.idempotencyKey}).lean();if(prior&&prior.fingerprint===fingerprint)return {funding:prior,duplicate:true};throw fail('Funding reference already exists with different details',409);}throw error;
  }
 }
+// Instant internal transfer: atomically move EXISTING book funds between two
+// already opened, reconciled accounts. Never create funds from a user-entered
+// deposit amount or bypass source balance, branch, permission or audit checks.
+async function postDirect(conn,tenant,actor,input={}){
+ // The operator supplies only From, To and Amount. Internal references
+ // are generated from the stable idempotency key, not invented external receipts.
+ if(typeof input.idempotencyKey!=='string'||!UUID.test(input.idempotencyKey))
+  throw fail('Reload to obtain a valid transfer reference');
+ const key=input.idempotencyKey.toLowerCase();
+ const values={
+  sourceAccountId:id(input.sourceAccountId),destinationAccountId:id(input.destinationAccountId),
+  evidenceReference:input.evidenceReference
+   ?text(input.evidenceReference,'funding reference',6,120):'INTERNAL-'+key,
+  note:input.note?text(input.note,'funding explanation',12,400):
+   'Internal transfer of existing verified account funds',
+  idempotencyKey:key
+ };
+ await Promise.all([treasury.ensure(conn),ensureIndexes(conn)]);
+ let fingerprint;
+ try{
+  return await transaction(conn,async session=>{
+   const authorization=await treasury.access(conn,tenant,actor,
+     {permission:'treasury.observe',session,fence:true});
+   const Branch={findOne:q=>core.branchModel(conn).findOne(q).session(session),
+     find:q=>core.branchModel(conn).find(q).session(session)};
+   const {source,destination}=await pair(conn,session,authorization,values);
+   const branch=authorization.actor.role==='Tenant Owner'
+     ?await core.branchModel(conn).findOne({_id:source.branchId,status:'active'}).session(session).lean()
+     :await resolveTransactionBranch(conn,authorization.actor,{}, {Branch});
+   if(!branch)throw fail('The funding branch is inactive or unavailable',409);
+   validatePair(source,destination,branch._id);
+   const amount=treasury.major(input.amount,source.currency);
+   if(amount<=0n)throw fail('Transfer amount must be greater than zero');
+   if(BigInt(String(source.bookBalanceMinor))<amount)throw fail('The funding source has insufficient funds',409);
+   const operating=await operatingActor(conn,session,authorization,source,destination);
+   const canonical={...values,tenantId:String(authorization.tenant._id),
+     branchId:String(branch._id),currency:source.currency,amountMinor:String(amount),
+     requestedBy:authorization.actor.id,requestedRole:authorization.actor.role,
+     requestedAuthVersion:authorization.actor.authVersion,operatingActorId:operating.id,
+     operatingRole:operating.role,operatingAuthVersion:operating.authVersion};
+   fingerprint=hash(canonical);
+   const Funding=model(conn);
+   const prior=await Funding.findOne({tenantId:authorization.tenant._id,
+     idempotencyKey:values.idempotencyKey}).session(session).lean();
+   if(prior){
+    if(prior.fingerprint!==fingerprint)throw fail('Transfer key reused with different details',409);
+    if(prior.status!=='posted')throw fail('An older transfer is awaiting resolution',409);
+    return {funding:prior,duplicate:true};
+   }
+   const fundingId=new mongoose.Types.ObjectId();
+   const posting=await treasury.applyMovements(conn,session,authorization,{
+     sourceType:'treasury_funding',sourceRef:`FUND:${fundingId}`,
+     branchId:String(branch._id),operatingActorId:String(operating.id),
+     legs:[{accountId:String(source._id),deltaMinor:String(-amount)},
+       {accountId:String(destination._id),deltaMinor:String(amount)}],
+     ledgerLines:[],description:`Internal funds: ${source.name} to ${destination.name}`,
+     evidenceReference:values.evidenceReference
+   },{directFunding:true});
+   const [funding]=await Funding.create([{_id:fundingId,...canonical,fingerprint,status:'posted',
+     reviewNote:'Auto-posted internal transfer; no independent reviewer',
+     batchId:posting.batch?._id||null,journalIds:posting.journalIds||[]}],{session});
+   await audit(conn,session,authorization.actor,'treasury.funding.posted',funding);
+   return {funding:funding.toObject(),duplicate:false};
+  });
+ }catch(error){
+  if(error.code===11000){
+   const prior=await model(conn).findOne({tenantId:tenant._id,
+     idempotencyKey:values.idempotencyKey}).lean();
+   if(prior&&prior.fingerprint===fingerprint&&prior.status==='posted')
+    return {funding:prior,duplicate:true};
+   throw fail('Transfer reference already used for another request',409);
+  }
+  throw error;
+ }
+}
 async function review(conn,tenant,actor,fundingId,input={}){
  if(!['approve','reject'].includes(input.decision))throw fail('Choose approve or reject');
  const note=text(input.note,'funding review',12,400),recordId=id(fundingId);await Promise.all([treasury.ensure(conn),ensureIndexes(conn)]);
@@ -107,4 +182,4 @@ async function list(conn,tenant,actor,input={}){
  for(const funding of rows){const [source,destination]=await Promise.all([load(funding.sourceAccountId),load(funding.destinationAccountId)]);if(source&&destination)visible.push({...funding,source,destination});}
  return visible;
 }
-module.exports={request,review,list,validatePair,fail};
+module.exports={request,postDirect,review,list,validatePair,fail};

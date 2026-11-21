@@ -29,6 +29,42 @@ async function main(){
  await assert.rejects(post({sourceRef:'UNOPENED-REFERENCE',legs:[{accountId:wallet._id,deltaMinor:'-1'},{accountId:drawer._id,deltaMinor:'1'}]}),e=>e.status===409);
  await opening(wallet,'10000');await opening(drawer,'1000');
  const shift=await cash.open(conn,tenant,operator,{openingCash:'1000'});await cash.decideOpening(conn,tenant,reviewer,shift._id,{decision:'approve',note:'Independent opening drawer count was checked'});
+ // Direct funds: existing verified assets move in ONE Mongo transaction,
+ // without a second human decision or a new source of spendable money.
+ const funding=require('../src/tenant/treasury/funding.service');
+ const directSource=await treasury.createAccount(conn,tenant,owner,
+  {code:'DIRECT_SRC',name:'Verified source wallet',kind:'wallet',network:'MTN',currency:'UGX',
+   operatorId:operator.id,isDefault:false,accountReference:'Existing verified source wallet'});
+ const directDest=await treasury.createAccount(conn,tenant,owner,
+  {code:'DIRECT_DST',name:'Verified destination wallet',kind:'wallet',network:'MTN',currency:'UGX',
+   operatorId:operator.id,isDefault:false,accountReference:'Existing verified destination wallet'});
+ await opening(directSource,'2500');await opening(directDest,'100');
+ const directInput={sourceAccountId:String(directSource._id),destinationAccountId:String(directDest._id),
+  amount:'500',idempotencyKey:crypto.randomUUID()};
+ const firstDirect=await funding.postDirect(conn,tenant,operator,directInput);
+ assert.equal(firstDirect.funding.status,'posted');
+ assert.match(firstDirect.funding.evidenceReference,/^INTERNAL-[0-9a-f-]{36}$/);
+ assert.equal(firstDirect.funding.note,'Internal transfer of existing verified account funds');
+ assert.equal(firstDirect.duplicate,false);
+ assert(firstDirect.funding.batchId,'Atomically posted transfer must have a funds movement batch');
+ assert.equal((await funding.postDirect(conn,tenant,operator,directInput)).duplicate,true);
+ assert.equal(String((await book.models(conn).account.findById(directSource._id)).bookBalanceMinor),'2000');
+ assert.equal(String((await book.models(conn).account.findById(directDest._id)).bookBalanceMinor),'600');
+ assert.equal(await require('../src/tenant/treasury/funding.models').model(conn).countDocuments({idempotencyKey:directInput.idempotencyKey}),1);
+ await assert.rejects(funding.postDirect(conn,tenant,operator,{...directInput,amount:'550'}),e=>e.status===409);
+ await assert.rejects(funding.postDirect(conn,tenant,operator,{...directInput,amount:'8000',
+  idempotencyKey:crypto.randomUUID()}),e=>e.status===409);
+ assert.equal(String((await book.models(conn).account.findById(directSource._id)).bookBalanceMinor),'2000');
+ assert.equal(String((await book.models(conn).account.findById(directDest._id)).bookBalanceMinor),'600');
+ const races=await Promise.allSettled([1,2].map(n=>funding.postDirect(conn,tenant,operator,
+  {...directInput,amount:'1800',evidenceReference:'DIRECT-RACE-00'+n,
+   idempotencyKey:crypto.randomUUID()})));
+ assert.equal(races.filter(r=>r.status==='fulfilled').length,1,
+  'Simultaneous large internal transfers cannot spend the same funds twice');
+ const finalSource=BigInt(String((await book.models(conn).account.findById(directSource._id)).bookBalanceMinor));
+ const finalDest=BigInt(String((await book.models(conn).account.findById(directDest._id)).bookBalanceMinor));
+ assert.equal(finalSource+finalDest,2600n,'Internal transfers must conserve both account balances');
+ assert(finalSource>=0n,'No negative money can be created');
  const input={sourceRef:'MANUAL-MOMO-FIRST',legs:[{accountId:wallet._id,deltaMinor:'-500'},{accountId:drawer._id,deltaMinor:'500'}],evidenceRef:'ACTUAL-NETWORK-1234'};
  const result=await post(input);assert.equal(result.duplicate,false);assert.equal((await post(input)).duplicate,true);assert.equal(await book.models(conn).movement.countDocuments({batchId:result.batch._id}),2);
  assert.equal(String((await book.models(conn).account.findById(wallet._id)).bookBalanceMinor),'9500');assert.equal(String((await book.models(conn).account.findById(drawer._id)).bookBalanceMinor),'1500');assert.equal(String((await core.cashSessionModel(conn).findById(shift._id)).provisionalMovementMinor),'500','binding cannot count opening or movement twice');

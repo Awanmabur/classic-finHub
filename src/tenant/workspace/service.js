@@ -225,6 +225,40 @@ async function publish(conn,tenant,actor,input){
  }catch(error){console.error(JSON.stringify({event:'public_business_directory_sync_failed',tenantSlug:tenant.slug,errorCode:error.code||'SYNC_FAILED'}));}
  return {...saved,directorySyncPending:!directorySynced};
 }
+async function listingVisibility(conn,tenant,actor,input){
+  if(actor?.role!=='Tenant Owner')throw fail('Only the business owner can change public listing visibility',403);
+  const action=String(input?.action||'');
+  fields(input,['action']);
+  if(!['show','hide'].includes(action))throw fail('Choose Show or Hide',400);
+  await access(conn,tenant,actor,{manage:true});
+  const Tenant=require('../../platform/models/Tenant');
+  const PlatformAuditLog=require('../../platform/models/PlatformAuditLog');
+  const mongoose=require('mongoose');
+  const visibility=action==='hide'?'hidden':'default';
+  const session=await mongoose.startSession();
+  try{
+    return await session.withTransaction(async()=>{
+      // Recheck real owner permissions and tenant/DB identity inside this transaction.
+      const trusted=await access(conn,tenant,actor,{manage:true,session,fence:true});
+      const current=await Tenant.findOne({_id:trusted.tenant._id,slug:trusted.tenant.slug,
+        setupStatus:'complete',status:{$in:['trial','active']}}).session(session);
+      if(!current)throw fail('Activate your account before making the business public',409);
+      const before=current.directoryListing?.visibility||'default';
+      if(before===visibility)return {visibility,unchanged:true};
+      current.set('directoryListing.visibility',visibility);
+      // Legacy admin approvals are not required for an active business.
+      current.set('directoryListing.approvedBy',null);
+      current.set('directoryListing.approvedAt',null);
+      await current.save({session});
+      await PlatformAuditLog.create([{actorId:String(trusted.actor.id),
+        actorName:String(trusted.actor.name||'Tenant Owner'),
+        action:'tenant.business_listing_visibility_changed',moduleKey:'business_directory',
+        recordId:String(trusted.tenant._id),before:{visibility:before},
+        after:{visibility,changedBy:'tenant_owner'}}],{session});
+      return {visibility,unchanged:false};
+    });
+  }finally{await session.endSession();}
+}
 async function publicLanding(conn,tenant){
  context(conn,tenant);
  const config=await models(conn).config.findOne({tenantId:tenantId(tenant),'landing.publishedAt':{$ne:null}}).select('landing.published landing.publishedAt').lean();
@@ -265,4 +299,4 @@ async function exportConfig(conn,tenant,actor){await access(conn,tenant,actor,{m
  const records=await models(conn).entry.find({tenantId:tenantId(tenant),kind:{$nin:['backup_request','data_job']}}).sort({kind:1,createdAt:1}).limit(1400).session(session).lean();
  await audit(conn,session,trusted.tenant,trusted.actor,'workspace.settings.exported',tenantId(tenant),{records:records.length});
  return {schemaVersion:1,exportedAt:new Date(),settings,records};});}
-module.exports={fail,oid,authorize,access,plain,revision,validateConfig,validateEntry,defaults,read,save,entries,writeEntry,transition,publish,publicLanding,receiptIdentity,database,health,overview,roles,subscription,logs,auditCsv,exportConfig};
+module.exports={fail,oid,authorize,access,plain,revision,validateConfig,validateEntry,defaults,read,save,entries,writeEntry,transition,publish,listingVisibility,publicLanding,receiptIdentity,database,health,overview,roles,subscription,logs,auditCsv,exportConfig};

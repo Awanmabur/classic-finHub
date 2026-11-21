@@ -37,15 +37,23 @@ async function eligibleTenant(slug){
  if(!tenant)throw error('Business is not publicly listed.',404);
  return tenant;
 }
-async function submit(slug,body,ip){
+async function submit(slug,body,ip,req=null){
  const tenant=await eligibleTenant(slug),fields=reviewFields(body);
+ const existingToken=cookieToken(req||{headers:{}},slug);
+ if(existingToken){
+  const existing=await Review.findOne({tenantSlug:slug,
+   tokenHash:digest('review-edit:'+existingToken)}).select('status').lean();
+  if(existing&&existing.status!=='withdrawn')
+   throw error('You have already rated this business. Edit your existing review instead.',409);
+ }
  const net=digest('review-net:'+slug+':'+String(ip||'unknown'));
  const prior=await Review.countDocuments({tenantId:tenant._id,networkHash:net,
    createdAt:{$gte:new Date(Date.now()-24*3600*1000)}}).maxTimeMS(3000);
  if(prior>=3)throw error('Review limit reached for this connection. Try again tomorrow.',429);
  const token=crypto.randomBytes(32).toString('hex');
  await Review.create({...fields,tenantId:tenant._id,tenantSlug:tenant.slug,
-   status:'pending',tokenHash:digest('review-edit:'+token),networkHash:net});
+   status:'approved',approvedAt:new Date(),
+   tokenHash:digest('review-edit:'+token),networkHash:net});
  return {token,cookieName:cookieName(slug),cookieOptions:cookieOptions(slug)};
 }
 async function publicReviews(tenantId){
@@ -67,10 +75,13 @@ async function changeMine(slug,req,body,action){
  const original=await Review.findOne({tenantSlug:slug,tokenHash:digest('review-edit:'+token)});
  if(!original)throw error('Review editing access has expired.',403);
  if(original.status==='withdrawn')throw error('Withdrawn reviews cannot be restored.',409);
+ if(original.status==='rejected'&&action!=='withdraw')throw error('This review was removed for abuse and cannot be republished. Contact support if this is an error.',403);
  const revision=String(body?.revision||'');
  if(!/^(0|[1-9]\d{0,8})$/.test(revision)||Number(revision)!==original.revision)throw error('Review changed. Reload and try again.',409);
  const changes=action==='withdraw'?{status:'withdrawn',comment:original.comment}:
-   {...reviewFields({authorName:body?.authorName,rating:body?.rating,comment:body?.comment}),status:'pending',approvedAt:null,moderatedAt:null,moderatedBy:null,moderationReason:'',ownerReply:'',ownerReplyAt:null};
+   {...reviewFields({authorName:body?.authorName,rating:body?.rating,comment:body?.comment}),
+     status:'approved',approvedAt:new Date(),moderatedAt:null,moderatedBy:null,
+     moderationReason:'',ownerReply:'',ownerReplyAt:null};
  const result=await Review.updateOne({_id:original._id,revision:original.revision,status:{$ne:'withdrawn'}},{$set:changes,$inc:{revision:1}});
  if(result.modifiedCount!==1)throw error('Review changed. Reload and try again.',409);
 }
@@ -83,14 +94,14 @@ async function moderate(id,actor,body){
  if(!mongoose.isValidObjectId(id))throw error('Review not found.',404);
  if(Object.keys(body||{}).some(k=>!['_csrf','action','revision','reason'].includes(k)))throw error('Invalid moderation fields.');
  const action=body.action;
- if(!['approve','reject','hide','reopen'].includes(action))throw error('Choose a valid moderation action.');
+ if(!['hide','restore'].includes(action))throw error('Choose Hide or Restore for an already published review.');
  const revision=Number(body.revision);
  if(!Number.isSafeInteger(revision)||revision<0)throw error('Refresh review list before moderation.',409);
  const reason=text(body.reason,12,400,'Moderation reason');
  const session=await mongoose.startSession();
  try{await session.withTransaction(async()=>{
-   const currentStatus=action==='hide'?'approved':action==='reopen'?'rejected':'pending';
-   const status=action==='approve'?'approved':action==='reopen'?'pending':'rejected';
+   const currentStatus=action==='hide'?'approved':'rejected';
+   const status=action==='hide'?'rejected':'approved';
    const current=await Review.findOne({_id:id,revision,status:currentStatus}).session(session).lean();
    if(!current)throw error('Review already changed or moderated.',409);
    const updated=await Review.updateOne({_id:id,revision,status:currentStatus},{

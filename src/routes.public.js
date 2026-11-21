@@ -191,7 +191,7 @@ router.post('/t/:slug/reviews',async(req,res,next)=>{
    const reviews=require('./platform/services/businessReviews.service');
    const created=await reviews.submit(req.params.slug,req.body,req.ip);
    res.cookie(created.cookieName,created.token,created.cookieOptions);
-   flash(req,'good','Your review was received for moderation. You can edit or withdraw it from this browser.');
+   flash(req,'good','Your review is now public. You can edit or withdraw it from this browser.');
    res.redirect(303,'/t/'+encodeURIComponent(req.params.slug)+'#business-reviews');
  }catch(err){next(err);}
 });
@@ -214,7 +214,7 @@ router.post('/t/:slug/my-review',async(req,res,next)=>{
    const action=req.body?.action==='withdraw'?'withdraw':'edit';
    await service.changeMine(req.params.slug,req,req.body,action);
    if(action==='withdraw')res.clearCookie(service.cookieName(req.params.slug),service.cookieOptions(req.params.slug));
-   flash(req,'good',action==='withdraw'?'Your review has been withdrawn.':'Your review was updated and returned for moderation.');
+   flash(req,'good',action==='withdraw'?'Your review has been withdrawn.':'Your updated review is now public.');
    res.redirect(303,action==='withdraw'?'/t/'+encodeURIComponent(req.params.slug):'/t/'+encodeURIComponent(req.params.slug)+'/my-review');
  }catch(err){next(err);}
 });

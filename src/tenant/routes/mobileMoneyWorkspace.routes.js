@@ -45,6 +45,8 @@ module.exports=function routes({renderTenant}){
   // The final ledger still rechecks atomically; quote UI must not invite a
   // cashier to hand over funds when the latest visible book is insufficient.
   if(result){
+   const drawer=drawers.find(d=>d.id===result.cashAccountId);
+   if(!drawer?.postingReady)blockers.push(drawer?.postingReason||'This cash drawer must be assigned to your login and have an independently verified open cash shift.');
    const debit=result.operation==='withdraw_provider_receive_cash'?
     drawers.find(d=>d.id===result.cashAccountId):
     wallets.find(w=>w.id===result.walletAccountId);
@@ -187,7 +189,7 @@ module.exports=function routes({renderTenant}){
    const broad=['Tenant Owner','Branch Manager','Reconciliation Officer','Auditor'].includes(req.user.role);
    const query={tenantId:req.tenant._id,branchId:req.operationBranch._id,status:{$ne:'archived'},
     ...(broad?{}:{$or:[{operatorId:req.user.id},{operatorId:null}]})};
-   const rows=await accounts.find(query).select('kind network currency status openingBalanceMinor openingApprovedAt reconciliationState').sort({_id:1}).limit(501).lean();
+   const rows=await accounts.find(query).select('_id kind network currency status openingBalanceMinor openingApprovedAt reconciliationState operatorId ledgerAccountId ledgerCode branchId bookBalanceMinor sequence').sort({_id:1}).limit(501).lean();
    const totals={cash:0,wallet:0,bank:0,unopened:0,held:0,needsReconciliation:0,ready:0};
    const providers={};
    for(const account of rows.slice(0,500)){
@@ -204,8 +206,59 @@ module.exports=function routes({renderTenant}){
    const untracked=await require('../models').mobileTransactionModel(req.tenantDb).exists({
     branchId:req.operationBranch._id,fundingState:{$ne:'book_recorded'}
    });
+   // Read-only transaction preflight. Approved account opening is not the same
+   // as being able to record: funds must have intact ledger records, the
+   // correct operator drawer, a verified shift and branch-specific rates.
+   const verified=[],integrityBlocked=[];
+   const treasury=require('../treasury/service');
+   for(const account of rows.slice(0,100)){
+    if(account.status!=='active'||account.openingBalanceMinor===null||!account.openingApprovedAt||
+       account.reconciliationState!=='matched')continue;
+    try{await treasury.assertBookIntegrity(req.tenantDb,null,account);verified.push(account);}
+    catch(error){if(error.status!==503)throw error;integrityBlocked.push(account);}
+   }
+   const owned=account=>!account.operatorId||String(account.operatorId)===String(req.user.id);
+   const wallets=verified.filter(a=>a.kind==='wallet'&&owned(a));
+   const cash=verified.filter(a=>a.kind==='cash'&&String(a.operatorId)===String(req.user.id));
+   const currencies=[...new Set(cash.map(a=>a.currency))];
+   const [shifts,rates]=await Promise.all([
+    require('../models').cashSessionModel(req.tenantDb).find({
+     branchId:req.operationBranch._id,operatorId:req.user.id,currency:{$in:currencies},
+     status:'open',openingVerifiedAt:{$ne:null}
+    }).select('currency treasuryAccountId').limit(100).lean(),
+    require('../models').forexRateModel(req.tenantDb).find({
+     branchId:req.operationBranch._id,
+     fromCurrency:{$in:[...new Set(wallets.map(a=>a.currency))]},
+     toCurrency:{$in:currencies},status:'active',reviewedBy:{$ne:null},expiresAt:{$gt:new Date()}
+    }).select('fromCurrency toCurrency side').limit(200).lean()
+   ]);
+   const postingEnabled=process.env.CLASSICFIN_MOMO_FX_POSTING_ENABLED==='true';
+   const hasRate=(walletCurrency,cashCurrency,side)=>rates.some(rate=>rate.fromCurrency===walletCurrency&&rate.toCurrency===cashCurrency&&rate.side===side);
+   const pairs=wallets.flatMap(wallet=>cash.map(drawer=>{
+    const crossCurrency=wallet.currency!==drawer.currency;
+    const shiftVerified=shifts.some(shift=>shift.currency===drawer.currency&&
+     (!shift.treasuryAccountId||String(shift.treasuryAccountId)===String(drawer._id)));
+    const rateBuy=!crossCurrency||hasRate(wallet.currency,drawer.currency,'buy');
+    const rateSell=!crossCurrency||hasRate(wallet.currency,drawer.currency,'sell');
+    return {network:wallet.network,walletCurrency:wallet.currency,cashCurrency:drawer.currency,
+     mode:crossCurrency?'cross_currency':'same_currency',shiftVerified,
+     buyRateReady:rateBuy,sellRateReady:rateSell,
+     cashInReady:shiftVerified&&(!crossCurrency||postingEnabled&&rateSell)&&hasPermission(req.user,'mobile_money.cash_in'),
+     cashOutReady:shiftVerified&&(!crossCurrency||postingEnabled&&rateBuy)&&hasPermission(req.user,'mobile_money.cash_out')};
+   })).slice(0,100);
+   const anyReady=pairs.some(pair=>pair.cashInReady||pair.cashOutReady);
+   const transactionGuidance=anyReady?'At least one operation is ready for this signed-in cashier. Select its actual wallet and cash drawer.':
+    integrityBlocked.length?'An account has incomplete ledger records. Restore the original journal before recording.':
+    !wallets.length?'No verified provider float belongs to this cashier in the operating branch.':
+    !cash.length?'No independently opened cash drawer belongs to this cashier in the operating branch.':
+    pairs.some(pair=>pair.mode==='cross_currency')&&!postingEnabled?'Cross-currency recording is disabled in production. Ask the platform operator to complete its setup.':
+    pairs.some(pair=>!pair.buyRateReady||!pair.sellRateReady)?'Approved buy/sell exchange rates are missing in this operating branch. Rates belonging to a different branch are not available here.':
+    pairs.some(pair=>!pair.shiftVerified)?'Open and verify your physical cash shift before recording.':
+    'Review permissions, cash, float and operating exchange rates before recording.';
    const readiness={branchReady:true,scope:broad?'all assigned and shared accounts in operating branch':'own and shared accounts in operating branch',
     accountCounts:totals,providerAccountCounts:providers,untrackedHistoricalOperationsPresent:Boolean(untracked),
+    transactionPairs:pairs,transactionReady:anyReady,transactionGuidance,
+    integrityBlockedCount:integrityBlocked.length,crossCurrencyRecordingEnabled:postingEnabled,
     truncated:rows.length>500,
     guidance:!totals.wallet?'Configure a provider wallet for each market and obtain independent opening approval.':
       !totals.cash?'Configure a physical cash account and approve its opening balance.':

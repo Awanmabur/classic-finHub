@@ -1,0 +1,36 @@
+/* Scoped tenant onboarding polish. Uses the approved platform/tenant tokens. */
+#tenantQuickSetup .setupStatsGrid{
+ display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;
+}
+#tenantQuickSetup .setupStatsGrid>.stat{min-width:0;overflow-wrap:anywhere}
+#tenantQuickSetup .card{min-width:0}
+#tenantQuickSetup .cardHead{gap:12px;align-items:center}
+#tenantQuickSetup .cardHead>div{min-width:0}
+#tenantQuickSetup .cardBody form{min-width:0}
+#tenantQuickSetup .row2>*{min-width:0}
+#tenantQuickSetup .setupConfirm{
+ display:flex!important;flex-direction:row!important;align-items:flex-start!important;
+ gap:10px;cursor:pointer;margin:12px 0;
+}
+#tenantQuickSetup .setupConfirm input[type="checkbox"]{
+ width:17px!important;height:17px!important;min-width:17px!important;max-width:17px!important;
+ margin:3px 0 0!important;padding:0!important;flex:0 0 17px!important;
+}
+#tenantQuickSetup .setupConfirm span{
+ flex:1;min-width:0;font-size:.9rem;line-height:1.55;color:var(--text,var(--muted));
+ text-transform:none;letter-spacing:normal;font-weight:500;
+}
+#tenantQuickSetup .tableWrap{max-width:100%;overflow-x:auto}
+#tenantQuickSetup td{vertical-align:top}
+#tenantQuickSetup details>summary{cursor:pointer;width:fit-content}
+#tenantQuickSetup details[open]>form{margin-top:14px;display:grid;gap:10px;max-width:500px}
+@media(max-width:950px){
+ #tenantQuickSetup .setupStatsGrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:680px){
+ #tenantQuickSetup .cardHead{align-items:flex-start;flex-wrap:wrap}
+ #tenantQuickSetup .cardHead>.btn{width:100%}
+ #tenantQuickSetup .row2{grid-template-columns:minmax(0,1fr)!important}
+ #tenantQuickSetup .setupStatsGrid{gap:10px}
+ #tenantQuickSetup .setupStatsGrid>.stat{padding:14px}
+}

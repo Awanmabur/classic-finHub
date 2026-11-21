@@ -16,6 +16,7 @@
   <% if(context==='tenant'){ %><link rel="stylesheet" href="/css/workspace.css?v=<%= assetVersion %>" /><link rel="stylesheet" href="/tenant/workspace/theme.css?v=<%= assetVersion %>" /><% } %>
 <link rel="stylesheet" href="/css/feedback.css?v=<%= typeof assetVersion==='undefined'?'1':assetVersion %>">
   <link rel="stylesheet" href="/css/stat-system.css?v=<%= assetVersion %>" />
+  <% if(context==='tenant'&&currentPath==='/tenant/setup'){ %><link rel="stylesheet" href="/css/tenant-quick-setup.css?v=<%= assetVersion %>" /><% } %>
 <script src="/js/feedback.js?v=<%= typeof assetVersion==='undefined'?'1':assetVersion %>" defer></script>
 </head>
 <body<% if(context==='tenant'){ %> data-workspace="tenant" data-offline-context="<%= typeof offlineContext==='undefined'?'':JSON.stringify(offlineContext) %>" data-offline-scope="<%= typeof offlineIdentity!=='undefined'?offlineIdentity.scope:'' %>" data-offline-branch="<%= typeof offlineIdentity!=='undefined'?offlineIdentity.branchId:'' %>" data-offline-view="<%= typeof offlineIdentity!=='undefined'?offlineIdentity.viewBranchId:'' %>" data-offline-cacheable="<%= typeof offlineCacheable!=='undefined'&&offlineCacheable?'true':'false' %>" data-phone-prefix="<%= typeof phoneDefaults==='undefined'?'+211':phoneDefaults.dialCode %>"<% } %>>

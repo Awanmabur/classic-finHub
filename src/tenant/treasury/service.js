@@ -532,6 +532,13 @@ async function findOperatingAccounts(conn,tenant,actor,{branchId=null,moduleKey=
 }
 async function assertBookIntegrity(conn,session,account){
  if(account.openingBalanceMinor===null)return;
+ // Check the chart mapping even when the opening was zero. Matching zero
+ // totals must not disguise missing financial ledger account records.
+ const chart=await core.ledgerAccountModel(conn).exists({
+  _id:account.ledgerAccountId,branchId:account.branchId,currency:account.currency,
+  code:account.ledgerCode,category:account.kind==='transfer_clearing'?'liability':'asset'
+ }).session(session);
+ if(!chart)throw fail('Funds account chart mapping is missing. Preserve opening evidence and reconcile the original journal.',503);
  const entries=await core.ledgerPostingModel(conn).aggregate([{$match:{accountId:account.ledgerAccountId,branchId:account.branchId,currency:account.currency}},{$group:{_id:'$side',amount:{$sum:'$amountMinor'}}}]).session(session);
  let balance=0n;for(const entry of entries)balance+=BigInt(String(entry.amount))*(entry._id===normalSide(account.kind)?1n:-1n);
  const movements=await models(conn).movement.aggregate([{$match:{accountId:account._id}},{$group:{_id:null,amount:{$sum:'$deltaMinor'},count:{$sum:1}}}]).session(session);
@@ -542,7 +549,20 @@ async function balanceSnapshot(conn,tenant,actor,filters={}){
  return transaction(conn,async session=>{
   const accounts=await findOperatingAccounts(conn,tenant,actor,filters,session),rows=[];
   for(const account of accounts){
-   await assertBookIntegrity(conn,session,account);
+   // A damaged account must not take every other branch's balance view offline.
+   // Display no unverified monetary figures. Posting still fails closed.
+   try { await assertBookIntegrity(conn,session,account); }
+   catch(error) {
+    if(error.status!==503)throw error;
+    rows.push({...account,integrityBlocked:true,
+     expectedMinor:null,expectedFormatted:'Unavailable — ledger review required',
+     observedMinor:null,observedFormatted:'Unavailable',
+     varianceMinor:null,varianceFormatted:'—',
+     availableMinor:'0',bookKnown:false,pendingObservation:null,
+     actualSource:'Account ledger requires administrator reconciliation',
+     actualIsLive:false});
+    continue;
+   }
    const pending=await models(conn).observation.findOne({accountId:account._id,status:'pending_review'}).sort({createdAt:-1}).session(session).lean();
    rows.push({...account,pendingObservation:pending?{id:String(pending._id),actualMinor:String(pending.actualMinor),actualFormatted:format(pending.actualMinor,account.currency),observedAt:pending.observedAt,status:pending.status,evidenceType:pending.evidenceType,varianceMinor:pending.varianceMinorAtRequest===null?null:String(pending.varianceMinorAtRequest)}:null,
     matchedAtLastObservation:account.reconciliationState==='matched',lastReviewedExpectedMinor:account.lastExpectedAtObservationMinor===null?null:String(account.lastExpectedAtObservationMinor),bookKnown:account.openingBalanceMinor!==null,

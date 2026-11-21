@@ -41,6 +41,8 @@ while IFS= read -r path; do
     src/views/tenant/setup/index.ejs|\
     src/views/tenant/treasury/_funding-history.ejs|\
     src/views/tenant/treasury/_funding.ejs|\
+    src/views/tenant/treasury/index.ejs|\
+    src/views/tenant/workspace/_operations-guide.ejs|\
     src/views/tenant/workspace/index.ejs|\
     src/views/tenant/workspace/reviews.ejs|\
     tests/public-business-directory.test.js|\

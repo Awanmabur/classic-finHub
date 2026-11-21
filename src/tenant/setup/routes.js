@@ -90,7 +90,7 @@ module.exports=function quickSetupRoutes({renderTenant}){
     tenantUserModel(req.tenantDb).countDocuments({status:'active',role:{$ne:'Tenant Owner'}}).maxTimeMS(3000),
     staffInviteModel(req.tenantDb).countDocuments({status:'pending',expiresAt:{$gt:new Date()}}).maxTimeMS(3000),
     fundModels(req.tenantDb).account.find({tenantId:req.tenant._id,status:{$ne:'archived'}})
-      .select('_id name kind currency network branchId openingBalanceMinor openingApprovedAt reconciliationState status')
+      .select('_id name kind currency network branchId openingBalanceMinor openingApprovedAt pendingOpeningId reconciliationState status')
       .sort({createdAt:-1,_id:-1}).limit(80).lean().maxTimeMS(3000),
     tenantUserModel(req.tenantDb).find({status:'active',role:{$ne:'Tenant Owner'}})
       .select('_id name role branchId').sort({name:1}).limit(80).lean().maxTimeMS(3000)
@@ -147,8 +147,8 @@ module.exports=function quickSetupRoutes({renderTenant}){
    const values=moneyInput(req.body,req.tenant,req.user,branches);
    const created=await treasury.createAccount(req.tenantDb,req.tenant,req.user,
      values.account,{configurationBranchId:values.branchId});
-   flash(req,'good','Account created. The opening balance is not yet established. Record the actual count or provider statement next.');
-   res.redirect(303,'/tenant/treasury/accounts/'+created._id);
+   flash(req,'good','Account created instantly. Confirm its real counted or checked starting balance below to start using it.');
+   res.redirect(303,'/tenant/setup#quick-money');
   }catch(e){handleSetupError(req,res,next,e);}
  });
  return router;

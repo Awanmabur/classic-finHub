@@ -36,10 +36,10 @@ const status=(done)=>done?'Ready':'Set up';
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <div class="row2">
             <label class="field">Branch name<input class="control" name="name" required minlength="2" maxlength="100" value="Main branch"></label>
-            <label class="field">Primary currency<select class="control" name="currency" required>
+            <label class="field">Primary currency<select class="control" name="currency" required data-quick-branch-currency>
               <option value="">Choose currency</option><% data.currencyCodes.forEach(c=>{ %><option value="<%= c %>"><%= c==='KES'?'KSH':c %></option><% }) %>
             </select></label>
-            <label class="field">Local business time zone<select class="control" name="timeZone" required>
+            <label class="field">Local business time zone<select class="control" name="timeZone" required data-quick-branch-zone>
               <option value="">Choose local time zone</option><% data.timeZones.forEach(zone=>{ %><option value="<%= zone %>"><%= zone.replace('Africa/','').replaceAll('_',' ') %></option><% }) %>
             </select></label>
           </div>
@@ -70,9 +70,11 @@ const status=(done)=>done?'Ready':'Set up';
             <label class="field">What will they do?<select class="control" name="role" required>
               <% data.roles.forEach(role=>{ %><option value="<%= role %>" <%= role==='Mobile Money Operator'?'selected':'' %>><%= role %></option><% }) %>
             </select></label>
-            <label class="field">Work location<select class="control" name="branchId" required>
+            <% if(branches.length===1){ %>
+              <input type="hidden" name="branchId" value="<%= first._id %>">
+            <% }else{ %><label class="field">Work location<select class="control" name="branchId" required>
               <% branches.forEach(b=>{ %><option value="<%= b._id %>"><%= b.name %></option><% }) %>
-            </select></label>
+            </select></label><% } %>
           </div>
           <p class="tiny">The selected role receives only its allowed subscribed modules. The employee gets an activation link and sets their own password; no second administrator approves the invitation.</p>
           <button class="btn btnPrimary" type="submit">Invite staff</button>
@@ -94,26 +96,28 @@ const status=(done)=>done?'Ready':'Set up';
         <form method="post" action="/tenant/setup/account">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <div class="row2">
-            <label class="field">Money account type<select class="control" name="kind" required>
+            <label class="field">Money account type<select class="control" name="kind" required data-quick-account-kind>
               <% data.kinds.forEach(k=>{ %><option value="<%= k %>"><%= data.kindLabel[k]||k %></option><% }) %>
             </select></label>
-            <label class="field">Branch<select class="control" name="branchId" required>
+            <% if(branches.length===1){ %>
+              <input type="hidden" name="branchId" value="<%= first._id %>">
+            <% }else{ %><label class="field">Branch<select class="control" name="branchId" required data-quick-account-branch>
               <% branches.forEach(b=>{ %><option value="<%= b._id %>"><%= b.name %></option><% }) %>
-            </select></label>
-            <label class="field">Currency<select class="control" name="currency" required>
+            </select></label><% } %>
+            <label class="field">Currency<select class="control" name="currency" required data-quick-account-currency>
               <% [...new Set(branches.flatMap(b=>b.currencies?.length?b.currencies:[b.currency]))].forEach(c=>{ %>
                 <option value="<%= c %>" <%= c===first.currency?'selected':'' %>><%= c==='KES'?'KSH':c %></option>
               <% }) %>
             </select></label>
-            <label class="field">Mobile money provider (only for a float wallet)<select class="control" name="network">
+            <label class="field" data-quick-kind-field="wallet">Mobile money provider<select class="control" name="network" data-quick-provider>
               <option value="">Not a provider wallet</option>
-              <% data.networks.forEach(n=>{ %><option value="<%= n %>"><%= n %></option><% }) %>
+              <% data.networks.forEach(n=>{ %><option value="<%= n %>" data-market-currency="<%= data.networkCurrencies?.[n]?.currency||'' %>"><%= n %></option><% }) %>
             </select><small>For provider wallets, the system enforces that provider’s actual supported currency.</small></label>
-            <label class="field">Cash operator (cash drawer only)<select class="control" name="operatorId">
+            <label class="field" data-quick-kind-field="cash">Cash operator<select class="control" name="operatorId" data-quick-operator>
               <option value="">Owner (default)</option>
-              <% (data.staff||[]).forEach(person=>{ %><option value="<%= person._id %>"><%= person.name %> · <%= person.role %></option><% }) %>
+              <% (data.staff||[]).forEach(person=>{ %><option value="<%= person._id %>" data-branch-id="<%= person.branchId %>"><%= person.name %> · <%= person.role %></option><% }) %>
             </select></label>
-            <label class="field">Account number / wallet identifier (optional)<input class="control" name="accountReference" maxlength="80" placeholder="Your real provider or bank account reference"></label>
+            <label class="field" data-quick-kind-field="wallet bank">Real provider / bank account reference (optional)<input class="control" name="accountReference" maxlength="80" placeholder="Your real provider or bank account reference"></label>
           </div>
           <p class="tiny">Creating an account is immediate. Its starting balance is <strong>not confirmed</strong> until you confirm the actual counted cash, stock or provider/bank statement. Owners can confirm routine first openings in one action, with evidence and an audit trail. You can move existing verified funds instantly; you cannot create new funds just by entering an amount.</p>
           <button type="submit" class="btn btnPrimary">Create money account</button>
@@ -171,3 +175,5 @@ const status=(done)=>done?'Ready':'Set up';
     </div>
   </section>
 </section>
+
+<script src="/js/tenant-quick-setup.js?v=<%= assetVersion %>" defer></script>

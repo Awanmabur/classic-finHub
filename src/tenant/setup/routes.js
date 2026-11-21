@@ -95,7 +95,11 @@ module.exports=function quickSetupRoutes({renderTenant}){
     tenantUserModel(req.tenantDb).find({status:'active',role:{$ne:'Tenant Owner'}})
       .select('_id name role branchId').sort({name:1}).limit(80).lean().maxTimeMS(3000)
    ]);
-   const ready=accounts.filter(x=>x.status==='active'&&x.openingBalanceMinor!=null&&
+   // Setup must never report an orphaned opening as a spendable account.
+   const snapshot=await treasury.balanceSnapshot(req.tenantDb,req.tenant,req.user);
+   const blocked=new Set(snapshot.accounts.filter(x=>x.integrityBlocked).map(x=>String(x._id)));
+   for(const account of accounts)account.integrityBlocked=blocked.has(String(account._id));
+   const ready=accounts.filter(x=>!x.integrityBlocked&&x.status==='active'&&x.openingBalanceMinor!=null&&
      x.openingApprovedAt&&x.reconciliationState==='matched');
    const kinds=accountKinds(req.tenant,req.user);
    renderTenant(req,res,'setup/index','Start using ClassicFin Hub',

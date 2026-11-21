@@ -59,11 +59,11 @@ function moneyInput(body,tenant,actor,branches){
  const branch=branches.find(b=>String(b._id)===branchId);
  if(!branch)throw invalid('Choose an active branch.');
  if(!accountKinds(tenant,actor).includes(kind))throw invalid('The selected money account is unavailable on your plan.',403);
- const currency=String(body.currency||'');
- if(!currencyCodes.includes(currency)||!(branch.currencies||[branch.currency]).includes(currency))
-  throw invalid('Use a currency enabled for the selected branch.');
  const network=kind==='wallet'?String(body.network||''):'';
  if(kind==='wallet'&&!treasury.NETWORKS.includes(network))throw invalid('Choose the mobile-money provider.');
+ const currency=kind==='wallet'&&networkTariffs.NETWORKS[network]?.currency||String(body.currency||'');
+ if(!currencyCodes.includes(currency)||!(branch.currencies||[branch.currency]).includes(currency))
+  throw invalid('Use a currency enabled for the selected branch.');
  // Cash custody always belongs to a real operator, the owner by default.
  const operatorId=kind==='cash'?String(body.operatorId||actor.id):String(body.operatorId||'');
  const names={cash:'Cash drawer',wallet:network+' float',bank:'Bank balance',
@@ -72,6 +72,13 @@ function moneyInput(body,tenant,actor,branches){
    accountReference:String(body.accountReference||''),name:names[kind]+' '+currency,
    isDefault:true}};
 }
+function handleSetupError(req,res,next,error){
+ if([400,403,409,422].includes(error?.status)){
+  flash(req,'bad',error.message);
+  return res.redirect(303,'/tenant/setup');
+ }
+ next(error);
+}
 module.exports=function quickSetupRoutes({renderTenant}){
  const router=Router();
  router.use((req,res,next)=>{res.set('Cache-Control','private, no-store');next();});
@@ -79,19 +86,21 @@ module.exports=function quickSetupRoutes({renderTenant}){
   try{
    owner(req);
    const branches=(await branchService.list(req.tenant)).filter(x=>x.status==='active');
-   const [users,invites,accounts]=await Promise.all([
+   const [users,invites,accounts,staff]=await Promise.all([
     tenantUserModel(req.tenantDb).countDocuments({status:'active',role:{$ne:'Tenant Owner'}}).maxTimeMS(3000),
     staffInviteModel(req.tenantDb).countDocuments({status:'pending',expiresAt:{$gt:new Date()}}).maxTimeMS(3000),
     fundModels(req.tenantDb).account.find({tenantId:req.tenant._id,status:{$ne:'archived'}})
       .select('_id name kind currency network branchId openingBalanceMinor openingApprovedAt reconciliationState status')
-      .sort({createdAt:-1,_id:-1}).limit(80).lean().maxTimeMS(3000)
+      .sort({createdAt:-1,_id:-1}).limit(80).lean().maxTimeMS(3000),
+    tenantUserModel(req.tenantDb).find({status:'active',role:{$ne:'Tenant Owner'}})
+      .select('_id name role branchId').sort({name:1}).limit(80).lean().maxTimeMS(3000)
    ]);
    const ready=accounts.filter(x=>x.status==='active'&&x.openingBalanceMinor!=null&&
      x.openingApprovedAt&&x.reconciliationState==='matched');
    const kinds=accountKinds(req.tenant,req.user);
    renderTenant(req,res,'setup/index','Start using ClassicFin Hub',
      'Set up your branch, staff and actual money accounts in one place.',{
-       branches,users,invites,accounts,readyCount:ready.length,
+       branches,users,invites,accounts,staff,readyCount:ready.length,
        roles:staffPolicy.managedRoles(req.user),kinds,
        currencyCodes,networks:treasury.NETWORKS,networkCurrencies:networkTariffs.NETWORKS,
        timeZones:tz,kindLabel
@@ -106,7 +115,7 @@ module.exports=function quickSetupRoutes({renderTenant}){
    await branchService.create(req.tenant,req.user,form);
    flash(req,'good','Branch ready. You can invite staff and add actual cash or float accounts.');
    res.redirect(303,'/tenant/setup');
-  }catch(e){next(e);}
+  }catch(e){handleSetupError(req,res,next,e);}
  });
  router.post('/staff',requirePermission('users.manage_branch'),throttle,async(req,res,next)=>{
   try{
@@ -119,7 +128,7 @@ module.exports=function quickSetupRoutes({renderTenant}){
    renderTenant(req,res,'users/invite','Invite sent','Employee can activate access from the private link.',{
      inviteUrl,inviteQueued:require('../../config/inviteMail').configured()
    });
-  }catch(e){next(e);}
+  }catch(e){handleSetupError(req,res,next,e);}
  });
  router.post('/account',requirePermission('treasury.manage'),throttle,async(req,res,next)=>{
   try{
@@ -130,7 +139,10 @@ module.exports=function quickSetupRoutes({renderTenant}){
      values.account,{configurationBranchId:values.branchId});
    flash(req,'good','Account created. The opening balance is not yet established. Record the actual count or provider statement next.');
    res.redirect(303,'/tenant/treasury/accounts/'+created._id);
-  }catch(e){next(e);}
+  }catch(e){handleSetupError(req,res,next,e);}
  });
  return router;
 };
+
+// Pure validation helpers are also exercised by the release test suite.
+module.exports.validation={branchInput,inviteInput,moneyInput,accountKinds};

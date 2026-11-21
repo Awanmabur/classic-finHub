@@ -59,7 +59,7 @@ test('Quick setup templates expose only real existing forms and accurate financi
   branches:[],staff:[],kinds:['cash','bank'],kindLabel:{cash:'Cash drawer',bank:'Bank account'},
   networks:[],networkCurrencies:{},currencyCodes,timeZones:['Africa/Juba','Africa/Kampala']};
  const render=data=>ejs.renderFile(path.join(__dirname,'../src/views/tenant/setup/index.ejs'),
-  {data,csrfToken:'test-csrf',user:owner,tenant:{slug:'test-business'}});
+  {data,csrfToken:'test-csrf',assetVersion:'test',user:owner,tenant:{slug:'test-business'}});
  const fresh=await render(base);
  assert.match(fresh,/action="\/tenant\/setup\/branch"/);
  assert(!fresh.includes('action="/tenant/setup/staff"'));
@@ -72,6 +72,9 @@ test('Quick setup templates expose only real existing forms and accurate financi
  for(const action of ['/tenant/setup/staff','/tenant/setup/account'])
    assert(active.includes('action="'+action+'"'));
  assert(active.includes('Cashier'));
+ assert(active.includes('/js/tenant-quick-setup.js'));
+ assert(active.includes('data-quick-account-kind'));
+ assert(active.includes('data-quick-provider'));
  assert(active.includes('Record actual opening'));
  assert(active.includes('not confirmed'));
  assert(!active.includes('Approve staff'));

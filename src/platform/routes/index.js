@@ -108,7 +108,7 @@ router.get('/tenants/:id',async(req,res,next)=>{
 router.post('/tenants/:id/status',async(req,res,next)=>{
   try{await changeStatus(req.params.id,req.platformUser,req.body);flash(req,'good','Tenant status updated with an audit record.');res.redirect(303,'/platform/tenants/'+req.params.id);}catch(e){next(e);}
 });
-router.post('/tenants/:irouter.get('/business-reviews',async(req,res,next)=>{
+router.get('/business-reviews',async(req,res,next)=>{
  try{
    const reviews=await require('../services/businessReviews.service').pending(80);
    renderPlatform(req,res,'business-reviews/index','Business reviews','Moderate customer submissions and document decisions.',{reviews});

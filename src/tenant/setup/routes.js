@@ -135,7 +135,9 @@ module.exports=function quickSetupRoutes({renderTenant}){
    owner(req);
    if(!/^[a-f0-9]{24}$/i.test(req.params.id))throw invalid('Choose an actual money account.');
    exact(req.body,['actualBalance','evidenceReference','confirmed','idempotencyKey']);
-   const result=await treasury.confirmOwnerOpening(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
+   const {actualBalance,evidenceReference,confirmed,idempotencyKey}=req.body;
+   const result=await treasury.confirmOwnerOpening(req.tenantDb,req.tenant,req.user,req.params.id,
+     {actualBalance,evidenceReference,confirmed,idempotencyKey});
    flash(req,'good',result.duplicate?'This opening was already recorded.':'Your counted/checked opening balance is now recorded and ready. The transaction and owner attestation are audited.');
    res.redirect(303,'/tenant/setup#quick-money');
   }catch(e){handleSetupError(req,res,next,e);}

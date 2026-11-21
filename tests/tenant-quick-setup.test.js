@@ -55,7 +55,7 @@ test('Cash account setup generates name, chooses real operator and never creates
    branchId:branch._id,network:'',amount:'100000'}, {},owner,[branch]),{status:400});
 });
 test('Quick setup templates expose only real existing forms and accurate financial readiness',async()=>{
- const base={users:0,invites:0,accounts:[],readyCount:0,roles:['Mobile Money Operator'],
+ const base={users:0,invites:0,accounts:[],openingKeys:{},readyCount:0,roles:['Mobile Money Operator'],
   branches:[],staff:[],kinds:['cash','bank'],kindLabel:{cash:'Cash drawer',bank:'Bank account'},
   networks:[],networkCurrencies:{},currencyCodes,timeZones:['Africa/Juba','Africa/Kampala']};
  const render=data=>ejs.renderFile(path.join(__dirname,'../src/views/tenant/setup/index.ejs'),

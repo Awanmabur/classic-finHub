@@ -69,12 +69,19 @@ async function request(conn,tenant,actor,input={}){
 // already opened, reconciled accounts. Never create funds from a user-entered
 // deposit amount or bypass source balance, branch, permission or audit checks.
 async function postDirect(conn,tenant,actor,input={}){
- const values={sourceAccountId:id(input.sourceAccountId),destinationAccountId:id(input.destinationAccountId),
-  evidenceReference:text(input.evidenceReference,'funding reference',6,120),
-  note:text(input.note,'funding explanation',12,400),idempotencyKey:input.idempotencyKey};
- if(typeof values.idempotencyKey!=='string'||!UUID.test(values.idempotencyKey))
+ // The operator supplies only From, To and Amount. Internal references
+ // are generated from the stable idempotency key, not invented external receipts.
+ if(typeof input.idempotencyKey!=='string'||!UUID.test(input.idempotencyKey))
   throw fail('Reload to obtain a valid transfer reference');
- values.idempotencyKey=values.idempotencyKey.toLowerCase();
+ const key=input.idempotencyKey.toLowerCase();
+ const values={
+  sourceAccountId:id(input.sourceAccountId),destinationAccountId:id(input.destinationAccountId),
+  evidenceReference:input.evidenceReference
+   ?text(input.evidenceReference,'funding reference',6,120):'INTERNAL-'+key,
+  note:input.note?text(input.note,'funding explanation',12,400):
+   'Internal transfer of existing verified account funds',
+  idempotencyKey:key
+ };
  await Promise.all([treasury.ensure(conn),ensureIndexes(conn)]);
  let fingerprint;
  try{

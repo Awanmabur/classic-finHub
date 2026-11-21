@@ -88,7 +88,7 @@ test('Directory and its live route have canonical search metadata and no private
 });
 
 
-test('Only published or platform-approved active businesses have safe directory cards',()=>{
+test('Active fully activated businesses are immediately listed with only safe business identity',()=>{
   const card=directory.card({slug:'live-tenant',name:'Live Tenant Business',status:'active',
     owner:'Private Owner',email:'private@example.com',phone:'+211123456789',directory:{}});
   assert.equal(card.slug,'live-tenant');
@@ -103,18 +103,20 @@ test('Only published or platform-approved active businesses have safe directory 
   const source=file('src/platform/services/businessDirectory.service.js');
   assert.match(source,/const eligible = Object.freeze/);
   assert.match(source,/status:\{\$in:\['active','trial'\]\}/);
-  assert.match(source,/setupStatus:\{\$ne:'invited'\}/);
+  assert.match(source,/setupStatus:'complete'/);
   assert.match(source,/Tenant\.find\(eligible\)/);
   assert.doesNotMatch(source,/Tenant\.find\(published\)/);
   const allowed=directory.listingFilter();
   assert.equal(allowed['directoryListing.visibility'].$ne,'hidden');
-  assert(allowed.$or.some(rule=>rule['directoryListing.visibility']==='published'));
-  assert(allowed.$or.some(rule=>rule['directory.publishedAt']));
+  assert.equal(allowed.setupStatus,'complete');
+  assert.equal(allowed.$or,undefined,'Human approval must not gate active business discovery');
   assert.match(source,/query\.\$and=\[\{\$or:/);
   const routes=file('src/routes.public.js');
-  assert.match(routes,/tenant\.directoryListing\?\.visibility!=='published'/);
+  assert(!routes.includes("tenant.directoryListing?.visibility!=='published'"));
   const adminRoutes=file('src/platform/routes/index.js');
-  assert(adminRoutes.includes("'/tenants/:id/public-listing'"));
+  assert(!adminRoutes.includes("'/tenants/:id/public-listing'"));
+  const ownerRoutes=file('src/tenant/workspace/routes.js');
+  assert(ownerRoutes.includes("'/listing/visibility'"));
 });
 
 test('Directory and tenant profiles share exact existing homepage footer and capsule buttons',()=>{
@@ -135,18 +137,18 @@ test('Directory and tenant profiles share exact existing homepage footer and cap
 });
 
 
-test('Platform publication requires verified admin, reason and revision',()=>{
- const admin=require('../src/platform/services/tenantAdmin.service');
- assert.deepEqual(admin.validateDirectoryListing({action:'publish',reason:'Owner has approved the public business card',revision:'0'}),
-   {action:'publish',reason:'Owner has approved the public business card',revision:0});
- assert.throws(()=>admin.validateDirectoryListing({action:'publish',reason:'Too short',revision:'0'}),{status:400});
- assert.throws(()=>admin.validateDirectoryListing({action:'publish',reason:'A valid publication explanation',revision:'-1'}),{status:409});
- assert.throws(()=>admin.validateDirectoryListing({action:'publish',reason:'A valid publication explanation',revision:'0',role:'admin'}),{status:400});
- const schema=Tenant.schema.path('directoryListing')?.schema;
- assert(schema?.path('visibility'));
- assert.deepEqual(schema.path('visibility').enumValues,['default','published','hidden']);
- const show=file('src/views/platform/tenants/show.ejs');
- assert(show.includes('name="action" value="<%= directoryAction %>"'));
- assert(show.includes('name="revision"'));
- assert(show.includes('name="_csrf"'));
+test('Business owner controls listing visibility with no platform approval form',()=>{
+  const schema=Tenant.schema.path('directoryListing')?.schema;
+  assert(schema?.path('visibility'));
+  assert.deepEqual(schema.path('visibility').enumValues,['default','published','hidden']);
+  const show=file('src/views/platform/tenants/show.ejs');
+  assert(show.includes('No listing approval required'));
+  assert(!show.includes('name="action" value="<%= directoryAction %>"'));
+  const workspace=file('src/views/tenant/workspace/index.ejs');
+  assert(workspace.includes('/tenant/workspace/listing/visibility'));
+  assert(workspace.includes('Show my business now'));
+  assert(workspace.includes('Hide my public business listing'));
+  const service=file('src/tenant/workspace/service.js');
+  assert(service.includes('listingVisibility'));
+  assert(service.includes("if(actor?.role!=='Tenant Owner')"));
 });

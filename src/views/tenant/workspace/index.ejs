@@ -56,8 +56,11 @@
  </div></div>
  <% if(data.canManage){ %>
  <section class="card" aria-label="Uploaded business images">
-  <div class="cardHead"><div><b>Your uploaded business images</b><br><span>Cloudflare R2 · public website media only</span></div><span class="tag"><%= (data.media||[]).length %> of 200 images · <%= ((data.media||[]).reduce((sum,item)=>sum+Number(item.bytes||0),0)/1048576).toFixed(1) %> / <%= (Number(data.mediaQuotaBytes||0)/1048576).toFixed(0) %> MiB</span></div>
+  <div class="cardHead"><div><b>Your uploaded business images</b><br><span>Cloudflare R2 · public website media only</span></div><span class="tag"><%= !r2MediaConfigured?'Setup required':(data.media||[]).length+' of 200 images · '+((data.media||[]).reduce((sum,item)=>sum+Number(item.bytes||0),0)/1048576).toFixed(1)+' / '+(Number(data.mediaQuotaBytes||0)/1048576).toFixed(0)+' MiB' %></span></div>
   <div class="cardBody">
+   <% if(!r2MediaConfigured){ %>
+    <p class="workspaceNote">R2 public image storage is not connected on this server. The platform operator must configure the dedicated bucket and public domain. Existing HTTPS image links and previously published website content are preserved.</p>
+   <% }else{ %>
    <p class="tiny">Images are publicly accessible to anyone holding their direct link. Add or replace images in Edit business website, save, then publish. An image still used by your draft or published website cannot be deleted.</p>
    <% if((data.media||[]).length){const activeSite=site.details||{},publishedSite=site.published?.details||{};
     const used=url=>[activeSite.logoUrl,activeSite.coverUrl,...(activeSite.gallery||[]),
@@ -81,6 +84,7 @@
     <% }) %>
    </div>
    <% }else{ %><p>No images have been uploaded to your media library yet.</p><% } %>
+   <% } %>
   </div>
  </section>
  <% } %>

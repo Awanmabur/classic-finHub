@@ -95,7 +95,7 @@ function validateImage(buffer,mime){
    if(['EXIF','XMP ','ICCP','ANIM','ANMF'].includes(type))throw fail('Remove metadata or animation before uploading WebP.',415);
    if(type==='VP8X'&&size>=10){
     const flags=buffer[data];
-    if(flags&0x02||flags&0x1c)throw fail('Unsupported WebP metadata or animation.',415);
+    if(flags&0x2e)throw fail('Unsupported WebP metadata or animation.',415);
     width=1+buffer.readUIntLE(data+4,3);height=1+buffer.readUIntLE(data+7,3);found=true;
    }else if(type==='VP8 '&&size>=10&&!found){
     if(buffer[data+3]===0x9d&&buffer[data+4]===0x01&&buffer[data+5]===0x2a){
@@ -167,6 +167,11 @@ async function upload(conn,tenant,actor,kind,raw,mime){
      metadata:{tenantId:String(tenant._id),kind,bytes:asset.buffer.length}}],{session});
   });
  }catch(error){
+  // A transaction commit can succeed while the acknowledgement is lost.
+  // Never delete its object until the persisted record is conclusively absent.
+  let persisted=null;
+  try{persisted=await Media.findById(mediaId).lean();}catch{}
+  if(persisted)return {id:String(mediaId),url,kind,mime,width:asset.width,height:asset.height,bytes:asset.buffer.length};
   try{await storage('DELETE',key,null,null);}catch{console.error(JSON.stringify({event:'r2_orphan_cleanup_failed',mediaId:String(mediaId)}));}
   throw error;
  }finally{await session.endSession();}
@@ -193,7 +198,9 @@ async function remove(conn,tenant,actor,mediaId){
   const trusted=await workspace.access(conn,tenant,actor,{manage:true,session,fence:true});
   // A concurrent save/publish can race this check. Marking deleting prevents
   // a deleted object from being selected during subsequent validation.
-  const current=await Config.findOne({tenantId:tenant._id}).session(session).lean();
+  // Fence concurrent website saves/publishes that could attach the deleted URL.
+  const current=await Config.findOneAndUpdate({tenantId:tenant._id},{$inc:{revision:1}},
+   {session,new:true}).lean();
   if(used(current?.landing?.details)||used(current?.landing?.published?.details))
    throw fail('The image is now in use. Refresh and retry after replacing it.',409);
   const changed=await Media.updateOne({_id:id,tenantId:tenant._id,status:'active'},{$set:{status:'deleting'}},{session});

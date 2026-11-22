@@ -12,7 +12,7 @@ async function validate(conn,session,tenant,actor,payoutId,options={}){
  if(!reviewer||!(cashierFinal?['Tenant Owner','Branch Manager','Money Transfer Operator']:['Tenant Owner','Branch Manager','Reconciliation Officer']).includes(reviewer.role))
   throw fail('Authorized interbranch transfer posting required',403);
  const execution=await funded.models(conn).execution.findOne({_id:payoutId,action:'transfer_payout',sourceType:'money_transfer',status:'pending_review',
-  ...(cashierFinal?{createdBy:actor.id}:{createdBy:{$ne:actor.id}})}).session(session).lean();
+  ...(cashierFinal?{createdBy:actor.id}:{createdBy:{$ne:actor.id}})}).select('+verificationDigest').session(session).lean();
  if(cashierFinal&&(!execution?.verificationInfo?.receiverNameCheck||!execution?.verificationInfo?.identityDocument||
    !execution?.verificationDigest))throw fail('Recipient identity and consumed PIN evidence are required for final interbranch cash posting',403);
  if(!execution||(reviewer.role!=='Tenant Owner'&&String(reviewer.branchId)!==String(execution.branchId)))throw fail('Payout is outside the reviewer branch',403);

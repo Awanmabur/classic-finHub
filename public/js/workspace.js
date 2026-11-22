@@ -7,6 +7,8 @@
    let bitmap;
    try{
      bitmap=await createImageBitmap(file,{imageOrientation:'from-image'});
+     if(!bitmap.width||!bitmap.height||bitmap.width*bitmap.height>32_000_000)
+       throw Error('Source image has too many pixels. Resize it before upload.');
      const max=1800,ratio=Math.min(1,max/Math.max(bitmap.width,bitmap.height));
      const canvas=document.createElement('canvas');
      canvas.width=Math.max(1,Math.round(bitmap.width*ratio));
@@ -25,6 +27,10 @@
    const status=form?.querySelector('[data-r2-upload-status]');
    const kind=input.dataset.r2ImageKind,file=input.files[0];
    if(!form||!status||!['logo','cover','gallery'].includes(kind))return;
+   if(file.size>12*1024*1024){
+     status.textContent='Source image exceeds 12 MB. Please resize or compress it before upload.';
+     input.value='';return;
+   }
    const field=form.elements.namedItem(kind==='logo'?'logoUrl':kind==='cover'?'coverUrl':'gallery');
    if(!field)return;
    if(kind==='gallery'&&String(field.value||'').split(/[\n,]+/).filter(Boolean).length>=8){
@@ -35,8 +41,7 @@
    submit.forEach(button=>button.disabled=true);input.disabled=true;
    status.textContent='Optimizing and uploading '+kind+' image…';
    try{
-     let image=file;
-     try{image=await toWebP(file);}catch{image=file;}
+     const image=await toWebP(file);
      if(image.size>3*1024*1024)throw Error('Image is larger than 3 MB after optimization. Resize it first.');
      const response=await fetch('/tenant/workspace/media/'+kind,{
        method:'POST',credentials:'same-origin',

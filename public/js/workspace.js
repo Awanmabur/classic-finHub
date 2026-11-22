@@ -119,20 +119,12 @@
    if(kind==='gallery'){
     const entries=galleryValues(field.value),index=Number(remove.dataset.r2RemoveIndex);
     if(!Number.isInteger(index)||index<0||index>=entries.length)return;
-    entries.splice(index,1);field.value=entries.join('\\n');
+    entries.splice(index,1);field.value=entries.join('\n');
    }else field.value='';
    field.dispatchEvent(new Event('input',{bubbles:true}));
    renderPhotos(form);
    const status=form?.querySelector('[data-r2-upload-status]');
    if(status)status.textContent='Photo removed from this draft. Save changes and publish to update the live website.';
-   return;
-  }
-  const mediaCopy=event.target.closest('[data-media-copy-url]');
-  if(mediaCopy){
-   try{
-    await navigator.clipboard.writeText(mediaCopy.dataset.mediaCopyUrl);
-    mediaCopy.textContent='Copied';mediaCopy.setAttribute('aria-live','polite');
-   }catch{mediaCopy.textContent='Copy this image link manually from the website editor';}
    return;
   }
   const copier=event.target.closest('[data-website-copy-path]');

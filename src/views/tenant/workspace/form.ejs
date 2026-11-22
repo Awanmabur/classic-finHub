@@ -1,6 +1,9 @@
 <form method="post" action="<%= form.action %>" data-workspace-form data-workspace-title="<%= form.title %>">
  <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="revision" value="<%= form.revision %>">
- <% (form.hidden||[]).forEach(f=>{ %><input type="hidden" name="<%= f.name %>" value="<%= f.value %>"><% }) %>
+ <% (form.hidden||[]).forEach(f=>{ %>
+  <% if(f.name==='gallery'){ %><textarea name="gallery" hidden><%= f.value||'' %></textarea>
+  <% }else{ %><input type="hidden" name="<%= f.name %>" value="<%= f.value %>"><% } %>
+ <% }) %>
  <div class="tenantCleanBody">
   <div class="tenantCleanSection"><div class="tenantCleanTitle"><%= form.section %></div><div class="tenantCleanGrid">
    <% form.fields.forEach(f=>{ const fieldId='workspace-'+form.action.replace(/[^a-z0-9]/gi,'-')+'-'+f.name; %>
@@ -11,20 +14,25 @@
     <% } %></div><% if(f.hint){ %><small><%= f.hint %></small><% } %></div><% }) %>
   </div></div>
   <% if(form.section==='Public website'){ %>
-   <section class="tenantCleanSection" data-r2-media-section aria-label="Upload business photos">
-    <div class="tenantCleanTitle">Business photos · Cloudflare R2</div>
-    <p class="tiny">Upload your own logo, cover or gallery image. Photos are resized and converted to WebP where supported. Uploaded images are publicly accessible by their direct link; publish the website to display them on your business profile. Keep identity documents and private images out of this public section.</p>
-    <% if(typeof r2MediaConfigured!=='undefined'&&r2MediaConfigured){ %>
-    <div class="row2">
-     <% [['logo','Logo'],['cover','Cover / banner'],['gallery','Gallery photo']].forEach(([kind,label])=>{ %>
-     <label class="field"><%= label %> (JPEG, PNG or WebP, up to 3 MB after optimization)
-      <input class="control" type="file" accept="image/jpeg,image/png,image/webp" data-r2-image-kind="<%= kind %>">
-     </label>
+   <section class="tenantCleanSection" data-r2-media-section aria-label="Business photos">
+    <div class="tenantCleanTitle">Business photos</div>
+    <p class="tiny">Upload a logo, cover image or gallery photos. Images are optimized for your public business website. Existing images remain until you replace or remove them, then save and publish your changes. Do not upload private documents.</p>
+    <div class="workspacePhotoFields">
+     <% [['logo','Business logo'],['cover','Cover / banner'],['gallery','Gallery photos (up to 8)']].forEach(([kind,label])=>{ %>
+      <div class="workspacePhotoField">
+       <% if(typeof r2MediaConfigured!=='undefined'&&r2MediaConfigured){ %>
+        <label class="field"><span><%= label %></span>
+         <input class="control" type="file" accept="image/jpeg,image/png,image/webp" data-r2-image-kind="<%= kind %>" aria-label="Upload <%= label %>">
+        </label>
+       <% }else{ %><strong><%= label %></strong><% } %>
+       <div class="workspacePhotoPreview" data-r2-preview-kind="<%= kind %>"></div>
+      </div>
      <% }); %>
     </div>
-    <p class="tiny" role="status" aria-live="polite" data-r2-upload-status>Choose an image to upload. Save your website details after the upload completes.</p>
+    <% if(typeof r2MediaConfigured!=='undefined'&&r2MediaConfigured){ %>
+     <p class="tiny" role="status" aria-live="polite" data-r2-upload-status>Choose a photo. The uploaded image will appear above; save changes, then publish.</p>
     <% }else{ %>
-     <p class="workspaceNote" role="status">R2 image uploads are not configured on this server yet. Existing direct HTTPS image links can still be edited. The platform operator must connect the dedicated public-media bucket before these upload controls are available.</p>
+     <p class="workspaceNote" role="status">Image uploads are temporarily unavailable. Saved photos remain visible on your public website.</p>
     <% } %>
    </section>
   <% } %>

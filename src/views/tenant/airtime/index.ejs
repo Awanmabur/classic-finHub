@@ -1,0 +1,50 @@
+<section class="view show" id="airtimeManagement">
+ <p class="workspaceNote">Airtime is recorded **only after actual provider delivery**. The platform does not yet send airtime automatically to telecom networks. A verified external delivery reference is required for each sale.</p>
+ <section class="retailStats">
+ <% if(!data.summary.length){ %><article class="stat"><div class="k">Airtime activity</div><div class="v">No recorded sales</div></article><% } %>
+ <% data.summary.forEach(s=>{ %><article class="stat"><div class="k"><%= s.currency %> sales</div><div class="v"><%= data.format(s.sales,s.currency) %></div><div class="sub">Cost <%= data.format(s.cost,s.currency) %></div><div class="tiny">Gross profit <%= data.format(s.profit,s.currency) %></div></article><% }) %>
+ </section>
+ <% if(data.canSell&&data.branch){ %><section class="card" style="margin-top:14px"><div class="cardHead"><div><b>Record a completed airtime sale</b><br><span>Profit is calculated from the owner-approved product price and acquisition cost</span></div></div><div class="cardBody">
+  <form method="post" action="/tenant/airtime/sales" class="retailForm">
+   <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="idempotencyKey" value="<%= data.uuid %>">
+   <label class="field">Product<select class="control" name="productId" required><option value="">Choose network & denomination</option><% data.products.filter(p=>p.status==='active'&&String(p.branchId)===String(data.branch._id)).forEach(p=>{ %><option value="<%= p._id %>"><%= p.network %> · <%= p.name %> · price <%= data.format(p.priceMinor,p.currency) %></option><% }) %></select></label>
+   <label class="field">Customer phone (+country code)<input class="control" type="tel" name="phone" required placeholder="+211..." pattern="\+[1-9][0-9]{7,14}" maxlength="20"></label>
+   <label class="field">Payment actually received in<select class="control" name="accountId" required><option value="">Select cash, bank or wallet account</option><% data.funds.filter(a=>String(a.branchId)===String(data.branch._id)).forEach(a=>{ %><option value="<%= a._id %>"><%= a.name %> · <%= a.currency %></option><% }) %></select></label>
+   <label class="field">Actual provider delivery reference<input class="control" name="reference" minlength="6" maxlength="120" required></label>
+   <label class="field retailWide retailCheck"><input type="checkbox" name="deliveryConfirmed" value="yes" required><span>I confirm airtime was actually delivered to the number above and payment was received.</span></label>
+   <div class="retailWide"><button class="btn btnPrimary" type="submit">Record verified airtime sale</button></div>
+  </form>
+ </div></section><% } %>
+ <% if(data.canManage&&data.branch){ %>
+ <section class="card" style="margin-top:14px"><div class="cardHead"><b>Purchase prepaid airtime stock</b><span>Debit actual funds, increase inventory at acquisition cost</span></div><div class="cardBody">
+  <form method="post" action="/tenant/airtime/stock" class="retailForm">
+   <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="idempotencyKey" value="<%= data.uuid %>">
+   <label class="field">Telecom network<input class="control" name="network" required maxlength="50" placeholder="Network name"></label>
+   <label class="field">Currency<select class="control" name="currency" required><% (data.currencyChoices||[data.activeCurrency]).filter(Boolean).forEach(c=>{ %><option value="<%= c %>"><%= c==='KES'?'KSH':c %></option><% }) %></select></label>
+   <label class="field">Actual acquisition cost<input class="control" name="cost" inputmode="decimal" required></label>
+   <label class="field">Pay stock supplier from<select class="control" name="accountId" required><option value="">Choose source funds account</option><% data.funds.filter(a=>String(a.branchId)===String(data.branch._id)).forEach(a=>{ %><option value="<%= a._id %>"><%= a.name %> · <%= a.currency %></option><% }) %></select></label>
+   <label class="field retailWide">Actual supplier payment reference<input class="control" name="reference" required minlength="6" maxlength="120"></label>
+   <div class="retailWide"><button class="btn btnPrimary" type="submit">Record verified stock purchase</button></div>
+  </form>
+ </div></section>
+ <section class="card" style="margin-top:14px"><div class="cardHead"><b>Create airtime product</b><span>Save fixed acquisition cost and customer price. Create a new product when prices change.</span></div><div class="cardBody">
+ <form method="post" action="/tenant/airtime/products" class="retailForm">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <label class="field">Network<input class="control" name="network" required maxlength="50"></label>
+  <label class="field">Product name<input class="control" name="name" required minlength="3" maxlength="100"></label>
+  <label class="field">Currency<select class="control" name="currency" required><% (data.currencyChoices||[data.activeCurrency]).filter(Boolean).forEach(c=>{ %><option value="<%= c %>"><%= c==='KES'?'KSH':c %></option><% }) %></select></label>
+  <label class="field">Airtime denomination<input class="control" name="denomination" inputmode="decimal" required></label>
+  <label class="field">Acquisition cost per sale<input class="control" name="cost" inputmode="decimal" required></label>
+  <label class="field">Customer selling price<input class="control" name="price" inputmode="decimal" required></label>
+  <div class="retailWide"><button class="btn btnPrimary" type="submit">Save airtime product</button></div>
+ </form></div></section><% } %>
+ <section class="card" style="margin-top:14px"><div class="cardHead"><b>Current airtime inventory</b><span>At acquisition cost — not telecom face value</span></div><div class="cardBody tableWrap"><table><thead><tr><th>Network</th><th>Currency</th><th>Cost-basis stock remaining</th></tr></thead><tbody>
+ <% if(!data.inventory.length){ %><tr><td colspan="3">No purchased stock yet.</td></tr><% } %>
+ <% data.inventory.forEach(x=>{ %><tr><td><%= x.network %></td><td><%= x.currency %></td><td><%= data.format(x.costBalanceMinor,x.currency) %></td></tr><% }) %>
+ </tbody></table></div></section>
+ <section class="card" style="margin-top:14px"><div class="cardHead"><b>Airtime transactions</b><span>Latest 200 verified stock purchases and customer sales</span></div><div class="cardBody tableWrap">
+ <table><thead><tr><th>Type</th><th>Network</th><th>Customer / reference</th><th>Retail</th><th>Cost</th><th>Profit</th></tr></thead><tbody>
+ <% if(!data.records.length){ %><tr><td colspan="6">No transactions yet.</td></tr><% } %>
+ <% data.records.forEach(x=>{ %><tr data-search-row><td><%= x.type==='sale'?'Sale':'Stock purchase' %></td><td><%= x.network %></td><td><%= x.phone||'—' %><br><span class="tiny"><%= x.reference %></span></td><td><%= data.format(x.retailMinor,x.currency) %></td><td><%= data.format(x.costMinor,x.currency) %></td><td><%= data.format(x.profitMinor,x.currency) %></td></tr><% }) %>
+ </tbody></table></div></section>
+</section>

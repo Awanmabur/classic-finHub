@@ -76,7 +76,6 @@ function routes({renderTenant}){
  router.post('/requests',requirePermission('money_transfer.create'),financial,async(req,res,next)=>{
   try{
    const {order,duplicate}=await transfer.createRequest(req.tenantDb,req.tenant,req.user,req.body);
-   require('../services/branchView.service').followRecord(req,order);
    if(['requested','approved_pending_provider'].includes(order.status)){
     flash(req,'good',duplicate?'Resume the existing transfer without handing over funds twice.':'Select the collected cash or wallet and finalize the transfer to issue its payout PIN.');
     res.redirect(303,`/tenant/funded/prepare/money_transfer/${order._id}`);
@@ -84,6 +83,10 @@ function routes({renderTenant}){
     flash(req,'good','This transfer already has a recorded status; no duplicate collection was posted.');
     res.redirect(303,`/tenant/money-transfer/${order._id}`);
    }
+   // Preserve the assigned operating branch in the owner viewing session.
+   // Calling this AFTER the success flash appends the branch-follow evidence
+   // rather than overwriting it with the new direct-finalization notice.
+   require('../services/branchView.service').followRecord(req,order);
   }catch(e){next(e);}
  });
  router.get('/history',requirePermission('money_transfer.view'),async(req,res,next)=>{

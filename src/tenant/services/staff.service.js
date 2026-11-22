@@ -124,7 +124,8 @@ async function updateStaff(tenant,actor,userId,input){
     if(!previous)throw invalid('Staff account not found',404);
     const oldPermissions=permissionsFor(previous.role),newPermissions=permissionsFor(role);
     const elevated=newPermissions.some(p=>!oldPermissions.includes(p))||
-      allowedModules.some(key=>!(previous.allowedModules||[]).includes(key));
+      allowedModules.some(key=>!(previous.allowedModules||[]).includes(key))||
+      String(previous.branchId||'')!==String(branchId); // branch reassignment changes account scope
     // A reduction becomes effective on the next request: the auth middleware
     // rehydrates current role/modules from MongoDB and financial writes re-fence
     // persisted permissions. Elevated privileges require fresh authentication

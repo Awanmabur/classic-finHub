@@ -165,7 +165,11 @@ test('reviewers cannot be described as transaction operators and disabled staff 
 
 test('SMS Capture assignment requires Mobile Money assignment on the same account',()=>{
  const {moduleAccessState}=require('../src/tenant/services/moduleAccess.service');
- const t=modular({moduleGrants:[grant('sms_capture',{limits:{users:5,branches:1,recordsPerMonth:100}}),grant('mobile_money')]});
+ // SMS Capture is a legacy bundled addon, not eligible for standalone
+ // manual grants. Model a legitimately subscribed historic plan snapshot.
+ const base=entitledTenant();
+ const t={...base,enabledModules:[...base.enabledModules,'sms_capture'],
+  subscription:{...base.subscription,modules:[...base.subscription.modules,'sms_capture']}};
  const operator=user('Mobile Money Operator',['sms_capture']);
  assert.equal(moduleAccessState(t,operator,'sms_capture').state,'dependency-blocked');
  assert.equal(moduleAccessState(t,operator,'sms_capture').href,null);

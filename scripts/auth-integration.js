@@ -156,8 +156,10 @@ async function main() {
     // the existing Roles & permissions shortcut, not a read-only catalogue.
     const rolesShortcut=await fetch(base+'/tenant/workspace/roles',{
       headers:{cookie:ownerFull.cookie},redirect:'manual'});
-    assert.equal(rolesShortcut.status,303);
-    assert.equal(rolesShortcut.headers.get('location'),'/tenant/users#role-module-assignments');
+    assert.equal(rolesShortcut.status,200);
+    const rolesHtml=await rolesShortcut.text();
+    assert.match(rolesHtml,/action="\/tenant\/users\/role-defaults"/);
+    assert.match(rolesHtml,/Saved role assignments/);
     const staffAccess=await fetch(base+'/tenant/users',{headers:{cookie:ownerFull.cookie}});
     assert.equal(staffAccess.status,200);
     const staffHtml=await staffAccess.text();

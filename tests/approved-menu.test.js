@@ -166,7 +166,7 @@ test('tenant owner sees real module request entry and role link; ordinary staff 
  const workspace=require('fs').readFileSync(path.resolve(__dirname,'../src/views/tenant/workspace/index.ejs'),'utf8');
  assert.match(workspace,/href="\/tenant\/modules">Request modules/);
  const routes=require('fs').readFileSync(path.resolve(__dirname,'../src/tenant/workspace/routes.js'),'utf8');
- assert.match(routes,/res\.redirect\(303,'\/tenant\/users#role-module-assignments'\)/);
+ assert.match(routes,/renderTenant\(req,res,'workspace\/role-access'/);
  const users=require('fs').readFileSync(path.resolve(__dirname,'../src/views/tenant/users/index.ejs'),'utf8');
  assert.match(users,/id="role-module-assignments"/);
 });

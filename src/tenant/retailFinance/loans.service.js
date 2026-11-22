@@ -173,7 +173,11 @@ async function repay(conn,tenant,actor,loanId,input){
  const id=F.oid(loanId,'loan'),key=F.uuid(input.idempotencyKey),accountId=F.oid(input.accountId,'receiving account');
  const reference=F.clean(input.reference,'verified repayment evidence',6,120);
  await Promise.all([ensure(conn),require('../treasury/models').ensure(conn)]);
- const oldPayment=await models(conn).payment.findOne({idempotencyKey:key}).lean();
+ // Idempotent retries still require current persisted staff and module access.
+ // A revoked operator must not read a prior repayment from an old session.
+ const currentAccess=await F.access(conn,tenant,actor,'loans','loans.repay');
+ const oldPayment=await models(conn).payment.findOne({idempotencyKey:key,
+  tenantId:currentAccess.tenant._id,...F.scope(currentAccess.actor)}).lean();
  if(oldPayment){
   const check=F.hash({loanId:String(id),amount:String(input.amount),accountId:String(accountId),reference,actorId:String(actor.id)});
   if(oldPayment.fingerprint!==check)throw F.fail('Repayment reference already used for different values',409);
@@ -218,7 +222,8 @@ async function repay(conn,tenant,actor,loanId,input){
  });
  }catch(error){
   if(error.code===11000||error.code===112||error.hasErrorLabel?.('TransientTransactionError')){
-   const item=await models(conn).payment.findOne({idempotencyKey:key}).lean();
+   const item=await models(conn).payment.findOne({idempotencyKey:key,
+    tenantId:currentAccess.tenant._id,...F.scope(currentAccess.actor)}).lean();
    if(item&&item.fingerprint===F.hash({loanId:String(id),amount:String(input.amount),accountId:String(accountId),reference,actorId:String(actor.id)}))return {payment:item,duplicate:true};
   }
   throw error;

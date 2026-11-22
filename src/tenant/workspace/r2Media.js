@@ -16,7 +16,7 @@ function config(){
     !/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(bucket||''))
   throw fail('Public R2 image storage has not been configured by the platform operator.',503);
  let url;try{url=new URL(publicUrl);}catch{}
- if(!url||url.protocol!=='https:'||!url.hostname||url.username||url.password||url.search||url.hash)
+ if(!url||url.protocol!=='https:'||!url.hostname||url.username||url.password||url.search||url.hash||url.pathname!=='/')
   throw fail('The R2 public media domain has not been configured.',503);
  return {account,access,secret,bucket,base:url.href.replace(/\/+$/,'')};
 }

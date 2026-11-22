@@ -125,3 +125,17 @@ test('customer, account and expense subscriptions require a positive record allo
  }
  assert(!modules.requiresRecords('reports'));assert(!modules.requiresRecords('notifications'));
 });
+
+test('new Loan and Airtime modules require an explicit platform-approved quote',()=>{
+ const {eligible,validateGrant}=require('../src/platform/services/moduleSubscriptions.service');
+ const input={days:'30',users:'5',branches:'2',recordsPerMonth:'100',
+  reason:'Manually approved by the platform administrator after discussion with this tenant'};
+ for(const key of ['loans','airtime']){
+  const module=eligible(key);assert(module&&module.requiresQuote);
+  assert.throws(()=>validateGrant({...input,moduleKey:key}),e=>e.status===400);
+  assert.throws(()=>validateGrant({...input,moduleKey:key,monthlyPriceUsd:'0.001'}),e=>e.status===400);
+  assert.throws(()=>validateGrant({...input,moduleKey:key,monthlyPriceUsd:'-1'}),e=>e.status===400);
+  assert.equal(validateGrant({...input,moduleKey:key,monthlyPriceUsd:'29.95'}).priceMonthlyMinor,2995);
+  assert.equal(validateGrant({...input,moduleKey:key,monthlyPriceUsd:'0.00'}).priceMonthlyMinor,0);
+ }
+});

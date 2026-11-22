@@ -1,1 +1,18 @@
 :root{font-family:Arial,Helvetica,sans-serif;color:#17202a;background:#f6f7f9}*{box-sizing:border-box}body{margin:0;padding:24px}.receipt{max-width:680px;margin:auto;padding:30px;background:white;border:1px solid #d5dbe2;border-radius:15px}header h1{margin:0}header p{margin:6px 0 24px}.warning{background:#fff3d6;padding:14px 18px;border:1px solid #d2a539;border-radius:10px}.warning p{margin:8px 0 0}dl{display:grid;grid-template-columns:1fr 1fr;gap:0;margin:24px 0}dt,dd{padding:10px 0;border-bottom:1px solid #e5e8ec;margin:0;overflow-wrap:anywhere}dt{font-weight:600}.foot{font-size:13px;color:#4d5560}nav{display:flex;gap:16px;align-items:center}button,a{border-radius:18px;border:1px solid #8a949d;padding:8px 16px;background:white;color:#17202a;cursor:pointer;text-decoration:none}@media(max-width:520px){body{padding:0}.receipt{padding:18px;border:0;border-radius:0}dl{grid-template-columns:1fr}dd{padding-top:0}}@media print{body{padding:0;background:white}.receipt{border:none;padding:0}nav{display:none}}
+
+/* Tenant-owned receipt presentation. Source references and warning statements
+   remain server-rendered and cannot be changed by a branding preference. */
+.receipt{--receipt-primary:#082c52;--receipt-secondary:#0d4f91;font:14px/1.55 Inter,Arial,Helvetica,sans-serif;box-shadow:0 18px 48px rgba(5,20,40,.07)}
+.receiptBrandHeader{padding:4px 0 22px;border-bottom:3px solid var(--receipt-primary);margin-bottom:22px;text-align:center}
+.receiptBrandHeader h1{font-size:clamp(21px,3vw,28px);color:var(--receipt-primary);overflow-wrap:anywhere;letter-spacing:-.025em}
+.receiptBrandHeader p{color:#526172;line-height:1.55;margin:5px 0}
+.receiptLogo{width:68px;height:68px;object-fit:contain;display:block;margin:0 auto 12px}
+.receipt dt,.receipt th{color:var(--receipt-primary)}
+.receipt table{width:100%;border-collapse:collapse;margin:16px 0}
+.receipt table th,.receipt table td{padding:11px 10px;text-align:left;border-bottom:1px solid #e5e8ec;overflow-wrap:anywhere}
+.receipt table th{width:40%;font-weight:700}
+.receipt .warning{border-color:#d2a539;background:#fff8e6;color:#674315;line-height:1.6}
+.receipt nav{flex-wrap:wrap;gap:12px}.receipt nav a,.receipt nav button,.receipt>button{font:700 13px Inter,Arial,sans-serif}
+.receipt--compact{max-width:440px;padding:20px;font-size:12px}.receipt--compact .receiptBrandHeader{padding-bottom:14px;margin-bottom:14px}.receipt--compact .receiptBrandHeader h1{font-size:20px}.receipt--compact dl{margin:15px 0}.receipt--compact dl dt,.receipt--compact dl dd{padding:7px 3px}.receipt--compact .receiptLogo{width:48px;height:48px}
+.receipt--detailed{max-width:800px}.receipt--detailed dt,.receipt--detailed dd{padding:13px 9px}.receipt--detailed .foot{border-top:1px solid #e5e8ec;padding-top:12px}
+@media print{.receipt{box-shadow:none;max-width:none;break-inside:avoid}.receiptBrandHeader{print-color-adjust:exact;-webkit-print-color-adjust:exact}.receipt .warning{print-color-adjust:exact;-webkit-print-color-adjust:exact}.receipt>button{display:none}}

@@ -40,7 +40,7 @@ test('approved profile and receipt forms preserve read-only controls and submit 
  assert.deepEqual(profileForm.fields.map(f=>f.label),['Business name','Legal name','Owner / director','Owner email','Support phone','Subdomain','Custom domain','Country','Timezone','Default currency']);
  const receipt=routes.configForm('receipt',config,tenant);
  assert.equal(receipt.title,'Edit receipt settings');
- assert.deepEqual(receipt.fields.map(f=>f.label),['Receipt prefix','Template name','QR verification','Duplicate protection','Receipt note']);
+ assert.deepEqual(receipt.fields.map(f=>f.label),['Receipt prefix','Receipt title','Receipt design','Heading on every receipt','Show company logo','Duplicate protection','Receipt footer note']);
  const html=await ejs.renderFile(path.resolve(__dirname,'../src/views/tenant/workspace/form.ejs'),{form:receipt,csrfToken:'csrf'});
  assert.match(html,/name="primary" value="#082c52"/);assert.match(html,/name="secondary" value="#0d4f91"/);
  assert.match(html,/name="prefix"/);
@@ -71,4 +71,17 @@ test('tenant profile explains wallet setup without adding setup fields to daily 
  data.canCash=false;
  const noSource=await ejs.renderFile(template,{data,tenant,user:owner,assetVersion:'test',csrfToken:'csrf'});
  assert.doesNotMatch(noSource,/workspaceOperationsTitle|Wallets &amp; daily operations/);
+});
+
+test('branding fields are validated and receipt preview uses the persisted design safely',async()=>{
+ const defaults=service.defaults(tenant),b=defaults.branding;
+ const payload={...b,receiptShowLogo:'false',publicRatesEnabled:'false',rateBoardStyle:'cards',receiptLayout:'detailed'};
+ const validated=service.validateConfig('branding',payload);
+ assert.equal(validated.receiptShowLogo,false);assert.equal(validated.publicRatesEnabled,false);
+ assert.equal(validated.receiptLayout,'detailed');assert.equal(validated.rateBoardStyle,'cards');
+ assert.throws(()=>service.validateConfig('branding',{...payload,receiptLayout:'html'}),{status:400});
+ assert.throws(()=>service.validateConfig('branding',{...payload,rateBoardStyle:'script'}),{status:400});
+ const config={...defaults,branding:{...defaults.branding,receiptHeader:'<script>unsafe</script>'}};
+ const html=await ejs.renderFile(path.resolve(__dirname,'../src/views/tenant/workspace/index.ejs'),{data:{page:'receipt-preview',config},tenant,user:owner,csrfToken:'csrf',assetVersion:'test'});
+ assert.match(html,/&lt;script&gt;unsafe&lt;\/script&gt;/);assert.doesNotMatch(html,/<script>unsafe<\/script>/);
 });

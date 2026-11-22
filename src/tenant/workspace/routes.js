@@ -123,7 +123,7 @@ function factory({renderTenant}){
   if(page==='branding')data.receiptForm=configForm('receipt',config,req.tenant);
   if(page==='landing'){
    data.heroForm=configForm('landing',config,req.tenant);data.form=entryForm(spec);
-   if(data.canManage)data.media=await media.list(req.tenantDb,req.tenant,req.user);
+   if(data.canManage){data.media=await media.list(req.tenantDb,req.tenant,req.user);data.mediaQuotaBytes=media.publicMediaQuotaBytes(req.tenant);}
   }
   else if(spec&&spec.kind!=='data_job')data.form=entryForm(spec);
   renderTenant(req,res,'workspace/index',names[0],names[1],data);

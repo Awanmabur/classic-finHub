@@ -195,3 +195,15 @@ test('unconfigured roles never inherit static module assignments or covert capab
  assert.deepEqual(roles.defaultModules(t,'Banking Operator'),[],'Tenant must explicitly choose modules');
  assert.deepEqual(roles.defaultModules(t,'Viewer'),[]);
 });
+
+test('quoted module requests do not invent a numeric monthly price',()=>{
+ const R=require('../src/platform/models/ModuleRequest');
+ const base={tenantId:'507f1f77bcf86cd799439011',moduleKey:'loans',requestedBy:'507f1f77bcf86cd799439012',reason:'Business needs additional loan functionality after onboarding',status:'pending'};
+ const quote=new R({...base,pricingSnapshot:{currency:'USD',requiresQuote:true}});
+ assert.equal(quote.validateSync(),undefined);
+ assert.equal(quote.pricingSnapshot.priceMonthlyMinor,undefined);
+ const noPrice=new R({...base,moduleKey:'reports',pricingSnapshot:{currency:'USD',requiresQuote:false}});
+ assert(noPrice.validateSync());
+ const priced=new R({...base,moduleKey:'reports',pricingSnapshot:{currency:'USD',requiresQuote:false,priceMonthlyMinor:3900}});
+ assert.equal(priced.validateSync(),undefined);
+});

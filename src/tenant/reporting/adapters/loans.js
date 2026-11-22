@@ -23,8 +23,13 @@ async function rows({conn,scope,dateRange}){
     principal:{$sum:'$principalMinor'},interest:{$sum:'$interestMinor'}}},
   {$limit:MAX+1}
  ]).option({maxTimeMS:5000});
- const [applications,loans,payments]=await Promise.all([requested,disbursed,repaid]);
- if([applications,loans,payments].some(x=>x.length>MAX))throw Object.assign(new Error('Narrow your loan reporting dates'),{status:422});
+ const corrections=L.correction.aggregate([
+  {$match:{...branch,createdAt:dateRange}},
+  {$group:{_id:'$currency',count:{$sum:1},amount:{$sum:'$amountMinor'},principal:{$sum:'$principalMinor'},interest:{$sum:'$interestMinor'}}},
+  {$limit:MAX+1}
+ ]).option({maxTimeMS:5000});
+ const [applications,loans,payments,reversed]=await Promise.all([requested,disbursed,repaid,corrections]);
+ if([applications,loans,payments,reversed].some(x=>x.length>MAX))throw Object.assign(new Error('Narrow your loan reporting dates'),{status:422});
  return [
   ...applications.map(row=>({module:'Loan Management',activity:'Applications',status:row._id.status,
    currency:row._id.currency,count:row.count,amountMinor:String(row.principal),volume:fmt(row.principal,row._id.currency),
@@ -33,7 +38,11 @@ async function rows({conn,scope,dateRange}){
    count:row.count,amountMinor:String(row.principal),volume:fmt(row.principal,row._id),fees:'—'})),
   ...payments.map(row=>({module:'Loan Management',activity:'Received repayments (principal + collected interest)',
    status:'posted',currency:row._id,count:row.count,amountMinor:String(row.amount),
-   volume:fmt(row.amount,row._id),fees:fmt(row.interest,row._id)+' realized interest'}))
+   volume:fmt(row.amount,row._id),fees:fmt(row.interest,row._id)+' collected interest'})),
+  ...reversed.map(row=>({module:'Loan Management',activity:'Reversed loan repayment',
+   status:'refunded',currency:row._id,count:row.count,amountMinor:String(-BigInt(String(row.amount))),
+   volume:fmt(String(-BigInt(String(row.amount))),row._id),
+   fees:fmt(String(-BigInt(String(row.interest))),row._id)+' interest reversal'}))
  ];
 }
 module.exports=Object.freeze({key:'loans',label:'Loan Management',moduleKey:'loans',rows});

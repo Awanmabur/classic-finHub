@@ -293,8 +293,8 @@ async function inspectJournal(conn, journalId) {
 const unavailable=require('../../utils/unavailableOperation');
 module.exports={createAccount,postJournal,reverseJournal,trialBalance,inspectJournal,
   writeJournalInSession:writeJournal,
-  writeBranchTransferJournalInSession:async(conn,input,session,payoutId,tenant,actor)=>{
-    const {execution,source,collection}=await require('../funded/branchTransfer').validate(conn,session,tenant,actor,payoutId);
+  writeBranchTransferJournalInSession:async(conn,input,session,payoutId,tenant,actor,options={})=>{
+    const {execution,source,collection}=await require('../funded/branchTransfer').validate(conn,session,tenant,actor,payoutId,{cashierFinal:options.cashierFinal===true});
     const treasury=require('../treasury/models').models(conn);
     const clearing=await treasury.account.findOne({_id:collection.accounts.clearingAccountId,tenantId:tenant._id,branchId:source.branchId,kind:'transfer_clearing',currency:source.currency}).session(session).lean();
     const payable=await treasury.counter.findOne({tenantId:tenant._id,branchId:source.branchId,currency:source.currency,purpose:'interbranch_payable'}).session(session).lean();

@@ -220,3 +220,39 @@
 .workspaceRatePreview .workspaceRateCardRows td:first-child{border-left:1px solid var(--line);border-radius:12px 0 0 12px}
 .workspaceRatePreview .workspaceRateCardRows td:last-child{border-right:1px solid var(--line);border-radius:0 12px 12px 0}
 .workspaceRateEmpty{padding:18px;border:1px dashed var(--line);border-radius:14px;background:var(--soft);color:var(--muted)}
+
+/* 2026-11-22 — consistent, scoped geometry for live roles and subscriptions.
+   Existing palette and approved card effects remain unchanged. */
+.tenantModulePage,.ownerRoleAccessPage{display:grid!important;gap:18px;min-width:0;align-content:start}
+.tenantModulePage>.card,.ownerRoleAccessPage>.card{margin:0!important;min-width:0}
+.tenantModuleCards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:stretch;min-width:0}
+.tenantModuleCard{display:flex;flex-direction:column;min-width:0;margin:0!important}
+.tenantModuleCard .cardHead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px;min-width:0}
+.tenantModuleCard .cardBody{flex:1;min-width:0;padding:18px;display:flex;flex-direction:column;align-items:stretch;gap:12px}
+.tenantModuleCard .cardBody>*,.roleAccessForm>*,.roleSavedGrid>*{min-width:0;margin:0}
+.tenantModuleCard .moduleCardTitle{display:flex;align-items:center;gap:10px;min-width:0;line-height:1.4}
+.tenantModuleCard .moduleCardTitle i{color:var(--primary);flex:none}
+.tenantModuleCard .moduleCardTitle b{font-size:14px;overflow-wrap:anywhere}
+.tenantModuleCard .cardHead .tag{flex:0 0 auto;max-width:47%;text-align:center;white-space:normal}
+.tenantModuleCard .moduleCardDescription{line-height:1.55;flex:0 0 auto}
+.tenantModuleCard .moduleRequestForm{margin-top:auto;display:grid;align-content:start;gap:12px;min-width:0}
+.tenantModuleCard .moduleRequestForm .field{display:grid;gap:8px;margin:0}
+.tenantModuleCard .moduleRequestForm .control{display:block;width:100%;min-height:90px;max-width:100%}
+.tenantModuleCard .moduleRequestForm .btn{justify-self:start;min-height:39px}
+.tenantModuleCard .modulePendingText{font-weight:650;color:var(--primary)}
+.ownerRoleAccessPage .roleAccessEditor>.cardBody{padding:20px}
+.ownerRoleAccessPage .roleAccessForm{display:grid;gap:17px;min-width:0}
+.ownerRoleAccessPage .roleAccessForm .field{display:grid;gap:9px;margin:0}
+.ownerRoleAccessPage .roleAccessForm select.control{width:100%;max-width:490px}
+.ownerRoleAccessPage .roleAccessModules{padding:16px;border:1px solid var(--border);border-radius:16px;min-width:0}
+.ownerRoleAccessPage .roleAccessModules legend{font-weight:700;padding:0 7px}
+.ownerRoleAccessPage .moduleChoiceGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;min-width:0}
+.ownerRoleAccessPage .roleAccessForm .rowBtns{margin-top:1px}
+.ownerRoleAccessPage .roleSavedGrid{display:grid;gap:12px}
+.ownerRoleAccessPage .roleSavedItem{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 14px;border:1px solid var(--border);background:var(--card2);padding:13px 15px;border-radius:13px;min-width:0}
+.ownerRoleAccessPage .roleSavedItem strong{font-size:13px}
+.ownerRoleAccessPage .roleSavedItem span{font-size:12px;color:var(--muted);line-height:1.55;overflow-wrap:anywhere;flex:1 1 220px}
+.ownerRoleAccessPage .roleAccessReadOnly{display:grid;gap:13px;min-width:0}
+@media(max-width:1130px){.tenantModuleCards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:790px){.ownerRoleAccessPage .moduleChoiceGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){.tenantModulePage,.ownerRoleAccessPage{gap:13px}.tenantModuleCards{grid-template-columns:1fr;gap:13px}.tenantModuleCard .cardHead{padding:15px}.tenantModuleCard .cardBody{padding:15px;gap:10px}.ownerRoleAccessPage .roleAccessEditor>.cardBody{padding:15px}.ownerRoleAccessPage .moduleChoiceGrid{grid-template-columns:1fr}}

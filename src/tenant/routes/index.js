@@ -394,10 +394,10 @@ router.post('/users/role-defaults',requirePermission('users.manage'),async(req,r
   try{
     await require('../services/roleModules.service').save(req.tenantDb,req.tenant,req.user,req.body);
     flash(req,'good',req.body.applyExisting==='yes'
-      ?'Role default modules saved and applied to existing staff. Active sessions must sign in again before gaining new access.'
-      :'Role default modules saved. New staff assignments will use this role template.');
-    res.redirect(303,'/tenant/users');
-  }catch(e){if([400,403,409].includes(e?.status)){flash(req,'bad',e.message);return res.redirect(303,'/tenant/users');}next(e);}
+      ?'Your saved role assignments are now applied to current staff. They must sign in again before using newly granted modules.'
+      :'Role assignments saved for future staff. Existing staff are unchanged.');
+    res.redirect(303,req.body.returnTo==='/tenant/workspace/roles'?'/tenant/workspace/roles':'/tenant/users');
+  }catch(e){if([400,403,409].includes(e?.status)){flash(req,'bad',e.message);return res.redirect(303,req.body.returnTo==='/tenant/workspace/roles'?'/tenant/workspace/roles':'/tenant/users');}next(e);}
 });
 router.post('/users/invite',requirePermission('users.manage_branch'),async(req,res,next)=>{
   try{
@@ -467,6 +467,7 @@ router.get('/modules',requirePermission('modules.view'),async(req,res,next)=>{
     renderTenant(req,res,'modules/index','Tenant Modules','Your independently subscribed modules and permissions.',{
       modules:req.user.role==='Tenant Owner'?modules:modules.filter(m=>hasModuleForUser(req.tenant,req.user,m.key)),
       plan:planForTenant(req.tenant),grants:require('../../platform/services/moduleSubscriptions.service').activeGrants(req.tenant),
+      entitledKeys:modules.filter(m=>require('../services/moduleAccess.service').hasModule(req.tenant,m.key)).map(m=>m.key),
        moduleAccessStates:Object.fromEntries(modules.map(m=>[m.key,require('../services/moduleAccess.service').moduleAccessState(req.tenant,req.user,m.key)])),
       pendingKeys:pending.map(p=>p.moduleKey)
     });

@@ -1,0 +1,53 @@
+<section class="view show ownerRoleAccessPage">
+ <% if(data.owner){ %>
+ <section class="card roleAccessIntro">
+  <div class="cardHead"><div><b>Role access controlled by your business</b><br><span>These are your saved assignments, not preset modules.</span></div><a class="btn" href="/tenant/users">Manage staff accounts</a></div>
+  <div class="cardBody"><p class="tiny">Choose the role, select only the subscribed modules it needs, then save. You may also apply this selection to existing staff. Removal takes effect with server authorization; expansions require another sign-in. Independent financial review and role-capability restrictions stay enforced.</p></div>
+ </section>
+ <section class="card roleAccessEditor">
+  <div class="cardHead"><div><b>Edit module assignments</b><br><span>Tenant-owned, saved in your database</span></div><a class="btn" href="/tenant/modules">Request modules</a></div>
+  <div class="cardBody">
+   <form method="post" action="/tenant/users/role-defaults" data-role-default-editor class="roleAccessForm">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="returnTo" value="/tenant/workspace/roles">
+    <input type="hidden" name="revision" value="0" data-role-default-revision>
+    <label class="field">Staff role<select name="role" class="control" data-role-module-select required>
+     <% data.roles.forEach(role=>{ const saved=data.saved?.[role]||{}; %>
+      <option value="<%= role %>" data-default-modules="<%= (saved.modules||[]).join(',') %>" data-available-modules="<%= (data.allowedByRole?.[role]||[]).join(',') %>" data-template-revision="<%= saved.revision||0 %>"><%= role %></option>
+     <% }); %>
+    </select></label>
+    <fieldset class="field roleAccessModules" data-role-module-choices><legend>Allowed subscribed modules</legend>
+     <% if(!data.assignable.length){ %><p class="tiny">No active modules are available for assignment. <a href="/tenant/modules">Request modules</a>.</p><% } %>
+     <div class="moduleChoiceGrid">
+     <% data.assignable.forEach(key=>{ %>
+      <label class="moduleChoice"><input type="checkbox" name="allowedModules" value="<%= key %>" data-role-module-choice><span><%= key.replaceAll('_',' ') %></span></label>
+     <% }); %>
+     </div>
+    </fieldset>
+    <label class="moduleChoice"><input type="checkbox" name="applyExisting" value="yes"><span>Also update all existing staff with this role (requires sign-in again)</span></label>
+    <div class="rowBtns"><button class="btn btnPrimary" type="submit">Save access assignments</button></div>
+   </form>
+  </div>
+ </section>
+ <section class="card roleSavedAssignments">
+  <div class="cardHead"><div><b>Your saved role assignments</b><br><span>Live tenant database settings</span></div></div>
+  <div class="cardBody roleSavedGrid">
+   <% const savedEntries=data.roles.filter(role=>data.saved?.[role]?.custom); %>
+   <% if(!savedEntries.length){ %><p class="tiny">No role assignments have been saved. Choose a role above to configure access.</p><% } %>
+   <% savedEntries.forEach(role=>{ %>
+    <div class="roleSavedItem"><strong><%= role %></strong><span><%= (data.saved[role].modules||[]).length?(data.saved[role].modules||[]).map(m=>m.replaceAll('_',' ')).join(' · '):'No modules assigned' %></span></div>
+   <% }); %>
+  </div>
+ </section>
+ <% }else{ %>
+ <section class="card">
+  <div class="cardHead"><b>Your current role and modules</b></div>
+  <div class="cardBody roleAccessReadOnly">
+   <p class="tiny">Your owner manages these assignments. This page shows only your active assigned modules, not a list of predefined roles.</p>
+   <p><strong>Assigned role:</strong> <%= user.role %></p>
+   <% if(!data.current.length){ %><p>No active modules have been assigned to your account.</p><% } %>
+   <% data.current.forEach(entry=>{ %><div class="roleSavedItem"><strong><%= entry.key.replaceAll('_',' ') %></strong><span><%= entry.message %></span><% if(entry.href){ %><a class="btn" href="<%= entry.href %>">Open</a><% } %></div><% }); %>
+  </div>
+ </section>
+ <% } %>
+</section>

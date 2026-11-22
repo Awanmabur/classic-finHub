@@ -37,7 +37,7 @@ module.exports=function retailRoutes({renderTenant}){
    ]);
    renderTenant(req,res,'loans/index','Loan Management','Borrower applications, independent review, funded disbursement and repayments.',{
     ...result,funds,customers,canManage:hasPermission(req.user,'loans.manage'),
-    canCreate:hasPermission(req.user,'loans.create'),format:shortFormat,uuid:crypto.randomUUID(),
+    canCreate:hasPermission(req.user,'loans.create'),format:shortFormat,uuid:crypto.randomUUID(),borrowerUuid:crypto.randomUUID(),
     branch:req.operationBranch,activeCurrency:req.operationBranch?branchCurrency(req.operationBranch):null,
     currencyChoices:req.operationBranch?require('../services/branchCurrency.service').supported(req.operationBranch):[],
     formatDate:value=>localDate(req,value)
@@ -45,6 +45,11 @@ module.exports=function retailRoutes({renderTenant}){
   }catch(error){next(error);}
  }
  router.get('/loans',loanPage);
+ router.post('/loans/borrowers',requirePermission('loans.create'),throttle,async(req,res,next)=>{try{
+  const result=await loans.registerBorrower(req.tenantDb,req.tenant,req.user,req.body);
+  flash(req,'good',result.duplicate?'Borrower already registered; no duplicate created.':'Borrower registered. Select this customer when submitting a loan application.');
+  res.redirect(303,'/tenant/loans');
+ }catch(e){next(e);}});
  router.post('/loans/products',requirePermission('loans.manage'),throttle,async(req,res,next)=>{try{
   await loans.createProduct(req.tenantDb,req.tenant,req.user,req.body);
   flash(req,'good','Loan product saved with immutable terms and an audit record.');

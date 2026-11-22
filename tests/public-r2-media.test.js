@@ -63,3 +63,40 @@ test('tenant media quota follows active plan snapshot and fails closed for inval
  assert.match(s,/\$match:\{tenantId:tenant\._id,status:\{\$in:\['active','deleting'\]\}\}/);
  assert.match(s,/workspace\.access\(conn,tenant,actor,\{manage:true,session,fence:true\}\)/);
 });
+
+test('image POSTs have a scoped 4 MB edge allowance; all other requests stay at 64 KB',()=>{
+ const caddy=text('deploy/Caddyfile.classicfinhub.com');
+ assert.match(caddy,/@publicMediaUpload\s*\{[\s\S]*?method POST[\s\S]*?path \/tenant\/workspace\/media\/logo \/tenant\/workspace\/media\/cover \/tenant\/workspace\/media\/gallery/);
+ assert.match(caddy,/handle @publicMediaUpload\s*\{\s*request_body\s*\{\s*max_size 4MB/);
+ assert.match(caddy,/handle\s*\{\s*request_body\s*\{\s*max_size 64KB/);
+ assert.equal((caddy.match(/reverse_proxy 127\.0\.0\.1:3600/g)||[]).length,2);
+ const routes=text('src/tenant/workspace/routes.js');
+ assert.match(routes,/express\.raw\(\{type:\['image\/png','image\/jpeg','image\/webp'\],limit:'3mb'\}\)/);
+});
+test('website editor preserves stored photo references without exposing URL text fields',()=>{
+ const {configForm}=require('../src/tenant/workspace/routes');
+ const config={
+  landing:{headline:'Test',subtitle:'',services:[],details:{
+   logoUrl:'https://images.example.test/logo.webp',
+   coverUrl:'https://images.example.test/cover.webp',
+   gallery:['https://images.example.test/gallery.webp']
+  }}
+ };
+ const form=configForm('landing',config,{slug:'classic'});
+ const imageNames=['logoUrl','coverUrl','gallery'];
+ assert.deepEqual(form.hidden.map(f=>f.name),imageNames);
+ assert.ok(form.fields.every(f=>!imageNames.includes(f.name)));
+ const ejs=require('ejs');
+ const html=ejs.render(text('src/views/tenant/workspace/form.ejs'),{
+  form,csrfToken:'test-token',r2MediaConfigured:true
+ });
+ for(const name of imageNames)assert.match(html,new RegExp('name="'+name+'"'));
+ assert.doesNotMatch(html,/Public logo image URL|Gallery image URLs|Banner \/ cover image URL/);
+ assert.match(html,/data-r2-image-kind="logo"/);
+ assert.match(html,/data-r2-preview-kind="gallery"/);
+ const script=text('public/js/workspace.js');
+ assert.match(script,/renderPhotos\(form\)/);
+ assert.match(script,/data-r2-remove-image/);
+ assert.match(script,/for\(const max of \[1800,1400,1100,900,720\]\)/);
+ assert.doesNotMatch(text('src/views/tenant/workspace/index.ejs'),/data-media-copy-url/);
+});

@@ -7,7 +7,17 @@ const service=require('./service');
 const {models}=require('./models');
 const {flash}=require('../../utils/view');
 const {hasPermission,hasModuleForUser}=require('../services/moduleAccess.service');
-const throttle=require('../../platform/services/actionThrottle.service').financial;
+const actionThrottle=require('../../platform/services/actionThrottle.service');
+const throttle=actionThrottle.financial;
+async function mediaThrottle(req,res,next){
+ try{
+  const tenant=String(req.tenant?._id||''),user=String(req.user?.id||'');
+  if(!/^[a-f0-9]{24}$/i.test(tenant)||!/^[a-f0-9]{24}$/i.test(user))throw service.fail('An authenticated tenant owner is required.',403);
+  await actionThrottle.consume({category:'public-image-owner',scope:tenant+':'+user,limit:20,windowMs:3600000});
+  await actionThrottle.consume({category:'public-image-tenant',scope:tenant,limit:100,windowMs:86400000});
+  next();
+ }catch(error){if(error.retryAfter)res.setHeader('Retry-After',String(error.retryAfter));next(error);}
+}
 const field=(name,label,value='',extra={})=>({name,label,value,...extra});
 const select=(name,label,value,options)=>field(name,label,value,{type:'select',options:options.map(v=>typeof v==='string'?{value:v,label:v}:{value:v[0],label:v[1]})});
 const states=['draft','enabled','disabled'];
@@ -120,7 +130,7 @@ function factory({renderTenant}){
  }
  router.get('/',async(req,res,next)=>{try{await render(req,res,'overview',{summary:await service.overview(req.tenantDb,req.tenant,req.user)});}catch(error){next(error);}});
  // Same-origin raw image upload. The app's CSRF middleware validates the header.
- router.post('/media/:kind',requirePermission('workspace.manage'),throttle,
+ router.post('/media/:kind',requirePermission('workspace.manage'),mediaThrottle,
   express.raw({type:['image/png','image/jpeg','image/webp'],limit:'3mb'}),async(req,res,next)=>{
    try{
     if(!Buffer.isBuffer(req.body))throw service.fail('Choose a JPEG, PNG or WebP image.',415);

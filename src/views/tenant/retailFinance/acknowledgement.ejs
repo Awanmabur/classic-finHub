@@ -22,7 +22,7 @@ const secondary=/^#[0-9a-fA-F]{6}$/.test(brand.secondary||'')?brand.secondary:'#
  <dt>Original reference</dt><dd><%= receipt.reference %></dd>
  <dt>Business branch</dt><dd><%= receipt.branch %></dd>
  <dt>Recorded (<%= receipt.timeZone %>)</dt><dd><%= receipt.recordedAt %></dd>
- <dt>Recipient / borrower</dt><dd><%= receipt.customer %></dd>
+ <dt><%= receipt.partyLabel||'Recipient / borrower' %></dt><dd><%= receipt.customer %></dd>
  <dt>Current book status</dt><dd><%= receipt.status %></dd>
  <% receipt.lines.forEach(line=>{ %><dt><%= line[0] %></dt><dd><%= line[1] %></dd><% }); %>
 </dl>

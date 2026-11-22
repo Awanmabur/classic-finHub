@@ -17,4 +17,10 @@ function airtime(result){
  return !result?.duplicate&&oid(v?._id)&&v?.type==='sale'&&v.batchId?
  '/tenant/airtime/'+v._id+'/receipt?autoPrint=1':null;
 }
-module.exports={mobile,loan,airtime};
+function funded(result){
+ const v=result?.execution;
+ return !result?.duplicate&&oid(v?._id)&&v?.status==='posted_manual'&&
+ Array.isArray(v.journalIds)&&v.journalIds.length?
+ '/tenant/funded/'+v._id+'/receipt?autoPrint=1':null;
+}
+module.exports={mobile,loan,airtime,funded};

@@ -99,7 +99,7 @@ async function run(){
  assert.equal(await balance(),91000n);
  await assert.rejects(loan.repay(conn,tenant,banker,issued.loan._id,{...repayInput,
   idempotencyKey:random(),amount:'12000'}),e=>e.status===409);
- await loan.repay(conn,tenant,banker,issued.loan._id,{...repayInput,
+ await loan.repay(conn,tenant,manager,issued.loan._id,{...repayInput,
   idempotencyKey:random(),amount:'10000',reference:'BANK-LOAN-FINAL-'+nonce});
  assert.equal(await balance(),101000n);
  assert.equal((await loanModel.models(conn).loan.findById(issued.loan._id).lean()).status,'paid');
@@ -137,6 +137,9 @@ async function run(){
  await assert.rejects(air.reverseRecorded(conn,tenant,manager,sale.record._id,{
   reason:'Already refunded and recorded on its source ledger',
   reference:'REFUNDED-MTN-SALE-'+nonce,providerReversed:'yes',fundsReturned:'yes'}),e=>e.status===409);
+ await assert.rejects(air.reverseRecorded(conn,tenant,owner,purchase.record._id,{
+  reason:'The original purchaser cannot independently approve the supplier refund',
+  reference:'REFUNDED-MTN-STOCK-'+nonce,providerReversed:'yes',fundsReturned:'yes'}),e=>e.status===409);
  await air.reverseRecorded(conn,tenant,manager,purchase.record._id,{
   reason:'Unused bulk stock fully returned to its source supplier',
   reference:'REFUNDED-MTN-STOCK-'+nonce,providerReversed:'yes',fundsReturned:'yes'});
@@ -144,7 +147,11 @@ async function run(){
  assert.equal(String((await airModel.models(conn).inventory.findById(sale.record.inventoryId)).costBalanceMinor),'0');
  const loanPayments=await loanModel.models(conn).payment.find({loanId:issued.loan._id}).sort({createdAt:-1,_id:-1}).lean();
  const lastPayment=loanPayments[0],firstPayment=loanPayments[1];
- await loan.reverseRepayment(conn,tenant,manager,issued.loan._id,lastPayment._id,{
+ assert.equal(String(lastPayment.createdBy),manager.id);
+ await assert.rejects(loan.reverseRepayment(conn,tenant,manager,issued.loan._id,lastPayment._id,{
+  reason:'A reviewer cannot independently approve their own repayment refund',
+  reference:'REFUNDED-LOAN-LAST-'+nonce}),e=>e.status===409);
+ await loan.reverseRepayment(conn,tenant,owner,issued.loan._id,lastPayment._id,{
   reason:'Confirmed duplicate remittance was refunded to the original borrower',
   reference:'REFUNDED-LOAN-LAST-'+nonce});
  assert.equal(await balance(),91000n);

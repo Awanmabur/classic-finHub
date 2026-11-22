@@ -20,10 +20,19 @@ module.exports=function operationWorkspaceRoutes({renderTenant,moduleKey}){
    // Module summary pages have their own rendering route. Supply the same
    // real ledger-backed statistics as the module entry page, scoped to the
    // report period rather than a misleading unfiltered "today".
-   data.financeOverview=await require('../services/financeOverview.service').moduleOverview(
-    req.tenantDb,req.tenant,req.user,req.operationBranch,
-    {moduleKey,from:data.filters.from,to:data.filters.to,timeZone,viewBranchId:req.viewBranchId,viewBranch:req.viewBranch}
-   );
+   // The financial overview is supplementary. A failure in Treasury overview
+   // must not take down a valid module report or its downloadable records.
+   try{
+    data.financeOverview=await require('../services/financeOverview.service').moduleOverview(
+     req.tenantDb,req.tenant,req.user,req.operationBranch,
+     {moduleKey,from:data.filters.from,to:data.filters.to,timeZone,viewBranchId:req.viewBranchId,viewBranch:req.viewBranch}
+    );
+   }catch(overviewError){
+    console.error('MODULE_REPORT_OVERVIEW_UNAVAILABLE',{
+     moduleKey,requestId:req.id||null,error:overviewError.message
+    });
+    data.financeOverview={available:false,reason:'Financial overview temporarily unavailable; detailed report remains available'};
+   }
    renderTenant(req,res,`${definition.path}/${view}`,title,'Filter and review records in your authorized workspace.',data);
   }catch(error){next(error);}
  };

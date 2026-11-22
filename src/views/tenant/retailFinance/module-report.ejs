@@ -12,10 +12,10 @@
  </section>
  <section class="card" style="margin-top:14px">
   <div class="cardHead"><b>Activity summary</b><span>By operation, status, network where relevant, and native currency</span></div>
-  <div class="cardBody tableWrap"><table><thead><tr><th>Activity</th><th>Status</th><th>Currency</th><th>Records</th><th>Amount</th><th><%= r.moduleKey==='airtime'?'Gross profit or reversal':'Collected interest / corrections' %></th></tr></thead><tbody>
+  <div class="cardBody tableWrap"><table><thead><tr><th>Activity</th><th>Status</th><th>Currency</th><th>Records</th><th>Amount</th><th><%= r.moduleKey==='airtime'?'Gross profit or reversal':r.moduleKey==='expenses'?'Evidence':'Collected interest / corrections' %></th></tr></thead><tbody>
    <% if(!r.rows.length){ %><tr><td colspan="6">No module activity in this period and your authorized branch scope.</td></tr><% } %>
    <% r.rows.forEach(row=>{ %><tr data-search-row><td><%= row.activity %></td><td><%= String(row.status).replaceAll('_',' ') %></td><td><%= row.currency==='KES'?'KSH':row.currency %></td><td><%= row.count %></td><td><%= row.volume %></td><td><%= row.fees||'—' %></td></tr><% }) %>
   </tbody></table></div>
  </section>
- <p class="tiny" style="margin-top:12px"><% if(r.moduleKey==='loans'){ %>Applications, principal disbursements and loan repayments are different lifecycle events; do not add them into a single turnover figure. Interest is income only when received. Reverse events reduce recognized collections on their own dates.<% }else{ %>Airtime stock purchases are inventory acquisition, not sales. Gross profit comes from delivered sales less their acquisition cost; refunds and corrections reduce it on their own dates.<% } %></p>
+ <p class="tiny" style="margin-top:12px"><% if(r.moduleKey==='loans'){ %>Applications, principal disbursements and loan repayments are different lifecycle events; do not add them into a single turnover figure. Interest is income only when received. Reverse events reduce recognized collections on their own dates.<% }else if(r.moduleKey==='expenses'){ %>Only approved/final expenses reduce cash, wallet or bank balances. Pending historical entries are not counted as posted expenses. Each currency, funding method and correction is separately auditable.<% }else{ %>Airtime stock purchases are inventory acquisition, not sales. Gross profit comes from delivered sales less their acquisition cost; refunds and corrections reduce it on their own dates.<% } %></p>
 </section>

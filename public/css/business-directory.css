@@ -155,3 +155,24 @@
 .businessCardRating{font:700 11px/1.5 Inter,Arial,sans-serif;color:var(--muted);margin:0}
 .businessCardRating span{color:var(--ink);font-weight:850}
 .businessCardRating i{color:var(--accent)}
+
+
+/* Public-directory interactive text follows the approved pill/card system.
+ * Keep keyboard focus visible without the browser's default link underline. */
+.businessDirectory a,.businessShowcase a,.publicBusinessProfile a,
+.businessDirCrumbs a,.businessDirPages a{
+  text-decoration:none;
+  text-decoration-line:none;
+}
+.businessDirectory a:hover,.businessShowcase a:hover,.publicBusinessProfile a:hover,
+.businessDirectory a:focus-visible,.businessShowcase a:focus-visible,.publicBusinessProfile a:focus-visible{
+  text-decoration:none;
+}
+.businessDirectory a:focus-visible,.businessShowcase a:focus-visible,
+.publicBusinessProfile a:focus-visible{
+  outline:2px solid var(--accent);
+  outline-offset:3px;
+}
+.publicBusinessProfile .publicBusinessQuickLinks a:hover,
+.publicBusinessProfile .publicBusinessContactLinks a:hover,
+.businessDirectory .businessDirPages a:hover{border-color:var(--accent);background:var(--soft)}

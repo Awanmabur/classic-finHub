@@ -148,14 +148,19 @@ async function save(conn,tenant,actor,section,input){
  const patch=validateConfig(section,input),expected=revision(input.revision);
  try{return await transaction(conn,async session=>{
   const trusted=await access(conn,tenant,actor,{manage:true,session,fence:true});actor=trusted.actor;tenant=trusted.tenant;
+  if(section==='landing')await require('./r2Media').verifyReferences(conn,tenant,patch.details,session);
   const {config}=models(conn),id=tenantId(tenant);let saved;
   const existing=await config.findOne({tenantId:id}).session(session);
+  if(section==='branding')patch.logoStatus=existing?.landing?.details?.logoUrl?'Linked to business website':'Not uploaded';
   if(!existing){
    if(expected!==0)throw fail('Settings changed. Reload the page before saving.',409);
-   const initial=defaults(tenant);saved=(await config.create([{...initial,[section]:patch,revision:1,updatedBy:actorId(actor)}],{session}))[0];
+   const initial=defaults(tenant);
+   if(section==='landing')initial.branding.logoStatus=patch.details.logoUrl?'Linked to business website':'Not uploaded';
+   saved=(await config.create([{...initial,[section]:patch,revision:1,updatedBy:actorId(actor)}],{session}))[0];
   }else{
    // Draft changes must preserve the last published landing snapshot.
    const changes={updatedBy:actorId(actor)};for(const [key,value] of Object.entries(patch))changes[`${section}.${key}`]=value;
+   if(section==='landing')changes['branding.logoStatus']=patch.details.logoUrl?'Linked to business website':'Not uploaded';
    saved=await config.findOneAndUpdate({tenantId:id,revision:expected},{$set:changes,$inc:{revision:1}},{session,new:true,runValidators:true});
    if(!saved)throw fail('Settings changed. Reload the page before saving.',409);
   }
@@ -210,6 +215,7 @@ async function publish(conn,tenant,actor,input){
   const current=await config.findOne({...scope,revision:expected}).session(session).lean();
   if(!current||!current.landing?.headline)throw fail('Save the landing headline, then reload before publishing.',409);
   const settings=combine(tenant,current),sections=await entry.find({...scope,kind:'landing_section',status:'published'}).sort({order:1,createdAt:1}).limit(200).session(session).lean();
+  await require('./r2Media').verifyReferences(conn,tenant,settings.landing.details,session);
   const snapshot={name:settings.profile.name,headline:settings.landing.headline,subtitle:settings.landing.subtitle,services:settings.landing.services,
    sections:sections.map(v=>({name:v.name,description:v.description,order:v.order})),primary:settings.branding.primary,secondary:settings.branding.secondary,supportPhone:settings.profile.supportPhone,country:settings.profile.country,details:settings.landing.details||{}};
   const saved=await config.findOneAndUpdate({...scope,revision:expected},{$set:{'landing.published':snapshot,'landing.publishedAt':new Date(),'landing.publishedBy':actorId(actor),updatedBy:actorId(actor)},$inc:{revision:1}},{session,new:true,runValidators:true});

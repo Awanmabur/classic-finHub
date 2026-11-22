@@ -171,3 +171,19 @@
 #workspaceContent .networkReferenceSection>summary::-webkit-details-marker{display:none}
 #workspaceContent .networkReferenceSection[open]>summary{border-bottom:1px solid var(--border)}
 #workspaceContent .networkReferenceSection>summary .tiny{color:var(--muted)}
+
+
+/* Public-only tenant media library: responsive, self-contained and theme-aware. */
+.workspaceMediaGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px;margin-top:15px}
+.workspaceMediaCard{border:1px solid var(--line);border-radius:22px;overflow:hidden;background:var(--paper);min-width:0}
+.workspaceMediaCard>img{display:block;width:100%;height:136px;object-fit:cover;background:var(--soft)}
+.workspaceMediaMeta{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:11px 12px;font-size:12px}
+.workspaceMediaMeta span{color:var(--muted);font-size:11px}
+.workspaceMediaCard .workspaceActions{display:flex;gap:7px;flex-wrap:wrap;padding:0 12px 12px}
+.workspaceMediaCard .workspaceActions .btn{min-height:34px;padding:7px 12px;font-size:11px}
+[data-r2-media-section] .row2{margin-top:12px}
+[data-r2-media-section] input[type=file]{width:100%;min-width:0}
+[data-r2-upload-status]{min-height:20px}
+@media(max-width:1100px){.workspaceMediaGrid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:680px){.workspaceMediaGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.workspaceMediaCard>img{height:116px}}
+@media(max-width:360px){.workspaceMediaGrid{grid-template-columns:1fr}}

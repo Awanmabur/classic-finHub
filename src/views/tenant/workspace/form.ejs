@@ -10,6 +10,24 @@
     <% }else{ %><input id="<%= fieldId %>" type="<%= f.type||'text' %>" <% if(!f.displayOnly){ %>name="<%= f.name %>"<% } %> value="<%= f.value??'' %>" maxlength="<%= f.max||150 %>" <%= f.required?'required':'' %> <%= f.displayOnly?'readonly':'' %> <% if(f.pattern){ %>pattern="<%= f.pattern %>"<% } %> <% if(f.min!==undefined){ %>min="<%= f.min %>"<% } %> <% if(f.type==='number'){ %>max="<%= f.max||1000 %>" step="1"<% } %>>
     <% } %></div><% if(f.hint){ %><small><%= f.hint %></small><% } %></div><% }) %>
   </div></div>
+  <% if(form.section==='Public website'){ %>
+   <section class="tenantCleanSection" data-r2-media-section aria-label="Upload business photos">
+    <div class="tenantCleanTitle">Business photos · Cloudflare R2</div>
+    <p class="tiny">Upload your own logo, cover or gallery image. Photos are resized and converted to WebP where supported. Uploaded images are publicly accessible by their direct link; publish the website to display them on your business profile. Keep identity documents and private images out of this public section.</p>
+    <% if(typeof r2MediaConfigured!=='undefined'&&r2MediaConfigured){ %>
+    <div class="row2">
+     <% [['logo','Logo'],['cover','Cover / banner'],['gallery','Gallery photo']].forEach(([kind,label])=>{ %>
+     <label class="field"><%= label %> (JPEG, PNG or WebP, up to 3 MB after optimization)
+      <input class="control" type="file" accept="image/jpeg,image/png,image/webp" data-r2-image-kind="<%= kind %>">
+     </label>
+     <% }); %>
+    </div>
+    <p class="tiny" role="status" aria-live="polite" data-r2-upload-status>Choose an image to upload. Save your website details after the upload completes.</p>
+    <% }else{ %>
+     <p class="workspaceNote" role="status">R2 image uploads are not configured on this server yet. Existing direct HTTPS image links can still be edited. The platform operator must connect the dedicated public-media bucket before these upload controls are available.</p>
+    <% } %>
+   </section>
+  <% } %>
   <div class="tenantCleanHint">Changes apply to this tenant. Review the details before saving.</div>
  </div>
  <footer class="tenantCleanFoot"><button class="btn" type="button" data-workspace-close>Cancel</button><button class="btn btnPrimary" type="submit">Save changes</button></footer>

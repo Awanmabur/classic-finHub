@@ -1,11 +1,23 @@
 'use strict';
-const {Router}=require('express');
+const express=require('express');
+const {Router}=express;
+const media=require('./r2Media');
 const requirePermission=require('../../middleware/requirePermission');
 const service=require('./service');
 const {models}=require('./models');
 const {flash}=require('../../utils/view');
 const {hasPermission,hasModuleForUser}=require('../services/moduleAccess.service');
-const throttle=require('../../platform/services/actionThrottle.service').financial;
+const actionThrottle=require('../../platform/services/actionThrottle.service');
+const throttle=actionThrottle.financial;
+async function mediaThrottle(req,res,next){
+ try{
+  const tenant=String(req.tenant?._id||''),user=String(req.user?.id||'');
+  if(!/^[a-f0-9]{24}$/i.test(tenant)||!/^[a-f0-9]{24}$/i.test(user))throw service.fail('An authenticated tenant owner is required.',403);
+  await actionThrottle.consume({category:'public-image-owner',scope:tenant+':'+user,limit:20,windowMs:3600000});
+  await actionThrottle.consume({category:'public-image-tenant',scope:tenant,limit:100,windowMs:86400000});
+  next();
+ }catch(error){if(error.retryAfter)res.setHeader('Retry-After',String(error.retryAfter));next(error);}
+}
 const field=(name,label,value='',extra={})=>({name,label,value,...extra});
 const select=(name,label,value,options)=>field(name,label,value,{type:'select',options:options.map(v=>typeof v==='string'?{value:v,label:v}:{value:v[0],label:v[1]})});
 const states=['draft','enabled','disabled'];
@@ -77,7 +89,7 @@ function configForm(section,config,tenant={}){
   hidden=['theme','primary','secondary','logoStatus'].map(name=>({name,value:value[name]}));
  }else{
   title='Edit branding';subtitle='Tenant colors, theme, and receipt identity.';group='Brand and receipt identity';
-  fields=[field('theme','Theme name',value.theme,{required:true,max:80}),field('primary','Primary color',value.primary,{type:'color',required:true}),field('secondary','Secondary color',value.secondary,{type:'color',required:true}),field('logoStatus','Logo status',value.logoStatus,{max:80}),field('receiptNote','Receipt footer note',value.receiptNote,{type:'textarea',max:500,full:true})];
+  fields=[field('theme','Theme name',value.theme,{required:true,max:80}),field('primary','Primary color',value.primary,{type:'color',required:true}),field('secondary','Secondary color',value.secondary,{type:'color',required:true}),field('logoStatus','Business logo',config.landing?.details?.logoUrl?'Linked to your business website':'Not configured',{displayOnly:true,hint:'Use Business website → Edit → Upload logo. This status is not a manually editable label.'}),field('receiptNote','Receipt footer note',value.receiptNote,{type:'textarea',max:500,full:true})];
   hidden=['prefix','template'].map(name=>({name,value:value[name]}));
  }
  return {title,subtitle,section:group,fields,hidden,action:`/tenant/workspace/${section==='receipt'?'branding':section}`,revision:config.revision};
@@ -100,7 +112,7 @@ async function theme(req,res,next){try{
 function factory({renderTenant}){
  const router=Router();
  router.use(requirePermission('workspace.view'));
- router.use((req,res,next)=>{res.setHeader('Cache-Control','private, no-store');next();});
+ router.use((req,res,next)=>{res.setHeader('Cache-Control','private, no-store');res.locals.r2MediaConfigured=media.configured();next();});
  async function render(req,res,page,extra={}){
   const config=await service.read(req.tenantDb,req.tenant,req.user),spec=entryPages[page],names=spec?[spec.title,spec.subtitle]:pageNames[page];
   const data={page,title:names[0],subtitle:names[1],config,canManage:req.user.role==='Tenant Owner'&&hasPermission(req.user,'workspace.manage'),
@@ -109,11 +121,32 @@ function factory({renderTenant}){
   if(spec&&!extra.entries)data.entries=await service.entries(req.tenantDb,req.tenant,req.user,spec.kind,{archived:true});
   if(['profile','branding'].includes(page))data.form=configForm(page,config,req.tenant);
   if(page==='branding')data.receiptForm=configForm('receipt',config,req.tenant);
-  if(page==='landing'){data.heroForm=configForm('landing',config,req.tenant);data.form=entryForm(spec);}
+  if(page==='landing'){
+   data.heroForm=configForm('landing',config,req.tenant);data.form=entryForm(spec);
+   if(data.canManage){data.media=media.configured()?await media.list(req.tenantDb,req.tenant,req.user):[];data.mediaQuotaBytes=media.publicMediaQuotaBytes(req.tenant);}
+  }
   else if(spec&&spec.kind!=='data_job')data.form=entryForm(spec);
   renderTenant(req,res,'workspace/index',names[0],names[1],data);
  }
  router.get('/',async(req,res,next)=>{try{await render(req,res,'overview',{summary:await service.overview(req.tenantDb,req.tenant,req.user)});}catch(error){next(error);}});
+ // Same-origin raw image upload. The app's CSRF middleware validates the header.
+ router.post('/media/:kind',requirePermission('workspace.manage'),mediaThrottle,
+  express.raw({type:['image/png','image/jpeg','image/webp'],limit:'3mb'}),async(req,res,next)=>{
+   try{
+    if(!Buffer.isBuffer(req.body))throw service.fail('Choose a JPEG, PNG or WebP image.',415);
+    const asset=await media.upload(req.tenantDb,req.tenant,req.user,
+     req.params.kind,req.body,req.get('content-type')?.split(';')[0]?.trim());
+    res.setHeader('Cache-Control','private, no-store');
+    res.status(201).json(asset);
+   }catch(error){next(error);}
+  });
+ router.post('/media/:id/delete',requirePermission('workspace.manage'),throttle,async(req,res,next)=>{
+  try{
+   await media.remove(req.tenantDb,req.tenant,req.user,req.params.id);
+   flash(req,'good','Unused public image deleted from R2.');
+   res.redirect(303,'/tenant/workspace/landing');
+  }catch(error){next(error);}
+ });
  router.get('/pricing',requirePermission('workspace.manage'),async(req,res,next)=>{try{
   const pricing=await require('../pricing/service').read(req.tenantDb,req.tenant,req.user);
   renderTenant(req,res,'workspace/pricing','Automatic charges','Configure fees, commissions and operating cost estimates once.',{...pricing,form:pricingForm(pricing)});

@@ -2,7 +2,79 @@
 (()=>{
  let lastTrigger=null;
  const close=dialog=>{dialog?.close();lastTrigger?.focus();};
+ const toWebP=async file=>{
+   if(typeof createImageBitmap!=='function')return file;
+   let bitmap;
+   try{
+     bitmap=await createImageBitmap(file,{imageOrientation:'from-image'});
+     if(!bitmap.width||!bitmap.height||bitmap.width*bitmap.height>32_000_000)
+       throw Error('Source image has too many pixels. Resize it before upload.');
+     const max=1800,ratio=Math.min(1,max/Math.max(bitmap.width,bitmap.height));
+     const canvas=document.createElement('canvas');
+     canvas.width=Math.max(1,Math.round(bitmap.width*ratio));
+     canvas.height=Math.max(1,Math.round(bitmap.height*ratio));
+     const ctx=canvas.getContext('2d');
+     if(!ctx)throw Error('Canvas unavailable');
+     ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);
+     const converted=await new Promise(resolve=>canvas.toBlob(resolve,'image/webp',.84));
+     return converted&&converted.type==='image/webp'&&converted.size>0?converted:file;
+   }finally{bitmap?.close?.();}
+ };
+ document.addEventListener('change',async event=>{
+   const input=event.target.closest?.('[data-r2-image-kind]');
+   if(!input||!input.files?.length)return;
+   const form=input.closest('form[data-workspace-form]');
+   const status=form?.querySelector('[data-r2-upload-status]');
+   const kind=input.dataset.r2ImageKind,file=input.files[0];
+   if(!form||!status||!['logo','cover','gallery'].includes(kind))return;
+   if(file.size>12*1024*1024){
+     status.textContent='Source image exceeds 12 MB. Please resize or compress it before upload.';
+     input.value='';return;
+   }
+   const field=form.elements.namedItem(kind==='logo'?'logoUrl':kind==='cover'?'coverUrl':'gallery');
+   if(!field)return;
+   if(kind==='gallery'&&String(field.value||'').split(/[\n,]+/).filter(Boolean).length>=8){
+     status.textContent='The gallery already contains eight images. Remove one link first.';
+     input.value='';return;
+   }
+   const submit=[...form.querySelectorAll('button[type=submit]')];
+   submit.forEach(button=>button.disabled=true);input.disabled=true;
+   status.textContent='Optimizing and uploading '+kind+' image…';
+   try{
+     const image=await toWebP(file);
+     if(image.size>3*1024*1024)throw Error('Image is larger than 3 MB after optimization. Resize it first.');
+     const response=await fetch('/tenant/workspace/media/'+kind,{
+       method:'POST',credentials:'same-origin',
+       headers:{'Content-Type':image.type,'x-csrf-token':form.querySelector('[name=_csrf]')?.value||'',
+         'Accept':'application/json','X-ClassicFin-Background':'true'},
+       body:image,cache:'no-store',signal:AbortSignal.timeout(20000)
+     });
+     if(!response.ok)throw Error(response.status===503?'R2 storage is not yet configured or is unavailable. Ask the platform operator to check the private image-storage setup.':
+       response.status===403?'Your session or upload permission has changed. Reload and sign in again.':
+       response.status===413?'Image exceeds the configured upload limit.':
+       'Upload failed (HTTP '+response.status+'). No website change was saved.');
+     const result=await response.json();
+     if(!result.url||!/^https:\/\//.test(result.url))throw Error('Storage returned an invalid image link.');
+     if(kind==='gallery'){
+       const entries=String(field.value||'').split(/[\n,]+/).map(value=>value.trim()).filter(Boolean);
+       if(!entries.includes(result.url))entries.push(result.url);
+       field.value=entries.join('\n');
+     }else field.value=result.url;
+     field.dispatchEvent(new Event('input',{bubbles:true}));
+     status.textContent=kind.charAt(0).toUpperCase()+kind.slice(1)+' image uploaded to R2. Save changes, then publish your website to make the new image visible.';
+   }catch(error){status.textContent=error?.message||'Image upload failed. Existing website content is unchanged.';}
+   finally{submit.forEach(button=>button.disabled=false);input.disabled=false;input.value='';}
+ });
+
  document.addEventListener('click',async event=>{
+  const mediaCopy=event.target.closest('[data-media-copy-url]');
+  if(mediaCopy){
+   try{
+    await navigator.clipboard.writeText(mediaCopy.dataset.mediaCopyUrl);
+    mediaCopy.textContent='Copied';mediaCopy.setAttribute('aria-live','polite');
+   }catch{mediaCopy.textContent='Copy this image link manually from the website editor';}
+   return;
+  }
   const copier=event.target.closest('[data-website-copy-path]');
   if(copier){
    const url=new URL(copier.dataset.websiteCopyPath,window.location.origin);

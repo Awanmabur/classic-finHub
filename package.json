@@ -95,6 +95,7 @@
     "wallet-funding:integration": "node scripts/wallet-funding-integration.js",
     "branch-view:integration": "node scripts/branch-view-integration.js",
     "production:check": "node scripts/production-readiness.js",
+    "media:doctor": "node scripts/media-doctor.js",
     "worker:notifications:ready": "node scripts/notification-worker-heartbeat.js",
     "appointments:integration": "node scripts/appointments-integration.js",
     "worker:tenant-backups": "node src/tenant/workers/backup.worker.js",

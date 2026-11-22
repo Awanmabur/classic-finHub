@@ -13,7 +13,7 @@ test('logout has only central sign-out dialog and branch switch shows a single m
  assert.match(layout,/id="dashboardSignoutDialog"/);
  assert.match(branch,/flash\(req,'good'/);
  assert.match(branch,/operating branch is unchanged/);
- assert.match(css,/\.main>\.sessionFeedback\{[^}]*margin-left:auto/);
+ assert.match(css,/\.main>\.sessionFeedback\{[^}]*position:fixed;top:50%;left:50%/);
 });
 
 test('current live pricing keeps individual published plan modules distinct from optional addons',()=>{

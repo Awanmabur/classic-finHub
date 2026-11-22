@@ -171,6 +171,50 @@ async function repay(conn,tenant,actor,loanId,input){
   return {payment,duplicate:false};
  });
 }
+async function reverseRepayment(conn,tenant,actor,loanId,paymentId,input){
+ const id=F.oid(loanId,'loan'),pid=F.oid(paymentId,'repayment');
+ const reason=F.clean(input.reason,'correction reason',12,400);
+ const reference=F.clean(input.reference,'verified correction evidence reference',6,120);
+ await Promise.all([ensure(conn),require('../treasury/models').ensure(conn)]);
+ return F.transact(conn,async session=>{
+  const current=await F.access(conn,tenant,actor,'loans','loans.review',session);
+  if(!['Tenant Owner','Branch Manager'].includes(current.actor.role))
+   throw F.fail('Independent owner or manager reversal required',403);
+  const record=await models(conn).loan.findOne({_id:id,tenantId:current.tenant._id,status:{$in:['active','paid']},...F.scope(current.actor)}).session(session).lean();
+  if(!record)throw F.fail('Loan is unavailable for repayment correction',409);
+  const p=await models(conn).payment.findOne({_id:pid,tenantId:current.tenant._id,loanId:id}).session(session).lean();
+  if(!p)throw F.fail('Original repayment not found',404);
+  const latest=await models(conn).payment.findOne({loanId:id}).sort({createdAt:-1,_id:-1}).session(session).lean();
+  if(!latest||String(latest._id)!==String(pid))
+   throw F.fail('Correct the latest repayment first. Historical repayments must remain in order.',409);
+  if(await models(conn).correction.exists({paymentId:pid}).session(session))
+   throw F.fail('This repayment was already reversed',409);
+  const newPrincipal=BigInt(String(record.principalOutstandingMinor))+BigInt(String(p.principalMinor)),
+   newInterest=BigInt(String(record.interestOutstandingMinor))+BigInt(String(p.interestMinor));
+  if(newPrincipal>BigInt(String(record.principalMinor))||newInterest>BigInt(String(record.interestMinor)))
+   throw F.fail('Repayment correction exceeds original loan contract',409);
+  const auth=await treasury.access(conn,current.tenant,current.actor,{permission:'treasury.review',session,fence:true,sourceType:'loans'});
+  const reversed=await treasury.reverseMovements(conn,session,auth,{
+   sourceType:'loans',batchId:p.batchId,
+   reversalSourceRef:'LOAN:'+id+':REV:'+pid,
+   description:'Independent loan repayment correction: '+reason,
+   evidenceReference:reference});
+  const loanRow=await models(conn).loan.findOneAndUpdate({_id:id,revision:record.revision},{$set:{
+   principalOutstandingMinor:F.d(newPrincipal),interestOutstandingMinor:F.d(newInterest),
+   status:'active'
+  },$inc:{revision:1}},{session,new:true});
+  if(!loanRow)throw F.fail('Loan changed during correction',409);
+  const [correction]=await models(conn).correction.create([{
+   tenantId:current.tenant._id,branchId:p.branchId,loanId:id,paymentId:pid,
+   reversalBatchId:reversed.batch._id,reference,reason,
+   principalMinor:p.principalMinor,interestMinor:p.interestMinor,
+   amountMinor:p.amountMinor,currency:p.currency,createdBy:F.oid(current.actor.id)
+  }],{session});
+  await F.audit(conn,session,current.actor,id,'loans.repayment.reversed',{
+   branchId:String(record.branchId),originalPaymentId:String(pid),reversalBatchId:String(reversed.batch._id),reason,reference});
+  return correction;
+ });
+}
 async function portfolioSummary(conn,tenantId,filter){
  const rows=await models(conn).loan.aggregate([
   {$match:{tenantId,...filter,status:{$in:['active','paid']}}},
@@ -196,10 +240,11 @@ async function detail(conn,tenant,actor,loanId){
  const current=await F.access(conn,tenant,actor,'loans','loans.view'),id=F.oid(loanId,'loan');
  const loan=await models(conn).loan.findOne({_id:id,tenantId:current.tenant._id,...F.scope(current.actor)}).lean();
  if(!loan)throw F.fail('Loan record not found',404);
- const [payments,customer]=await Promise.all([
+ const [payments,customer,corrections]=await Promise.all([
   models(conn).payment.find({loanId:id,tenantId:current.tenant._id}).sort({createdAt:-1}).limit(200).lean(),
-  customerModel(conn).findOne({_id:loan.customerId,branchId:loan.branchId}).select('_id name phone reference').lean()
+  customerModel(conn).findOne({_id:loan.customerId,branchId:loan.branchId}).select('_id name phone reference').lean(),
+  models(conn).correction.find({loanId:id,tenantId:current.tenant._id}).lean()
  ]);
- return {loan,payments,customer};
+ return {loan,payments,customer,corrections};
 }
-module.exports={createProduct,apply,review,disburse,repay,list,detail,summaryRows,interest};
+module.exports={createProduct,apply,review,disburse,repay,reverseRepayment,list,detail,summaryRows,interest};

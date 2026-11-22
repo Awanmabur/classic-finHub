@@ -185,7 +185,7 @@ async function create(conn,tenant,actor,input={},options={}){
   if(options.requireFunds===true){
    const authorization=await require('../treasury/service').access(conn,tenant,actor,
     {permission:'expenses.create',session,fence:true,sourceType:'expenses'});
-   const account=await resolveFund(conn,session,authorization,record,{treasuryAccountId:requestedFundId});
+   const account=await resolveFund(conn,session,authorization,record,{treasuryAccountId:String(requestedFundId)});
    await shiftFence(conn,session,record,0n,{bookManaged:true});
    const batchId=postedBatchId(await postExpense(conn,session,authorization,record,account,1));
    record=await Model.findOneAndUpdate({_id:record._id,status:'pending_review',revision:0},{

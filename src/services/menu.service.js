@@ -84,11 +84,13 @@ function tenantMenu(tenant,user) {
     ...(reports&&can('reports.export')?[item('Export CSV','reports/export.csv','fa-download')]:[]),
     ...(reports?[item('Print report','reports/print','fa-print'),item('General reports page','reports','fa-file-lines'),
       ...(cashReportSource?[item('Opening cash report','reports/opening','fa-unlock'),item('Closing cash / expected cash','reports/closing','fa-lock')]:[]),
-      ...(['mobile_money','money_transfer','banking','forex'].some(module)?[item('Transaction summary','reports/transactions','fa-list')]:[]),
+      ...(['mobile_money','money_transfer','banking','forex','loans','airtime'].some(module)?[item('Transaction summary','reports/transactions','fa-list')]:[]),
       ...(module('expenses')?[item('Expenses report','reports/expenses','fa-receipt')]:[]),
       ...(module('money_transfer')?[item('Transfer report','reports/transfer','fa-money-bill-transfer')]:[]),
       ...(module('mobile_money')?[item('Mobile report','reports/mobile','fa-mobile-screen-button')]:[]),
-      ...(module('banking')?[item('Banking report','reports/banking','fa-building-columns')]:[])]:[])
+      ...(module('banking')?[item('Banking report','reports/banking','fa-building-columns')]:[]),
+      ...(module('loans')?[item('Loan Management report','reports/loans','fa-hand-holding-dollar')]:[]),
+      ...(module('airtime')?[item('Airtime report','reports/airtime','fa-sim-card')]:[])]:[])
   ],[...(reports?['reports']:[]),...(expenses?['expenses']:[]),...(sharedCash?['cash/shifts']:[]),...(module('approval_workflows')&&can('approvals.view')?['approvals']:[]),...(manualMovements?['funded']:[])]);
   group('Tenant Workspace',[
     ...(user.role==='Tenant Owner'?[item('Quick setup','setup','fa-wand-magic-sparkles')]:[]),

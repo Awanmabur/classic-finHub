@@ -38,7 +38,7 @@ function tenantMenu(tenant,user) {
     ...(module('analytics')&&can('analytics.view')?[item(user.role==='Tenant Owner'?'Remote owner dashboard':'Advanced Analytics','analytics','fa-chart-pie')]:[])
   ]:[],module('analytics')&&can('analytics.view')?['analytics']:[]);
   group('Money Transfer',transfer?[
-    item('Send money / Generate PIN','money-transfer/send','fa-money-bill-transfer',{transactionKind:can('money_transfer.create')?'transfer':null}),
+    ...(can('money_transfer.create')?[item('Send money / Generate PIN','money-transfer/send','fa-money-bill-transfer',{transactionKind:'transfer'})]:[]),
     ...(can('money_transfer.payout')?[item('Payout by PIN','money-transfer/payout','fa-key',{transactionKind:'payout'})]:[]),
     item('Pending payout queue','money-transfer/pending-payouts','fa-clock'),
     ...(['Tenant Owner','Branch Manager','Reconciliation Officer','Auditor'].includes(user.role)?[item('Branch transfer balances','money-transfer/branch-balances','fa-scale-balanced')]:[]),
@@ -47,8 +47,8 @@ function tenantMenu(tenant,user) {
     item('Transfer report summary','money-transfer/report','fa-file-lines')
   ]:[],transfer?['money-transfer']:[]);
   group('Mobile Money',mobile?[
-    item('Deposit','mobile-money/cash-in','fa-arrow-down',{transactionKind:can('mobile_money.cash_in')?'cash_in':null}),
-    item('Withdrawal','mobile-money/cash-out','fa-arrow-up',{transactionKind:can('mobile_money.cash_out')?'cash_out':null}),
+    ...(can('mobile_money.cash_in')?[item('Deposit','mobile-money/cash-in','fa-arrow-down',{transactionKind:'cash_in'})]:[]),
+    ...(can('mobile_money.cash_out')?[item('Withdrawal','mobile-money/cash-out','fa-arrow-up',{transactionKind:'cash_out'})]:[]),
     item('Onboarding guide','mobile-money/onboarding','fa-book-open'),
     item('Network activity','mobile-money/network-activity','fa-tower-broadcast'),
     item('Cash impact','mobile-money/cash-impact','fa-cash-register'),
@@ -60,8 +60,7 @@ function tenantMenu(tenant,user) {
     ...(can('loans.create')?[item('Loan applications','loans','fa-file-signature',{transactionKind:'loan'})]:[])]:[],loanAccess?['loans']:[]);
   group('Airtime',airtimeAccess?[item('Airtime sales & stock','airtime','fa-sim-card',{transactionKind:can('airtime.sell')?'airtime':null})]:[],airtimeAccess?['airtime']:[]);
   group('Forex Operations',forex?[
-    item('Buy forex from customer','forex/buy','fa-arrow-down',{transactionKind:can('forex.quotes.create')?'forex_buy':null}),
-    item('Sell forex to customer','forex/sell','fa-arrow-up',{transactionKind:can('forex.quotes.create')?'forex_sell':null}),
+    ...(can('forex.quotes.create')?[item('Buy forex from customer','forex/buy','fa-arrow-down',{transactionKind:'forex_buy'}),item('Sell forex to customer','forex/sell','fa-arrow-up',{transactionKind:'forex_sell'})]:[]),
     item('Active rate board','forex/rates','fa-chart-line'),
     item('Forex cash impact','forex/cash-impact','fa-cash-register'),
     item('Forex operation records','forex/records','fa-list'),
@@ -70,7 +69,7 @@ function tenantMenu(tenant,user) {
   group('Banking Operations',[
     ...(customers?[item('Customers directory','customers','fa-address-book'),...(can('customers.create')?[item('New customer','customers/new','fa-user-plus',{transactionKind:'customer'})]:[]),item('Customer logbook','customers/logbook','fa-book')]:[]),
     ...(accounts?[item('Accounts directory','accounts','fa-wallet'),...(can('accounts.manage')?[item('New account','accounts/new','fa-plus',{transactionKind:'account'})]:[])]:[]),
-    ...(banking?[item('Deposit','banking/deposit','fa-arrow-down',{transactionKind:can('banking.requests.create')?'banking_deposit':null}),item('Withdraw','banking/withdraw','fa-arrow-up',{transactionKind:can('banking.requests.create')?'banking_withdrawal':null}),item('Account transfer','banking/transfer','fa-right-left',{transactionKind:can('banking.requests.create')?'banking_transfer':null})]:[]),
+    ...(banking&&can('banking.requests.create')?[item('Deposit','banking/deposit','fa-arrow-down',{transactionKind:'banking_deposit'}),item('Withdraw','banking/withdraw','fa-arrow-up',{transactionKind:'banking_withdrawal'}),item('Account transfer','banking/transfer','fa-right-left',{transactionKind:'banking_transfer'})]:[]),
     ...(accounts?[item('Account balances','accounts/balances','fa-scale-balanced'),item('Account movements','accounts/movements','fa-list')]:[]),
     ...(banking?[item('Banking report summary','banking/report','fa-file-lines')]:[])
   ],banking?['banking']:[]);

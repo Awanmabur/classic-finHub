@@ -5,6 +5,22 @@
    <article class="stat"><div class="k"><%= s.currency %> outstanding principal</div><div class="v"><%= data.format(s.principalOutstanding,s.currency) %></div><div class="sub">Due interest: <%= data.format(s.interestOutstanding,s.currency) %></div><div class="tiny"><%= s.late %> overdue</div></article>
   <% }) %>
  </div>
+ <% if(data.canCreate&&data.branch){ %>
+ <section class="card" style="margin-top:14px">
+  <div class="cardHead"><div><b>Register a borrower</b><br><span>Use the shared customer directory without adding a separate subscription</span></div></div>
+  <div class="cardBody">
+   <form class="retailForm" method="post" action="/tenant/loans/borrowers">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="idempotencyKey" value="<%= data.borrowerUuid %>">
+    <label class="field">Borrower full name<input class="control" name="name" required minlength="2" maxlength="120" autocomplete="name"></label>
+    <label class="field">Phone with country code<input class="control" type="tel" name="phone" required placeholder="+211..." maxlength="20"></label>
+    <label class="field">Identification reference (optional)<input class="control" name="identityNumber" maxlength="60"></label>
+    <label class="field">Next of kin (optional)<input class="control" name="nextOfKinName" maxlength="120"></label>
+    <div class="retailWide"><button class="btn btnPrimary" type="submit">Save borrower</button></div>
+   </form>
+  </div>
+ </section>
+ <% } %>
  <section class="card" style="margin-top:14px">
   <div class="cardHead"><div><b>Loan applications</b><br><span>Real customer directory, immutable loan terms, independent review and Treasury-backed disbursements</span></div></div>
   <div class="cardBody">

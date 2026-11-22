@@ -177,3 +177,12 @@ test('SMS Capture assignment requires Mobile Money assignment on the same accoun
  assert.equal(moduleAccessState(t,ready,'sms_capture').state,'operate');
  assert.equal(moduleAccessState(t,ready,'sms_capture').href,'/tenant/sms-capture');
 });
+
+test('quick-operation launcher honors actual module permission instead of a second stale role whitelist',()=>{
+ const forms=require('../src/tenant/services/operationForm.service');
+ const t=modular({moduleGrants:[grant('mobile_money'),grant('forex',{limits:{users:5,branches:1,recordsPerMonth:100}})]});
+ assert.doesNotThrow(()=>forms.authorize(t,user('Branch Manager',['mobile_money']),forms.definition('cash_in')));
+ assert.doesNotThrow(()=>forms.authorize(t,user('Banking Operator',['forex']),forms.definition('forex_buy')));
+ assert.throws(()=>forms.authorize(t,user('Viewer',['forex']),forms.definition('forex_buy')),{status:403});
+ assert.throws(()=>forms.authorize(t,user('Banking Operator',[]),forms.definition('forex_buy')),{status:403});
+});

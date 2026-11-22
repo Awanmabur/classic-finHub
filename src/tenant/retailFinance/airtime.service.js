@@ -49,7 +49,7 @@ async function purchase(conn,tenant,actor,input){
  await Promise.all([ensure(conn),require('../treasury/models').ensure(conn)]);
  const prior=await models(conn).record.findOne({idempotencyKey:key}).lean();
  if(prior){if(prior.fingerprint!==fp)throw F.fail('Stock purchase reference has conflicting details',409);return {record:prior,duplicate:true};}
- return F.transact(conn,async session=>{
+ try { return await F.transact(conn,async session=>{
   current=await F.access(conn,tenant,actor,'airtime','airtime.manage',session);
   const active=await F.operatingBranch(conn,current.actor,input,session);
   if(String(active._id)!==String(branch._id))throw F.fail('Operating branch changed',409);
@@ -75,6 +75,13 @@ async function purchase(conn,tenant,actor,input){
    costMinor:String(amount),currency,network:n,batchId:String(batch.batch._id)});
   return {record,duplicate:false};
  });
+ }catch(error){
+  if(error.code===11000||error.code===112||error.hasErrorLabel?.('TransientTransactionError')){
+   const item=await models(conn).record.findOne({idempotencyKey:key}).lean();
+   if(item&&item.fingerprint===fp)return {record:item,duplicate:true};
+  }
+  throw error;
+ }
 }
 async function sell(conn,tenant,actor,input){
  let current=await F.access(conn,tenant,actor,'airtime','airtime.sell');
@@ -87,7 +94,7 @@ async function sell(conn,tenant,actor,input){
  await Promise.all([ensure(conn),require('../treasury/models').ensure(conn)]);
  const prior=await models(conn).record.findOne({idempotencyKey:key}).lean();
  if(prior){if(prior.fingerprint!==fp)throw F.fail('Airtime sale reference has conflicting details',409);return {record:prior,duplicate:true};}
- return F.transact(conn,async session=>{
+ try { return await F.transact(conn,async session=>{
   current=await F.access(conn,tenant,actor,'airtime','airtime.sell',session);
   const p=await models(conn).product.findOne({_id:productId,tenantId:current.tenant._id,status:'active',...F.scope(current.actor)}).session(session).lean();
   if(!p)throw F.fail('Airtime product is unavailable in your branch',409);
@@ -122,6 +129,13 @@ async function sell(conn,tenant,actor,input){
    network:p.network,costMinor:String(cost),profitMinor:String(profit),batchId:String(batch.batch._id)});
   return {record,duplicate:false};
  });
+ }catch(error){
+  if(error.code===11000||error.code===112||error.hasErrorLabel?.('TransientTransactionError')){
+   const item=await models(conn).record.findOne({idempotencyKey:key}).lean();
+   if(item&&item.fingerprint===fp)return {record:item,duplicate:true};
+  }
+  throw error;
+ }
 }
 function summarize(records){
  const byCurrency=new Map();

@@ -1,5 +1,7 @@
 'use strict';
-const {Router}=require('express');
+const express=require('express');
+const {Router}=express;
+const media=require('./r2Media');
 const requirePermission=require('../../middleware/requirePermission');
 const service=require('./service');
 const {models}=require('./models');
@@ -109,11 +111,32 @@ function factory({renderTenant}){
   if(spec&&!extra.entries)data.entries=await service.entries(req.tenantDb,req.tenant,req.user,spec.kind,{archived:true});
   if(['profile','branding'].includes(page))data.form=configForm(page,config,req.tenant);
   if(page==='branding')data.receiptForm=configForm('receipt',config,req.tenant);
-  if(page==='landing'){data.heroForm=configForm('landing',config,req.tenant);data.form=entryForm(spec);}
+  if(page==='landing'){
+   data.heroForm=configForm('landing',config,req.tenant);data.form=entryForm(spec);
+   if(data.canManage)data.media=await media.list(req.tenantDb,req.tenant,req.user);
+  }
   else if(spec&&spec.kind!=='data_job')data.form=entryForm(spec);
   renderTenant(req,res,'workspace/index',names[0],names[1],data);
  }
  router.get('/',async(req,res,next)=>{try{await render(req,res,'overview',{summary:await service.overview(req.tenantDb,req.tenant,req.user)});}catch(error){next(error);}});
+ // Same-origin raw image upload. The app's CSRF middleware validates the header.
+ router.post('/media/:kind',requirePermission('workspace.manage'),throttle,
+  express.raw({type:['image/png','image/jpeg','image/webp'],limit:'3mb'}),async(req,res,next)=>{
+   try{
+    if(!Buffer.isBuffer(req.body))throw service.fail('Choose a JPEG, PNG or WebP image.',415);
+    const asset=await media.upload(req.tenantDb,req.tenant,req.user,
+     req.params.kind,req.body,req.get('content-type')?.split(';')[0]?.trim());
+    res.setHeader('Cache-Control','private, no-store');
+    res.status(201).json(asset);
+   }catch(error){next(error);}
+  });
+ router.post('/media/:id/delete',requirePermission('workspace.manage'),throttle,async(req,res,next)=>{
+  try{
+   await media.remove(req.tenantDb,req.tenant,req.user,req.params.id);
+   flash(req,'good','Unused public image deleted from R2.');
+   res.redirect(303,'/tenant/workspace/landing');
+  }catch(error){next(error);}
+ });
  router.get('/pricing',requirePermission('workspace.manage'),async(req,res,next)=>{try{
   const pricing=await require('../pricing/service').read(req.tenantDb,req.tenant,req.user);
   renderTenant(req,res,'workspace/pricing','Automatic charges','Configure fees, commissions and operating cost estimates once.',{...pricing,form:pricingForm(pricing)});

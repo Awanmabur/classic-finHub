@@ -16,7 +16,7 @@ function aggregator(sink,rows=[]){
 }
 test('Forex final summary reads posted treasury executions, not quoted status',async()=>{
  const captured=[];
- const conn={models:{FundedExecutionV1:aggregator(captured,[{
+ const conn={models:{ManualPayoutVerificationV1:aggregator([]),FundedExecutionV1:aggregator(captured,[{
   _id:{day:'2026-11-22',kind:'buy',currency:'USD',targetCurrency:'SSP'},
   count:2,volume:{toString:()=> '25000'},target:{toString:()=> '13500000'}
  }])}};

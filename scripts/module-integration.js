@@ -47,6 +47,19 @@ async function main(){
   const requested=await requestSvc.submit(first.tenant,owner,{moduleKey:'reports',reason:'Require an independent operational reporting subscription for this tenant.'});
   assert.equal(requested.status,'pending');
   await assert.rejects(requestSvc.submit(first.tenant,owner,{moduleKey:'reports',reason:'Require an independent operational reporting subscription for this tenant.'}),e=>e.status===409);
+  const quoteRequest=await requestSvc.submit(first.tenant,owner,{
+    moduleKey:'loans',reason:'Our business needs the loan module for its credit accounts and workflow.'
+  });
+  assert.equal(quoteRequest.status,'pending');
+  assert.equal(quoteRequest.pricingSnapshot.requiresQuote,true);
+  assert.equal(quoteRequest.pricingSnapshot.priceMonthlyMinor,undefined);
+  await assert.rejects(requestSvc.submit(first.tenant,owner,{
+    moduleKey:'loans',reason:'A duplicate loan module request should be rejected before activation.'
+  }),e=>e.status===409);
+  await requestSvc.reject(String(quoteRequest._id),admin,{
+    reason:'Business terms need further discussion before module activation.'
+  });
+  assert.equal((await Request.findById(quoteRequest._id)).status,'rejected');
   const reason='Controlled independent module activation for authenticated workspace reporting.';
   await moduleSvc.grantModule(String(first.tenant._id),admin,{moduleKey:'reports',days:30,users:5,branches:1,recordsPerMonth:0,reason});
   assert.equal((await Request.findById(requested._id)).status,'approved');

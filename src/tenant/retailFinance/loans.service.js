@@ -93,7 +93,7 @@ async function apply(conn,tenant,actor,input){
  const requestHash=F.hash({actorId:String(actor.id),branchId:String(branch._id),productId:String(pid),customerId:String(borrower),principal:String(input.principal),reason});
  const existing=await models(conn).loan.findOne({requestKey:key}).lean();
  if(existing){if(existing.requestHash!==requestHash)throw F.fail('Loan request reference reused with different values',409);return {loan:existing,duplicate:true};}
- return F.transact(conn,async session=>{
+ try { return await F.transact(conn,async session=>{
   current=await F.access(conn,tenant,actor,'loans','loans.create',session);
   const active=await F.operatingBranch(conn,current.actor,input,session);
   if(String(active._id)!==String(branch._id))throw F.fail('Operating branch changed',409);
@@ -113,6 +113,13 @@ async function apply(conn,tenant,actor,input){
   await F.audit(conn,session,current.actor,loan._id,'loans.application.requested',{branchId:String(active._id),principalMinor:String(amount),currency:p.currency});
   return {loan,duplicate:false};
  });
+ }catch(error){
+  if(error.code===11000||error.code===112||error.hasErrorLabel?.('TransientTransactionError')){
+   const item=await models(conn).loan.findOne({requestKey:key}).lean();
+   if(item&&item.requestHash===requestHash)return {loan:item,duplicate:true};
+  }
+  throw error;
+ }
 }
 async function review(conn,tenant,actor,loanId,input){
  let current=await F.access(conn,tenant,actor,'loans','loans.review');
@@ -172,7 +179,7 @@ async function repay(conn,tenant,actor,loanId,input){
   if(oldPayment.fingerprint!==check)throw F.fail('Repayment reference already used for different values',409);
   return {payment:oldPayment,duplicate:true};
  }
- return F.transact(conn,async session=>{
+ try { return await F.transact(conn,async session=>{
   const current=await F.access(conn,tenant,actor,'loans','loans.repay',session);
   const record=await models(conn).loan.findOne({_id:id,tenantId:current.tenant._id,status:'active',...F.scope(current.actor)}).session(session).lean();
   if(!record)throw F.fail('Loan is not active or was already paid',409);
@@ -209,6 +216,13 @@ async function repay(conn,tenant,actor,loanId,input){
    principalMinor:String(principalPart),interestMinor:String(interestPart),batchId:String(posted.batch._id)});
   return {payment,duplicate:false};
  });
+ }catch(error){
+  if(error.code===11000||error.code===112||error.hasErrorLabel?.('TransientTransactionError')){
+   const item=await models(conn).payment.findOne({idempotencyKey:key}).lean();
+   if(item&&item.fingerprint===F.hash({loanId:String(id),amount:String(input.amount),accountId:String(accountId),reference,actorId:String(actor.id)}))return {payment:item,duplicate:true};
+  }
+  throw error;
+ }
 }
 async function reverseRepayment(conn,tenant,actor,loanId,paymentId,input){
  const id=F.oid(loanId,'loan'),pid=F.oid(paymentId,'repayment');

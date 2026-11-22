@@ -34,6 +34,8 @@ SAFE=/srv/classic/release-safety/classicfin/caddy
 install -d -m 0700 "$SAFE"
 BACKUP="$SAFE/site-$(date -u +%Y%m%dT%H%M%SZ).caddy"
 install -m 0600 "$SITE" "$BACKUP"
+STAGED="$(mktemp "$SAFE/candidate.XXXXXXXX")"
+cp -- "$SITE" "$STAGED"
 CHANGED=0
 PROBE=''
 rollback() {
@@ -45,10 +47,11 @@ rollback() {
         echo "CADDY ROLLBACK APPLIED; inspect $BACKUP"
     fi
     if [ -n "$PROBE" ]; then rm -f -- "$PROBE"; fi
+    rm -f -- "$STAGED"
 }
 trap rollback ERR INT TERM EXIT
 
-python3 - "$SITE" <<'PY'
+python3 - "$STAGED" <<'PY'
 from pathlib import Path
 import re, sys, textwrap
 
@@ -121,6 +124,7 @@ path.write_text(updated)
 print('Scoped media upload Caddy route prepared; all other directives preserved')
 PY
 CHANGED=1
+cp -- "$STAGED" "$SITE"
 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 systemctl reload caddy
 systemctl is-active --quiet caddy
@@ -141,7 +145,7 @@ if [[ "$STATUS" != 302 && "$STATUS" != 303 && "$STATUS" != 401 && "$STATUS" != 4
 fi
 CHANGED=0
 trap - ERR INT TERM EXIT
-rm -f -- "$PROBE"
+rm -f -- "$PROBE" "$STAGED"
 echo "CLASSICFIN CADDY UPLOAD GATE: VERIFIED (96 KiB request HTTP $STATUS)"
 echo "Only the three media POSTs allow 4MB at Caddy; other routes retain 64KB."
 echo "Rollback copy: $BACKUP"

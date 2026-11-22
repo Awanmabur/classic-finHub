@@ -62,6 +62,14 @@
  });
 
  document.addEventListener('click',async event=>{
+  const mediaCopy=event.target.closest('[data-media-copy-url]');
+  if(mediaCopy){
+   try{
+    await navigator.clipboard.writeText(mediaCopy.dataset.mediaCopyUrl);
+    mediaCopy.textContent='Copied';mediaCopy.setAttribute('aria-live','polite');
+   }catch{mediaCopy.textContent='Copy this image link manually from the website editor';}
+   return;
+  }
   const copier=event.target.closest('[data-website-copy-path]');
   if(copier){
    const url=new URL(copier.dataset.websiteCopyPath,window.location.origin);

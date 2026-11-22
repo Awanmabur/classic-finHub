@@ -9,6 +9,7 @@ Status: **CODE PREPARED, NOT PRODUCTION-VERIFIED**. Based on live application re
 - Server checks session permissions, original tenant DB identity, role, CSRF, per-user and per-tenant quotas, MIME and file signatures, dimensions and selected metadata. Server writes with bounded AWS Signature V4 requests to Cloudflare R2 `auto` region. Uploaded bytes and links are returned only after the tenant media metadata and audit event have committed.
 - The existing website draft/publish flow continues to control what is displayed publicly. References to R2 images are verified against their owning tenant at draft-save and publication time. Library previews, link copy and deletion are supported. Deletion is blocked while the draft, published page or platform directory uses the asset.
 - Uploaded assets are immutable URLs suitable for Cloudflare custom-domain edge caching.
+- New public R2 uploads have transactional tenant limits: at most 200 retained images, each at most 3 MiB, and total bytes bounded by the snapshotted subscription `storageMb` (100 MiB bounded default for older tenants without a storage allowance; maximum public-media allowance of 2 GiB). This meters public media only; it does not claim that existing backup, financial or document storage is metered.
 - Non-media modules and financial transactions are unchanged.
 
 ## Required Cloudflare setup (not done by repository code)

@@ -35,6 +35,14 @@ const schema=new mongoose.Schema({
 schema.index({tenantId:1,createdAt:-1});
 schema.index({key:1},{unique:true});
 function model(conn){return conn.models.TenantWorkspaceMediaV1||conn.model('TenantWorkspaceMediaV1',schema);}
+const indexPromises=new WeakMap();
+async function ensureMediaIndexes(conn){
+ if(!indexPromises.has(conn)){
+  const task=ensureModelIndexes(model(conn)).catch(error=>{indexPromises.delete(conn);throw error;});
+  indexPromises.set(conn,task);
+ }
+ await indexPromises.get(conn);
+}
 function objectId(value){
  if(!/^[a-f0-9]{24}$/i.test(String(value||'')))throw fail('Invalid public image identifier.');
  return new mongoose.Types.ObjectId(value);
@@ -148,7 +156,7 @@ async function upload(conn,tenant,actor,kind,raw,mime){
  await workspace.access(conn,tenant,actor,{manage:true});
  const asset=validateImage(raw,mime),settings=config();
  const Media=model(conn);
- await ensureModelIndexes(Media);
+ await ensureMediaIndexes(conn);
  if(await Media.countDocuments({tenantId:tenant._id,status:'active'}).maxTimeMS(3000)>=200)
   throw fail('Public media storage limit reached. Delete unused images before uploading more.',409);
  const mediaId=new mongoose.Types.ObjectId();

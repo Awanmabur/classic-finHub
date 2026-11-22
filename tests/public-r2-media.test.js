@@ -113,3 +113,54 @@ test('browser retries an HTTP 415 exactly once using a canvas-generated PNG',()=
  assert.match(script,/await response\.text\(\)/);
  assert.doesNotMatch(script,/while\s*\(response\.status===415/);
 });
+
+test('actual browser event flow retries rejected WebP as PNG and retains photo draft',async()=>{
+ const vm=require('node:vm');
+ const listeners=new Map();
+ const requests=[];
+ const field={value:'',dispatchEvent(){}};
+ const status={textContent:''};
+ const button={disabled:false};
+ const source=new Blob([Buffer.from('image-file-bytes')],{type:'image/jpeg'});
+ const input={dataset:{r2ImageKind:'logo'},files:[source],disabled:false,value:'',
+  closest(selector){return selector==='form[data-workspace-form]'?form:null;}};
+ const form={
+  elements:{namedItem(name){return name==='logoUrl'?field:null;}},
+  querySelector(selector){
+   if(selector==='[data-r2-upload-status]')return status;
+   if(selector==='[name=_csrf]')return {value:'test-csrf'};
+   return null;
+  },
+  querySelectorAll(selector){
+   return selector==='button[type=submit]'?[button]:[];
+  }
+ };
+ const document={
+  addEventListener(name,fn){listeners.set(name,fn);},
+  querySelectorAll(){return [];},
+  createElement(name){
+   if(name!=='canvas')throw Error('Unexpected DOM element');
+   return {width:0,height:0,getContext(){return {drawImage(){}};},
+    toBlob(resolve,mime){resolve(new Blob([Buffer.alloc(128)],{type:mime}));}};
+  }
+ };
+ const context={
+  document,Blob,Buffer,Event,URL,AbortSignal,
+  createImageBitmap:async()=>({width:800,height:500,close(){}}),
+  fetch:async(url,opts)=>{
+   requests.push({url,type:opts.headers['Content-Type'],size:opts.body.size});
+   if(requests.length===1)return {ok:false,status:415,headers:{get:()=> 'text/plain'},text:async()=> 'Invalid WebP image.'};
+   return {ok:true,status:201,json:async()=>({url:'https://media.example.test/tenants/example/public/logo/new.png'})};
+  }
+ };
+ vm.runInNewContext(text('public/js/workspace.js'),context,{filename:'workspace.js'});
+ const change=listeners.get('change');
+ assert.equal(typeof change,'function');
+ await change({target:{closest(sel){return sel==='[data-r2-image-kind]'?input:null;}}});
+ assert.deepEqual(requests.map(r=>r.type),['image/webp','image/png']);
+ assert(requests.every(r=>r.size>0&&r.size<=3*1024*1024));
+ assert.match(field.value,/new\.png$/);
+ assert.match(status.textContent,/uploaded to R2/);
+ assert.equal(button.disabled,false);
+ assert.equal(input.disabled,false);
+});

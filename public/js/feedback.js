@@ -12,7 +12,7 @@
     let target=[...host.children].find(node=>node.matches?.('[data-feedback-message]'));
     if(!target){target=document.createElement('div');target.dataset.feedbackMessage='';target.tabIndex=-1;const icon=document.createElement('span');icon.className='feedbackIcon';icon.setAttribute('aria-hidden','true');const content=document.createElement('div');content.className='feedbackContent';content.append(document.createElement('strong'),document.createElement('p'));const dismiss=document.createElement('button');dismiss.type='button';dismiss.className='feedbackDismiss';dismiss.dataset.feedbackDismiss='';dismiss.setAttribute('aria-label','Dismiss message');dismiss.textContent='×';target.append(icon,content,dismiss);host.prepend(target);}
     const kind=type==='good'?'good':type==='info'?'info':'bad';target.className='sessionFeedback feedback-'+kind;target.hidden=false;target.setAttribute('role',kind==='bad'?'alert':'status');target.querySelector('.feedbackIcon').textContent=kind==='bad'?'!':kind==='good'?'✓':'i';target.querySelector('.feedbackContent>strong').textContent=kind==='bad'?'Please check':kind==='good'?'Done':'Information';target.querySelector('.feedbackContent>p').textContent=String(message||'Please review this action.');
-    if(focus){target.focus({preventScroll:true});target.scrollIntoView({block:'nearest',behavior:'instant'});}return target;
+    if(focus){target.focus({preventScroll:true});if(!target.closest('main.panel.main'))target.scrollIntoView({block:'nearest',behavior:'instant'});}scheduleSoftDismiss(target);return target;
   }
   async function response(result){
     const type=result.headers.get('content-type')||'';
@@ -21,6 +21,22 @@
     if(type.includes('text/html')){const html=new DOMParser().parseFromString(await result.text(),'text/html'),error=html.querySelector('[role="alert"],[data-form-error],.err.show');return{message:(error?.textContent||(!html.body.children.length?html.body.textContent:'')).trim().slice(0,800)||'The action could not be completed. Please review the details.'};}
     return{message:'The action could not be completed. Please try again when connected.'};
   }
+
+  // Success flashes are confirmations, not permanent dashboard banners.
+  // Errors remain until dismissed; never hide a failed transaction automatically.
+  const dismissTimers=new WeakMap();
+  function scheduleSoftDismiss(node){
+    if(!node||!node.matches?.('.main > [data-feedback-message]'))return;
+    if(!node.classList.contains('feedback-good')&&!node.classList.contains('feedback-info'))return;
+    if(dismissTimers.has(node))clearTimeout(dismissTimers.get(node));
+    const timer=setTimeout(()=>{
+      dismissTimers.delete(node);
+      if(node.isConnected&&!node.matches(':focus-within'))node.remove();
+    },4800);
+    dismissTimers.set(node,timer);
+  }
+  document.querySelectorAll('main.panel.main > [data-session-flash]').forEach(scheduleSoftDismiss);
+
   window.ClassicFinFeedback=Object.freeze({show,response,headers});
   document.addEventListener('click',event=>{const button=event.target.closest('[data-feedback-dismiss]');if(button)button.closest('[data-feedback-message]')?.remove();});
   document.querySelectorAll('[data-session-flash][role="alert"]').forEach(target=>{target.focus({preventScroll:true});target.scrollIntoView({block:'nearest',behavior:'instant'});});

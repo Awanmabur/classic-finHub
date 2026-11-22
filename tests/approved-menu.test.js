@@ -11,9 +11,11 @@ const approved={
  Overview:['Today snapshot','New transaction','Last receipt','Remote owner dashboard'],
  'Money Transfer':['Send money / Generate PIN','Payout by PIN','Pending payout queue','Branch transfer balances','Money transfer record','Transfer fee summary','Transfer report summary'],
  'Mobile Money':['Deposit','Withdrawal','Onboarding guide','Network activity','Cash impact','Mobile money report'],
+ 'Loan Management':['Loan portfolio','Loan applications'],
+ 'Airtime':['Airtime sales & stock'],
  'Forex Operations':['Buy forex from customer','Sell forex to customer','Active rate board','Forex cash impact','Forex operation records','Forex report summary'],
  'Banking Operations':['Customers directory','New customer','Customer logbook','Accounts directory','New account','Deposit','Withdraw','Account transfer','Account balances','Account movements','Banking report summary'],
- 'Operation Reports':['Daily business report','Open day','Close day','Add expense','Approvals & corrections','Manual movement review','Cash control review','Export CSV','Print report','General reports page','Opening cash report','Closing cash / expected cash','Transaction summary','Expenses report','Transfer report','Mobile report','Banking report'],
+ 'Operation Reports':['Daily business report','Open day','Close day','Add expense','Approvals & corrections','Manual movement review','Cash control review','Export CSV','Print report','General reports page','Opening cash report','Closing cash / expected cash','Transaction summary','Expenses report','Transfer report','Mobile report','Banking report','Loan Management report','Airtime report'],
  'Tenant Workspace':['Quick setup','Tenant profile','Wallets & balances','Fees & commissions','Business website','Customer reviews','Branding & receipts','Branches & locations','Admins, tellers & users','Roles & permissions','Customer/KYC setup','Tenant database','Subscription & limits','Notification rules','Integrations & API','Import / export data','Compliance controls','Website preview','Receipt preview','Notifications center','Tenant audit activity','System settings']
 };
 const branchId='507f1f77bcf86cd799439011',owner={id:branchId,name:'Owner',role:'Tenant Owner',permissions:['*']};
@@ -21,7 +23,7 @@ function subscribed(){
  const terms=planSnapshot({...asPlanVersion(plans.find(plan=>plan.code==='enterprise')),status:'published'});
  return {name:'Approved workspace',slug:'approved-workspace',status:'active',plan:'enterprise',
   enabledModules:terms.modules,subscription:{...terms,status:'granted',source:'manual_admin_grant',generation:1,periodStart:new Date('2026-01-01'),periodEnd:new Date('2030-01-01')},
-  moduleGrants:['customers','accounts','expenses'].map(moduleKey=>({moduleKey,status:'granted',generation:1,periodStart:new Date('2026-01-01'),periodEnd:new Date('2030-01-01'),limits:{users:10,branches:3,recordsPerMonth:1000}}))};
+  moduleGrants:['customers','accounts','expenses','loans','airtime'].map(moduleKey=>({moduleKey,status:'granted',generation:1,periodStart:new Date('2026-01-01'),periodEnd:new Date('2030-01-01'),limits:{users:10,branches:3,recordsPerMonth:1000}}))};
 }
 function actor(role,allowedModules){return {id:branchId,name:'Staff',role,branchId,permissions:permissionsFor(role),allowedModules};}
 function paths(menu){return menu.flatMap(group=>group.items.map(item=>item.href));}
@@ -29,7 +31,7 @@ function paths(menu){return menu.flatMap(group=>group.items.map(item=>item.href)
 test('fully entitled owner retains approved groups with wallet controls and no disabled portal',()=>{
  const menu=tenantMenu(subscribed(),owner);
  assert.deepEqual(Object.fromEntries(menu.map(group=>[group.label,group.items.map(item=>item.label)])),approved);
- assert.equal(menu.length,7);assert.equal(menu.reduce((sum,group)=>sum+group.items.length,0),73);
+ assert.equal(menu.length,9);assert.equal(menu.reduce((sum,group)=>sum+group.items.length,0),78);
  assert(!menu.some(group=>/Phase 2/i.test(group.label)));
  for(const href of ['/tenant/users','/tenant/audit','/tenant/workspace/roles'])assert.equal(paths(menu).filter(path=>path===href).length,1,href+' is not duplicated');
  for(const item of menu.flatMap(group=>group.items)){

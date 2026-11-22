@@ -60,7 +60,9 @@ async function prepareTenantStorage(connection){
       ()=>require('../../tenant/treasury/models').ensure(connection),
       ()=>require('../../tenant/treasury/funding.models').ensureIndexes(connection),
       ()=>require('../../tenant/funded/models').ensureIndexes(connection),
-      ()=>require('../../tenant/pricing/models').ensure(connection)
+      ()=>require('../../tenant/pricing/models').ensure(connection),
+      ()=>require('../../tenant/retailFinance/loans.models').ensure(connection),
+      ()=>require('../../tenant/retailFinance/airtime.models').ensure(connection)
     ];
     for(const prepare of preflights)await prepare();
   }catch(error){throw storageFailure(error);}

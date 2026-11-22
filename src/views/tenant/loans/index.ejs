@@ -1,0 +1,63 @@
+<section class="view show" id="loanManagement">
+ <div class="retailStats">
+  <% if(!data.summary.length){ %><article class="stat"><div class="k">Loan portfolio</div><div class="v">No disbursed loans</div></article><% } %>
+  <% data.summary.forEach(s=>{ %>
+   <article class="stat"><div class="k"><%= s.currency %> outstanding principal</div><div class="v"><%= data.format(s.principalOutstanding,s.currency) %></div><div class="sub">Due interest: <%= data.format(s.interestOutstanding,s.currency) %></div><div class="tiny"><%= s.late %> overdue</div></article>
+  <% }) %>
+ </div>
+ <% if(data.canCreate&&data.branch){ %>
+ <section class="card" style="margin-top:14px">
+  <div class="cardHead"><div><b>Register a borrower</b><br><span>Use the shared customer directory without adding a separate subscription</span></div></div>
+  <div class="cardBody">
+   <form class="retailForm" method="post" action="/tenant/loans/borrowers">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="idempotencyKey" value="<%= data.borrowerUuid %>">
+    <label class="field">Borrower full name<input class="control" name="name" required minlength="2" maxlength="120" autocomplete="name"></label>
+    <label class="field">Phone with country code<input class="control" type="tel" name="phone" required placeholder="+211..." maxlength="20"></label>
+    <label class="field">Identification reference (optional)<input class="control" name="identityNumber" maxlength="60"></label>
+    <label class="field">Next of kin (optional)<input class="control" name="nextOfKinName" maxlength="120"></label>
+    <div class="retailWide"><button class="btn btnPrimary" type="submit">Save borrower</button></div>
+   </form>
+  </div>
+ </section>
+ <% } %>
+ <section class="card" style="margin-top:14px">
+  <div class="cardHead"><div><b>Loan applications</b><br><span>Real customer directory, immutable loan terms, independent review and Treasury-backed disbursements</span></div></div>
+  <div class="cardBody">
+   <p class="tiny">Only approved, documented loans can be disbursed. Repayments allocate interest before principal and post to the actual receiving account. Loan payments are not provider-settled or received automatically.</p>
+   <% if(data.canCreate&&data.branch){ %>
+    <form method="post" action="/tenant/loans/applications" class="retailForm">
+     <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="idempotencyKey" value="<%= data.uuid %>">
+     <label class="field">Borrower<select class="control" name="customerId" required><option value="">Select existing customer</option><% data.customers.forEach(c=>{ %><option value="<%= c._id %>"><%= c.name %> · <%= c.reference %></option><% }) %></select></label>
+     <label class="field">Loan product<select class="control" name="productId" required><option value="">Select product</option><% data.products.filter(p=>p.status==='active'&&String(p.branchId)===String(data.branch._id)).forEach(p=>{ %><option value="<%= p._id %>"><%= p.name %> · <%= p.currency %> · <%= p.flatInterestBps/100 %>% flat / <%= p.termDays %> days</option><% }) %></select></label>
+     <label class="field">Principal amount<input class="control" name="principal" required inputmode="decimal" placeholder="Enter amount"></label>
+     <label class="field retailWide">Reason and loan purpose<textarea class="control" name="reason" rows="2" required minlength="8" maxlength="400"></textarea></label>
+     <div class="retailWide"><button class="btn btnPrimary" type="submit">Submit loan application</button></div>
+    </form>
+   <% }else if(!data.branch){ %><p class="workspaceNote">Set your operating branch before creating a loan.</p><% } %>
+  </div>
+ </section>
+ <% if(data.canManage&&data.branch){ %>
+ <section class="card" style="margin-top:14px">
+  <div class="cardHead"><div><b>Loan products</b><br><span>Configure immutable flat-interest terms. Create a new product when rates change; older loans retain their original terms.</span></div></div>
+  <div class="cardBody">
+   <form method="post" action="/tenant/loans/products" class="retailForm">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <label class="field">Product name<input class="control" name="name" required minlength="3" maxlength="100" placeholder="Short-term business loan"></label>
+    <label class="field">Currency<select class="control" name="currency" required><% (data.currencyChoices||[data.activeCurrency]).filter(Boolean).forEach(c=>{ %><option value="<%= c %>"><%= c==='KES'?'KSH':c %></option><% }) %></select></label>
+    <label class="field">Flat interest (basis points)<input class="control" name="interestBps" type="number" min="0" max="10000" step="1" required placeholder="Enter basis points: 500 = 5%"></label>
+    <label class="field">Term (days)<input class="control" name="termDays" type="number" min="1" max="730" required></label>
+    <label class="field">Minimum principal<input class="control" name="minimum" inputmode="decimal" required></label>
+    <label class="field">Maximum principal<input class="control" name="maximum" inputmode="decimal" required></label>
+    <div class="retailWide"><p class="tiny">Interest rate uses basis points: 100 = 1%, 500 = 5%. No hidden fees or compounding.</p><button class="btn btnPrimary" type="submit">Save loan product</button></div>
+   </form>
+  </div>
+ </section>
+ <% } %>
+ <section class="card" style="margin-top:14px"><div class="cardHead"><b>Loan records</b><span>Latest 200 applications</span></div>
+  <div class="cardBody tableWrap"><table><thead><tr><th>Loan</th><th>Principal</th><th>Due interest</th><th>Remaining</th><th>Due date</th><th>Status</th><th></th></tr></thead><tbody>
+   <% if(!data.loans.length){ %><tr><td colspan="7">No loans recorded.</td></tr><% } %>
+   <% data.loans.forEach(l=>{ %><tr data-search-row><td><b><%= l.applicationRef %></b></td><td><%= data.format(l.principalMinor,l.currency) %></td><td><%= data.format(l.interestMinor,l.currency) %></td><td><%= data.format(l.principalOutstandingMinor,l.currency) %></td><td><%= data.formatDate(l.dueAt) %></td><td><span class="tag"><%= l.status %></span></td><td><a class="btn" href="/tenant/loans/<%= l._id %>">View</a></td></tr><% }) %>
+  </tbody></table></div>
+ </section>
+</section>

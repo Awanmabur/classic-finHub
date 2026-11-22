@@ -17,7 +17,7 @@ function tenantMenu(tenant,user) {
   const groups=[];
   const group=(label,items,paths=[])=>{if(items.length)groups.push({label,items,paths:paths.map(path=>'/tenant/'+path)});};
   const mobile=module('mobile_money')&&can('mobile_money.view');
-  const financialModules=['mobile_money','money_transfer','banking','forex','expenses'];
+  const financialModules=['mobile_money','money_transfer','banking','forex','expenses','loans','airtime'];
   const cashReportSource=financialModules.some(module);
   const sharedCash=financialModules.some(key=>module(key)&&can(`${key}.view`))&&can('treasury.view');
   const transfer=module('money_transfer')&&can('money_transfer.view');
@@ -28,7 +28,7 @@ function tenantMenu(tenant,user) {
   const accounts=module('accounts')&&can('accounts.view');
   const expenses=module('expenses')&&can('expenses.view');
   const manualMovements=sharedCash&&['money_transfer','banking','forex'].some(key=>module(key)&&can(`${key}.view`));
-  const canCreate=[['mobile_money','mobile_money.cash_in'],['mobile_money','mobile_money.cash_out'],['money_transfer','money_transfer.create'],['banking','banking.requests.create'],['forex','forex.quotes.create'],['customers','customers.create'],['accounts','accounts.manage'],['expenses','expenses.create'],['approval_workflows','approvals.submit']].some(([key,permission])=>module(key)&&can(permission));
+  const canCreate=[['mobile_money','mobile_money.cash_in'],['mobile_money','mobile_money.cash_out'],['money_transfer','money_transfer.create'],['banking','banking.requests.create'],['forex','forex.quotes.create'],['customers','customers.create'],['accounts','accounts.manage'],['expenses','expenses.create'],['approval_workflows','approvals.submit'],['loans','loans.create'],['airtime','airtime.sell']].some(([key,permission])=>module(key)&&can(permission));
   const staff=can('users.manage')||can('users.manage_branch');
   const workspace=can('workspace.view');
   group('Overview',can('dashboard.view')?[
@@ -54,6 +54,11 @@ function tenantMenu(tenant,user) {
     item('Cash impact','mobile-money/cash-impact','fa-cash-register'),
     ...(can('mobile_money.report')||can('reports.view')?[item('Mobile money report','mobile-money/report','fa-file-lines')]:[])
   ]:[],mobile?['mobile-money','mobile-money/shifts',...(module('sms_capture')?['sms-capture']:[])]:[]);
+  const loanAccess=module('loans')&&can('loans.view');
+  const airtimeAccess=module('airtime')&&can('airtime.view');
+  group('Loan Management',loanAccess?[item('Loan portfolio','loans','fa-hand-holding-dollar'),
+    ...(can('loans.create')?[item('Loan applications','loans','fa-file-signature',{transactionKind:'loan'})]:[])]:[],loanAccess?['loans']:[]);
+  group('Airtime',airtimeAccess?[item('Airtime sales & stock','airtime','fa-sim-card',{transactionKind:can('airtime.sell')?'airtime':null})]:[],airtimeAccess?['airtime']:[]);
   group('Forex Operations',forex?[
     item('Buy forex from customer','forex/buy','fa-arrow-down',{transactionKind:can('forex.quotes.create')?'forex_buy':null}),
     item('Sell forex to customer','forex/sell','fa-arrow-up',{transactionKind:can('forex.quotes.create')?'forex_sell':null}),
@@ -79,11 +84,13 @@ function tenantMenu(tenant,user) {
     ...(reports&&can('reports.export')?[item('Export CSV','reports/export.csv','fa-download')]:[]),
     ...(reports?[item('Print report','reports/print','fa-print'),item('General reports page','reports','fa-file-lines'),
       ...(cashReportSource?[item('Opening cash report','reports/opening','fa-unlock'),item('Closing cash / expected cash','reports/closing','fa-lock')]:[]),
-      ...(['mobile_money','money_transfer','banking','forex'].some(module)?[item('Transaction summary','reports/transactions','fa-list')]:[]),
+      ...(['mobile_money','money_transfer','banking','forex','loans','airtime'].some(module)?[item('Transaction summary','reports/transactions','fa-list')]:[]),
       ...(module('expenses')?[item('Expenses report','reports/expenses','fa-receipt')]:[]),
       ...(module('money_transfer')?[item('Transfer report','reports/transfer','fa-money-bill-transfer')]:[]),
       ...(module('mobile_money')?[item('Mobile report','reports/mobile','fa-mobile-screen-button')]:[]),
-      ...(module('banking')?[item('Banking report','reports/banking','fa-building-columns')]:[])]:[])
+      ...(module('banking')?[item('Banking report','reports/banking','fa-building-columns')]:[]),
+      ...(module('loans')?[item('Loan Management report','reports/loans','fa-hand-holding-dollar')]:[]),
+      ...(module('airtime')?[item('Airtime report','reports/airtime','fa-sim-card')]:[])]:[])
   ],[...(reports?['reports']:[]),...(expenses?['expenses']:[]),...(sharedCash?['cash/shifts']:[]),...(module('approval_workflows')&&can('approvals.view')?['approvals']:[]),...(manualMovements?['funded']:[])]);
   group('Tenant Workspace',[
     ...(user.role==='Tenant Owner'?[item('Quick setup','setup','fa-wand-magic-sparkles')]:[]),

@@ -48,7 +48,7 @@ test('Daily report excludes voided mobile fees and pending expenses from totals'
 });
 
 test('Approved reports have all operation report sections and protect invalid scopes',()=>{
- assert.deepEqual(Object.keys(reports.pages),['daily','opening','closing','transactions','expenses','transfer','mobile','banking','forex']);
+ assert.deepEqual(Object.keys(reports.pages),['daily','opening','closing','transactions','expenses','transfer','mobile','banking','forex','loans','airtime']);
  const branch=id(),operator=id();
  assert.deepEqual(reports.scopeFor({id:operator,branchId:branch,role:'Reports Analyst'}),{branchId:branch});
  assert.equal(reports.scopeFor({id:operator,branchId:branch,role:'Mobile Money Operator'}).operatorId,operator);

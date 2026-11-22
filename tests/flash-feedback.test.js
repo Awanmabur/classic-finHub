@@ -18,3 +18,15 @@ test('activation and reset pages carry visible feedback without putting invitati
   assert.match(html,/data-feedback-message/);assert.match(html,/Passwords do not match/);assert.match(html,/\/js\/feedback\.js/);assert.match(html,/data-activation-token/);assert.doesNotMatch(html,/name="token" value="[^\"]+/);
  }
 });
+
+test('dashboard notifications are centered and success auto-dismisses without losing errors',()=>{
+ const fs=require('node:fs'),root=path.resolve(__dirname,'..');
+ const css=fs.readFileSync(path.join(root,'public/css/feedback.css'),'utf8');
+ const js=fs.readFileSync(path.join(root,'public/js/feedback.js'),'utf8');
+ assert.match(css,/\.main>\.sessionFeedback\{position:fixed;top:50%;left:50%;transform:translate\(-50%,-50%\)/);
+ assert.match(css,/prefers-reduced-motion:reduce/);
+ assert.match(js,/scheduleSoftDismiss\(node\)/);
+ assert.match(js,/node\.classList\.contains\('feedback-good'\)/);
+ assert.match(js,/node\.classList\.contains\('feedback-info'\)/);
+ assert.doesNotMatch(js,/classList\.contains\('feedback-bad'\).*remove\(\)/);
+});

@@ -283,7 +283,7 @@ async function reserveUsage(tenant,metric,session,now=new Date(),Model=UsageCoun
   const s=effectiveSubscription(tenant,now);
   // Prefer base-plan allocation when it covers this module. Standalone add-ons
   // use their own generation so plan changes cannot silently reset quota.
-  const moduleName={mobile_money_records:'mobile_money',money_transfer_requests:'money_transfer',banking_requests:'banking',forex_quotes:'forex',customers:'customers',customer_accounts:'accounts',expenses:'expenses'}[metric];
+  const moduleName={mobile_money_records:'mobile_money',money_transfer_requests:'money_transfer',banking_requests:'banking',forex_quotes:'forex',customers:'customers',customer_accounts:'accounts',expenses:'expenses',loan_requests:'loans',loan_borrowers:'loans',loan_payments:'loans',airtime_stock:'airtime',airtime_sales:'airtime'}[metric];
   if(!moduleName)throw err('Unknown usage metric',403);
   const usePlan=s && s.modules.includes(moduleName) && tenant.enabledModules?.includes(moduleName);
   const grant=!usePlan

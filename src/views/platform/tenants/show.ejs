@@ -105,12 +105,13 @@
           <option value="<%= m.key %>" data-requires-records="<%= m.requiresRecords===true %>"><%= m.name %> · ACTIVE · renew</option><% }); %>
         </optgroup><% } %>
         <optgroup label="Available standalone modules">
-          <% standaloneModules.filter(m=>m.category!=='Addon'&&!effectiveKeys.has(m.key)).forEach(m=>{ %><option value="<%= m.key %>" data-requires-records="<%= m.requiresRecords===true %>"><%= m.name %> · USD <%= m.priceMonthly %>/mo</option><% }); %>
+          <% standaloneModules.filter(m=>m.category!=='Addon'&&!effectiveKeys.has(m.key)).forEach(m=>{ %><option value="<%= m.key %>" data-requires-records="<%= m.requiresRecords===true %>"><%= m.name %> · <%= m.requiresQuote?'Price on approval':('USD '+m.priceMonthly+'/mo') %></option><% }); %>
         </optgroup>
         <optgroup label="Available optional add-ons">
-          <% standaloneModules.filter(m=>m.category==='Addon'&&!effectiveKeys.has(m.key)).forEach(m=>{ %><option value="<%= m.key %>" data-requires-records="<%= m.requiresRecords===true %>"><%= m.name %> · USD <%= m.priceMonthly %>/mo</option><% }); %>
+          <% standaloneModules.filter(m=>m.category==='Addon'&&!effectiveKeys.has(m.key)).forEach(m=>{ %><option value="<%= m.key %>" data-requires-records="<%= m.requiresRecords===true %>"><%= m.name %> · <%= m.requiresQuote?'Price on approval':('USD '+m.priceMonthly+'/mo') %></option><% }); %>
         </optgroup>
       </select><span class="tiny">Standalone access remains separate from the saved plan and does not collect payment automatically.</span></label>
+      <label class="field">Monthly price for quote-required modules (USD, explicitly approved)<input class="control" name="monthlyPriceUsd" type="number" min="0" max="999999" step="0.01" placeholder="Required for Loan and Airtime"><span class="tiny">This does not collect payment. Zero is allowed only when intentionally granting free access.</span></label>
       <label class="field">Days<input class="control" type="number" name="days" min="1" max="366" value="30" required></label>
       <label class="field">Monthly record allocation (positive for transaction modules, customers, accounts and expenses; 0 for report and control modules)<input class="control" type="number" name="recordsPerMonth" min="0" max="1000000" value="0" required></label>
     </div><div class="row2"><label class="field">Workspace seat limit<input class="control" type="number" name="users" min="1" value="5" required></label><label class="field">Branch limit<input class="control" type="number" name="branches" min="1" value="1" required></label></div>

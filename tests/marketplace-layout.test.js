@@ -20,11 +20,11 @@ test('marketplace uses dedicated responsive styles and readable introduction',()
   assert.doesNotMatch(view,/class="pricing-grid/);
 });
 
-test('marketplace does not imply payment or active loan management',()=>{
+test('marketplace identifies manual modules and does not claim automatic billing or telecom fulfillment',()=>{
   const view=read('src/views/public/marketplace.ejs');
   assert.match(view,/runtimeStatus !== 'disabled'/);
-  assert.match(view,/Coming soon/);
-  assert.match(view,/not active or billable/);
+  assert.match(view,/Recording workflow/);
+  assert.match(view,/Module availability and actual fees are confirmed during setup/);
   assert.doesNotMatch(view,/module\.priceMonthly/);
   assert.match(view,/href="\/#book"/);
 });

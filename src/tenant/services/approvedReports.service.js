@@ -10,17 +10,19 @@ const adapters=require('../reporting/registry');
 const {cashSessionModel,mobileTransactionModel}=require('../models');
 const {expenseModel}=require('../models/expenses');
 const MAX_ROWS=5000;
-const cashSources=Object.freeze({mobile_money:'Mobile Money',money_transfer:'Money Transfer',banking:'Banking',forex:'Forex',expenses:'Expenses'});
+const cashSources=Object.freeze({mobile_money:'Mobile Money',money_transfer:'Money Transfer',banking:'Banking',forex:'Forex',expenses:'Expenses',loans:'Loan Management',airtime:'Airtime'});
 const pages=Object.freeze({
  daily:{title:'Daily business report',subtitle:'Daily control, multi-currency income, cash summary, and operation totals.'},
  opening:{title:'Opening cash report',subtitle:'Opening drawer baseline captured for the business day.',source:'cash_shifts'},
  closing:{title:'Closing cash / expected cash',subtitle:'Expected and actual cash balances by currency for day close.',source:'cash_shifts'},
- transactions:{title:'Transaction summary',subtitle:'Standalone transaction summary across money transfer, mobile money, and banking.'},
+ transactions:{title:'Transaction summary',subtitle:'Transaction and earnings summaries by permitted operating module.'},
  expenses:{title:'Expenses report',subtitle:'Daily expenses with vendor, method, reference, and amount.',source:'expenses'},
  transfer:{title:'Transfer report summary',subtitle:'Dedicated report for transfer count, volume, fees, pending payouts, and records.',source:'money_transfer'},
  mobile:{title:'Mobile money report',subtitle:'Dedicated report for mobile money count, volume, network mix, and drawer impact.',source:'mobile_money'},
  banking:{title:'Banking report summary',subtitle:'Dedicated report for deposits, withdrawals, account transfers, accounts, and balances.',source:'banking'},
- forex:{title:'Forex report',subtitle:'Currency quotations, volumes, rates, and independent decisions.',source:'forex'}
+ forex:{title:'Forex report',subtitle:'Currency quotations, volumes, rates, and independent decisions.',source:'forex'},
+ loans:{title:'Loan Management report',subtitle:'Applications, verified disbursements, collected principal and interest.',source:'loans'},
+ airtime:{title:'Airtime report',subtitle:'Actual stock purchases, manually confirmed sales and recorded gross profit.',source:'airtime'}
 });
 function fail(message,status=400){const error=new Error(message);error.status=status;return error;}
 function id(value){if(!/^[a-f0-9]{24}$/i.test(String(value||'')))throw fail('An authorized reporting scope is required',403);return new Types.ObjectId(String(value));}
@@ -128,12 +130,49 @@ async function postedIncome(conn,tenant,scope,range,sources){
     count:{$sum:1},amount:{$sum:{$toDecimal:'$amountMinor'}}}},
    {$limit:201}
   ]).option({maxTimeMS:8000}):Promise.resolve([]);
- const [transactions,commissions]=await Promise.all([execution,payouts]);
- if(transactions.length>200||commissions.length>200)throw fail('Too many realized income groups. Narrow the date range.',422);
- return [...transactions,...commissions].filter(row=>String(row.amount)!=='0').map(row=>({
-  module:row._id.source==='money_transfer'?'Money Transfer':row._id.source==='banking'?'Banking':'Mobile Money',
-  currency:row._id.currency,count:row.count,amountMinor:String(row.amount),
-  amount:require('./forex.service').amountLabel(String(row.amount),row._id.currency)
+ const loanIncome=allowed.has('loans')?require('../retailFinance/loans.models').models(conn).payment.aggregate([
+  {$match:{tenantId:tenant._id,createdAt:range,...sourceScope}},
+  {$group:{_id:{source:{$literal:'loans'},currency:'$currency'},count:{$sum:1},amount:{$sum:'$interestMinor'}}},
+  {$limit:201}
+ ]).option({maxTimeMS:5000}):Promise.resolve([]);
+ const airtimeIncome=allowed.has('airtime')?require('../retailFinance/airtime.models').models(conn).record.aggregate([
+  {$match:{tenantId:tenant._id,createdAt:range,type:'sale',...sourceScope}},
+  {$group:{_id:{source:{$literal:'airtime'},currency:'$currency'},count:{$sum:1},amount:{$sum:'$profitMinor'}}},
+  {$limit:201}
+ ]).option({maxTimeMS:5000}):Promise.resolve([]);
+ // A reversal is a separate, dated, immutable accounting event. Negative
+ // correction entries are recognized on the refund date, not silently deleted
+ // from their original reporting day. Join original actor for teller scope.
+ const originalOperator=scope.operatorId?id(scope.operatorId):null;
+ const loanCorrections=allowed.has('loans')?require('../retailFinance/loans.models').models(conn).correction.aggregate([
+  {$match:{tenantId:tenant._id,createdAt:range,...(scope.branchId?{branchId:id(scope.branchId)}:{})}},
+  ...(originalOperator?[{$lookup:{from:require('../retailFinance/loans.models').models(conn).payment.collection.name,localField:'paymentId',foreignField:'_id',as:'origin'}},
+     {$match:{'origin.createdBy':originalOperator}}]:[]),
+  {$group:{_id:{source:{$literal:'loans'},currency:'$currency',reversed:{$literal:true}},count:{$sum:1},amount:{$sum:'$interestMinor'}}},
+  {$limit:201}
+ ]).option({maxTimeMS:5000}):Promise.resolve([]);
+ const airtimeCorrections=allowed.has('airtime')?require('../retailFinance/airtime.models').models(conn).correction.aggregate([
+  {$match:{tenantId:tenant._id,createdAt:range,type:'sale',...(scope.branchId?{branchId:id(scope.branchId)}:{})}},
+  ...(originalOperator?[{$lookup:{from:require('../retailFinance/airtime.models').models(conn).record.collection.name,localField:'recordId',foreignField:'_id',as:'origin'}},
+     {$match:{'origin.createdBy':originalOperator}}]:[]),
+  {$group:{_id:{source:{$literal:'airtime'},currency:'$currency',reversed:{$literal:true}},count:{$sum:1},amount:{$sum:'$profitMinor'}}},
+  {$limit:201}
+ ]).option({maxTimeMS:5000}):Promise.resolve([]);
+ const groups=await Promise.all([execution,payouts,loanIncome,airtimeIncome,loanCorrections,airtimeCorrections]);
+ if(groups.some(group=>group.length>200))throw fail('Too many realized income groups. Narrow the date range.',422);
+ const net=new Map();
+ for(const row of groups.flat()){
+  const source=row._id.source,currency=row._id.currency,groupKey=source+':'+currency,sign=row._id.reversed?-1n:1n;
+  if(!net.has(groupKey))net.set(groupKey,{source,currency,count:0,amount:0n});
+  const target=net.get(groupKey);
+  target.amount+=sign*BigInt(String(row.amount));
+  target.count+=Number(row.count||0)*(row._id.reversed?-1:1);
+ }
+ return [...net.values()].filter(row=>row.amount!==0n).map(row=>({
+  module:({money_transfer:'Money Transfer',banking:'Banking',mobile_money:'Mobile Money',loans:'Loan Management',airtime:'Airtime'})[row.source],
+  currency:row.currency,count:row.count,amountMinor:String(row.amount),
+  activity:row.source==='loans'?'Net collected loan interest (after corrections)':row.source==='airtime'?'Net airtime gross profit (after corrections)':'Posted fee/commission income',
+  amount:require('./forex.service').amountLabel(String(row.amount),row.currency)
  })).sort((a,b)=>a.currency.localeCompare(b.currency)||a.module.localeCompare(b.module));
 }
 async function generate(conn,tenant,actor,key,query={},timeZone='UTC'){
@@ -141,7 +180,7 @@ async function generate(conn,tenant,actor,key,query={},timeZone='UTC'){
  const page=pages[key];if(!page)throw fail('Unknown report page',404);
  const sources=reports.sourcesFor(tenant,actor);if(!sources.length)throw fail('Operations Reports subscription and reporting permission required',403);
  const filters=reports.parseFilters({from:query.from,to:query.to,source:'all'},sources,timeZone),scope=scopeFor(actor);
- const sourceAvailable=!page.source||sources.some(source=>source.key===page.source),transactionKeys=['money_transfer','mobile_money','banking','forex'];
+ const sourceAvailable=!page.source||sources.some(source=>source.key===page.source),transactionKeys=['money_transfer','mobile_money','banking','forex','loans','airtime'];
  const requested=sources.filter(source=>page.source?source.key===page.source:transactionKeys.includes(source.key)||(key==='daily'&&source.key==='expenses'));
  let rows=[];
  if(sourceAvailable)for(const source of requested){
@@ -155,7 +194,7 @@ async function generate(conn,tenant,actor,key,query={},timeZone='UTC'){
   hasMobile&&['daily','transactions','mobile'].includes(key)?cashImpact(conn,scope,filters.dateRange,{legacyOnly:true}):{},
   hasExpenses&&key==='expenses'?expenseItems(conn,actor,scope,filters.dateRange):null,
   sourceAvailable&&!['opening','closing'].includes(key)?postedCash(conn,tenant,scope,filters.dateRange,requested.map(source=>source.key)):[],
-  sourceAvailable&&['daily','transfer','mobile','banking','transactions'].includes(key)?
+  sourceAvailable&&['daily','transfer','mobile','banking','loans','airtime','transactions'].includes(key)?
    postedIncome(conn,tenant,scope,filters.dateRange,requested):[]
  ]);
  return {key,page,filters,timeZone,sources,scope,sourceAvailable,rows,cash,impact,postedCash:cashMovements,expenses,realizedIncome,income:currencyTotals(rows),format:require('./forex.service').amountLabel,
@@ -171,7 +210,7 @@ function csv(report){
     shift.declaredClosingMinor==null?'':String(shift.declaredClosingMinor),shift.varianceMinor==null?'':String(shift.varianceMinor)])];
  }else rows=[['Source','Activity','Status','Currency','Count','Volume label','Fees label','Amount minor units','Fees minor units','Quoted target currency','Quoted target amount minor units','Net cash movement minor units','Cash movement evidence'],
   ...report.rows.map(row=>[row.module,row.activity,row.status,row.currency,row.count,row.volume,row.fees,row.amountMinor??'',row.feesMinor??'',row.targetCurrency??'',row.targetAmountMinor??'','','']),
-  ...(report.realizedIncome||[]).map(row=>[row.module,'Verified posted fee income','posted',row.currency,row.count,'',row.amount,'',row.amountMinor,'','','','Real journal-posted Banking/Transfer fee or reviewed network commission payout; not customer principal']),
+  ...(report.realizedIncome||[]).map(row=>[row.module,row.activity||'Verified posted fee income','posted',row.currency,row.count,'',row.amount,'',row.amountMinor,'','','','Actual posted income net of corrections: fees, commissions, collected loan interest or airtime gross profit; not customer principal']),
   ...(report.postedCash||[]).map(row=>[row.module,'Physical cash movement','posted',row.currency,row.count,'','','','','','',row.netMinor,'Immutable Treasury movements by actual event date; includes reversals and collected cash fees']),
   ...Object.entries(report.impact||{}).map(([currency,amount])=>['Mobile Money','Legacy physical cash record','untracked evidence',currency,'','','','','','','',amount,'Legacy records by creation date; no Treasury posting'])];
  return '\uFEFF'+rows.map(row=>row.map(mobile.csvCell).join(',')).join('\r\n')+'\r\n';

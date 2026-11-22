@@ -30,3 +30,17 @@ test('dashboard notifications are centered and success auto-dismisses without lo
  assert.match(js,/node\.classList\.contains\('feedback-info'\)/);
  assert.doesNotMatch(js,/classList\.contains\('feedback-bad'\).*remove\(\)/);
 });
+
+test('validation messages appear only once and notices animate without obscuring permanent errors',()=>{
+ const fs=require('node:fs'),root=path.resolve(__dirname,'..');
+ const js=fs.readFileSync(path.join(root,'public/js/feedback.js'),'utf8');
+ const css=fs.readFileSync(path.join(root,'public/css/feedback.css'),'utf8');
+ assert.doesNotMatch(js,/addEventListener\('invalid'/);
+ assert.match(js,/querySelector\('\.feedbackContent > p'\)/);
+ assert.match(js,/--feedback-duration/);
+ assert.match(css,/softFeedbackCount/);
+ assert.match(css,/softFeedbackIcon/);
+ assert.match(css,/prefers-reduced-motion:reduce/);
+ assert.match(css,/\.main>\.feedback-good::after/);
+ assert.doesNotMatch(css,/\.main>\.feedback-bad::after/);
+});

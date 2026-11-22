@@ -6,6 +6,8 @@ const brandSecondary=/^#[a-fA-F0-9]{6}$/.test(landing.secondary||'')?landing.sec
 const businessPhone=String(landing.supportPhone||'').replace(/[^+0-9]/g,'');
 const whatsapp=String(d.whatsapp||'').replace(/[^0-9]/g,'');
 const reviews=data.reviews||{rows:[],summary:{count:0,avg:0}};
+const rates=Array.isArray(data.rates)?data.rates:[];
+const rateBoard=data.rateBoard||{};
 const published=Boolean(landing.publishedAt);
 const cityParts=[d.city,d.region,landing.country].filter(Boolean).join(', ');
 %>
@@ -39,17 +41,28 @@ const cityParts=[d.city,d.region,landing.country].filter(Boolean).join(', ');
       <div class="publicBusinessQuickLinks">
         <% if(landing.services?.length){ %><a href="#services">Services</a><% } %>
         <% if(d.about){ %><a href="#about">About</a><% } %>
+        <% if(rates.length){ %><a href="#business-rates">Exchange rates</a><% } %>
         <% if(d.gallery?.length){ %><a href="#gallery">Gallery</a><% } %>
         <% if(d.address||d.hours||businessPhone||d.publicEmail){ %><a href="#business-contact">Contact & hours</a><% } %>
         <a href="#business-reviews">Reviews</a>
       </div>
     </div>
   </header>
-  <% if(d.about){ %>
-  <section class="publicBusinessSection" id="about">
-    <div class="publicBusinessSectionHead"><span>Who we are</span><h2>About <%= businessName %></h2></div>
-    <div class="publicBusinessAbout"><p><%= d.about %></p></div>
-  </section>
+  <% if(d.about||rates.length){ %>
+  <div class="publicBusinessAboutRates">
+    <% if(d.about){ %><section class="publicBusinessSection" id="about">
+      <div class="publicBusinessSectionHead"><span>Who we are</span><h2>About <%= businessName %></h2></div>
+      <div class="publicBusinessAbout"><p><%= d.about %></p></div>
+    </section><% } %>
+    <% if(rates.length){ %><section class="publicBusinessSection publicBusinessRateSection" id="business-rates">
+      <div class="publicBusinessSectionHead"><span>Business prices</span><h2><%= rateBoard.title||'Current exchange rates' %></h2></div>
+      <div class="publicBusinessRateCard <%= rateBoard.style==='cards'?'publicBusinessRateCards':'' %>"><p class="publicBusinessRateDisclaimer"><%= rateBoard.note||'Business-approved rates. Confirm the final price before trading.' %> These are business-set rates, not independently verified market prices.</p>
+        <div class="publicBusinessRateScroll"><table><thead><tr><th scope="col">Branch</th><th scope="col">Exchange</th><th scope="col">Type</th><th scope="col">Quoted amount</th></tr></thead><tbody>
+        <% rates.forEach(rate=>{ %><tr><td><%= rate.branch %></td><td><strong><%= rate.base %></strong><small>to <%= rate.to %></small></td><td><%= rate.side==='buy'?'Buy':rate.side==='sell'?'Sell':'Indicative' %></td><td><strong><%= rate.price %> <%= rate.to %></strong><small>Valid until <%= rate.expiresLocal %> (<%= rate.timeZone %>)</small></td></tr><% }) %>
+        </tbody></table></div>
+      </div>
+    </section><% } %>
+  </div>
   <% } %>
   <% if(landing.services?.length){ %>
   <section class="publicBusinessSection" id="services">

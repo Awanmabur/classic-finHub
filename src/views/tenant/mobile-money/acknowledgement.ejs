@@ -1,10 +1,14 @@
-<% const receiptZone=typeof businessTimeZone==='string'?businessTimeZone:'UTC';
+<% const receiptBrand=typeof identity!=='undefined'&&identity?identity:{};
+ const receiptLayout=['classic','compact','detailed'].includes(receiptBrand.layout)?receiptBrand.layout:'classic';
+ const receiptPrimary=/^#[a-fA-F0-9]{6}$/.test(receiptBrand.primary||'')?receiptBrand.primary:'#082c52';
+ const receiptSecondary=/^#[a-fA-F0-9]{6}$/.test(receiptBrand.secondary||'')?receiptBrand.secondary:'#0d4f91';
+ const receiptZone=typeof businessTimeZone==='string'?businessTimeZone:'UTC';
  const receiptTime=typeof formatLocalDate==='function'?formatLocalDate:(v=>new Date(v).toISOString()); %>
 <!doctype html><html lang="en"><head>
   <link rel="icon" type="image/png" href="/favicon.png">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Operational acknowledgement — ClassicFin Hub</title>
 <link rel="stylesheet" href="/css/acknowledgement.css"><link rel="stylesheet" href="/css/feedback.css?v=<%= typeof assetVersion==='undefined'?'1':assetVersion %>"></head><body>
-<main class="receipt"><%- include('../../partials/flash', {flash:typeof flash==='undefined'?null:flash}) %><header><img class="platformMark" src="/images/classicfinhub-mark.png" width="52" height="52" alt="ClassicFin Hub platform logo" decoding="async"><h1><%= typeof identity!=='undefined'&&identity?.name?identity.name:'ClassicFin Hub' %></h1><p>Internal operational acknowledgement</p><% if(typeof identity!=='undefined'&&identity){ %><p><%= identity.prefix %> · <%= identity.template %><% if(identity.supportPhone){ %> · <%= identity.supportPhone %><% } %></p><% } %></header>
+<main class="receipt receipt--<%= receiptLayout %>" style="--receipt-primary:<%= receiptPrimary %>;--receipt-secondary:<%= receiptSecondary %>"><%- include('../../partials/flash', {flash:typeof flash==='undefined'?null:flash}) %><header class="receiptBrandHeader"><% if(receiptBrand.showLogo!==false){ %><img class="platformMark receiptLogo" src="<%= receiptBrand.logoUrl||'/images/classicfinhub-mark.png' %>" width="68" height="68" alt="<%= receiptBrand.logoUrl?'Business':'ClassicFin Hub platform' %> logo" decoding="async"><% } %><h1><%= typeof identity!=='undefined'&&identity?.name?identity.name:'ClassicFin Hub' %></h1><p><%= receiptBrand.header||'Internal operational acknowledgement' %></p><% if(typeof identity!=='undefined'&&identity){ %><p><%= identity.prefix %> · <%= identity.template %><% if(identity.supportPhone){ %> · <%= identity.supportPhone %><% } %></p><% } %></header>
 <div class="warning"><strong>NOT PROOF OF PAYMENT OR SETTLEMENT</strong><p>This acknowledgement confirms only that an operation was recorded internally. The network/provider has not been verified by this acknowledgement, and it is not a tax invoice.</p></div>
 <dl><dt>Record reference</dt><dd><%= reference %></dd>
 <dt>Recorded (<%= receiptZone %>)</dt><dd><%= receiptTime(record.createdAt) %></dd>

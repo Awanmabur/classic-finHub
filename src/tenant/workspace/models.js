@@ -22,7 +22,9 @@ const configSchema=new mongoose.Schema({
   publishedAt:Date,publishedBy:mongoose.Schema.Types.ObjectId,published:{type:nested({name:String,headline:String,subtitle:String,services:[String],
    sections:[nested({name:String,description:String,order:Number})],primary:String,secondary:String,supportPhone:String,country:String,details:{type:siteDetails,default:()=>({})}}),default:undefined}}),default:()=>({})},
  branding:{type:nested({theme:{type:String,maxlength:80},primary:{type:String,match:/^#[a-fA-F0-9]{6}$/},secondary:{type:String,match:/^#[a-fA-F0-9]{6}$/},
-  logoStatus:{type:String,maxlength:80},receiptNote:{type:String,maxlength:500},prefix:{type:String,match:/^[A-Z0-9-]{2,12}$/},template:{type:String,maxlength:80}}),default:()=>({})},
+  logoStatus:{type:String,maxlength:80},receiptNote:{type:String,maxlength:500},prefix:{type:String,match:/^[A-Z0-9-]{2,12}$/},template:{type:String,maxlength:80},
+  receiptLayout:{type:String,enum:['classic','compact','detailed'],default:'classic'},receiptHeader:{type:String,maxlength:140},receiptShowLogo:{type:Boolean,default:true},
+  publicRatesEnabled:{type:Boolean,default:true},rateBoardTitle:{type:String,maxlength:100},rateBoardNote:{type:String,maxlength:300},rateBoardStyle:{type:String,enum:['table','cards'],default:'table'}}),default:()=>({})},
  updatedBy:{type:mongoose.Schema.Types.ObjectId,required:true}
 },{timestamps:true,strict:'throw'});
 configSchema.index({tenantId:1},{unique:true});

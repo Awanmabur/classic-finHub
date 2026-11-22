@@ -6,6 +6,7 @@
       <label class="field">Role<select class="control" name="role" required><% data.roles.forEach(role=>{ %><option value="<%= role %>" <%= role===data.account.role?'selected':'' %>><%= role %></option><% }) %></select></label>
       <label class="field">Assigned branch<select class="control" name="branchId" required><option value="">Choose an active branch</option><% data.branches.forEach(b=>{ %><option value="<%= b._id %>" <%= String(data.account.branchId)===String(b._id)?'selected':'' %>><%= b.name %></option><% }) %></select></label>
       <fieldset class="field"><legend>Allowed live modules (role permissions still apply)</legend><% data.assignable.forEach(m=>{ %><label class="moduleChoice"><input type="checkbox" name="allowedModules" value="<%= m %>" <%= (data.account.allowedModules||[]).includes(m)?'checked':'' %>><span><%= m.replace(/_/g,' ') %></span></label><% }) %><% if(!data.assignable.length){ %><p class="tiny">No live modules subscribed.</p><% } %></fieldset>
+      <p class="tiny">An assigned module is not automatically an operating permission. A reporting role can receive module data but cannot execute payments. Select an appropriate operating role for trading or transactions.</p>
       <div class="rowBtns"><button class="btn btnPrimary" type="submit">Save access changes</button><a class="btn" href="/tenant/users">Cancel</a></div>
     </form>
   </div></section>

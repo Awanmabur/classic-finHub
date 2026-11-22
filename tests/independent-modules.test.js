@@ -139,3 +139,41 @@ test('new Loan and Airtime modules require an explicit platform-approved quote',
   assert.equal(validateGrant({...input,moduleKey:key,monthlyPriceUsd:'0.00'}).priceMonthlyMinor,0);
  }
 });
+
+test('staff module status distinguishes usable actions, viewing and reporting-source assignments',()=>{
+ const {moduleAccessState}=require('../src/tenant/services/moduleAccess.service');
+ const t=modular({moduleGrants:[grant('forex',{limits:{users:5,branches:1,recordsPerMonth:100}}),grant('reports')]});
+ const mobile=user('Mobile Money Operator',['forex']);
+ assert.equal(moduleAccessState(t,mobile,'forex').state,'view-only');
+ assert.equal(moduleAccessState(t,mobile,'forex').href,'/tenant/forex');
+ const reporter=user('Reports Analyst',['forex','reports']);
+ assert.equal(moduleAccessState(t,reporter,'forex').state,'report-source');
+ assert.equal(moduleAccessState(t,reporter,'forex').href,'/tenant/reports');
+ assert.equal(moduleAccessState(t,user('Forex Operator',['forex']),'forex').state,'operate');
+ assert.equal(moduleAccessState(t,user('Forex Operator',[]),'forex').state,'not-assigned');
+});
+
+test('reviewers cannot be described as transaction operators and disabled staff have no access',()=>{
+ const {moduleAccessState}=require('../src/tenant/services/moduleAccess.service');
+ const t=modular({moduleGrants:[grant('forex',{limits:{users:5,branches:1,recordsPerMonth:100}}),grant('loans',{limits:{users:5,branches:1,recordsPerMonth:100}})]});
+ const reviewer=user('Reconciliation Officer',['forex']);
+ assert.equal(moduleAccessState(t,reviewer,'forex').state,'review-only');
+ assert.equal(moduleAccessState(t,{...reviewer,status:'disabled'},'forex').state,'disabled');
+ const manager=user('Branch Manager',['forex']);
+ assert.equal(moduleAccessState(t,manager,'forex').state,'operate');
+});
+
+test('SMS Capture assignment requires Mobile Money assignment on the same account',()=>{
+ const {moduleAccessState}=require('../src/tenant/services/moduleAccess.service');
+ // SMS Capture is a legacy bundled addon, not eligible for standalone
+ // manual grants. Model a legitimately subscribed historic plan snapshot.
+ const base=entitledTenant();
+ const t={...base,enabledModules:[...base.enabledModules,'sms_capture'],
+  subscription:{...base.subscription,modules:[...base.subscription.modules,'sms_capture']}};
+ const operator=user('Mobile Money Operator',['sms_capture']);
+ assert.equal(moduleAccessState(t,operator,'sms_capture').state,'dependency-blocked');
+ assert.equal(moduleAccessState(t,operator,'sms_capture').href,null);
+ const ready=user('Mobile Money Operator',['sms_capture','mobile_money']);
+ assert.equal(moduleAccessState(t,ready,'sms_capture').state,'operate');
+ assert.equal(moduleAccessState(t,ready,'sms_capture').href,'/tenant/sms-capture');
+});

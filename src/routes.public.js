@@ -167,11 +167,12 @@ router.get('/t/:slug', async (req,res,next)=>{
    // Do not disclose draft profile, private owner contacts or financial records.
    const landing=landingPublished||{name:tenant.name,headline:'',subtitle:'',services:[],sections:[],country:'',supportPhone:'',details:{}};
    const reviewsService=require('./platform/services/businessReviews.service');
-   const [reviews,myReview]=await Promise.all([reviewsService.publicReviews(tenant._id),reviewsService.myReview(tenant.slug,req)]);
+   const [reviews,myReview,board]=await Promise.all([reviewsService.publicReviews(tenant._id),reviewsService.myReview(tenant.slug,req),
+    landingPublished?require('./tenant/workspace/publicRates').publicBoard(getTenantConnection(tenant.slug),tenant):Promise.resolve({rates:[],settings:{}})]);
    res.set('Cache-Control','private, no-store');
    if(landing.publishedAt&&require('./config/env').indexingEnabled)res.removeHeader('X-Robots-Tag');
    renderPublic(req,res,'tenant-landing',(landing.name||tenant.name)+' | ClassicFin Hub',
-     {tenant:{name:tenant.name,slug:tenant.slug},landing,reviews,myReview},
+     {tenant:{name:tenant.name,slug:tenant.slug},landing,reviews,myReview,rates:board.rates,rateBoard:board.settings},
      seo.tenantMetadata(tenant,landing));
  }catch(err){next(err);}
 });

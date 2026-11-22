@@ -89,12 +89,22 @@ function configForm(section,config,tenant={}){
   ];
  }else if(section==='receipt'){
   title='Edit receipt settings';subtitle='Receipt identity and saved footer wording.';group='Receipt settings';
-  fields=[field('prefix','Receipt prefix',value.prefix,{required:true,max:12,pattern:'[A-Z0-9-]{2,12}'}),field('template','Template name',value.template,{required:true,max:80}),field('qrVerification','QR verification','Not enabled',{displayOnly:true}),field('duplicateProtection','Duplicate protection','Enabled: server reference uniqueness',{displayOnly:true}),field('receiptNote','Receipt note',value.receiptNote,{type:'textarea',max:500,full:true})];
-  hidden=['theme','primary','secondary','logoStatus'].map(name=>({name,value:value[name]}));
+  fields=[field('prefix','Receipt prefix',value.prefix,{required:true,max:12,pattern:'[A-Z0-9-]{2,12}'}),field('template','Receipt title',value.template,{required:true,max:80}),
+   select('receiptLayout','Receipt design',value.receiptLayout||'classic',[['classic','Classic'],['compact','Compact'],['detailed','Detailed']]),
+   field('receiptHeader','Heading on every receipt',value.receiptHeader||'Transaction acknowledgement',{max:140,full:true}),
+   select('receiptShowLogo','Show company logo',String(value.receiptShowLogo!==false),[['true','Yes'],['false','No']]),
+   field('duplicateProtection','Duplicate protection','Enabled: server reference uniqueness',{displayOnly:true}),
+   field('receiptNote','Receipt footer note',value.receiptNote,{type:'textarea',max:500,full:true})];
+  hidden=['theme','primary','secondary','logoStatus','publicRatesEnabled','rateBoardTitle','rateBoardNote','rateBoardStyle'].map(name=>({name,value:String(value[name]??'')}));
  }else{
   title='Edit branding';subtitle='Tenant colors, theme, and receipt identity.';group='Brand and receipt identity';
-  fields=[field('theme','Theme name',value.theme,{required:true,max:80}),field('primary','Primary color',value.primary,{type:'color',required:true}),field('secondary','Secondary color',value.secondary,{type:'color',required:true}),field('logoStatus','Business logo',config.landing?.details?.logoUrl?'Linked to your business website':'Not configured',{displayOnly:true,hint:'Use Business website → Edit → Upload logo. This status is not a manually editable label.'}),field('receiptNote','Receipt footer note',value.receiptNote,{type:'textarea',max:500,full:true})];
-  hidden=['prefix','template'].map(name=>({name,value:value[name]}));
+  fields=[field('theme','Theme name',value.theme,{required:true,max:80}),field('primary','Primary color',value.primary,{type:'color',required:true}),field('secondary','Secondary color',value.secondary,{type:'color',required:true}),
+   field('logoStatus','Business logo',config.landing?.details?.logoUrl?'Linked to your business website':'Not configured',{displayOnly:true,hint:'Use Business website → Edit → Upload logo. This status is not a manually editable label.'}),
+   field('rateBoardTitle','Public rate board title',value.rateBoardTitle||'Current exchange rates',{max:100}),
+   field('rateBoardNote','Public rate board note',value.rateBoardNote||'',{type:'textarea',max:300,full:true}),
+   select('rateBoardStyle','Rate board layout',value.rateBoardStyle||'table',[['table','Clean table'],['cards','Individual cards']]),
+   select('publicRatesEnabled','Publish approved business exchange rates',String(value.publicRatesEnabled!==false),[['true','Yes — show live approved rates'],['false','No — hide rates']])];
+  hidden=['prefix','template','receiptNote','receiptLayout','receiptHeader','receiptShowLogo'].map(name=>({name,value:String(value[name]??'')}));
  }
  return {title,subtitle,section:group,fields,hidden,action:`/tenant/workspace/${section==='receipt'?'branding':section}`,revision:config.revision};
 }
@@ -124,7 +134,10 @@ function factory({renderTenant}){
    canSms:hasModuleForUser(req.tenant,req.user,'sms_capture')&&hasModuleForUser(req.tenant,req.user,'mobile_money')&&hasPermission(req.user,'mobile_money.cash_in'),canNotifications:hasModuleForUser(req.tenant,req.user,'notifications')&&hasPermission(req.user,'notifications.view'),canCash:['mobile_money','money_transfer','banking','forex','expenses'].some(key=>hasModuleForUser(req.tenant,req.user,key)&&hasPermission(req.user,key+'.view'))&&hasPermission(req.user,'treasury.view'),canObserveFunds:hasPermission(req.user,'treasury.observe'),canReviewFunds:hasPermission(req.user,'treasury.review'),...extra};
   if(spec&&!extra.entries)data.entries=await service.entries(req.tenantDb,req.tenant,req.user,spec.kind,{archived:true});
   if(['profile','branding'].includes(page))data.form=configForm(page,config,req.tenant);
-  if(page==='branding')data.receiptForm=configForm('receipt',config,req.tenant);
+  if(page==='branding'){
+   data.receiptForm=configForm('receipt',config,req.tenant);
+   data.rateBoardPreview=await require('./publicRates').publicBoard(req.tenantDb,req.tenant);
+  }
   if(page==='landing'){
    data.heroForm=configForm('landing',config,req.tenant);data.form=entryForm(spec);
    if(data.canManage){data.media=media.configured()?await media.list(req.tenantDb,req.tenant,req.user):[];data.mediaQuotaBytes=media.publicMediaQuotaBytes(req.tenant);}

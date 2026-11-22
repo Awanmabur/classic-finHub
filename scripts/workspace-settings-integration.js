@@ -45,6 +45,35 @@ async function main(){
  try{Audit.create=async()=>{throw new Error('Injected audit write failure');};await assert.rejects(service.save(conn,tenant,owner,'branding',{...brand,revision:2}),/Injected audit write failure/);}finally{Audit.create=originalCreate;}
  assert.equal((await service.read(conn,tenant,owner)).revision,2,'audit failure rolls back settings');assert.equal((await Tenant.findById(tenant._id)).__v,tenantBefore.__v,'tenant authorization fence rolls back');assert.equal((await models.tenantUserModel(conn).findById(owner.id)).__v,ownerBefore.__v,'account authorization fence rolls back');
  saved=await service.save(conn,tenant,owner,'branding',{...brand,revision:2});assert.equal(saved.revision,3);
+ // Real Mongo-backed public rate-board proof, isolated to this disposable
+ // tenant database. No fake published prices or customer trading records.
+ const branch=await models.branchModel(conn).create({name:'Scratch FX counter',code:'ws-fx',
+  currency:'UGX',createdBy:new mongoose.Types.ObjectId(owner.id),updatedBy:new mongoose.Types.ObjectId(owner.id)});
+ const Rate=models.forexRateModel(conn),at=new Date(),future=new Date(at.getTime()+3600000);
+ await Rate.create([
+  {branchId:branch._id,fromCurrency:'UGX',toCurrency:'SSP',side:'buy',rateDecimal:'4',
+   proposedBy:owner.id,status:'active',reviewedBy:owner.id,reviewedAt:at,expiresAt:future,note:'Approved scratch business rate'},
+  {branchId:branch._id,fromCurrency:'UGX',toCurrency:'SSP',side:'sell',rateDecimal:'5',
+   proposedBy:owner.id,status:'active',reviewedBy:owner.id,reviewedAt:at,expiresAt:new Date(at.getTime()-60000),note:'Expired scratch rate'},
+  {branchId:branch._id,fromCurrency:'UGX',toCurrency:'USD',side:'quote',rateDecimal:'0.001',
+   proposedBy:owner.id,status:'pending_review',expiresAt:future,note:'Pending review price'}
+ ]);
+ // Agent subscription does not contain Forex. Simulate a valid licensed
+ // snapshot for this isolated test without changing either tenant's grants.
+ const original=tenant.toObject(),licensed={...original,
+  enabledModules:[...original.enabledModules,'forex'],
+  subscription:{...original.subscription,modules:[...original.subscription.modules,'forex']}};
+ const publicBoard=require('../src/tenant/workspace/publicRates').publicBoard;
+ const publishedRates=await publicBoard(conn,licensed);
+ assert.equal(publishedRates.rates.length,1,'only reviewed, active, non-expired rates may be public');
+ assert.equal(publishedRates.rates[0].base,'1,000 UGX');
+ assert.equal(publishedRates.rates[0].price,'4,000');
+ assert.equal(publishedRates.rates[0].timeZone,'Africa/Kampala');
+ assert.equal(publishedRates.rates[0].expiresLocal,require('../src/utils/businessTime').format(future,'Africa/Kampala'));
+ assert.equal(publishedRates.rates[0].branch,'Scratch FX counter');
+ assert.equal((await publicBoard(conn,tenant)).rates.length,0,'unsubscribed Forex rates are not public');
+ assert.equal((await publicBoard(other,licensed)).rates.length,0,'another tenant database cannot reveal our rates');
+
  saved=await service.save(conn,tenant,owner,'landing',{headline:'Published <script>example()</script>',subtitle:'Published customer description',services:'Mobile Money,Forex',revision:3});assert.equal(saved.revision,4);
  const published=await service.writeEntry(conn,tenant,owner,'landing_section',{name:'Published services',description:'Published body <img src=x onerror=unsafe()>',status:'published',order:'1'});
  const draft=await service.writeEntry(conn,tenant,owner,'landing_section',{name:'Private draft section',description:'Never public until published',status:'draft',order:'2'});

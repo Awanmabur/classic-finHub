@@ -40,7 +40,7 @@ test('approved profile and receipt forms preserve read-only controls and submit 
  assert.deepEqual(profileForm.fields.map(f=>f.label),['Business name','Legal name','Owner / director','Owner email','Support phone','Subdomain','Custom domain','Country','Timezone','Default currency']);
  const receipt=routes.configForm('receipt',config,tenant);
  assert.equal(receipt.title,'Edit receipt settings');
- assert.deepEqual(receipt.fields.map(f=>f.label),['Receipt prefix','Template name','QR verification','Duplicate protection','Receipt note']);
+ assert.deepEqual(receipt.fields.map(f=>f.label),['Receipt prefix','Receipt title','Receipt design','Heading on every receipt','Show company logo','Duplicate protection','Receipt footer note']);
  const html=await ejs.renderFile(path.resolve(__dirname,'../src/views/tenant/workspace/form.ejs'),{form:receipt,csrfToken:'csrf'});
  assert.match(html,/name="primary" value="#082c52"/);assert.match(html,/name="secondary" value="#0d4f91"/);
  assert.match(html,/name="prefix"/);
@@ -71,4 +71,39 @@ test('tenant profile explains wallet setup without adding setup fields to daily 
  data.canCash=false;
  const noSource=await ejs.renderFile(template,{data,tenant,user:owner,assetVersion:'test',csrfToken:'csrf'});
  assert.doesNotMatch(noSource,/workspaceOperationsTitle|Wallets &amp; daily operations/);
+});
+
+test('branding fields are validated and receipt preview uses the persisted design safely',async()=>{
+ const defaults=service.defaults(tenant),b=defaults.branding;
+ const payload={...b,receiptShowLogo:'false',publicRatesEnabled:'false',rateBoardStyle:'cards',receiptLayout:'detailed'};
+ const validated=service.validateConfig('branding',payload);
+ assert.equal(validated.receiptShowLogo,false);assert.equal(validated.publicRatesEnabled,false);
+ assert.equal(validated.receiptLayout,'detailed');assert.equal(validated.rateBoardStyle,'cards');
+ assert.throws(()=>service.validateConfig('branding',{...payload,receiptLayout:'html'}),{status:400});
+ assert.throws(()=>service.validateConfig('branding',{...payload,rateBoardStyle:'script'}),{status:400});
+ const config={...defaults,branding:{...defaults.branding,receiptHeader:'<script>unsafe</script>'}};
+ const html=await ejs.renderFile(path.resolve(__dirname,'../src/views/tenant/workspace/index.ejs'),{data:{page:'receipt-preview',config},tenant,user:owner,csrfToken:'csrf',assetVersion:'test'});
+ assert.match(html,/&lt;script&gt;unsafe&lt;\/script&gt;/);assert.doesNotMatch(html,/<script>unsafe<\/script>/);
+});
+
+test('legacy branding saves do not silently overwrite newly added receipt or public-rate preferences',()=>{
+ const original=service.defaults(tenant).branding;
+ const legacy={theme:original.theme,primary:original.primary,secondary:original.secondary,
+   logoStatus:original.logoStatus,receiptNote:original.receiptNote,prefix:original.prefix,template:original.template};
+ const update=service.validateConfig('branding',legacy);
+ for(const key of ['receiptLayout','receiptHeader','receiptShowLogo','publicRatesEnabled','rateBoardTitle','rateBoardNote','rateBoardStyle'])
+   assert.equal(Object.hasOwn(update,key),false,key+' must be preserved, not reset');
+});
+
+test('rate board preview renders approved source rows rather than fabricated amounts',async()=>{
+ const config=service.defaults(tenant);
+ const data={page:'branding',config,canManage:false,rateBoardPreview:{
+  settings:{enabled:true,title:'Owner rate board',note:'Business-set rate',style:'cards'},
+  rates:[{branch:'North',base:'1,000 UGX',side:'buy',price:'4,000',to:'SSP',expiresAt:new Date('2030-01-01T00:00:00Z')}] }};
+ const html=await ejs.renderFile(path.resolve(__dirname,'../src/views/tenant/workspace/index.ejs'),{data,tenant,user:owner,csrfToken:'csrf',assetVersion:'test'});
+ assert.match(html,/Live rate board preview/);
+ assert.match(html,/1,000 UGX/);
+ assert.match(html,/4,000 SSP/);
+ assert.match(html,/Owner rate board/);
+ assert.match(html,/Business-set rate/);
 });

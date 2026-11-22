@@ -341,6 +341,9 @@ router.get('/users', requirePermission('users.manage_branch'), async (req,res,ne
     ]));
     renderTenant(req,res,'users/index','Staff & Roles','Invite staff with fixed permissions, disable access immediately and monitor seat limits.',{
       users,invitations,inviteDeliveries:deliveries,roles:staffPolicy.managedRoles(req.user),plan:planForTenant(req.tenant),inviteMailReady:require('../../config/inviteMail').configured(),
+      moduleAccessByUser:Object.fromEntries(users.map(account=>[String(account._id),Object.fromEntries((account.role==='Tenant Owner'?require('../../data/store').modules.map(m=>m.key):account.allowedModules||[]).map(key=>[key,require('../services/moduleAccess.service').moduleAccessState(req.tenant,{
+       id:String(account._id),role:account.role,allowedModules:account.allowedModules,permissions:require('../../config/roles').permissionsFor(account.role)
+      },key)]))])),
       branches:(await branchService.list(req.tenant)).filter(b=>b.status==='active' && (req.user.role==='Tenant Owner' || String(b._id)===String(req.user.branchId))),
       assignable:require('../services/moduleAccess.service').assignableModules(req.tenant,req.user.role==='Tenant Owner'?'Tenant Owner':'Branch Manager').filter(m=>req.user.role==='Tenant Owner'||hasModuleForUser(req.tenant,req.user,m))
     });
@@ -425,6 +428,7 @@ router.get('/modules',requirePermission('modules.view'),async(req,res,next)=>{
     const pending=req.user.role==='Tenant Owner' ? await require('../../platform/models/ModuleRequest').find({tenantId:req.tenant._id,status:'pending'}).select('moduleKey').lean():[];
     renderTenant(req,res,'modules/index','Tenant Modules','Your independently subscribed modules and permissions.',{
       modules,plan:planForTenant(req.tenant),grants:require('../../platform/services/moduleSubscriptions.service').activeGrants(req.tenant),
+       moduleAccessStates:Object.fromEntries(modules.map(m=>[m.key,require('../services/moduleAccess.service').moduleAccessState(req.tenant,req.user,m.key)])),
       pendingKeys:pending.map(p=>p.moduleKey)
     });
   }catch(e){next(e);}

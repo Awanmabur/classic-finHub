@@ -200,3 +200,23 @@
 .workspacePhotoPreview>.tiny{margin:0;color:var(--muted);font-size:12px}
 @media(max-width:820px){.workspacePhotoFields{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:560px){.workspacePhotoFields{grid-template-columns:1fr}}
+
+/* The three saved receipt designs are previewed faithfully without sample payment data. */
+.workspacePreviewReceipt{--receipt-primary:#082c52;--receipt-secondary:#0d4f91;border-top:5px solid var(--receipt-primary);max-width:720px}
+.workspaceReceiptHeader{text-align:center;padding:14px 10px 24px;margin-bottom:20px;border-bottom:1px solid var(--line)}
+.workspaceReceiptHeader img{width:70px;height:70px;object-fit:contain;display:block;margin:0 auto 10px}
+.workspaceReceiptHeader h2{color:var(--receipt-primary);overflow-wrap:anywhere}
+.workspaceReceiptHeader p{margin:8px auto;color:var(--muted)}
+.workspacePreviewReceipt.receiptPreview--compact{max-width:440px}
+.workspacePreviewReceipt.receiptPreview--detailed{max-width:790px}
+@media print{.workspacePreviewReceipt{box-shadow:none;max-width:none}}
+
+.workspaceRatePreview{--boardPrimary:#082c52}
+.workspaceRatePreviewTitle{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:12px}
+.workspaceRatePreviewTitle strong{color:var(--boardPrimary);font-size:clamp(18px,2vw,23px)}
+.workspaceRatePreview table{min-width:570px}
+.workspaceRatePreview .workspaceRateCardRows{border-collapse:separate;border-spacing:0 8px}
+.workspaceRatePreview .workspaceRateCardRows td{background:var(--paper);border-block:1px solid var(--line)}
+.workspaceRatePreview .workspaceRateCardRows td:first-child{border-left:1px solid var(--line);border-radius:12px 0 0 12px}
+.workspaceRatePreview .workspaceRateCardRows td:last-child{border-right:1px solid var(--line);border-radius:0 12px 12px 0}
+.workspaceRateEmpty{padding:18px;border:1px dashed var(--line);border-radius:14px;background:var(--soft);color:var(--muted)}

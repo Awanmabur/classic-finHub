@@ -5,7 +5,9 @@
   function show(message,type='bad',{form,focus=true}={}){
     // Show input/submit errors immediately above the FORM that needs fixing.
     // Without a form (for example a global action), keep workspace-level feedback.
-    const host=form?.isConnected&&form.matches?.('form')?form:
+    // Validation errors belong beside their fields. All operational updates
+    // (including successful payments) use the same centered notice surface.
+    const host=type==='bad'&&form?.isConnected&&form.matches?.('form')?form:
       document.querySelector('main.panel.main')||document.querySelector('main')||document.body;
     const previous=host.querySelector(':scope > [data-session-flash]');
     if(previous)previous.dataset.feedbackMessage='';
@@ -18,7 +20,7 @@
     const type=result.headers.get('content-type')||'';
     if(type.includes('application/json')){const value=await result.json();if(typeof value.redirect==='string'){const destination=new URL(value.redirect,location.origin);if(destination.origin!==location.origin)throw Error('Unexpected response destination');return{redirect:destination.href,flash:value.flash};}return{message:typeof value.message==='string'?value.message:'The action could not be completed.'};}
     if(type.includes('text/plain'))return{message:(await result.text()).slice(0,800)};
-    if(type.includes('text/html')){const html=new DOMParser().parseFromString(await result.text(),'text/html'),error=html.querySelector('[role="alert"],[data-form-error],.err.show');return{message:(error?.textContent||(!html.body.children.length?html.body.textContent:'')).trim().slice(0,800)||'The action could not be completed. Please review the details.'};}
+    if(type.includes('text/html')){const html=new DOMParser().parseFromString(await result.text(),'text/html'),error=html.querySelector('[role="alert"],[data-form-error],.err.show');const detail=error?.querySelector('.feedbackContent > p')?.textContent||error?.querySelector('[data-feedback-text]')?.textContent||error?.textContent;return{message:(detail||(!html.body.children.length?html.body.textContent:'')).trim().slice(0,800)||'The action could not be completed. Please review the details.'};}
     return{message:'The action could not be completed. Please try again when connected.'};
   }
 
@@ -29,6 +31,7 @@
     if(!node||!node.matches?.('.main > [data-feedback-message]'))return;
     if(!node.classList.contains('feedback-good')&&!node.classList.contains('feedback-info'))return;
     if(dismissTimers.has(node))clearTimeout(dismissTimers.get(node));
+    node.style.setProperty('--feedback-duration','4800ms');
     const timer=setTimeout(()=>{
       dismissTimers.delete(node);
       if(node.isConnected&&!node.matches(':focus-within'))node.remove();
@@ -38,9 +41,12 @@
   document.querySelectorAll('main.panel.main > [data-session-flash]').forEach(scheduleSoftDismiss);
 
   window.ClassicFinFeedback=Object.freeze({show,response,headers});
-  document.addEventListener('click',event=>{const button=event.target.closest('[data-feedback-dismiss]');if(button)button.closest('[data-feedback-message]')?.remove();});
+  document.addEventListener('click',event=>{const button=event.target.closest('[data-feedback-dismiss]');if(button){const node=button.closest('[data-feedback-message]');if(node){if(dismissTimers.has(node))clearTimeout(dismissTimers.get(node));node.remove();}}});
   document.querySelectorAll('[data-session-flash][role="alert"]').forEach(target=>{target.focus({preventScroll:true});target.scrollIntoView({block:'nearest',behavior:'instant'});});
-  document.addEventListener('invalid',event=>{const field=event.target,form=field.form;if(form&&!form.hasAttribute('data-feedback-skip'))show(field.validationMessage||'Check the highlighted field.','bad',{form,focus:false});},true);
+  // Browser constraint validation already displays one accessible field-specific
+  // message. Do not echo the same "Please fill out this field" in a second flash
+  // (and never emit one notification per invalid field).
+
   document.addEventListener('submit',async event=>{
     const form=event.target;if(event.defaultPrevented||!(form instanceof HTMLFormElement)||form.method.toLowerCase()!=='post'||form.target&&form.target!=='_self'||form.hasAttribute('data-feedback-skip')||form.enctype==='multipart/form-data'||!navigator.onLine)return;
     const action=new URL(event.submitter?.getAttribute('formaction')||form.action,location.origin);

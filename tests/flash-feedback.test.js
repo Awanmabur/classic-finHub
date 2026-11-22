@@ -23,7 +23,7 @@ test('dashboard notifications are centered and success auto-dismisses without lo
  const fs=require('node:fs'),root=path.resolve(__dirname,'..');
  const css=fs.readFileSync(path.join(root,'public/css/feedback.css'),'utf8');
  const js=fs.readFileSync(path.join(root,'public/js/feedback.js'),'utf8');
- assert.match(css,/\.main>\.sessionFeedback\{position:fixed;top:50%;left:50%;transform:translate\(-50%,-50%\)/);
+ assert.match(css,/#dashboardFeedbackDialog\.dashboardFeedbackDialog\{position:fixed/);
  assert.match(css,/prefers-reduced-motion:reduce/);
  assert.match(js,/scheduleSoftDismiss\(node\)/);
  assert.match(js,/node\.classList\.contains\('feedback-good'\)/);
@@ -37,10 +37,12 @@ test('validation messages appear only once and notices animate without obscuring
  const css=fs.readFileSync(path.join(root,'public/css/feedback.css'),'utf8');
  assert.doesNotMatch(js,/addEventListener\('invalid'/);
  assert.match(js,/querySelector\('\.feedbackContent > p'\)/);
- assert.match(js,/--feedback-duration/);
- assert.match(css,/softFeedbackCount/);
- assert.match(css,/softFeedbackIcon/);
+ assert.match(js,/noticeDialog\.showModal\(\)/);
+ assert.match(js,/removeNotice\(node\)/);
+ assert.match(css,/feedbackDialogIn/);
+ assert.match(css,/::backdrop/);
  assert.match(css,/prefers-reduced-motion:reduce/);
- assert.match(css,/\.main>\.feedback-good::after/);
- assert.doesNotMatch(css,/\.main>\.feedback-bad::after/);
+ assert.doesNotMatch(css,/softFeedbackCount|background:var\(--feedback-tone/);
+ assert.match(css,/#dashboardFeedbackDialog \.sessionFeedback::before/);
+ assert.match(css,/#dashboardFeedbackDialog \.sessionFeedback::after/);
 });

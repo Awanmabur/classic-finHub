@@ -202,7 +202,7 @@
 @media(max-width:560px){.workspacePhotoFields{grid-template-columns:1fr}}
 
 /* The three saved receipt designs are previewed faithfully without sample payment data. */
-.workspacePreviewReceipt{--receipt-primary:#082c52;--receipt-secondary:#0d4f91;border-top:5px solid var(--receipt-primary);max-width:720px}
+.workspacePreviewReceipt{--receipt-primary:#082c52;--receipt-secondary:#0d4f91;border-top:1px solid var(--line);max-width:720px}
 .workspaceReceiptHeader{text-align:center;padding:14px 10px 24px;margin-bottom:20px;border-bottom:1px solid var(--line)}
 .workspaceReceiptHeader img{width:70px;height:70px;object-fit:contain;display:block;margin:0 auto 10px}
 .workspaceReceiptHeader h2{color:var(--receipt-primary);overflow-wrap:anywhere}

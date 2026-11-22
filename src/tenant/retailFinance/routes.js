@@ -87,6 +87,7 @@ module.exports=function retailRoutes({renderTenant}){
   const [result,funds]=await Promise.all([airtime.list(req.tenantDb,req.tenant,req.user),fundsFor(req,'airtime')]);
   renderTenant(req,res,'airtime/index','Airtime','Manual prepaid airtime stock, verified customer sales and exact profit.',{
    ...result,funds,canManage:hasPermission(req.user,'airtime.manage'),canSell:hasPermission(req.user,'airtime.sell'),
+   canCorrect:hasPermission(req.user,'airtime.review')&&['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(req.user.role),
    format:shortFormat,uuid:crypto.randomUUID(),branch:req.operationBranch,
    activeCurrency:req.operationBranch?branchCurrency(req.operationBranch):null,
    currencyChoices:req.operationBranch?require('../services/branchCurrency.service').supported(req.operationBranch):[],
@@ -102,6 +103,11 @@ module.exports=function retailRoutes({renderTenant}){
  router.post('/airtime/stock',requirePermission('airtime.manage'),throttle,async(req,res,next)=>{try{
   const result=await airtime.purchase(req.tenantDb,req.tenant,req.user,req.body);
   flash(req,'good',result.duplicate?'Stock purchase already recorded. No duplicate funds movement.':'Verified stock purchase recorded against the selected funding account.');
+  res.redirect(303,'/tenant/airtime');
+ }catch(e){next(e);}});
+ router.post('/airtime/:id/reverse',requirePermission('airtime.review'),throttle,async(req,res,next)=>{try{
+  await airtime.reverseRecorded(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
+  flash(req,'good','Verified airtime reversal recorded; provider refund, inventory, funds and original audit evidence are reconciled.');
   res.redirect(303,'/tenant/airtime');
  }catch(e){next(e);}});
  router.post('/airtime/sales',requirePermission('airtime.sell'),throttle,async(req,res,next)=>{try{

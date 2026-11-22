@@ -231,7 +231,7 @@ async function review(conn,tenant,actor,executionId,input={},options={}){
   const isBanking=initial.sourceType==='banking'&&initial.action==='banking';
   const isCollection=initial.sourceType==='money_transfer'&&initial.action==='transfer_collect';
   if((!isBanking&&!isCollection)||
-    !['Tenant Owner',isBanking?'Banking Operator':'Money Transfer Operator'].includes(current.actor.role)||
+    !['Tenant Owner','Branch Manager',isBanking?'Banking Operator':'Money Transfer Operator'].includes(current.actor.role)||
     String(initial.createdBy)!==String(current.actor.id)||input.confirmFinalMovement!=='yes'||input.decision!=='approve')
    throw fail('The original cashier must attest that the documented funds or account movement occurred',403);
  }else{
@@ -345,7 +345,7 @@ async function detail(conn,tenant,actor,executionId){
  return {execution,source,sms,smsRetryAt,smsRetryLimited,smsRetryCooling,canRetrySms:execution.action==='transfer_collect'&&execution.status==='posted_manual'&&source?.status==='collected_manual'&&current.actor.role==='Tenant Owner'&&['dead','not_configured'].includes(sms?.state)&&smsRetryConfigured&&!smsRetryLimited&&!smsRetryCooling,
   canFinalizeCashier:['money_transfer','banking'].includes(execution.sourceType)&&['transfer_collect','banking'].includes(execution.action)&&
    execution.status==='pending_review'&&String(execution.createdBy)===current.actor.id&&
-   ['Tenant Owner',execution.sourceType==='banking'?'Banking Operator':'Money Transfer Operator'].includes(current.actor.role)&&
+   ['Tenant Owner','Branch Manager',execution.sourceType==='banking'?'Banking Operator':'Money Transfer Operator'].includes(current.actor.role)&&
    hasPermission(current.actor,permission(execution.sourceType)),
   canFinalizeForex:execution.sourceType==='forex'&&execution.status==='pending_review'&&
   String(execution.createdBy)===current.actor.id&&['Tenant Owner','Branch Manager','Forex Operator','Banking Operator','Money Transfer Operator'].includes(current.actor.role)&&

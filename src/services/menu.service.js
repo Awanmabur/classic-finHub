@@ -57,8 +57,8 @@ function tenantMenu(tenant,user) {
   const loanAccess=module('loans')&&can('loans.view');
   const airtimeAccess=module('airtime')&&can('airtime.view');
   group('Loan Management',loanAccess?[item('Loan portfolio','loans','fa-hand-holding-dollar'),
-    ...(can('loans.create')?[item('Loan applications','loans','fa-file-signature',{transactionKind:'loan'})]:[])]:[],loanAccess?['loans']:[]);
-  group('Airtime',airtimeAccess?[item('Airtime sales & stock','airtime','fa-sim-card',{transactionKind:can('airtime.sell')?'airtime':null})]:[],airtimeAccess?['airtime']:[]);
+    ...(can('loans.create')?[item('Loan applications','loans','fa-file-signature',{transactionKind:'loan'})]:[]),item('Loan Management report','loans/report','fa-chart-column')]:[],loanAccess?['loans']:[]);
+  group('Airtime',airtimeAccess?[item('Airtime sales & stock','airtime','fa-sim-card',{transactionKind:can('airtime.sell')?'airtime':null}),item('Airtime report','airtime/report','fa-chart-column')]:[],airtimeAccess?['airtime']:[]);
   group('Forex Operations',forex?[
     ...(can('forex.quotes.create')?[item('Buy forex from customer','forex/buy','fa-arrow-down',{transactionKind:'forex_buy'}),item('Sell forex to customer','forex/sell','fa-arrow-up',{transactionKind:'forex_sell'})]:[]),
     item('Active rate board','forex/rates','fa-chart-line'),
@@ -88,6 +88,7 @@ function tenantMenu(tenant,user) {
       ...(module('money_transfer')?[item('Transfer report','reports/transfer','fa-money-bill-transfer')]:[]),
       ...(module('mobile_money')?[item('Mobile report','reports/mobile','fa-mobile-screen-button')]:[]),
       ...(module('banking')?[item('Banking report','reports/banking','fa-building-columns')]:[]),
+      ...(module('forex')?[item('Forex report','reports/forex','fa-money-bill-trend-up')]:[]),
       ...(module('loans')?[item('Loan Management report','reports/loans','fa-hand-holding-dollar')]:[]),
       ...(module('airtime')?[item('Airtime report','reports/airtime','fa-sim-card')]:[])]:[])
   ],[...(reports?['reports']:[]),...(expenses?['expenses']:[]),...(sharedCash?['cash/shifts']:[]),...(module('approval_workflows')&&can('approvals.view')?['approvals']:[]),...(manualMovements?['funded']:[])]);

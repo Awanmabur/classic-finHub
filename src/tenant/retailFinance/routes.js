@@ -13,7 +13,7 @@ const {currencyCodes}=require('../../config/currencies');
 const {resolve:branchCurrency}=require('../services/branchCurrency.service');
 const throttle=require('../../platform/services/actionThrottle.service').financial;
 function fundsFor(req,key){
- if(!req.operationBranch)return Promise.resolve([]);
+ if(!req.operationBranch||!hasPermission(req.user,'treasury.view'))return Promise.resolve([]);
  return treasury.findOperatingAccounts(req.tenantDb,req.tenant,req.user,{moduleKey:key,branchId:String(req.operationBranch._id)})
  .then(items=>items.filter(a=>a.status==='active'&&a.openingBalanceMinor!==null&&a.openingApprovedAt&&a.reconciliationState==='matched'&&['cash','bank','wallet'].includes(a.kind)));
 }
@@ -35,6 +35,7 @@ module.exports=function retailRoutes({renderTenant}){
     ...result,funds,customers,canManage:hasPermission(req.user,'loans.manage'),
     canCreate:hasPermission(req.user,'loans.create'),format:shortFormat,uuid:crypto.randomUUID(),
     branch:req.operationBranch,activeCurrency:req.operationBranch?branchCurrency(req.operationBranch):null,
+    currencyChoices:req.operationBranch?require('../services/branchCurrency.service').supported(req.operationBranch):[],
     formatDate:value=>value?new Date(value).toISOString().slice(0,10):'—'
    });
   }catch(error){next(error);}
@@ -81,7 +82,9 @@ module.exports=function retailRoutes({renderTenant}){
   renderTenant(req,res,'airtime/index','Airtime','Manual prepaid airtime stock, verified customer sales and exact profit.',{
    ...result,funds,canManage:hasPermission(req.user,'airtime.manage'),canSell:hasPermission(req.user,'airtime.sell'),
    format:shortFormat,uuid:crypto.randomUUID(),branch:req.operationBranch,
-   activeCurrency:req.operationBranch?branchCurrency(req.operationBranch):null
+   activeCurrency:req.operationBranch?branchCurrency(req.operationBranch):null,
+   currencyChoices:req.operationBranch?require('../services/branchCurrency.service').supported(req.operationBranch):[],
+   saleUuid:crypto.randomUUID(),purchaseUuid:crypto.randomUUID()
   });
  }catch(e){next(e);}}
  router.get('/airtime',airtimePage);

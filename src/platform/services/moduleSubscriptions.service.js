@@ -20,6 +20,12 @@ function activeGrants(tenant,now=new Date()){
     Number.isSafeInteger(g.limits.recordsPerMonth)&&g.limits.recordsPerMonth>=0);
 }
 function effectiveModuleGrant(tenant,key,now=new Date()){return activeGrants(tenant,now).find(g=>g.moduleKey===key)||null;}
+function explicitUsdCents(value){
+ if(typeof value!=='string'||!/^(?:0|[1-9][0-9]{0,5})(?:\.[0-9]{1,2})?$/.test(value))
+  throw error('Set an explicit approved monthly USD price, including 0.00 only if intentionally free.');
+ const [whole,fraction='']=value.split('.');
+ return Number(whole)*100+Number(fraction.padEnd(2,'0'));
+}
 function validateGrant(input){
   const moduleKey=String(input?.moduleKey||'');const module=eligible(moduleKey);
   if(!module)throw error('Module is unavailable for independent subscription',409);
@@ -31,7 +37,7 @@ function validateGrant(input){
     !Number.isSafeInteger(recordsPerMonth)||recordsPerMonth<0||recordsPerMonth>1000000||
     (requiresRecords(moduleKey)?recordsPerMonth<1:recordsPerMonth!==0)||reason.length<20||reason.length>600)
     throw error('Specify a 1–366 day term, valid workspace limits, and a 20–600-character audit reason');
-  return {moduleKey,days,limits:{users,branches,recordsPerMonth},reason,priceMonthlyMinor:Math.round(module.priceMonthly*100)};
+  return {moduleKey,days,limits:{users,branches,recordsPerMonth},reason,priceMonthlyMinor:module.requiresQuote?explicitUsdCents(input.monthlyPriceUsd):Math.round(module.priceMonthly*100)};
 }
 function requireAdmin(actor){if(!actor?.id||!actor.permissions?.includes('*'))throw error('Super Admin required',403);}
 function validTenant(id){if(!mongoose.isValidObjectId(id))throw error('Tenant not found',404);}

@@ -1,12 +1,12 @@
 <section class="view show" id="airtimeManagement">
- <p class="workspaceNote">Airtime is recorded **only after actual provider delivery**. The platform does not yet send airtime automatically to telecom networks. A verified external delivery reference is required for each sale.</p>
+ <p class="workspaceNote">Airtime is recorded only after actual provider delivery. The platform does not yet send airtime automatically to telecom networks. A verified external delivery reference is required for each sale.</p>
  <section class="retailStats">
  <% if(!data.summary.length){ %><article class="stat"><div class="k">Airtime activity</div><div class="v">No recorded sales</div></article><% } %>
  <% data.summary.forEach(s=>{ %><article class="stat"><div class="k"><%= s.currency %> sales</div><div class="v"><%= data.format(s.sales,s.currency) %></div><div class="sub">Cost <%= data.format(s.cost,s.currency) %></div><div class="tiny">Gross profit <%= data.format(s.profit,s.currency) %></div></article><% }) %>
  </section>
  <% if(data.canSell&&data.branch){ %><section class="card" style="margin-top:14px"><div class="cardHead"><div><b>Record a completed airtime sale</b><br><span>Profit is calculated from the owner-approved product price and acquisition cost</span></div></div><div class="cardBody">
   <form method="post" action="/tenant/airtime/sales" class="retailForm">
-   <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="idempotencyKey" value="<%= data.uuid %>">
+   <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="idempotencyKey" value="<%= data.saleUuid %>">
    <label class="field">Product<select class="control" name="productId" required><option value="">Choose network & denomination</option><% data.products.filter(p=>p.status==='active'&&String(p.branchId)===String(data.branch._id)).forEach(p=>{ %><option value="<%= p._id %>"><%= p.network %> · <%= p.name %> · price <%= data.format(p.priceMinor,p.currency) %></option><% }) %></select></label>
    <label class="field">Customer phone (+country code)<input class="control" type="tel" name="phone" required placeholder="+211..." pattern="\+[1-9][0-9]{7,14}" maxlength="20"></label>
    <label class="field">Payment actually received in<select class="control" name="accountId" required><option value="">Select cash, bank or wallet account</option><% data.funds.filter(a=>String(a.branchId)===String(data.branch._id)).forEach(a=>{ %><option value="<%= a._id %>"><%= a.name %> · <%= a.currency %></option><% }) %></select></label>
@@ -18,7 +18,7 @@
  <% if(data.canManage&&data.branch){ %>
  <section class="card" style="margin-top:14px"><div class="cardHead"><b>Purchase prepaid airtime stock</b><span>Debit actual funds, increase inventory at acquisition cost</span></div><div class="cardBody">
   <form method="post" action="/tenant/airtime/stock" class="retailForm">
-   <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="idempotencyKey" value="<%= data.uuid %>">
+   <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="idempotencyKey" value="<%= data.purchaseUuid %>">
    <label class="field">Telecom network<input class="control" name="network" required maxlength="50" placeholder="Network name"></label>
    <label class="field">Currency<select class="control" name="currency" required><% (data.currencyChoices||[data.activeCurrency]).filter(Boolean).forEach(c=>{ %><option value="<%= c %>"><%= c==='KES'?'KSH':c %></option><% }) %></select></label>
    <label class="field">Actual acquisition cost<input class="control" name="cost" inputmode="decimal" required></label>

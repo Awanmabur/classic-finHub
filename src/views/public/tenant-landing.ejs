@@ -83,7 +83,16 @@ const cityParts=[d.city,d.region,landing.country].filter(Boolean).join(', ');
   <% if(d.gallery?.length){ %>
   <section class="publicBusinessSection" id="gallery">
     <div class="publicBusinessSectionHead"><span>See our business</span><h2>Photo gallery</h2></div>
-    <div class="publicBusinessGallery"><% d.gallery.forEach((src,i)=>{ %><a href="<%= src %>" rel="noopener noreferrer" target="_blank" aria-label="View business gallery photo <%= i+1 %>"><img loading="lazy" decoding="async" src="<%= src %>" alt="<%= businessName %> photo <%= i+1 %>"></a><% }) %></div>
+    <div class="publicBusinessGallery"><% d.gallery.forEach((src,i)=>{ %><a href="<%= src %>" rel="noopener noreferrer" target="_blank" data-gallery-item data-gallery-index="<%= i %>" aria-label="View business gallery photo <%= i+1 %> of <%= d.gallery.length %>"><img loading="lazy" decoding="async" src="<%= src %>" alt="<%= businessName %> photo <%= i+1 %>"></a><% }) %></div>
+    <dialog class="publicBusinessGalleryDialog" data-business-gallery-dialog aria-label="<%= businessName %> photo gallery">
+      <div class="galleryModalBody">
+        <div class="galleryModalTop"><strong>Business gallery</strong><button type="button" class="galleryModalClose" data-gallery-close aria-label="Close image gallery">×</button></div>
+        <figure class="galleryModalFigure"><img data-gallery-current alt="" decoding="async">
+          <figcaption><span data-gallery-count aria-live="polite"></span><a data-gallery-original href="#" target="_blank" rel="noopener noreferrer">View original image</a></figcaption>
+        </figure>
+        <div class="galleryModalNav"><button type="button" data-gallery-prev aria-label="Previous gallery photo">‹ Previous</button><button type="button" data-gallery-next aria-label="Next gallery photo">Next ›</button></div>
+      </div>
+    </dialog>
   </section>
   <% } %>
   <% if(d.address||d.city||d.hours||businessPhone||d.publicEmail||d.whatsapp||d.facebook||d.instagram||d.linkedin){ %>

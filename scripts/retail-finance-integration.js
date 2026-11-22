@@ -30,7 +30,7 @@ async function run(){
  await Tenant.createIndexes();await core.ensureTenantIndexes(conn);
  await book.ensure(conn);await loanModel.ensure(conn);await airModel.ensure(conn);
  await require('../src/tenant/customerAccounts/models').ensureIndexes(conn);
- const modules=['mobile_money','customers','loans','airtime'];
+ const modules=['mobile_money','loans','airtime']; // No Customers subscription: borrower registration is independent.
  const template={code:'retail_scratch',name:'Retail finance scratch',
   description:'Disposable integration test only',currency:'USD',priceMonthly:1,priceYearly:10,
   trialMonths:0,modules,limits:{users:10,branches:2,transactionsPerMonth:500,
@@ -169,7 +169,7 @@ async function run(){
   conn,tenant,{branchId:fmt(branch._id)},dateRange,[{key:'loans'},{key:'airtime'}]);
  assert.equal(postedIncome.length,0,'Refunded interest and airtime profit must not remain as realized income');
  assert.equal((await ledger.trialBalance(conn,{branchId:fmt(branch._id),currency:'UGX'})).balanced,true);
- await Tenant.updateOne({_id:tenant._id},{$set:{enabledModules:['mobile_money','customers']}});
+ await Tenant.updateOne({_id:tenant._id},{$set:{enabledModules:['mobile_money']}});
  await assert.rejects(air.list(conn,tenant,owner),e=>e.status===403,'Revoked airtime module cannot read');
  await assert.rejects(loan.list(conn,tenant,owner),e=>e.status===403,'Revoked loans module cannot read');
  console.log('PASS: loan independent review and real account debits; principal + interest collection; airtime stock and profit, idempotency, receipt evidence, balanced journals, tenant permissions and revocation');

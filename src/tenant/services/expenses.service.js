@@ -1,6 +1,6 @@
 'use strict';
-// Expense evidence is retained. Independent approval is required before a cash
-// expense affects a verified physical drawer; no provider payment is executed.
+// Cashier-submitted funded expenses post immediately to their selected funds book.
+// Historical pending entries and controlled corrections preserve their original audit evidence; no external payment is executed.
 const crypto=require('node:crypto');
 const {Types}=require('mongoose');
 const {expenseModel,ensureExpenseIndexes}=require('../models/expenses');
@@ -178,8 +178,27 @@ async function create(conn,tenant,actor,input={},options={}){
   await require('../../platform/services/commercial.service').reserveUsage(tenant,'expenses',session);
   [record]=await Model.create([{...value,branchId,operatorId:actor.id,currency,paymentMethod,cashSessionId,treasuryAccountId:requestedFundId,sourcePolicy,
    original:value,idempotencyKey:input.idempotencyKey,recordReference:`EXP-${crypto.randomBytes(10).toString('hex').toUpperCase()}`,
-   history:[{action:'created',actorId:actor.id,at:new Date(),after:value,note:'Submitted for authorized review'}]}],{session});
-  await audit(conn,session,actor,record,'created');
+   history:[{action:'created',actorId:actor.id,at:new Date(),after:value,
+    note:sourcePolicy==='funded_required'?'Cashier-entered final expense':'Historical untracked expense awaiting review'}]}],{session});
+  // The fund debit, expense journal, final status and audit event must share
+  // this transaction; no separate approval or second HTTP request is needed.
+  if(options.requireFunds===true){
+   const authorization=await require('../treasury/service').access(conn,tenant,actor,
+    {permission:'expenses.create',session,fence:true,sourceType:'expenses'});
+   const account=await resolveFund(conn,session,authorization,record,{treasuryAccountId:requestedFundId});
+   await shiftFence(conn,session,record,0n,{bookManaged:true});
+   const batchId=postedBatchId(await postExpense(conn,session,authorization,record,account,1));
+   record=await Model.findOneAndUpdate({_id:record._id,status:'pending_review',revision:0},{
+    $set:{status:'approved',reviewedBy:null,reviewedAt:new Date(),
+     reviewNote:'Final cashier-posted expense with verified source balance',
+     postedTreasuryAccountId:account._id,treasuryBatchId:batchId,postingSequence:1},
+    $inc:{revision:1},
+    $push:{history:{action:'cashier_final_posted',actorId:actor.id,at:new Date(),treasuryBatchId:batchId,
+     note:'Expense deducted from the recorded funds source immediately after cashier submission'}}
+   },{new:true,session});
+   if(!record)throw fail('Expense finalization raced with another mutation',409);
+   await audit(conn,session,actor,record,'cashier_final_posted');
+  }else await audit(conn,session,actor,record,'created');
  });return {record,duplicate:false};}
  catch(error){if(error.code===11000){const found=await Model.findOne({idempotencyKey:input.idempotencyKey}).lean();
   if(found&&same(found,actor,branchId,value,paymentMethod,requestedFundId,currency))return {record:found,duplicate:true};throw fail('Expense form reference already used',409);}throw error;}

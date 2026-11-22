@@ -5,7 +5,7 @@ const mongoose=require('mongoose');
 const Tenant=require('../models/Tenant');
 const PlatformAuditLog=require('../models/PlatformAuditLog');
 const {modules}=require('../../data/store');
-const RECORD_MODULES=new Set(['mobile_money','money_transfer','banking','forex','customers','accounts','expenses']);
+const RECORD_MODULES=new Set(['mobile_money','money_transfer','banking','forex','customers','accounts','expenses','loans','airtime']);
 function requiresRecords(key){return RECORD_MODULES.has(key);}
 function error(message,status=400){const e=new Error(message);e.status=status;return e;}
 function listable(){return modules.filter(m=>m.key!=='sms_capture'&&['enabled','recording_only'].includes(m.runtimeStatus)&&m.status==='active');}

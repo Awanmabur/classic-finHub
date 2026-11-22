@@ -49,7 +49,7 @@ test('every receipt retains safe branding and thermal paper controls and no fake
  const css=file('public/css/thermal-receipt.css'),js=file('public/js/receipt-print.js');
  assert.match(css,/receipt-paper="58"/);assert.match(css,/receipt-paper="80"/);
  assert.match(js,/window\.print\(\)/);assert.match(js,/sessionStorage/);
- assert.match(js,/data\.receiptAuto/);
+ assert.match(js,/dataset\.receiptAuto/);
  assert.doesNotMatch(js,/navigator\.bluetooth|SerialPort|connectBluetooth|printSucceeded/);
  assert.match(file('src/tenant/routes/index.js'),/receiptPrint\.mobile\(result\)/);
  assert.match(file('src/tenant/retailFinance/routes.js'),/receiptPrint\.service'\)\.loan\(result\)/);

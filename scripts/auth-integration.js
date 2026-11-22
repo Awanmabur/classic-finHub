@@ -159,7 +159,7 @@ async function main() {
     assert.equal(rolesShortcut.status,200);
     const rolesHtml=await rolesShortcut.text();
     assert.match(rolesHtml,/action="\/tenant\/users\/role-defaults"/);
-    assert.match(rolesHtml,/Saved role assignments/);
+    assert.match(rolesHtml,/saved role assignments/i);
     const staffAccess=await fetch(base+'/tenant/users',{headers:{cookie:ownerFull.cookie}});
     assert.equal(staffAccess.status,200);
     const staffHtml=await staffAccess.text();

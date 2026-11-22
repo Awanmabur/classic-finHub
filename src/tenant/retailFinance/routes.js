@@ -12,6 +12,10 @@ const airtime=require('./airtime.service');
 const {currencyCodes}=require('../../config/currencies');
 const {resolve:branchCurrency}=require('../services/branchCurrency.service');
 const throttle=require('../../platform/services/actionThrottle.service').financial;
+const reportTimeZone=require('../services/reportTimeZone.service');
+const reports=require('../services/operationsReports.service');
+const reportAdapters={loans:require('../reporting/adapters/loans'),airtime:require('../reporting/adapters/airtime')};
+const csvCell=require('../services/mobileMoney.service').csvCell;
 function fundsFor(req,key){
  if(!req.operationBranch||!hasPermission(req.user,'treasury.view'))return Promise.resolve([]);
  return treasury.findOperatingAccounts(req.tenantDb,req.tenant,req.user,{moduleKey:key,branchId:String(req.operationBranch._id)})
@@ -44,6 +48,30 @@ module.exports=function retailRoutes({renderTenant}){
    });
   }catch(error){next(error);}
  }
+ async function moduleReport(req,res,next,key,exportCsv=false){
+  try{
+   const timeZone=await reportTimeZone.forRequest(req),filters=reports.parseFilters(req.query,[{key}],timeZone);
+   const scope=reports.scopeFor(req.user);
+   if(!['Tenant Owner','Auditor','Branch Manager','Reconciliation Officer','Reports Analyst','Analytics Analyst'].includes(req.user.role))
+    scope.operatorId=String(req.user.id);
+   const rows=await reportAdapters[key].rows({conn:req.tenantDb,tenant:req.tenant,user:req.user,filters,dateRange:filters.dateRange,scope});
+   if(exportCsv){
+    const content='\uFEFF'+[['Activity','Status','Currency','Records','Amount','Fees or profit'],
+      ...rows.map(row=>[row.activity,row.status,row.currency,row.count,row.volume,row.fees])]
+      .map(row=>row.map(csvCell).join(',')).join('\r\n')+'\r\n';
+    res.set({'Cache-Control':'private, no-store','X-Robots-Tag':'noindex, nofollow'});
+    return res.attachment('classicfin-'+key+'-summary-'+filters.from+'-'+filters.to+'.csv').type('text/csv').send(content);
+   }
+   renderTenant(req,res,'retailFinance/module-report',key==='loans'?'Loan Management summary report':'Airtime summary report',
+    'Module activity grouped by currency, status and operation; corrections stay visible.',{
+     moduleKey:key,rows,filters,timeZone,label:key==='loans'?'Loan Management':'Airtime',home:'/tenant/'+key,canExport:true
+    });
+  }catch(error){next(error);}
+ }
+ router.get('/loans/report',(req,res,next)=>moduleReport(req,res,next,'loans'));
+ router.get('/loans/report/export.csv',(req,res,next)=>moduleReport(req,res,next,'loans',true));
+ router.get('/airtime/report',(req,res,next)=>moduleReport(req,res,next,'airtime'));
+ router.get('/airtime/report/export.csv',(req,res,next)=>moduleReport(req,res,next,'airtime',true));
  router.get('/loans',loanPage);
  router.post('/loans/borrowers',requirePermission('loans.create'),throttle,async(req,res,next)=>{try{
   const result=await loans.registerBorrower(req.tenantDb,req.tenant,req.user,req.body);

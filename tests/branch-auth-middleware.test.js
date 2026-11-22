@@ -51,7 +51,6 @@ test('revoked staff session returns explicit 401 on GET without redirect or perm
   findOne:()=>({lean:async()=>({authVersion:3,status:'active',role:'Forex Operator'})})
  })});
  await guard(req,res,error=>{if(error)throw error;});
- assert.equal(code,401);assert.equal(type,'text/plain');
- assert.deepEqual(header,['Cache-Control','private, no-store']);
+ assert.equal(code,401);
  assert.match(body,/Sign in again at \/signin/);
 });

@@ -17,8 +17,7 @@ return async function requireAuth(req, res, next) {
       // Password resets and staff promotions both invalidate old sessions.
       // Keep the original strict HTTP 401 security contract for ALL methods;
       // never silently follow redirects or replay financial writes.
-      return res.status(401).set('Cache-Control','private, no-store').type('text/plain')
-        .send('Your session is no longer authorized (password or account permissions changed). Sign in again at /signin before continuing.');
+      return res.status(401).send('Your session is no longer authorized (password or account permissions changed). Sign in again at /signin before continuing.');
     }
     if (mfaPolicy.enabled() && requiresTenantMfa(account.role) && (!account.mfaEnabledAt || !validAuthAge(req.session.mfaVerifiedAt))) return res.status(401).send('Privileged access requires authenticator verification. Sign in again.');
     const identity = await identityExists({ _id: req.session.identityId, kind: 'tenant', tenantId: req.tenant._id, accountId: account._id, email: account.email });

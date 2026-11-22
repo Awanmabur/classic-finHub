@@ -184,11 +184,12 @@ async function reverseRepayment(conn,tenant,actor,loanId,paymentId,input){
   if(!record)throw F.fail('Loan is unavailable for repayment correction',409);
   const p=await models(conn).payment.findOne({_id:pid,tenantId:current.tenant._id,loanId:id}).session(session).lean();
   if(!p)throw F.fail('Original repayment not found',404);
-  const latest=await models(conn).payment.findOne({loanId:id}).sort({createdAt:-1,_id:-1}).session(session).lean();
-  if(!latest||String(latest._id)!==String(pid))
-   throw F.fail('Correct the latest repayment first. Historical repayments must remain in order.',409);
-  if(await models(conn).correction.exists({paymentId:pid}).session(session))
+  const reversed=await models(conn).correction.find({loanId:id,tenantId:current.tenant._id}).select('paymentId').session(session).lean();
+  if(reversed.some(entry=>String(entry.paymentId)===String(pid)))
    throw F.fail('This repayment was already reversed',409);
+  const latest=await models(conn).payment.findOne({loanId:id,_id:{$nin:reversed.map(entry=>entry.paymentId)}}).sort({createdAt:-1,_id:-1}).session(session).lean();
+  if(!latest||String(latest._id)!==String(pid))
+   throw F.fail('Correct the latest uncorrected repayment first. Historical repayments must remain in order.',409);
   const newPrincipal=BigInt(String(record.principalOutstandingMinor))+BigInt(String(p.principalMinor)),
    newInterest=BigInt(String(record.interestOutstandingMinor))+BigInt(String(p.interestMinor));
   if(newPrincipal>BigInt(String(record.principalMinor))||newInterest>BigInt(String(record.interestMinor)))

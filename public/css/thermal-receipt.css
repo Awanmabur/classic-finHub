@@ -1,0 +1,29 @@
+/* Owner-approved receipt content; physical print size is a per-device preference. */
+.receiptPrintControls{display:grid;gap:12px;margin-top:20px;padding-top:16px;border-top:1px solid #e1e5eb;font-size:12px;line-height:1.5}
+.receiptPrintControls>label:first-child{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-weight:650}
+.receiptPrintControls select{min-height:36px;min-width:90px;border:1px solid #9ba7b4;border-radius:10px;padding:7px 10px;background:white;color:#17202a}
+.receiptAutoOption{display:flex;gap:9px;align-items:flex-start;min-width:0}
+.receiptAutoOption input{flex:none;margin-top:3px;accent-color:#082c52}
+.receiptPrintStatus{font-size:11px;color:#4d5560;margin:0}
+@media print{
+ @page{margin:2mm}
+ body[data-receipt-paper]{padding:0!important;margin:0!important;background:white!important}
+ body[data-receipt-paper] .receipt{max-width:none!important;margin:0!important;padding:1mm!important;box-sizing:border-box!important;border:0!important;border-radius:0!important;box-shadow:none!important;color:#111!important;font:10px/1.35 Arial,Helvetica,sans-serif!important}
+ body[data-receipt-paper="58"] .receipt{width:48mm!important}
+ body[data-receipt-paper="80"] .receipt{width:72mm!important}
+ body[data-receipt-paper] .receiptBrandHeader{padding:0 0 2mm;margin:0 0 2mm;border-bottom:1px dashed #555}
+ body[data-receipt-paper] .receiptBrandHeader h1{font-size:12px!important;color:#111!important;line-height:1.35}
+ body[data-receipt-paper] .receiptBrandHeader p{font-size:9px!important;color:#111!important;margin:2px 0}
+ body[data-receipt-paper] .receiptLogo{width:20mm!important;height:12mm!important;object-fit:contain;margin:0 auto 1mm}
+ body[data-receipt-paper] .receipt h2{font-size:11px!important;margin:2mm 0}
+ body[data-receipt-paper] .receipt .warning{padding:2mm 1mm;background:white!important;color:#111!important;border:1px solid #666;border-radius:0;font-size:9px;margin:2mm 0}
+ body[data-receipt-paper] .receipt .warning p{margin:2px 0}
+ body[data-receipt-paper] .receipt dl{display:grid;grid-template-columns:42% minmax(0,1fr)!important;gap:0;margin:2mm 0}
+ body[data-receipt-paper] .receipt dt,body[data-receipt-paper] .receipt dd{font-size:9px!important;min-width:0;padding:1.2mm 0;border-bottom:1px dotted #aaa;overflow-wrap:anywhere;color:#111!important}
+ body[data-receipt-paper] .receipt dd{padding-left:1mm}
+ body[data-receipt-paper] .receipt table{table-layout:fixed;width:100%;margin:2mm 0}
+ body[data-receipt-paper] .receipt table th,body[data-receipt-paper] .receipt table td{font-size:9px!important;padding:1.5mm .5mm;border-bottom:1px dotted #aaa;color:#111!important}
+ body[data-receipt-paper] .receipt .foot{font-size:9px!important;color:#111!important}
+ body[data-receipt-paper] .receiptPrintControls,body[data-receipt-paper] .receipt nav,body[data-receipt-paper] .receipt>button{display:none!important}
+ body[data-receipt-paper] .receipt *{box-shadow:none!important;text-shadow:none!important}
+}

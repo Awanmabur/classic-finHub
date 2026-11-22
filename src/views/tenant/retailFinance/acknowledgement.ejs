@@ -6,7 +6,7 @@ const secondary=/^#[0-9a-fA-F]{6}$/.test(brand.secondary||'')?brand.secondary:'#
 %>
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
 <title><%= receipt.documentType %> · <%= receipt.reference %></title>
-<link rel="icon" type="image/png" href="/favicon.png"><link rel="stylesheet" href="/css/acknowledgement.css"></head><body>
+<link rel="icon" type="image/png" href="/favicon.png"><link rel="stylesheet" href="/css/acknowledgement.css"><link rel="stylesheet" href="/css/thermal-receipt.css?v=<%= assetVersion %>"></head><body data-receipt-auto="<%= autoPrint?'true':'false' %>">
 <main class="receipt receipt--<%= layout %>" style="--receipt-primary:<%= primary %>;--receipt-secondary:<%= secondary %>">
 <header class="receiptBrandHeader">
  <% if(brand.showLogo!==false){ %><img class="platformMark receiptLogo" src="<%= brand.logoUrl||'/images/classicfinhub-mark.png' %>" width="68" height="68" alt="Business receipt logo" decoding="async"><% } %>
@@ -30,4 +30,4 @@ const secondary=/^#[0-9a-fA-F]{6}$/.test(brand.secondary||'')?brand.secondary:'#
 <% if(brand.footerNote){ %><p class="foot"><%= brand.footerNote %></p><% } %>
 <p class="foot">Amounts, references and reversal status come from existing financial records. This document is neither a provider settlement confirmation nor a tax invoice.</p>
 <nav><a href="<%= receipt.returnUrl %>">Return to transaction</a><button id="printAcknowledgement" type="button">Print receipt</button></nav>
-</main><script src="/js/acknowledgement.js" defer></script></body></html>
+<%- include('../partials/receipt-print-options') %></main><script src="/js/receipt-print.js?v=<%= assetVersion %>" defer></script></body></html>

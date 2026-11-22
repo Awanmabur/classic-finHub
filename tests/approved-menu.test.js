@@ -23,7 +23,7 @@ function subscribed(){
  const terms=planSnapshot({...asPlanVersion(plans.find(plan=>plan.code==='enterprise')),status:'published'});
  return {name:'Approved workspace',slug:'approved-workspace',status:'active',plan:'enterprise',
   enabledModules:terms.modules,subscription:{...terms,status:'granted',source:'manual_admin_grant',generation:1,periodStart:new Date('2026-01-01'),periodEnd:new Date('2030-01-01')},
-  moduleGrants:['customers','accounts','expenses'].map(moduleKey=>({moduleKey,status:'granted',generation:1,periodStart:new Date('2026-01-01'),periodEnd:new Date('2030-01-01'),limits:{users:10,branches:3,recordsPerMonth:1000}}))};
+  moduleGrants:['customers','accounts','expenses','loans','airtime'].map(moduleKey=>({moduleKey,status:'granted',generation:1,periodStart:new Date('2026-01-01'),periodEnd:new Date('2030-01-01'),limits:{users:10,branches:3,recordsPerMonth:1000}}))};
 }
 function actor(role,allowedModules){return {id:branchId,name:'Staff',role,branchId,permissions:permissionsFor(role),allowedModules};}
 function paths(menu){return menu.flatMap(group=>group.items.map(item=>item.href));}

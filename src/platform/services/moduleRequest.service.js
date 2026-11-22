@@ -9,6 +9,7 @@ async function submit(tenant,actor,input){
  if(!['active','trial'].includes(tenant.status))throw err('Tenant must be active to request modules',403);
  const moduleKey=String(input?.moduleKey||''),reason=String(input?.reason||'').trim();
  const module=eligible(moduleKey);
+ if(module?.requiresQuote)throw err('This module needs an individually agreed price. Contact the ClassicFin platform administrator for a quote before activation.',409);
  if(!module||reason.length<20||reason.length>600)throw err('Choose a supported module and an explanation of 20–600 characters');
  const {hasModule}=require('../../tenant/services/moduleAccess.service');
  if(hasModule(tenant,moduleKey))throw err('Module already available to this tenant',409);

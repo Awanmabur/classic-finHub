@@ -30,7 +30,7 @@ test('R2 AWS v4 authorization binds to key, body, region auto and private creden
 });
 test('public image routes enforce server auth, CSRF, strict byte handling and ownership',()=>{
  const routes=text('src/tenant/workspace/routes.js'),app=text('src/app.js'),service=text('src/tenant/workspace/service.js'),storage=text('src/tenant/workspace/r2Media.js');
- assert.match(routes,/router\.post\('\/media\/:kind',requirePermission\('workspace\.manage'\),throttle/);
+ assert.match(routes,/router\.post\('\/media\/:kind',requirePermission\('workspace\.manage'\),mediaThrottle/);
  assert.match(routes,/express\.raw\(\{type:\['image\/png','image\/jpeg','image\/webp'\],limit:'3mb'\}\)/);
  assert.match(routes,/media\.upload\(req\.tenantDb,req\.tenant,req\.user/);
  assert.match(routes,/media\.remove\(req\.tenantDb,req\.tenant,req\.user/);

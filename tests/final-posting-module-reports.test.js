@@ -36,7 +36,7 @@ test('Forex final summary reads posted treasury executions, not quoted status',a
 test('Loan module reporting enforces branch and operator on each lifecycle source',async()=>{
  const loan=[],payment=[],correction=[];
  const conn={models:{
-  LoanCaseV1:aggregator(loan),LoanPaymentV1:aggregator(payment),LoanCorrectionV1:aggregator(correction)
+  LoanProductV1:aggregator([]),LoanCaseV1:aggregator(loan),LoanPaymentV1:aggregator(payment),LoanCorrectionV1:aggregator(correction)
  }};
  const rows=await loanAdapter.rows({conn,scope:{branchId:another,operatorId:oid},dateRange:period});
  assert.deepEqual(rows,[]);
@@ -50,7 +50,7 @@ test('Loan module reporting enforces branch and operator on each lifecycle sourc
 });
 test('Airtime module report scopes both recorded sales and compensating corrections',async()=>{
  const record=[],correction=[];
- const conn={models:{AirtimeRecordV1:aggregator(record),AirtimeCorrectionV1:aggregator(correction)}};
+ const conn={models:{AirtimeProductV1:aggregator([]),AirtimeInventoryV1:aggregator([]),AirtimeRecordV1:aggregator(record),AirtimeCorrectionV1:aggregator(correction)}};
  assert.deepEqual(await airtimeAdapter.rows({conn,scope:{branchId:another,operatorId:oid},dateRange:period}),[]);
  assert.equal(String(record[0][0].$match.createdBy),oid);
  assert.equal(String(correction[0][0].$match.createdBy),oid);

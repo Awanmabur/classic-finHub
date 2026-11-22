@@ -1,0 +1,32 @@
+<%
+const brand=typeof identity==='object'&&identity?identity:{};
+const layout=['classic','compact','detailed'].includes(brand.layout)?brand.layout:'classic';
+const primary=/^#[0-9a-fA-F]{6}$/.test(brand.primary||'')?brand.primary:'#082c52';
+const secondary=/^#[0-9a-fA-F]{6}$/.test(brand.secondary||'')?brand.secondary:'#0d4f91';
+%>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
+<title><%= receipt.documentType %> · <%= receipt.reference %></title>
+<link rel="icon" type="image/png" href="/favicon.png"><link rel="stylesheet" href="/css/acknowledgement.css"></head><body>
+<main class="receipt receipt--<%= layout %>" style="--receipt-primary:<%= primary %>;--receipt-secondary:<%= secondary %>">
+<header class="receiptBrandHeader">
+ <% if(brand.showLogo!==false){ %><img class="platformMark receiptLogo" src="<%= brand.logoUrl||'/images/classicfinhub-mark.png' %>" width="68" height="68" alt="Business receipt logo" decoding="async"><% } %>
+ <h1><%= brand.name||'ClassicFin Hub business' %></h1>
+ <p><%= brand.header||'Transaction acknowledgement' %></p>
+ <strong><%= brand.template||'Standard receipt' %></strong>
+</header>
+<h2><%= receipt.documentType %></h2>
+<div class="warning"><strong><%= receipt.reversed?'REVERSED — ORIGINAL RETAINED':'INTERNAL BUSINESS RECORD — PROVIDER NOT VERIFIED' %></strong>
+ <p><%= receipt.warning %></p></div>
+<dl>
+ <dt>Original reference</dt><dd><%= receipt.reference %></dd>
+ <dt>Business branch</dt><dd><%= receipt.branch %></dd>
+ <dt>Recorded (<%= receipt.timeZone %>)</dt><dd><%= receipt.recordedAt %></dd>
+ <dt>Recipient / borrower</dt><dd><%= receipt.customer %></dd>
+ <dt>Current book status</dt><dd><%= receipt.status %></dd>
+ <% receipt.lines.forEach(line=>{ %><dt><%= line[0] %></dt><dd><%= line[1] %></dd><% }); %>
+</dl>
+<% if(brand.supportPhone){ %><p class="foot">Business support: <%= brand.supportPhone %></p><% } %>
+<% if(brand.footerNote){ %><p class="foot"><%= brand.footerNote %></p><% } %>
+<p class="foot">Amounts, references and reversal status come from existing financial records. This document is neither a provider settlement confirmation nor a tax invoice.</p>
+<nav><a href="<%= receipt.returnUrl %>">Return to transaction</a><button id="printAcknowledgement" type="button">Print receipt</button></nav>
+</main><script src="/js/acknowledgement.js" defer></script></body></html>

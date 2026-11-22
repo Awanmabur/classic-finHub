@@ -6,7 +6,15 @@ const mongoose=require('mongoose');
 const {ensureModelIndexes}=require('../../config/ensureModelIndexes');
 const workspace=require('./service');
 const {auditEventModel}=require('../models');
-const MAX_BYTES=3*1024*1024,MAX_PIXELS=16_000_000;
+const MAX_BYTES=3*1024*1024,MAX_PIXELS=16_000_000,MAX_TENANT_ASSETS=200;
+function publicMediaQuotaBytes(tenant){
+ const configuredMb=tenant?.subscription?.limits?.storageMb;
+ // Legacy tenants without a published plan receive a bounded default for
+ // this NEW public-media feature; never claim to meter other storage types.
+ const mb=configuredMb===undefined||configuredMb===null?100:Number(configuredMb);
+ if(!Number.isSafeInteger(mb)||mb<0)return 0;
+ return Math.min(mb,2048)*1024*1024;
+}
 const KINDS=Object.freeze({logo:'logo',cover:'cover',gallery:'gallery'});
 function fail(message,status=400){return Object.assign(new Error(message),{status});}
 function config(){
@@ -158,7 +166,7 @@ async function upload(conn,tenant,actor,kind,raw,mime){
  const asset=validateImage(raw,mime),settings=config();
  const Media=model(conn);
  await ensureMediaIndexes(conn);
- if(await Media.countDocuments({tenantId:tenant._id,status:'active'}).maxTimeMS(3000)>=200)
+ if(await Media.countDocuments({tenantId:tenant._id,status:{$in:['active','deleting']}}).maxTimeMS(3000)>=MAX_TENANT_ASSETS)
   throw fail('Public media storage limit reached. Delete unused images before uploading more.',409);
  const mediaId=new mongoose.Types.ObjectId();
  const ext=mime==='image/png'?'png':mime==='image/jpeg'?'jpg':'webp';
@@ -169,6 +177,14 @@ async function upload(conn,tenant,actor,kind,raw,mime){
  try{
   await session.withTransaction(async()=>{
    const trusted=await workspace.access(conn,tenant,actor,{manage:true,session,fence:true});
+   const usage=await Media.aggregate([
+    {$match:{tenantId:tenant._id,status:{$in:['active','deleting']}}},
+    {$group:{_id:null,items:{$sum:1},bytes:{$sum:'$bytes'}}}
+   ]).session(session);
+   const used=usage[0]||{items:0,bytes:0};
+   const quota=publicMediaQuotaBytes(trusted.tenant);
+   if(used.items>=MAX_TENANT_ASSETS||!quota||used.bytes+asset.buffer.length>quota)
+    throw fail('Public image storage allowance exceeded. Remove unused images or change the current plan.',409);
    await Media.create([{_id:mediaId,tenantId:tenant._id,kind,key,url,mime,
      bytes:asset.buffer.length,sha256:asset.sha256,createdBy:trusted.actor.id}],{session});
    await auditEventModel(conn).create([{action:'workspace.public_media.uploaded',
@@ -267,4 +283,4 @@ async function verifyReferences(conn,tenant,details,session=null){
   if(!owned)throw fail('An uploaded image does not belong to this active tenant media library. Choose one of your own images.',409);
  }
 }
-module.exports={configured,config,validateImage,signature,upload,list,remove,verifyReferences,model,MAX_BYTES};
+module.exports={configured,config,validateImage,signature,publicMediaQuotaBytes,upload,list,remove,verifyReferences,model,MAX_BYTES};

@@ -6,7 +6,7 @@ const F=require('./security'),{models,ensure}=require('./airtime.models');
 const treasury=require('../treasury/service');
 const {resolve:branchCurrency}=require('../services/branchCurrency.service');
 const {reserveUsage}=require('../../platform/services/commercial.service');
-function network(value){const n=F.clean(value,'airtime provider',2,50);if(!/^[A-Za-z0-9][A-Za-z0-9 .+_-]{1,49}$/.test(n))throw F.fail('Enter a valid airtime network name');return n;}
+function network(value){const n=F.clean(value,'airtime provider',2,50).toUpperCase();if(!/^[A-Za-z0-9][A-Za-z0-9 .+_-]{1,49}$/.test(n))throw F.fail('Enter a valid airtime network name');return n;}
 const proof=(value)=>F.clean(value,'verified provider reference',6,120);
 function amountPair(input,currency){
  const denom=F.amount(input.denomination,currency),cost=F.amount(input.cost,currency),price=F.amount(input.price,currency);

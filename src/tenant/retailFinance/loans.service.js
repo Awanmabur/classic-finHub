@@ -27,6 +27,45 @@ function summaryRows(records){
  }
  return [...byCurrency.values()].map(v=>({...v,issued:String(v.issued),principalOutstanding:String(v.principalOutstanding),interestOutstanding:String(v.interestOutstanding)}));
 }
+// Loan subscribers can register a borrower in the shared customer directory
+// without also needing a separate Customers subscription.
+async function registerBorrower(conn,tenant,actor,input){
+ let current=await F.access(conn,tenant,actor,'loans','loans.create');
+ if(!['Tenant Owner','Branch Manager','Banking Operator'].includes(current.actor.role))
+  throw F.fail('Authorized loan staff required to register a borrower',403);
+ const v=require('../customerAccounts/validation'),value=v.customer({...input,type:'Individual'}),
+  requestKey=F.uuid(input.idempotencyKey);
+ const branch=await F.operatingBranch(conn,current.actor,input);
+ await require('../customerAccounts/models').ensureIndexes(conn);
+ const Model=customerModel(conn),old=await Model.findOne({idempotencyKey:requestKey}).lean();
+ const equivalent=row=>String(row?.branchId)===String(branch._id)&&
+   String(row?.createdBy)===String(current.actor.id)&&
+   Object.entries(value).every(([key,val])=>String(row?.[key]??'')===String(val??''));
+ if(old){if(!equivalent(old))throw F.fail('Borrower request reference used with different details',409);
+  return {borrower:old,duplicate:true};}
+ try{
+  return await F.transact(conn,async session=>{
+   current=await F.access(conn,tenant,actor,'loans','loans.create',session);
+   const actual=await F.operatingBranch(conn,current.actor,input,session);
+   if(String(actual._id)!==String(branch._id))throw F.fail('Operating branch changed',409);
+   await reserveUsage(current.tenant,'loan_borrowers',session);
+   const [borrower]=await Model.create([{
+    ...value,reference:v.reference('','CUS'),idempotencyKey:requestKey,branchId:actual._id,
+    createdBy:F.oid(current.actor.id),updatedBy:F.oid(current.actor.id)
+   }],{session});
+   await F.audit(conn,session,current.actor,borrower._id,'loans.borrower.registered',
+    {branchId:String(actual._id),borrowerId:String(borrower._id)});
+   return {borrower,duplicate:false};
+  });
+ }catch(e){
+  if(e.code===11000){
+   const found=await Model.findOne({idempotencyKey:requestKey}).lean();
+   if(found&&equivalent(found))return {borrower:found,duplicate:true};
+   throw F.fail('Borrower creation reference already used',409);
+  }
+  throw e;
+ }
+}
 async function createProduct(conn,tenant,actor,input){
  let current=await F.access(conn,tenant,actor,'loans','loans.manage');
  if(!['Tenant Owner','Branch Manager'].includes(current.actor.role))throw F.fail('Loan product policy is managed by the owner or branch manager',403);
@@ -248,4 +287,4 @@ async function detail(conn,tenant,actor,loanId){
  ]);
  return {loan,payments,customer,corrections};
 }
-module.exports={createProduct,apply,review,disburse,repay,reverseRepayment,list,detail,summaryRows,interest};
+module.exports={registerBorrower,createProduct,apply,review,disburse,repay,reverseRepayment,list,detail,summaryRows,interest};

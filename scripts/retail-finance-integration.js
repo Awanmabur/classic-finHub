@@ -179,6 +179,8 @@ async function run(){
  await Tenant.updateOne({_id:tenant._id},{$set:{enabledModules:['mobile_money']}});
  await assert.rejects(air.list(conn,tenant,owner),e=>e.status===403,'Revoked airtime module cannot read');
  await assert.rejects(loan.list(conn,tenant,owner),e=>e.status===403,'Revoked loans module cannot read');
+ await assert.rejects(loan.repay(conn,tenant,banker,issued.loan._id,repayInput),
+  e=>e.status===403,'Revoked repayment access must also block idempotent retries');
  console.log('PASS: loan independent review and real account debits; principal + interest collection; airtime stock and profit, idempotency, receipt evidence, balanced journals, tenant permissions and revocation');
 }
 async function cleanup(){

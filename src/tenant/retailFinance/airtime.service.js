@@ -133,6 +133,57 @@ function summarize(records){
  }
  return [...byCurrency.values()].map(x=>Object.fromEntries(Object.entries(x).map(([k,v])=>[k,typeof v==='bigint'?String(v):v])));
 }
+async function reverseRecorded(conn,tenant,actor,recordId,input){
+ const id=F.oid(recordId,'airtime transaction'),reason=F.clean(input.reason,'correction reason',12,400),
+  reference=proof(input.reference);
+ if(input.providerReversed!=='yes'||input.fundsReturned!=='yes')
+  throw F.fail('Confirm the actual provider reversal and the matching money refund before correcting this transaction',409);
+ await Promise.all([ensure(conn),require('../treasury/models').ensure(conn)]);
+ return F.transact(conn,async session=>{
+  const current=await F.access(conn,tenant,actor,'airtime','airtime.review',session);
+  if(!['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(current.actor.role))
+   throw F.fail('Independent authorized reviewer required',403);
+  const record=await models(conn).record.findOne({_id:id,tenantId:current.tenant._id,...F.scope(current.actor)}).session(session).lean();
+  if(!record)throw F.fail('Airtime record cannot be corrected in your branch',404);
+  const earlier=await models(conn).correction.find({inventoryId:record.inventoryId,tenantId:current.tenant._id})
+   .select('recordId').session(session).lean();
+  if(earlier.some(item=>String(item.recordId)===String(id)))
+   throw F.fail('This transaction was already reversed',409);
+  const latest=await models(conn).record.findOne({
+   inventoryId:record.inventoryId,_id:{$nin:earlier.map(item=>item.recordId)}
+  }).sort({createdAt:-1,_id:-1}).session(session).lean();
+  if(!latest||String(latest._id)!==String(id))
+   throw F.fail('Reverse later stock/sale activity first to avoid misstated airtime inventory',409);
+  const inventory=await models(conn).inventory.findOne({tenantId:current.tenant._id,_id:record.inventoryId,branchId:record.branchId})
+   .session(session).lean();
+  if(!inventory)throw F.fail('Actual airtime stock account is missing',409);
+  const cost=BigInt(String(record.costMinor)),old=BigInt(String(inventory.costBalanceMinor));
+  const after=record.type==='sale'?old+cost:old-cost;
+  if(after<0n||after>999999999999999999n)throw F.fail('Airtime stock cannot balance after the proposed reversal',409);
+  const auth=await treasury.access(conn,current.tenant,current.actor,{
+   permission:'treasury.review',session,fence:true,sourceType:'airtime'});
+  // Treasury reverses exactly the original posted cash/wallet/bank ledger, not an
+  // invented refund or a second sale; the supplier/provider refund is attested above.
+  const reversal=await treasury.reverseMovements(conn,session,auth,{
+   sourceType:'airtime',batchId:record.batchId,
+   reversalSourceRef:'AIR:REV:'+id,
+   description:'Independent provider-confirmed airtime reversal: '+reason,
+   evidenceReference:reference});
+  const updated=await models(conn).inventory.findOneAndUpdate({_id:inventory._id,revision:inventory.revision},{
+   $set:{costBalanceMinor:F.d(after),lastActivityAt:new Date()},$inc:{revision:1}
+  },{session,new:true});
+  if(!updated)throw F.fail('Inventory changed during reversal',409);
+  const [correction]=await models(conn).correction.create([{tenantId:current.tenant._id,branchId:record.branchId,
+   recordId:id,inventoryId:record.inventoryId,reversalBatchId:reversal.batch._id,
+   type:record.type,currency:record.currency,amountMinor:record.type==='sale'?record.retailMinor:record.costMinor,
+   costMinor:record.costMinor,profitMinor:record.profitMinor,reference,reason,createdBy:F.oid(current.actor.id)
+  }],{session});
+  await F.audit(conn,session,current.actor,id,'airtime.transaction.reversed',{
+   branchId:String(record.branchId),originalRecordId:String(id),reversalBatchId:String(reversal.batch._id),
+   providerReversed:true,fundsReturned:true,reason,reference});
+  return correction;
+ });
+}
 async function actualSummary(conn,tenantId,filter){
  const rows=await models(conn).record.aggregate([
   {$match:{tenantId,...filter}},
@@ -148,12 +199,13 @@ async function actualSummary(conn,tenantId,filter){
 }
 async function list(conn,tenant,actor){
  const current=await F.access(conn,tenant,actor,'airtime','airtime.view'),scope={tenantId:current.tenant._id,...F.scope(current.actor)};
- const [products,inventory,records,summary]=await Promise.all([
+ const [products,inventory,records,summary,corrections]=await Promise.all([
   models(conn).product.find(scope).sort({createdAt:-1}).limit(150).lean(),
   models(conn).inventory.find(scope).sort({network:1}).limit(150).lean(),
   models(conn).record.find(scope).sort({createdAt:-1}).limit(200).lean(),
-  actualSummary(conn,current.tenant._id,F.scope(current.actor))
+  actualSummary(conn,current.tenant._id,F.scope(current.actor)),
+  models(conn).correction.find(scope).sort({createdAt:-1}).limit(200).lean()
  ]);
- return {products,inventory,records,summary};
+ return {products,inventory,records,summary,corrections};
 }
-module.exports={createProduct,purchase,sell,list,summarize,amountPair};
+module.exports={createProduct,purchase,sell,reverseRecorded,list,summarize,amountPair};

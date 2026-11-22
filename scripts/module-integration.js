@@ -63,7 +63,8 @@ async function main(){
    name:'Reports tester',email:`analyst-${nonce}@example.invalid`,
    passwordHash:'unused-test-credential',role:'Reports Analyst',
    branchId:String(first.branch._id),allowedModules:[],status:'active',authVersion:0});
-  assert((await roles.forRole(first.conn,t1,'Reports Analyst')).includes('reports'));
+  assert.deepEqual(await roles.forRole(first.conn,t1,'Reports Analyst'),[],
+    'No staff member should inherit a platform-defined module preset');
   await assert.rejects(roles.save(second.conn,t1,owner,{role:'Reports Analyst',
    allowedModules:['reports'],revision:0}),e=>e.status===403,'Cross-tenant database blocked');
   await assert.rejects(roles.save(first.conn,t1,{...owner,role:'Branch Manager'},{role:'Reports Analyst',

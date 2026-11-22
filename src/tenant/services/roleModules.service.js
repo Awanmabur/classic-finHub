@@ -22,25 +22,11 @@ function tenantContext(conn,tenant){
  if(!tenant?.slug||conn?.name!==tenantDbNameFromSlug(tenant.slug)||tenant.dbName!==conn.name)
   throw error('Tenant role settings belong to this business workspace only',403);
 }
-// Newly invited employees should not silently inherit every licensed
-// financial module just because their fixed role COULD operate it. Match the
-// obvious responsibility first; the owner can assign more explicitly.
-const ROLE_DEFAULTS=Object.freeze({
- 'Branch Manager':['mobile_money','money_transfer','banking','forex','reports','customers','accounts','expenses','loans','airtime','approval_workflows','notifications'],
- 'Mobile Money Operator':['mobile_money'],
- 'Money Transfer Operator':['money_transfer'],
- 'Banking Operator':['banking','loans'],
- 'Forex Operator':['forex'],
- 'Reconciliation Officer':['approval_workflows','reports'],
- 'Auditor':['reports'],
- 'Reports Analyst':['reports'],
- 'Analytics Analyst':['analytics'],
- 'Approval Requester':['approval_workflows'],
- 'Approval Officer':['approval_workflows'],
- 'Viewer':[]
-});
+// Module selections are ENTIRELY tenant configured. An unconfigured role
+// carries no assigned modules; available choices are calculated from current
+// tenant subscriptions and safe role capabilities, never static presets.
 function availableModules(tenant,role){return assignableModules(tenant,roleName(role));}
-function defaultModules(tenant,role){return availableModules(tenant,role).filter(key=>(ROLE_DEFAULTS[role]||[]).includes(key));}
+function defaultModules(){return [];}
 async function all(conn,tenant){
  tenantContext(conn,tenant);
  const rows=await model(conn).find({tenantId:tenant._id}).select('role allowedModules revision').lean();

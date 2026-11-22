@@ -9,16 +9,17 @@ async function submit(tenant,actor,input){
  if(!['active','trial'].includes(tenant.status))throw err('Tenant must be active to request modules',403);
  const moduleKey=String(input?.moduleKey||''),reason=String(input?.reason||'').trim();
  const module=eligible(moduleKey);
- if(module?.requiresQuote)throw err('This module needs an individually agreed price. Contact the ClassicFin platform administrator for a quote before activation.',409);
- if(!module||reason.length<20||reason.length>600)throw err('Choose a supported module and an explanation of 20–600 characters');
+  if(!module||reason.length<20||reason.length>600)throw err('Choose a supported module and an explanation of 20–600 characters');
  const {hasModule}=require('../../tenant/services/moduleAccess.service');
  if(hasModule(tenant,moduleKey))throw err('Module already available to this tenant',409);
  const session=await mongoose.startSession();let requested;
  try{await session.withTransaction(async()=>{
    [requested]=await Request.create([{tenantId:tenant._id,moduleKey,reason,requestedBy:actor.id,
-     status:'pending',pricingSnapshot:{currency:'USD',priceMonthlyMinor:Math.round(module.priceMonthly*100)}}],{session});
+     status:'pending',pricingSnapshot:module.requiresQuote?
+       {currency:'USD',requiresQuote:true}:
+       {currency:'USD',requiresQuote:false,priceMonthlyMinor:Math.round(module.priceMonthly*100)}}],{session});
    await Audit.create([{actorId:String(actor.id),action:'module.requested',moduleKey,recordId:String(tenant._id),
-     after:{requestId:String(requested._id),status:'pending',reason}}],{session});
+     after:{requestId:String(requested._id),status:'pending',reason,requiresQuote:module.requiresQuote===true}}],{session});
  });return requested;
  }catch(e){if(e.code===11000)throw err('An open request already exists for this module',409);throw e;}finally{await session.endSession();}
 }

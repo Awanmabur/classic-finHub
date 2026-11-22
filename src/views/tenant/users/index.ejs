@@ -13,7 +13,7 @@
 
 <% if(user.role==='Tenant Owner'){ %>
 <section class="card" style="margin-top:14px" aria-labelledby="roleDefaultsTitle">
- <div class="cardHead"><div><b id="roleDefaultsTitle">Default modules by role</b><br><span>Owner-controlled role assignments for new and existing staff</span></div></div>
+ <div class="cardHead"><div><b id="roleDefaultsTitle">Role module assignments</b><br><span>Saved by the owner, not loaded from a platform preset</span></div></div>
  <div class="cardBody">
   <form method="post" action="/tenant/users/role-defaults" data-role-default-editor>
    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
@@ -23,14 +23,14 @@
     <option value="<%= role %>" data-default-modules="<%= (r.modules||[]).join(',') %>" data-available-modules="<%= (data.allowedByRole?.[role]||[]).join(',') %>" data-template-revision="<%= r.revision||0 %>"><%= role %></option>
     <% }) %>
    </select></label>
-   <fieldset class="field moduleChoices" data-role-module-choices><legend>Modules assigned to new members of this role</legend>
+   <fieldset class="field moduleChoices" data-role-module-choices><legend>Modules to assign when this role is selected</legend>
     <div class="moduleChoiceGrid"><% data.assignable.forEach(m=>{ %>
      <label class="moduleChoice"><input type="checkbox" name="allowedModules" value="<%= m %>" data-role-module-choice><span><%= m.replace(/_/g,' ') %></span></label>
     <% }) %></div>
    </fieldset>
    <label class="moduleChoice"><input type="checkbox" name="applyExisting" value="yes"><span>Apply to existing staff in this role too (they must sign in again before new access)</span></label>
    <p class="tiny">Only subscribed modules with abilities supported by the chosen role are available. These settings never bypass an independent approval or authorize a customer payment automatically.</p>
-   <div class="rowBtns"><button class="btn btnPrimary">Save role defaults</button></div>
+   <div class="rowBtns"><button class="btn btnPrimary">Save role assignments</button></div>
   </form>
  </div>
 </section>

@@ -12,12 +12,12 @@
       <% if(grant){ %><p class="tiny">Independent entitlement until <%= new Date(grant.periodEnd).toISOString().slice(0,10) %>. Limits: <%= grant.limits.users %> seats, <%= grant.limits.branches %> branches.</p><% } %>
       <% if(included){ %><p class="tiny">Included in your active workspace plan.</p><% } %>
       <% if(user.role==='Tenant Owner' && data.pendingKeys?.includes(m.key)){ %><p class="tiny">Request pending platform review.</p><% } %>
-      <% if(user.role==='Tenant Owner' && !included && !grant && !data.pendingKeys?.includes(m.key) && !m.requiresQuote && ['enabled','recording_only'].includes(m.runtimeStatus)){ %>
+      <% if(user.role==='Tenant Owner' && !included && !grant && !data.pendingKeys?.includes(m.key) && ['enabled','recording_only'].includes(m.runtimeStatus)){ %>
       <form method="post" action="/tenant/modules/request"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="moduleKey" value="<%= m.key %>">
         <label class="field">Request reason<textarea class="control" name="reason" required minlength="20" maxlength="600" rows="2" placeholder="Explain how your organization will use this module."></textarea></label>
-        <button class="btn" type="submit">Request module</button>
+        <button class="btn" type="submit"><%= m.requiresQuote?'Request quotation & review':'Request module' %></button>
       </form><% } %>
-      <% if(user.role==='Tenant Owner'&&m.requiresQuote&&!included&&!grant){ %><p class="tiny">Contact the platform team for an individual activation quotation. No price has been approved or charged.</p><% } %>
+      <% if(user.role==='Tenant Owner'&&m.requiresQuote&&!included&&!grant){ %><p class="tiny">The platform team will review this request and agree a price before any grant. No price or charge is assumed.</p><% } %>
       <% if(included||grant){ %><div class="workspaceModuleAccess"><strong>For your account:</strong> <%= access.message %>.
       <% if(access.href){ %><a class="btn" href="<%= access.href %>"><%= access.state==='operate'?'Open module':'Open permitted view' %></a><% } %>
       <% if(['view-only','review-only','role-blocked'].includes(access.state)&&user.role!=='Tenant Owner'){ %><p class="tiny">The tenant owner can assign an operating role suited to this module; assignment alone cannot override financial permissions.</p><% } %>

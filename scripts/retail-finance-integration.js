@@ -65,9 +65,13 @@ async function run(){
   decision:'approve',note:'Independently verified scratch account opening statement'});
  const balance=async()=>BigInt(String((await book.models(conn).account.findById(fund._id)).bookBalanceMinor));
  assert.equal(await balance(),100000n);
- const borrower=await customerModel(conn).create({branchId:branch._id,createdBy:owner.id,updatedBy:owner.id,
-  reference:'BORROWER-'+nonce,idempotencyKey:random(),name:'Example Borrower',
-  normalizedName:'example borrower',phone:'+211912345678',type:'Individual'});
+ const borrowerInput={idempotencyKey:random(),name:'Example Borrower',phone:'+211912345678'};
+ const borrowerResult=await loan.registerBorrower(conn,tenant,banker,borrowerInput);
+ assert.equal(borrowerResult.duplicate,false);
+ assert.equal((await loan.registerBorrower(conn,tenant,banker,borrowerInput)).duplicate,true);
+ await assert.rejects(loan.registerBorrower(conn,tenant,banker,{...borrowerInput,name:'Different Name'}),e=>e.status===409);
+ const borrower=borrowerResult.borrower;
+ assert.equal((await customerModel(conn).findById(borrower._id)).name,'Example Borrower');
  const lp=await loan.createProduct(conn,tenant,manager,{name:'30-day scratch loan',currency:'UGX',
   interestBps:'500',termDays:'30',minimum:'500',maximum:'50000'});
  const application={idempotencyKey:random(),customerId:fmt(borrower._id),productId:fmt(lp._id),

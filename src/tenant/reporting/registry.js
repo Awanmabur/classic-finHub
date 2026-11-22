@@ -9,6 +9,8 @@ const adapters=Object.freeze([
  require('./adapters/moneyTransfer'),
  require('./adapters/banking'),
  require('./adapters/forex'),
+ require('./adapters/loans'),
+ require('./adapters/airtime'),
  require('./adapters/approvals'),
  require('./adapters/notifications')
 ]);

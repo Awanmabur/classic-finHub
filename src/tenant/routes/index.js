@@ -80,6 +80,7 @@ router.use('/mobile-money',require('./mobileMoneyWorkspace.routes')({renderTenan
 router.use('/mobile-money/tariffs',require('./mobileMoneyTariffs.routes')({renderTenant}));
 router.use(require('../customerAccounts/routes')({renderTenant}));
 router.use('/workspace',require('../workspace/routes')({renderTenant}));
+router.use(require('../retailFinance/routes')({renderTenant}));
 router.use(require('./expenses.routes')({renderTenant}));
 router.use(require('./approvedReports.routes')({renderTenant}));
 router.get('/', (req,res)=>res.redirect(303,'/tenant/dashboard'));

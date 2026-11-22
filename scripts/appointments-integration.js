@@ -20,6 +20,25 @@ async function main(){
  await assert.rejects(service.decide(String(row._id),{...actor,permissions:[]},input),{status:403});
  await assert.rejects(service.decide(String(row._id),actor,{...input,meetingLink:'javascript:alert(1)'}),{status:400});
  await assert.rejects(service.decide(String(row._id),actor,{...input,action:'complete'}),{status:409});
+ // Test the exact HTTP method/path through the real platform router,
+ // rather than only calling the service (which would miss route-level 404s).
+ const express=require('express'),http=require('node:http');
+ const app=express();app.use(express.urlencoded({extended:false}));
+ app.use('/platform',(req,res,next)=>{req.platformUser=actor;req.session={};next();},require('../src/platform/routes'));
+ const server=http.createServer(app);await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ try{
+  const request=await Appointment.create({businessName:'HTTP Route Probe',contactName:'Workspace buyer'});
+  const endpoint='http://127.0.0.1:'+server.address().port+'/platform/appointments/'+String(request._id)+'/decision';
+  const fields=new URLSearchParams({action:'confirm',revision:'0',scheduledAt:future.toISOString(),
+    note:'Booking a real onboarding demonstration for this potential tenant',meetingLink:''});
+  const httpResponse=await fetch(endpoint,{method:'POST',redirect:'manual',headers:{'content-type':'application/x-www-form-urlencoded'},body:fields});
+  assert.equal(httpResponse.status,303,'Protected appointment decision POST must exist, not return Page not found');
+  assert.equal(httpResponse.headers.get('location'),'/platform/appointments/'+request._id);
+  const saved=await Appointment.findById(request._id).lean();
+  assert.equal(saved.status,'confirmed');
+  assert.equal(saved.decisions.length,1);
+ }finally{await new Promise((resolve,reject)=>server.close(e=>e?reject(e):resolve()));}
+
  const confirmed=await service.decide(String(row._id),actor,input);assert.equal(confirmed.status,'confirmed');assert.equal(confirmed.revision,1);assert.equal(confirmed.decisions.length,1);
  await assert.rejects(service.decide(String(row._id),actor,input),{status:409});
  await assert.rejects(service.decide(String(row._id),actor,{action:'complete',revision:'1',note:'Attempted completion before the scheduled appointment begins'}),{status:409});

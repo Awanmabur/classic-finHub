@@ -14,6 +14,7 @@ const {list: platformAudit}=require('../services/platformAudit.service');
 const businessTime=require('../../utils/businessTime');
 const PlatformAdmin=require('../models/PlatformAdmin');
 function renderPlatform(req,res,view,pageTitle,pageSub,data={}){
+  res.setHeader('Cache-Control','private, no-store');
   res.render('layouts/dashboard', {
     context:'platform',currentPath:req.baseUrl + req.path,pageTitle,pageSub,tenant:null,user:req.platformUser,menu:platformMenu(req.platformUser),
     view:`../platform/${view}`,data,flash:consumeFlash(req),money,formatUtcDate,
@@ -248,8 +249,12 @@ router.get('/appointments',async(req,res,next)=>{
 router.get('/appointments/:id',async(req,res,next)=>{
  try{
   const appointment=await appointmentService.get(req.params.id);
+  const zone=businessTime.validTimeZone(req.platformUser?.timeZone)?req.platformUser.timeZone:businessTime.DEFAULT_TIME_ZONE;
   renderPlatform(req,res,'appointments/show','Appointment preview','Review the complete request and record a decision.',{
-   appointment,moduleLabels:Object.fromEntries(modules.map(m=>[m.key,m.name]))
+   appointment,timeZone:zone,
+   scheduledLocalValue:appointment.scheduledAt?businessTime.dateTimeLocal(appointment.scheduledAt,zone):'',
+   scheduledDisplay:appointment.scheduledAt?businessTime.format(appointment.scheduledAt,zone):'Not scheduled',
+   moduleLabels:Object.fromEntries(modules.map(m=>[m.key,m.name]))
   });
  }catch(error){next(error);}
 });

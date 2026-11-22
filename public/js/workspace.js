@@ -63,6 +63,42 @@
    if(sourceUrl)URL.revokeObjectURL(sourceUrl);
   }
  };
+
+ // The strict server validator can reject an otherwise valid browser-generated
+ // WebP. A clean canvas PNG is a safe compatibility fallback, not a bypass:
+ // the same 3 MiB byte, dimensions, tenant and content checks still apply.
+ const toPng=async file=>{
+  let image=null,sourceUrl=null,bitmap=null;
+  try{
+   if(typeof createImageBitmap==='function'){
+    try{bitmap=await createImageBitmap(file,{imageOrientation:'from-image'});}
+    catch{bitmap=null;}
+   }
+   if(!bitmap){
+    sourceUrl=URL.createObjectURL(file);
+    image=new Image();image.src=sourceUrl;
+    await image.decode();
+   }
+   const width=bitmap?.width||image.naturalWidth,height=bitmap?.height||image.naturalHeight;
+   if(!width||!height||width*height>40_000_000)throw Error('Photo dimensions are unsupported. Choose a smaller photo.');
+   const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');
+   if(!ctx)throw Error('Image conversion is unavailable in this browser.');
+   for(const max of [1400,1100,900,720,600,480]){
+    const ratio=Math.min(1,max/Math.max(width,height));
+    canvas.width=Math.max(1,Math.round(width*ratio));
+    canvas.height=Math.max(1,Math.round(height*ratio));
+    ctx.drawImage(bitmap||image,0,0,canvas.width,canvas.height);
+    const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
+    if(!blob||blob.type!=='image/png')throw Error('This browser cannot prepare a compatible PNG image.');
+    if(blob.size>0&&blob.size<=MAX_UPLOAD)return blob;
+   }
+   throw Error('This photo remains too large. Try a smaller image.');
+  }finally{
+   bitmap?.close?.();
+   if(sourceUrl)URL.revokeObjectURL(sourceUrl);
+  }
+ };
+
  document.addEventListener('change',async event=>{
    const input=event.target.closest?.('[data-r2-image-kind]');
    if(!input||!input.files?.length)return;
@@ -84,18 +120,33 @@
    submit.forEach(button=>button.disabled=true);input.disabled=true;
    status.textContent='Optimizing and uploading '+kind+' image…';
    try{
-     const image=await toWebP(file);
+     let image=await toWebP(file);
      if(image.size>MAX_UPLOAD)throw Error('Photo is too large after optimization. Choose a smaller image.');
-     const response=await fetch('/tenant/workspace/media/'+kind,{
+     const send=photo=>fetch('/tenant/workspace/media/'+kind,{
        method:'POST',credentials:'same-origin',
-       headers:{'Content-Type':image.type,'x-csrf-token':form.querySelector('[name=_csrf]')?.value||'',
+       headers:{'Content-Type':photo.type,'x-csrf-token':form.querySelector('[name=_csrf]')?.value||'',
          'Accept':'application/json','X-ClassicFin-Background':'true'},
-       body:image,cache:'no-store',signal:AbortSignal.timeout(20000)
+       body:photo,cache:'no-store',signal:AbortSignal.timeout(20000)
      });
-     if(!response.ok)throw Error(response.status===503?'R2 storage is not yet configured or is unavailable. Ask the platform operator to check the private image-storage setup.':
-       response.status===403?'Your session or upload permission has changed. Reload and sign in again.':
-       response.status===413?'The site gateway rejected this photo. Please report the upload-size configuration to the platform operator.':
-       'Upload failed (HTTP '+response.status+'). No website change was saved.');
+     let response=await send(image);
+     if(response.status===415 && image.type!=='image/png'){
+       status.textContent='Trying a compatible image format…';
+       image=await toPng(file);
+       response=await send(image);
+     }
+     if(!response.ok){
+       let detail='';
+       if([400,409,413,415,422].includes(response.status)&&
+          (response.headers.get('content-type')||'').includes('text/plain')){
+         detail=(await response.text()).replace(/\s+/g,' ').trim().slice(0,220);
+       }
+       throw Error(detail || (
+         response.status===503?'Public image storage is unavailable. Try again.':
+         response.status===403?'Your session or upload permission changed. Reload and sign in again.':
+         response.status===413?'Photo exceeds the supported upload size.':
+         response.status===415?'The server could not read this image. Try a standard JPG or PNG.':
+         'Upload failed (HTTP '+response.status+'). Your website was not changed.'));
+     }
      const result=await response.json();
      if(!result.url||!/^https:\/\//.test(result.url))throw Error('Storage returned an invalid image link.');
      if(kind==='gallery'){

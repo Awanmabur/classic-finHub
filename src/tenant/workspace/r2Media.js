@@ -171,6 +171,11 @@ async function upload(conn,tenant,actor,kind,raw,mime){
  const asset=validateImage(raw,mime),settings=config();
  const Media=model(conn);
  await ensureMediaIndexes(conn);
+ // Reusing the same verified bytes avoids a second upload/URL after a retry.
+ const identical=await Media.findOne({tenantId:tenant._id,kind,sha256:asset.sha256,status:'active'})
+  .select('_id url').lean();
+ if(identical)return {id:String(identical._id),url:identical.url,kind,mime,
+  width:asset.width,height:asset.height,bytes:asset.buffer.length,reused:true};
  if(await Media.countDocuments({tenantId:tenant._id,status:{$in:['active','deleting']}}).maxTimeMS(3000)>=MAX_TENANT_ASSETS)
   throw fail('Public media storage limit reached. Delete unused images before uploading more.',409);
  const mediaId=new mongoose.Types.ObjectId();

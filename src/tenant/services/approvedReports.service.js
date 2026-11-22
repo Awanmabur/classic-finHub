@@ -140,15 +140,39 @@ async function postedIncome(conn,tenant,scope,range,sources){
   {$group:{_id:{source:{$literal:'airtime'},currency:'$currency'},count:{$sum:1},amount:{$sum:'$profitMinor'}}},
   {$limit:201}
  ]).option({maxTimeMS:5000}):Promise.resolve([]);
- const [transactions,commissions,loanInterest,airtimeProfit]=await Promise.all([execution,payouts,loanIncome,airtimeIncome]);
- if([transactions,commissions,loanInterest,airtimeProfit].some(group=>group.length>200))
-  throw fail('Too many realized income groups. Narrow the date range.',422);
- return [...transactions,...commissions,...loanInterest,...airtimeProfit]
- .filter(row=>String(row.amount)!=='0').map(row=>({
-  module:({money_transfer:'Money Transfer',banking:'Banking',mobile_money:'Mobile Money',loans:'Loan Management',airtime:'Airtime'})[row._id.source],
-  currency:row._id.currency,count:row.count,amountMinor:String(row.amount),
-  activity:row._id.source==='loans'?'Collected loan interest':row._id.source==='airtime'?'Realized airtime gross profit':'Posted fee/commission income',
-  amount:require('./forex.service').amountLabel(String(row.amount),row._id.currency)
+ // A reversal is a separate, dated, immutable accounting event. Negative
+ // correction entries are recognized on the refund date, not silently deleted
+ // from their original reporting day. Join original actor for teller scope.
+ const originalOperator=scope.operatorId?id(scope.operatorId):null;
+ const loanCorrections=allowed.has('loans')?require('../retailFinance/loans.models').models(conn).correction.aggregate([
+  {$match:{tenantId:tenant._id,createdAt:range,...(scope.branchId?{branchId:id(scope.branchId)}:{})}},
+  ...(originalOperator?[{$lookup:{from:require('../retailFinance/loans.models').models(conn).payment.collection.name,localField:'paymentId',foreignField:'_id',as:'origin'}},
+     {$match:{'origin.createdBy':originalOperator}}]:[]),
+  {$group:{_id:{source:{$literal:'loans'},currency:'$currency',reversed:{$literal:true}},count:{$sum:1},amount:{$sum:'$interestMinor'}}},
+  {$limit:201}
+ ]).option({maxTimeMS:5000}):Promise.resolve([]);
+ const airtimeCorrections=allowed.has('airtime')?require('../retailFinance/airtime.models').models(conn).correction.aggregate([
+  {$match:{tenantId:tenant._id,createdAt:range,type:'sale',...(scope.branchId?{branchId:id(scope.branchId)}:{})}},
+  ...(originalOperator?[{$lookup:{from:require('../retailFinance/airtime.models').models(conn).record.collection.name,localField:'recordId',foreignField:'_id',as:'origin'}},
+     {$match:{'origin.createdBy':originalOperator}}]:[]),
+  {$group:{_id:{source:{$literal:'airtime'},currency:'$currency',reversed:{$literal:true}},count:{$sum:1},amount:{$sum:'$profitMinor'}}},
+  {$limit:201}
+ ]).option({maxTimeMS:5000}):Promise.resolve([]);
+ const groups=await Promise.all([execution,payouts,loanIncome,airtimeIncome,loanCorrections,airtimeCorrections]);
+ if(groups.some(group=>group.length>200))throw fail('Too many realized income groups. Narrow the date range.',422);
+ const net=new Map();
+ for(const row of groups.flat()){
+  const source=row._id.source,currency=row._id.currency,groupKey=source+':'+currency,sign=row._id.reversed?-1n:1n;
+  if(!net.has(groupKey))net.set(groupKey,{source,currency,count:0,amount:0n});
+  const target=net.get(groupKey);
+  target.amount+=sign*BigInt(String(row.amount));
+  target.count+=Number(row.count||0)*(row._id.reversed?-1:1);
+ }
+ return [...net.values()].filter(row=>row.amount!==0n).map(row=>({
+  module:({money_transfer:'Money Transfer',banking:'Banking',mobile_money:'Mobile Money',loans:'Loan Management',airtime:'Airtime'})[row.source],
+  currency:row.currency,count:row.count,amountMinor:String(row.amount),
+  activity:row.source==='loans'?'Net collected loan interest (after corrections)':row.source==='airtime'?'Net airtime gross profit (after corrections)':'Posted fee/commission income',
+  amount:require('./forex.service').amountLabel(String(row.amount),row.currency)
  })).sort((a,b)=>a.currency.localeCompare(b.currency)||a.module.localeCompare(b.module));
 }
 async function generate(conn,tenant,actor,key,query={},timeZone='UTC'){

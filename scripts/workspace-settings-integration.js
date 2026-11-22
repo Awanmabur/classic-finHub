@@ -182,6 +182,25 @@ async function main(){
   assert.equal((await r2Media.list(conn,tenant,owner)).length,0);
   assert.equal((await global.fetch(asset.url)).status,404);
   assert.equal(await models.auditEventModel(conn).countDocuments({action:'workspace.public_media.deleted'}),1);
+  // Actual authenticated HTTP body parsing, session, owner permission and CSRF.
+  const websitePage=await request('/tenant/workspace/landing');
+  const mediaToken=csrf(websitePage.html);
+  const postImage=(token,mime)=>global.fetch(base+'/tenant/workspace/media/cover',{
+   method:'POST',redirect:'manual',
+   headers:{cookie,'content-type':mime,'x-csrf-token':token,accept:'application/json'},body:png});
+  assert.equal((await postImage('forged','image/png')).status,403,
+   'forged CSRF token cannot upload image bytes');
+  assert.equal((await postImage(mediaToken,'application/octet-stream')).status,415,
+   'HTTP endpoint rejects unsupported image MIME types');
+  const uploadResponse=await postImage(mediaToken,'image/png');
+  assert.equal(uploadResponse.status,201,'owner can upload through authenticated HTTP route');
+  const cover=await uploadResponse.json();assert.equal(cover.kind,'cover');
+  const repeatResponse=await postImage(mediaToken,'image/png');
+  assert.equal(repeatResponse.status,201);
+  assert.equal((await repeatResponse.json()).id,cover.id,'HTTP retry must reuse existing image');
+  await r2Media.remove(conn,tenant,owner,cover.id);
+  assert.equal(images.size,0,'no test R2 objects remain');
+  console.log('PASS: authenticated HTTP R2 upload, CSRF, MIME, deduplication, delete');
   console.log('PASS: tenant-isolated R2 image upload, draft, publication, removal and audited cleanup');
  }finally{
   global.fetch=oldFetch;

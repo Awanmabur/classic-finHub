@@ -22,4 +22,14 @@ async function publicRates(conn,tenant,now=new Date()){
   }catch{return [];} // Never promote malformed stored rates publicly.
  });
 }
-module.exports={publicRates};
+// Public controls are copied from the tenant's audited, validated branding config.
+async function publicBoard(conn,tenant,now=new Date()){
+ const settingsDoc=await require('./models').models(conn).config.findOne({tenantId:tenant._id}).select('branding.publicRatesEnabled branding.rateBoardTitle branding.rateBoardNote branding.rateBoardStyle').lean();
+ const saved=settingsDoc?.branding||{};
+ const settings={enabled:saved.publicRatesEnabled!==false,
+  title:typeof saved.rateBoardTitle==='string'&&saved.rateBoardTitle.trim()?saved.rateBoardTitle:'Current exchange rates',
+  note:typeof saved.rateBoardNote==='string'?saved.rateBoardNote:'Business-approved rates; confirm the final price before trading.',
+  style:saved.rateBoardStyle==='cards'?'cards':'table'};
+ return {settings,rates:settings.enabled?await publicRates(conn,tenant,now):[]};
+}
+module.exports={publicRates,publicBoard};

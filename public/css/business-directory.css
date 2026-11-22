@@ -199,3 +199,13 @@
 @media(max-width:900px){.publicBusinessAboutRates{grid-template-columns:1fr;gap:0}.publicBusinessAboutRates>.publicBusinessSection{margin:24px 0 0}}
 @media(max-width:590px){.publicBusinessCover{height:175px}.publicBusinessHeading{padding:19px 18px;gap:14px}.publicBusinessIdentity{align-items:center}.publicBusinessAvatar{height:68px;width:68px;border-radius:17px}.publicBusinessRateScroll table{min-width:415px}}
 @media print{.publicBusinessRateScroll{overflow:visible}.publicBusinessRateScroll table{min-width:0}}
+
+/* Business owner can choose a compact table or card-style public board. */
+.publicBusinessRateCards{background:transparent;border:0;overflow:visible}
+.publicBusinessRateCards .publicBusinessRateDisclaimer{border:1px solid var(--line);border-radius:16px;background:var(--paper);margin-bottom:11px}
+.publicBusinessRateCards .publicBusinessRateScroll{overflow-x:auto}
+.publicBusinessRateCards table{border-collapse:separate;border-spacing:0 8px}
+.publicBusinessRateCards thead{background:var(--soft)}
+.publicBusinessRateCards td{background:var(--paper);border-block:1px solid var(--line);padding-block:15px}
+.publicBusinessRateCards td:first-child{border-left:1px solid var(--line);border-radius:13px 0 0 13px}
+.publicBusinessRateCards td:last-child{border-right:1px solid var(--line);border-radius:0 13px 13px 0}

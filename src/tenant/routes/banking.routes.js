@@ -124,15 +124,13 @@ function routes({renderTenant}){
     ['requested','approved_pending_bank'].includes(order.status);
    if(canPost){
     flash(req,'good',duplicate?'Resume the existing transaction; do not repeat the money movement.':'Select the real source account and finalize this internal banking transaction.');
+    require('../services/branchView.service').followRecord(req,order);
     res.redirect(303,`/tenant/funded/prepare/banking/${order._id}`);
    }else{
     flash(req,'good',duplicate?'Existing transaction found; no duplicate created.':'External bank instructions are recorded only; external payment cannot be claimed completed without verified provider posting.');
+    require('../services/branchView.service').followRecord(req,order);
     res.redirect(303,`/tenant/banking/${order._id}`);
    }
-   // Preserve the assigned operating branch in the owner viewing session.
-   // Calling this AFTER the success flash appends the branch-follow evidence
-   // rather than overwriting it with the new direct-finalization notice.
-   require('../services/branchView.service').followRecord(req,order);
   }catch(e){next(e);}
  });
  router.get('/history',requirePermission('banking.view'),async(req,res,next)=>{

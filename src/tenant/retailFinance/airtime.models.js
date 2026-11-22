@@ -34,8 +34,25 @@ record.index({branchId:1,type:1,createdAt:-1});record.index({inventoryId:1,creat
 record.pre('save',function(next){next(this.isNew?null:new Error('Airtime evidence is immutable'));});
 for(const op of ['updateOne','updateMany','replaceOne','findOneAndUpdate','findOneAndReplace','deleteOne','deleteMany','findOneAndDelete'])
  record.pre(op,function(next){next(new Error('Airtime evidence is immutable'));});
+const correction=new Schema({
+ tenantId:{type:O,required:true,immutable:true},branchId:{type:O,required:true,immutable:true},
+ recordId:{type:O,required:true,immutable:true},inventoryId:{type:O,required:true,immutable:true},
+ reversalBatchId:{type:O,required:true,immutable:true},
+ type:{type:String,enum:['sale','stock_purchase'],required:true,immutable:true},
+ currency:{type:String,enum:currencyCodes,required:true,immutable:true},
+ amountMinor:{type:D,required:true,immutable:true},costMinor:{type:D,required:true,immutable:true},
+ profitMinor:{type:D,required:true,immutable:true},
+ reason:{type:String,required:true,maxlength:400,immutable:true},
+ reference:{type:String,required:true,maxlength:120,immutable:true},
+ createdBy:{type:O,required:true,immutable:true},createdAt:{type:Date,default:Date.now,immutable:true}
+},{strict:'throw',versionKey:false});
+correction.index({recordId:1},{unique:true});
+correction.index({branchId:1,createdAt:-1});
+correction.pre('save',function(next){next(this.isNew?null:new Error('Airtime corrections are immutable'));});
+for(const op of ['updateOne','updateMany','replaceOne','findOneAndUpdate','findOneAndReplace','deleteOne','deleteMany','findOneAndDelete'])
+ correction.pre(op,function(next){next(new Error('Airtime corrections are immutable'));});
 const model=(conn,name,schema)=>conn.models[name]||conn.model(name,schema);
-function models(conn){return {product:model(conn,'AirtimeProductV1',product),inventory:model(conn,'AirtimeInventoryV1',inventory),record:model(conn,'AirtimeRecordV1',record)};}
+function models(conn){return {product:model(conn,'AirtimeProductV1',product),inventory:model(conn,'AirtimeInventoryV1',inventory),record:model(conn,'AirtimeRecordV1',record),correction:model(conn,'AirtimeCorrectionV1',correction)};}
 const inflight=new WeakMap();
 function ensure(conn){if(!inflight.has(conn))inflight.set(conn,Promise.all(Object.values(models(conn)).map(ensureModelIndexes)).catch(e=>{inflight.delete(conn);throw e;}));return inflight.get(conn);}
 module.exports={models,ensure};

@@ -1,5 +1,5 @@
 'use strict';
-// Transfer instructions are collected and paid out through independently reviewed manual movements.
+// Cashier-confirmed collection posts immediately to the actual source funds, creates a PIN and records the transfer.
 // Each endpoint checks the real entitlement and server role.
 const newRouter=require('express').Router;
 const crypto=require('node:crypto');
@@ -28,7 +28,7 @@ function routes({renderTenant}){
    ]);
    const branchId=String(req.operationBranch?._id || '');
    const selected=availableBranches.find(b=>String(b._id)===branchId);
-   renderTenant(req,res,'money-transfer/index','Money Transfer','Transfer instructions, reviewed manual collections and secure PIN payouts.',{
+   renderTenant(req,res,'money-transfer/index','Money Transfer','Cashier-confirmed transfers, PIN-backed payouts and audited account balances.',{
     financeOverview:await require('../services/financeOverview.service').moduleOverview(req.tenantDb,req.tenant,req.user,req.operationBranch,{moduleKey:'money_transfer'}),
      currencyChoices:require('../services/branchCurrency.service').options(req.operationBranch),selectedCurrency:req.operationBranch?require('../services/branchCurrency.service').resolve(req.operationBranch,req.query.currency):null,
     records,queue,destinationBranches:(await branchService.list(req.tenant)).filter(branch=>branch.status==='active'&&String(branch._id)!==branchId),branches:availableBranches,selectedBranchId:selected?branchId:null,countryOptions:require('../../utils/selectionOptions').countryOptions(),
@@ -76,9 +76,14 @@ function routes({renderTenant}){
  router.post('/requests',requirePermission('money_transfer.create'),financial,async(req,res,next)=>{
   try{
    const {order,duplicate}=await transfer.createRequest(req.tenantDb,req.tenant,req.user,req.body);
-   flash(req,'good',duplicate?'This exact request already exists; nothing was duplicated.':'Transfer request recorded. No money has been sent or collected.');
    require('../services/branchView.service').followRecord(req,order);
-   res.redirect(303,`/tenant/money-transfer/${order._id}/acknowledgement`);
+   if(['requested','approved_pending_provider'].includes(order.status)){
+    flash(req,'good',duplicate?'Resume the existing transfer without handing over funds twice.':'Select the collected cash or wallet and finalize the transfer to issue its payout PIN.');
+    res.redirect(303,`/tenant/funded/prepare/money_transfer/${order._id}`);
+   }else{
+    flash(req,'good','This transfer already has a recorded status; no duplicate collection was posted.');
+    res.redirect(303,`/tenant/money-transfer/${order._id}`);
+   }
   }catch(e){next(e);}
  });
  router.get('/history',requirePermission('money_transfer.view'),async(req,res,next)=>{
@@ -102,7 +107,7 @@ function routes({renderTenant}){
    const pendingMovement=await require('../funded/models').models(req.tenantDb).execution.findOne({sourceType:'money_transfer',sourceId:order._id,status:'pending_review'}).select('_id createdBy').lean();
    const afterBalances=await require('../services/recordBalances.service').forRecord(req.tenantDb,req.tenant,req.user,'money_transfer',order);
    renderTenant(req,res,'money-transfer/detail','Transfer Request Details',
-    'Transfer instructions and independently reviewed manual collections and payouts.',{
+    'Recorded transfer collection and PIN-backed payout movements.',{
      order,afterBalances,formatMoneyMinor,
      canFx:order.status==='collected_manual'&&
       require('../services/moduleAccess.service').hasModuleForUser(req.tenant,req.user,'forex')&&

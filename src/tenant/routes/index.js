@@ -19,10 +19,18 @@ router.use(require('./offline.routes'));
 router.get('/workspace/theme.css',require('../workspace/routes').theme);
 router.use(require('./operationForm.routes'));
 router.use(async(req,res,next)=>{try{
+ const durations={};
  await Promise.all([
-  new Promise((resolve,reject)=>require('../services/transactionBranch.service').requestContext(req,res,error=>error?reject(error):resolve())),
-  require('../workspace/service').receiptIdentity(req.tenantDb,req.tenant).then(identity=>{req.workspaceIdentity=identity;})
+  (async()=>{const t=process.hrtime.bigint();
+   await new Promise((resolve,reject)=>require('../services/transactionBranch.service').requestContext(req,res,error=>error?reject(error):resolve()));
+   durations.branch=Number(process.hrtime.bigint()-t)/1e6;})(),
+  (async()=>{const t=process.hrtime.bigint();
+   req.workspaceIdentity=await require('../workspace/service').receiptIdentity(req.tenantDb,req.tenant);
+   durations.brand=Number(process.hrtime.bigint()-t)/1e6;})()
  ]);
+ res.append('Server-Timing',`branch;dur=${durations.branch.toFixed(1)},brand;dur=${durations.brand.toFixed(1)}`);
+ if(Math.max(durations.branch,durations.brand)>700)
+  console.warn(JSON.stringify({event:'tenant_page_context_slow',branchMs:Math.round(durations.branch),brandMs:Math.round(durations.brand)}));
  next();
 }catch(error){next(error);}});
 router.use(require('../../middleware/requireOfflineContext'));
@@ -88,7 +96,11 @@ router.get('/dashboard', requirePermission('dashboard.view'), async (req,res,nex
   try {
     // Indexes are prepared by provisioning and awaited by mutation services.
     // Reading an overview must not start collection/index DDL after a restart.
-    const overview=await require('../services/dashboardOverview.service').overview(req.tenantDb,req.tenant,req.user,{operationBranch:req.operationBranch,currency:req.query.currency,viewBranch:req.viewBranch,viewBranchId:req.viewBranchId,viewBranches:res.locals.viewBranches});
+    const started=process.hrtime.bigint();
+ const overview=await require('../services/dashboardOverview.service').overview(req.tenantDb,req.tenant,req.user,{operationBranch:req.operationBranch,currency:req.query.currency,viewBranch:req.viewBranch,viewBranchId:req.viewBranchId,viewBranches:res.locals.viewBranches});
+ const duration=Number(process.hrtime.bigint()-started)/1e6;
+ res.append('Server-Timing',`dashboard;dur=${duration.toFixed(1)}`);
+ if(duration>1200)console.warn(JSON.stringify({event:'tenant_dashboard_slow',durationMs:Math.round(duration)}));
     renderTenant(req,res,'dashboard/index','Overview','Money transfer, mobile money, banking, forex, tenants, roles, reports, analytics, and daily controls.',overview);
   } catch(e) { next(e); }
 });

@@ -151,12 +151,16 @@ async function save(conn,tenant,actor,section,input){
   if(section==='landing')await require('./r2Media').verifyReferences(conn,tenant,patch.details,session);
   const {config}=models(conn),id=tenantId(tenant);let saved;
   const existing=await config.findOne({tenantId:id}).session(session);
+  if(section==='branding')patch.logoStatus=existing?.landing?.details?.logoUrl?'Linked to business website':'Not uploaded';
   if(!existing){
    if(expected!==0)throw fail('Settings changed. Reload the page before saving.',409);
-   const initial=defaults(tenant);saved=(await config.create([{...initial,[section]:patch,revision:1,updatedBy:actorId(actor)}],{session}))[0];
+   const initial=defaults(tenant);
+   if(section==='landing')initial.branding.logoStatus=patch.details.logoUrl?'Linked to business website':'Not uploaded';
+   saved=(await config.create([{...initial,[section]:patch,revision:1,updatedBy:actorId(actor)}],{session}))[0];
   }else{
    // Draft changes must preserve the last published landing snapshot.
    const changes={updatedBy:actorId(actor)};for(const [key,value] of Object.entries(patch))changes[`${section}.${key}`]=value;
+   if(section==='landing')changes['branding.logoStatus']=patch.details.logoUrl?'Linked to business website':'Not uploaded';
    saved=await config.findOneAndUpdate({tenantId:id,revision:expected},{$set:changes,$inc:{revision:1}},{session,new:true,runValidators:true});
    if(!saved)throw fail('Settings changed. Reload the page before saving.',409);
   }

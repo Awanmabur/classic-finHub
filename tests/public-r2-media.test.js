@@ -50,3 +50,16 @@ test('editor uses real file uploads and public links are not underlined',()=>{
  assert.match(css,/\.publicBusinessProfile a[\s\S]*?text-decoration:none/);
  assert.doesNotMatch(template,/data:\/\/|<script/);
 });
+
+test('tenant media quota follows active plan snapshot and fails closed for invalid quotas',()=>{
+ assert.equal(media.publicMediaQuotaBytes({subscription:{limits:{storageMb:500}}}),500*1024*1024);
+ assert.equal(media.publicMediaQuotaBytes({subscription:{limits:{storageMb:0}}}),0);
+ assert.equal(media.publicMediaQuotaBytes({}),100*1024*1024);
+ assert.equal(media.publicMediaQuotaBytes({subscription:{limits:{storageMb:-10}}}),0);
+ assert.equal(media.publicMediaQuotaBytes({subscription:{limits:{storageMb:Infinity}}}),0);
+ const s=text('src/tenant/workspace/r2Media.js');
+ assert.match(s,/used\.items>=MAX_TENANT_ASSETS/);
+ assert.match(s,/used\.bytes\+asset\.buffer\.length>quota/);
+ assert.match(s,/\$match:\{tenantId:tenant\._id,status:\{\$in:\['active','deleting'\]\}\}/);
+ assert.match(s,/workspace\.access\(conn,tenant,actor,\{manage:true,session,fence:true\}\)/);
+});

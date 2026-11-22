@@ -33,6 +33,7 @@ const steps=[
   [process.execPath,['scripts/customer-accounts-integration.js']],
   [process.execPath,['scripts/expenses-reports-integration.js']],
   [process.execPath,['scripts/treasury-integration.js']],
+  [process.execPath,['scripts/retail-finance-integration.js']],
   [process.execPath,['scripts/wallet-funding-integration.js']],
   [process.execPath,['scripts/mobile-funds-integration.js']],
   [process.execPath,['scripts/funded-operations-integration.js']],

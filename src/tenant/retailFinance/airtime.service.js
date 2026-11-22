@@ -159,6 +159,8 @@ async function reverseRecorded(conn,tenant,actor,recordId,input){
    throw F.fail('Independent authorized reviewer required',403);
   const record=await models(conn).record.findOne({_id:id,tenantId:current.tenant._id,...F.scope(current.actor)}).session(session).lean();
   if(!record)throw F.fail('Airtime record cannot be corrected in your branch',404);
+  if(String(record.createdBy)===String(current.actor.id))
+   throw F.fail('Another authorized person must independently review an airtime correction',409);
   const earlier=await models(conn).correction.find({inventoryId:record.inventoryId,tenantId:current.tenant._id})
    .select('recordId').session(session).lean();
   if(earlier.some(item=>String(item.recordId)===String(id)))

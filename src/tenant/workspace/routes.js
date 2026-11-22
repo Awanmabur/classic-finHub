@@ -89,7 +89,7 @@ function configForm(section,config,tenant={}){
   hidden=['theme','primary','secondary','logoStatus'].map(name=>({name,value:value[name]}));
  }else{
   title='Edit branding';subtitle='Tenant colors, theme, and receipt identity.';group='Brand and receipt identity';
-  fields=[field('theme','Theme name',value.theme,{required:true,max:80}),field('primary','Primary color',value.primary,{type:'color',required:true}),field('secondary','Secondary color',value.secondary,{type:'color',required:true}),field('logoStatus','Logo status',value.logoStatus,{max:80}),field('receiptNote','Receipt footer note',value.receiptNote,{type:'textarea',max:500,full:true})];
+  fields=[field('theme','Theme name',value.theme,{required:true,max:80}),field('primary','Primary color',value.primary,{type:'color',required:true}),field('secondary','Secondary color',value.secondary,{type:'color',required:true}),field('logoStatus','Business logo',config.landing?.details?.logoUrl?'Linked to your business website':'Not configured',{displayOnly:true,hint:'Use Business website → Edit → Upload logo. This status is not a manually editable label.'}),field('receiptNote','Receipt footer note',value.receiptNote,{type:'textarea',max:500,full:true})];
   hidden=['prefix','template'].map(name=>({name,value:value[name]}));
  }
  return {title,subtitle,section:group,fields,hidden,action:`/tenant/workspace/${section==='receipt'?'branding':section}`,revision:config.revision};

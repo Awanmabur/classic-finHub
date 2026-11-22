@@ -69,7 +69,7 @@ async function main(){
  assert.equal(publishedRates.rates[0].base,'1,000 UGX');
  assert.equal(publishedRates.rates[0].price,'4,000');
  assert.equal(publishedRates.rates[0].timeZone,'Africa/Kampala');
- assert(publishedRates.rates[0].expiresLocal.includes('2026')||publishedRates.rates[0].expiresLocal.includes('2027'));
+ assert.equal(publishedRates.rates[0].expiresLocal,require('../src/utils/businessTime').format(future,'Africa/Kampala'));
  assert.equal(publishedRates.rates[0].branch,'Scratch FX counter');
  assert.equal((await publicBoard(conn,tenant)).rates.length,0,'unsubscribed Forex rates are not public');
  assert.equal((await publicBoard(other,licensed)).rates.length,0,'another tenant database cannot reveal our rates');

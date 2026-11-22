@@ -35,9 +35,21 @@
   <div class="retailWide"><button class="btn btnPrimary" type="submit">Confirm repayment received</button></div>
  </form></div></section><% } %>
  <section class="card" style="margin-top:14px"><div class="cardHead"><b>Repayment history</b><span>Immutable journal-linked receipts</span></div>
-  <div class="cardBody tableWrap"><table><thead><tr><th>Received</th><th>Total</th><th>Principal</th><th>Interest</th><th>Evidence</th></tr></thead><tbody>
-  <% if(!data.payments.length){ %><tr><td colspan="5">No repayments recorded.</td></tr><% } %>
-  <% data.payments.forEach(p=>{ %><tr><td><%= data.formatDate(p.createdAt) %></td><td><%= data.format(p.amountMinor,p.currency) %></td><td><%= data.format(p.principalMinor,p.currency) %></td><td><%= data.format(p.interestMinor,p.currency) %></td><td><%= p.reference %></td></tr><% }) %>
+  <% const reversedIds=new Set((data.corrections||[]).map(x=>String(x.paymentId)));
+      const latestActive=data.payments.find(p=>!reversedIds.has(String(p._id))); %>
+  <div class="cardBody tableWrap"><table><thead><tr><th>Received</th><th>Total</th><th>Principal</th><th>Interest</th><th>Evidence</th><th>Status / action</th></tr></thead><tbody>
+  <% if(!data.payments.length){ %><tr><td colspan="6">No repayments recorded.</td></tr><% } %>
+  <% data.payments.forEach(p=>{ %><tr><td><%= data.formatDate(p.createdAt) %></td><td><%= data.format(p.amountMinor,p.currency) %></td><td><%= data.format(p.principalMinor,p.currency) %></td><td><%= data.format(p.interestMinor,p.currency) %></td><td><%= p.reference %></td><td>
+    <% if(reversedIds.has(String(p._id))){ %><span class="tag">Reversed · original retained</span>
+    <% }else if(data.canCorrect&&String(latestActive?._id)===String(p._id)&&String(p.createdBy)!==String(user.id)){ %>
+      <form method="post" action="/tenant/loans/<%= data.loan._id %>/repayments/<%= p._id %>/reverse" class="retailCorrection">
+       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+       <input class="control" name="reference" required minlength="6" maxlength="120" placeholder="Verified refund reference" aria-label="Correction evidence">
+       <input class="control" name="reason" required minlength="12" maxlength="400" placeholder="Reason for correction" aria-label="Correction reason">
+       <button class="btn" type="submit">Reverse verified repayment</button>
+      </form>
+    <% }else{ %><span class="tiny">Posted</span><% } %>
+   </td></tr><% }) %>
   </tbody></table></div>
  </section>
 </section>

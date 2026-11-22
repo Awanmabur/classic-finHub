@@ -52,6 +52,42 @@ async function main(){
   assert.equal((await Request.findById(requested._id)).status,'approved');
   let t1=await Tenant.findById(first.tenant._id).lean();
   assert(hasModule(t1,'reports'));assert(!hasModule(t1,'mobile_money'));
+  // Real disposable tenant role-default writes (no real customers, tenants or
+  // production DBs). Prove DB isolation, audited update, revision fencing,
+  // explicit staff rollout, sign-in revocation and subscription ceiling.
+  const roles=require('../src/tenant/services/roleModules.service');
+  await tenantUserModel(first.conn).create({_id:owner.id,name:'Tenant Owner',
+   email:`owner-${nonce}@example.invalid`,passwordHash:'unused-test-credential',
+   role:'Tenant Owner',status:'active',authVersion:0});
+  const reportStaff=await tenantUserModel(first.conn).create({
+   name:'Reports tester',email:`analyst-${nonce}@example.invalid`,
+   passwordHash:'unused-test-credential',role:'Reports Analyst',
+   branchId:String(first.branch._id),allowedModules:[],status:'active',authVersion:0});
+  assert((await roles.forRole(first.conn,t1,'Reports Analyst')).includes('reports'));
+  await assert.rejects(roles.save(second.conn,t1,owner,{role:'Reports Analyst',
+   allowedModules:['reports'],revision:0}),e=>e.status===403,'Cross-tenant database blocked');
+  await assert.rejects(roles.save(first.conn,t1,{...owner,role:'Branch Manager'},{role:'Reports Analyst',
+   allowedModules:['reports'],revision:0}),e=>e.status===403,'Branch manager cannot write owner role defaults');
+  await assert.rejects(roles.save(first.conn,t1,{...owner,id:String(new mongoose.Types.ObjectId())},{
+   role:'Reports Analyst',allowedModules:['reports'],revision:0}),e=>e.status===403,
+   'Forged owner is not a persisted active tenant owner');
+  await roles.save(first.conn,t1,owner,{role:'Reports Analyst',allowedModules:['reports'],revision:0});
+  assert.equal((await roles.all(first.conn,t1))['Reports Analyst'].revision,1);
+  await assert.rejects(roles.save(first.conn,t1,owner,{
+   role:'Reports Analyst',allowedModules:['reports'],revision:0}),e=>e.status===409,
+   'Concurrent stale default update blocked');
+  await assert.rejects(roles.save(first.conn,t1,owner,{
+   role:'Reports Analyst',allowedModules:['mobile_money'],revision:1}),e=>e.status===403,
+   'Role defaults cannot grant an unsubscribed module');
+  await roles.save(first.conn,t1,owner,{
+   role:'Reports Analyst',allowedModules:['reports'],revision:1,applyExisting:'yes'});
+  const updatedStaff=await tenantUserModel(first.conn).findById(reportStaff._id).lean();
+  assert.deepEqual(updatedStaff.allowedModules,['reports']);
+  assert.equal(updatedStaff.authVersion,1,'Old staff session revoked on bulk module change');
+  assert.equal((await roles.forRole(first.conn,t1,'Reports Analyst')).length,1);
+  assert.equal((await roles.all(second.conn,second.tenant))['Reports Analyst'].custom,false,
+   'Role templates are isolated by tenant database');
+  assert.equal(await auditEventModel(first.conn).countDocuments({action:'staff.role_module_defaults.updated'}),2);
   await auditEventModel(first.conn).create({action:'branch.created',actorId:owner.id,targetId:first.branch._id,metadata:{branchId:String(first.branch._id)}});
   await auditEventModel(second.conn).create({action:'branch.archived',actorId:owner.id,targetId:second.branch._id,metadata:{branchId:String(second.branch._id)}});
   const reportUser={id:String(new mongoose.Types.ObjectId()),role:'Reports Analyst',

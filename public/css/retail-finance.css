@@ -1,0 +1,22 @@
+/* ClassicFin approved compact cards/inputs, reused for manual financial modules. */
+#loanManagement,#loanDetail,#airtimeManagement{display:block;min-width:0}
+.retailStats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.retailStats>.stat{min-width:0;overflow-wrap:anywhere;border-radius:20px}
+.retailStats>.stat .v{font-size:clamp(12px,1.25vw,19px);line-height:1.4;overflow-wrap:anywhere}
+.retailStats>.stat .k{font-size:11px;font-weight:650}
+.retailStats>.stat .sub{font-size:11px}
+.retailForm{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 14px;align-items:end}
+.retailForm .field{display:flex;flex-direction:column;gap:6px;min-width:0;font-size:12px;color:var(--muted)}
+.retailForm .control{width:100%;min-width:0;box-sizing:border-box;font-size:13px}
+.retailForm textarea.control{min-height:76px}
+.retailForm .retailWide{grid-column:1/-1;min-width:0}
+.retailForm .retailCheck{display:flex;align-items:flex-start;flex-direction:row;gap:10px;font-size:12px;line-height:1.5}
+.retailForm .retailCheck input{flex:0 0 auto;margin:4px 0 0}
+.retailForm .rowBtns{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#loanManagement .card,#loanDetail .card,#airtimeManagement .card{min-width:0;overflow:hidden;border-radius:20px}
+#loanManagement .cardBody,#loanDetail .cardBody,#airtimeManagement .cardBody{padding:16px}
+#loanManagement .tableWrap,#loanDetail .tableWrap,#airtimeManagement .tableWrap{overflow-x:auto}
+#loanManagement table,#loanDetail table,#airtimeManagement table{width:100%;min-width:620px}
+@media(max-width:920px){.retailStats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:640px){.retailForm{grid-template-columns:1fr}.retailForm .retailWide{grid-column:1}.retailStats{grid-template-columns:repeat(2,minmax(0,1fr))}.retailStats>.stat .v{font-size:13px}}
+@media(prefers-reduced-motion:reduce){.retailStats>.stat{transition:none}}

@@ -1,0 +1,21 @@
+<% const r=data, pageZone=data.timeZone||'UTC', query='from='+encodeURIComponent(data.filters.from)+'&to='+encodeURIComponent(data.filters.to); %>
+<section class="view show financialReportsPage">
+ <section class="card">
+  <div class="cardHead"><div><b><%= r.label %> summary report</b><br><span>Final operations, status and corrections in the selected period</span></div>
+   <div class="rowBtns"><a class="btn" href="<%= r.home %>">View module records</a><% if(r.canExport){ %><a class="btn" href="/tenant/<%= r.moduleKey %>/report/export.csv?<%= query %>">Export CSV</a><% } %><button class="btn" type="button" data-print-report>Print report</button></div>
+  </div>
+  <div class="cardBody"><form method="get" action="/tenant/<%= r.moduleKey %>/report" class="row3">
+   <label class="field">From (<%= pageZone %>)<input class="control" type="date" name="from" value="<%= r.filters.from %>" required></label>
+   <label class="field">To (<%= pageZone %>)<input class="control" type="date" name="to" value="<%= r.filters.to %>" required></label>
+   <div class="rowBtns"><button class="btn btnPrimary" type="submit">Apply filters</button><a class="btn" href="/tenant/<%= r.moduleKey %>/report">Reset dates</a></div>
+  </form><p class="tiny">Scope follows your assigned business and branch. Each currency is reported separately. A reversal appears as separate dated evidence, never a deleted original transaction.</p></div>
+ </section>
+ <section class="card" style="margin-top:14px">
+  <div class="cardHead"><b>Activity summary</b><span>By operation, status, network where relevant, and native currency</span></div>
+  <div class="cardBody tableWrap"><table><thead><tr><th>Activity</th><th>Status</th><th>Currency</th><th>Records</th><th>Amount</th><th><%= r.moduleKey==='airtime'?'Gross profit or reversal':'Collected interest / corrections' %></th></tr></thead><tbody>
+   <% if(!r.rows.length){ %><tr><td colspan="6">No module activity in this period and your authorized branch scope.</td></tr><% } %>
+   <% r.rows.forEach(row=>{ %><tr data-search-row><td><%= row.activity %></td><td><%= String(row.status).replaceAll('_',' ') %></td><td><%= row.currency==='KES'?'KSH':row.currency %></td><td><%= row.count %></td><td><%= row.volume %></td><td><%= row.fees||'—' %></td></tr><% }) %>
+  </tbody></table></div>
+ </section>
+ <p class="tiny" style="margin-top:12px"><% if(r.moduleKey==='loans'){ %>Applications, principal disbursements and loan repayments are different lifecycle events; do not add them into a single turnover figure. Interest is income only when received. Reverse events reduce recognized collections on their own dates.<% }else{ %>Airtime stock purchases are inventory acquisition, not sales. Gross profit comes from delivered sales less their acquisition cost; refunds and corrections reduce it on their own dates.<% } %></p>
+</section>

@@ -171,13 +171,26 @@ async function repay(conn,tenant,actor,loanId,input){
   return {payment,duplicate:false};
  });
 }
+async function portfolioSummary(conn,tenantId,filter){
+ const rows=await models(conn).loan.aggregate([
+  {$match:{tenantId,...filter,status:{$in:['active','paid']}}},
+  {$group:{_id:'$currency',issued:{$sum:'$principalMinor'},
+   principalOutstanding:{$sum:'$principalOutstandingMinor'},
+   interestOutstanding:{$sum:'$interestOutstandingMinor'},
+   late:{$sum:{$cond:[{$and:[{$eq:['$status','active']},{$lt:['$dueAt',new Date()]}]},1,0]}}}}
+ ]);
+ return rows.map(row=>({currency:row._id,issued:String(row.issued||'0'),
+  principalOutstanding:String(row.principalOutstanding||'0'),
+  interestOutstanding:String(row.interestOutstanding||'0'),late:Number(row.late||0)}));
+}
 async function list(conn,tenant,actor){
  const current=await F.access(conn,tenant,actor,'loans','loans.view');
- const [products,loans]=await Promise.all([
+ const [products,loans,summary]=await Promise.all([
   models(conn).product.find({tenantId:current.tenant._id,...F.scope(current.actor)}).sort({createdAt:-1}).limit(100).lean(),
-  models(conn).loan.find({tenantId:current.tenant._id,...F.scope(current.actor)}).sort({createdAt:-1}).limit(200).lean()
+  models(conn).loan.find({tenantId:current.tenant._id,...F.scope(current.actor)}).sort({createdAt:-1}).limit(200).lean(),
+  portfolioSummary(conn,current.tenant._id,F.scope(current.actor))
  ]);
- return {products,loans,summary:summaryRows(loans)};
+ return {products,loans,summary};
 }
 async function detail(conn,tenant,actor,loanId){
  const current=await F.access(conn,tenant,actor,'loans','loans.view'),id=F.oid(loanId,'loan');

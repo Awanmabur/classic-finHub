@@ -341,6 +341,9 @@ router.get('/users', requirePermission('users.manage_branch'), async (req,res,ne
     ]));
     renderTenant(req,res,'users/index','Staff & Roles','Invite staff with fixed permissions, disable access immediately and monitor seat limits.',{
       users,invitations,inviteDeliveries:deliveries,roles:staffPolicy.managedRoles(req.user),plan:planForTenant(req.tenant),inviteMailReady:require('../../config/inviteMail').configured(),
+      moduleAccessByUser:Object.fromEntries(users.map(account=>[String(account._id),Object.fromEntries((account.role==='Tenant Owner'?require('../../data/store').modules.map(m=>m.key):account.allowedModules||[]).map(key=>[key,require('../services/moduleAccess.service').moduleAccessState(req.tenant,{
+       id:String(account._id),role:account.role,allowedModules:account.allowedModules,permissions:require('../../config/roles').permissionsFor(account.role)
+      },key)]))])),
       branches:(await branchService.list(req.tenant)).filter(b=>b.status==='active' && (req.user.role==='Tenant Owner' || String(b._id)===String(req.user.branchId))),
       assignable:require('../services/moduleAccess.service').assignableModules(req.tenant,req.user.role==='Tenant Owner'?'Tenant Owner':'Branch Manager').filter(m=>req.user.role==='Tenant Owner'||hasModuleForUser(req.tenant,req.user,m))
     });

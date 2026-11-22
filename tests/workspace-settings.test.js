@@ -85,3 +85,12 @@ test('branding fields are validated and receipt preview uses the persisted desig
  const html=await ejs.renderFile(path.resolve(__dirname,'../src/views/tenant/workspace/index.ejs'),{data:{page:'receipt-preview',config},tenant,user:owner,csrfToken:'csrf',assetVersion:'test'});
  assert.match(html,/&lt;script&gt;unsafe&lt;\/script&gt;/);assert.doesNotMatch(html,/<script>unsafe<\/script>/);
 });
+
+test('legacy branding saves do not silently overwrite newly added receipt or public-rate preferences',()=>{
+ const original=service.defaults(tenant).branding;
+ const legacy={theme:original.theme,primary:original.primary,secondary:original.secondary,
+   logoStatus:original.logoStatus,receiptNote:original.receiptNote,prefix:original.prefix,template:original.template};
+ const update=service.validateConfig('branding',legacy);
+ for(const key of ['receiptLayout','receiptHeader','receiptShowLogo','publicRatesEnabled','rateBoardTitle','rateBoardNote','rateBoardStyle'])
+   assert.equal(Object.hasOwn(update,key),false,key+' must be preserved, not reset');
+});

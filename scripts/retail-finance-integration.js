@@ -120,6 +120,51 @@ async function run(){
  const portfolio=await loan.list(conn,tenant,auditor);
  assert.equal(portfolio.summary[0].principalOutstanding,'0');
  assert.equal((await ledger.trialBalance(conn,{branchId:fmt(branch._id),currency:'UGX'})).balanced,true);
+ // Financial corrections retain original immutable payments and sale evidence.
+ // Reverse in reverse chronological order so inventory and loan allocations
+ // cannot silently change prior evidence. Every reversal touches Treasury once.
+ const reversedSale=await air.reverseRecorded(conn,tenant,manager,sale.record._id,{
+  reason:'Telecom transaction was successfully cancelled and verified',
+  reference:'REFUNDED-MTN-SALE-'+nonce,providerReversed:'yes',fundsReturned:'yes'});
+ assert.equal(reversedSale.type,'sale');
+ assert.equal(await balance(),95000n);
+ assert.equal(String((await airModel.models(conn).inventory.findById(sale.record.inventoryId)).costBalanceMinor),'6000');
+ assert.equal((await air.list(conn,tenant,owner)).summary[0].profit,'0');
+ await assert.rejects(air.reverseRecorded(conn,tenant,manager,sale.record._id,{
+  reason:'Already refunded and recorded on its source ledger',
+  reference:'REFUNDED-MTN-SALE-'+nonce,providerReversed:'yes',fundsReturned:'yes'}),e=>e.status===409);
+ await air.reverseRecorded(conn,tenant,manager,purchase.record._id,{
+  reason:'Unused bulk stock fully returned to its source supplier',
+  reference:'REFUNDED-MTN-STOCK-'+nonce,providerReversed:'yes',fundsReturned:'yes'});
+ assert.equal(await balance(),101000n);
+ assert.equal(String((await airModel.models(conn).inventory.findById(sale.record.inventoryId)).costBalanceMinor),'0');
+ const loanPayments=await loanModel.models(conn).payment.find({loanId:issued.loan._id}).sort({createdAt:-1,_id:-1}).lean();
+ const lastPayment=loanPayments[0],firstPayment=loanPayments[1];
+ await loan.reverseRepayment(conn,tenant,manager,issued.loan._id,lastPayment._id,{
+  reason:'Confirmed duplicate remittance was refunded to the original borrower',
+  reference:'REFUNDED-LOAN-LAST-'+nonce});
+ assert.equal(await balance(),91000n);
+ assert.equal((await loanModel.models(conn).loan.findById(issued.loan._id)).status,'active');
+ await assert.rejects(loan.reverseRepayment(conn,tenant,manager,issued.loan._id,lastPayment._id,{
+  reason:'Already refunded and cannot reverse a repayment a second time',
+  reference:'REFUNDED-LOAN-LAST-'+nonce}),e=>e.status===409);
+ await loan.reverseRepayment(conn,tenant,manager,issued.loan._id,firstPayment._id,{
+  reason:'Earlier borrower payment fully refunded on verified evidence',
+  reference:'REFUNDED-LOAN-FIRST-'+nonce});
+ assert.equal(await balance(),80000n);
+ const restoredLoan=await loanModel.models(conn).loan.findById(issued.loan._id).lean();
+ assert.equal(String(restoredLoan.principalOutstandingMinor),'20000');
+ assert.equal(String(restoredLoan.interestOutstandingMinor),'1000');
+ const dateRange={$gte:new Date(Date.now()-3600000),$lt:new Date(Date.now()+3600000)};
+ const adapters=require('../src/tenant/reporting/registry');
+ const sourceRows=await Promise.all(['loans','airtime'].map(key=>
+  adapters.find(a=>a.key===key).rows({conn,scope:{branchId:fmt(branch._id)},dateRange})));
+ assert(sourceRows[0].some(row=>row.status==='refunded'),'Loan corrections visible in reports');
+ assert(sourceRows[1].some(row=>row.status==='refunded'),'Airtime corrections visible in reports');
+ const postedIncome=await require('../src/tenant/services/approvedReports.service').postedIncome(
+  conn,tenant,{branchId:fmt(branch._id)},dateRange,[{key:'loans'},{key:'airtime'}]);
+ assert.equal(postedIncome.length,0,'Refunded interest and airtime profit must not remain as realized income');
+ assert.equal((await ledger.trialBalance(conn,{branchId:fmt(branch._id),currency:'UGX'})).balanced,true);
  await Tenant.updateOne({_id:tenant._id},{$set:{enabledModules:['mobile_money','customers']}});
  await assert.rejects(air.list(conn,tenant,owner),e=>e.status===403,'Revoked airtime module cannot read');
  await assert.rejects(loan.list(conn,tenant,owner),e=>e.status===403,'Revoked loans module cannot read');

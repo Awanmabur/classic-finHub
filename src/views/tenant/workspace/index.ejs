@@ -72,9 +72,10 @@
        <% if(used(item.url)){ %><span class="tag">In use</span><% }else{ %>
        <form method="post" action="/tenant/workspace/media/<%= item._id %>/delete">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-        <button class="btn btnDanger" type="submit">Delete unused</button>
+        <button class="btn btnDanger" type="submit"><%= item.status==='deleting'?'Retry cleanup':'Delete unused' %></button>
        </form>
        <% } %>
+       <% if(item.status==='deleting'){ %><span class="tag">Cleanup pending</span><% } %>
       </div>
      </article>
     <% }) %>

@@ -213,4 +213,17 @@ async function remove(conn,tenant,actor,mediaId){
  await Media.deleteOne({_id:id,tenantId:tenant._id,status:'deleting'});
  return {removed:true};
 }
-module.exports={configured,config,validateImage,signature,upload,list,remove,model,MAX_BYTES};
+async function verifyReferences(conn,tenant,details,session=null){
+ if(!details)return;
+ const base=process.env.R2_MEDIA_PUBLIC_URL?.replace(/\/+$/,'');
+ if(!base)return;
+ const sources=[['logo',details.logoUrl],['cover',details.coverUrl],
+  ...(details.gallery||[]).map(url=>['gallery',url])];
+ for(const [kind,url] of sources){
+  if(typeof url!=='string'||!url.startsWith(base+'/tenants/'))continue;
+  const owned=await model(conn).findOne({tenantId:tenant._id,kind,url,status:'active'})
+   .select('_id').session(session).lean();
+  if(!owned)throw fail('An uploaded image does not belong to this active tenant media library. Choose one of your own images.',409);
+ }
+}
+module.exports={configured,config,validateImage,signature,upload,list,remove,verifyReferences,model,MAX_BYTES};

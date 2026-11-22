@@ -119,7 +119,6 @@ function routes({renderTenant}){
  });
  router.post('/requests',requirePermission('banking.requests.create'),financial,async(req,res,next)=>{
   try{const {order,duplicate}=await bank.createRequest(req.tenantDb,req.tenant,req.user,req.body);
-   require('../services/branchView.service').followRecord(req,order);
    const canPost=order.source?.referenceType==='customer_account'&&
     (order.kind!=='transfer_request'||order.destination?.referenceType==='customer_account')&&
     ['requested','approved_pending_bank'].includes(order.status);
@@ -130,6 +129,10 @@ function routes({renderTenant}){
     flash(req,'good',duplicate?'Existing transaction found; no duplicate created.':'External bank instructions are recorded only; external payment cannot be claimed completed without verified provider posting.');
     res.redirect(303,`/tenant/banking/${order._id}`);
    }
+   // Preserve the assigned operating branch in the owner viewing session.
+   // Calling this AFTER the success flash appends the branch-follow evidence
+   // rather than overwriting it with the new direct-finalization notice.
+   require('../services/branchView.service').followRecord(req,order);
   }catch(e){next(e);}
  });
  router.get('/history',requirePermission('banking.view'),async(req,res,next)=>{

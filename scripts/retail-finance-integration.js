@@ -118,6 +118,22 @@ async function run(){
  assert.equal(String(sale.record.profitMinor),'400');
  assert.equal((await air.sell(conn,tenant,momo,saleInput)).duplicate,true);
  assert.equal(await balance(),96000n);
+ // Check the records actually shown on printable business receipts.
+ const receipts=require('../src/tenant/retailFinance/receipts.service');
+ const [repayReceipt,airReceipt]=await Promise.all([
+  receipts.loanPayment(conn,tenant,auditor,issued.loan._id,repayment.payment._id),
+  receipts.airtimeSale(conn,tenant,momo,sale.record._id)
+ ]);
+ assert.equal(repayReceipt.reference,repayment.payment.reference);
+ assert(repayReceipt.lines.some(line=>line[0]==='Interest allocated'&&line[1].includes('1,000')));
+ assert.equal(repayReceipt.timeZone,'Africa/Kampala');
+ assert.equal(repayReceipt.reversed,false);
+ assert.equal(airReceipt.reference,sale.record.reference);
+ assert(airReceipt.lines.some(line=>line[0]==='Sale amount'&&line[1].includes('1,000')));
+ assert.equal(airReceipt.reversed,false);
+ assert.match(airReceipt.warning,/not proof of a successful telecom top-up/);
+ await assert.rejects(receipts.loanPayment(conn,tenant,momo,issued.loan._id,repayment.payment._id),e=>e.status===403);
+ await assert.rejects(receipts.airtimeSale(conn,tenant,momo,repayment.payment._id),e=>e.status===404);
  const report=await air.list(conn,tenant,owner);
  assert.equal(String(report.inventory[0].costBalanceMinor),'5400');
  assert.equal(report.summary[0].profit,'400');
@@ -131,6 +147,7 @@ async function run(){
   reason:'Telecom transaction was successfully cancelled and verified',
   reference:'REFUNDED-MTN-SALE-'+nonce,providerReversed:'yes',fundsReturned:'yes'});
  assert.equal(reversedSale.type,'sale');
+ assert.equal((await receipts.airtimeSale(conn,tenant,momo,sale.record._id)).reversed,true);
  assert.equal(await balance(),95000n);
  assert.equal(String((await airModel.models(conn).inventory.findById(sale.record.inventoryId)).costBalanceMinor),'6000');
  assert.equal((await air.list(conn,tenant,owner)).summary[0].profit,'0');
@@ -163,6 +180,7 @@ async function run(){
   reason:'Earlier borrower payment fully refunded on verified evidence',
   reference:'REFUNDED-LOAN-FIRST-'+nonce});
  assert.equal(await balance(),80000n);
+ assert.equal((await receipts.loanPayment(conn,tenant,auditor,issued.loan._id,repayment.payment._id)).reversed,true);
  const restoredLoan=await loanModel.models(conn).loan.findById(issued.loan._id).lean();
  assert.equal(String(restoredLoan.principalOutstandingMinor),'20000');
  assert.equal(String(restoredLoan.interestOutstandingMinor),'1000');
@@ -179,9 +197,11 @@ async function run(){
  await Tenant.updateOne({_id:tenant._id},{$set:{enabledModules:['mobile_money']}});
  await assert.rejects(air.list(conn,tenant,owner),e=>e.status===403,'Revoked airtime module cannot read');
  await assert.rejects(loan.list(conn,tenant,owner),e=>e.status===403,'Revoked loans module cannot read');
+ await assert.rejects(receipts.loanPayment(conn,tenant,auditor,issued.loan._id,repayment.payment._id),e=>e.status===403,'Revoked loan receipt access fails closed');
+ await assert.rejects(receipts.airtimeSale(conn,tenant,momo,sale.record._id),e=>e.status===403,'Revoked airtime receipt access fails closed');
  await assert.rejects(loan.repay(conn,tenant,banker,issued.loan._id,repayInput),
   e=>e.status===403,'Revoked repayment access must also block idempotent retries');
- console.log('PASS: loan independent review and real account debits; principal + interest collection; airtime stock and profit, idempotency, receipt evidence, balanced journals, tenant permissions and revocation');
+ console.log('PASS: loan independent review and real account debits; principal + interest collection; airtime stock and profit, idempotency, receipt evidence, scoped printouts, corrected labels, balanced journals, tenant permissions and revocation');
 }
 async function cleanup(){
  if(mongoose.connection.readyState===1&&mongoose.connection.name===platform&&/^cfh_retail_probe_[0-9a-f]{16}$/.test(platform)){

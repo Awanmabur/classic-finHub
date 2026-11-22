@@ -187,3 +187,16 @@
 @media(max-width:1100px){.workspaceMediaGrid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:680px){.workspaceMediaGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.workspaceMediaCard>img{height:116px}}
 @media(max-width:360px){.workspaceMediaGrid{grid-template-columns:1fr}}
+
+/* Image-first editor: no public media URL fields or manual link entry. */
+.workspacePhotoFields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:12px}
+.workspacePhotoField{min-width:0;border:1px solid var(--line);border-radius:22px;padding:14px;background:var(--paper)}
+.workspacePhotoField .field{display:flex;flex-direction:column;gap:9px;font-weight:650;font-size:13px}
+.workspacePhotoField input[type=file]{width:100%;max-width:100%;min-width:0;font-size:12px}
+.workspacePhotoPreview{display:flex;flex-wrap:wrap;gap:9px;margin-top:12px}
+.workspacePhotoItem{display:flex;flex-direction:column;gap:7px;width:min(100%,140px);min-width:0}
+.workspacePhotoItem img{display:block;width:100%;height:112px;object-fit:cover;border:1px solid var(--line);border-radius:15px;background:var(--soft)}
+.workspacePhotoItem .btn{align-self:flex-start;min-height:32px;padding:6px 12px;font-size:12px}
+.workspacePhotoPreview>.tiny{margin:0;color:var(--muted);font-size:12px}
+@media(max-width:820px){.workspacePhotoFields{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.workspacePhotoFields{grid-template-columns:1fr}}

@@ -30,7 +30,8 @@ const schema=new mongoose.Schema({
  bytes:{type:Number,required:true,min:1,max:MAX_BYTES,immutable:true},
  sha256:{type:String,required:true,match:/^[a-f0-9]{64}$/,immutable:true},
  createdBy:{type:mongoose.Schema.Types.ObjectId,required:true,immutable:true},
- status:{type:String,enum:['active','deleting'],default:'active'}
+ status:{type:String,enum:['active','deleting'],default:'active'},
+ referenceRevision:{type:Number,default:0,min:0}
 },{timestamps:true,strict:'throw'});
 schema.index({tenantId:1,createdAt:-1});
 schema.index({key:1},{unique:true});
@@ -233,8 +234,11 @@ async function verifyReferences(conn,tenant,details,session=null){
   ...(details.gallery||[]).map(url=>['gallery',url])];
  for(const [kind,url] of sources){
   if(typeof url!=='string'||!url.startsWith(base+'/tenants/'))continue;
-  const owned=await model(conn).findOne({tenantId:tenant._id,kind,url,status:'active'})
-   .select('_id').session(session).lean();
+  // A write fence forces a conflict if another request tries to delete this
+  // object while a draft/save or publish transaction attaches its URL.
+  const query=model(conn).findOneAndUpdate({tenantId:tenant._id,kind,url,status:'active'},
+   {$inc:{referenceRevision:1}},{new:true,session});
+  const owned=await query.select('_id').lean();
   if(!owned)throw fail('An uploaded image does not belong to this active tenant media library. Choose one of your own images.',409);
  }
 }

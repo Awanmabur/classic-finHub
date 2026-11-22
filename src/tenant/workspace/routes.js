@@ -112,7 +112,7 @@ async function theme(req,res,next){try{
 function factory({renderTenant}){
  const router=Router();
  router.use(requirePermission('workspace.view'));
- router.use((req,res,next)=>{res.setHeader('Cache-Control','private, no-store');next();});
+ router.use((req,res,next)=>{res.setHeader('Cache-Control','private, no-store');res.locals.r2MediaConfigured=media.configured();next();});
  async function render(req,res,page,extra={}){
   const config=await service.read(req.tenantDb,req.tenant,req.user),spec=entryPages[page],names=spec?[spec.title,spec.subtitle]:pageNames[page];
   const data={page,title:names[0],subtitle:names[1],config,canManage:req.user.role==='Tenant Owner'&&hasPermission(req.user,'workspace.manage'),

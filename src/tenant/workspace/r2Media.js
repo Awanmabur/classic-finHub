@@ -153,9 +153,14 @@ async function storage(method,key,mime,body){
  let response;
  try{response=await fetch(signed.url,{method,headers:signed.headers,...(body?{body}:{}),
     signal:AbortSignal.timeout(15000)});}
- catch{throw fail('Public image storage is unreachable. Nothing was published.',503);}
+ catch(error){
+  console.error(JSON.stringify({event:'r2_media_transport_failed',operation:method,
+   errorType:/^[A-Za-z]+$/.test(error?.name||'')?error.name:'Error'}));
+  throw fail('Public image storage is unreachable. Nothing was published.',503);
+ }
  if(!response.ok){
-  // Never expose the XML error response: R2 can return private configuration.
+  // Never log the authenticated URL, signed headers or R2 XML error body.
+  console.error(JSON.stringify({event:'r2_media_remote_rejected',operation:method,httpStatus:response.status}));
   throw fail('Public image storage rejected the request. Check private R2 bucket permissions.',503);
  }
  return response;

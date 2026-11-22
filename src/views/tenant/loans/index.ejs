@@ -29,7 +29,7 @@
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <label class="field">Product name<input class="control" name="name" required minlength="3" maxlength="100" placeholder="Short-term business loan"></label>
     <label class="field">Currency<select class="control" name="currency" required><% (data.currencyChoices||[data.activeCurrency]).filter(Boolean).forEach(c=>{ %><option value="<%= c %>"><%= c==='KES'?'KSH':c %></option><% }) %></select></label>
-    <label class="field">Flat interest rate (%)<input class="control" name="interestBps" type="number" min="0" max="10000" step="1" required placeholder="Enter basis points: 500 = 5%"></label>
+    <label class="field">Flat interest (basis points)<input class="control" name="interestBps" type="number" min="0" max="10000" step="1" required placeholder="Enter basis points: 500 = 5%"></label>
     <label class="field">Term (days)<input class="control" name="termDays" type="number" min="1" max="730" required></label>
     <label class="field">Minimum principal<input class="control" name="minimum" inputmode="decimal" required></label>
     <label class="field">Maximum principal<input class="control" name="maximum" inputmode="decimal" required></label>

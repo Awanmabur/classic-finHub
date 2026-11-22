@@ -210,3 +210,13 @@
 .workspacePreviewReceipt.receiptPreview--compact{max-width:440px}
 .workspacePreviewReceipt.receiptPreview--detailed{max-width:790px}
 @media print{.workspacePreviewReceipt{box-shadow:none;max-width:none}}
+
+.workspaceRatePreview{--boardPrimary:#082c52}
+.workspaceRatePreviewTitle{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:12px}
+.workspaceRatePreviewTitle strong{color:var(--boardPrimary);font-size:clamp(18px,2vw,23px)}
+.workspaceRatePreview table{min-width:570px}
+.workspaceRatePreview .workspaceRateCardRows{border-collapse:separate;border-spacing:0 8px}
+.workspaceRatePreview .workspaceRateCardRows td{background:var(--paper);border-block:1px solid var(--line)}
+.workspaceRatePreview .workspaceRateCardRows td:first-child{border-left:1px solid var(--line);border-radius:12px 0 0 12px}
+.workspaceRatePreview .workspaceRateCardRows td:last-child{border-right:1px solid var(--line);border-radius:0 12px 12px 0}
+.workspaceRateEmpty{padding:18px;border:1px dashed var(--line);border-radius:14px;background:var(--soft);color:var(--muted)}

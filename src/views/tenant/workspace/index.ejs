@@ -92,6 +92,22 @@
 <% if(data.page==='branding'){ const b=data.config.branding; %>
  <div class="card"><div class="cardHead"><div><b>Branding & receipts</b><br><span>Colors, tenant identity, and receipt wording</span></div><div class="workspaceActions"><% if(data.canManage){ %><a class="btn btnPrimary" href="/tenant/workspace/branding/edit" data-workspace-open="workspaceEditor">Edit colors</a><a class="btn" href="/tenant/workspace/branding/receipt/edit" data-workspace-open="workspaceReceiptEditor">Edit receipt settings</a><% } %><a class="btn" href="/tenant/workspace/receipt-preview">Preview receipt</a></div></div><div class="cardBody"><dl class="workspaceFacts"><% [['Theme',b.theme],['Primary color',b.primary],['Secondary color',b.secondary],['Logo status',b.logoStatus],['Receipt prefix',b.prefix],['Receipt title',b.template],['Receipt design',b.receiptLayout],['Receipt heading',b.receiptHeader],['Logo on receipts',b.receiptShowLogo!==false?'Yes':'No'],['Receipt footer note',b.receiptNote],['Rate board title',b.rateBoardTitle],['Rate board style',b.rateBoardStyle],['Public rates enabled',b.publicRatesEnabled!==false?'Yes':'No']].forEach(row=>{ %><div><dt><%= row[0] %></dt><dd><%= row[1]||'—' %></dd></div><% }) %></dl></div></div>
  <p class="workspaceNote">Your chosen receipt design, logo, colors, heading, and footer apply to new displays of authorized historical acknowledgements. Amounts, original references and financial status are immutable. Only independently approved, unexpired Forex rates can appear on the public board.</p>
+ <section class="card workspaceRatePreview" style="--boardPrimary:<%= /^#[a-fA-F0-9]{6}$/.test(b.primary||'')?b.primary:'#082c52' %>">
+  <% const board=data.rateBoardPreview||{settings:{enabled:false,title:'Exchange rates'},rates:[]}; %>
+  <div class="cardHead"><div><b>Live rate board preview</b><br><span>Business-approved prices, no demo values</span></div>
+   <div class="workspaceActions"><% if(data.canManage){ %><a class="btn btnPrimary" href="/tenant/workspace/branding/edit" data-workspace-open="workspaceEditor">Customize board</a><% } %>
+    <% if(data.config.landing?.publishedAt){ %><a class="btn" href="/t/<%= encodeURIComponent(tenant.slug) %>#business-rates" target="_blank" rel="noopener noreferrer">Public rate board</a><% } %></div>
+  </div>
+  <div class="cardBody"><div class="workspaceRatePreviewTitle"><strong><%= board.settings.title||'Current exchange rates' %></strong><span class="tag"><%= board.settings.enabled?'Public':'Hidden' %></span></div>
+   <p class="tiny"><%= board.settings.note||'Business-approved prices. Confirm before trading.' %> This is not an independent market feed.</p>
+   <% if(board.rates.length){ %>
+    <div class="tableWrap"><table class="<%= board.settings.style==='cards'?'workspaceRateCardRows':'' %>"><thead><tr><th>Branch</th><th>From</th><th>Type</th><th>Approved rate</th><th>Expires (UTC)</th></tr></thead><tbody>
+    <% board.rates.forEach(rate=>{ %><tr><td><%= rate.branch %></td><td><%= rate.base %></td><td><%= rate.side==='buy'?'Buy':rate.side==='sell'?'Sell':'Indicative' %></td><td><b><%= rate.price %> <%= rate.to %></b></td><td><%= new Date(rate.expiresAt).toLocaleString('en-GB',{timeZone:'UTC'}) %></td></tr><% }) %>
+    </tbody></table></div>
+   <% }else{ %><p class="workspaceRateEmpty"><%= board.settings.enabled?'No approved, unexpired Forex rates are available. Create rates in Forex Operations.':'Public rate publication is disabled in Branding.' %></p><% } %>
+   <p class="tiny">Only real, approved, active records appear. Historical records remain unchanged.</p>
+  </div>
+ </section>
 <% } %>
 <% if(data.spec){ const canEditEntries=data.canManage&&data.page!=='import-export'; %>
  <% if(data.page==='kyc'){ %><div class="workspaceActions"><% if(data.canCustomers){ %><a class="btn" href="/tenant/customers">Customers directory</a><% } %><% if(data.canCustomerExport){ %><a class="btn" href="/tenant/customers/export.csv">Export KYC</a><% } %></div><p class="workspaceNote">These field definitions document your verification requirements. Required fields do not change existing transaction acceptance rules. Customer verification is maintained in the customer directory.</p><% } %>

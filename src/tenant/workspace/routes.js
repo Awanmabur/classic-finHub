@@ -134,7 +134,10 @@ function factory({renderTenant}){
    canSms:hasModuleForUser(req.tenant,req.user,'sms_capture')&&hasModuleForUser(req.tenant,req.user,'mobile_money')&&hasPermission(req.user,'mobile_money.cash_in'),canNotifications:hasModuleForUser(req.tenant,req.user,'notifications')&&hasPermission(req.user,'notifications.view'),canCash:['mobile_money','money_transfer','banking','forex','expenses'].some(key=>hasModuleForUser(req.tenant,req.user,key)&&hasPermission(req.user,key+'.view'))&&hasPermission(req.user,'treasury.view'),canObserveFunds:hasPermission(req.user,'treasury.observe'),canReviewFunds:hasPermission(req.user,'treasury.review'),...extra};
   if(spec&&!extra.entries)data.entries=await service.entries(req.tenantDb,req.tenant,req.user,spec.kind,{archived:true});
   if(['profile','branding'].includes(page))data.form=configForm(page,config,req.tenant);
-  if(page==='branding')data.receiptForm=configForm('receipt',config,req.tenant);
+  if(page==='branding'){
+   data.receiptForm=configForm('receipt',config,req.tenant);
+   data.rateBoardPreview=await require('./publicRates').publicBoard(req.tenantDb,req.tenant);
+  }
   if(page==='landing'){
    data.heroForm=configForm('landing',config,req.tenant);data.form=entryForm(spec);
    if(data.canManage){data.media=media.configured()?await media.list(req.tenantDb,req.tenant,req.user):[];data.mediaQuotaBytes=media.publicMediaQuotaBytes(req.tenant);}

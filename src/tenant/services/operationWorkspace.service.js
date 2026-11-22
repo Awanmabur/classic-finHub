@@ -108,6 +108,35 @@ async function records(conn,tenant,actor,key,query={},timeZone='UTC'){
  }
  return {items,nextCursor:found.length>40?mobile.encodeCursor(visible.at(-1)):null,filters};
 }
+// Treasury executions, not quotations, are the source of completed Forex turnover.
+async function finalizedForexRows(conn,actor,filters,timeZone){
+ if(filters.status&&filters.status!=='posted_manual')return [];
+ if(filters.kind==='quote')return [];
+ const match={sourceType:'forex',action:'forex',status:'posted_manual',
+  reviewedAt:filters.dateBounds,...scopeFor(actor,'forex'),
+  ...(filters.currency?{'sourceSnapshot.fromCurrency':filters.currency}:{}),
+  ...(filters.kind?{'sourceSnapshot.operation':filters.kind}:{})};
+ const groups=await require('../funded/models').models(conn).execution.aggregate([
+  {$match:match},
+  {$group:{_id:{
+   day:{$dateToString:{date:'$reviewedAt',format:'%Y-%m-%d',timezone:timeZone}},
+   kind:'$sourceSnapshot.operation',currency:'$sourceSnapshot.fromCurrency',
+   targetCurrency:'$sourceSnapshot.toCurrency'},
+   count:{$sum:1},
+   volume:{$sum:{$convert:{input:'$sourceSnapshot.sourceMinor',to:'decimal',onError:0,onNull:0}}},
+   target:{$sum:{$convert:{input:'$sourceSnapshot.targetMinor',to:'decimal',onError:0,onNull:0}}}}},
+  {$sort:{'_id.day':-1,'_id.kind':1,'_id.currency':1,'_id.targetCurrency':1}},
+  {$limit:1001}
+ ]).option({maxTimeMS:8000});
+ if(groups.length>1000)throw fail('Too many finalized Forex groups. Narrow the dates.',422);
+ return groups.map(row=>({
+  day:row._id.day,kind:row._id.kind,currency:row._id.currency,
+  targetCurrency:row._id.targetCurrency,count:row.count,
+  volumeMinor:String(row.volume),targetMinor:String(row.target),
+  volume:formatAmount(String(row.volume),row._id.currency),
+  target:formatAmount(String(row.target),row._id.targetCurrency)
+ }));
+}
 async function report(conn,tenant,actor,key,query={},timeZone='UTC'){
  authorize(tenant,actor,key);
  const spec=definition(key),filters=filtersFor(key,query,timeZone),match=queryFor(actor,key,filters);
@@ -145,6 +174,7 @@ async function report(conn,tenant,actor,key,query={},timeZone='UTC'){
   day:row._id.day,currency:row._id.currency,count:row.count,
   amount:formatAmount(row.amount.toString(),row._id.currency)
  }));
+ const finalized=key==='forex'?await finalizedForexRows(conn,actor,filters,timeZone):[];
  const rows=found.map(row=>({day:row._id.day,status:row._id.status,kind:row._id.kind,currency:row._id.currency,
   targetCurrency:row._id.targetCurrency||'',source:row._id.source||'',
   network:row._id.network||'',sourceOperation:row._id.sourceOperation||'',count:row.count,
@@ -152,6 +182,7 @@ async function report(conn,tenant,actor,key,query={},timeZone='UTC'){
   fees:spec.fees?formatAmount(row.fees?.toString()||'0',row._id.currency):'',
   target:key==='forex'?formatAmount(row.target?.toString()||'0',row._id.targetCurrency):''}));
  return {moduleKey:key,label:spec.label,currencies:spec.currencies,filters,rows,incomeRows,timeZone,
+  finalizedForexRows:finalized,finalizedForexCount:finalized.reduce((sum,row)=>sum+row.count,0),
   stats:financialStatsFromGroups(found,key),total:rows.reduce((sum,row)=>sum+row.count,0),
   canExport:hasPermission(actor,`${key}.report`)||hasPermission(actor,'reports.export'),
   note:key==='forex'?'Quotations remain separate from posted manual exchanges. Finalized cashier-confirmed exchanges update the foreign stock and settlement books; check the cash movement report for physical drawer effects.':
@@ -186,8 +217,9 @@ function financialStatsFromGroups(groups,key){
   completedLabel:key==='money_transfer'?'Paid out':key==='forex'?'Posted exchanges':'Posted movements'};
 }
 function csv(report){
- const headers=['Date ('+(report.timeZone||'UTC')+')','Operation','Status','Currency','Records','Requested / quoted amount','Proposed fees','Target currency','Target quoted amount','Source module','Provider network','Original operation'];
- return '\uFEFF'+[headers,...report.rows.map(row=>[row.day,row.kind,row.status,row.currency,row.count,row.volume,row.fees,row.targetCurrency,row.target,row.source||'',row.network||'',row.sourceOperation||''])]
+ const headers=['Date ('+(report.timeZone||'UTC')+')','Operation','Status','Currency','Records','Amount','Fees','Target currency','Target amount','Source module','Provider network','Original operation','Evidence type'];
+ return '\uFEFF'+[headers,...report.rows.map(row=>[row.day,row.kind,row.status,row.currency,row.count,row.volume,row.fees,row.targetCurrency,row.target,row.source||'',row.network||'',row.sourceOperation||'','Quotation / instruction (not additional turnover)']),
+  ...(report.finalizedForexRows||[]).map(row=>[row.day,row.kind,'final',row.currency,row.count,row.volume,'',row.targetCurrency,row.target,'Forex','','','Final Treasury posting (actual traded turnover)'])]
   .map(row=>row.map(mobile.csvCell).join(',')).join('\r\n')+'\r\n';
 }
 async function formContext(conn,tenant,actor,key,operationBranch,input={}){
@@ -228,4 +260,4 @@ async function formContext(conn,tenant,actor,key,operationBranch,input={}){
   canPropose:service.operator(actor)&&hasPermission(actor,'forex.rate_manage'),canQuote:service.operator(actor)&&hasPermission(actor,'forex.quotes.create'),
   canRateReview:service.reviewer(actor)&&hasPermission(actor,'forex.rate_review'),canQuoteReview:service.reviewer(actor)&&hasPermission(actor,'forex.quotes.review')};
 }
-module.exports={definitions,definition,authorize,scopeFor,filtersFor,queryFor,describe,records,report,financialStatsFromGroups,csv,formContext,formatAmount,fail};
+module.exports={definitions,definition,authorize,scopeFor,filtersFor,queryFor,describe,records,report,financialStatsFromGroups,finalizedForexRows,csv,formContext,formatAmount,fail};

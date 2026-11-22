@@ -63,13 +63,30 @@ async function main(){
  const payout=(await funded.requestPayout(conn,tenant,receivingTeller,{...input(),verificationToken:checked.token,payoutAccountId:String(destinationCash._id)})).execution;
  const amount=async id=>String((await treasury.models(conn).account.findById(id)).bookBalanceMinor);
  assert.equal(await amount(destinationCash._id),'50000');assert.equal(await amount(payable._id),'10000');
- await assert.rejects(funded.review(conn,tenant,receivingTeller,payout._id,decision),{status:403});
+ await assert.rejects(funded.finalizePayout(conn,tenant,receivingTeller,payout._id,{confirmRecipientVerified:'yes'}),{status:403},
+  'missing actual cash handover cannot post either branch');
+ await assert.rejects(funded.finalizePayout(conn,tenant,teller,payout._id,{confirmRecipientVerified:'yes',confirmCashPaid:'yes'}),{status:403},
+  'sending teller cannot execute receiving-branch payout');
+ await assert.rejects(funded.review(conn,tenant,receivingTeller,payout._id,decision),{status:403},
+  'routine review must not let the cashier bypass the PIN-finalization path');
  const Audit=core.auditEventModel(conn),original=Audit.create;Audit.create=function(rows,options){if(rows.some(row=>row.action==='funded.manual.posted'))throw Error('Controlled atomic rollback');return original.call(this,rows,options);};
- try{await assert.rejects(funded.review(conn,tenant,manager,payout._id,decision),/Controlled atomic rollback/);}finally{Audit.create=original;}
+ try{await assert.rejects(funded.finalizePayout(conn,tenant,receivingTeller,payout._id,{confirmRecipientVerified:'yes',confirmCashPaid:'yes'}),/Controlled atomic rollback/);}
+ finally{Audit.create=original;}
  assert.equal(await amount(destinationCash._id),'50000');assert.equal(await amount(payable._id),'10000');
  // A departure of the sending teller does not make already collected funds disappear.
  await core.tenantUserModel(conn).updateOne({_id:teller.id},{$set:{status:'disabled'},$inc:{authVersion:1}});
- const results=await Promise.allSettled([funded.review(conn,tenant,manager,payout._id,decision),funded.review(conn,tenant,manager,payout._id,decision)]);assert.equal(results.filter(row=>row.status==='fulfilled').length,1);assert.equal(results.filter(row=>row.status==='rejected').length,1);
+ const proof={confirmRecipientVerified:'yes',confirmCashPaid:'yes'};
+ const results=await Promise.allSettled([
+  funded.finalizePayout(conn,tenant,receivingTeller,payout._id,proof),
+  funded.finalizePayout(conn,tenant,receivingTeller,payout._id,proof)
+ ]);
+ assert.equal(results.filter(row=>row.status==='fulfilled'&&!row.value.duplicate).length,1,'exactly one new final cross-branch posting');
+ assert.equal(results.filter(row=>row.status==='rejected'||row.status==='fulfilled'&&row.value.duplicate).length,1,
+  'the second concurrent attempt must be a rejected conflict or a no-op duplicate');
+ assert((await funded.finalizePayout(conn,tenant,receivingTeller,payout._id,{})).duplicate,
+  'retrying a posted payout cannot release cash twice');
+ assert.equal((await fundedModels.models(conn).execution.findById(payout._id)).reviewedBy,null,
+  'cashier payout must not falsely claim separate independent approval');
  assert.equal(await amount(destinationCash._id),'40000');assert.equal(await amount(payable._id),'0');assert.equal((await core.transferOrderModel(conn).findById(source._id)).status,'paid_out_manual');
  const balances=await transfer.branchBalances(conn,tenant,manager);assert.equal(balances.rows.length,1);assert.match(balances.rows[0].receivable,/10,000/);await assert.rejects(transfer.branchBalances(conn,tenant,receivingTeller),{status:403});
  const ledger=require('../src/tenant/services/ledger.service');for(const row of [branch,destination])assert.equal((await ledger.trialBalance(conn,{branchId:String(row._id),currency:'UGX'})).balanced,true);
@@ -77,7 +94,7 @@ async function main(){
  for(const account of [drawer,payable,destinationCash])await treasury.assertBookIntegrity(conn,null,await treasury.models(conn).account.findById(account._id).lean());
  await assert.rejects(funded.checkPayout(conn,tenant,receivingTeller,{pin:secret.pin,senderPhone:sourceInput.senderPhone}),{status:404});
  assert.equal((await transfer.detail(conn,tenant,receivingTeller,source._id)).reference,source.reference);
- console.log('PASS: destination-bound branch PINs, real destination cash, balanced interbranch receivable/payable journals, revoked sender, rollback, concurrent single payout, branch isolation and book integrity. No live SMS sent.');
+ console.log('PASS: immediate final PIN-based interbranch payout, source/destination journals, revocation, atomic rollback, concurrent single posting, recipient checks, branch isolation and book integrity. No live SMS sent.');
 }
 async function cleanup(){if(mongoose.connection.readyState===1&&mongoose.connection.name===platformName&&/^cfh_branch_transfer_[a-f0-9]{16}$/.test(platformName)){if(conn?.name===require('../src/config/tenantDatabaseName').tenantDbNameFromSlug(slug))await conn.db.dropDatabase();await mongoose.connection.db.dropDatabase();}await mongoose.disconnect();}
 main().catch(error=>{console.error('BRANCH TRANSFER INTEGRATION FAILED:',error.stack||error.message);process.exitCode=1;}).finally(()=>cleanup().catch(error=>{console.error('Transfer SMS scratch cleanup failed:',error.message);process.exitCode=1;}));

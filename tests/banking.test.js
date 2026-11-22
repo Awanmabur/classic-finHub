@@ -117,7 +117,7 @@ test('Immutable banking request snapshots, deduplication and no bank balance mod
  assert(bank.sameRequest(stored,actor('Banking Operator'),branch,v));
  assert(!bank.sameRequest(stored,actor('Banking Operator'),branch,{...v,amountMinor:70000}));
 });
-test('Banking UI renders protected instructions and links independently reviewed manual movements',async()=>{
+test('Banking UI renders protected instructions, final posting entry and no routine review buttons',async()=>{
  const data={records:{items:[],nextCursor:null},branches:[{_id:branch,name:'Main',currency:'UGX'}],queue:[],
   references:[{_id:oid(),customerName:'<script>alert(1)</script>',institutionName:'Bank A',last4:'1234'}],
   selectedBranchId:branch,canCreate:true,canReview:false,idempotencyKey:crypto.randomUUID(),formatMoneyMinor:(v,c)=>`${c} ${v}`};
@@ -133,7 +133,7 @@ test('Banking UI renders protected instructions and links independently reviewed
  assert.doesNotMatch(read,/Post banking operation/);
  const queue=[{_id:oid(),reference:'BK-TEST',kind:'deposit_request',currency:'UGX',amountMinor:'10000',source:{last4:'1234',institutionName:'Example'}}];
  const review=await ejs.renderFile(page,{data:{...data,canCreate:false,canReview:true,queue},user:actor('Reconciliation Officer'),csrfToken:'csrf'});
- assert.match(review,/Approve pending bank verification/);assert.doesNotMatch(review,/Post banking operation/);
+ assert.doesNotMatch(review,/Approve pending bank verification|name="decision" value="approve"/);assert.doesNotMatch(review,/Post banking operation/);
 });
 test('Banking quota uses standalone counter and does not charge twice for idempotent replay',async()=>{
  const service=require('../src/platform/services/commercial.service');const t=tenant();t._id=oid();

@@ -1,5 +1,5 @@
 'use strict';
-// Banking instructions are posted separately through independently reviewed manual movements.
+// Internal banking instructions continue directly into final cashier-authorized funds posting.
 const routerFactory=require('express').Router;
 const crypto=require('node:crypto');
 const requirePermission=require('../../middleware/requirePermission');
@@ -26,7 +26,7 @@ function routes({renderTenant}){
    const branch=branches.find(b=>String(b._id)===selectedId);
    const references=branch?await bank.listReferences(req.tenantDb,req.tenant,require('../services/branchView.service').withoutReadView(req.user),{branchId:selectedId}):[];
    if(branch&&hasModuleForUser(req.tenant,req.user,'accounts')&&hasPermission(req.user,'accounts.view'))references.push(...await require('../customerAccounts/bankingBridge').choices(req.tenantDb,req.tenant,req.user,{branchId:selectedId}));
-   renderTenant(req,res,'banking/index','Banking Requests','Record banking instructions, then post manual movements against reviewed balances.',{
+   renderTenant(req,res,'banking/index','Banking Requests','Complete cashier-confirmed internal movements on the actual funds accounts.',{
     financeOverview:await require('../services/financeOverview.service').moduleOverview(req.tenantDb,req.tenant,req.user,req.operationBranch,{moduleKey:'banking'}),
      records,branches,queue,references,selectedBranchId:branch?selectedId:null,
     currencyChoices:require('../services/branchCurrency.service').options(req.operationBranch),selectedCurrency:req.operationBranch?require('../services/branchCurrency.service').resolve(req.operationBranch,req.query.currency):null,
@@ -119,9 +119,18 @@ function routes({renderTenant}){
  });
  router.post('/requests',requirePermission('banking.requests.create'),financial,async(req,res,next)=>{
   try{const {order,duplicate}=await bank.createRequest(req.tenantDb,req.tenant,req.user,req.body);
-   flash(req,'good',duplicate?'Existing identical request returned; nothing duplicated.':'Banking request recorded, NOT executed or settled.');
-   require('../services/branchView.service').followRecord(req,order);
-   res.redirect(303,`/tenant/banking/${order._id}`);
+   const canPost=order.source?.referenceType==='customer_account'&&
+    (order.kind!=='transfer_request'||order.destination?.referenceType==='customer_account')&&
+    ['requested','approved_pending_bank'].includes(order.status);
+   if(canPost){
+    flash(req,'good',duplicate?'Resume the existing transaction; do not repeat the money movement.':'Select the real source account and finalize this internal banking transaction.');
+    require('../services/branchView.service').followRecord(req,order);
+    res.redirect(303,`/tenant/funded/prepare/banking/${order._id}`);
+   }else{
+    flash(req,'good',duplicate?'Existing transaction found; no duplicate created.':'External bank instructions are recorded only; external payment cannot be claimed completed without verified provider posting.');
+    require('../services/branchView.service').followRecord(req,order);
+    res.redirect(303,`/tenant/banking/${order._id}`);
+   }
   }catch(e){next(e);}
  });
  router.get('/history',requirePermission('banking.view'),async(req,res,next)=>{
@@ -135,7 +144,7 @@ function routes({renderTenant}){
   try{const request=await bank.detail(req.tenantDb,req.tenant,req.user,req.params.id);
    const pendingMovement=await require('../funded/models').models(req.tenantDb).execution.findOne({sourceType:'banking',sourceId:request._id,status:'pending_review'}).select('_id createdBy').lean();
    const afterBalances=await require('../services/recordBalances.service').forRecord(req.tenantDb,req.tenant,req.user,'banking',request);
-   renderTenant(req,res,'banking/detail','Banking Request Details','Banking instructions and independently reviewed manual book entries.',{
+   renderTenant(req,res,'banking/detail','Banking Request Details','Banking instruction and final cashier-posted ledger movements.',{
     request,afterBalances,formatMoneyMinor,
     canFx:hasModuleForUser(req.tenant,req.user,'forex')&&hasModuleForUser(req.tenant,req.user,'accounts')&&
      hasPermission(req.user,'forex.quotes.create')&&hasPermission(req.user,'banking.requests.create')&&

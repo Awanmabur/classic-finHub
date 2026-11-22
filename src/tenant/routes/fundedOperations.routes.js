@@ -20,23 +20,24 @@ module.exports=function fundedOperationsRoutes({renderTenant}){
    throw service.fail('Confirm actual cash handover and recipient identity before submitting the payout');
   const result=await service.requestPayout(req.tenantDb,req.tenant,req.user,req.body);
   delete req.session.manualPayoutVerification;
-  let printDestination=null;
-  if(result.sameBranch){
-   const posted=await service.finalizePayout(req.tenantDb,req.tenant,req.user,result.execution._id,req.body);
-   flash(req,'good',posted.duplicate?'This PIN payout already posted.':
-    'Receiver cash payout is final. Both currency ledgers were updated and audited.');
-   printDestination=receiptPrint.funded(posted);
-  }else{
-   flash(req,'good','Cross-branch payout recorded for independent interbranch settlement review.');
-  }
+  // Every PIN-confirmed payout settles immediately, including transfers between branches.
+  // The service atomically posts both interbranch sides and rejects unsafe retries.
+  const posted=await service.finalizePayout(req.tenantDb,req.tenant,req.user,result.execution._id,req.body);
+  flash(req,'good',posted.duplicate?'This PIN payout was already finalized.':
+   'Cash payout finalized once. Receiver cash and interbranch balances were posted and audited.');
   require('../services/branchView.service').followRecord(req,result.execution);
-  res.redirect(303,printDestination||`/tenant/funded/${result.execution._id}`);
+  res.redirect(303,receiptPrint.funded(posted)||`/tenant/funded/${result.execution._id}`);
  }catch(error){if(error.retryAfter)res.set('Retry-After',String(error.retryAfter));next(error);}});
  router.post('/payout/reset',financial,async(req,res,next)=>{try{await service.payoutContext(req.tenantDb,req.tenant,req.user,null);delete req.session.manualPayoutVerification;res.redirect(303,'/tenant/funded/payout');}catch(error){next(error);}});
  router.post('/:id/review',financial,async(req,res,next)=>{try{const result=await service.review(req.tenantDb,req.tenant,req.user,req.params.id,req.body);flash(req,'good',result.execution.status==='posted_manual'?'Manual movement posted to the funds book.':'Manual posting request rejected.');res.redirect(303,receiptPrint.funded(result)||`/tenant/funded/${req.params.id}`);}catch(error){next(error);}});
  router.post('/:id/finalize-payout',financial,async(req,res,next)=>{try{
   const result=await service.finalizePayout(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
   flash(req,'good',result.duplicate?'The same PIN payout was already finalized.':'Verified cash payout finalized and recorded in the correct currency.');
+  res.redirect(303,receiptPrint.funded(result)||`/tenant/funded/${req.params.id}`);
+ }catch(error){next(error);}});
+ router.post('/:id/finalize-cashier',financial,async(req,res,next)=>{try{
+  const result=await service.finalizeCashier(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
+  flash(req,'good',result.duplicate?'This movement was already finalized.':'Final movement posted to the correct balances and audit records.');
   res.redirect(303,receiptPrint.funded(result)||`/tenant/funded/${req.params.id}`);
  }catch(error){next(error);}});
  router.post('/:id/finalize-forex',financial,async(req,res,next)=>{try{
@@ -58,15 +59,21 @@ module.exports=function fundedOperationsRoutes({renderTenant}){
   if(req.params.sourceType==='forex'&&
     (req.body.confirmFundsExchanged!=='yes'||req.body.confirmEvidenceChecked!=='yes'))
     throw service.fail('Confirm both actual Forex custody movements and the checked evidence before submitting');
+  if(['banking','money_transfer'].includes(req.params.sourceType)&&req.body.confirmFinalMovement!=='yes')
+    throw service.fail('Confirm that the real funds or account movement is complete before final posting');
   const result=await service.request(req.tenantDb,req.tenant,req.user,req.params.sourceType,req.params.sourceId,req.body);
-  // Forex is a confirmed physical exchange, not a request for routine approval.
-  // Never enable this path for Banking, Money Transfer or unconfirmed custody.
+  // All supported cashier movements post only after explicit evidence and account confirmation.
+  // The ledger posting service remains the single auditable source of truth.
   let printDestination=null;
   if(req.params.sourceType==='forex'){
    const posted=await service.finalizeForex(req.tenantDb,req.tenant,req.user,result.execution._id,req.body);
    flash(req,'good',posted.duplicate?'This Forex exchange was already finalized.':'Forex exchange finalized; both currency balances and journals posted.');
    printDestination=receiptPrint.funded(posted);
-  }else flash(req,'good',result.duplicate?'This manual movement request already exists.':'Manual movement recorded for independent review.');
+  }else if(['banking','money_transfer'].includes(req.params.sourceType)){
+   const posted=await service.finalizeCashier(req.tenantDb,req.tenant,req.user,result.execution._id,req.body);
+   flash(req,'good',posted.duplicate?'This transaction is already final.':'Transaction finalized. Cash or account balances, journal entries, and audit evidence were posted once.');
+   printDestination=receiptPrint.funded(posted);
+  }
   require('../services/branchView.service').followRecord(req,result.execution);
   res.redirect(303,printDestination||`/tenant/funded/${result.execution._id}`);
  }catch(error){next(error);}});

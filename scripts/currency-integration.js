@@ -57,7 +57,8 @@ async function main(){
   const businessTime=require('../src/utils/businessTime');
   const timeZone=businessTime.forBranch(branch);
   const day=businessTime.localDay(new Date(),timeZone);
-  const summary=await mobileWorkspace.workspace(conn,owner,{from:day,to:day,currency});
+  // The selected business day and report aggregation must use the same branch timezone.
+  const summary=await mobileWorkspace.workspace(conn,owner,{from:day,to:day,currency},{timeZone});
   assert.equal(summary.summary.total,2);assert.equal(summary.summary.byCurrency.length,1);
   assert.equal(summary.summary.byCurrency[0].volumeMinor,'14690');assert.equal(summary.summary.byCurrency[0].cashImpactMinor,'10000');
   const closed=await cash.submit(conn,tenant,owner,String(opened._id),{countedCash:'600.00',note:'Physical cash count agrees with immutable source records'});

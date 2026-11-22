@@ -23,9 +23,30 @@ module.exports=function expensesRoutes({renderTenant}){
  router.get('/expenses',page);router.get('/expenses/new',requirePermission('expenses.create'),page);
  router.post('/expenses',requirePermission('expenses.create'),throttle,async(req,res,next)=>{try{
   const result=await expenses.create(req.tenantDb,req.tenant,req.user,req.body,{requireFunds:true});
-  flash(req,'good',result.duplicate?'Expense already submitted; no duplicate record or balance movement.':'Expense saved with its exact funding account. Automatic deduction happens once after independent approval; pending expenses do not change balances.');
+  flash(req,'good',result.duplicate?'This expense is already recorded; no duplicate debit was made.':'Expense finalized. The selected source account has been debited exactly once, with a permanent audit record.');
   require('../services/branchView.service').followRecord(req,result.record);
   res.redirect(303,`/tenant/expenses/${result.record._id}`);
+ }catch(error){next(error);}});
+ router.get('/expenses/report',async(req,res,next)=>{try{
+  const timeZone=await reportTimeZone.forRequest(req);
+  const filters=require('../services/operationsReports.service').parseFilters(req.query,[{key:'expenses'}],timeZone);
+  const scope=expenses.scopeFor(req.user);
+  const rows=await expenses.reportRows({conn:req.tenantDb,filters,dateRange:filters.dateRange,scope});
+  renderTenant(req,res,'retailFinance/module-report','Expenses summary report',
+   'Recorded and posted expenses by payment method, status, currency and business date.',{
+    moduleKey:'expenses',label:'Expenses',filters,timeZone,rows,home:'/tenant/expenses',canExport:true
+   });
+ }catch(error){next(error);}});
+ router.get('/expenses/report/export.csv',async(req,res,next)=>{try{
+  const timeZone=await reportTimeZone.forRequest(req);
+  const filters=require('../services/operationsReports.service').parseFilters(req.query,[{key:'expenses'}],timeZone);
+  const scope=expenses.scopeFor(req.user);
+  const rows=await expenses.reportRows({conn:req.tenantDb,filters,dateRange:filters.dateRange,scope});
+  const csv='\uFEFF'+[['Payment method','Status','Currency','Records','Amount'],
+   ...rows.map(row=>[row.activity,row.status,row.currency,row.count,row.volume])]
+   .map(row=>row.map(mobile.csvCell).join(',')).join('\r\n')+'\r\n';
+  res.set({'Cache-Control':'private, no-store','X-Robots-Tag':'noindex, nofollow'});
+  res.attachment('classicfin-expenses-summary-'+filters.from+'-'+filters.to+'.csv').type('text/csv').send(csv);
  }catch(error){next(error);}});
  router.get('/expenses/:id',async(req,res,next)=>{try{
   const record=await expenses.detail(req.tenantDb,req.tenant,req.user,req.params.id),perms=permissions(req.user);

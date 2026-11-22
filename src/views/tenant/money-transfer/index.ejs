@@ -4,10 +4,10 @@
 <section class="view show">
  <%- include('../../partials/operation-branch', {currentBranch, branchProblem, user}) %>
  <%- include('../partials/module-finance',{moduleKey:'money_transfer'}) %>
- <section class="card"><div class="cardHead"><b><%= data.workspaceTitle||'Transfer requests — internal operations' %></b><span>Reviewed manual collection and payout</span><a class="btn" href="/tenant/money-transfer/records">Money transfer record</a></div>
+ <section class="card"><div class="cardHead"><b><%= data.workspaceTitle||'Transfer requests — internal operations' %></b><span>Final cashier collection and PIN payout</span><a class="btn" href="/tenant/money-transfer/records">Money transfer record</a></div>
   <div class="cardBody">
-   <p class="tiny">Save sender and receiver details, record the actual collection against opened funds accounts, and obtain independent review to generate the payout PIN.</p>
-   <div class="rowBtns"><a class="btn" href="/tenant/funded">Manual movements &amp; review</a><a class="btn" href="/tenant/treasury">Balances &amp; reconciliation</a><% if(data.canFx){ %><a class="btn" href="/tenant/funded/payout">Pay a collected transfer in its selected currency</a><% } %><a class="btn" href="/tenant/money-transfer/contacts">Saved contacts</a><a class="btn" href="/tenant/money-transfer/payout">Payout by PIN</a><a class="btn" href="/tenant/money-transfer/pending-payouts">Pending payout queue</a><a class="btn" href="/tenant/money-transfer/fees">Transfer fee summary</a><a class="btn" href="/tenant/money-transfer/report">Transfer report summary</a></div>
+   <p class="tiny">Enter sender and receiver details, then select the actual collected funds account. Finalizing posts the collection and issues the payout PIN automatically, without another person's approval.</p>
+   <div class="rowBtns"><a class="btn" href="/tenant/funded">Final movements &amp; receipts</a><a class="btn" href="/tenant/treasury">Balances &amp; reconciliation</a><% if(data.canFx){ %><a class="btn" href="/tenant/funded/payout">Pay a collected transfer in its selected currency</a><% } %><a class="btn" href="/tenant/money-transfer/contacts">Saved contacts</a><a class="btn" href="/tenant/money-transfer/payout">Payout by PIN</a><a class="btn" href="/tenant/money-transfer/pending-payouts">Pending payout queue</a><a class="btn" href="/tenant/money-transfer/fees">Transfer fee summary</a><a class="btn" href="/tenant/money-transfer/report">Transfer report summary</a></div>
 
   </div>
  </section>
@@ -16,7 +16,7 @@
    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
    <input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
 
-   <div class="cardHead"><b><%= data.workspaceTitle||'New transfer request' %></b><span>Independent collection review required</span></div>
+   <div class="cardHead"><b><%= data.workspaceTitle||'New transfer request' %></b><span>Final on confirmed collection</span></div>
    <div class="cardBody" style="display:grid;gap:12px">
     <%- include('_entry-form',{currentBranch}) %>
    </div>
@@ -28,14 +28,5 @@
    </div><div class="cardBody"><a class="btn" href="/tenant/money-transfer/history">All request history</a></div>
   </section>
  </div>
- <% if(data.canReview){ %><section class="card" style="margin-top:14px"><div class="cardHead"><b>Independent review queue</b><span>Two-person decision</span></div><div class="cardBody">
-  <% if(!data.queue.length){ %><p class="tiny">No requests await your independent review.</p><% } %>
-  <% data.queue.forEach(t=>{ %><form method="post" action="/tenant/money-transfer/<%= t._id %>/review" class="card" style="margin-bottom:12px;padding:12px">
-   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-   <div class="cardHead"><b><a href="/tenant/money-transfer/<%= t._id %>"><%= t.reference %></a></b><span><%= data.formatMoneyMinor(t.amountMinor,t.currency) %></span></div>
-   <p class="tiny">Sender: <%= t.sender.name %> · Beneficiary: <%= t.beneficiary.name %> · Expires: <%= new Date(t.expiresAt).toISOString().slice(0,10) %></p>
-   <label class="field">Decision rationale (12–400 characters)<textarea class="control" name="note" minlength="12" maxlength="400" required rows="2" placeholder="Record evidence reviewed and decision rationale; do not include sensitive identification documents"></textarea></label>
-   <div class="rowBtns"><button class="btn btnPrimary" type="submit" name="decision" value="approve">Approve pending provider</button><button class="btn" type="submit" name="decision" value="reject">Reject</button></div>
-  </form><% }) %>
- </div></section><% } %>
+ 
 </section>

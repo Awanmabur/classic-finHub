@@ -58,18 +58,17 @@ test('password visibility keeps only the eye icon without disabling access',()=>
  assert.match(reset,/data-password-toggle aria-controls="resetNewPassword"/);
  assert.match(js,/icon\.classList\.toggle\('fa-eye-slash',visible\)/);
 });
-test('Loan Management is a clearly planned future module, never billed or presented live',()=>{
- const home=source('src/views/original/home.ejs');
- const services=source('src/views/original/services.ejs');
- const marketplace=source('src/views/public/marketplace.ejs');
- const guide=source('src/views/public/product-guide.ejs');
- for(const body of [home,services,marketplace,guide]){
-  assert.match(body,/Loan Management/);
-  assert.match(body,/Coming soon/i);
- }
+test('new Loan Management recording requires real borrower, entitlement and balanced Treasury posting',()=>{
  const store=require('../src/data/store');
- assert(!store.modules.some(m=>/loan/.test(String(m.key||''))),'Loan Management cannot be enabled before build');
- assert(!source('src/views/public/pricing.ejs').includes('Loan Management'));
+ const m=store.modules.find(x=>x.key==='loans');
+ assert(m&&m.runtimeStatus==='recording_only');
+ const service=source('src/tenant/retailFinance/loans.service.js');
+ assert.match(service,/customerModel\(conn\)\.findOne/);
+ assert.match(service,/treasury\.applyMovements/);
+ assert.match(service,/loan_receivable/);
+ assert.match(service,/idempotencyKey/);
+ assert.match(service,/status:'approved'/);
+ assert.doesNotMatch(service,/provider\.send|transferToBank|autoDisburse/);
 });
 test('No cross-currency cash-first Deposit or settlement implementation was changed',()=>{
  const entry=source('src/views/tenant/mobile-money/_entry-form.ejs');

@@ -10,17 +10,19 @@ const adapters=require('../reporting/registry');
 const {cashSessionModel,mobileTransactionModel}=require('../models');
 const {expenseModel}=require('../models/expenses');
 const MAX_ROWS=5000;
-const cashSources=Object.freeze({mobile_money:'Mobile Money',money_transfer:'Money Transfer',banking:'Banking',forex:'Forex',expenses:'Expenses'});
+const cashSources=Object.freeze({mobile_money:'Mobile Money',money_transfer:'Money Transfer',banking:'Banking',forex:'Forex',expenses:'Expenses',loans:'Loan Management',airtime:'Airtime'});
 const pages=Object.freeze({
  daily:{title:'Daily business report',subtitle:'Daily control, multi-currency income, cash summary, and operation totals.'},
  opening:{title:'Opening cash report',subtitle:'Opening drawer baseline captured for the business day.',source:'cash_shifts'},
  closing:{title:'Closing cash / expected cash',subtitle:'Expected and actual cash balances by currency for day close.',source:'cash_shifts'},
- transactions:{title:'Transaction summary',subtitle:'Standalone transaction summary across money transfer, mobile money, and banking.'},
+ transactions:{title:'Transaction summary',subtitle:'Transaction and earnings summaries by permitted operating module.'},
  expenses:{title:'Expenses report',subtitle:'Daily expenses with vendor, method, reference, and amount.',source:'expenses'},
  transfer:{title:'Transfer report summary',subtitle:'Dedicated report for transfer count, volume, fees, pending payouts, and records.',source:'money_transfer'},
  mobile:{title:'Mobile money report',subtitle:'Dedicated report for mobile money count, volume, network mix, and drawer impact.',source:'mobile_money'},
  banking:{title:'Banking report summary',subtitle:'Dedicated report for deposits, withdrawals, account transfers, accounts, and balances.',source:'banking'},
- forex:{title:'Forex report',subtitle:'Currency quotations, volumes, rates, and independent decisions.',source:'forex'}
+ forex:{title:'Forex report',subtitle:'Currency quotations, volumes, rates, and independent decisions.',source:'forex'},
+ loans:{title:'Loan Management report',subtitle:'Applications, verified disbursements, collected principal and interest.',source:'loans'},
+ airtime:{title:'Airtime report',subtitle:'Actual stock purchases, manually confirmed sales and recorded gross profit.',source:'airtime'}
 });
 function fail(message,status=400){const error=new Error(message);error.status=status;return error;}
 function id(value){if(!/^[a-f0-9]{24}$/i.test(String(value||'')))throw fail('An authorized reporting scope is required',403);return new Types.ObjectId(String(value));}
@@ -141,7 +143,7 @@ async function generate(conn,tenant,actor,key,query={},timeZone='UTC'){
  const page=pages[key];if(!page)throw fail('Unknown report page',404);
  const sources=reports.sourcesFor(tenant,actor);if(!sources.length)throw fail('Operations Reports subscription and reporting permission required',403);
  const filters=reports.parseFilters({from:query.from,to:query.to,source:'all'},sources,timeZone),scope=scopeFor(actor);
- const sourceAvailable=!page.source||sources.some(source=>source.key===page.source),transactionKeys=['money_transfer','mobile_money','banking','forex'];
+ const sourceAvailable=!page.source||sources.some(source=>source.key===page.source),transactionKeys=['money_transfer','mobile_money','banking','forex','loans','airtime'];
  const requested=sources.filter(source=>page.source?source.key===page.source:transactionKeys.includes(source.key)||(key==='daily'&&source.key==='expenses'));
  let rows=[];
  if(sourceAvailable)for(const source of requested){
@@ -155,7 +157,7 @@ async function generate(conn,tenant,actor,key,query={},timeZone='UTC'){
   hasMobile&&['daily','transactions','mobile'].includes(key)?cashImpact(conn,scope,filters.dateRange,{legacyOnly:true}):{},
   hasExpenses&&key==='expenses'?expenseItems(conn,actor,scope,filters.dateRange):null,
   sourceAvailable&&!['opening','closing'].includes(key)?postedCash(conn,tenant,scope,filters.dateRange,requested.map(source=>source.key)):[],
-  sourceAvailable&&['daily','transfer','mobile','banking','transactions'].includes(key)?
+  sourceAvailable&&['daily','transfer','mobile','banking','loans','airtime','transactions'].includes(key)?
    postedIncome(conn,tenant,scope,filters.dateRange,requested):[]
  ]);
  return {key,page,filters,timeZone,sources,scope,sourceAvailable,rows,cash,impact,postedCash:cashMovements,expenses,realizedIncome,income:currencyTotals(rows),format:require('./forex.service').amountLabel,

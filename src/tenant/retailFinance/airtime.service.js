@@ -185,17 +185,35 @@ async function reverseRecorded(conn,tenant,actor,recordId,input){
  });
 }
 async function actualSummary(conn,tenantId,filter){
- const rows=await models(conn).record.aggregate([
-  {$match:{tenantId,...filter}},
-  {$group:{_id:'$currency',
-   sales:{$sum:{$cond:[{$eq:['$type','sale']},'$retailMinor',{$toDecimal:'0'}]}},
-   cost:{$sum:{$cond:[{$eq:['$type','sale']},'$costMinor',{$toDecimal:'0'}]}},
-   profit:{$sum:{$cond:[{$eq:['$type','sale']},'$profitMinor',{$toDecimal:'0'}]}},
-   purchases:{$sum:{$cond:[{$eq:['$type','stock_purchase']},'$costMinor',{$toDecimal:'0'}]}}
-  }}
+ const [originals,reversals]=await Promise.all([
+  models(conn).record.aggregate([
+   {$match:{tenantId,...filter}},
+   {$group:{_id:'$currency',
+    sales:{$sum:{$cond:[{$eq:['$type','sale']},'$retailMinor',{$toDecimal:'0'}]}},
+    cost:{$sum:{$cond:[{$eq:['$type','sale']},'$costMinor',{$toDecimal:'0'}]}},
+    profit:{$sum:{$cond:[{$eq:['$type','sale']},'$profitMinor',{$toDecimal:'0'}]}},
+    purchases:{$sum:{$cond:[{$eq:['$type','stock_purchase']},'$costMinor',{$toDecimal:'0'}]}}
+   }}
+  ]),
+  models(conn).correction.aggregate([
+   {$match:{tenantId,...filter}},
+   {$group:{_id:'$currency',
+    sales:{$sum:{$cond:[{$eq:['$type','sale']},'$amountMinor',{$toDecimal:'0'}]}},
+    cost:{$sum:{$cond:[{$eq:['$type','sale']},'$costMinor',{$toDecimal:'0'}]}},
+    profit:{$sum:{$cond:[{$eq:['$type','sale']},'$profitMinor',{$toDecimal:'0'}]}},
+    purchases:{$sum:{$cond:[{$eq:['$type','stock_purchase']},'$costMinor',{$toDecimal:'0'}]}}
+   }}
+  ])
  ]);
- return rows.map(row=>({currency:row._id,sales:String(row.sales||'0'),cost:String(row.cost||'0'),
-  profit:String(row.profit||'0'),purchases:String(row.purchases||'0')}));
+ const totals=new Map();
+ const apply=(r,sign)=>{
+  if(!totals.has(r._id))totals.set(r._id,{currency:r._id,sales:0n,cost:0n,profit:0n,purchases:0n});
+  const target=totals.get(r._id);
+  for(const key of ['sales','cost','profit','purchases'])target[key]+=sign*BigInt(String(r[key]||'0'));
+ };
+ originals.forEach(r=>apply(r,1n));reversals.forEach(r=>apply(r,-1n));
+ return [...totals.values()].sort((a,b)=>a.currency.localeCompare(b.currency))
+  .map(row=>Object.fromEntries(Object.entries(row).map(([k,v])=>[k,typeof v==='bigint'?String(v):v])));
 }
 async function list(conn,tenant,actor){
  const current=await F.access(conn,tenant,actor,'airtime','airtime.view'),scope={tenantId:current.tenant._id,...F.scope(current.actor)};

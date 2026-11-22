@@ -1,0 +1,21 @@
+'use strict';
+// Only real recorded stock purchases and manually confirmed airtime sales.
+const {Types}=require('mongoose');
+const {branchMatch}=require('../aggregateScope');
+const {models}=require('../../retailFinance/airtime.models');
+const fmt=require('../../services/mobileMoney.service').formatMoneyMinor;
+async function rows({conn,scope,dateRange}){
+ const branch=branchMatch(scope,id=>new Types.ObjectId(id));
+ const data=await models(conn).record.aggregate([
+  {$match:{...branch,createdAt:dateRange}},
+  {$group:{_id:{type:'$type',currency:'$currency',network:'$network'},
+   count:{$sum:1},amount:{$sum:{$cond:[{$eq:['$type','sale']},'$retailMinor','$costMinor']}},
+   profit:{$sum:'$profitMinor'}}},
+  {$limit:301}
+ ]).option({maxTimeMS:5000});
+ if(data.length>300)throw Object.assign(new Error('Narrow your airtime report dates'),{status:422});
+ return data.map(r=>({module:'Airtime',activity:(r._id.type==='sale'?'Manual confirmed airtime sales':'Prepaid stock purchases')+' · '+r._id.network,
+  status:'posted_manual',currency:r._id.currency,count:r.count,amountMinor:String(r.amount),
+  volume:fmt(r.amount,r._id.currency),fees:r._id.type==='sale'?fmt(r.profit,r._id.currency)+' gross profit':'—'}));
+}
+module.exports=Object.freeze({key:'airtime',label:'Airtime transactions',moduleKey:'airtime',rows});

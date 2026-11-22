@@ -94,3 +94,16 @@ test('legacy branding saves do not silently overwrite newly added receipt or pub
  for(const key of ['receiptLayout','receiptHeader','receiptShowLogo','publicRatesEnabled','rateBoardTitle','rateBoardNote','rateBoardStyle'])
    assert.equal(Object.hasOwn(update,key),false,key+' must be preserved, not reset');
 });
+
+test('rate board preview renders approved source rows rather than fabricated amounts',async()=>{
+ const config=service.defaults(tenant);
+ const data={page:'branding',config,canManage:false,rateBoardPreview:{
+  settings:{enabled:true,title:'Owner rate board',note:'Business-set rate',style:'cards'},
+  rates:[{branch:'North',base:'1,000 UGX',side:'buy',price:'4,000',to:'SSP',expiresAt:new Date('2030-01-01T00:00:00Z')}] }};
+ const html=await ejs.renderFile(path.resolve(__dirname,'../src/views/tenant/workspace/index.ejs'),{data,tenant,user:owner,csrfToken:'csrf',assetVersion:'test'});
+ assert.match(html,/Live rate board preview/);
+ assert.match(html,/1,000 UGX/);
+ assert.match(html,/4,000 SSP/);
+ assert.match(html,/Owner rate board/);
+ assert.match(html,/Business-set rate/);
+});

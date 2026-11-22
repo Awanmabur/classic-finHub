@@ -13,6 +13,7 @@ const secondary=/^#[0-9a-fA-F]{6}$/.test(brand.secondary||'')?brand.secondary:'#
  <h1><%= brand.name||'ClassicFin Hub business' %></h1>
  <p><%= brand.header||'Transaction acknowledgement' %></p>
  <strong><%= brand.template||'Standard receipt' %></strong>
+ <% if(brand.prefix){ %><p class="tiny">Business reference prefix: <%= brand.prefix %></p><% } %>
 </header>
 <h2><%= receipt.documentType %></h2>
 <div class="warning"><strong><%= receipt.reversed?'REVERSED — ORIGINAL RETAINED':'INTERNAL BUSINESS RECORD — PROVIDER NOT VERIFIED' %></strong>

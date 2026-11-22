@@ -54,7 +54,36 @@
   <% if(site.publishedAt){ %><a class="btn" href="/t/<%= tenant.slug %>" target="_blank" rel="noopener noreferrer">Open live website</a><button type="button" class="btn" data-website-copy-path="/t/<%= tenant.slug %>">Copy shareable link</button><% } %>
   </div>
  </div></div>
- <p class="workspaceNote">Your basic business profile is publicly visible immediately after account activation. Publishing additional website details makes only your selected content public. Draft changes stay private. Use direct HTTPS links for media; this form does not upload files. Reviews are submitted by customers and independently moderated by platform administrators.</p>
+ <% if(data.canManage){ %>
+ <section class="card" aria-label="Uploaded business images">
+  <div class="cardHead"><div><b>Your uploaded business images</b><br><span>Cloudflare R2 · public website media only</span></div><span class="tag"><%= (data.media||[]).length %> images</span></div>
+  <div class="cardBody">
+   <p class="tiny">Images are publicly accessible to anyone holding their direct link. Add or replace images in Edit business website, save, then publish. An image still used by your draft or published website cannot be deleted.</p>
+   <% if((data.media||[]).length){const activeSite=site.details||{},publishedSite=site.published?.details||{};
+    const used=url=>[activeSite.logoUrl,activeSite.coverUrl,...(activeSite.gallery||[]),
+      publishedSite.logoUrl,publishedSite.coverUrl,...(publishedSite.gallery||[])].includes(url); %>
+   <div class="workspaceMediaGrid">
+    <% data.media.forEach(item=>{ %>
+     <article class="workspaceMediaCard">
+      <img loading="lazy" decoding="async" src="<%= item.url %>" alt="Your <%= item.kind %> image">
+      <div class="workspaceMediaMeta"><strong><%= item.kind==='gallery'?'Gallery photo':item.kind==='logo'?'Business logo':'Banner / cover' %></strong><span><%= Math.ceil(item.bytes/1024) %> KB</span></div>
+      <div class="workspaceActions">
+       <button class="btn" type="button" data-media-copy-url="<%= item.url %>">Copy URL</button>
+       <% if(used(item.url)){ %><span class="tag">In use</span><% }else{ %>
+       <form method="post" action="/tenant/workspace/media/<%= item._id %>/delete">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button class="btn btnDanger" type="submit">Delete unused</button>
+       </form>
+       <% } %>
+      </div>
+     </article>
+    <% }) %>
+   </div>
+   <% }else{ %><p>No images have been uploaded to your media library yet.</p><% } %>
+  </div>
+ </section>
+ <% } %>
+ <p class="workspaceNote">Your basic business profile appears after activation. Additional details and uploaded images appear on the profile after you publish. Reviews are submitted by customers and moderated independently. Never upload customer documents or financial records to the public-image bucket.</p>
 <% } %>
 <% if(data.page==='branding'){ const b=data.config.branding; %>
  <div class="card"><div class="cardHead"><div><b>Branding & receipts</b><br><span>Colors, tenant identity, and receipt wording</span></div><div class="workspaceActions"><% if(data.canManage){ %><a class="btn btnPrimary" href="/tenant/workspace/branding/edit" data-workspace-open="workspaceEditor">Edit colors</a><a class="btn" href="/tenant/workspace/branding/receipt/edit" data-workspace-open="workspaceReceiptEditor">Edit receipt settings</a><% } %><a class="btn" href="/tenant/workspace/receipt-preview">Preview receipt</a></div></div><div class="cardBody"><dl class="workspaceFacts"><% [['Theme',b.theme],['Primary color',b.primary],['Secondary color',b.secondary],['Logo status',b.logoStatus],['Receipt prefix',b.prefix],['Template name',b.template],['Receipt footer note',b.receiptNote]].forEach(row=>{ %><div><dt><%= row[0] %></dt><dd><%= row[1]||'—' %></dd></div><% }) %></dl></div></div>

@@ -65,3 +65,22 @@ test('funded self-review cannot bypass reversal, discrepancy and correction rest
  assert.match(momo,/correctionRequestedBy:\{\$ne:reviewer\.id\}/);
  assert.match(expenses,/A different authorized person must decide this correction/);
 });
+
+test('tenant role defaults render as an owner-only real form and staff role assignments remain editable',()=>{
+ const ejs=require('ejs');
+ const index=source('src/views/tenant/users/index.ejs');
+ const edit=source('src/views/tenant/users/edit.ejs');
+ for(const template of [index,edit])assert.doesNotThrow(()=>ejs.compile(template), 'Valid EJS template required');
+ assert.match(index,/if\(user\.role==='Tenant Owner'\)/);
+ assert.match(index,/action="\/tenant\/users\/role-defaults"/);
+ assert.match(index,/data-role-default-editor/);
+ assert.match(index,/data-role-module-choice/);
+ assert.match(edit,/data-role-module-select/);
+ assert.match(edit,/moduleSelectionSubmitted/);
+ const route=source('src/tenant/routes/index.js');
+ assert.match(route,/modules:req\.user\.role==='Tenant Owner'\?modules:modules\.filter/);
+ const service=source('src/tenant/services/roleModules.service.js');
+ assert.match(service,/tenantContext\(conn,tenant\)/);
+ assert.match(service,/session\.withTransaction/);
+ assert.match(service,/authVersion:1/);
+});

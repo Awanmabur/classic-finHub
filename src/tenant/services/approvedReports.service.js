@@ -130,11 +130,24 @@ async function postedIncome(conn,tenant,scope,range,sources){
     count:{$sum:1},amount:{$sum:{$toDecimal:'$amountMinor'}}}},
    {$limit:201}
   ]).option({maxTimeMS:8000}):Promise.resolve([]);
- const [transactions,commissions]=await Promise.all([execution,payouts]);
- if(transactions.length>200||commissions.length>200)throw fail('Too many realized income groups. Narrow the date range.',422);
- return [...transactions,...commissions].filter(row=>String(row.amount)!=='0').map(row=>({
-  module:row._id.source==='money_transfer'?'Money Transfer':row._id.source==='banking'?'Banking':'Mobile Money',
+ const loanIncome=allowed.has('loans')?require('../retailFinance/loans.models').models(conn).payment.aggregate([
+  {$match:{tenantId:tenant._id,createdAt:range,...sourceScope}},
+  {$group:{_id:{source:{$literal:'loans'},currency:'$currency'},count:{$sum:1},amount:{$sum:'$interestMinor'}}},
+  {$limit:201}
+ ]).option({maxTimeMS:5000}):Promise.resolve([]);
+ const airtimeIncome=allowed.has('airtime')?require('../retailFinance/airtime.models').models(conn).record.aggregate([
+  {$match:{tenantId:tenant._id,createdAt:range,type:'sale',...sourceScope}},
+  {$group:{_id:{source:{$literal:'airtime'},currency:'$currency'},count:{$sum:1},amount:{$sum:'$profitMinor'}}},
+  {$limit:201}
+ ]).option({maxTimeMS:5000}):Promise.resolve([]);
+ const [transactions,commissions,loanInterest,airtimeProfit]=await Promise.all([execution,payouts,loanIncome,airtimeIncome]);
+ if([transactions,commissions,loanInterest,airtimeProfit].some(group=>group.length>200))
+  throw fail('Too many realized income groups. Narrow the date range.',422);
+ return [...transactions,...commissions,...loanInterest,...airtimeProfit]
+ .filter(row=>String(row.amount)!=='0').map(row=>({
+  module:({money_transfer:'Money Transfer',banking:'Banking',mobile_money:'Mobile Money',loans:'Loan Management',airtime:'Airtime'})[row._id.source],
   currency:row._id.currency,count:row.count,amountMinor:String(row.amount),
+  activity:row._id.source==='loans'?'Collected loan interest':row._id.source==='airtime'?'Realized airtime gross profit':'Posted fee/commission income',
   amount:require('./forex.service').amountLabel(String(row.amount),row._id.currency)
  })).sort((a,b)=>a.currency.localeCompare(b.currency)||a.module.localeCompare(b.module));
 }

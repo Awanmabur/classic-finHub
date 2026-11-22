@@ -1,0 +1,43 @@
+<section class="view show" id="loanDetail">
+ <section class="card"><div class="cardHead"><div><b>Loan <%= data.loan.applicationRef %></b><br><span>Original contract remains traceable after every repayment</span></div><a class="btn" href="/tenant/loans">All loans</a></div>
+  <div class="cardBody">
+   <div class="retailStats">
+    <article class="stat"><div class="k">Borrower</div><div class="v"><%= data.customer?.name||'Archived customer' %></div></article>
+    <article class="stat"><div class="k">Principal outstanding</div><div class="v"><%= data.format(data.loan.principalOutstandingMinor,data.loan.currency) %></div></article>
+    <article class="stat"><div class="k">Interest outstanding</div><div class="v"><%= data.format(data.loan.interestOutstandingMinor,data.loan.currency) %></div></article>
+    <article class="stat"><div class="k">Status</div><div class="v"><%= data.loan.status %></div><div class="tiny">Due: <%= data.formatDate(data.loan.dueAt) %></div></article>
+   </div>
+   <p class="tiny">Loan purpose: <%= data.loan.reason %>. Initial principal: <%= data.format(data.loan.principalMinor,data.loan.currency) %>. Fixed contractual interest: <%= data.format(data.loan.interestMinor,data.loan.currency) %>. No penalty or additional fees are generated.</p>
+  </div>
+ </section>
+ <% if(data.canReview){ %><section class="card" style="margin-top:14px"><div class="cardHead"><b>Independent loan decision</b></div><div class="cardBody">
+  <form method="post" action="/tenant/loans/<%= data.loan._id %>/review" class="retailForm">
+   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+   <label class="field retailWide">Decision reason<textarea class="control" name="reason" rows="2" minlength="8" maxlength="400" required></textarea></label>
+   <div class="retailWide rowBtns"><button class="btn btnPrimary" type="submit" name="decision" value="approve">Approve</button><button class="btn btnDanger" type="submit" name="decision" value="decline">Decline</button></div>
+  </form>
+ </div></section><% } %>
+ <% if(data.canDisburse){ %><section class="card" style="margin-top:14px"><div class="cardHead"><b>Record verified disbursement</b></div><div class="cardBody">
+ <p class="tiny">Money is deducted only after final submission against a real authorized funds account. This does not initiate an external provider payment.</p>
+ <form method="post" action="/tenant/loans/<%= data.loan._id %>/disburse" class="retailForm">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <label class="field">Pay from actual account<select class="control" name="accountId" required><option value="">Choose cash, wallet or bank account</option><% data.funds.filter(a=>a.currency===data.loan.currency&&String(a.branchId)===String(data.loan.branchId)).forEach(a=>{ %><option value="<%= a._id %>"><%= a.name %> · <%= a.currency %></option><% }) %></select></label>
+  <label class="field">Verified disbursement evidence reference<input class="control" name="reference" minlength="6" maxlength="120" required></label>
+  <div class="retailWide"><button class="btn btnPrimary" type="submit">Confirm disbursement and deduct funds</button></div>
+ </form></div></section><% } %>
+ <% if(data.canRepay){ %><section class="card" style="margin-top:14px"><div class="cardHead"><b>Record received loan repayment</b></div><div class="cardBody">
+ <p class="tiny">Only record money actually received. Partial repayments are permitted. Interest is collected first and reported separately from recovered principal.</p>
+ <form method="post" action="/tenant/loans/<%= data.loan._id %>/repay" class="retailForm">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="idempotencyKey" value="<%= data.uuid %>">
+  <label class="field">Amount received (<%= data.loan.currency %>)<input class="control" name="amount" inputmode="decimal" required></label>
+  <label class="field">Received into account<select class="control" name="accountId" required><option value="">Choose real receiving account</option><% data.funds.filter(a=>a.currency===data.loan.currency&&String(a.branchId)===String(data.loan.branchId)).forEach(a=>{ %><option value="<%= a._id %>"><%= a.name %></option><% }) %></select></label>
+  <label class="field retailWide">Verified receipt reference<input class="control" name="reference" minlength="6" maxlength="120" required></label>
+  <div class="retailWide"><button class="btn btnPrimary" type="submit">Confirm repayment received</button></div>
+ </form></div></section><% } %>
+ <section class="card" style="margin-top:14px"><div class="cardHead"><b>Repayment history</b><span>Immutable journal-linked receipts</span></div>
+  <div class="cardBody tableWrap"><table><thead><tr><th>Received</th><th>Total</th><th>Principal</th><th>Interest</th><th>Evidence</th></tr></thead><tbody>
+  <% if(!data.payments.length){ %><tr><td colspan="5">No repayments recorded.</td></tr><% } %>
+  <% data.payments.forEach(p=>{ %><tr><td><%= data.formatDate(p.createdAt) %></td><td><%= data.format(p.amountMinor,p.currency) %></td><td><%= data.format(p.principalMinor,p.currency) %></td><td><%= data.format(p.interestMinor,p.currency) %></td><td><%= p.reference %></td></tr><% }) %>
+  </tbody></table></div>
+ </section>
+</section>

@@ -108,13 +108,18 @@ function validateConfig(section,input){
   const primary=plain(input.primary,7,true),secondary=plain(input.secondary,7,true),prefix=plain(input.prefix,12,true);
   if(!/^#[a-fA-F0-9]{6}$/.test(primary)||!/^#[a-fA-F0-9]{6}$/.test(secondary))throw fail('Choose six-digit hexadecimal colors.');
   if(!/^[A-Z0-9-]{2,12}$/.test(prefix))throw fail('Receipt prefix must use 2–12 uppercase letters, numbers or hyphens.');
-  const receiptLayout=choice(input.receiptLayout,['classic','compact','detailed'],'receipt layout');
-  const rateBoardStyle=choice(input.rateBoardStyle,['table','cards'],'rate board style');
-  const receiptShowLogo=choice(input.receiptShowLogo,['true','false'],'receipt logo visibility')==='true';
-  const publicRatesEnabled=choice(input.publicRatesEnabled,['true','false'],'public rate visibility')==='true';
-  return {theme:plain(input.theme,80,true),primary,secondary,logoStatus:plain(input.logoStatus,80),receiptNote:plain(input.receiptNote,500),prefix,template:plain(input.template,80,true),
-   receiptLayout,receiptHeader:plain(input.receiptHeader,140),receiptShowLogo,
-   publicRatesEnabled,rateBoardTitle:plain(input.rateBoardTitle,100,true),rateBoardNote:plain(input.rateBoardNote,300),rateBoardStyle};
+  // Legacy clients omit these new fields. Preserve the saved preferences
+  // instead of failing or silently resetting custom branding on an old form.
+  const optional={};
+  const supplied=name=>Object.prototype.hasOwnProperty.call(input,name);
+  if(supplied('receiptLayout'))optional.receiptLayout=choice(input.receiptLayout,['classic','compact','detailed'],'receipt layout');
+  if(supplied('rateBoardStyle'))optional.rateBoardStyle=choice(input.rateBoardStyle,['table','cards'],'rate board style');
+  if(supplied('receiptShowLogo'))optional.receiptShowLogo=choice(input.receiptShowLogo,['true','false'],'receipt logo visibility')==='true';
+  if(supplied('publicRatesEnabled'))optional.publicRatesEnabled=choice(input.publicRatesEnabled,['true','false'],'public rate visibility')==='true';
+  if(supplied('receiptHeader'))optional.receiptHeader=plain(input.receiptHeader,140);
+  if(supplied('rateBoardTitle'))optional.rateBoardTitle=plain(input.rateBoardTitle,100,true);
+  if(supplied('rateBoardNote'))optional.rateBoardNote=plain(input.rateBoardNote,300);
+  return {theme:plain(input.theme,80,true),primary,secondary,logoStatus:plain(input.logoStatus,80),receiptNote:plain(input.receiptNote,500),prefix,template:plain(input.template,80,true),...optional};
  }
  throw fail('Unknown workspace settings section',404);
 }

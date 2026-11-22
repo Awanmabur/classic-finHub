@@ -51,8 +51,9 @@ async function apply(conn,tenant,actor,input){
  const branch=await F.operatingBranch(conn,current.actor,input),key=F.uuid(input.idempotencyKey),pid=F.oid(input.productId,'loan product');
  const borrower=F.oid(input.customerId,'borrower'),reason=nonempty(input.reason,'loan purpose');
  await ensure(conn);
+ const requestHash=F.hash({actorId:String(actor.id),branchId:String(branch._id),productId:String(pid),customerId:String(borrower),principal:String(input.principal),reason});
  const existing=await models(conn).loan.findOne({requestKey:key}).lean();
- if(existing)return {loan:existing,duplicate:true};
+ if(existing){if(existing.requestHash!==requestHash)throw F.fail('Loan request reference reused with different values',409);return {loan:existing,duplicate:true};}
  return F.transact(conn,async session=>{
   current=await F.access(conn,tenant,actor,'loans','loans.create',session);
   const active=await F.operatingBranch(conn,current.actor,input,session);
@@ -67,7 +68,7 @@ async function apply(conn,tenant,actor,input){
   const coupon=interest(amount,p.flatInterestBps);
   await reserveUsage(current.tenant,'loan_requests',session);
   const [loan]=await models(conn).loan.create([{tenantId:current.tenant._id,branchId:active._id,customerId:borrower,productId:p._id,
-   requestKey:key,applicationRef:'LN-'+crypto.randomBytes(9).toString('hex').toUpperCase(),principalMinor:F.d(amount),
+   requestKey:key,requestHash,applicationRef:'LN-'+crypto.randomBytes(9).toString('hex').toUpperCase(),principalMinor:F.d(amount),
    interestMinor:F.d(coupon),principalOutstandingMinor:F.d(0),interestOutstandingMinor:F.d(0),
    currency:p.currency,dueAt,reason,requestedBy:F.oid(current.actor.id)}],{session});
   await F.audit(conn,session,current.actor,loan._id,'loans.application.requested',{branchId:String(active._id),principalMinor:String(amount),currency:p.currency});
@@ -113,7 +114,7 @@ async function disburse(conn,tenant,actor,loanId,input){
    ledgerLines:[{accountId:String(receivable.ledgerAccountId),currency:record.currency,side:'debit',amountMinor:principal}],
    description:'Verified loan disbursement '+record.applicationRef,evidenceRef:evidence});
   const changed=await models(conn).loan.findOneAndUpdate({_id:id,status:'approved',revision:record.revision},{$set:{
-   status:'active',sourceAccountId:fund._id,disbursementBatchId:posted.batch._id,disbursementRef:evidence,
+   status:'active',dueAt:new Date(Date.now()+(await models(conn).product.findById(record.productId).session(session).lean()).termDays*86400000),sourceAccountId:fund._id,disbursementBatchId:posted.batch._id,disbursementRef:evidence,
    disbursedBy:F.oid(current.actor.id),disbursedAt:new Date(),principalOutstandingMinor:F.d(principal),
    interestOutstandingMinor:F.d(record.interestMinor)
   },$inc:{revision:1}},{session,new:true});

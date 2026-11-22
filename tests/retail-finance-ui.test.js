@@ -53,3 +53,26 @@ test('airtime sale and returned funds render independent corrections, stock and 
  assert.match(html,/name="fundsReturned" value="yes"/);
  assert.match(html,/value="sale-uuid"/);assert.match(html,/value="stock-uuid"/);
 });
+
+test('real loan and airtime receipts are linked to scoped immutable records and escape branding',async()=>{
+ const fs=require('node:fs');
+ const loanView=fs.readFileSync(file('loans/detail.ejs'),'utf8');
+ const airView=fs.readFileSync(file('airtime/index.ejs'),'utf8');
+ const retail=fs.readFileSync(path.join(__dirname,'../src/tenant/retailFinance/receipts.service.js'),'utf8');
+ assert.match(loanView,/repayments\/<%= p\._id %>\/receipt/);
+ assert.match(airView,/if\(x\.type==='sale'\)/);
+ assert.match(airView,/\/tenant\/airtime\/<%= x\._id %>\/receipt/);
+ assert.match(retail,/F\.access\(conn,tenant,actor,'airtime','airtime\.view'\)/);
+ assert.match(retail,/F\.scope\(current\.actor\)/);
+ const html=await ejs.renderFile(file('retailFinance/acknowledgement.ejs'),{
+  identity:{name:'<script>attack()</script>',header:'Branch receipt',template:'Classic',primary:'#082c52',footerNote:'Safe text'},
+  receipt:{documentType:'Loan repayment receipt',reference:'LN-REC-123',branch:'North',recordedAt:'22 Nov 2026 10:00',timeZone:'Africa/Juba',
+   customer:'Customer',status:'Recorded',reversed:false,
+   lines:[['Amount received','SSP 5,000'],['Test','<img src=x onerror=alert(1)>']],
+   warning:'Source record is internal',returnUrl:'/tenant/loans/507f191e810c19729de860ea'}
+ });
+ assert.match(html,/LN-REC-123/);assert.match(html,/SSP 5,000/);
+ assert.match(html,/&lt;script&gt;attack\(\)&lt;\/script&gt;/);assert.doesNotMatch(html,/<script>attack/);
+ assert.match(html,/&lt;img src=x onerror=alert\(1\)&gt;/);assert.doesNotMatch(html,/<img src=x onerror/);
+ assert.match(html,/PROVIDER NOT VERIFIED/);
+});

@@ -82,6 +82,17 @@ module.exports=function retailRoutes({renderTenant}){
   flash(req,'good','Documented loan disbursement recorded. The selected funds account was deducted and the receivable journal was posted once; no external payment was initiated.');
   res.redirect(303,'/tenant/loans/'+req.params.id);
  }catch(e){next(e);}});
+ const retailReceipt=require('./receipts.service');
+ function showReceipt(req,res,next,reader){
+  Promise.resolve().then(()=>reader(req.tenantDb,req.tenant,req.user)).then(receipt=>{
+   res.set({'Cache-Control':'private, no-store','X-Robots-Tag':'noindex, nofollow','X-Content-Type-Options':'nosniff'});
+   res.render('tenant/retailFinance/acknowledgement',{receipt,identity:req.workspaceIdentity||{}});
+  }).catch(next);
+ }
+ router.get('/loans/:id/repayments/:paymentId/receipt',requirePermission('loans.view'),(req,res,next)=>
+  showReceipt(req,res,next,(conn,tenant,user)=>retailReceipt.loanPayment(conn,tenant,user,req.params.id,req.params.paymentId)));
+ router.get('/airtime/:id/receipt',requirePermission('airtime.view'),(req,res,next)=>
+  showReceipt(req,res,next,(conn,tenant,user)=>retailReceipt.airtimeSale(conn,tenant,user,req.params.id)));
  router.post('/loans/:id/repayments/:paymentId/reverse',requirePermission('loans.review'),throttle,async(req,res,next)=>{try{
   await loans.reverseRepayment(req.tenantDb,req.tenant,req.user,req.params.id,req.params.paymentId,req.body);
   flash(req,'good','Repayment correction saved. The original receipt remains in history; the Treasury reversal and loan balance are updated together.');

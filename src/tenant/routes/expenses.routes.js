@@ -42,9 +42,9 @@ module.exports=function expensesRoutes({renderTenant}){
   const filters=require('../services/operationsReports.service').parseFilters(req.query,[{key:'expenses'}],timeZone);
   const scope=expenses.scopeFor(req.user);
   const rows=await expenses.reportRows({conn:req.tenantDb,filters,dateRange:filters.dateRange,scope});
-  const csv='\\uFEFF'+[['Payment method','Status','Currency','Records','Amount'],
+  const csv='\${token}'+[['Payment method','Status','Currency','Records','Amount'],
    ...rows.map(row=>[row.activity,row.status,row.currency,row.count,row.volume])]
-   .map(row=>row.map(mobile.csvCell).join(',')).join('\\r\\n')+'\\r\\n';
+   .map(row=>row.map(mobile.csvCell).join(',')).join('\${token}\${token}')+'\${token}\${token}';
   res.set({'Cache-Control':'private, no-store','X-Robots-Tag':'noindex, nofollow'});
   res.attachment('classicfin-expenses-summary-'+filters.from+'-'+filters.to+'.csv').type('text/csv').send(csv);
  }catch(error){next(error);}});

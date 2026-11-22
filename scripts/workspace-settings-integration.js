@@ -67,7 +67,9 @@ async function main(){
  const publishedRates=await publicBoard(conn,licensed);
  assert.equal(publishedRates.rates.length,1,'only reviewed, active, non-expired rates may be public');
  assert.equal(publishedRates.rates[0].base,'1,000 UGX');
- assert.equal(publishedRates.rates[0].price,'4000');
+ assert.equal(publishedRates.rates[0].price,'4,000');
+ assert.equal(publishedRates.rates[0].timeZone,'Africa/Kampala');
+ assert(publishedRates.rates[0].expiresLocal.includes('2026')||publishedRates.rates[0].expiresLocal.includes('2027'));
  assert.equal(publishedRates.rates[0].branch,'Scratch FX counter');
  assert.equal((await publicBoard(conn,tenant)).rates.length,0,'unsubscribed Forex rates are not public');
  assert.equal((await publicBoard(other,licensed)).rates.length,0,'another tenant database cannot reveal our rates');

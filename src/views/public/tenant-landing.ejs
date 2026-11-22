@@ -58,7 +58,7 @@ const cityParts=[d.city,d.region,landing.country].filter(Boolean).join(', ');
       <div class="publicBusinessSectionHead"><span>Business prices</span><h2><%= rateBoard.title||'Current exchange rates' %></h2></div>
       <div class="publicBusinessRateCard <%= rateBoard.style==='cards'?'publicBusinessRateCards':'' %>"><p class="publicBusinessRateDisclaimer"><%= rateBoard.note||'Business-approved rates. Confirm the final price before trading.' %> These are business-set rates, not independently verified market prices.</p>
         <div class="publicBusinessRateScroll"><table><thead><tr><th scope="col">Branch</th><th scope="col">Exchange</th><th scope="col">Type</th><th scope="col">Quoted amount</th></tr></thead><tbody>
-        <% rates.forEach(rate=>{ %><tr><td><%= rate.branch %></td><td><strong><%= rate.base %></strong><small>to <%= rate.to %></small></td><td><%= rate.side==='buy'?'Buy':rate.side==='sell'?'Sell':'Indicative' %></td><td><strong><%= rate.price %> <%= rate.to %></strong><small>Valid until <%= new Date(rate.expiresAt).toLocaleString('en-GB',{timeZone:'UTC',timeZoneName:'short'}) %></small></td></tr><% }) %>
+        <% rates.forEach(rate=>{ %><tr><td><%= rate.branch %></td><td><strong><%= rate.base %></strong><small>to <%= rate.to %></small></td><td><%= rate.side==='buy'?'Buy':rate.side==='sell'?'Sell':'Indicative' %></td><td><strong><%= rate.price %> <%= rate.to %></strong><small>Valid until <%= rate.expiresLocal %> (<%= rate.timeZone %>)</small></td></tr><% }) %>
         </tbody></table></div>
       </div>
     </section><% } %>

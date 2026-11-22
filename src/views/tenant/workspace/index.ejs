@@ -101,8 +101,8 @@
   <div class="cardBody"><div class="workspaceRatePreviewTitle"><strong><%= board.settings.title||'Current exchange rates' %></strong><span class="tag"><%= board.settings.enabled?'Public':'Hidden' %></span></div>
    <p class="tiny"><%= board.settings.note||'Business-approved prices. Confirm before trading.' %> This is not an independent market feed.</p>
    <% if(board.rates.length){ %>
-    <div class="tableWrap"><table class="<%= board.settings.style==='cards'?'workspaceRateCardRows':'' %>"><thead><tr><th>Branch</th><th>From</th><th>Type</th><th>Approved rate</th><th>Expires (UTC)</th></tr></thead><tbody>
-    <% board.rates.forEach(rate=>{ %><tr><td><%= rate.branch %></td><td><%= rate.base %></td><td><%= rate.side==='buy'?'Buy':rate.side==='sell'?'Sell':'Indicative' %></td><td><b><%= rate.price %> <%= rate.to %></b></td><td><%= new Date(rate.expiresAt).toLocaleString('en-GB',{timeZone:'UTC'}) %></td></tr><% }) %>
+    <div class="tableWrap"><table class="<%= board.settings.style==='cards'?'workspaceRateCardRows':'' %>"><thead><tr><th>Branch</th><th>From</th><th>Type</th><th>Approved rate</th><th>Expires (branch time)</th></tr></thead><tbody>
+    <% board.rates.forEach(rate=>{ %><tr><td><%= rate.branch %></td><td><%= rate.base %></td><td><%= rate.side==='buy'?'Buy':rate.side==='sell'?'Sell':'Indicative' %></td><td><b><%= rate.price %> <%= rate.to %></b></td><td><%= rate.expiresLocal %> (<%= rate.timeZone %>)</td></tr><% }) %>
     </tbody></table></div>
    <% }else{ %><p class="workspaceRateEmpty"><%= board.settings.enabled?'No approved, unexpired Forex rates are available. Create rates in Forex Operations.':'Public rate publication is disabled in Branding.' %></p><% } %>
    <p class="tiny">Only real, approved, active records appear. Historical records remain unchanged.</p>

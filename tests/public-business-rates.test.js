@@ -16,5 +16,6 @@ test('public company identity stays below the cover, and rates beside About on d
  assert.match(css,/\.publicBusinessAvatar img\{width:100%;height:100%;object-fit:contain/);
  assert.match(css,/\.publicBusinessAboutRates\{display:grid;grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\)/);
  assert.match(ejs,/publicBusinessRateSection/);
- assert.match(ejs,/new Date\(rate.expiresAt\)/);
+ assert.match(ejs,/rate.expiresLocal/);
+ assert.match(ejs,/rate.timeZone/);
 });

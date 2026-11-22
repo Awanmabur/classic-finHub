@@ -78,10 +78,14 @@ function configForm(section,config,tenant={}){
     field('website','Business website URL (HTTPS)',d.website,{max:300,full:true}),
     field('facebook','Facebook page URL (HTTPS)',d.facebook,{max:300,full:true}),
     field('instagram','Instagram URL (HTTPS)',d.instagram,{max:300,full:true}),
-    field('linkedin','LinkedIn URL (HTTPS)',d.linkedin,{max:300,full:true}),
-    field('logoUrl','Public logo image URL (HTTPS)',d.logoUrl,{max:500,full:true,hint:'A direct HTTPS image link. No upload is performed.'}),
-    field('coverUrl','Banner / cover image URL (HTTPS)',d.coverUrl,{max:500,full:true,hint:'A direct HTTPS image link. No upload is performed.'}),
-    field('gallery','Gallery image URLs (up to eight, one per line)',(d.gallery||[]).join('\n'),{type:'textarea',max:3000,full:true})
+    field('linkedin','LinkedIn URL (HTTPS)',d.linkedin,{max:300,full:true})
+  ];
+  // Image links remain in the saved data contract for existing profiles,
+  // but owners manage them through visual photo controls, not URL text boxes.
+  hidden=[
+    {name:'logoUrl',value:d.logoUrl||''},
+    {name:'coverUrl',value:d.coverUrl||''},
+    {name:'gallery',value:(d.gallery||[]).join('\n')}
   ];
  }else if(section==='receipt'){
   title='Edit receipt settings';subtitle='Receipt identity and saved footer wording.';group='Receipt settings';

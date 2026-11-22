@@ -16,7 +16,7 @@ const {effectiveSubscription}=require('../../platform/services/commercial.servic
 const {activeGrants}=require('../../platform/services/moduleSubscriptions.service');
 const {resolveTransactionBranch}=require('../services/transactionBranch.service');
 const OID=/^[a-f0-9]{24}$/i,UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
-const SOURCES=['mobile_money','money_transfer','banking','forex','expenses'];
+const SOURCES=['mobile_money','money_transfer','banking','forex','expenses','loans','airtime'];
 const KINDS=['wallet','cash','bank','forex_stock','transfer_clearing'];
 const {networks:NETWORKS}=require('../../config/mobileNetworks');
 const REVIEW_ROLES=['Tenant Owner','Reconciliation Officer','Branch Manager'];
@@ -189,10 +189,10 @@ async function archiveUnusedWallet(conn,tenant,actor,accountId,input) {
   });
 }
 async function ensureCounterAccount(conn,session,{tenantId,branchId,currency,purpose,actorId}){
- if(!session?.inTransaction()||!currencyCodes.includes(currency)||!['opening_equity','settlement_clearing','reconciliation_suspense','fee_income','agent_commission_income','expense','interbranch_payable','interbranch_receivable'].includes(purpose))throw fail('Invalid internal treasury counter account');
+ if(!session?.inTransaction()||!currencyCodes.includes(currency)||!['opening_equity','settlement_clearing','reconciliation_suspense','fee_income','agent_commission_income','expense','interbranch_payable','interbranch_receivable','loan_receivable','loan_interest_income','airtime_inventory','airtime_profit_income'].includes(purpose))throw fail('Invalid internal treasury counter account');
  const Counter=models(conn).counter,lookup={branchId:oid(branchId),currency,purpose};let counter=await Counter.findOne(lookup).session(session).lean();if(counter){if(String(counter.tenantId)!==String(tenantId))throw fail('Counter account belongs to a different tenant',403);return counter;}
  const code=`TRS_${purpose.toUpperCase()}_${currency}`;
- const [chart]=await core.ledgerAccountModel(conn).create([{branchId,code,name:`Treasury ${purpose.replaceAll('_',' ')} (${currency})`,currency,category:purpose==='opening_equity'?'equity':['fee_income','agent_commission_income'].includes(purpose)?'income':purpose==='expense'?'expense':purpose==='interbranch_receivable'?'asset':'liability',createdBy:oid(actorId)}],{session});
+ const [chart]=await core.ledgerAccountModel(conn).create([{branchId,code,name:`Treasury ${purpose.replaceAll('_',' ')} (${currency})`,currency,category:purpose==='opening_equity'?'equity':['fee_income','agent_commission_income','loan_interest_income','airtime_profit_income'].includes(purpose)?'income':purpose==='expense'?'expense':['interbranch_receivable','loan_receivable','airtime_inventory'].includes(purpose)?'asset':'liability',createdBy:oid(actorId)}],{session});
  [counter]=await Counter.create([{tenantId:oid(tenantId),...lookup,ledgerAccountId:chart._id,ledgerCode:code}],{session});return counter;
 }
 async function expectedAt(conn,account,at,session=null){

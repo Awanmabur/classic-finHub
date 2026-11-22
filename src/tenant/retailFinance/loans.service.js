@@ -237,6 +237,8 @@ async function reverseRepayment(conn,tenant,actor,loanId,paymentId,input){
   if(!record)throw F.fail('Loan is unavailable for repayment correction',409);
   const p=await models(conn).payment.findOne({_id:pid,tenantId:current.tenant._id,loanId:id}).session(session).lean();
   if(!p)throw F.fail('Original repayment not found',404);
+  if(String(p.createdBy)===String(current.actor.id))
+   throw F.fail('Another authorized person must independently review a repayment correction',409);
   const previousReversals=await models(conn).correction.find({loanId:id,tenantId:current.tenant._id}).select('paymentId').session(session).lean();
   if(previousReversals.some(entry=>String(entry.paymentId)===String(pid)))
    throw F.fail('This repayment was already reversed',409);

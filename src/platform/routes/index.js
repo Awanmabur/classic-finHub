@@ -14,7 +14,7 @@ const {list: platformAudit}=require('../services/platformAudit.service');
 const businessTime=require('../../utils/businessTime');
 const PlatformAdmin=require('../models/PlatformAdmin');
 function renderPlatform(req,res,view,pageTitle,pageSub,data={}){
-  res.setHeader('Cache-Control','private, no-store');
+  if(!res.hasHeader('Cache-Control'))res.setHeader('Cache-Control','private, no-store');
   res.render('layouts/dashboard', {
     context:'platform',currentPath:req.baseUrl + req.path,pageTitle,pageSub,tenant:null,user:req.platformUser,menu:platformMenu(req.platformUser),
     view:`../platform/${view}`,data,flash:consumeFlash(req),money,formatUtcDate,

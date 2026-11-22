@@ -257,8 +257,6 @@ async function review(conn,tenant,actor,executionId,input={},options={}){
   const branch=await models.branchModel(conn).findOneAndUpdate({_id:execution.branchId,status:'active'},{$inc:{revision:1}},{new:true,session}).lean();
   if(!branch)throw fail('The operating branch is unavailable',409);
   const snapshot=execution.sourceSnapshot;let plan,collectionForFx=null;
-  if(directPayout&&String(source.branchId)!==String(execution.branchId))
-   throw fail('Cross-branch remittance payouts require independent financial review',403);
   if(execution.sourceType==='forex'&&snapshot.originRecordId)
    throw fail('Legacy linked Forex instructions cannot settle Banking/Transfer payables twice. Use the module-native currency conversion workflow.',409);
   if(execution.action==='transfer_payout'){
@@ -284,9 +282,9 @@ async function review(conn,tenant,actor,executionId,input={},options={}){
    plan=economicPlan(snapshot,execution.accounts,{sourceLiabilityId:String(original.ledger._id),destinationLiabilityId:destination?String(destination.ledger._id):null,feeIncomeId:await feeAccount(conn,session,authorization,snapshot,execution)});
   }else plan=economicPlan(snapshot,execution.accounts,{feeIncomeId:await feeAccount(conn,session,authorization,snapshot,execution)});
   const posting=execution.action==='transfer_payout'&&execution.payoutFx?
-   await treasury().postCrossCurrencyTransferPayout(conn,session,authorization,execution,source,collectionForFx):
+   await treasury().postCrossCurrencyTransferPayout(conn,session,authorization,execution,source,collectionForFx,{cashierFinal:directPayout}):
    execution.action==='transfer_payout'&&String(source.destinationBranchId||source.branchId)!==String(source.branchId)?
-   await treasury().postBranchTransferPayout(conn,session,authorization,execution._id):
+   await treasury().postBranchTransferPayout(conn,session,authorization,execution._id,{cashierFinal:directPayout}):
    await treasury().applyMovements(conn,session,authorization,{
     sourceType:execution.sourceType,sourceRef:`FUNDED:${execution._id}`,
     branchId:String(execution.branchId),operatingActorId:String(execution.createdBy),
@@ -352,7 +350,6 @@ async function detail(conn,tenant,actor,executionId){
   hasPermission(current.actor,'forex.quotes.create'),
   canFinalizePayout:execution.action==='transfer_payout'&&execution.sourceType==='money_transfer'&&
    execution.status==='pending_review'&&String(execution.createdBy)===current.actor.id&&
-   String(source?.branchId)===String(execution.branchId)&&
    ['Tenant Owner','Branch Manager','Money Transfer Operator'].includes(current.actor.role)&&
    hasPermission(current.actor,'money_transfer.payout')&&
    Boolean(execution.verificationInfo?.identityDocument)&&Boolean(execution.verificationInfo?.receiverNameCheck),

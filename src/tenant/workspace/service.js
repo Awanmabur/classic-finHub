@@ -88,7 +88,8 @@ function websiteDetails(input){
 }
 function defaults(tenant){return {tenantId:String(tenant._id),revision:0,
  profile:{name:tenant.name||'',legalName:'',owner:tenant.owner||'',ownerEmail:tenant.email||'',supportPhone:tenant.phone||'',country:'',timezone:'Africa/Kampala',defaultCurrency:'UGX'},
- landing:{headline:'',subtitle:'',services:[],details:{}},branding:{theme:'ClassicFin',primary:'#082c52',secondary:'#0d4f91',logoStatus:'Not uploaded',receiptNote:'',prefix:'CFH',template:'Standard receipt'}};}
+ landing:{headline:'',subtitle:'',services:[],details:{}},branding:{theme:'ClassicFin',primary:'#082c52',secondary:'#0d4f91',logoStatus:'Not uploaded',receiptNote:'',prefix:'CFH',template:'Standard receipt',receiptLayout:'classic',receiptHeader:'Transaction acknowledgement',receiptShowLogo:true,
+  publicRatesEnabled:true,rateBoardTitle:'Current exchange rates',rateBoardNote:'Business-approved rates. Confirm at the counter before trading.',rateBoardStyle:'table'}};}
 function combine(tenant,saved){const base=defaults(tenant);return {...base,...saved,profile:{...base.profile,...saved?.profile},landing:{...base.landing,...saved?.landing},branding:{...base.branding,...saved?.branding}};}
 function validateConfig(section,input){
  if(section==='profile'){
@@ -103,11 +104,17 @@ function validateConfig(section,input){
   return {headline:plain(input.headline,200,true),subtitle:plain(input.subtitle,1000),services,details:websiteDetails(input)};
  }
  if(section==='branding'){
-  fields(input,['theme','primary','secondary','logoStatus','receiptNote','prefix','template']);
+  fields(input,['theme','primary','secondary','logoStatus','receiptNote','prefix','template','receiptLayout','receiptHeader','receiptShowLogo','publicRatesEnabled','rateBoardTitle','rateBoardNote','rateBoardStyle']);
   const primary=plain(input.primary,7,true),secondary=plain(input.secondary,7,true),prefix=plain(input.prefix,12,true);
   if(!/^#[a-fA-F0-9]{6}$/.test(primary)||!/^#[a-fA-F0-9]{6}$/.test(secondary))throw fail('Choose six-digit hexadecimal colors.');
   if(!/^[A-Z0-9-]{2,12}$/.test(prefix))throw fail('Receipt prefix must use 2–12 uppercase letters, numbers or hyphens.');
-  return {theme:plain(input.theme,80,true),primary,secondary,logoStatus:plain(input.logoStatus,80),receiptNote:plain(input.receiptNote,500),prefix,template:plain(input.template,80,true)};
+  const receiptLayout=choice(input.receiptLayout,['classic','compact','detailed'],'receipt layout');
+  const rateBoardStyle=choice(input.rateBoardStyle,['table','cards'],'rate board style');
+  const receiptShowLogo=choice(input.receiptShowLogo,['true','false'],'receipt logo visibility')==='true';
+  const publicRatesEnabled=choice(input.publicRatesEnabled,['true','false'],'public rate visibility')==='true';
+  return {theme:plain(input.theme,80,true),primary,secondary,logoStatus:plain(input.logoStatus,80),receiptNote:plain(input.receiptNote,500),prefix,template:plain(input.template,80,true),
+   receiptLayout,receiptHeader:plain(input.receiptHeader,140),receiptShowLogo,
+   publicRatesEnabled,rateBoardTitle:plain(input.rateBoardTitle,100,true),rateBoardNote:plain(input.rateBoardNote,300),rateBoardStyle};
  }
  throw fail('Unknown workspace settings section',404);
 }
@@ -274,11 +281,14 @@ async function publicLanding(conn,tenant){
 // provider verification from tenant branding or receipt preferences.
 async function receiptIdentity(conn,tenant){
  context(conn,tenant);
- const saved=await models(conn).config.findOne({tenantId:tenantId(tenant)}).select('profile.name profile.supportPhone branding landing.publishedAt').lean();
+ const saved=await models(conn).config.findOne({tenantId:tenantId(tenant)}).select('profile.name profile.supportPhone branding landing.publishedAt landing.details.logoUrl').lean();
  const config=combine(tenant,saved);
  return {name:config.profile.name,supportPhone:config.profile.supportPhone,prefix:config.branding.prefix,
    websiteHref:saved?.landing?.publishedAt?'/t/'+encodeURIComponent(tenant.slug):'/',
   template:config.branding.template,footerNote:config.branding.receiptNote,
+  layout:['classic','compact','detailed'].includes(config.branding.receiptLayout)?config.branding.receiptLayout:'classic',
+  header:config.branding.receiptHeader||'Transaction acknowledgement',showLogo:config.branding.receiptShowLogo!==false,
+  logoUrl:saved?.landing?.details?.logoUrl||'',
   primary:/^#[a-fA-F0-9]{6}$/.test(config.branding.primary)?config.branding.primary:'#082c52',
   secondary:/^#[a-fA-F0-9]{6}$/.test(config.branding.secondary)?config.branding.secondary:'#0d4f91'};
 }

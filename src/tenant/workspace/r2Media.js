@@ -269,12 +269,17 @@ async function remove(conn,tenant,actor,mediaId){
 }
 async function verifyReferences(conn,tenant,details,session=null){
  if(!details)return;
- const base=process.env.R2_MEDIA_PUBLIC_URL?.replace(/\/+$/,'');
- if(!base)return;
  const sources=[['logo',details.logoUrl],['cover',details.coverUrl],
   ...(details.gallery||[]).map(url=>['gallery',url])];
  for(const [kind,url] of sources){
-  if(typeof url!=='string'||!url.startsWith(base+'/tenants/'))continue;
+  if(typeof url!=='string'||!url)continue;
+  let pathname;
+  try{pathname=new URL(url).pathname;}catch{continue;}
+  // Recognize uploaded R2 object keys even if the platform changes its
+  // public media domain or temporarily removes the R2 credentials.
+  if(!/^\/tenants\/[a-f0-9]{24}\/public\/(logo|cover|gallery)\/[a-f0-9]{24}\.(png|jpg|webp)$/i.test(pathname))
+   continue;
+  if(pathname.split('/')[4]!==kind)throw fail('An uploaded image is not valid for this image category.',409);
   // A write fence forces a conflict if another request tries to delete this
   // object while a draft/save or publish transaction attaches its URL.
   const query=model(conn).findOneAndUpdate({tenantId:tenant._id,kind,url,status:'active'},

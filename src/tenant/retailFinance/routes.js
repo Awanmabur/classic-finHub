@@ -17,6 +17,10 @@ function fundsFor(req,key){
  return treasury.findOperatingAccounts(req.tenantDb,req.tenant,req.user,{moduleKey:key,branchId:String(req.operationBranch._id)})
  .then(items=>items.filter(a=>a.status==='active'&&a.openingBalanceMinor!==null&&a.openingApprovedAt&&a.reconciliationState==='matched'&&['cash','bank','wallet'].includes(a.kind)));
 }
+function localDate(req,value){
+ if(!value)return '—';
+ return require('../../utils/businessTime').localDay(value,require('../../utils/businessTime').forBranch(req.viewBranch||req.operationBranch));
+}
 function shortFormat(value,currency){
  return require('../services/mobileMoney.service').formatMoneyMinor(value,currency);
 }
@@ -36,7 +40,7 @@ module.exports=function retailRoutes({renderTenant}){
     canCreate:hasPermission(req.user,'loans.create'),format:shortFormat,uuid:crypto.randomUUID(),
     branch:req.operationBranch,activeCurrency:req.operationBranch?branchCurrency(req.operationBranch):null,
     currencyChoices:req.operationBranch?require('../services/branchCurrency.service').supported(req.operationBranch):[],
-    formatDate:value=>value?new Date(value).toISOString().slice(0,10):'—'
+    formatDate:value=>localDate(req,value)
    });
   }catch(error){next(error);}
  }
@@ -60,7 +64,7 @@ module.exports=function retailRoutes({renderTenant}){
    canDisburse:hasPermission(req.user,'loans.disburse')&&result.loan.status==='approved',
    canRepay:hasPermission(req.user,'loans.repay')&&result.loan.status==='active',
    canCorrect:hasPermission(req.user,'loans.review')&&['Tenant Owner','Branch Manager'].includes(req.user.role),
-   formatDate:value=>value?new Date(value).toISOString().slice(0,10):'—'
+   formatDate:value=>localDate(req,value)
   });
  }catch(e){next(e);}});
  router.post('/loans/:id/review',requirePermission('loans.review'),throttle,async(req,res,next)=>{try{

@@ -63,6 +63,31 @@
   window.addEventListener?.('pageshow',keepActiveNavigationVisible);
   if(navigation&&typeof ResizeObserver!=='undefined')new ResizeObserver(()=>scheduleNavigation(keepActiveNavigationVisible)).observe(navigation);
 
+
+  // Role templates are presentation defaults, never client authorization.
+  // The server validates every assignment against the actual subscription.
+  document.querySelectorAll('[data-role-module-select]').forEach(select=>{
+    const form=select.closest('form'),inputs=form?.querySelectorAll('[data-role-module-choice]')||[];
+    const editingTemplate=form?.hasAttribute('data-role-default-editor');
+    const sync=(useDefaults)=>{
+      const option=select.selectedOptions[0];
+      const available=new Set((option?.dataset.availableModules||'').split(',').filter(Boolean));
+      const defaults=new Set((option?.dataset.defaultModules||'').split(',').filter(Boolean));
+      for(const checkbox of inputs){
+        checkbox.disabled=!available.has(checkbox.value);
+        if(useDefaults)checkbox.checked=available.has(checkbox.value)&&defaults.has(checkbox.value);
+        else if(checkbox.disabled)checkbox.checked=false;
+        checkbox.closest('label')?.classList.toggle('moduleChoiceUnavailable',checkbox.disabled);
+      }
+      if(editingTemplate){
+        const revision=form.querySelector('[data-role-default-revision]');
+        if(revision)revision.value=option?.dataset.templateRevision||'0';
+      }
+    };
+    select.addEventListener('change',()=>sync(true));
+    sync(editingTemplate||form?.dataset.roleDefaultInitial==='true');
+  });
+
   const search = document.getElementById('search');
   search?.addEventListener('input', () => {
     const q = search.value.trim().toLowerCase();

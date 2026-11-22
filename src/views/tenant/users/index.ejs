@@ -15,7 +15,7 @@
 <% data.users.forEach(u=>{ %><tr data-search-row><td><div class="dataCellLine" title="<%= u.name %> · <%= u.email %>"><b><%= u.name %></b><span class="tiny"><%= u.email %></span></div></td><td><div class="dataCellLine"><span><%= u.role %></span><span class="tag"><%= u.status %></span></div></td>
 <td><%= data.branches.find(b=>String(b._id)===String(u.branchId))?.name||'Tenant-wide / unassigned' %></td><td><span class="cellEllipsis" title="<%= u.role==='Tenant Owner'?'All subscribed':(u.allowedModules||[]).map(key=>key.replace(/_/g,' ')+': '+(data.moduleAccessByUser?.[String(u._id)]?.[key]?.message||'Unavailable')).join('; ')||'Not explicitly assigned' %>"><%= u.role==='Tenant Owner'?'All subscribed':(u.allowedModules||[]).map(key=>{
  const state=data.moduleAccessByUser?.[String(u._id)]?.[key]?.state||'role-blocked';
- return key.replace(/_/g,' ')+(state==='operate'?' · Operate':state==='view-only'?' · View':state==='report-source'?' · Reports':state==='not-assigned'?' · Unassigned':state==='unsubscribed'?' · Expired':' · Role restricted');
+ return key.replace(/_/g,' ')+(state==='operate'?' · Operate':state==='view-only'?' · View':state==='review-only'?' · Review':state==='report-source'?' · Reports':state==='not-assigned'?' · Unassigned':state==='unsubscribed'?' · Expired':' · Role restricted');
 }).join(', ')||'Not explicitly assigned' %></span></td><td><div class="actionLine">
 <% if(u.role!=='Tenant Owner'){ %>
 <a class="btn" href="/tenant/users/<%= u._id %>/edit">Edit access</a>

@@ -20,7 +20,7 @@
       <% if(user.role==='Tenant Owner'&&m.requiresQuote&&!included&&!grant){ %><p class="tiny">Contact the platform team for an individual activation quotation. No price has been approved or charged.</p><% } %>
       <% if(included||grant){ %><div class="workspaceModuleAccess"><strong>For your account:</strong> <%= access.message %>.
       <% if(access.href){ %><a class="btn" href="<%= access.href %>"><%= access.state==='operate'?'Open module':'Open permitted view' %></a><% } %>
-      <% if(['view-only','role-blocked'].includes(access.state)&&user.role!=='Tenant Owner'){ %><p class="tiny">The tenant owner can assign an operating role suited to this module; assignment alone cannot override financial permissions.</p><% } %>
+      <% if(['view-only','review-only','role-blocked'].includes(access.state)&&user.role!=='Tenant Owner'){ %><p class="tiny">The tenant owner can assign an operating role suited to this module; assignment alone cannot override financial permissions.</p><% } %>
       </div><% } %>
       <div class="seg"><% m.permissions.forEach(permission=>{ %><span class="chip <%= included||grant?'active':'' %>"><%= permission %></span><% }) %></div>
     </div></article><% }) %></div>

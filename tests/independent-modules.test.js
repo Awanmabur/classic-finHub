@@ -152,3 +152,13 @@ test('staff module status distinguishes usable actions, viewing and reporting-so
  assert.equal(moduleAccessState(t,user('Forex Operator',['forex']),'forex').state,'operate');
  assert.equal(moduleAccessState(t,user('Forex Operator',[]),'forex').state,'not-assigned');
 });
+
+test('reviewers cannot be described as transaction operators and disabled staff have no access',()=>{
+ const {moduleAccessState}=require('../src/tenant/services/moduleAccess.service');
+ const t=modular({moduleGrants:[grant('forex',{limits:{users:5,branches:1,recordsPerMonth:100}}),grant('loans',{limits:{users:5,branches:1,recordsPerMonth:100}})]});
+ const reviewer=user('Reconciliation Officer',['forex']);
+ assert.equal(moduleAccessState(t,reviewer,'forex').state,'review-only');
+ assert.equal(moduleAccessState(t,{...reviewer,status:'disabled'},'forex').state,'disabled');
+ const manager=user('Branch Manager',['forex']);
+ assert.equal(moduleAccessState(t,manager,'forex').state,'operate');
+});

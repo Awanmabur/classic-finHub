@@ -5,16 +5,38 @@
 # Docker web readiness, and Caddy's certificate issuance / existing site blocks.
 classicfinhub.com {
     encode zstd gzip
-    request_body {
-        max_size 64KB
+    # Only authenticated tenant image-upload POST endpoints may send larger bodies.
+    # Application still enforces 3 MiB, content signature, quota, CSRF and permissions.
+    @publicMediaUpload {
+        method POST
+        path /tenant/workspace/media/logo /tenant/workspace/media/cover /tenant/workspace/media/gallery
     }
-    reverse_proxy 127.0.0.1:3600 {
-        health_uri /health/ready
-        health_interval 30s
-        health_timeout 5s
-        transport http {
-            dial_timeout 5s
-            response_header_timeout 25s
+    handle @publicMediaUpload {
+        request_body {
+            max_size 4MB
+        }
+        reverse_proxy 127.0.0.1:3600 {
+            health_uri /health/ready
+            health_interval 30s
+            health_timeout 5s
+            transport http {
+                dial_timeout 5s
+                response_header_timeout 25s
+            }
+        }
+    }
+    handle {
+        request_body {
+            max_size 64KB
+        }
+        reverse_proxy 127.0.0.1:3600 {
+            health_uri /health/ready
+            health_interval 30s
+            health_timeout 5s
+            transport http {
+                dial_timeout 5s
+                response_header_timeout 25s
+            }
         }
     }
 }

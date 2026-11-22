@@ -37,3 +37,15 @@ test('legacy users receive no implicit newly activated modules',async()=>{
  await testCase.guard(testCase.req,testCase.res,e=>err=e);
  assert.equal(err,undefined);assert.deepEqual(testCase.req.user.allowedModules,[]);
 });
+
+test('promoted staff session requires fresh sign-in instead of endless module error on GET',async()=>{
+ const {createRequireAuth}=require('../src/middleware/requireAuth');
+ const tenant={_id:'507f1f77bcf86cd799439011',slug:'branch-probe',status:'active'};
+ const req={method:'GET',path:'/dashboard',tenant,session:{tenantUserId:'507f1f77bcf86cd799439012',identityId:'507f1f77bcf86cd799439013',authVersion:2,authenticatedAt:Date.now()}};
+ let location,code;
+ const res={redirect:(status,url)=>{code=status;location=url;},status:()=>{throw Error('Unexpected 401 without redirect');}};
+ const mw=createRequireAuth({getConnection:()=>({}),getUserModel:()=>({findOne:()=>({lean:async()=>({authVersion:3,status:'active',role:'Forex Operator'})})})});
+ await mw(req,res,error=>{if(error)throw error;});
+ assert.equal(code,303);assert.equal(location,'/signin');
+ assert.match(req.session.flash.message,/Sign in again/);
+});

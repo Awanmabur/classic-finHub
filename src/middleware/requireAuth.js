@@ -12,7 +12,17 @@ return async function requireAuth(req, res, next) {
     req.tenantDb = getConnection(req.tenant.slug);
     const User = getUserModel(req.tenantDb);
     const account = await User.findOne({ _id: req.session.tenantUserId, status: 'active' }).lean();
-    if (!account || (account.authVersion || 0) !== req.session.authVersion) return res.status(401).send('Access revoked. Sign in again.');
+    if (!account) return res.status(401).send('This account is disabled or unavailable. Contact the tenant owner.');
+    if ((account.authVersion || 0) !== req.session.authVersion) {
+      // A role/module promotion deliberately revokes old sessions. Explain the
+      // required reauthentication instead of repeatedly reporting a mysterious
+      // module denial. Do not replay an in-flight POST after revocation.
+      if (req.method==='GET'||req.method==='HEAD'){
+        req.session.flash={type:'info',message:'Your account access was updated. Sign in again to activate the new role and module permissions.'};
+        return res.redirect(303,'/signin');
+      }
+      return res.status(401).send('Your account permissions changed. Sign in again before repeating this action.');
+    }
     if (mfaPolicy.enabled() && requiresTenantMfa(account.role) && (!account.mfaEnabledAt || !validAuthAge(req.session.mfaVerifiedAt))) return res.status(401).send('Privileged access requires authenticator verification. Sign in again.');
     const identity = await identityExists({ _id: req.session.identityId, kind: 'tenant', tenantId: req.tenant._id, accountId: account._id, email: account.email });
     if (!identity) return res.status(401).send('Access revoked. Sign in again.');

@@ -194,6 +194,9 @@ async function remove(conn,tenant,actor,mediaId){
   (details.gallery||[]).includes(record.url)));
  if(used(saved?.landing?.details)||used(saved?.landing?.published?.details))
   throw fail('This image is used in your draft or published website. Replace and publish it before deleting.',409);
+ const directory=await require('../../platform/models/Tenant').findById(tenant._id).select('directory.logoUrl directory.coverUrl').lean();
+ if(directory?.directory?.logoUrl===record.url||directory?.directory?.coverUrl===record.url)
+  throw fail('The public business directory still uses this image. Publish a replacement and let the directory update before deleting.',409);
  const session=await conn.startSession();
  try{await session.withTransaction(async()=>{
   const trusted=await workspace.access(conn,tenant,actor,{manage:true,session,fence:true});

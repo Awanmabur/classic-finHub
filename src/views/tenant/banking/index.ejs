@@ -5,7 +5,7 @@
  <%- include('../../partials/operation-branch', {currentBranch, branchProblem, user}) %>
  <%- include('../partials/module-finance',{moduleKey:'banking'}) %>
  <section class="card"><div class="cardHead"><b><%= data.workspaceTitle||'Banking requests' %></b><span>Internal banking requests</span></div>
-  <div class="cardBody"><p class="tiny">Enter the customer banking details, then select the real source funds account and finalize the movement. The system posts the internal ledger once; external bank references are only instructions, not completed bank transfers.</p>
+  <div class="cardBody"><p class="tiny">Enter the customer banking details, then select the real source funds account and finalize the movement. The system posts the internal ledger once; External bank references remain instructions, not completed bank transfers.</p>
    <div class="rowBtns"><a class="btn" href="/tenant/funded">Final movements &amp; receipts</a><a class="btn" href="/tenant/treasury">Balances &amp; reconciliation</a><% if(data.canFx){ %><a class="btn" href="/tenant/banking/exchange">Transfer balances across currencies</a><% } %><a class="btn" href="/tenant/banking/deposit">Deposit</a><a class="btn" href="/tenant/banking/withdraw">Withdraw</a><a class="btn" href="/tenant/banking/transfer">Account transfer</a><a class="btn" href="/tenant/banking/accounts">Masked account references</a><a class="btn" href="/tenant/banking/records">Full request history</a><a class="btn" href="/tenant/banking/report">Banking report summary</a></div>
 
   </div></section>

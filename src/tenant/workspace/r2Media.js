@@ -121,7 +121,7 @@ function signature({method,key,mime,body,date=new Date(),settings=config()}){
   host=settings.account+'.r2.cloudflarestorage.com',uri='/'+settings.bucket+'/'+key;
  const hashed=sha(body||Buffer.alloc(0));
  const headers={host,'x-amz-date':stamp,'x-amz-content-sha256':hashed};
- if(mime)headers['content-type']=mime;
+ if(mime){headers['content-type']=mime;headers['cache-control']='public, max-age=31536000, immutable';}
  const names=Object.keys(headers).sort(),signed=names.join(';');
  const canonical=method+'\n'+uri+'\n\n'+names.map(name=>name+':'+headers[name].trim()+'\n').join('')+'\n'+signed+'\n'+hashed;
  const scope=day+'/auto/s3/aws4_request';
@@ -170,7 +170,8 @@ async function upload(conn,tenant,actor,kind,raw,mime){
   // A transaction commit can succeed while the acknowledgement is lost.
   // Never delete its object until the persisted record is conclusively absent.
   let persisted=null;
-  try{persisted=await Media.findById(mediaId).lean();}catch{}
+  try{persisted=await Media.findById(mediaId).lean();}
+  catch{throw error;} // Ambiguous state: leave the object for recovery, never delete it.
   if(persisted)return {id:String(mediaId),url,kind,mime,width:asset.width,height:asset.height,bytes:asset.buffer.length};
   try{await storage('DELETE',key,null,null);}catch{console.error(JSON.stringify({event:'r2_orphan_cleanup_failed',mediaId:String(mediaId)}));}
   throw error;

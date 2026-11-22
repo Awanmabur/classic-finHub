@@ -43,8 +43,23 @@
  <% data.inventory.forEach(x=>{ %><tr><td><%= x.network %></td><td><%= x.currency %></td><td><%= data.format(x.costBalanceMinor,x.currency) %></td></tr><% }) %>
  </tbody></table></div></section>
  <section class="card" style="margin-top:14px"><div class="cardHead"><b>Airtime transactions</b><span>Latest 200 verified stock purchases and customer sales</span></div><div class="cardBody tableWrap">
- <table><thead><tr><th>Type</th><th>Network</th><th>Customer / reference</th><th>Retail</th><th>Cost</th><th>Profit</th></tr></thead><tbody>
- <% if(!data.records.length){ %><tr><td colspan="6">No transactions yet.</td></tr><% } %>
- <% data.records.forEach(x=>{ %><tr data-search-row><td><%= x.type==='sale'?'Sale':'Stock purchase' %></td><td><%= x.network %></td><td><%= x.phone||'—' %><br><span class="tiny"><%= x.reference %></span></td><td><%= data.format(x.retailMinor,x.currency) %></td><td><%= data.format(x.costMinor,x.currency) %></td><td><%= data.format(x.profitMinor,x.currency) %></td></tr><% }) %>
+ <% const reversedRows=new Set((data.corrections||[]).map(x=>String(x.recordId)));
+   const lastUnreversed=new Map();
+   for(const row of data.records){const key=String(row.inventoryId);if(!reversedRows.has(String(row._id))&&!lastUnreversed.has(key))lastUnreversed.set(key,String(row._id));} %>
+ <table><thead><tr><th>Type</th><th>Network</th><th>Customer / reference</th><th>Retail</th><th>Cost</th><th>Profit</th><th>Status / correction</th></tr></thead><tbody>
+ <% if(!data.records.length){ %><tr><td colspan="7">No transactions yet.</td></tr><% } %>
+ <% data.records.forEach(x=>{ %><tr data-search-row><td><%= x.type==='sale'?'Sale':'Stock purchase' %></td><td><%= x.network %></td><td><%= x.phone||'—' %><br><span class="tiny"><%= x.reference %></span></td><td><%= data.format(x.retailMinor,x.currency) %></td><td><%= data.format(x.costMinor,x.currency) %></td><td><%= data.format(x.profitMinor,x.currency) %></td><td>
+ <% if(reversedRows.has(String(x._id))){ %><span class="tag">Reversed · evidence retained</span>
+ <% }else if(data.canCorrect&&String(x.createdBy)!==String(user.id)&&lastUnreversed.get(String(x.inventoryId))===String(x._id)){ %>
+ <form method="post" action="/tenant/airtime/<%= x._id %>/reverse" class="retailCorrection">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <input class="control" name="reference" minlength="6" maxlength="120" required placeholder="Refund / reversal reference" aria-label="Verified reversal reference">
+  <input class="control" name="reason" minlength="12" maxlength="400" required placeholder="Correction reason" aria-label="Correction reason">
+  <label class="retailCheck"><input type="checkbox" name="providerReversed" value="yes" required><span>Telecom/supplier delivery or stock purchase was reversed.</span></label>
+  <label class="retailCheck"><input type="checkbox" name="fundsReturned" value="yes" required><span>Matching payment was actually refunded.</span></label>
+  <button class="btn" type="submit">Reverse verified record</button>
+ </form>
+ <% }else{ %><span class="tiny">Posted</span><% } %>
+ </td></tr><% }) %>
  </tbody></table></div></section>
 </section>

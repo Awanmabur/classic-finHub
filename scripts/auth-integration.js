@@ -152,6 +152,23 @@ async function main() {
     assert.match(ownerDashboardHtml,/Admins, tellers &amp; users/);
     assert.match(ownerDashboardHtml,/href="\/tenant\/users"/,'owner sees the authorized staff directory');
     assert.match(ownerDashboardHtml,/Roles &amp; permissions/);
+    // An owner must reach the actual editable roles/modules screen through
+    // the existing Roles & permissions shortcut, not a read-only catalogue.
+    const rolesShortcut=await fetch(base+'/tenant/workspace/roles',{
+      headers:{cookie:ownerFull.cookie},redirect:'manual'});
+    assert.equal(rolesShortcut.status,303);
+    assert.equal(rolesShortcut.headers.get('location'),'/tenant/users#role-module-assignments');
+    const staffAccess=await fetch(base+'/tenant/users',{headers:{cookie:ownerFull.cookie}});
+    assert.equal(staffAccess.status,200);
+    const staffHtml=await staffAccess.text();
+    assert.match(staffHtml,/id="role-module-assignments"/);
+    assert.match(staffHtml,/action="\/tenant\/users\/role-defaults"/);
+    const requestModules=await fetch(base+'/tenant/modules',{headers:{cookie:ownerFull.cookie}});
+    assert.equal(requestModules.status,200);
+    const moduleHtml=await requestModules.text();
+    assert.match(moduleHtml,/action="\/tenant\/modules\/request"/);
+    assert.match(moduleHtml,/Request module/);
+
     assert.equal((await fetch(`${base}/platform/dashboard`,{headers:{cookie:ownerFull.cookie},redirect:'manual'})).status,303);
     const operator=await signIn('operator');
     assert.equal(operator.response.headers.get('location'),'/tenant/dashboard');

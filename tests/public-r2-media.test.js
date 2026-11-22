@@ -100,3 +100,16 @@ test('website editor preserves stored photo references without exposing URL text
  assert.match(script,/for\(const max of \[1800,1400,1100,900,720\]\)/);
  assert.doesNotMatch(text('src/views/tenant/workspace/index.ejs'),/data-media-copy-url/);
 });
+
+test('browser retries an HTTP 415 exactly once using a canvas-generated PNG',()=>{
+ const script=text('public/js/workspace.js');
+ assert.match(script,/if\(response\.status===415 && image\.type!=='image\/png'\)/);
+ assert.match(script,/image=await toPng\(file\);\s*response=await send\(image\)/);
+ assert.match(script,/canvas\.toBlob\(resolve,'image\/png'\)/);
+ assert.match(script,/blob\.size>0&&blob\.size<=MAX_UPLOAD/);
+ assert.match(script,/for\(const max of \[1400,1100,900,720,600,480\]\)/);
+ assert.match(script,/if\(!response\.ok\)/);
+ assert.match(script,/response\.headers\.get\('content-type'\)/);
+ assert.match(script,/await response\.text\(\)/);
+ assert.doesNotMatch(script,/while\s*\(response\.status===415/);
+});

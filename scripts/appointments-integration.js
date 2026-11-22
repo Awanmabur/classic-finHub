@@ -53,7 +53,7 @@ async function main(){
  assert.equal((await Appointment.findById(rollback._id)).status,'pending');assert.equal((await Appointment.findById(rollback._id)).revision,0);
  await Admin.updateOne({_id:admin._id},{$inc:{authVersion:1}});await assert.rejects(service.decide(String(rollback._id),actor,input),{status:403});
  await Admin.updateOne({_id:admin._id},{$set:{authVersion:0,mfaEnabledAt:null}});await assert.rejects(service.decide(String(rollback._id),actor,input),{status:403});
- assert.equal(await Audit.countDocuments({moduleKey:'appointments'}),4);
+ assert.equal(await Audit.countDocuments({moduleKey:'appointments'}),5,'Every real route decision must be audit-tracked');
  await Appointment.insertMany(Array.from({length:55},(_,i)=>({businessName:'Page '+i,status:'pending'})));
  const first=await service.list({status:'pending'}),second=await service.list({status:'pending',cursor:first.nextCursor});assert.equal(first.items.length,50);assert(first.nextCursor);assert(second.items.length>0);assert(!second.items.some(item=>first.items.some(other=>String(other._id)===String(item._id))));
  const search=await service.list({q:'Appointment Probe'});assert.equal(search.items.length,1);assert.equal(search.items[0].status,'completed');

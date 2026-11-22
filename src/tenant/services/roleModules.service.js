@@ -54,7 +54,7 @@ async function save(conn,tenant,actor,input){
    let changed=0;
    if(applyExisting){
     const result=await tenantUserModel(conn).updateMany({role,status:{$in:['active','disabled']}},
-      {$set:{allowedModules:selected}},{session});
+      {$set:{allowedModules:selected},$inc:{authVersion:1}},{session});
     changed=result.modifiedCount||0;
    }
    await auditEventModel(conn).create([{action:'staff.role_module_defaults.updated',actorId:actor.id,targetId:tenant._id,

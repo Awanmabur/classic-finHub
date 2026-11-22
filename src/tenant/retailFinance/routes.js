@@ -86,7 +86,7 @@ module.exports=function retailRoutes({renderTenant}){
  function showReceipt(req,res,next,reader){
   Promise.resolve().then(()=>reader(req.tenantDb,req.tenant,req.user)).then(receipt=>{
    res.set({'Cache-Control':'private, no-store','X-Robots-Tag':'noindex, nofollow','X-Content-Type-Options':'nosniff'});
-   res.render('tenant/retailFinance/acknowledgement',{receipt,identity:req.workspaceIdentity||{}});
+   res.render('tenant/retailFinance/acknowledgement',{receipt,identity:req.workspaceIdentity||{},autoPrint:!receipt.reversed&&req.query.autoPrint==='1'});
   }).catch(next);
  }
  router.get('/loans/:id/repayments/:paymentId/receipt',requirePermission('loans.view'),(req,res,next)=>
@@ -101,7 +101,7 @@ module.exports=function retailRoutes({renderTenant}){
  router.post('/loans/:id/repay',requirePermission('loans.repay'),throttle,async(req,res,next)=>{try{
   const result=await loans.repay(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
   flash(req,'good',result.duplicate?'Repayment already recorded; no duplicate balance change.':'Loan repayment recorded. Cash and receivables updated, with interest recognized only on collection.');
-  res.redirect(303,'/tenant/loans/'+req.params.id);
+  res.redirect(303,require('../services/receiptPrint.service').loan(result)||'/tenant/loans/'+req.params.id);
  }catch(e){next(e);}});
  async function airtimePage(req,res,next){try{
   const [result,funds]=await Promise.all([airtime.list(req.tenantDb,req.tenant,req.user),fundsFor(req,'airtime')]);
@@ -133,7 +133,7 @@ module.exports=function retailRoutes({renderTenant}){
  router.post('/airtime/sales',requirePermission('airtime.sell'),throttle,async(req,res,next)=>{try{
   const result=await airtime.sell(req.tenantDb,req.tenant,req.user,req.body);
   flash(req,'good',result.duplicate?'Sale already recorded. No duplicate cash or stock movement.':'Operator-confirmed airtime sale recorded against supplied delivery evidence. The selected funds account, stock cost and gross profit were posted once.');
-  res.redirect(303,'/tenant/airtime');
+  res.redirect(303,require('../services/receiptPrint.service').airtime(result)||'/tenant/airtime');
  }catch(e){next(e);}});
  return router;
 };

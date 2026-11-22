@@ -55,7 +55,7 @@ async function main() {
   const hash = await bcrypt.hash(password, 12);
   const tenantDb = getTenantConnection(slug);
   const User = tenantUserModel(tenantDb);
-  let admin = null, tenant = null, server = null;
+  let admin = null, tenant = null, server = null, appointmentProbe = null;
   const owners = [];
   const mfaSecrets = new Map();
   try {
@@ -119,6 +119,30 @@ async function main() {
     const pDashboard=await fetch(`${base}/platform/dashboard`,{headers:{cookie:platformFull.cookie}});
     assert.equal(pDashboard.status,200);assert.match(await pDashboard.text(),/Create tenant/);
     assert.equal((await fetch(`${base}/tenant/dashboard`,{headers:{cookie:platformFull.cookie},redirect:'manual'})).status,303);
+    // Exercise the real Express app including login/MFA, CSRF, routing and
+    // persistence: this catches the missing-page error service tests miss.
+    const Appointment=require('../src/platform/models/Appointment');
+    const zone=require('../src/utils/businessTime');
+    appointmentProbe=await Appointment.create({businessName:'Auth appointment '+nonce,
+      contactName:'Onboarding prospect',status:'pending',email:email('appointment')});
+    const appointmentPath='/platform/appointments/'+appointmentProbe._id;
+    const preview=await fetch(base+appointmentPath,{headers:{cookie:platformFull.cookie}});
+    assert.equal(preview.status,200,'Appointment preview must exist for authenticated platform admin');
+    const previewHtml=await preview.text();
+    assert.match(previewHtml,/Confirm \/ reschedule/);
+    const meetingAt=zone.dateTimeLocal(new Date(Date.now()+7200000),'Africa/Kampala');
+    const decision=new URLSearchParams({_csrf:csrf(previewHtml),action:'confirm',revision:'0',
+      scheduledAt:meetingAt,meetingLink:'https://meet.example.invalid/probe',
+      note:'Scheduled an authenticated demonstration with the prospective tenant owner'});
+    const savedResponse=await fetch(base+appointmentPath+'/decision',{
+      method:'POST',headers:{cookie:platformFull.cookie,'content-type':'application/x-www-form-urlencoded'},
+      body:decision.toString(),redirect:'manual'});
+    assert.equal(savedResponse.status,303,'Protected appointment acceptance must not respond Page not found');
+    assert.equal(savedResponse.headers.get('location'),appointmentPath);
+    const booked=await Appointment.findById(appointmentProbe._id).lean();
+    assert.equal(booked.status,'confirmed');
+    assert.equal(zone.dateTimeLocal(booked.scheduledAt,'Africa/Kampala'),meetingAt);
+    assert.equal(booked.decisions.length,1);
     const owner=await signIn('owner',password,'platform');
     assert.equal((await fetch(`${base}/tenant/dashboard`,{headers:{cookie:owner.cookie},redirect:'manual'})).status,303);
     const ownerFull=await finishMfa('owner',owner,'setup');
@@ -232,6 +256,10 @@ async function main() {
   } finally {
     if (server) await new Promise(resolve => server.close(resolve));
     // Only delete probe records with the random nonce; never drop the platform DB.
+    if(appointmentProbe){
+      await require('../src/platform/models/Appointment').deleteOne({_id:appointmentProbe._id});
+      await require('../src/platform/models/PlatformAuditLog').deleteMany({moduleKey:'appointments',recordId:String(appointmentProbe._id)});
+    }
     if (admin) await Admin.deleteOne({ _id:admin._id, email:email('platform') });
     if (tenant) { await Tenant.deleteOne({ _id:tenant._id,slug }); await require('../src/platform/models/UsageCounter').deleteMany({tenantId:tenant._id}); }
     const probeIds = await Identity.find({ email:{$in:['platform','owner','operator','auditor','reviewer'].map(email)} }).distinct('_id');

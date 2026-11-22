@@ -79,7 +79,7 @@ module.exports=function retailRoutes({renderTenant}){
  }catch(e){next(e);}});
  router.post('/loans/:id/disburse',requirePermission('loans.disburse'),throttle,async(req,res,next)=>{try{
   await loans.disburse(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
-  flash(req,'good','Loan disbursed. The actual funds account was deducted and the receivable journal posted once.');
+  flash(req,'good','Documented loan disbursement recorded. The selected funds account was deducted and the receivable journal was posted once; no external payment was initiated.');
   res.redirect(303,'/tenant/loans/'+req.params.id);
  }catch(e){next(e);}});
  router.post('/loans/:id/repayments/:paymentId/reverse',requirePermission('loans.review'),throttle,async(req,res,next)=>{try{
@@ -111,17 +111,17 @@ module.exports=function retailRoutes({renderTenant}){
  }catch(e){next(e);}});
  router.post('/airtime/stock',requirePermission('airtime.manage'),throttle,async(req,res,next)=>{try{
   const result=await airtime.purchase(req.tenantDb,req.tenant,req.user,req.body);
-  flash(req,'good',result.duplicate?'Stock purchase already recorded. No duplicate funds movement.':'Verified stock purchase recorded against the selected funding account.');
+  flash(req,'good',result.duplicate?'Stock purchase already recorded. No duplicate funds movement.':'Operator-recorded stock purchase saved against the selected funding account and supplier evidence.');
   res.redirect(303,'/tenant/airtime');
  }catch(e){next(e);}});
  router.post('/airtime/:id/reverse',requirePermission('airtime.review'),throttle,async(req,res,next)=>{try{
   await airtime.reverseRecorded(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
-  flash(req,'good','Verified airtime reversal recorded; provider refund, inventory, funds and original audit evidence are reconciled.');
+  flash(req,'good','Airtime reversal recorded from reviewer-confirmed refund evidence; inventory and funds books were adjusted and the original record retained.');
   res.redirect(303,'/tenant/airtime');
  }catch(e){next(e);}});
  router.post('/airtime/sales',requirePermission('airtime.sell'),throttle,async(req,res,next)=>{try{
   const result=await airtime.sell(req.tenantDb,req.tenant,req.user,req.body);
-  flash(req,'good',result.duplicate?'Sale already recorded. No duplicate cash or stock movement.':'Verified airtime sale recorded. Actual payment, inventory cost and profit were posted once.');
+  flash(req,'good',result.duplicate?'Sale already recorded. No duplicate cash or stock movement.':'Operator-confirmed airtime sale recorded against supplied delivery evidence. The selected funds account, stock cost and gross profit were posted once.');
   res.redirect(303,'/tenant/airtime');
  }catch(e){next(e);}});
  return router;

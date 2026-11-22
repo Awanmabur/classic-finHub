@@ -39,6 +39,11 @@ module.exports=function fundedOperationsRoutes({renderTenant}){
   flash(req,'good',result.duplicate?'The same PIN payout was already finalized.':'Verified cash payout finalized and recorded in the correct currency.');
   res.redirect(303,receiptPrint.funded(result)||`/tenant/funded/${req.params.id}`);
  }catch(error){next(error);}});
+ router.post('/:id/finalize-cashier',financial,async(req,res,next)=>{try{
+  const result=await service.finalizeCashier(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
+  flash(req,'good',result.duplicate?'This movement was already finalized.':'Final movement posted to the correct balances and audit records.');
+  res.redirect(303,receiptPrint.funded(result)||`/tenant/funded/${req.params.id}`);
+ }catch(error){next(error);}});
  router.post('/:id/finalize-forex',financial,async(req,res,next)=>{try{
   const result=await service.finalizeForex(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
   flash(req,'good',result.duplicate?'Forex exchange already posted.':'Forex exchange finalized and posted in both original currencies.');
@@ -58,15 +63,21 @@ module.exports=function fundedOperationsRoutes({renderTenant}){
   if(req.params.sourceType==='forex'&&
     (req.body.confirmFundsExchanged!=='yes'||req.body.confirmEvidenceChecked!=='yes'))
     throw service.fail('Confirm both actual Forex custody movements and the checked evidence before submitting');
+  if(['banking','money_transfer'].includes(req.params.sourceType)&&req.body.confirmFinalMovement!=='yes')
+    throw service.fail('Confirm that the real funds or account movement is complete before final posting');
   const result=await service.request(req.tenantDb,req.tenant,req.user,req.params.sourceType,req.params.sourceId,req.body);
-  // Forex is a confirmed physical exchange, not a request for routine approval.
-  // Never enable this path for Banking, Money Transfer or unconfirmed custody.
+  // All supported cashier movements post only after explicit evidence and account confirmation.
+  // The ledger posting service remains the single auditable source of truth.
   let printDestination=null;
   if(req.params.sourceType==='forex'){
    const posted=await service.finalizeForex(req.tenantDb,req.tenant,req.user,result.execution._id,req.body);
    flash(req,'good',posted.duplicate?'This Forex exchange was already finalized.':'Forex exchange finalized; both currency balances and journals posted.');
    printDestination=receiptPrint.funded(posted);
-  }else flash(req,'good',result.duplicate?'This manual movement request already exists.':'Manual movement recorded for independent review.');
+  }else if(['banking','money_transfer'].includes(req.params.sourceType)){
+   const posted=await service.finalizeCashier(req.tenantDb,req.tenant,req.user,result.execution._id,req.body);
+   flash(req,'good',posted.duplicate?'This transaction is already final.':'Transaction finalized. Cash or account balances, journal entries, and audit evidence were posted once.');
+   printDestination=receiptPrint.funded(posted);
+  }
   require('../services/branchView.service').followRecord(req,result.execution);
   res.redirect(303,printDestination||`/tenant/funded/${result.execution._id}`);
  }catch(error){next(error);}});

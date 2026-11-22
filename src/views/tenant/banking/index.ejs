@@ -5,14 +5,14 @@
  <%- include('../../partials/operation-branch', {currentBranch, branchProblem, user}) %>
  <%- include('../partials/module-finance',{moduleKey:'banking'}) %>
  <section class="card"><div class="cardHead"><b><%= data.workspaceTitle||'Banking requests' %></b><span>Internal banking requests</span></div>
-  <div class="cardBody"><p class="tiny">Record the instruction, choose the actual funds account, and send the manual movement for independent review. External bank references remain instructions.</p>
-   <div class="rowBtns"><a class="btn" href="/tenant/funded">Manual movements &amp; review</a><a class="btn" href="/tenant/treasury">Balances &amp; reconciliation</a><% if(data.canFx){ %><a class="btn" href="/tenant/banking/exchange">Transfer balances across currencies</a><% } %><a class="btn" href="/tenant/banking/deposit">Deposit</a><a class="btn" href="/tenant/banking/withdraw">Withdraw</a><a class="btn" href="/tenant/banking/transfer">Account transfer</a><a class="btn" href="/tenant/banking/accounts">Masked account references</a><a class="btn" href="/tenant/banking/records">Full request history</a><a class="btn" href="/tenant/banking/report">Banking report summary</a></div>
+  <div class="cardBody"><p class="tiny">Enter the customer banking details, then select the real source funds account and finalize the movement. The system posts the internal ledger once; external bank references are only instructions, not completed bank transfers.</p>
+   <div class="rowBtns"><a class="btn" href="/tenant/funded">Final movements &amp; receipts</a><a class="btn" href="/tenant/treasury">Balances &amp; reconciliation</a><% if(data.canFx){ %><a class="btn" href="/tenant/banking/exchange">Transfer balances across currencies</a><% } %><a class="btn" href="/tenant/banking/deposit">Deposit</a><a class="btn" href="/tenant/banking/withdraw">Withdraw</a><a class="btn" href="/tenant/banking/transfer">Account transfer</a><a class="btn" href="/tenant/banking/accounts">Masked account references</a><a class="btn" href="/tenant/banking/records">Full request history</a><a class="btn" href="/tenant/banking/report">Banking report summary</a></div>
 
   </div></section>
  <div class="grid" style="margin-top:14px">
   <% if(data.canCreate && currentBranchId){ %><form method="post" action="/tenant/banking/requests" class="card" autocomplete="off">
    <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
-   <div class="cardHead"><b><%= data.workspaceTitle||'Record banking request' %></b><span>Second-person approval</span></div><div class="cardBody" style="display:grid;gap:12px">
+   <div class="cardHead"><b><%= data.workspaceTitle||'Record banking request' %></b><span>Final upon cashier posting</span></div><div class="cardBody" style="display:grid;gap:12px">
     <%- include('_entry-form',{currentBranch}) %>
    </div>
   </form><% } else if(data.canCreate){ %><section class="card"><div class="cardHead"><b>New request</b></div><div class="cardBody"><p class="tiny">Your account needs an active operating branch before creating a request.</p></div></section><% } %>
@@ -21,13 +21,5 @@
     <% data.records.items.forEach(t=>{ %><div class="tx" data-search-row><div class="txMeta"><b><a href="/tenant/banking/<%= t._id %>"><%= t.reference %></a></b><span><%= t.kind.replaceAll('_',' ') %> · <%= t.status.replaceAll('_',' ') %> · <%= t.source.customerName %></span></div><b><%= data.formatMoneyMinor(t.amountMinor,t.currency) %></b></div><% }) %>
    </div><div class="cardBody"><a class="btn" href="/tenant/banking/history">All banking requests</a></div></section>
  </div>
- <% if(data.canReview){ %><section class="card" style="margin-top:14px"><div class="cardHead"><b>Independent review queue</b><span>No self-approval</span></div><div class="cardBody">
-  <% if(!data.queue.length){ %><p class="tiny">No requests await your review.</p><% } %>
-  <% data.queue.forEach(t=>{ %><form method="post" action="/tenant/banking/<%= t._id %>/review" class="card" style="padding:12px;margin-bottom:12px"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
-    <div class="cardHead"><b><a href="/tenant/banking/<%= t._id %>"><%= t.reference %></a></b><span><%= data.formatMoneyMinor(t.amountMinor,t.currency) %></span></div>
-    <p class="tiny"><%= t.kind.replaceAll('_',' ') %> · <%= t.source.institutionName %> · ****<%= t.source.last4 %></p>
-    <label class="field">Review justification (12–400 characters)<textarea name="note" class="control" minlength="12" maxlength="400" required rows="2"></textarea></label>
-    <div class="rowBtns"><button name="decision" value="approve" class="btn btnPrimary">Approve pending bank verification</button><button name="decision" value="reject" class="btn">Reject request</button></div>
-   </form><% }) %>
- </div></section><% } %>
+ 
 </section>

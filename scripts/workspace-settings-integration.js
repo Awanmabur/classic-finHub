@@ -149,6 +149,10 @@ async function main(){
  try{
   const asset=await r2Media.upload(conn,tenant,owner,'logo',png,'image/png');
   assert.equal(asset.kind,'logo');
+  const repeated=await r2Media.upload(conn,tenant,owner,'logo',png,'image/png');
+  assert.equal(repeated.id,asset.id,'same image retry does not create a second object');
+  assert.equal(repeated.reused,true);
+  assert.equal(images.size,1);
   assert.equal((await r2Media.list(conn,tenant,owner)).length,1);
   assert.equal((await global.fetch(asset.url)).status,200);
   await assert.rejects(r2Media.remove(other,otherTenant,otherOwner,asset.id),{status:404});

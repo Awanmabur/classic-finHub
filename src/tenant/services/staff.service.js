@@ -25,7 +25,10 @@ async function issueInvite(tenant,operator,input){
   const values=checkStaff(input);
   values.branchId=String(input.branchId||'');
   if(!/^[a-f0-9]{24}$/i.test(values.branchId))throw invalid('An active branch assignment is required');
-  values.allowedModules=validateAssignments(tenant,values.role,input.allowedModules);
+  const inviteSelection=input.allowedModules===undefined&&input.moduleSelectionSubmitted!=='yes'
+    ?await require('./roleModules.service').forRole(getTenantConnection(tenant.slug),tenant,values.role)
+    :input.allowedModules;
+  values.allowedModules=validateAssignments(tenant,values.role,inviteSelection);
   policy.enforceAssignment(tenant,operator,values.role,values.branchId,values.allowedModules);
   const conn=getTenantConnection(tenant.slug);
   await ensureTenantIndexes(conn);
@@ -106,7 +109,10 @@ async function updateStaff(tenant,actor,userId,input){
   if(name.length<2||name.length>120||!INVITABLE.includes(role))throw invalid('Invalid name or role');
   const branchId=String(input.branchId||'');
   if(!/^[a-f0-9]{24}$/i.test(branchId))throw invalid('An active branch assignment is required');
-  const allowedModules=validateAssignments(tenant,role,input.allowedModules);
+  const selection=input.allowedModules===undefined&&input.moduleSelectionSubmitted!=='yes'
+    ?await require('./roleModules.service').forRole(getTenantConnection(tenant.slug),tenant,role)
+    :input.allowedModules;
+  const allowedModules=validateAssignments(tenant,role,selection);
   policy.enforceAssignment(tenant,actor,role,branchId,allowedModules);
   const conn=getTenantConnection(tenant.slug),User=tenantUserModel(conn),Branch=branchModel(conn),Audit=auditEventModel(conn);
   await ensureTenantIndexes(conn);
@@ -114,9 +120,22 @@ async function updateStaff(tenant,actor,userId,input){
   try{await session.withTransaction(async()=>{
     const branch=await Branch.findOneAndUpdate({_id:branchId,status:'active'},{$inc:{revision:1}},{new:true,session});
     if(!branch)throw invalid('Selected branch is inactive',409);
-    edited=await User.findOneAndUpdate({_id:userId,...policy.staffFilter(actor),status:{$in:['active','disabled']}},{$set:{name,role,permissions:permissionsFor(role),branchId,allowedModules},$inc:{authVersion:1}},{new:true,session});
-    if(!edited)throw invalid('Staff account not found',404);
-    await Audit.create([{action:'staff.updated',actorId:actor.id,targetId:edited._id,metadata:{name,role,branchId,allowedModules}}],{session});
+    const previous=await User.findOne({_id:userId,...policy.staffFilter(actor),status:{$in:['active','disabled']}}).session(session).lean();
+    if(!previous)throw invalid('Staff account not found',404);
+    const oldPermissions=permissionsFor(previous.role),newPermissions=permissionsFor(role);
+    const elevated=newPermissions.some(p=>!oldPermissions.includes(p))||
+      allowedModules.some(key=>!(previous.allowedModules||[]).includes(key))||
+      String(previous.branchId||'')!==String(branchId); // branch reassignment changes account scope
+    // A reduction becomes effective on the next request: the auth middleware
+    // rehydrates current role/modules from MongoDB and financial writes re-fence
+    // persisted permissions. Elevated privileges require fresh authentication
+    // so a stolen old session cannot silently gain payment authority.
+    const changes={$set:{name,role,permissions:newPermissions,branchId,allowedModules}};
+    if(elevated)changes.$inc={authVersion:1};
+    edited=await User.findOneAndUpdate({_id:userId,...policy.staffFilter(actor),status:previous.status,authVersion:previous.authVersion||0},changes,{new:true,session});
+    if(!edited)throw invalid('Staff access changed concurrently. Reload and retry',409);
+    await Audit.create([{action:'staff.updated',actorId:actor.id,targetId:edited._id,
+      metadata:{name,role,branchId,allowedModules,sessionReauthenticationRequired:elevated}}],{session});
   });return edited;
   }finally{await session.endSession();}
 }

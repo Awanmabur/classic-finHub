@@ -1,15 +1,40 @@
 <section class="view show"><div class="grid">
-  <form class="card" method="post" action="/tenant/users/invite"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><div class="cardHead"><b>Invite staff</b><span><%= user.role==='Tenant Owner'?'Tenant-wide':'Your branch only' %> · staff access</span></div><div class="cardBody" style="display:grid;gap:12px">
+  <form class="card" method="post" action="/tenant/users/invite" data-staff-access-form data-role-default-initial="true"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><div class="cardHead"><b>Invite staff</b><span><%= user.role==='Tenant Owner'?'Tenant-wide':'Your branch only' %> · staff access</span></div><div class="cardBody" style="display:grid;gap:12px">
     <div class="row2"><label class="field">Full name<input name="name" class="control" required minlength="2" maxlength="120"></label><label class="field">Email<input type="email" name="email" class="control" required maxlength="254"></label></div>
-    <label class="field">Role<select name="role" class="control"><% data.roles.forEach(role=>{ %><option value="<%= role %>"><%= role %></option><% }) %></select></label>
+    <label class="field">Role<select name="role" class="control" data-role-module-select><% data.roles.forEach(role=>{ %><option value="<%= role %>" data-default-modules="<%= (data.roleDefaults?.[role]?.modules||[]).join(',') %>" data-available-modules="<%= (data.allowedByRole?.[role]||[]).join(',') %>"><%= role %></option><% }) %></select></label>
     <label class="field">Assigned branch<select name="branchId" class="control" required><option value="">Select branch</option><% data.branches.forEach(b=>{ %><option value="<%= b._id %>"><%= b.name %> (<%= b.code %>)</option><% }) %></select></label>
-    <fieldset class="field moduleChoices"><legend>Module access</legend><p class="tiny">Modules only activate actions allowed by the selected role. Reporting roles receive read-only data; choose an operating role for actual transactions.</p><div class="moduleChoiceGrid"><% if(!data.assignable.length){ %><p class="tiny">No live financial modules are currently subscribed.</p><% } %><% data.assignable.forEach(m=>{ %><label class="moduleChoice"><input type="checkbox" name="allowedModules" value="<%= m %>"><span><%= m.replace(/_/g,' ') %></span></label><% }) %></div></fieldset>
+    <input type="hidden" name="moduleSelectionSubmitted" value="yes"><fieldset class="field moduleChoices" data-role-module-choices><legend>Module access</legend><p class="tiny">Modules only activate actions allowed by the selected role. Reporting roles receive read-only data; choose an operating role for actual transactions.</p><div class="moduleChoiceGrid"><% if(!data.assignable.length){ %><p class="tiny">No live financial modules are currently subscribed.</p><% } %><% data.assignable.forEach(m=>{ %><label class="moduleChoice"><input type="checkbox" name="allowedModules" value="<%= m %>" data-role-module-choice><span><%= m.replace(/_/g,' ') %></span></label><% }) %></div></fieldset>
     <% if(!data.branches.length){ %><p class="tiny" role="status">Add an active branch before inviting staff.<% if(user.role==='Tenant Owner'){ %> <a href="/tenant/branches">Manage branches</a><% } %></p><% } %>
     <button class="btn btnPrimary" <%= data.branches.length?'':'disabled' %>>Invite staff</button>
     <p class="tiny">Access follows the assigned branch, role and modules. <% if(data.inviteMailReady){ %>If mail is configured, an invitation is queued for the delivery worker. Check the invitation delivery state below; provider acceptance is not proof of inbox delivery.<% }else{ %>Email delivery is not configured; a private manual invitation link will appear.<% } %></p>
   </div></form>
   <section class="card"><div class="cardHead"><b>Seat usage</b><span>Staff capacity</span></div><div class="cardBody summary"><div class="sumRow"><span>Reserved seats</span><b><%= tenant.seatsReserved||1 %></b></div><div class="sumRow"><span>Plan limit</span><b><%= data.plan?.limits.users||'—' %></b></div><div class="sumRow"><span>Pending invitations</span><b><%= data.invitations.length %></b></div><p class="tiny">Disabling staff releases their seat. Role and branch changes revoke active sessions.</p></div></section>
 </div>
+
+<% if(user.role==='Tenant Owner'){ %>
+<section class="card" style="margin-top:14px" aria-labelledby="roleDefaultsTitle">
+ <div class="cardHead"><div><b id="roleDefaultsTitle">Role module assignments</b><br><span>Saved by the owner, not loaded from a platform preset</span></div></div>
+ <div class="cardBody">
+  <form method="post" action="/tenant/users/role-defaults" data-role-default-editor>
+   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+   <input type="hidden" name="revision" value="0" data-role-default-revision>
+   <label class="field">Staff role<select name="role" class="control" required data-role-module-select>
+    <% data.roles.forEach(role=>{ const r=data.roleDefaults?.[role]||{}; %>
+    <option value="<%= role %>" data-default-modules="<%= (r.modules||[]).join(',') %>" data-available-modules="<%= (data.allowedByRole?.[role]||[]).join(',') %>" data-template-revision="<%= r.revision||0 %>"><%= role %></option>
+    <% }) %>
+   </select></label>
+   <fieldset class="field moduleChoices" data-role-module-choices><legend>Modules to assign when this role is selected</legend>
+    <div class="moduleChoiceGrid"><% data.assignable.forEach(m=>{ %>
+     <label class="moduleChoice"><input type="checkbox" name="allowedModules" value="<%= m %>" data-role-module-choice><span><%= m.replace(/_/g,' ') %></span></label>
+    <% }) %></div>
+   </fieldset>
+   <label class="moduleChoice"><input type="checkbox" name="applyExisting" value="yes"><span>Apply to existing staff in this role too (they must sign in again before new access)</span></label>
+   <p class="tiny">Only subscribed modules with abilities supported by the chosen role are available. These settings never bypass an independent approval or authorize a customer payment automatically.</p>
+   <div class="rowBtns"><button class="btn btnPrimary">Save role assignments</button></div>
+  </form>
+ </div>
+</section>
+<% } %>
 <section class="card" style="margin-top:14px"><div class="cardHead"><b>Team directory and permissions</b><span><%= user.role==='Tenant Owner'?'Tenant-wide controls':'Assigned-branch controls' %></span></div><div class="cardBody tableWrap"><table class="denseDirectory"><thead><tr><th>Account</th><th>Role & status</th><th>Branch</th><th>Modules</th><th>Actions</th></tr></thead><tbody>
 <% if(!data.users.length){ %><tr><td colspan="5">No staff accounts found for this workspace or branch.</td></tr><% } %>
 <% data.users.forEach(u=>{ %><tr data-search-row><td><div class="dataCellLine" title="<%= u.name %> · <%= u.email %>"><b><%= u.name %></b><span class="tiny"><%= u.email %></span></div></td><td><div class="dataCellLine"><span><%= u.role %></span><span class="tag"><%= u.status %></span></div></td>

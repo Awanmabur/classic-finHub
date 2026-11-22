@@ -158,7 +158,7 @@ async function read(conn,tenant,actor){
 async function save(conn,tenant,actor,section,input){
  await access(conn,tenant,actor,{manage:true});
  const patch=validateConfig(section,input),expected=revision(input.revision);
- try{return await transaction(conn,async session=>{
+ try{const updated=await transaction(conn,async session=>{
   const trusted=await access(conn,tenant,actor,{manage:true,session,fence:true});actor=trusted.actor;tenant=trusted.tenant;
   if(section==='landing')await require('./r2Media').verifyReferences(conn,tenant,patch.details,session);
   const {config}=models(conn),id=tenantId(tenant);let saved;
@@ -177,7 +177,7 @@ async function save(conn,tenant,actor,section,input){
    if(!saved)throw fail('Settings changed. Reload the page before saving.',409);
   }
   await audit(conn,session,tenant,actor,`workspace.${section}.updated`,saved._id,{revision:saved.revision});return saved.toObject();
- });}catch(error){if(error.code===11000)throw fail('Settings changed. Reload the page before saving.',409);throw error;}
+ });invalidateReceiptIdentity(conn,tenant);return updated;}catch(error){if(error.code===11000)throw fail('Settings changed. Reload the page before saving.',409);throw error;}
 }
 async function entries(conn,tenant,actor,kind,{archived=false}={}){
  await access(conn,tenant,actor);if(!KIND_FIELDS[kind])throw fail('Unknown workspace record type',404);
@@ -234,6 +234,7 @@ async function publish(conn,tenant,actor,input){
   if(!saved)throw fail('Settings changed. Reload before publishing.',409);
   await audit(conn,session,tenant,actor,'workspace.landing.published',saved._id,{revision:saved.revision,sections:sections.length});return saved.toObject();
  });
+ invalidateReceiptIdentity(conn,tenant);
  // Projection is an idempotent, public-only copy to the platform directory.
  // The tenant publish has committed already; a failed mirror is retried by the reconciliation script.
  let directorySynced=false;
@@ -284,18 +285,31 @@ async function publicLanding(conn,tenant){
 }
 // Presentation data only. Never replace immutable financial references or infer
 // provider verification from tenant branding or receipt preferences.
+// A bounded cache for non-sensitive display identity, never account, tenant
+// module entitlements, permissions, MFA, balances or financial records.
+const identityCache=new Map(),IDENTITY_TTL_MS=5000,IDENTITY_CACHE_LIMIT=128;
+function invalidateReceiptIdentity(conn,tenant){identityCache.delete(conn.name+':'+String(tenant._id));}
 async function receiptIdentity(conn,tenant){
  context(conn,tenant);
- const saved=await models(conn).config.findOne({tenantId:tenantId(tenant)}).select('profile.name profile.supportPhone branding landing.publishedAt landing.details.logoUrl').lean();
- const config=combine(tenant,saved);
- return {name:config.profile.name,supportPhone:config.profile.supportPhone,prefix:config.branding.prefix,
-   websiteHref:saved?.landing?.publishedAt?'/t/'+encodeURIComponent(tenant.slug):'/',
-  template:config.branding.template,footerNote:config.branding.receiptNote,
-  layout:['classic','compact','detailed'].includes(config.branding.receiptLayout)?config.branding.receiptLayout:'classic',
-  header:config.branding.receiptHeader||'Transaction acknowledgement',showLogo:config.branding.receiptShowLogo!==false,
-  logoUrl:saved?.landing?.details?.logoUrl||'',
-  primary:/^#[a-fA-F0-9]{6}$/.test(config.branding.primary)?config.branding.primary:'#082c52',
-  secondary:/^#[a-fA-F0-9]{6}$/.test(config.branding.secondary)?config.branding.secondary:'#0d4f91'};
+ const key=conn.name+':'+String(tenant._id),cached=identityCache.get(key);
+ if(cached&&cached.expiresAt>Date.now())return cached.promise;
+ if(cached)identityCache.delete(key);
+ const promise=(async()=>{
+  const saved=await models(conn).config.findOne({tenantId:tenantId(tenant)}).select('profile.name profile.supportPhone branding landing.publishedAt landing.details.logoUrl').lean();
+  const config=combine(tenant,saved);
+  return {name:config.profile.name,supportPhone:config.profile.supportPhone,prefix:config.branding.prefix,
+    websiteHref:saved?.landing?.publishedAt?'/t/'+encodeURIComponent(tenant.slug):'/',
+   template:config.branding.template,footerNote:config.branding.receiptNote,
+   layout:['classic','compact','detailed'].includes(config.branding.receiptLayout)?config.branding.receiptLayout:'classic',
+   header:config.branding.receiptHeader||'Transaction acknowledgement',showLogo:config.branding.receiptShowLogo!==false,
+   logoUrl:saved?.landing?.details?.logoUrl||'',
+   primary:/^#[a-fA-F0-9]{6}$/.test(config.branding.primary)?config.branding.primary:'#082c52',
+   secondary:/^#[a-fA-F0-9]{6}$/.test(config.branding.secondary)?config.branding.secondary:'#0d4f91'};
+ })();
+ identityCache.set(key,{expiresAt:Date.now()+IDENTITY_TTL_MS,promise});
+ if(identityCache.size>IDENTITY_CACHE_LIMIT)identityCache.delete(identityCache.keys().next().value);
+ promise.catch(()=>{if(identityCache.get(key)?.promise===promise)identityCache.delete(key);});
+ return promise;
 }
 async function database(conn,tenant,actor){
  await access(conn,tenant,actor);const stats=await conn.db.stats();

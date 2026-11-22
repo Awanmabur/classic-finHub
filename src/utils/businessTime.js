@@ -76,6 +76,10 @@ function parseLocalDateTime(value,timeZone){
  if(unique.length!==1)throw new RangeError(unique.length?'The local time is ambiguous due to a timezone change':'The local time does not exist in the selected timezone');
  return new Date(unique[0]);
 }
+function dateTimeLocal(value,timeZone){
+ const p=partsAt(value,timeZone);
+ return `${String(p.year).padStart(4,'0')}-${String(p.month).padStart(2,'0')}-${String(p.day).padStart(2,'0')}T${String(p.hour).padStart(2,'0')}:${String(p.minute).padStart(2,'0')}`;
+}
 function format(value,timeZone,withSeconds=false){
  if(value===undefined||value===null||value==='')return 'Unknown date';
  const date=new Date(value);
@@ -84,4 +88,4 @@ function format(value,timeZone,withSeconds=false){
  return new Intl.DateTimeFormat('en-GB',{timeZone:tz,day:'2-digit',month:'short',year:'numeric',
   hour:'2-digit',minute:'2-digit',...(withSeconds?{second:'2-digit'}:{}),hourCycle:'h23'}).format(date);
 }
-module.exports={DEFAULT_TIME_ZONE,defaultZone,validTimeZone,forBranch,parseDay,addDays,localDay,startOfDay,dayBounds,format,parseLocalDateTime};
+module.exports={DEFAULT_TIME_ZONE,defaultZone,validTimeZone,forBranch,parseDay,addDays,localDay,startOfDay,dayBounds,format,parseLocalDateTime,dateTimeLocal};

@@ -6,7 +6,9 @@ const schema=new mongoose.Schema({
  requestedBy:{type:String,required:true},
  reason:{type:String,required:true,minlength:20,maxlength:600},
  status:{type:String,required:true,enum:['pending','approved','rejected'],default:'pending'},
- pricingSnapshot:{currency:{type:String,enum:['USD'],required:true},priceMonthlyMinor:{type:Number,required:true,min:0}},
+ pricingSnapshot:{currency:{type:String,enum:['USD'],required:true},
+  requiresQuote:{type:Boolean,default:false},
+  priceMonthlyMinor:{type:Number,min:0,required:function(){return !(this.requiresQuote===true||this.pricingSnapshot?.requiresQuote===true);}}},
  reviewedBy:{type:String},reviewedAt:{type:Date},platformAdminNote:{type:String,maxlength:600}
 },{timestamps:true,strict:'throw'});
 schema.index({tenantId:1,moduleKey:1},{unique:true,partialFilterExpression:{status:'pending'}});

@@ -209,3 +209,24 @@
 .publicBusinessRateCards td{background:var(--paper);border-block:1px solid var(--line);padding-block:15px}
 .publicBusinessRateCards td:first-child{border-left:1px solid var(--line);border-radius:13px 0 0 13px}
 .publicBusinessRateCards td:last-child{border-right:1px solid var(--line);border-radius:0 13px 13px 0}
+
+/* Real image gallery lightbox. Keep thumbnails cropped consistently while
+   full photographs show entirely at every viewport and orientation. */
+.publicBusinessGallery a{display:block;min-height:0;cursor:zoom-in}
+.publicBusinessGallery img{width:100%;height:100%;aspect-ratio:4/3;object-fit:cover;object-position:center}
+.publicBusinessGalleryDialog{position:fixed;inset:0;margin:auto;padding:0;width:min(960px,calc(100vw - 24px));max-width:960px;max-height:calc(100dvh - 24px);overflow:hidden;border:1px solid var(--line);border-radius:20px;background:var(--paper,#fff);color:var(--ink);box-shadow:0 25px 90px rgba(0,0,0,.24)}
+.publicBusinessGalleryDialog:not([open]){display:none}
+.publicBusinessGalleryDialog::backdrop{background:rgba(8,18,32,.84)}
+.galleryModalBody{display:grid;grid-template-rows:auto minmax(0,1fr) auto;max-height:calc(100dvh - 24px);min-width:0}
+.galleryModalTop,.galleryModalNav{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px}
+.galleryModalTop{border-bottom:1px solid var(--line)}
+.galleryModalTop strong{font-size:14px}
+.galleryModalClose,.galleryModalNav button{background:var(--soft);color:var(--ink);border:1px solid var(--line);padding:8px 14px;border-radius:14px;cursor:pointer;font:700 13px Inter,Arial,sans-serif}
+.galleryModalClose{font-size:24px;padding:1px 12px;line-height:1.4}
+.galleryModalFigure{min-width:0;min-height:0;margin:0;padding:12px 16px 4px;display:grid;grid-template-rows:minmax(0,1fr) auto;gap:10px}
+.galleryModalFigure img{display:block;max-width:100%;max-height:calc(100dvh - 195px);width:100%;height:100%;min-height:0;object-fit:contain;background:var(--soft);border-radius:12px}
+.galleryModalFigure figcaption{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:12px}
+.galleryModalFigure figcaption a{color:var(--pbPrimary);text-decoration:underline}
+.galleryModalNav{border-top:1px solid var(--line)}
+@media(max-width:590px){.publicBusinessGalleryDialog{border-radius:16px}.galleryModalFigure{padding:10px 10px 4px}.galleryModalFigure img{max-height:calc(100dvh - 210px)}.galleryModalTop,.galleryModalNav{padding:10px}}
+@media(prefers-reduced-motion:reduce){.galleryModalBody *{scroll-behavior:auto!important;transition:none!important}}

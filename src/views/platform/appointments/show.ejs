@@ -9,7 +9,7 @@
         <div class="appointmentPreviewField"><span>Email</span><b><%= data.appointment.email||'Not provided' %></b></div>
         <div class="appointmentPreviewField"><span>Phone</span><b><%= data.appointment.phone||'Not provided' %></b></div>
         <div class="appointmentPreviewField"><span>Preferred date</span><b><%= data.appointment.preferredDate?new Date(data.appointment.preferredDate).toISOString().slice(0,10):'Flexible' %></b></div>
-        <div class="appointmentPreviewField"><span>Scheduled (UTC)</span><b><%= data.appointment.scheduledAt?new Date(data.appointment.scheduledAt).toISOString().replace('T',' ').slice(0,16):'Not scheduled' %></b></div>
+        <div class="appointmentPreviewField"><span>Scheduled (<%= data.timeZone %>)</span><b><%= data.scheduledDisplay %></b></div>
         <div class="appointmentPreviewField"><span>Requested modules</span><b><%= data.appointment.modules.map(key=>data.moduleLabels[key]||key).join(', ')||'Needs discovery' %></b></div>
         <div class="appointmentPreviewField"><span>Meeting link</span><b><% if(data.appointment.meetingLink&&/^https:\/\//i.test(data.appointment.meetingLink)){ %><a href="<%= data.appointment.meetingLink %>" target="_blank" rel="noopener noreferrer">Open meeting link</a><% }else{ %>Not provided<% } %></b></div>
       </div>
@@ -18,11 +18,12 @@
   </section>
   <% if(!['completed','cancelled'].includes(data.appointment.status)){ %>
   <section class="card appointmentPreviewDecision"><div class="cardHead"><div><b>Review appointment</b><br><span>Record a decision in the existing audited workflow</span></div></div>
-    <form class="cardBody appointmentDecision" method="post" action="/platform/appointments/<%= data.appointment._id %>/decision">
+    <form class="cardBody appointmentDecision" method="post" data-feedback-skip action="/platform/appointments/<%= data.appointment._id %>/decision">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <input type="hidden" name="revision" value="<%= data.appointment.revision %>">
-      <div class="row2"><label class="field">Scheduled date and time (UTC)<input class="control" type="datetime-local" name="scheduledAt" value="<%= data.appointment.scheduledAt?new Date(data.appointment.scheduledAt).toISOString().slice(0,16):'' %>"></label>
+      <div class="row2"><label class="field">Scheduled date and time (<%= data.timeZone %>)<input class="control" type="datetime-local" name="scheduledAt" value="<%= data.scheduledLocalValue %>"></label>
       <label class="field">Meeting link (optional)<input class="control" type="url" name="meetingLink" maxlength="500" placeholder="https://" value="<%= data.appointment.meetingLink||'' %>"></label></div>
+      <p class="tiny">Enter the meeting time in your platform timezone (<%= data.timeZone %>). It will be saved as UTC and displayed in this timezone.</p>
       <label class="field">Decision note<textarea class="control" name="note" minlength="12" maxlength="400" required rows="3"></textarea></label>
       <div class="rowBtns"><button class="btn btnPrimary" name="action" value="confirm">Confirm / reschedule</button>
       <% if(data.appointment.status==='confirmed'){ %><button class="btn" name="action" value="complete" <%= !data.appointment.scheduledAt||new Date(data.appointment.scheduledAt)>new Date()?'disabled':'' %>>Mark completed</button><% } %>

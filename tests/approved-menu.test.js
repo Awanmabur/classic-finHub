@@ -140,3 +140,19 @@ test('legacy history, contact and detail links keep the corresponding approved m
  assert.equal(tenantNavigationPath('/tenant/mobile-money/shifts/507f1f77bcf86cd799439012'),'/tenant/cash/shifts/507f1f77bcf86cd799439012');
  for(const path of ['/tenant/mobile-money/cash-in','/tenant/money-transfer/fees','/tenant/forex/rates','/tenant/forex/buy'])assert.equal(tenantNavigationPath(path),path);
 });
+
+test('assigned view-only modules never advertise cashier-only entry screens',()=>{
+ const tenant=subscribed();
+ const viewer=actor('Viewer',['mobile_money']);
+ const viewerPaths=paths(tenantMenu(tenant,viewer));
+ assert(viewerPaths.includes('/tenant/mobile-money/network-activity'));
+ assert(!viewerPaths.includes('/tenant/mobile-money/cash-in'));
+ assert(!viewerPaths.includes('/tenant/mobile-money/cash-out'));
+ const auditor=actor('Auditor',['forex','money_transfer','banking']);
+ const auditPaths=paths(tenantMenu(tenant,auditor));
+ for(const forbidden of ['/tenant/forex/buy','/tenant/forex/sell','/tenant/money-transfer/send',
+  '/tenant/banking/deposit','/tenant/banking/withdraw','/tenant/banking/transfer'])
+  assert(!auditPaths.includes(forbidden),forbidden);
+ assert(auditPaths.includes('/tenant/forex/rates'));
+ assert(auditPaths.includes('/tenant/money-transfer/records'));
+});

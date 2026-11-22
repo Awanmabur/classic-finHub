@@ -177,3 +177,33 @@ test('SMS Capture assignment requires Mobile Money assignment on the same accoun
  assert.equal(moduleAccessState(t,ready,'sms_capture').state,'operate');
  assert.equal(moduleAccessState(t,ready,'sms_capture').href,'/tenant/sms-capture');
 });
+
+test('quick-operation launcher honors actual module permission instead of a second stale role whitelist',()=>{
+ const forms=require('../src/tenant/services/operationForm.service');
+ const t=modular({moduleGrants:[grant('mobile_money'),grant('forex',{limits:{users:5,branches:1,recordsPerMonth:100}})]});
+ assert.doesNotThrow(()=>forms.authorize(t,user('Branch Manager',['mobile_money']),forms.definition('cash_in')));
+ assert.doesNotThrow(()=>forms.authorize(t,user('Banking Operator',['forex']),forms.definition('forex_buy')));
+ assert.throws(()=>forms.authorize(t,user('Viewer',['forex']),forms.definition('forex_buy')),{status:403});
+ assert.throws(()=>forms.authorize(t,user('Banking Operator',[]),forms.definition('forex_buy')),{status:403});
+});
+
+test('unconfigured roles never inherit static module assignments or covert capabilities',()=>{
+ const roles=require('../src/tenant/services/roleModules.service');
+ const t=modular({moduleGrants:[grant('mobile_money'),grant('forex',{limits:{users:5,branches:1,recordsPerMonth:100}}),grant('banking',{limits:{users:5,branches:1,recordsPerMonth:100}})]});
+ assert.deepEqual(roles.defaultModules(t,'Mobile Money Operator'),[]);
+ assert(roles.availableModules(t,'Banking Operator').includes('forex'),'Cross-trained permission may be owner-selected');
+ assert.deepEqual(roles.defaultModules(t,'Banking Operator'),[],'Tenant must explicitly choose modules');
+ assert.deepEqual(roles.defaultModules(t,'Viewer'),[]);
+});
+
+test('quoted module requests do not invent a numeric monthly price',()=>{
+ const R=require('../src/platform/models/ModuleRequest');
+ const base={tenantId:'507f1f77bcf86cd799439011',moduleKey:'loans',requestedBy:'507f1f77bcf86cd799439012',reason:'Business needs additional loan functionality after onboarding',status:'pending'};
+ const quote=new R({...base,pricingSnapshot:{currency:'USD',requiresQuote:true}});
+ assert.equal(quote.validateSync(),undefined);
+ assert.equal(quote.pricingSnapshot.priceMonthlyMinor,undefined);
+ const noPrice=new R({...base,moduleKey:'reports',pricingSnapshot:{currency:'USD',requiresQuote:false}});
+ assert(noPrice.validateSync());
+ const priced=new R({...base,moduleKey:'reports',pricingSnapshot:{currency:'USD',requiresQuote:false,priceMonthlyMinor:3900}});
+ assert.equal(priced.validateSync(),undefined);
+});

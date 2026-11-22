@@ -4,18 +4,32 @@ const Appointment=require('../models/Appointment');
 const Admin=require('../models/PlatformAdmin');
 const Audit=require('../models/PlatformAuditLog');
 const STATUSES=['pending','confirmed','completed','cancelled'];
+const businessTime=require('../../utils/businessTime');
 function fail(message,status=400){return Object.assign(new Error(message),{status});}
 function id(value){if(typeof value!=='string'||!/^[a-f0-9]{24}$/i.test(value))throw fail('Appointment not found',404);return value;}
-function normalize(input,now=new Date()){
+function normalize(input,now=new Date(),{timeZone='UTC'}={}){
  if(!['confirm','complete','cancel'].includes(input.action))throw fail('Choose a valid appointment action');
  if(!/^(?:0|[1-9]\d{0,8})$/.test(String(input.revision??'')))throw fail('Reload the appointment before saving');
  if(typeof input.note!=='string'||input.note.trim().length<12||input.note.trim().length>400||/[\u0000-\u001f\u007f]/.test(input.note))throw fail('Explain the decision in 12–400 characters');
  const result={action:input.action,revision:Number(input.revision),note:input.note.trim()};
  if(result.action==='confirm'){
   const raw=input.scheduledAt;
-  if(typeof raw!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}\.\d{3}Z)?$/.test(raw))throw fail('Choose the scheduled date and time in UTC');
-  const at=new Date(raw.length===16?raw+':00.000Z':raw);
-  if(!Number.isFinite(at.valueOf())||at.toISOString().slice(0,16)!==raw.slice(0,16)||at<new Date(now.valueOf()-300000)||at>new Date(now.valueOf()+366*86400000))throw fail('Choose a valid future appointment within one year');
+  if(typeof raw!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}\.\d{3}Z)?$/.test(raw))
+   throw fail('Choose the scheduled date and time');
+  let at;
+  try{
+   if(raw.endsWith('Z')){
+    at=new Date(raw);
+    if(!Number.isFinite(at.valueOf())||at.toISOString().slice(0,16)!==raw.slice(0,16))
+     throw new RangeError('Invalid UTC time');
+   }else{
+    // datetime-local is a local wall clock; convert with the verified admin
+    // timezone, never the browser's guessed offset or a client-supplied zone.
+    at=businessTime.parseLocalDateTime(raw,timeZone);
+   }
+  }catch{throw fail('Choose a real date/time for your configured timezone ('+timeZone+').');}
+  if(at<new Date(now.valueOf()-300000)||at>new Date(now.valueOf()+366*86400000))
+   throw fail('Choose a future appointment within one year');
   const link=input.meetingLink||'';if(typeof link!=='string'||link.length>500)throw fail('Enter a valid HTTPS meeting link');
   if(link){let url;try{url=new URL(link);}catch{throw fail('Enter a valid HTTPS meeting link');}if(url.protocol!=='https:'||url.username||url.password||/[\u0000-\u0020\u007f]/.test(link))throw fail('Enter a valid HTTPS meeting link');}
   Object.assign(result,{scheduledAt:at,meetingLink:link});
@@ -36,10 +50,12 @@ async function get(appointmentId){
 }
 async function decide(appointmentId,actor,input,{now=new Date()}={}){
  if(!actor?.permissions?.includes('*')||!actor.id)throw fail('Platform administrator required',403);
- const appointment=id(appointmentId),value=normalize(input,now),session=await mongoose.startSession();let result;
+ const appointment=id(appointmentId),session=await mongoose.startSession();let result;
  try{await session.withTransaction(async()=>{
   const admin=await Admin.findOneAndUpdate({_id:id(String(actor.id)),status:'active',role:'Super Admin',authVersion:actor.authVersion||0,...(require('../../config/mfaPolicy').enabled()?{mfaEnabledAt:{$ne:null}}:{})},{$inc:{__v:1}},{new:true,session}).lean();
   if(!admin)throw fail('Administrator access changed. Sign in again before saving.',403);
+  const timeZone=businessTime.validTimeZone(admin.timeZone)?admin.timeZone:businessTime.DEFAULT_TIME_ZONE;
+  const value=normalize(input,now,{timeZone});
   const prior=await Appointment.findById(appointment).session(session).lean();if(!prior)throw fail('Appointment not found',404);
   const status=prior.status||'pending';if(['completed','cancelled'].includes(status))throw fail('This appointment is already closed',409);
   if(value.action==='complete'&&(status!=='confirmed'||!prior.scheduledAt||new Date(prior.scheduledAt)>now))throw fail('Only a confirmed appointment that has started can be completed',409);

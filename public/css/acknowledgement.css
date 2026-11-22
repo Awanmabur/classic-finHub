@@ -3,7 +3,7 @@
 /* Tenant-owned receipt presentation. Source references and warning statements
    remain server-rendered and cannot be changed by a branding preference. */
 .receipt{--receipt-primary:#082c52;--receipt-secondary:#0d4f91;font:14px/1.55 Inter,Arial,Helvetica,sans-serif;box-shadow:0 18px 48px rgba(5,20,40,.07)}
-.receiptBrandHeader{padding:4px 0 22px;border-bottom:3px solid var(--receipt-primary);margin-bottom:22px;text-align:center}
+.receiptBrandHeader{padding:4px 0 22px;border-bottom:1px solid #e5e8ec;margin-bottom:22px;text-align:center}
 .receiptBrandHeader h1{font-size:clamp(21px,3vw,28px);color:var(--receipt-primary);overflow-wrap:anywhere;letter-spacing:-.025em}
 .receiptBrandHeader p{color:#526172;line-height:1.55;margin:5px 0}
 .receiptLogo{width:68px;height:68px;object-fit:contain;display:block;margin:0 auto 12px}

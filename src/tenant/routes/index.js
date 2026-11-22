@@ -19,10 +19,18 @@ router.use(require('./offline.routes'));
 router.get('/workspace/theme.css',require('../workspace/routes').theme);
 router.use(require('./operationForm.routes'));
 router.use(async(req,res,next)=>{try{
+ const durations={};
  await Promise.all([
-  new Promise((resolve,reject)=>require('../services/transactionBranch.service').requestContext(req,res,error=>error?reject(error):resolve())),
-  require('../workspace/service').receiptIdentity(req.tenantDb,req.tenant).then(identity=>{req.workspaceIdentity=identity;})
+  (async()=>{const t=process.hrtime.bigint();
+   await new Promise((resolve,reject)=>require('../services/transactionBranch.service').requestContext(req,res,error=>error?reject(error):resolve()));
+   durations.branch=Number(process.hrtime.bigint()-t)/1e6;})(),
+  (async()=>{const t=process.hrtime.bigint();
+   req.workspaceIdentity=await require('../workspace/service').receiptIdentity(req.tenantDb,req.tenant);
+   durations.brand=Number(process.hrtime.bigint()-t)/1e6;})()
  ]);
+ res.append('Server-Timing',`branch;dur=${durations.branch.toFixed(1)},brand;dur=${durations.brand.toFixed(1)}`);
+ if(Math.max(durations.branch,durations.brand)>700)
+  console.warn(JSON.stringify({event:'tenant_page_context_slow',branchMs:Math.round(durations.branch),brandMs:Math.round(durations.brand)}));
  next();
 }catch(error){next(error);}});
 router.use(require('../../middleware/requireOfflineContext'));
@@ -88,7 +96,11 @@ router.get('/dashboard', requirePermission('dashboard.view'), async (req,res,nex
   try {
     // Indexes are prepared by provisioning and awaited by mutation services.
     // Reading an overview must not start collection/index DDL after a restart.
-    const overview=await require('../services/dashboardOverview.service').overview(req.tenantDb,req.tenant,req.user,{operationBranch:req.operationBranch,currency:req.query.currency,viewBranch:req.viewBranch,viewBranchId:req.viewBranchId,viewBranches:res.locals.viewBranches});
+    const started=process.hrtime.bigint();
+ const overview=await require('../services/dashboardOverview.service').overview(req.tenantDb,req.tenant,req.user,{operationBranch:req.operationBranch,currency:req.query.currency,viewBranch:req.viewBranch,viewBranchId:req.viewBranchId,viewBranches:res.locals.viewBranches});
+ const duration=Number(process.hrtime.bigint()-started)/1e6;
+ res.append('Server-Timing',`dashboard;dur=${duration.toFixed(1)}`);
+ if(duration>1200)console.warn(JSON.stringify({event:'tenant_dashboard_slow',durationMs:Math.round(duration)}));
     renderTenant(req,res,'dashboard/index','Overview','Money transfer, mobile money, banking, forex, tenants, roles, reports, analytics, and daily controls.',overview);
   } catch(e) { next(e); }
 });
@@ -339,13 +351,22 @@ router.get('/users', requirePermission('users.manage_branch'), async (req,res,ne
         state:row.state,failureCode:row.failureCode||null,acceptedAt:row.providerAcceptance?.acceptedAt||null
       }
     ]));
-    renderTenant(req,res,'users/index','Staff & Roles','Invite staff with fixed permissions, disable access immediately and monitor seat limits.',{
-      users,invitations,inviteDeliveries:deliveries,roles:staffPolicy.managedRoles(req.user),plan:planForTenant(req.tenant),inviteMailReady:require('../../config/inviteMail').configured(),
+    const roleModuleService=require('../services/roleModules.service');
+    const roles=staffPolicy.managedRoles(req.user);
+    const [roleDefaults,activeBranches]=await Promise.all([
+      roleModuleService.all(req.tenantDb,req.tenant),branchService.list(req.tenant)
+    ]);
+    const allowedByRole=Object.fromEntries(roles.map(role=>[role,
+      roleModuleService.availableModules(req.tenant,role).filter(key=>
+        req.user.role==='Tenant Owner'||hasModuleForUser(req.tenant,req.user,key))]));
+    renderTenant(req,res,'users/index','Staff & Roles','Choose staff roles and subscribed modules for each account.',{
+      users,invitations,inviteDeliveries:deliveries,roles,roleDefaults,allowedByRole,
+      plan:planForTenant(req.tenant),inviteMailReady:require('../../config/inviteMail').configured(),
       moduleAccessByUser:Object.fromEntries(users.map(account=>[String(account._id),Object.fromEntries((account.role==='Tenant Owner'?require('../../data/store').modules.map(m=>m.key):account.allowedModules||[]).map(key=>[key,require('../services/moduleAccess.service').moduleAccessState(req.tenant,{
-       id:String(account._id),role:account.role,allowedModules:account.allowedModules,permissions:require('../../config/roles').permissionsFor(account.role)
+       id:String(account._id),status:account.status,role:account.role,allowedModules:account.allowedModules,permissions:require('../../config/roles').permissionsFor(account.role)
       },key)]))])),
-      branches:(await branchService.list(req.tenant)).filter(b=>b.status==='active' && (req.user.role==='Tenant Owner' || String(b._id)===String(req.user.branchId))),
-      assignable:require('../services/moduleAccess.service').assignableModules(req.tenant,req.user.role==='Tenant Owner'?'Tenant Owner':'Branch Manager').filter(m=>req.user.role==='Tenant Owner'||hasModuleForUser(req.tenant,req.user,m))
+      branches:activeBranches.filter(b=>b.status==='active' && (req.user.role==='Tenant Owner' || String(b._id)===String(req.user.branchId))),
+      assignable:[...new Set(Object.values(allowedByRole).flat())]
     });
   }catch(e){next(e);}
 });
@@ -354,12 +375,29 @@ router.get('/users/:id/edit',requirePermission('users.manage_branch'),async(req,
     if(!/^[a-f0-9]{24}$/i.test(String(req.params.id)))return res.status(404).send('Staff not found');
     const account=await require('../models').tenantUserModel(req.tenantDb).findOne({_id:req.params.id,...staffPolicy.staffFilter(req.user)}).select('name email role status branchId allowedModules').lean();
     if(!account)return res.status(404).send('Staff not found');
-    renderTenant(req,res,'users/edit','Edit Staff Access','Change staff role, assigned branch and module restrictions. Existing sessions will be revoked.',{
-      account,branches:(await branchService.list(req.tenant)).filter(b=>b.status==='active' && (req.user.role==='Tenant Owner' || String(b._id)===String(req.user.branchId))),
-      roles:staffPolicy.managedRoles(req.user),
-      assignable:require('../services/moduleAccess.service').assignableModules(req.tenant,req.user.role==='Tenant Owner'?'Tenant Owner':'Branch Manager').filter(m=>req.user.role==='Tenant Owner'||hasModuleForUser(req.tenant,req.user,m))
+    const roleModuleService=require('../services/roleModules.service');
+    const roles=staffPolicy.managedRoles(req.user);
+    const [roleDefaults,branches]=await Promise.all([
+      roleModuleService.all(req.tenantDb,req.tenant),branchService.list(req.tenant)
+    ]);
+    const allowedByRole=Object.fromEntries(roles.map(role=>[role,
+      roleModuleService.availableModules(req.tenant,role).filter(key=>
+        req.user.role==='Tenant Owner'||hasModuleForUser(req.tenant,req.user,key))]));
+    renderTenant(req,res,'users/edit','Edit Staff Access','Change staff role and active module assignments.',{
+      account,roles,roleDefaults,allowedByRole,
+      branches:branches.filter(b=>b.status==='active' && (req.user.role==='Tenant Owner' || String(b._id)===String(req.user.branchId))),
+      assignable:[...new Set(Object.values(allowedByRole).flat())]
     });
   }catch(e){next(e);}
+});
+router.post('/users/role-defaults',requirePermission('users.manage'),async(req,res,next)=>{
+  try{
+    await require('../services/roleModules.service').save(req.tenantDb,req.tenant,req.user,req.body);
+    flash(req,'good',req.body.applyExisting==='yes'
+      ?'Role default modules saved and applied to existing staff. Active sessions must sign in again before gaining new access.'
+      :'Role default modules saved. New staff assignments will use this role template.');
+    res.redirect(303,'/tenant/users');
+  }catch(e){if([400,403,409].includes(e?.status)){flash(req,'bad',e.message);return res.redirect(303,'/tenant/users');}next(e);}
 });
 router.post('/users/invite',requirePermission('users.manage_branch'),async(req,res,next)=>{
   try{
@@ -383,7 +421,7 @@ router.post('/users/:id/disable',requirePermission('users.manage_branch'),async(
 });
 
 router.post('/users/:id/update',requirePermission('users.manage_branch'),async(req,res,next)=>{
-  try{await staffService.updateStaff(req.tenant,req.user,req.params.id,req.body);flash(req,'good','Account updated. Existing sessions were revoked.');res.redirect(303,'/tenant/users');}catch(e){next(e);}
+  try{await staffService.updateStaff(req.tenant,req.user,req.params.id,req.body);flash(req,'good','Staff access saved. Removed rights take effect immediately; newly granted rights require the staff member to sign in again.');res.redirect(303,'/tenant/users');}catch(e){next(e);}
 });
 router.post('/users/invitations/:id/revoke',requirePermission('users.manage_branch'),async(req,res,next)=>{
   try{await staffService.cancelInvite(req.tenant,req.user,req.params.id);flash(req,'good','Invitation revoked. Seat released.');res.redirect(303,'/tenant/users');}catch(e){next(e);}
@@ -427,7 +465,8 @@ router.get('/modules',requirePermission('modules.view'),async(req,res,next)=>{
   try{
     const pending=req.user.role==='Tenant Owner' ? await require('../../platform/models/ModuleRequest').find({tenantId:req.tenant._id,status:'pending'}).select('moduleKey').lean():[];
     renderTenant(req,res,'modules/index','Tenant Modules','Your independently subscribed modules and permissions.',{
-      modules,plan:planForTenant(req.tenant),grants:require('../../platform/services/moduleSubscriptions.service').activeGrants(req.tenant),
+      modules:req.user.role==='Tenant Owner'?modules:modules.filter(m=>hasModuleForUser(req.tenant,req.user,m.key)),
+      plan:planForTenant(req.tenant),grants:require('../../platform/services/moduleSubscriptions.service').activeGrants(req.tenant),
        moduleAccessStates:Object.fromEntries(modules.map(m=>[m.key,require('../services/moduleAccess.service').moduleAccessState(req.tenant,req.user,m.key)])),
       pendingKeys:pending.map(p=>p.moduleKey)
     });

@@ -2,19 +2,26 @@
 (() => {
   const submitting=new WeakSet(),restorers=new Set();
   const headers=Object.freeze({'X-ClassicFin-Redirect':'json','X-ClassicFin-Background':'true'});
+  const noticeDialog=document.getElementById('dashboardFeedbackDialog');
+  const noticeHost=noticeDialog?.querySelector('[data-feedback-dialog-host]');
+  const fallbackMain=document.querySelector('main.panel.main')||document.querySelector('main')||document.body;
+  function openNotice(){if(noticeDialog&&!noticeDialog.open&&typeof noticeDialog.showModal==='function')noticeDialog.showModal();}
+  function removeNotice(node){if(!node)return;const inDialog=Boolean(noticeHost?.contains(node));node.remove();if(inDialog&&noticeDialog?.open)noticeDialog.close();}
   function show(message,type='bad',{form,focus=true}={}){
     // Show input/submit errors immediately above the FORM that needs fixing.
     // Without a form (for example a global action), keep workspace-level feedback.
     // Validation errors belong beside their fields. All operational updates
     // (including successful payments) use the same centered notice surface.
-    const host=type==='bad'&&form?.isConnected&&form.matches?.('form')?form:
-      document.querySelector('main.panel.main')||document.querySelector('main')||document.body;
+    const inlineForm=(type==='bad'||type==='info')&&form?.isConnected&&form.matches?.('form');
+    const host=inlineForm?form:(noticeHost||fallbackMain);
     const previous=host.querySelector(':scope > [data-session-flash]');
     if(previous)previous.dataset.feedbackMessage='';
     let target=[...host.children].find(node=>node.matches?.('[data-feedback-message]'));
     if(!target){target=document.createElement('div');target.dataset.feedbackMessage='';target.tabIndex=-1;const icon=document.createElement('span');icon.className='feedbackIcon';icon.setAttribute('aria-hidden','true');const content=document.createElement('div');content.className='feedbackContent';content.append(document.createElement('strong'),document.createElement('p'));const dismiss=document.createElement('button');dismiss.type='button';dismiss.className='feedbackDismiss';dismiss.dataset.feedbackDismiss='';dismiss.setAttribute('aria-label','Dismiss message');dismiss.textContent='×';target.append(icon,content,dismiss);host.prepend(target);}
     const kind=type==='good'?'good':type==='info'?'info':'bad';target.className='sessionFeedback feedback-'+kind;target.hidden=false;target.setAttribute('role',kind==='bad'?'alert':'status');target.querySelector('.feedbackIcon').textContent=kind==='bad'?'!':kind==='good'?'✓':'i';target.querySelector('.feedbackContent>strong').textContent=kind==='bad'?'Please check':kind==='good'?'Done':'Information';target.querySelector('.feedbackContent>p').textContent=String(message||'Please review this action.');
-    if(focus){target.focus({preventScroll:true});if(!target.closest('main.panel.main'))target.scrollIntoView({block:'nearest',behavior:'instant'});}scheduleSoftDismiss(target);return target;
+    if(host===noticeHost)openNotice();
+    if(focus){target.focus({preventScroll:true});if(inlineForm)target.scrollIntoView({block:'nearest',behavior:'instant'});}
+    scheduleSoftDismiss(target);return target;
   }
   async function response(result){
     const type=result.headers.get('content-type')||'';
@@ -28,21 +35,31 @@
   // Errors remain until dismissed; never hide a failed transaction automatically.
   const dismissTimers=new WeakMap();
   function scheduleSoftDismiss(node){
-    if(!node||!node.matches?.('.main > [data-feedback-message]'))return;
+    if(!node||(noticeHost&&!noticeHost.contains(node)&&!node.matches?.('.main > [data-feedback-message]')))return;
     if(!node.classList.contains('feedback-good')&&!node.classList.contains('feedback-info'))return;
     if(dismissTimers.has(node))clearTimeout(dismissTimers.get(node));
-    node.style.setProperty('--feedback-duration','4800ms');
     const timer=setTimeout(()=>{
       dismissTimers.delete(node);
-      if(node.isConnected&&!node.matches(':focus-within'))node.remove();
+      if(node.isConnected)removeNotice(node);
     },4800);
     dismissTimers.set(node,timer);
   }
-  document.querySelectorAll('main.panel.main > [data-session-flash]').forEach(scheduleSoftDismiss);
+  // The server-rendered notice is still present without JavaScript. On a
+  // capable browser it becomes a native top-layer confirmation, matching the
+  // existing sign-out dialog instead of a floating banner over form controls.
+  const initialNotice=document.querySelector('main.panel.main > [data-session-flash]');
+  if(initialNotice&&noticeHost){noticeHost.append(initialNotice);openNotice();}
+  if(initialNotice)scheduleSoftDismiss(initialNotice);
+  noticeDialog?.addEventListener('close',()=>{
+    noticeHost?.querySelectorAll('[data-feedback-message]').forEach(node=>{
+      if(dismissTimers.has(node))clearTimeout(dismissTimers.get(node));
+      node.remove();
+    });
+  });
 
   window.ClassicFinFeedback=Object.freeze({show,response,headers});
-  document.addEventListener('click',event=>{const button=event.target.closest('[data-feedback-dismiss]');if(button){const node=button.closest('[data-feedback-message]');if(node){if(dismissTimers.has(node))clearTimeout(dismissTimers.get(node));node.remove();}}});
-  document.querySelectorAll('[data-session-flash][role="alert"]').forEach(target=>{target.focus({preventScroll:true});target.scrollIntoView({block:'nearest',behavior:'instant'});});
+  document.addEventListener('click',event=>{const button=event.target.closest('[data-feedback-dismiss]');if(button){const node=button.closest('[data-feedback-message]');if(node){if(dismissTimers.has(node))clearTimeout(dismissTimers.get(node));removeNotice(node);}}});
+  document.querySelectorAll('main [data-session-flash][role="alert"]').forEach(target=>{target.focus({preventScroll:true});target.scrollIntoView({block:'nearest',behavior:'instant'});});
   // Browser constraint validation already displays one accessible field-specific
   // message. Do not echo the same "Please fill out this field" in a second flash
   // (and never emit one notification per invalid field).

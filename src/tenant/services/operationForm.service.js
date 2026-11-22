@@ -17,7 +17,16 @@ const definitions=Object.freeze({
 });
 function definition(kind){const spec=Object.hasOwn(definitions,kind)?definitions[kind]:null;if(!spec)throw Object.assign(Error('This operation does not have a quick entry form.'),{status:404});return spec;}
 function authorize(tenant,actor,spec){
- if(!hasModuleForUser(tenant,actor,spec.module)||!hasPermission(actor,spec.permission)||!spec.role.includes(actor.role))throw Object.assign(Error('This operation is unavailable for your account.'),{status:403});
+ // The module+capability pair comes from the same server-side permissions
+ // used by the navigation and the financially fenced write. The previous
+ // independent role whitelist rejected legitimate Branch Managers and
+ // cross-trained Money Transfer/Banking operators despite active permissions.
+ // The final posting service still enforces role, branch, MFA, segregation,
+ // account reconciliation, and subscriptions against persisted state.
+ if(!hasModuleForUser(tenant,actor,spec.module))
+  throw Object.assign(Error('This module is not assigned to your account or your business subscription. Ask the tenant owner to review your module assignment.'),{status:403});
+ if(!hasPermission(actor,spec.permission))
+  throw Object.assign(Error('Your assigned role does not allow this operation. Ask the tenant owner to choose an operating role with this responsibility.'),{status:403});
 }
 async function context(conn,tenant,actor,branch,kind,input={},options={}){
  const spec=definition(kind);authorize(tenant,actor,spec);

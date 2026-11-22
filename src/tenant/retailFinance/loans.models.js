@@ -13,11 +13,11 @@ product.index({branchId:1,status:1,createdAt:-1});
 const loan=new Schema({
  tenantId:{type:O,required:true,immutable:true},branchId:{type:O,required:true,immutable:true},
  customerId:{type:O,required:true,immutable:true},productId:{type:O,required:true,immutable:true},
- applicationRef:{type:String,required:true,immutable:true},requestKey:{type:String,required:true,match:UUID,immutable:true},
+ applicationRef:{type:String,required:true,immutable:true},requestKey:{type:String,required:true,match:UUID,immutable:true},requestHash:{type:String,required:true,immutable:true},
  principalMinor:{type:D,required:true,immutable:true},interestMinor:{type:D,required:true,immutable:true},
  principalOutstandingMinor:{type:D,required:true},interestOutstandingMinor:{type:D,required:true},
  currency:{type:String,enum:currencyCodes,required:true,immutable:true},
- dueAt:{type:Date,required:true,immutable:true},reason:{type:String,maxlength:400,required:true,immutable:true},
+ dueAt:{type:Date,required:true},reason:{type:String,maxlength:400,required:true,immutable:true},
  status:{type:String,enum:['requested','approved','declined','active','paid'],default:'requested'},
  requestedBy:{type:O,required:true,immutable:true},reviewedBy:{type:O,default:null},
  reviewedAt:{type:Date,default:null},reviewReason:{type:String,maxlength:400,default:''},

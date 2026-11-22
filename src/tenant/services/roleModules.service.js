@@ -6,6 +6,8 @@ const {INVITABLE}=require('../../config/roles');
 const {assignableModules,validateAssignments}=require('./moduleAccess.service');
 const {tenantUserModel,auditEventModel}=require('../models');
 const {ensureModelIndexes}=require('../../config/ensureModelIndexes');
+const Tenant=require('../../platform/models/Tenant');
+const {tenantDbNameFromSlug}=require('../../config/tenantDatabaseName');
 const roleSchema=new mongoose.Schema({
  tenantId:{type:mongoose.Schema.Types.ObjectId,required:true,immutable:true},
  role:{type:String,enum:INVITABLE,required:true,immutable:true},
@@ -16,8 +18,13 @@ roleSchema.index({tenantId:1,role:1},{unique:true});
 function model(conn){return conn.models.TenantRoleModulesV1||conn.model('TenantRoleModulesV1',roleSchema);}
 function error(message,status=400){return Object.assign(new Error(message),{status});}
 function roleName(role){if(!INVITABLE.includes(role))throw error('Choose an existing tenant staff role');return role;}
+function tenantContext(conn,tenant){
+ if(!tenant?.slug||conn?.name!==tenantDbNameFromSlug(tenant.slug)||tenant.dbName!==conn.name)
+  throw error('Tenant role settings belong to this business workspace only',403);
+}
 function defaultModules(tenant,role){return assignableModules(tenant,roleName(role));}
 async function all(conn,tenant){
+ tenantContext(conn,tenant);
  const rows=await model(conn).find({tenantId:tenant._id}).select('role allowedModules revision').lean();
  const saved=new Map(rows.map(row=>[row.role,row]));
  return Object.fromEntries(INVITABLE.map(role=>{
@@ -26,11 +33,13 @@ async function all(conn,tenant){
  }));
 }
 async function forRole(conn,tenant,role){
+ tenantContext(conn,tenant);
  const name=roleName(role);
  const row=await model(conn).findOne({tenantId:tenant._id,role:name}).select('allowedModules').lean();
  return row?row.allowedModules.filter(k=>defaultModules(tenant,name).includes(k)):defaultModules(tenant,name);
 }
 async function save(conn,tenant,actor,input){
+ tenantContext(conn,tenant);
  if(actor?.role!=='Tenant Owner')throw error('Only the tenant owner can configure tenant role defaults',403);
  const role=roleName(String(input.role||'')),selected=validateAssignments(tenant,role,input.allowedModules);
  const revision=Number(input.revision);
@@ -41,6 +50,15 @@ async function save(conn,tenant,actor,input){
  const session=await conn.startSession();
  try{
   await session.withTransaction(async()=>{
+   const liveTenant=await Tenant.findOneAndUpdate({_id:tenant._id,slug:tenant.slug,dbName:conn.name,status:{$in:['active','trial']}},
+    {$inc:{__v:1}},{session,new:true}).lean();
+   if(!liveTenant)throw error('Tenant status changed. Refresh and retry',403);
+   const User=tenantUserModel(conn);
+   const version=Number.isSafeInteger(actor.authVersion)?actor.authVersion:0;
+   const liveOwner=await User.findOneAndUpdate({_id:actor.id,role:'Tenant Owner',status:'active',
+    authVersion:version===0?{$in:[0,null]}:version},{$inc:{__v:1}},{session,new:true}).lean();
+   if(!liveOwner)throw error('Owner authorization changed. Sign in again',403);
+   validateAssignments(liveTenant,role,selected);
    const query={tenantId:tenant._id,role,revision};
    const updated=await model(conn).findOneAndUpdate(query,
     {$set:{allowedModules:selected,updatedBy:actor.id},$inc:{revision:1}},

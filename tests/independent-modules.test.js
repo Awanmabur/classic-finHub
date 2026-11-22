@@ -162,3 +162,14 @@ test('reviewers cannot be described as transaction operators and disabled staff 
  const manager=user('Branch Manager',['forex']);
  assert.equal(moduleAccessState(t,manager,'forex').state,'operate');
 });
+
+test('SMS Capture assignment requires Mobile Money assignment on the same account',()=>{
+ const {moduleAccessState}=require('../src/tenant/services/moduleAccess.service');
+ const t=modular({moduleGrants:[grant('sms_capture',{limits:{users:5,branches:1,recordsPerMonth:100}}),grant('mobile_money')]});
+ const operator=user('Mobile Money Operator',['sms_capture']);
+ assert.equal(moduleAccessState(t,operator,'sms_capture').state,'dependency-blocked');
+ assert.equal(moduleAccessState(t,operator,'sms_capture').href,null);
+ const ready=user('Mobile Money Operator',['sms_capture','mobile_money']);
+ assert.equal(moduleAccessState(t,ready,'sms_capture').state,'operate');
+ assert.equal(moduleAccessState(t,ready,'sms_capture').href,'/tenant/sms-capture');
+});

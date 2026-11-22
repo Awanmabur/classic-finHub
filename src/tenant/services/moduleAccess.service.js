@@ -67,6 +67,10 @@ function moduleAccessState(tenant,user,key){
  if(user?.status==='disabled')return {state:'disabled',message:'Staff account disabled; sign-in and transactions are blocked',href:null};
  if(!subscribed)return {state:'unsubscribed',message:'Not subscribed or subscription expired',href:null};
  if(!assigned)return {state:'not-assigned',message:'Subscribed but not assigned to this staff account',href:null};
+ // SMS Capture is not standalone: its router requires BOTH active assignments
+ // and a cash-in-capable role. Do not offer a link that will only return 403.
+ if(key==='sms_capture'&&!hasModuleForUser(tenant,user,'mobile_money'))
+  return {state:'dependency-blocked',message:'Requires Mobile Money subscription and assignment on this account',href:null,actions:[]};
  const view=VIEW_PERMISSION[key]||key+'.view';
  const canOpen=hasPermission(user,view);
  const actions=(OPERATOR_PERMISSIONS[key]||[]).filter(p=>hasPermission(user,p));

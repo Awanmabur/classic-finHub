@@ -22,21 +22,39 @@ function tenantContext(conn,tenant){
  if(!tenant?.slug||conn?.name!==tenantDbNameFromSlug(tenant.slug)||tenant.dbName!==conn.name)
   throw error('Tenant role settings belong to this business workspace only',403);
 }
-function defaultModules(tenant,role){return assignableModules(tenant,roleName(role));}
+// Newly invited employees should not silently inherit every licensed
+// financial module just because their fixed role COULD operate it. Match the
+// obvious responsibility first; the owner can assign more explicitly.
+const ROLE_DEFAULTS=Object.freeze({
+ 'Branch Manager':['mobile_money','money_transfer','banking','forex','reports','customers','accounts','expenses','loans','airtime','approval_workflows','notifications'],
+ 'Mobile Money Operator':['mobile_money'],
+ 'Money Transfer Operator':['money_transfer'],
+ 'Banking Operator':['banking','loans'],
+ 'Forex Operator':['forex'],
+ 'Reconciliation Officer':['approval_workflows','reports'],
+ 'Auditor':['reports'],
+ 'Reports Analyst':['reports'],
+ 'Analytics Analyst':['analytics'],
+ 'Approval Requester':['approval_workflows'],
+ 'Approval Officer':['approval_workflows'],
+ 'Viewer':[]
+});
+function availableModules(tenant,role){return assignableModules(tenant,roleName(role));}
+function defaultModules(tenant,role){return availableModules(tenant,role).filter(key=>(ROLE_DEFAULTS[role]||[]).includes(key));}
 async function all(conn,tenant){
  tenantContext(conn,tenant);
  const rows=await model(conn).find({tenantId:tenant._id}).select('role allowedModules revision').lean();
  const saved=new Map(rows.map(row=>[row.role,row]));
  return Object.fromEntries(INVITABLE.map(role=>{
   const entry=saved.get(role);
-  return [role,{modules:entry?entry.allowedModules.filter(k=>defaultModules(tenant,role).includes(k)):defaultModules(tenant,role),revision:entry?.revision||0,custom:!!entry}];
+  return [role,{modules:entry?entry.allowedModules.filter(k=>availableModules(tenant,role).includes(k)):defaultModules(tenant,role),revision:entry?.revision||0,custom:!!entry}];
  }));
 }
 async function forRole(conn,tenant,role){
  tenantContext(conn,tenant);
  const name=roleName(role);
  const row=await model(conn).findOne({tenantId:tenant._id,role:name}).select('allowedModules').lean();
- return row?row.allowedModules.filter(k=>defaultModules(tenant,name).includes(k)):defaultModules(tenant,name);
+ return row?row.allowedModules.filter(k=>availableModules(tenant,name).includes(k)):defaultModules(tenant,name);
 }
 async function save(conn,tenant,actor,input){
  tenantContext(conn,tenant);
@@ -81,4 +99,4 @@ async function save(conn,tenant,actor,input){
  }finally{await session.endSession();}
  return {role,applyExisting};
 }
-module.exports={model,all,forRole,save,defaultModules};
+module.exports={model,all,forRole,save,defaultModules,availableModules};

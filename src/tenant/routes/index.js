@@ -357,7 +357,7 @@ router.get('/users', requirePermission('users.manage_branch'), async (req,res,ne
       roleModuleService.all(req.tenantDb,req.tenant),branchService.list(req.tenant)
     ]);
     const allowedByRole=Object.fromEntries(roles.map(role=>[role,
-      roleModuleService.defaultModules(req.tenant,role).filter(key=>
+      roleModuleService.availableModules(req.tenant,role).filter(key=>
         req.user.role==='Tenant Owner'||hasModuleForUser(req.tenant,req.user,key))]));
     renderTenant(req,res,'users/index','Staff & Roles','Choose staff roles and subscribed modules for each account.',{
       users,invitations,inviteDeliveries:deliveries,roles,roleDefaults,allowedByRole,
@@ -381,7 +381,7 @@ router.get('/users/:id/edit',requirePermission('users.manage_branch'),async(req,
       roleModuleService.all(req.tenantDb,req.tenant),branchService.list(req.tenant)
     ]);
     const allowedByRole=Object.fromEntries(roles.map(role=>[role,
-      roleModuleService.defaultModules(req.tenant,role).filter(key=>
+      roleModuleService.availableModules(req.tenant,role).filter(key=>
         req.user.role==='Tenant Owner'||hasModuleForUser(req.tenant,req.user,key))]));
     renderTenant(req,res,'users/edit','Edit Staff Access','Change staff role and active module assignments.',{
       account,roles,roleDefaults,allowedByRole,

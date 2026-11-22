@@ -186,3 +186,12 @@ test('quick-operation launcher honors actual module permission instead of a seco
  assert.throws(()=>forms.authorize(t,user('Viewer',['forex']),forms.definition('forex_buy')),{status:403});
  assert.throws(()=>forms.authorize(t,user('Banking Operator',[]),forms.definition('forex_buy')),{status:403});
 });
+
+test('new role defaults follow each responsibility without auto-granting every cross-trained module',()=>{
+ const roles=require('../src/tenant/services/roleModules.service');
+ const t=modular({moduleGrants:[grant('mobile_money'),grant('forex',{limits:{users:5,branches:1,recordsPerMonth:100}}),grant('banking',{limits:{users:5,branches:1,recordsPerMonth:100}})]});
+ assert.deepEqual(roles.defaultModules(t,'Mobile Money Operator'),['mobile_money']);
+ assert(roles.availableModules(t,'Banking Operator').includes('forex'),'Cross-trained permission may be owner-selected');
+ assert(!roles.defaultModules(t,'Banking Operator').includes('forex'),'Forex should not be auto-granted to bankers');
+ assert.deepEqual(roles.defaultModules(t,'Viewer'),[]);
+});

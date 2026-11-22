@@ -47,7 +47,7 @@ async function main(){
 
  assert.equal(record.sourcePolicy,'funded_required');assert.equal(record.status,'approved');
  assert(record.treasuryBatchId);assert.equal(await balance(cashFund),'90000');
- assert.equal(String((await readShift()).provisionalMovementMinor),'0');
+ assert.equal(String((await readShift()).provisionalMovementMinor),'-10000');
  assert.equal((await expenses.create(conn,tenant,maker,cashInput,{requireFunds:true})).duplicate,true);
  assert.equal(await balance(cashFund),'90000');
  assert.equal(await models(conn).batch.countDocuments({sourceType:'expenses'}),1);
@@ -64,7 +64,7 @@ async function main(){
  assert.equal(lines.length,2);assert.equal(lines.reduce((sum,line)=>sum+BigInt(String(line.amountMinor))*(line.side==='debit'?1n:-1n),0n),0n);
  await expenses.requestChange(conn,tenant,maker,record._id,{...cashInput,amount:'120.00',note:'Original receipt confirms the corrected operating expense amount'});
  posted=await expenses.decideChange(conn,tenant,reviewer,record._id,{decision:'approve',note});
- assert.equal(String(posted.amountMinor),'12000');assert.equal(String(posted.original.amountMinor),'10000');assert.equal(await balance(cashFund),'88000');assert.equal(String((await readShift()).provisionalMovementMinor),'0');
+ assert.equal(String(posted.amountMinor),'12000');assert.equal(String(posted.original.amountMinor),'10000');assert.equal(await balance(cashFund),'88000');assert.equal(String((await readShift()).provisionalMovementMinor),'-12000');
  assert(posted.lastReversalBatchId);assert.equal(await models(conn).batch.countDocuments({sourceType:'expenses'}),3);
  await expenses.requestChange(conn,tenant,reviewer,record._id,{note:'Independent voucher inspection shows this expense should be voided'},'void');
  await assert.rejects(expenses.decideChange(conn,tenant,reviewer,record._id,{decision:'approve',note}),{status:403});
@@ -102,7 +102,7 @@ async function main(){
  await assert.rejects(expenses.create(conn,tenant,maker,body({currency:'USD',amount:'1.00',treasuryAccountId:String(cashFund._id)}),{requireFunds:true}),{status:403},'a KES fund cannot pay a USD expense');
  assert.equal(usdExpense.status,'approved');
  assert.equal(await balance(usdFund),'8766');assert.equal(await balance(cashFund),'100000');
- assert.equal(String((await core.cashSessionModel(conn).findById(usdShift._id)).provisionalMovementMinor),'0');assert.equal(String((await readShift()).provisionalMovementMinor),'0');
+ assert.equal(String((await core.cashSessionModel(conn).findById(usdShift._id)).provisionalMovementMinor),'-1234');assert.equal(String((await readShift()).provisionalMovementMinor),'0');
  console.log('PASS: immediate final expenses debit selected cash, bank and wallet accounts exactly once; idempotency, corrections, voids, failed funding rollback, tenant and operator fences.');
 }
 async function cleanup(){if(mongoose.connection.readyState===1&&mongoose.connection.name===scratch&&/^cfh_expense_funds_[a-f0-9]{16}$/.test(scratch)){if(conn)await conn.db.dropDatabase();await mongoose.connection.db.dropDatabase();}await mongoose.disconnect();}

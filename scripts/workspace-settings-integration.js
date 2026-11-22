@@ -88,6 +88,39 @@ async function main(){
  const stats=await service.health(conn,tenant,owner);assert(stats.collections>0);assert(stats.objects>0);assert.equal(typeof stats.backupConfigured,'boolean');
  assert((await service.logs(conn,tenant,owner)).some(row=>row.action==='workspace.database.health_checked'));
 
+ server=await new Promise(resolve=>{const instance=createApp({sessionStore:new expressSession.MemoryStore()}).listen(0,()=>resolve(instance));});const base=`http://127.0.0.1:${server.address().port}`;let cookie='';
+ async function request(path,values){const response=await fetch(base+path,{method:values?'POST':'GET',redirect:'manual',headers:{...(cookie?{cookie}:{}),...(values?{'content-type':'application/x-www-form-urlencoded'}:{})},...(values?{body:new URLSearchParams(values).toString()}:{})});cookie=response.headers.get('set-cookie')?.split(';')[0]||cookie;return {response,html:await response.text()};}
+ const publicPage=await request('/t/'+tenant.slug);assert.equal(publicPage.response.status,200,publicPage.html);assert.match(publicPage.response.headers.get('cache-control'),/no-store/);assert.match(publicPage.html,/Published &lt;script&gt;/);assert.doesNotMatch(publicPage.html,/Private draft section|Unpublished headline|<script>example\(\)/);
+ // Active and fully activated tenant business names are public immediately.
+ // Detailed owner profile, contacts, drafts and financial records remain private.
+ const basicPage=await request('/t/'+otherTenant.slug);
+ assert.equal(basicPage.response.status,200,'active tenant business is live without admin listing approval');
+ assert.match(basicPage.html,/Workspace 1/);
+ assert(!basicPage.html.includes(otherTenant.email),'private tenant owner email must remain hidden');
+ assert(!basicPage.html.includes('Private draft section'));
+ const directoryListed=await request('/businesses');
+ assert.equal(directoryListed.response.status,200);
+ assert(directoryListed.html.includes('/t/'+otherTenant.slug));
+ await assert.rejects(service.listingVisibility(other,otherTenant,owner,{action:'hide'}),{status:403},
+   'Owner of a separate tenant cannot alter this business');
+ const hidden=await service.listingVisibility(other,otherTenant,otherOwner,{action:'hide'});
+ assert.equal(hidden.visibility,'hidden');
+ const hiddenPage=await request('/t/'+otherTenant.slug);
+ assert.equal(hiddenPage.response.status,404,'owner can hide business without platform administrator');
+ const directoryHidden=await request('/businesses');
+ assert(!directoryHidden.html.includes('/t/'+otherTenant.slug));
+ const visible=await service.listingVisibility(other,otherTenant,otherOwner,{action:'show'});
+ assert.equal(visible.visibility,'default');
+ assert.equal((await request('/t/'+otherTenant.slug)).response.status,200);
+ assert((await require('../src/platform/models/PlatformAuditLog').countDocuments({
+   action:'tenant.business_listing_visibility_changed',recordId:String(otherTenant._id)}))===2);
+ const anon=await request('/tenant/workspace/profile');assert.equal(anon.response.status,303);assert.equal(anon.response.headers.get('location'),'/signin');
+ const signIn=await request('/signin');await request('/signin',{email:tenant.email,password,_csrf:csrf(signIn.html)});const challenge=await request('/mfa/challenge');const verification=await request('/mfa/challenge',{code:mfa.counterCode(secret,Math.floor(Date.now()/30000)),_csrf:csrf(challenge.html)});assert.equal(verification.response.status,303,verification.html);
+ for(const path of ['','/profile','/landing','/branding','/roles','/kyc','/database','/subscription','/notification-rules','/integrations','/import-export','/compliance','/landing-preview','/receipt-preview','/customer-portal-preview','/audit','/profile/edit','/branding/edit','/branding/receipt/edit','/landing/headline/edit','/entries/landing_section/new']){const page=await request('/tenant/workspace'+path);assert.equal(page.response.status,200,`${path}: ${page.html.slice(0,600)}`);assert.doesNotMatch(page.html,/passwordHash|mfaSecretEncrypted/);}
+ const legacyControl=await request('/tenant/workspace/control');assert.equal(legacyControl.response.status,303);assert.equal(legacyControl.response.headers.get('location'),'/tenant/workspace/profile','retired phase navigation follows the profile setup guide');
+ const profilePage=await request('/tenant/workspace/profile');const prior=await service.read(conn,tenant,owner);const forgedCsrf=await request('/tenant/workspace/profile',{...profile(),revision:prior.revision,_csrf:'forged'});assert.equal(forgedCsrf.response.status,403);assert.equal((await service.read(conn,tenant,owner)).revision,prior.revision);
+ const updated=await request('/tenant/workspace/profile',{...profile('Saved through authenticated form'),revision:prior.revision,_csrf:csrf(profilePage.html)});assert.equal(updated.response.status,303,updated.html);assert.equal((await service.read(conn,tenant,owner)).profile.name,'Saved through authenticated form');
+ const css=await request('/tenant/workspace/theme.css');assert.equal(css.response.status,200);assert.match(css.response.headers.get('content-type'),/text\/css/);assert.match(css.html,/--primary:#123456/);assert.doesNotMatch(css.html,/<script|owner@example/);
  // R2 media uses the SAME scratch replica set and two tenants, but no remote
  // Cloudflare calls: only the S3/public-media endpoints are simulated.
  const r2Media=require('../src/tenant/workspace/r2Media');
@@ -152,39 +185,7 @@ async function main(){
    if(value===undefined)delete process.env[key];else process.env[key]=value;
   }
  }
- server=await new Promise(resolve=>{const instance=createApp({sessionStore:new expressSession.MemoryStore()}).listen(0,()=>resolve(instance));});const base=`http://127.0.0.1:${server.address().port}`;let cookie='';
- async function request(path,values){const response=await fetch(base+path,{method:values?'POST':'GET',redirect:'manual',headers:{...(cookie?{cookie}:{}),...(values?{'content-type':'application/x-www-form-urlencoded'}:{})},...(values?{body:new URLSearchParams(values).toString()}:{})});cookie=response.headers.get('set-cookie')?.split(';')[0]||cookie;return {response,html:await response.text()};}
- const publicPage=await request('/t/'+tenant.slug);assert.equal(publicPage.response.status,200,publicPage.html);assert.match(publicPage.response.headers.get('cache-control'),/no-store/);assert.match(publicPage.html,/Published &lt;script&gt;/);assert.doesNotMatch(publicPage.html,/Private draft section|Unpublished headline|<script>example\(\)/);
- // Active and fully activated tenant business names are public immediately.
- // Detailed owner profile, contacts, drafts and financial records remain private.
- const basicPage=await request('/t/'+otherTenant.slug);
- assert.equal(basicPage.response.status,200,'active tenant business is live without admin listing approval');
- assert.match(basicPage.html,/Workspace 1/);
- assert(!basicPage.html.includes(otherTenant.email),'private tenant owner email must remain hidden');
- assert(!basicPage.html.includes('Private draft section'));
- const directoryListed=await request('/businesses');
- assert.equal(directoryListed.response.status,200);
- assert(directoryListed.html.includes('/t/'+otherTenant.slug));
- await assert.rejects(service.listingVisibility(other,otherTenant,owner,{action:'hide'}),{status:403},
-   'Owner of a separate tenant cannot alter this business');
- const hidden=await service.listingVisibility(other,otherTenant,otherOwner,{action:'hide'});
- assert.equal(hidden.visibility,'hidden');
- const hiddenPage=await request('/t/'+otherTenant.slug);
- assert.equal(hiddenPage.response.status,404,'owner can hide business without platform administrator');
- const directoryHidden=await request('/businesses');
- assert(!directoryHidden.html.includes('/t/'+otherTenant.slug));
- const visible=await service.listingVisibility(other,otherTenant,otherOwner,{action:'show'});
- assert.equal(visible.visibility,'default');
- assert.equal((await request('/t/'+otherTenant.slug)).response.status,200);
- assert((await require('../src/platform/models/PlatformAuditLog').countDocuments({
-   action:'tenant.business_listing_visibility_changed',recordId:String(otherTenant._id)}))===2);
- const anon=await request('/tenant/workspace/profile');assert.equal(anon.response.status,303);assert.equal(anon.response.headers.get('location'),'/signin');
- const signIn=await request('/signin');await request('/signin',{email:tenant.email,password,_csrf:csrf(signIn.html)});const challenge=await request('/mfa/challenge');const verification=await request('/mfa/challenge',{code:mfa.counterCode(secret,Math.floor(Date.now()/30000)),_csrf:csrf(challenge.html)});assert.equal(verification.response.status,303,verification.html);
- for(const path of ['','/profile','/landing','/branding','/roles','/kyc','/database','/subscription','/notification-rules','/integrations','/import-export','/compliance','/landing-preview','/receipt-preview','/customer-portal-preview','/audit','/profile/edit','/branding/edit','/branding/receipt/edit','/landing/headline/edit','/entries/landing_section/new']){const page=await request('/tenant/workspace'+path);assert.equal(page.response.status,200,`${path}: ${page.html.slice(0,600)}`);assert.doesNotMatch(page.html,/passwordHash|mfaSecretEncrypted/);}
- const legacyControl=await request('/tenant/workspace/control');assert.equal(legacyControl.response.status,303);assert.equal(legacyControl.response.headers.get('location'),'/tenant/workspace/profile','retired phase navigation follows the profile setup guide');
- const profilePage=await request('/tenant/workspace/profile');const prior=await service.read(conn,tenant,owner);const forgedCsrf=await request('/tenant/workspace/profile',{...profile(),revision:prior.revision,_csrf:'forged'});assert.equal(forgedCsrf.response.status,403);assert.equal((await service.read(conn,tenant,owner)).revision,prior.revision);
- const updated=await request('/tenant/workspace/profile',{...profile('Saved through authenticated form'),revision:prior.revision,_csrf:csrf(profilePage.html)});assert.equal(updated.response.status,303,updated.html);assert.equal((await service.read(conn,tenant,owner)).profile.name,'Saved through authenticated form');
- const css=await request('/tenant/workspace/theme.css');assert.equal(css.response.status,200);assert.match(css.response.headers.get('content-type'),/text\/css/);assert.match(css.html,/--primary:#123456/);assert.doesNotMatch(css.html,/<script|owner@example/);
+
  await models.tenantUserModel(conn).updateOne({_id:owner.id},{$set:{role:'Viewer',permissions:['*']}});await assert.rejects(service.save(conn,tenant,owner,'profile',{...profile('Escalation'),revision:prior.revision+1}),{status:403},'fresh stored role prevents stale owner escalation');await models.tenantUserModel(conn).updateOne({_id:owner.id},{$set:{role:'Tenant Owner',status:'disabled'}});await assert.rejects(service.read(conn,tenant,owner),{status:403});await models.tenantUserModel(conn).updateOne({_id:owner.id},{$set:{status:'active'}});
  await Tenant.updateOne({_id:tenant._id},{$set:{status:'suspended'}});await assert.rejects(service.read(conn,tenant,owner),{status:403},'fresh tenant status defeats stale caller data');await Tenant.updateOne({_id:tenant._id},{$set:{status:'active','subscription.status':'revoked'}});await assert.rejects(service.read(conn,tenant,owner),{status:403});
  console.log('PASS: Workspace settings, validated owner authorization, tenant binding, optimistic concurrency, transactional audit rollback, archive/restore, published snapshot isolation, real statistics and exports, escaped public HTTP content, CSRF, authenticated form persistence, and revocation.');

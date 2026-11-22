@@ -189,41 +189,66 @@ async function upload(conn,tenant,actor,kind,raw,mime){
 }
 async function list(conn,tenant,actor){
  await workspace.access(conn,tenant,actor);
- return model(conn).find({tenantId:tenant._id,status:'active'})
-  .select('_id kind url mime bytes createdAt').sort({createdAt:-1}).limit(200).lean();
+ return model(conn).find({tenantId:tenant._id,status:{$in:['active','deleting']}})
+  .select('_id kind url mime bytes status createdAt').sort({createdAt:-1}).limit(201).lean();
 }
 async function remove(conn,tenant,actor,mediaId){
  await workspace.access(conn,tenant,actor,{manage:true});
  const Media=model(conn),id=objectId(mediaId);
- const record=await Media.findOne({_id:id,tenantId:tenant._id,status:'active'}).lean();
+ const record=await Media.findOne({_id:id,tenantId:tenant._id,status:{$in:['active','deleting']}}).lean();
  if(!record)throw fail('This image is unavailable.',404);
  const Config=require('./models').models(conn).config;
- const saved=await Config.findOne({tenantId:tenant._id}).select('landing.details landing.published.details').lean();
  const used=details=>Boolean(details&&(details.logoUrl===record.url||details.coverUrl===record.url||
   (details.gallery||[]).includes(record.url)));
+ const saved=await Config.findOne({tenantId:tenant._id}).select('landing.details landing.published.details').lean();
  if(used(saved?.landing?.details)||used(saved?.landing?.published?.details))
   throw fail('This image is used in your draft or published website. Replace and publish it before deleting.',409);
  const directory=await require('../../platform/models/Tenant').findById(tenant._id).select('directory.logoUrl directory.coverUrl').lean();
  if(directory?.directory?.logoUrl===record.url||directory?.directory?.coverUrl===record.url)
   throw fail('The public business directory still uses this image. Publish a replacement and let the directory update before deleting.',409);
- const session=await conn.startSession();
- try{await session.withTransaction(async()=>{
-  const trusted=await workspace.access(conn,tenant,actor,{manage:true,session,fence:true});
-  // A concurrent save/publish can race this check. Marking deleting prevents
-  // a deleted object from being selected during subsequent validation.
-  // Fence concurrent website saves/publishes that could attach the deleted URL.
-  const current=await Config.findOneAndUpdate({tenantId:tenant._id},{$inc:{revision:1}},
-   {session,new:true}).lean();
-  if(used(current?.landing?.details)||used(current?.landing?.published?.details))
-   throw fail('The image is now in use. Refresh and retry after replacing it.',409);
-  const changed=await Media.updateOne({_id:id,tenantId:tenant._id,status:'active'},{$set:{status:'deleting'}},{session});
-  if(changed.modifiedCount!==1)throw fail('Image changed during removal.',409);
-  await auditEventModel(conn).create([{action:'workspace.public_media.removal_requested',
-   actorId:trusted.actor.id,targetId:id,metadata:{tenantId:String(tenant._id),kind:record.kind}}],{session});
- });}finally{await session.endSession();}
+ let claimed=false;
+ if(record.status==='active'){
+  const session=await conn.startSession();
+  try{await session.withTransaction(async()=>{
+   const trusted=await workspace.access(conn,tenant,actor,{manage:true,session,fence:true});
+   // Updating the config and media records forces Mongo write conflicts with
+   // any simultaneous save/publish that tries to attach this exact object.
+   const current=await Config.findOneAndUpdate({tenantId:tenant._id},{$inc:{revision:1}},
+    {session,new:true}).lean();
+   if(used(current?.landing?.details)||used(current?.landing?.published?.details))
+    throw fail('The image is now in use. Refresh and retry after replacing it.',409);
+   const changed=await Media.updateOne({_id:id,tenantId:tenant._id,status:'active'},
+    {$set:{status:'deleting'}},{session});
+   if(changed.modifiedCount!==1)throw fail('Image is already being deleted. Refresh and retry.',409);
+   await auditEventModel(conn).create([{action:'workspace.public_media.removal_requested',
+    actorId:trusted.actor.id,targetId:id,metadata:{tenantId:String(tenant._id),kind:record.kind}}],{session});
+  });claimed=true;}finally{await session.endSession();}
+ }
  try{await storage('DELETE',record.key,null,null);}
- catch(error){await Media.updateOne({_id:id,status:'deleting'},{$set:{status:'active'}});throw error;}
- await Media.deleteOne({_id:id,tenantId:tenant._id,status:'deleting'});
+ catch(error){
+  if(claimed){
+   try{await Media.updateOne({_id:id,tenantId:tenant._id,status:'deleting'},
+     {$set:{status:'active'}});}catch{
+    console.error(JSON.stringify({event:'r2_media_restore_pending',mediaId:String(id)}));
+   }
+  }
+  throw error;
+ }
+ // A successful remote DELETE with a lost Mongo acknowledgement must stay
+ // retryable: the "deleting" row remains visible until DB cleanup completes.
+ const cleanup=await conn.startSession();
+ try{await cleanup.withTransaction(async()=>{
+  const trusted=await workspace.access(conn,tenant,actor,{manage:true,session:cleanup,fence:true});
+  const result=await Media.deleteOne({_id:id,tenantId:tenant._id,status:'deleting'},{session:cleanup});
+  if(result.deletedCount!==1)throw fail('Image cleanup was completed by another request. Reload your media library.',409);
+  await auditEventModel(conn).create([{action:'workspace.public_media.deleted',
+   actorId:trusted.actor.id,targetId:id,
+   metadata:{tenantId:String(tenant._id),kind:record.kind,bytes:record.bytes}}],{session:cleanup});
+ });}
+ catch(error){
+  if(error.status===409)throw error;
+  throw fail('R2 deletion succeeded but database cleanup is pending. Reload and retry the same deletion.',503);
+ }finally{await cleanup.endSession();}
  return {removed:true};
 }
 async function verifyReferences(conn,tenant,details,session=null){

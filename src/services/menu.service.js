@@ -79,7 +79,7 @@ function tenantMenu(tenant,user) {
     ...(expenses&&can('expenses.create')?[item('Add expense','expenses/new','fa-money-bill',{transactionKind:'expense'})]:[]),
     ...(expenses?[item('Expenses summary report','expenses/report','fa-chart-column')]:[]),
     ...(module('approval_workflows')&&can('approvals.view')?[item('Approvals & corrections','approvals','fa-user-check')]:[]),
-    ...(manualMovements?[item('Manual movement review','funded','fa-list-check')]:[]),
+    ...(manualMovements?[item('Final financial movements','funded','fa-list-check')]:[]),
     ...(sharedCash&&['Tenant Owner','Branch Manager','Reconciliation Officer','Auditor'].includes(user.role)?[item('Cash control review','cash/shifts','fa-cash-register')]:[]),
     ...(reports&&can('reports.export')?[item('Export CSV','reports/export.csv','fa-download')]:[]),
     ...(reports?[item('Print report','reports/print','fa-print'),item('General reports page','reports','fa-file-lines'),

@@ -42,8 +42,20 @@ function immutable(schema){
   schema.pre(op,function(next){next(new Error('Loan payments are immutable'));});
 }
 immutable(payment);
+const correction=new Schema({
+ tenantId:{type:O,required:true,immutable:true},branchId:{type:O,required:true,immutable:true},
+ loanId:{type:O,required:true,immutable:true},paymentId:{type:O,required:true,immutable:true},
+ reversalBatchId:{type:O,required:true,immutable:true},reference:{type:String,required:true,maxlength:120,immutable:true},
+ reason:{type:String,required:true,maxlength:400,immutable:true},
+ principalMinor:{type:D,required:true,immutable:true},interestMinor:{type:D,required:true,immutable:true},
+ amountMinor:{type:D,required:true,immutable:true},currency:{type:String,enum:currencyCodes,required:true,immutable:true},
+ createdBy:{type:O,required:true,immutable:true},createdAt:{type:Date,default:Date.now,immutable:true}
+},{strict:'throw',versionKey:false});
+correction.index({paymentId:1},{unique:true});
+correction.index({branchId:1,createdAt:-1});
+immutable(correction);
 const model=(conn,name,schema)=>conn.models[name]||conn.model(name,schema);
-function models(conn){return {product:model(conn,'LoanProductV1',product),loan:model(conn,'LoanCaseV1',loan),payment:model(conn,'LoanPaymentV1',payment)};}
+function models(conn){return {product:model(conn,'LoanProductV1',product),loan:model(conn,'LoanCaseV1',loan),payment:model(conn,'LoanPaymentV1',payment),correction:model(conn,'LoanCorrectionV1',correction)};}
 const inflight=new WeakMap();
 function ensure(conn){if(!inflight.has(conn))inflight.set(conn,Promise.all(Object.values(models(conn)).map(ensureModelIndexes)).catch(e=>{inflight.delete(conn);throw e;}));return inflight.get(conn);}
 module.exports={models,ensure};

@@ -59,6 +59,7 @@ module.exports=function retailRoutes({renderTenant}){
    canReview:hasPermission(req.user,'loans.review')&&String(result.loan.requestedBy)!==String(req.user.id)&&result.loan.status==='requested',
    canDisburse:hasPermission(req.user,'loans.disburse')&&result.loan.status==='approved',
    canRepay:hasPermission(req.user,'loans.repay')&&result.loan.status==='active',
+   canCorrect:hasPermission(req.user,'loans.review')&&['Tenant Owner','Branch Manager'].includes(req.user.role),
    formatDate:value=>value?new Date(value).toISOString().slice(0,10):'—'
   });
  }catch(e){next(e);}});
@@ -70,6 +71,11 @@ module.exports=function retailRoutes({renderTenant}){
  router.post('/loans/:id/disburse',requirePermission('loans.disburse'),throttle,async(req,res,next)=>{try{
   await loans.disburse(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
   flash(req,'good','Loan disbursed. The actual funds account was deducted and the receivable journal posted once.');
+  res.redirect(303,'/tenant/loans/'+req.params.id);
+ }catch(e){next(e);}});
+ router.post('/loans/:id/repayments/:paymentId/reverse',requirePermission('loans.review'),throttle,async(req,res,next)=>{try{
+  await loans.reverseRepayment(req.tenantDb,req.tenant,req.user,req.params.id,req.params.paymentId,req.body);
+  flash(req,'good','Repayment correction saved. The original receipt remains in history; the Treasury reversal and loan balance are updated together.');
   res.redirect(303,'/tenant/loans/'+req.params.id);
  }catch(e){next(e);}});
  router.post('/loans/:id/repay',requirePermission('loans.repay'),throttle,async(req,res,next)=>{try{

@@ -44,49 +44,53 @@ async function main(){
  const balance=async account=>String((await models(conn).account.findById(account._id)).bookBalanceMinor);
  const body=(extra={})=>({expenseType:'Office transport',currency:'KES',amount:'100.00',paymentMethod:'Cash',vendor:'Reviewed vendor',reference:`VOUCHER-${nonce}`,description:'Actual operating expense with source evidence',idempotencyKey:crypto.randomUUID(),...extra});
  const cashInput=body({treasuryAccountId:String(cashFund._id)}),record=(await expenses.create(conn,tenant,maker,cashInput,{requireFunds:true})).record;
- assert.equal(record.sourcePolicy,'funded_required');assert.equal(await balance(cashFund),'100000');assert.equal(String((await readShift()).provisionalMovementMinor),'0');
+
+ assert.equal(record.sourcePolicy,'funded_required');assert.equal(record.status,'approved');
+ assert(record.treasuryBatchId);assert.equal(await balance(cashFund),'90000');
+ assert.equal(String((await readShift()).provisionalMovementMinor),'0');
  assert.equal((await expenses.create(conn,tenant,maker,cashInput,{requireFunds:true})).duplicate,true);
+ assert.equal(await balance(cashFund),'90000');
+ assert.equal(await models(conn).batch.countDocuments({sourceType:'expenses'}),1);
  await assert.rejects(expenses.create(conn,tenant,maker,{...cashInput,treasuryAccountId:String(bankFund._id)},{requireFunds:true}),{status:409});
  await assert.rejects(expenses.create(conn,tenant,other,body({treasuryAccountId:String(cashFund._id)}),{requireFunds:true}),{status:403});
- const reviews=await Promise.allSettled([reviewer,owner].map(actor=>expenses.review(conn,tenant,actor,record._id,{decision:'approve',note})));
- assert.equal(reviews.filter(row=>row.status==='fulfilled').length,1);assert.equal(reviews.filter(row=>row.status==='rejected'&&row.reason.status===409).length,1);
- let posted=await expenseModel(conn).findById(record._id).lean();assert(posted.treasuryBatchId);assert.equal(String(posted.postedTreasuryAccountId),String(cashFund._id));
- assert.equal(await balance(cashFund),'90000');assert.equal(String((await readShift()).provisionalMovementMinor),'-10000','the drawer is reduced exactly once');
+ await assert.rejects(expenses.review(conn,tenant,reviewer,record._id,{decision:'approve',note}),{status:409});
+ let posted=await expenseModel(conn).findById(record._id).lean();assert(posted.treasuryBatchId);
+ assert.equal(String(posted.postedTreasuryAccountId),String(cashFund._id));
  const accountSnapshots=require('../src/tenant/services/recordBalances.service');
  const sourceAfter=await accountSnapshots.forRecord(conn,tenant,owner,'expenses',posted);
  assert(sourceAfter.some(item=>item.kind==='cash'&&item.currency==='KES'&&item.balanceAfter==='KES 900.00'),
-  'Approved expense shows the actual original cash drawer balance after its automatic deduction');
+  'Final expense shows the actual original cash drawer balance after its automatic deduction');
  const batch=await models(conn).batch.findById(posted.treasuryBatchId).lean(),lines=await core.ledgerPostingModel(conn).find({journalId:{$in:batch.journalIds}}).lean();
  assert.equal(lines.length,2);assert.equal(lines.reduce((sum,line)=>sum+BigInt(String(line.amountMinor))*(line.side==='debit'?1n:-1n),0n),0n);
  await expenses.requestChange(conn,tenant,maker,record._id,{...cashInput,amount:'120.00',note:'Original receipt confirms the corrected operating expense amount'});
  posted=await expenses.decideChange(conn,tenant,reviewer,record._id,{decision:'approve',note});
- assert.equal(String(posted.amountMinor),'12000');assert.equal(String(posted.original.amountMinor),'10000');assert.equal(await balance(cashFund),'88000');assert.equal(String((await readShift()).provisionalMovementMinor),'-12000');
+ assert.equal(String(posted.amountMinor),'12000');assert.equal(String(posted.original.amountMinor),'10000');assert.equal(await balance(cashFund),'88000');assert.equal(String((await readShift()).provisionalMovementMinor),'0');
  assert(posted.lastReversalBatchId);assert.equal(await models(conn).batch.countDocuments({sourceType:'expenses'}),3);
  await expenses.requestChange(conn,tenant,reviewer,record._id,{note:'Independent voucher inspection shows this expense should be voided'},'void');
  await assert.rejects(expenses.decideChange(conn,tenant,reviewer,record._id,{decision:'approve',note}),{status:403});
  posted=await expenses.decideChange(conn,tenant,owner,record._id,{decision:'approve',note});assert.equal(posted.status,'voided');assert.equal(await balance(cashFund),'100000');assert.equal(String((await readShift()).provisionalMovementMinor),'0');
- const tooLarge=(await expenses.create(conn,tenant,maker,body({amount:'2000.00',treasuryAccountId:String(cashFund._id)}),{requireFunds:true})).record;
- const batchesBefore=await models(conn).batch.countDocuments({});await assert.rejects(expenses.review(conn,tenant,reviewer,tooLarge._id,{decision:'approve',note}),{status:409});
- assert.equal((await expenseModel(conn).findById(tooLarge._id)).status,'pending_review');assert.equal(await balance(cashFund),'100000');assert.equal(await models(conn).batch.countDocuments({}),batchesBefore);
- await expenses.review(conn,tenant,reviewer,tooLarge._id,{decision:'reject',note});
+
+ const batchesBefore=await models(conn).batch.countDocuments({}),recordsBefore=await expenseModel(conn).countDocuments();
+ await assert.rejects(expenses.create(conn,tenant,maker,body({amount:'2000.00',treasuryAccountId:String(cashFund._id)}),{requireFunds:true}),{status:409});
+ assert.equal(await expenseModel(conn).countDocuments(),recordsBefore);
+ assert.equal(await balance(cashFund),'100000');assert.equal(await models(conn).batch.countDocuments({}),batchesBefore);
  const bank=(await expenses.create(conn,tenant,maker,body({paymentMethod:'Bank',amount:'25.45',treasuryAccountId:String(bankFund._id)}),{requireFunds:true})).record;
- await expenses.review(conn,tenant,reviewer,bank._id,{decision:'approve',note});assert.equal(await balance(bankFund),'47455');assert.equal(String((await readShift()).provisionalMovementMinor),'0');
+ assert.equal(bank.status,'approved');assert.equal(await balance(bankFund),'47455');assert.equal(String((await readShift()).provisionalMovementMinor),'0');
  const wallet=(await expenses.create(conn,tenant,maker,body({paymentMethod:'Mobile Money',amount:'50.00',treasuryAccountId:String(walletFund._id)}),{requireFunds:true})).record;
- await expenses.review(conn,tenant,reviewer,wallet._id,{decision:'approve',note});assert.equal(await balance(walletFund),'15000');assert.equal(String((await readShift()).provisionalMovementMinor),'0');
- const revoked=(await expenses.create(conn,tenant,maker,body({paymentMethod:'Mobile Money',amount:'10.00',treasuryAccountId:String(walletFund._id)}),{requireFunds:true})).record;
+ assert.equal(wallet.status,'approved');assert.equal(await balance(walletFund),'15000');assert.equal(String((await readShift()).provisionalMovementMinor),'0');
+
  const beforeRevoked=await models(conn).batch.countDocuments({});
- await core.tenantUserModel(conn).updateOne({_id:maker.id},{$set:{allowedModules:['expenses']},$inc:{authVersion:1}});
- await assert.rejects(expenses.review(conn,tenant,reviewer,revoked._id,{decision:'approve',note}),{status:403});
- assert.equal((await expenseModel(conn).findById(revoked._id)).status,'pending_review');assert.equal(await balance(walletFund),'15000');assert.equal(await models(conn).batch.countDocuments({}),beforeRevoked,'a reviewer cannot bypass the originating maker underlying funds-module revocation');
+ await core.tenantUserModel(conn).updateOne({_id:maker.id},{$set:{allowedModules:[]},$inc:{authVersion:1}});
+ await assert.rejects(expenses.create(conn,tenant,maker,body({paymentMethod:'Mobile Money',amount:'10.00',treasuryAccountId:String(walletFund._id)}),{requireFunds:true}),{status:403});
+ assert.equal(await balance(walletFund),'15000');assert.equal(await models(conn).batch.countDocuments({}),beforeRevoked);
  await core.tenantUserModel(conn).updateOne({_id:maker.id},{$set:{allowedModules:modules},$inc:{authVersion:1}});maker.authVersion=2;
- await expenses.review(conn,tenant,reviewer,revoked._id,{decision:'reject',note});
  const checkpoint=await treasury.requestObservation(conn,tenant,maker,walletFund._id,{kind:'checkpoint',actualBalance:'100.00',observedAt:new Date().toISOString(),evidenceType:'provider_app',
   evidenceReference:`PROVIDER-CHECK-${nonce}`,note,idempotencyKey:crypto.randomUUID()});await treasury.reviewObservation(conn,tenant,owner,checkpoint.observation._id,{decision:'approve',note});
- const held=(await expenses.create(conn,tenant,maker,body({paymentMethod:'Mobile Money',amount:'10.00',treasuryAccountId:String(walletFund._id)}),{requireFunds:true})).record;
- await assert.rejects(expenses.review(conn,tenant,reviewer,held._id,{decision:'approve',note}),{status:409});assert.equal(await balance(walletFund),'15000');
- assert.equal((await models(conn).account.findById(walletFund._id)).status,'held');assert.equal((await expenseModel(conn).findById(held._id)).status,'pending_review');
+
+ await assert.rejects(expenses.create(conn,tenant,maker,body({paymentMethod:'Mobile Money',amount:'10.00',treasuryAccountId:String(walletFund._id)}),{requireFunds:true}),{status:409});
+ assert.equal(await balance(walletFund),'15000');assert.equal((await models(conn).account.findById(walletFund._id)).status,'held');
  const sourceChoices=await expenses.fundChoices(conn,tenant,maker);assert(sourceChoices.some(row=>row._id===String(cashFund._id)));assert(!sourceChoices.some(row=>row._id===String(walletFund._id)));
- const wrongConn=getTenantConnection(`foreign-expense-${nonce}`);await assert.rejects(expenses.review(wrongConn,tenant,reviewer,bank._id,{decision:'approve',note}),{status:403});
+ const wrongConn=getTenantConnection(`foreign-expense-${nonce}`);await assert.rejects(expenses.create(wrongConn,tenant,maker,body({paymentMethod:'Bank',amount:'1.00',treasuryAccountId:String(bankFund._id)}),{requireFunds:true}),{status:403});
  await assert.rejects(models(conn).batch.updateOne({_id:batch._id},{$set:{description:'tampered'}}),/append-only/);
  // A second currency in the same branch/operator has its own real cash book.
  const usdFund=await treasury.createAccount(conn,tenant,owner,{code:'USD_CASH',name:'Verified USD cash',kind:'cash',currency:'USD',operatorId:maker.id,isDefault:true});
@@ -96,10 +100,10 @@ async function main(){
  const usdInput=body({currency:'USD',amount:'12.34',treasuryAccountId:String(usdFund._id)}),usdExpense=(await expenses.create(conn,tenant,maker,usdInput,{requireFunds:true})).record;
  await assert.rejects(expenses.create(conn,tenant,maker,{...usdInput,currency:'SSP'},{requireFunds:true}),{status:409},'a form retry cannot change currency even when minor amounts coincide');
  await assert.rejects(expenses.create(conn,tenant,maker,body({currency:'USD',amount:'1.00',treasuryAccountId:String(cashFund._id)}),{requireFunds:true}),{status:403},'a KES fund cannot pay a USD expense');
- await expenses.review(conn,tenant,reviewer,usdExpense._id,{decision:'approve',note});
+ assert.equal(usdExpense.status,'approved');
  assert.equal(await balance(usdFund),'8766');assert.equal(await balance(cashFund),'100000');
- assert.equal(String((await core.cashSessionModel(conn).findById(usdShift._id)).provisionalMovementMinor),'-1234');assert.equal(String((await readShift()).provisionalMovementMinor),'0');
- console.log('PASS: independently approved expenses post balanced funds-book journals once, Cash updates its physical drawer once, Bank/wallet expense sources remain separate, corrections and voids append reversals, and mismatches/insufficient or foreign sources cannot spend.');
+ assert.equal(String((await core.cashSessionModel(conn).findById(usdShift._id)).provisionalMovementMinor),'0');assert.equal(String((await readShift()).provisionalMovementMinor),'0');
+ console.log('PASS: immediate final expenses debit selected cash, bank and wallet accounts exactly once; idempotency, corrections, voids, failed funding rollback, tenant and operator fences.');
 }
 async function cleanup(){if(mongoose.connection.readyState===1&&mongoose.connection.name===scratch&&/^cfh_expense_funds_[a-f0-9]{16}$/.test(scratch)){if(conn)await conn.db.dropDatabase();await mongoose.connection.db.dropDatabase();}await mongoose.disconnect();}
 main().catch(error=>{console.error('Expense treasury integration FAILED:',error.stack||error.message);process.exitCode=1;}).finally(()=>cleanup().catch(error=>{console.error(error.message);process.exitCode=1;}));

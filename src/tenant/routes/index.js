@@ -425,6 +425,7 @@ router.get('/modules',requirePermission('modules.view'),async(req,res,next)=>{
     const pending=req.user.role==='Tenant Owner' ? await require('../../platform/models/ModuleRequest').find({tenantId:req.tenant._id,status:'pending'}).select('moduleKey').lean():[];
     renderTenant(req,res,'modules/index','Tenant Modules','Your independently subscribed modules and permissions.',{
       modules,plan:planForTenant(req.tenant),grants:require('../../platform/services/moduleSubscriptions.service').activeGrants(req.tenant),
+       moduleAccessStates:Object.fromEntries(modules.map(m=>[m.key,require('../services/moduleAccess.service').moduleAccessState(req.tenant,req.user,m.key)])),
       pendingKeys:pending.map(p=>p.moduleKey)
     });
   }catch(e){next(e);}

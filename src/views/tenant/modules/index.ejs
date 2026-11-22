@@ -5,6 +5,7 @@
   <div class="grid3" style="margin-top:14px"><% data.modules.forEach(m=>{
      const included=Boolean(data.plan?.modules?.includes(m.key)&&tenant.enabledModules?.includes(m.key));
      const grant=data.grants.find(g=>g.moduleKey===m.key);
+     const access=data.moduleAccessStates?.[m.key]||{state:'unsubscribed',message:'Unavailable',href:null};
   %><article class="card" data-search-row><div class="cardHead"><b><i class="fa-solid <%= m.icon %>"></i> <%= m.name %></b>
     <span><%= (included||grant) ? (m.runtimeStatus==='recording_only'?(m.key==='sms_capture'?'SMS capture':'Manual operations'):'Subscribed') : m.runtimeStatus==='disabled'?'Not yet available':'Not subscribed' %></span></div>
     <div class="cardBody"><p class="tiny"><%= m.description %></p><p class="tiny"><b>Pricing:</b> <%= m.requiresQuote?'Agreed individually with the platform administrator':'USD '+m.priceMonthly+'/month (indicative)' %></p>
@@ -17,6 +18,10 @@
         <button class="btn" type="submit">Request module</button>
       </form><% } %>
       <% if(user.role==='Tenant Owner'&&m.requiresQuote&&!included&&!grant){ %><p class="tiny">Contact the platform team for an individual activation quotation. No price has been approved or charged.</p><% } %>
+      <% if(included||grant){ %><div class="workspaceModuleAccess"><strong>For your account:</strong> <%= access.message %>.
+      <% if(access.href){ %><a class="btn" href="<%= access.href %>"><%= access.state==='operate'?'Open module':'Open permitted view' %></a><% } %>
+      <% if(['view-only','role-blocked'].includes(access.state)&&user.role!=='Tenant Owner'){ %><p class="tiny">The tenant owner can assign an operating role suited to this module; assignment alone cannot override financial permissions.</p><% } %>
+      </div><% } %>
       <div class="seg"><% m.permissions.forEach(permission=>{ %><span class="chip <%= included||grant?'active':'' %>"><%= permission %></span><% }) %></div>
     </div></article><% }) %></div>
 </section>

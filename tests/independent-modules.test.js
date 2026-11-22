@@ -139,3 +139,16 @@ test('new Loan and Airtime modules require an explicit platform-approved quote',
   assert.equal(validateGrant({...input,moduleKey:key,monthlyPriceUsd:'0.00'}).priceMonthlyMinor,0);
  }
 });
+
+test('staff module status distinguishes usable actions, viewing and reporting-source assignments',()=>{
+ const {moduleAccessState}=require('../src/tenant/services/moduleAccess.service');
+ const t=modular({moduleGrants:[grant('forex',{limits:{users:5,branches:1,recordsPerMonth:100}}),grant('reports')]});
+ const mobile=user('Mobile Money Operator',['forex']);
+ assert.equal(moduleAccessState(t,mobile,'forex').state,'view-only');
+ assert.equal(moduleAccessState(t,mobile,'forex').href,'/tenant/forex');
+ const reporter=user('Reports Analyst',['forex','reports']);
+ assert.equal(moduleAccessState(t,reporter,'forex').state,'report-source');
+ assert.equal(moduleAccessState(t,reporter,'forex').href,'/tenant/reports');
+ assert.equal(moduleAccessState(t,user('Forex Operator',['forex']),'forex').state,'operate');
+ assert.equal(moduleAccessState(t,user('Forex Operator',[]),'forex').state,'not-assigned');
+});

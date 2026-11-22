@@ -12,8 +12,8 @@
 </div>
 
 <% if(user.role==='Tenant Owner'){ %>
-<section class="card" style="margin-top:14px" aria-labelledby="roleDefaultsTitle">
- <div class="cardHead"><div><b id="roleDefaultsTitle">Role module assignments</b><br><span>Saved by the owner, not loaded from a platform preset</span></div></div>
+<section class="card" id="role-module-assignments" style="margin-top:14px" aria-labelledby="roleDefaultsTitle">
+ <div class="cardHead"><div><b id="roleDefaultsTitle">Role module assignments</b><br><span>Choose actual subscribed modules for each staff role. No automatic presets.</span></div><a class="btn" href="/tenant/modules">Request modules</a></div>
  <div class="cardBody">
   <form method="post" action="/tenant/users/role-defaults" data-role-default-editor>
    <input type="hidden" name="_csrf" value="<%= csrfToken %>">

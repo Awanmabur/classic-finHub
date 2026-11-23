@@ -38,7 +38,7 @@ module.exports=function treasuryRoutes({renderTenant}){
  }));
  router.post('/capital',requirePermission('treasury.manage'),throttle,wrap(async(req,res)=>{
   const result=await treasury.addCapital(req.tenantDb,req.tenant,req.user,req.body.accountId,req.body);
-  flash(req,'good',result.duplicate?'This contribution was already recorded; no money was added twice.':'New business capital recorded immediately in the selected account and owner equity.');
+  flash(req,'good',result.duplicate?'This top-up was already recorded; your account was not credited twice.':'Money added to your account. Check the updated balance and start transactions.');
   branchView.followRecord(req,result.batch);res.redirect(303,`/tenant/treasury/accounts/${result.accountId}`);
  }));
  router.post('/accounts/:id/opening',requirePermission('treasury.observe'),throttle,wrap(async(req,res)=>{

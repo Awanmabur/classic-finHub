@@ -27,12 +27,12 @@ function owner(req){
 }
 const tz=['Africa/Juba','Africa/Kampala','Africa/Nairobi','Africa/Dar_es_Salaam','Africa/Kigali','Africa/Cairo','UTC'];
 const kindLabel=Object.freeze({cash:'Cash drawer',wallet:'Mobile money float',bank:'Bank account',
-  forex_stock:'Forex stock',transfer_clearing:'Transfer clearing'});
+  forex_stock:'Forex stock',transfer_clearing:'Transfer payable (Money Transfer)'});
 function accountKinds(tenant,actor){
  const result=['cash','bank'];
  if(access.hasModuleForUser(tenant,actor,'mobile_money'))result.push('wallet');
  if(access.hasModuleForUser(tenant,actor,'forex'))result.push('forex_stock');
- // Transfer clearing is an internal liability, not an owner-created cash account.
+ if(access.hasModuleForUser(tenant,actor,'money_transfer'))result.push('transfer_clearing');
  return result;
 }
 function branchInput(body){
@@ -67,7 +67,7 @@ function moneyInput(body,tenant,actor,branches){
  // Cash custody always belongs to a real operator, the owner by default.
  const operatorId=kind==='cash'?String(body.operatorId||actor.id):String(body.operatorId||'');
  const names={cash:'Cash drawer',wallet:network+' float',bank:'Bank account',
-    forex_stock:'Forex stock'};
+    forex_stock:'Forex stock',transfer_clearing:'Transfer payable'};
  const displayName=String(body.name||'').trim()||names[kind]+' '+currency;
  // No separate account code, opening money or arbitrary bookkeeping fields.
  return {branchId,account:{kind,currency,network,operatorId,

@@ -106,6 +106,12 @@ module.exports=function treasuryRoutes({renderTenant}){
   flash(req,'good','Unused '+account.kind.replaceAll('_',' ')+' hidden from setup. You can restore it below; its audit history was preserved.');
   res.redirect(303,'/tenant/setup#quick-money');
  }));
+ router.post('/accounts/:id/close',requirePermission('treasury.manage'),throttle,wrap(async(req,res)=>{
+  const account=await treasury.closeSettledAccount(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
+  flash(req,'good','Account closed and hidden from new transactions. All historical postings, receipts and audit records remain intact.');
+  branchView.followRecord(req,account);
+  res.redirect(303,`/tenant/treasury/accounts/${account._id}`);
+ }));
  router.post('/accounts/:id/restore',requirePermission('treasury.manage'),throttle,wrap(async(req,res)=>{
   const account=await treasury.restoreArchivedAccount(req.tenantDb,req.tenant,req.user,req.params.id);
   flash(req,'good','Account restored. Confirm its real opening balance before using it.');

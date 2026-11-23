@@ -52,8 +52,8 @@
    <div class="row2">
     <label class="field">What are you recording?
      <select class="control" name="action" required data-owner-balance-action>
+      <option value="check" selected>Check actual account balance</option>
       <option value="capital" <%= account.status==='active'&&account.reconciliationState==='matched'?'':'disabled' %>>Add new business money</option>
-      <option value="check" <%= account.status==='active'&&account.reconciliationState==='matched'?'':'selected' %>>Check actual account balance</option>
      </select>
     </label>
     <label class="field"><span data-owner-balance-label>Amount of new money received (<%= account.currency==='KES'?'KSH':account.currency %>)</span>

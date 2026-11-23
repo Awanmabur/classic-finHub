@@ -37,9 +37,13 @@ module.exports=function treasuryRoutes({renderTenant}){
  }
  function hasSource(req,key){return require('../services/moduleAccess.service').hasModuleForUser(req.tenant,req.user,key);}
  router.get('/',wrap(renderList));
- router.get('/accounts/new',requirePermission('treasury.manage'),wrap(renderList));
+ router.get('/accounts/new',requirePermission('treasury.manage'),wrap((req,res)=>req.user.role==='Tenant Owner'?res.redirect(303,'/tenant/setup#quick-money'):renderList(req,res)));
  router.get('/review',requirePermission('treasury.review'),wrap(renderList));
  router.post('/accounts',requirePermission('treasury.manage'),throttle,wrap(async(req,res)=>{
+  // Never trust hidden/legacy fields for internal ledger identity.
+  // Only a server-generated account code can be assigned through the UI.
+  if(Object.prototype.hasOwnProperty.call(req.body||{},'code'))
+   throw treasury.fail('Account codes are generated automatically. Remove the supplied code and retry.',400);
   if(branchView.canViewBranches(req.user)&&!req.viewBranch)throw treasury.fail('Choose a branch before adding an account',409);
   const account=await treasury.createAccount(req.tenantDb,req.tenant,req.user,req.body,{configurationBranchId:req.viewBranch?String(req.viewBranch._id):null});flash(req,'good','Account created. Owner: confirm its starting balance on the account page, then begin transactions.');branchView.followRecord(req,account);res.redirect(303,`/tenant/treasury/accounts/${account._id}`);
  }));
@@ -105,6 +109,12 @@ module.exports=function treasuryRoutes({renderTenant}){
   const account=await treasury.archiveUnusedAccount(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
   flash(req,'good','Unused '+account.kind.replaceAll('_',' ')+' hidden from setup. You can restore it below; its audit history was preserved.');
   res.redirect(303,'/tenant/setup#quick-money');
+ }));
+ router.post('/accounts/:id/close',requirePermission('treasury.manage'),throttle,wrap(async(req,res)=>{
+  const account=await treasury.closeSettledAccount(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
+  flash(req,'good','Account closed and hidden from new transactions. All historical postings, receipts and audit records remain intact.');
+  branchView.followRecord(req,account);
+  res.redirect(303,`/tenant/treasury/accounts/${account._id}`);
  }));
  router.post('/accounts/:id/restore',requirePermission('treasury.manage'),throttle,wrap(async(req,res)=>{
   const account=await treasury.restoreArchivedAccount(req.tenantDb,req.tenant,req.user,req.params.id);

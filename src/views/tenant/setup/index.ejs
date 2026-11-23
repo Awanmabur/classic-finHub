@@ -72,7 +72,7 @@ const status=(done)=>done?'Ready':'Set up';
               <% data.roles.forEach(role=>{ %><option value="<%= role %>" <%= role==='Mobile Money Operator'?'selected':'' %>><%= role %></option><% }) %>
             </select></label>
             <% if(branches.length===1){ %>
-              <input type="hidden" name="branchId" value="<%= first._id %>" data-quick-account-branch>
+              <input type="hidden" name="branchId" value="<%= first._id %>">
             <% }else{ %><label class="field">Work location<select class="control" name="branchId" required>
               <% branches.forEach(b=>{ %><option value="<%= b._id %>"><%= b.name %></option><% }) %>
             </select></label><% } %>
@@ -97,11 +97,14 @@ const status=(done)=>done?'Ready':'Set up';
         <form method="post" action="/tenant/setup/account">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <div class="row2">
-            <label class="field">Money account type<select class="control" name="kind" required data-quick-account-kind>
+            <label class="field">What are you creating?<select class="control" name="kind" required data-quick-account-kind>
+              <option value="" disabled selected>Choose account type</option>
               <% data.kinds.forEach(k=>{ %><option value="<%= k %>"><%= data.kindLabel[k]||k %></option><% }) %>
             </select></label>
+            <label class="field">Account name<input class="control" name="name" data-quick-account-name required minlength="3" maxlength="120" placeholder="e.g. Main MTN float or Counter 1 cash">
+              <small>Use a name you can recognize later. The suggested name can be edited.</small></label>
             <% if(branches.length===1){ %>
-              <input type="hidden" name="branchId" value="<%= first._id %>">
+              <input type="hidden" name="branchId" value="<%= first._id %>" data-quick-account-branch>
             <% }else{ %><label class="field">Branch<select class="control" name="branchId" required data-quick-account-branch>
               <% branches.forEach(b=>{ %><option value="<%= b._id %>"><%= b.name %></option><% }) %>
             </select></label><% } %>
@@ -121,7 +124,7 @@ const status=(done)=>done?'Ready':'Set up';
             </select></label>
             <label class="field" data-quick-kind-field="wallet bank">Real provider / bank account reference (optional)<input class="control" name="accountReference" maxlength="80" placeholder="Your real provider or bank account reference"></label>
           </div>
-          <p class="tiny">Creating an account is immediate. Its starting balance is <strong>not confirmed</strong> until you confirm the actual counted cash, stock or provider/bank statement. Owners can record the actual starting amount immediately, with a generated audit reference. You can move existing verified funds instantly; you cannot create new funds just by entering an amount.</p>
+          <p class="tiny">A new account has one branch, one currency and its own generated code. Its starting balance is <strong>not confirmed</strong> until you check real cash, stock or a provider/bank statement. Owners can record the actual starting amount immediately, with a generated audit reference. You can move existing verified funds instantly; you cannot create new funds just by entering an amount.</p>
           <button type="submit" class="btn btnPrimary">Create money account</button>
         </form>
       <% } %>
@@ -130,9 +133,9 @@ const status=(done)=>done?'Ready':'Set up';
         <div class="tableWrap" style="margin-top:18px">
           <table><thead><tr><th>Account</th><th>Currency</th><th>Opening status</th><th>Next action</th></tr></thead><tbody>
             <% moneyAccounts.forEach(a=>{const usable=!a.integrityBlocked&&a.status==='active'&&a.openingBalanceMinor!=null&&a.openingApprovedAt&&a.reconciliationState==='matched'; %>
-              <tr><td><b><%= a.name %></b><br><span class="tiny"><%= a.kind.replaceAll('_',' ') %></span></td>
+              <tr><td><b><%= a.name %></b><br><span class="tiny"><%= data.kindLabel[a.kind]||a.kind.replaceAll('_',' ') %> · <%= a.code %><% if(a.selectionKey){ %> · Default<% } %></span></td>
                 <td><%= a.currency==='KES'?'KSH':a.currency %></td>
-                <td><span class="tag"><%= a.integrityBlocked?'Ledger review required':usable?'Ready':a.openingBalanceMinor!=null?'Reconciliation required':a.pendingOpeningId?'Opening awaiting review':'Opening not established' %></span></td>
+                <td><span class="tag"><%= a.integrityBlocked?'Ledger review required':a.status==='held'?'Held — check balance':usable?'Ready':a.openingBalanceMinor!=null?'Review balance':a.pendingOpeningId?'Opening awaiting review':'Confirm starting balance' %></span></td>
                 <td>
                   <% if(a.integrityBlocked){ %><span class="tiny" role="alert">Financial posting blocked. Ask the platform administrator to restore the missing ledger evidence; do not reconfirm or reset this balance.</span>
                   <% }else if(usable){ %><a class="btn btnPrimary" href="/tenant/treasury/accounts/<%= a._id %>#record-balance">Record balance / add money</a> <a class="btn" href="/tenant/treasury/accounts/<%= a._id %>">View balance</a>
@@ -167,15 +170,22 @@ const status=(done)=>done?'Ready':'Set up';
       <% } %>
       <% if((data.archivedAccounts||[]).length){ %>
         <details style="margin-top:14px">
-          <summary class="btn">Archived setup accounts (<%= data.archivedAccounts.length %>)</summary>
+          <summary class="btn">Removed or closed accounts (<%= data.archivedAccounts.length %>)</summary>
           <div class="tableWrap" style="margin-top:10px">
             <table><thead><tr><th>Account</th><th>Currency</th><th>Restore</th></tr></thead><tbody>
             <% data.archivedAccounts.forEach(a=>{ %>
               <tr><td><%= a.name %></td><td><%= a.currency==='KES'?'KSH':a.currency %></td>
-              <td><form method="post" action="/tenant/treasury/accounts/<%= a._id %>/restore">
-                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                <button type="submit" class="btn">Restore account</button>
-              </form></td></tr>
+              <td>
+               <% if(a.openingBalanceMinor!==null||Number(a.sequence||0)>0){ %>
+                <span class="tag">Closed · history retained</span>
+                <a class="btn" href="/tenant/treasury/accounts/<%= a._id %>">View history</a>
+               <% }else{ %>
+                <form method="post" action="/tenant/treasury/accounts/<%= a._id %>/restore">
+                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                 <button type="submit" class="btn">Restore unused account</button>
+                </form>
+               <% } %>
+              </td></tr>
             <% }) %>
             </tbody></table>
           </div>

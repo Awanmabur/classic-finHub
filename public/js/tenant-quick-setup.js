@@ -17,12 +17,16 @@
       zone.dataset.autoValue = '';
     });
   }
-  const kind = container.querySelector('[data-quick-account-kind]');
-  const provider = container.querySelector('[data-quick-provider]');
-  const selectedCurrency = container.querySelector('[data-quick-account-currency]');
-  const selectedBranch = container.querySelector('[data-quick-account-branch]');
-  const operator = container.querySelector('[data-quick-operator]');
-  const currencyStatus = container.querySelector('[data-quick-currency-status]');
+  const accountForm = container.querySelector('form[action="/tenant/setup/account"]');
+  const kind = accountForm?.querySelector('[data-quick-account-kind]');
+  const accountName = accountForm?.querySelector('[data-quick-account-name]');
+  const provider = accountForm?.querySelector('[data-quick-provider]');
+  const selectedCurrency = accountForm?.querySelector('[data-quick-account-currency]');
+  const selectedBranch = accountForm?.querySelector('[data-quick-account-branch]');
+  const operator = accountForm?.querySelector('[data-quick-operator]');
+  const currencyStatus = accountForm?.querySelector('[data-quick-currency-status]');
+  let nameCustomized = false;
+  accountName?.addEventListener('input', () => { nameCustomized = Boolean(accountName.value.trim()); });
   if (!kind) return;
   const update = () => {
     for (const row of container.querySelectorAll('[data-quick-kind-field]')) {
@@ -70,13 +74,25 @@
           ? '' : 'Enable a supported currency in Branches to create this account.';
       }
     }
+    // Suggest a clear label without overwriting an owner's own account name.
+    if (accountName && !nameCustomized) {
+      const currencyLabel = selectedCurrency?.value === 'KES' ? 'KSH' : (selectedCurrency?.value || '');
+      const typeName = kind.value === 'wallet'
+        ? (provider?.value ? provider.value + ' float' : 'Mobile money float')
+        : kind.value === 'cash'
+          ? (operator?.value ? operator.selectedOptions[0]?.textContent.split(' · ')[0] + ' cash drawer' : 'Owner cash drawer')
+          : kind.value === 'bank' ? 'Bank account'
+            : kind.value === 'forex_stock' ? 'Forex stock' : kind.value === 'transfer_clearing' ? 'Transfer payable' : '';
+      accountName.value = typeName ? typeName + (currencyLabel ? ' ' + currencyLabel : '') : '';
+    }
   };
   kind.addEventListener('change', update);
   provider?.addEventListener('change', update);
   selectedBranch?.addEventListener('change', update);
+  operator?.addEventListener('change', update);
   selectedCurrency?.addEventListener('change', () => {
     // Provider currency is authoritative; do not show a misleading choice.
-    if (kind.value === 'wallet') update();
+    update();
   });
   update();
 })();

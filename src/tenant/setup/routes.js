@@ -27,7 +27,7 @@ function owner(req){
 }
 const tz=['Africa/Juba','Africa/Kampala','Africa/Nairobi','Africa/Dar_es_Salaam','Africa/Kigali','Africa/Cairo','UTC'];
 const kindLabel=Object.freeze({cash:'Cash drawer',wallet:'Mobile money float',bank:'Bank account',
-  forex_stock:'Forex stock',transfer_clearing:'Transfer clearing'});
+  forex_stock:'Forex stock',transfer_clearing:'Transfer payable (Money Transfer)'});
 function accountKinds(tenant,actor){
  const result=['cash','bank'];
  if(access.hasModuleForUser(tenant,actor,'mobile_money'))result.push('wallet');
@@ -54,7 +54,7 @@ function inviteInput(body,tenant,roles,branches){
  return {name:body.name,email:body.email,role,branchId,allowedModules};
 }
 function moneyInput(body,tenant,actor,branches){
- exact(body,['kind','branchId','currency','network','operatorId','accountReference']);
+ exact(body,['kind','branchId','currency','network','operatorId','accountReference','name']);
  const kind=String(body.kind||''),branchId=String(body.branchId||'');
  const branch=branches.find(b=>String(b._id)===branchId);
  if(!branch)throw invalid('Choose an active branch.');
@@ -66,11 +66,13 @@ function moneyInput(body,tenant,actor,branches){
   throw invalid('Use a currency enabled for the selected branch.');
  // Cash custody always belongs to a real operator, the owner by default.
  const operatorId=kind==='cash'?String(body.operatorId||actor.id):String(body.operatorId||'');
- const names={cash:'Cash drawer',wallet:network+' float',bank:'Bank balance',
-    forex_stock:'Forex stock',transfer_clearing:'Transfer clearing'};
+ const names={cash:'Cash drawer',wallet:network+' float',bank:'Bank account',
+    forex_stock:'Forex stock',transfer_clearing:'Transfer payable'};
+ const displayName=String(body.name||'').trim()||names[kind]+' '+currency;
+ // No separate account code, opening money or arbitrary bookkeeping fields.
  return {branchId,account:{kind,currency,network,operatorId,
-   accountReference:String(body.accountReference||''),name:names[kind]+' '+currency,
-   isDefault:true}};
+   accountReference:String(body.accountReference||''),name:displayName,
+   isDefault:'auto'}};
 }
 function handleSetupError(req,res,next,error){
  if([400,403,409,422].includes(error?.status)){
@@ -90,7 +92,7 @@ module.exports=function quickSetupRoutes({renderTenant}){
     tenantUserModel(req.tenantDb).countDocuments({status:'active',role:{$ne:'Tenant Owner'}}).maxTimeMS(3000),
     staffInviteModel(req.tenantDb).countDocuments({status:'pending',expiresAt:{$gt:new Date()}}).maxTimeMS(3000),
     fundModels(req.tenantDb).account.find({tenantId:req.tenant._id,status:{$ne:'archived'}})
-      .select('_id code name kind currency network branchId ledgerAccountId ledgerCode openingBalanceMinor bookBalanceMinor sequence openingApprovedAt pendingOpeningId reconciliationState status')
+      .select('_id code name kind currency network branchId ledgerAccountId ledgerCode openingBalanceMinor bookBalanceMinor sequence openingApprovedAt pendingOpeningId reconciliationState status selectionKey')
       .sort({createdAt:-1,_id:-1}).limit(80).lean().maxTimeMS(3000),
     tenantUserModel(req.tenantDb).find({status:'active',role:{$ne:'Tenant Owner'}})
       .select('_id name role branchId').sort({name:1}).limit(80).lean().maxTimeMS(3000),

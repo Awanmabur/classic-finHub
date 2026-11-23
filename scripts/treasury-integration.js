@@ -271,6 +271,69 @@ async function main(){
  await assert.rejects(treasury.archiveUnusedAccount(conn,tenant,owner,starterCash._id,{
   confirmCode:starterCash.code
  }),e=>e.status===409,'An opened/used account cannot be archived');
+ // Standard setup assigns one default per actual account group without
+ // preventing the owner from adding a second named wallet in that currency.
+ const autoOne=await treasury.createAccount(conn,tenant,owner,{
+  name:'Standard primary owner MTN wallet',kind:'wallet',network:'MTN',
+  currency:'UGX',operatorId:owner.id,isDefault:'auto'
+ });
+ const autoTwo=await treasury.createAccount(conn,tenant,owner,{
+  name:'Standard secondary owner MTN wallet',kind:'wallet',network:'MTN',
+  currency:'UGX',operatorId:owner.id,isDefault:'auto'
+ });
+ assert(autoOne.selectionKey,'First account in its real wallet group is default');
+ assert(!autoTwo.selectionKey,'Second real wallet cannot steal an existing default');
+ assert.notEqual(String(autoOne._id),String(autoTwo._id));
+ await assert.rejects(treasury.createAccount(conn,tenant,owner,{
+  name:'standard secondary owner mtn wallet',kind:'wallet',network:'MTN',
+  currency:'UGX',operatorId:owner.id,isDefault:'auto'
+ }),e=>e.status===409,'Duplicate group/name is blocked without inventing another account');
+ // A previously used, settled wallet can be closed without deleting its history.
+ const retiringSource=await treasury.createAccount(conn,tenant,owner,{
+  name:'Historical wallet to close',kind:'wallet',network:'MTN',currency:'UGX',
+  operatorId:owner.id,isDefault:false
+ });
+ const retiringDest=await treasury.createAccount(conn,tenant,owner,{
+  name:'Replacement wallet',kind:'wallet',network:'MTN',currency:'UGX',
+  operatorId:owner.id,isDefault:false
+ });
+ await treasury.confirmOwnerOpening(conn,tenant,owner,retiringSource._id,{
+  actualBalance:'25',idempotencyKey:crypto.randomUUID()
+ });
+ await treasury.confirmOwnerOpening(conn,tenant,owner,retiringDest._id,{
+  actualBalance:'0',idempotencyKey:crypto.randomUUID()
+ });
+ const retirementFunding=await funding.postDirect(conn,tenant,owner,{
+  sourceAccountId:String(retiringSource._id),destinationAccountId:String(retiringDest._id),
+  amount:'25',idempotencyKey:crypto.randomUUID()
+ });
+ const closeReason='Real account replaced after settling all existing funds.';
+ await assert.rejects(treasury.closeSettledAccount(conn,tenant,owner,retiringSource._id,{
+  confirmCode:retiringSource.code,reason:closeReason
+ }),e=>e.status===409,'Zero funds require a fresh actual post-transaction check');
+ const checkZero=await treasury.recordOwnerBalanceCheck(conn,tenant,owner,retiringSource._id,{
+  actualBalance:'0',idempotencyKey:crypto.randomUUID()
+ });
+ assert(checkZero.matched);
+ const historyCount=await book.models(conn).movement.countDocuments({accountId:retiringSource._id});
+ const postedCount=await core.ledgerPostingModel(conn).countDocuments({accountId:retiringSource.ledgerAccountId});
+ assert(historyCount>0&&postedCount>0);
+ await assert.rejects(treasury.closeSettledAccount(conn,tenant,operator,retiringSource._id,{
+  confirmCode:retiringSource.code,reason:closeReason
+ }),e=>e.status===403);
+ const retired=await treasury.closeSettledAccount(conn,tenant,owner,retiringSource._id,{
+  confirmCode:retiringSource.code,reason:closeReason
+ });
+ assert.equal(retired.status,'archived');
+ assert.equal(await book.models(conn).movement.countDocuments({accountId:retiringSource._id}),historyCount);
+ assert.equal(await core.ledgerPostingModel(conn).countDocuments({accountId:retiringSource.ledgerAccountId}),postedCount);
+ assert.equal((await treasury.accountDetail(conn,tenant,owner,retiringSource._id)).account.status,'archived');
+ assert.equal((await require('../src/tenant/treasury/funding.models').model(conn)
+  .findById(retirementFunding.funding._id)).status,'posted');
+ await assert.rejects(funding.postDirect(conn,tenant,owner,{
+  sourceAccountId:String(retiringSource._id),destinationAccountId:String(retiringDest._id),
+  amount:'1',idempotencyKey:crypto.randomUUID()
+ }),e=>[404,409].includes(e.status),'Closed account cannot fund new operations');
  // A link from a funded wallet is a dependency even without new movements.
  const linkedDraft=await treasury.createAccount(conn,tenant,owner,{
   name:'Unused linked drawer',kind:'cash',currency:'UGX',operatorId:operator.id,isDefault:false

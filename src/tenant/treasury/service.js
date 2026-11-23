@@ -77,8 +77,8 @@ function validateAccount(input){
  }
  const operatorId=input.operatorId?String(oid(input.operatorId,'assigned operator')):null;if(kind==='cash'&&!operatorId)throw fail('A cash drawer must be assigned to its actual operator');
  const accountReference=text(input.accountReference||'','wallet or account identifier',0,80);
- if(input.isDefault!==undefined&&!['true','false',true,false,'on'].includes(input.isDefault))throw fail('Choose a valid default-account option');
- return {code,name,kind,currency,network,operatorId,accountReference,isDefault:input.isDefault===undefined||['true',true,'on'].includes(input.isDefault)};
+ if(input.isDefault!==undefined&&!['true','false','auto',true,false,'on'].includes(input.isDefault))throw fail('Choose a valid default-account option');
+ return {code,name,kind,currency,network,operatorId,accountReference,isDefault:input.isDefault==='auto'?'auto':input.isDefault===undefined||['true',true,'on'].includes(input.isDefault)};
 }
 async function configureAccount(conn,tenant,actor,accountId,input){
  await ensure(conn);
@@ -90,6 +90,13 @@ async function configureAccount(conn,tenant,actor,accountId,input){
   if(!['Tenant Owner','Branch Manager'].includes(authorization.actor.role))throw fail('Authorized tenant owner or assigned branch manager required',403);
   const account=await loadAccount(conn,authorization,accountId,{session,fence:true});
   if(account.status==='archived')throw fail('Restore this funds account before changing its settings',409);
+  const nameConflict=await models(conn).account.findOne({
+   _id:{$ne:account._id},tenantId:authorization.tenant._id,
+   branchId:account.branchId,kind:account.kind,network:account.network,
+   currency:account.currency,operatorId:account.operatorId||null,
+   status:{$ne:'archived'},name
+  }).collation({locale:'en',strength:2}).select('_id').session(session).lean();
+  if(nameConflict)throw fail('That name already belongs to an account with the same type, currency and operator. Choose a unique name.',409);
   // The owner chooses this once, not the agent on every operation. Restrict
   // mapping to a genuine, approved, same-branch and same-currency cash account.
   // An operator-bound wallet can only map to its own operator's cash drawer.
@@ -142,8 +149,22 @@ async function createAccount(conn,tenant,actor,input,{configurationBranchId=null
   // ObjectId suffix so concurrently created accounts have distinct codes.
   const autoPrefix=(values.kind==='wallet'?values.network.replace(/[^A-Za-z0-9]+/g,'_'):values.kind).toUpperCase();
   const accountCode=values.code||`${autoPrefix}_${values.currency}_${accountId.toString().slice(-8).toUpperCase()}`;
+  // Avoid duplicate setup names in the same real account group; this never
+  // alters old ledger identities or joins different currencies.
+  const duplicate=await models(conn).account.findOne({
+   tenantId:authorization.tenant._id,branchId:branch._id,kind:values.kind,
+   currency:values.currency,network:values.network,operatorId:values.operatorId,
+   status:{$ne:'archived'},name:values.name
+  }).collation({locale:'en',strength:2}).select('_id').session(session).lean();
+  if(duplicate)throw fail('An account with this name already exists for the same type, currency and operator. Choose a distinguishing name or edit the existing one.',409);
+  const defaultKey=`${branch._id}:${values.kind}:${values.network}:${values.currency}:${values.operatorId||'shared'}`;
+  // "auto" is chosen by owner Quick setup and the detailed Treasury form.
+  // Only the first account in that group becomes the automatic default.
+  const isDefault=values.isDefault==='auto'
+   ? !(await models(conn).account.exists({tenantId:authorization.tenant._id,selectionKey:defaultKey}).session(session))
+   : values.isDefault;
+  const selectionKey=isDefault?defaultKey:undefined;
   const [chart]=await core.ledgerAccountModel(conn).create([{branchId:branch._id,code:ledgerCode,name:values.name,currency:values.currency,category:values.kind==='transfer_clearing'?'liability':'asset',createdBy:authorization.actor.id}],{session});
-  const selectionKey=values.isDefault?`${branch._id}:${values.kind}:${values.network}:${values.currency}:${values.operatorId||'shared'}`:undefined;
   const [created]=await models(conn).account.create([{_id:accountId,tenantId:authorization.tenant._id,branchId:branch._id,code:accountCode,name:values.name,kind:values.kind,moduleKey:moduleForKind(values.kind),network:values.network,currency:values.currency,operatorId:values.operatorId,accountReference:values.accountReference,selectionKey,ledgerAccountId:chart._id,ledgerCode,createdBy:authorization.actor.id}],{session});
   await audit(conn,session,authorization.actor,'treasury.account.created',created._id,{branchId:String(branch._id),kind:created.kind,currency:created.currency,code:created.code});return created;
  });}catch(error){if(error.code===11000)throw fail('The default funds account is already assigned or this account already exists. Review existing accounts before trying again.',409);throw error;}
@@ -230,6 +251,78 @@ async function restoreArchivedAccount(conn,tenant,actor,accountId){
    branchId:String(account.branchId),code:account.code,kind:account.kind
   });
   return restored;
+ });
+}
+// Closing an already-used account is NOT deletion. It preserves every
+// transaction, account identifier, observation and ledger posting. Require a
+// verified, post-activity ZERO balance and no unfinished work before hiding.
+function assertSettledAccountClosable(account,confirmCode){
+ if(!['wallet','cash','bank','forex_stock'].includes(account.kind))
+  throw fail('This account type cannot be closed from the business setup',409);
+ if(account.code!==confirmCode)throw fail('Type the exact account code to confirm closure',400);
+ if(account.status!=='active'||account.openingBalanceMinor===null||!account.openingApprovedAt||
+    account.reconciliationState!=='matched'||account.lastObservationStale||
+    !account.lastObservationAt||account.pendingOpeningId||
+    BigInt(String(account.bookBalanceMinor))!==0n||
+    account.lastObservedMinor===null||BigInt(String(account.lastObservedMinor))!==0n||
+    account.lastExpectedAtObservationMinor===null||
+    BigInt(String(account.lastExpectedAtObservationMinor))!==0n||
+    account.lastVarianceMinor===null||BigInt(String(account.lastVarianceMinor))!==0n)
+  throw fail('To close an account, settle it to zero, record a fresh actual zero balance and resolve any Held or pending review status.',409);
+ if(account.selectionKey)throw fail('Choose another default account first, then close this one.',409);
+}
+async function closeSettledAccount(conn,tenant,actor,accountId,input={}){
+ const confirmCode=text(input.confirmCode,'account code',3,40).toUpperCase();
+ const reason=text(input.reason,'reason for closing this account',12,400);
+ await Promise.all([ensure(conn),core.ensureTenantIndexes(conn)]);
+ return transaction(conn,async session=>{
+  const auth=await access(conn,tenant,actor,{permission:'treasury.manage',session,fence:true});
+  if(auth.actor.role!=='Tenant Owner')throw fail('Only the Tenant Owner may close an account',403);
+  const account=await loadAccount(conn,auth,accountId,{session,fence:true});
+  assertSettledAccountClosable(account,confirmCode);
+  await assertBookIntegrity(conn,session,account);
+  const t=models(conn),key=account._id;
+  // A zero balance shown before a later posting is not a valid closure count.
+  const lastMovement=await t.movement.findOne({accountId:key})
+    .select('createdAt').sort({sequence:-1}).session(session).lean();
+  if(lastMovement&&new Date(account.lastObservationAt)<new Date(lastMovement.createdAt))
+   throw fail('Count and record the actual zero balance after the last transaction before closing.',409);
+  const orFunds={$or:[{sourceAccountId:key},{destinationAccountId:key}]};
+  const orMobile={$or:[{walletAccountId:key},{paymentAccountId:key}]};
+  const orExecution={$or:['cashAccountId','foreignAccountId','settlementAccountId',
+    'collectionAccountId','clearingAccountId','payoutAccountId'].map(field=>({['accounts.'+field]:key}))};
+  // Historical records do not block closure. Only active dependencies and
+  // pending decisions do; all settled evidence remains stored immutably.
+  const checks=[
+   t.account.exists({cashDrawerAccountId:key,status:{$ne:'archived'}}).session(session),
+   t.observation.exists({accountId:key,status:'pending_review'}).session(session),
+   t.adjustment.exists({accountId:key,status:'pending_review'}).session(session),
+   require('./funding.models').model(conn).exists({...orFunds,status:'pending_review'}).session(session),
+   core.mobileTransactionModel(conn).exists({$and:[orMobile,{$or:[
+    {status:'pending_verification'},{reviewState:'awaiting_review'},{correctionState:'requested'}
+   ]}]}).session(session),
+   core.cashSessionModel(conn).exists({treasuryAccountId:key,status:{
+    $in:['pending_open','open','submitted','disputed']
+   }}).session(session),
+   require('../models/expenses').expenseModel(conn).exists({
+    status:'pending_review',$or:[{treasuryAccountId:key},{postedTreasuryAccountId:key}]
+   }).session(session),
+   require('../funded/models').models(conn).execution.exists({...orExecution,status:'pending_review'}).session(session)
+  ];
+  for(const q of checks)if(await q)
+   throw fail('This account still has a linked active account, open shift or pending financial review. Finish it before closing.',409);
+  const closed=await t.account.findOneAndUpdate({
+   _id:key,tenantId:auth.tenant._id,status:'active',revision:account.revision,
+   reconciliationState:'matched',bookBalanceMinor:account.bookBalanceMinor
+  },{$set:{status:'archived',holdReason:'Closed at verified zero balance by Tenant Owner.'},
+     $unset:{selectionKey:''},$inc:{revision:1}},{session,new:true}).lean();
+  if(!closed)throw fail('Account changed while closing. Reload to review its latest balance.',409);
+  await audit(conn,session,auth.actor,'treasury.account.closed',key,{
+   branchId:String(account.branchId),code:account.code,kind:account.kind,
+   currency:account.currency,reason,finalBookMinor:'0',
+   historyRetained:true,latestCountAt:account.lastObservationAt
+  });
+  return closed;
  });
 }
 // Retained for existing integrations that invoke the old wallet-specific API.
@@ -455,8 +548,10 @@ async function reviewObservationInSession(conn,session,authorization,observation
   // Historical observations stay auditable but cannot replace a later verified
   // checkpoint or release a hold based on older information.
   if(!account.lastObservationAt||new Date(observation.observedAt)>=new Date(account.lastObservationAt)){
-   const matched=variance===0n;
-   await Account.updateOne({_id:account._id},{$set:{lastObservationId:observation._id,lastObservationAt:observation.observedAt,lastObservedMinor:observation.actualMinor,lastExpectedAtObservationMinor:decimal(expected),lastVarianceMinor:decimal(variance),lastObservationStale:false,reconciliationState:matched?'matched':'mismatch',status:matched&&BigInt(String(account.bookBalanceMinor))>=0n?'active':'held',holdReason:matched?'':'Independently reviewed actual balance differs from the book.'},$inc:{revision:1}},{session});
+   const matched=variance===0n,nonnegative=BigInt(String(account.bookBalanceMinor))>=0n;
+   const holdReason=!matched?'Independently reviewed actual balance differs from the book.':
+    !nonnegative?'Negative bank/account balance: spending requires settlement and a fresh balance check.':'';
+   await Account.updateOne({_id:account._id},{$set:{lastObservationId:observation._id,lastObservationAt:observation.observedAt,lastObservedMinor:observation.actualMinor,lastExpectedAtObservationMinor:decimal(expected),lastVarianceMinor:decimal(variance),lastObservationStale:false,reconciliationState:matched?'matched':'mismatch',status:matched&&nonnegative?'active':'held',holdReason},$inc:{revision:1}},{session});
   }
  }else if(observation.kind==='opening')await Account.updateOne({_id:account._id,pendingOpeningId:observation._id},{$set:{pendingOpeningId:null},$inc:{revision:1}},{session});
  const updated=await Observation.findOneAndUpdate({_id:observation._id,status:'pending_review'},{$set:{status:decision==='approve'?'approved':'rejected',reviewedBy:authorization.actor.id,reviewedAt:new Date(),reviewNote:note,expectedMinorAtReview:expected===null?null:decimal(expected),varianceMinorAtReview:variance===null?null:decimal(variance),openingJournalId:journalId}},{session,new:true});
@@ -775,10 +870,10 @@ async function reviewAdjustment(conn,tenant,actor,adjustmentId,input){
    const result=await applyMovements(conn,session,authorization,{sourceType:'treasury_adjustment',sourceRef:`ADJ:${adjustment._id}`,branchId:String(account.branchId),operatingActorId:String(account.operatorId||authorization.actor.id),legs:[{accountId:account._id,deltaMinor:String(delta)}],description:adjustment.reason,evidenceRef:original.evidenceReference,occurredAt:original.observedAt},{allowHeld:true,allowNegative:account.kind==='bank',allowSuspense:true});batchId=result.batch._id;
    const current=await models(conn).account.findById(account._id).session(session).lean(),expected=await expectedAt(conn,current,new Date(original.observedAt),session);
    if(expected!==BigInt(String(original.actualMinor)))throw fail('Reconciliation adjustment did not match the independently observed balance',503);
-   await models(conn).account.updateOne({_id:account._id},{$set:{status:BigInt(String(current.bookBalanceMinor))>=0n?'active':'held',reconciliationState:'matched',lastExpectedAtObservationMinor:decimal(expected),lastVarianceMinor:decimal(0),lastObservationStale:false,holdReason:''},$inc:{revision:1}},{session});
+   await models(conn).account.updateOne({_id:account._id},{$set:{status:BigInt(String(current.bookBalanceMinor))>=0n?'active':'held',reconciliationState:'matched',lastExpectedAtObservationMinor:decimal(expected),lastVarianceMinor:decimal(0),lastObservationStale:false,holdReason:BigInt(String(current.bookBalanceMinor))<0n?'Negative account balance: settlement and a fresh check are required.':''},$inc:{revision:1}},{session});
   }
   const result=await models(conn).adjustment.findOneAndUpdate({_id:adjustment._id,status:'pending_review'},{$set:{status:input.decision==='approve'?'approved':'rejected',reviewedBy:authorization.actor.id,reviewedAt:new Date(),reviewNote:note,batchId}},{session,new:true});if(!result)throw fail('Adjustment was reviewed concurrently',409);
   await audit(conn,session,authorization.actor,`treasury.adjustment.${input.decision==='approve'?'approved':'rejected'}`,adjustment._id,{branchId:String(account.branchId),accountId:String(account._id),batchId:batchId?String(batchId):null,deltaMinor:String(adjustment.deltaMinor)});return result;
  });
 }
-module.exports={recordOwnerBalanceCheck,addCapital,postCrossCurrencyTransferPayout,postBranchTransferPayout,models,ensure,access,loadAccount,createAccount,configureAccount,archiveUnusedAccount,restoreArchivedAccount,archiveUnusedWallet,assertUnusedAccountArchivable,assertUnusedWalletArchivable,validateAccount,requestObservation,requestObservationInSession,confirmOwnerOpening,reviewObservation,reviewObservationInSession,applyMovements,reverseMovements,ensureCounterAccount,findAccount,findOperatingAccounts,balanceSnapshot,accountDetail,reviewQueue,requestAdjustment,reviewAdjustment,expectedAt,assertBookIntegrity,format,major,signedMinor,normalizeMovement,parseObservation,scope,moduleForKind,normalSide,fail,KINDS,NETWORKS};
+module.exports={recordOwnerBalanceCheck,addCapital,postCrossCurrencyTransferPayout,postBranchTransferPayout,models,ensure,access,loadAccount,createAccount,configureAccount,archiveUnusedAccount,restoreArchivedAccount,closeSettledAccount,assertSettledAccountClosable,archiveUnusedWallet,assertUnusedAccountArchivable,assertUnusedWalletArchivable,validateAccount,requestObservation,requestObservationInSession,confirmOwnerOpening,reviewObservation,reviewObservationInSession,applyMovements,reverseMovements,ensureCounterAccount,findAccount,findOperatingAccounts,balanceSnapshot,accountDetail,reviewQueue,requestAdjustment,reviewAdjustment,expectedAt,assertBookIntegrity,format,major,signedMinor,normalizeMovement,parseObservation,scope,moduleForKind,normalSide,fail,KINDS,NETWORKS};

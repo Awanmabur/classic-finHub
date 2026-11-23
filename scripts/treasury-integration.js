@@ -242,6 +242,48 @@ async function main(){
  await assert.rejects(treasury.addCapital(conn,tenant,operator,heldCash._id,{
    amount:'1',idempotencyKey:crypto.randomUUID()}),e=>e.status===403);
 
+ // Tenant Owner may clean up only MISTAKEN UNUSED setup accounts.
+ // This is a reversible status change, never deletion of the ledger mapping.
+ for(const [kind,currency] of [['cash','KES'],['bank','USD'],['forex_stock','SSP'],['wallet','UGX']]){
+  const draft=await treasury.createAccount(conn,tenant,owner,{
+   name:'Unused owner setup '+kind+' '+currency,kind,currency,isDefault:false,
+   ...(kind==='cash'?{operatorId:owner.id}:{}),
+   ...(kind==='wallet'?{network:'MTN',operatorId:owner.id}:{})
+  });
+  const ledgerRef=String(draft.ledgerAccountId);
+  await assert.rejects(treasury.archiveUnusedAccount(conn,tenant,operator,draft._id,{
+   confirmCode:draft.code
+  }),e=>e.status===403,'Only owner can archive setup drafts');
+  await assert.rejects(treasury.archiveUnusedAccount(conn,tenant,owner,draft._id,{
+   confirmCode:'WRONG'
+  }),e=>e.status===400,'An incorrect account confirmation must fail');
+  const archived=await treasury.archiveUnusedAccount(conn,tenant,owner,draft._id,{
+   confirmCode:draft.code
+  });
+  assert.equal(archived.status,'archived');
+  assert.equal(String(archived.ledgerAccountId),ledgerRef,'Archive retains the ledger identity');
+  assert.equal(await core.ledgerAccountModel(conn).countDocuments({_id:draft.ledgerAccountId}),1);
+  assert.equal((await treasury.restoreArchivedAccount(conn,tenant,owner,draft._id)).status,'uninitialized');
+  assert.equal((await treasury.archiveUnusedAccount(conn,tenant,owner,draft._id,{
+   confirmCode:draft.code
+  })).status,'archived');
+ }
+ await assert.rejects(treasury.archiveUnusedAccount(conn,tenant,owner,starterCash._id,{
+  confirmCode:starterCash.code
+ }),e=>e.status===409,'An opened/used account cannot be archived');
+ // A link from a funded wallet is a dependency even without new movements.
+ const linkedDraft=await treasury.createAccount(conn,tenant,owner,{
+  name:'Unused linked drawer',kind:'cash',currency:'UGX',operatorId:operator.id,isDefault:false
+ });
+ const W=book.models(conn).account;
+ await W.updateOne({_id:wallet._id},{$set:{cashDrawerAccountId:linkedDraft._id}});
+ await assert.rejects(treasury.archiveUnusedAccount(conn,tenant,owner,linkedDraft._id,{
+  confirmCode:linkedDraft.code
+ }),e=>e.status===409,'A drawer assigned to another wallet must not be hidden');
+ await W.updateOne({_id:wallet._id},{$set:{cashDrawerAccountId:null}});
+ assert.equal((await treasury.archiveUnusedAccount(conn,tenant,owner,linkedDraft._id,{
+  confirmCode:linkedDraft.code
+ })).status,'archived');
  // A real POST response must reach the existing Treasury endpoint and
  // return the correct AJAX redirect. Previously service-only tests missed
  // production complaints of "Page not found" after balance submissions.

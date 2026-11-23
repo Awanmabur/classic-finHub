@@ -283,9 +283,11 @@ async function confirmOwnerOpening(conn,tenant,actor,accountId,input={}){
 // internal funding transfer. It is posted only after real receipt, once per UUID.
 // The matching owner-equity credit avoids creating an unbalanced asset journal.
 async function addCapital(conn,tenant,actor,accountId,input={}){
- if(input?.confirmed!=='yes')throw fail('Confirm that the new money was actually received and is not already recorded');
+ // Only the account, amount, and retry key are entered by the owner.
+ // Record an internal traceable reference; never require or fabricate an
+ // external provider/bank receipt identifier for manually received funds.
  const requestKey=key(input.idempotencyKey);
- const evidenceReference=reference(input.evidenceReference);
+ const evidenceReference='CAPITAL-'+requestKey;
  await ensure(conn);
  try{return await transaction(conn,async session=>{
   const authorization=await access(conn,tenant,actor,{permission:'treasury.manage',session,fence:true});
@@ -296,8 +298,8 @@ async function addCapital(conn,tenant,actor,accountId,input={}){
      account.reconciliationState!=='matched')throw fail('Confirm the account opening balance first. Existing discrepancies need reconciliation.',409);
   const amount=major(input.amount,account.currency);
   if(amount<=0n)throw fail('New capital must be greater than zero');
-  // Never treat the same external deposit/receipt as a second contribution.
-  // A repeated UUID is retried safely by applyMovements and the unique batch index.
+  // The same submission key is safe to retry; this is not external
+  // settlement verification and a different submission is a new declaration.
   const counter=await ensureCounterAccount(conn,session,{tenantId:authorization.tenant._id,
     branchId:account.branchId,currency:account.currency,purpose:'capital_contribution',actorId:authorization.actor.id});
   const posted=await applyMovements(conn,session,authorization,{
@@ -314,7 +316,7 @@ async function addCapital(conn,tenant,actor,accountId,input={}){
     amountMinor:String(amount),evidenceReference,sourceRef:'CAP:'+requestKey});
   return {batch:posted.batch,duplicate:posted.duplicate,accountId:String(account._id),currency:account.currency,amountMinor:String(amount)};
  });}catch(error){
-  if(error.code===11000)throw fail('This capital receipt or request has already been recorded. Check the account history before adding more money.',409);
+  if(error.code===11000)throw fail('This top-up has already been recorded. Check the account balance before adding more money.',409);
   throw error;
  }
 }

@@ -46,3 +46,12 @@ test('validation messages appear only once and notices animate without obscuring
  assert.match(css,/#dashboardFeedbackDialog \.sessionFeedback::before/);
  assert.match(css,/#dashboardFeedbackDialog \.sessionFeedback::after/);
 });
+
+test('failed financial form routes expose safe 404 diagnostics rather than misleading blank page feedback',()=>{
+ const js=require('node:fs').readFileSync(path.resolve(__dirname,'../public/js/feedback.js'),'utf8');
+ assert.match(js,/result\.status===404/);
+ assert.match(js,/action\.pathname\.replace/);
+ assert.match(js,/X-Request-ID/);
+ assert.match(js,/Check the account history before submitting again/);
+ assert.doesNotMatch(js,/location\.assign\(action\.href\)/);
+});

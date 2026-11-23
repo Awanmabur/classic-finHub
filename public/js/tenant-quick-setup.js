@@ -82,7 +82,7 @@
         : kind.value === 'cash'
           ? (operator?.value ? operator.selectedOptions[0]?.textContent.split(' · ')[0] + ' cash drawer' : 'Owner cash drawer')
           : kind.value === 'bank' ? 'Bank account'
-            : kind.value === 'forex_stock' ? 'Forex stock' : '';
+            : kind.value === 'forex_stock' ? 'Forex stock' : kind.value === 'transfer_clearing' ? 'Transfer payable' : '';
       accountName.value = typeName ? typeName + (currencyLabel ? ' ' + currencyLabel : '') : '';
     }
   };

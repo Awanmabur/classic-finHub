@@ -465,7 +465,7 @@ async function applyMovements(conn,session,authorization,input,internal={}){
   const changes={bookBalanceMinor:decimal(after)};
   if(account.lastObservationAt&&occurredAt<=new Date(account.lastObservationAt)){changes.status='held';changes.reconciliationState='stale';changes.lastObservationStale=true;changes.holdReason='A late entry changed a previously reviewed observation. Obtain a new actual balance check.';}
   const changed=await Account.findOneAndUpdate({_id:account._id,revision:account.revision},{$set:changes,$inc:{sequence:1,revision:1}},{session,new:true}).lean();if(!changed)throw fail('Funds account changed concurrently',409);
-  if(account.kind==='cash')await require('../services/cashDrawer.service').refreshFundBalance(conn,session,changed,String(after),{allowNoActiveShift:Boolean(internal.allowSuspense)});
+  if(account.kind==='cash')await require('../services/cashDrawer.service').refreshFundBalance(conn,session,changed,String(after),{allowNoActiveShift:Boolean(internal.allowSuspense||internal.ownerCapital)});
   const chart=await core.ledgerAccountModel(conn).findOne({_id:account.ledgerAccountId,branchId:value.branchId,currency:account.currency,code:account.ledgerCode}).session(session).lean();if(!chart||chart.category!==(account.kind==='transfer_clearing'?'liability':'asset'))throw fail('Funds account ledger mapping is invalid',503);
   accounts.set(String(account._id),account);updates.push({account:changed,delta,balanceAfter:after});addLine(account.currency,account.ledgerCode,delta>0n?normalSide(account.kind):opposite(normalSide(account.kind)),delta<0n?-delta:delta);
  }

@@ -487,6 +487,102 @@ async function recordOwnerBalanceCheck(conn,tenant,actor,accountId,input={}){
   return {observation:approved,duplicate:false,matched:BigInt(String(approved.varianceMinorAtReview||0))===0n};
  });
 }
+// Correct only an unused first-opening typo. The original opening journal
+// stays immutable: an explicit balanced equity correction and a new actual
+// count are appended in the same MongoDB transaction. Once an account was used
+// for any shift, payment or movement, this direct correction is unavailable.
+async function correctUnusedOpening(conn,tenant,actor,accountId,input={}){
+ if(actor?.role!=='Tenant Owner'||input.confirmed!=='on')
+  throw fail('Only the business owner can confirm a new physical opening count',403);
+ if(!input||typeof input!=='object'||Array.isArray(input)||
+    Object.keys(input).some(k=>!['correctedBalance','idempotencyKey','confirmed'].includes(k)))
+  throw fail('Unexpected opening correction field',400);
+ const requestKey=key(input.idempotencyKey),ref='OPENFIX:'+requestKey;
+ await Promise.all([ensure(conn),core.ensureTenantIndexes(conn)]);
+ return transaction(conn,async session=>{
+  const auth=await access(conn,tenant,actor,{permission:'treasury.manage',session,fence:true});
+  if(auth.actor.role!=='Tenant Owner')throw fail('Only the current business owner can correct an unused opening',403);
+  const account=await loadAccount(conn,auth,accountId,{session,fence:true});
+  if(!['cash','wallet','bank','forex_stock'].includes(account.kind))
+   throw fail('This account type has a separate opening process',409);
+  const actual=major(input.correctedBalance,account.currency,{negative:account.kind==='bank'});
+  const t=models(conn),prior=await t.batch.findOne({
+   sourceType:'treasury_adjustment',sourceRef:ref,tenantId:auth.tenant._id
+  }).session(session).lean();
+  if(prior){
+   const priorMovement=await t.movement.findOne({batchId:prior._id,accountId:account._id}).session(session).lean();
+   if(!priorMovement||BigInt(String(priorMovement.balanceAfterMinor))!==actual)
+    throw fail('Opening correction reference was reused for a different account or amount',409);
+   return {accountId:String(account._id),duplicate:true,correctedMinor:String(actual)};
+  }
+  if(!['active','held'].includes(account.status)||account.openingBalanceMinor===null||
+     !account.openingApprovedAt||account.pendingOpeningId||Number(account.sequence||0)!==0)
+   throw fail('This account has already been used. Correct the original transaction or reconcile the difference instead.',409);
+  await assertBookIntegrity(conn,session,account);
+  // No connected cash custody, transfer, transaction, approval or expense
+  // may exist. Never use a cosmetic zero balance as evidence of being unused.
+  const blockers=[
+   t.movement.exists({accountId:account._id}).session(session),
+   t.account.exists({cashDrawerAccountId:account._id,status:{$ne:'archived'}}).session(session),
+   t.adjustment.exists({accountId:account._id}).session(session),
+   t.observation.exists({accountId:account._id,status:'pending_review'}).session(session),
+   require('./funding.models').model(conn).exists({$or:[
+    {sourceAccountId:account._id},{destinationAccountId:account._id}
+   ]}).session(session),
+   core.cashSessionModel(conn).exists({treasuryAccountId:account._id}).session(session),
+   core.mobileTransactionModel(conn).exists({$or:[
+    {walletAccountId:account._id},{paymentAccountId:account._id}
+   ]}).session(session),
+   require('../models/expenses').expenseModel(conn).exists({$or:[
+    {treasuryAccountId:account._id},{postedTreasuryAccountId:account._id}
+   ]}).session(session),
+   require('../funded/models').models(conn).execution.exists({$or:[
+    'cashAccountId','foreignAccountId','settlementAccountId',
+    'collectionAccountId','clearingAccountId','payoutAccountId'
+   ].map(field=>({['accounts.'+field]:account._id}))}).session(session)
+  ];
+  for(const query of blockers){
+   if(await query)throw fail('This account has financial or cash-shift history. Use the audited transaction correction or reconciliation instead.',409);
+  }
+  const oldAmount=BigInt(String(account.bookBalanceMinor)),delta=actual-oldAmount;
+  if(delta===0n)throw fail('The balance already matches. Use Check actual balance instead.',409);
+  const counter=await ensureCounterAccount(conn,session,{
+   tenantId:auth.tenant._id,branchId:account.branchId,currency:account.currency,
+   purpose:'opening_equity',actorId:auth.actor.id
+  });
+  const moved=await applyMovements(conn,session,auth,{
+   sourceType:'treasury_adjustment',sourceRef:ref,
+   branchId:String(account.branchId),operatingActorId:String(account.operatorId||auth.actor.id),
+   legs:[{accountId:account._id,deltaMinor:String(delta)}],
+   ledgerLines:[{currency:account.currency,accountId:String(counter.ledgerAccountId),
+    side:delta>0n?'credit':'debit',amountMinor:String(delta>0n?delta:-delta)}],
+   description:'Owner correction of unused first opening after a fresh count',
+   evidenceRef:'OWNER-OPENFIX-'+requestKey
+  },{allowHeld:true,allowNegative:account.kind==='bank',allowSuspense:true});
+  if(moved.duplicate)throw fail('Correction was already posted. Reload the account',409);
+  const scale=require('./../services/mobileMoney.service').currencies[account.currency];
+  const factor=10n**BigInt(scale),abs=actual<0n?-actual:actual;
+  const display=(actual<0n?'-':'')+String(abs/factor)+(scale?'.'+String(abs%factor).padStart(scale,'0'):'');
+  const evidenceType={cash:'cash_count',wallet:'provider_app',bank:'bank_statement',forex_stock:'stock_count'}[account.kind];
+  const observed=await requestObservationInSession(conn,session,auth,account._id,{
+   kind:'checkpoint',actualBalance:display,observedAt:new Date().toISOString(),
+   evidenceType,evidenceReference:'OWNER-OPENFIX-'+requestKey,
+   note:'Tenant owner recounted an unused account and corrected a mistyped initial amount. Original opening and balanced correction remain in history.',
+   idempotencyKey:requestKey
+  });
+  const verified=await reviewObservationInSession(conn,session,auth,observed.observation._id,{
+   decision:'approve',note:'Owner confirmed a new physical/provider count for an entirely unused account.'
+  },{ownerDirectCheck:true});
+  if(BigInt(String(verified.varianceMinorAtReview||'0'))!==0n)
+   throw fail('Opening correction did not reconcile. All changes were rolled back.',503);
+  await audit(conn,session,auth.actor,'treasury.opening_typo.corrected',account._id,{
+   branchId:String(account.branchId),currency:account.currency,
+   oldBookMinor:String(oldAmount),correctedMinor:String(actual),
+   adjustmentMinor:String(delta),batchId:String(moved.batch._id),openingHistoryRetained:true
+  });
+  return {accountId:String(account._id),duplicate:false,correctedMinor:String(actual)};
+ });
+}
 // A capital contribution is NEW, owner-attested business money, unlike an
 // internal funding transfer. It is posted only after real receipt, once per UUID.
 // The matching owner-equity credit avoids creating an unbalanced asset journal.
@@ -908,4 +1004,4 @@ async function reviewAdjustment(conn,tenant,actor,adjustmentId,input){
   await audit(conn,session,authorization.actor,`treasury.adjustment.${input.decision==='approve'?'approved':'rejected'}`,adjustment._id,{branchId:String(account.branchId),accountId:String(account._id),batchId:batchId?String(batchId):null,deltaMinor:String(adjustment.deltaMinor)});return result;
  });
 }
-module.exports={recordOwnerBalanceCheck,addCapital,postCrossCurrencyTransferPayout,postBranchTransferPayout,models,ensure,access,loadAccount,createAccount,configureAccount,renameAccount,archiveUnusedAccount,restoreArchivedAccount,closeSettledAccount,assertSettledAccountClosable,archiveUnusedWallet,assertUnusedAccountArchivable,assertUnusedWalletArchivable,validateAccount,requestObservation,requestObservationInSession,confirmOwnerOpening,reviewObservation,reviewObservationInSession,applyMovements,reverseMovements,ensureCounterAccount,findAccount,findOperatingAccounts,balanceSnapshot,accountDetail,reviewQueue,requestAdjustment,reviewAdjustment,expectedAt,assertBookIntegrity,format,major,signedMinor,normalizeMovement,parseObservation,scope,moduleForKind,normalSide,fail,KINDS,NETWORKS};
+module.exports={correctUnusedOpening,recordOwnerBalanceCheck,addCapital,postCrossCurrencyTransferPayout,postBranchTransferPayout,models,ensure,access,loadAccount,createAccount,configureAccount,renameAccount,archiveUnusedAccount,restoreArchivedAccount,closeSettledAccount,assertSettledAccountClosable,archiveUnusedWallet,assertUnusedAccountArchivable,assertUnusedWalletArchivable,validateAccount,requestObservation,requestObservationInSession,confirmOwnerOpening,reviewObservation,reviewObservationInSession,applyMovements,reverseMovements,ensureCounterAccount,findAccount,findOperatingAccounts,balanceSnapshot,accountDetail,reviewQueue,requestAdjustment,reviewAdjustment,expectedAt,assertBookIntegrity,format,major,signedMinor,normalizeMovement,parseObservation,scope,moduleForKind,normalSide,fail,KINDS,NETWORKS};

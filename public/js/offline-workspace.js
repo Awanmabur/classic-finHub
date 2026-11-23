@@ -226,7 +226,7 @@
     const response = new Response(await freshPageHTML(page), {headers: {'Content-Type': 'text/html', 'X-ClassicFin-Offline': 'true'}});
     Object.defineProperty(response, 'url', {value: new URL(page.url, location.origin).href}); return response;
   }
-  function allowed(form) { const url = new URL(form.action, location.origin); return form.method.toLowerCase() === 'post' && routes.has(url.pathname) && url.origin === location.origin; }
+  function allowed(form) { const url = new URL(form.getAttribute('action')||location.href, location.origin); return form.method.toLowerCase() === 'post' && routes.has(url.pathname) && url.origin === location.origin; }
   function operationLabel(action, form) {
     if (action === '/tenant/banking/requests') return ({deposit_request: 'Deposit', withdrawal_request: 'Withdraw', transfer_request: 'Account transfer'})[form.elements.namedItem('kind')?.value] || 'Banking request';
     if (action === '/tenant/forex/quotes') return ({buy: 'Buy forex from customer', sell: 'Sell forex to customer'})[form.elements.namedItem('operation')?.value] || 'Forex quotation';
@@ -240,7 +240,7 @@
     for (const [name, value] of new FormData(form)) { if (typeof value !== 'string' || name === '_csrf') continue; if (Object.hasOwn(values, name)) throw Error('This form needs a connection.'); values[name] = value; }
     if (!values.idempotencyKey) values.idempotencyKey = crypto.randomUUID();
     if (JSON.stringify(values).length > 24000) throw Error('This entry is too large for offline capture.');
-    const action = new URL(form.action, location.origin).pathname, id = scope + ':draft:' + values.idempotencyKey;
+    const action = new URL(form.getAttribute('action')||location.href, location.origin).pathname, id = scope + ':draft:' + values.idempotencyKey;
     const display = Object.entries(values).flatMap(([name, value]) => { const control = form.elements.namedItem(name); if (!value || name !== 'idempotencyKey' && control?.type === 'hidden') return []; return [{label: name === 'idempotencyKey' ? 'Local reference' : control?.closest('label')?.childNodes[0]?.textContent?.trim() || name.replace(/([a-z])([A-Z])/g, '$1 $2'), value: control?.tagName === 'SELECT' ? control.selectedOptions[0]?.textContent || value : value}]; });
     const draft = {type: 'draft', action, values, display, state: 'pending', capturedAt: Date.now(), phoneCountry: context.phoneCountry, branchId: context.branchId, label: operationLabel(action, form)};
     const boundScope = scope, encrypted = await encrypt(draft);
@@ -490,7 +490,7 @@
   if (bootstrap) { restore().catch(() => status('The saved workspace could not open. Reconnect and sign in.')); return; }
   window.ClassicFinOffline = Object.freeze({pageResponse, openQueue: showQueue, get mode() { return mode; }, refreshConnection: recover});
   document.addEventListener('submit', event => {
-    const form = event.target, url = new URL(form.action, location.origin);
+    const form = event.target, url = new URL(form.getAttribute('action')||location.href, location.origin);
     if (url.pathname === '/logout') { lock(); announce(null); return; }
     if (form.dataset.operationLoading === 'true') { event.preventDefault(); event.stopImmediatePropagation(); window.ClassicFinFeedback?.show('The fields are ready for entry. Wait for the current branch settings before saving.', 'info', {form}); return; }
     if (allowed(form) && (!connected() || ready)) {

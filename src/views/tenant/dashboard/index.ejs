@@ -37,7 +37,7 @@
      secondaryTitle:'Posted net income (not transaction volume)',note,
      tooltip:"Today's recorded operations. Monetary amounts stay in native currencies."
    }) %><% }) %>
-        <% if(data.hasMobileMoney){ %>
+        <% if(data.hasMobileMoney&&user.role!=='Tenant Owner'){ %>
         <% [['cash',cashFunds,'Physical cash · book balance','ovCash'],['float',floatFunds,'Electronic float · wallet balance','ovFloat']].forEach(([type,accounts,label,id])=>{
            // Never combine money across currencies or hide it behind an account count.
            // One compact card per currency, with each account named below its total.
@@ -95,11 +95,6 @@
           <% } else { %><div class="overviewCurrencyLines">
             <% filterMoney(finance.bookAssets).forEach(row=>{ %><div class="overviewCurrencyLine"><span><%= row.currency==='KES'?'KSH':row.currency %></span><b><%= row.formatted.replace(/^KES /,'KSH ') %></b></div><% }); %>
           </div><% } %><div class="s">Cash, float, bank and FX stock; not owner equity or live network balances</div>
-        </div>
-        <div class="stat">
-          <div class="k">Forex trading profit</div>
-          <div class="v">Not yet measurable</div>
-          <div class="s">Actual purchase cost basis and matched sales are needed before realized profit can be reported.</div>
         </div>
       </div>
       <% if(finance.byModule?.length){ %>

@@ -72,13 +72,13 @@ test('a matched negative balance stays Held with an explanatory reason',()=>{
 
 test('a two-click owner Remove action uses only server-derived account identity and never deletes ledger evidence',()=>{
  const routes=source('src/tenant/treasury/routes.js');
- const setup=source('src/views/tenant/setup/index.ejs');
+ const ownerMoney=source('src/views/tenant/treasury/_owner-accounts.ejs');
  const detail=source('src/views/tenant/treasury/detail.ejs');
  assert.match(routes,/router\.post\('\/accounts\/:id\/remove'/);
  assert.match(routes,/treasury\.archiveUnusedAccount/);
  assert.match(routes,/treasury\.closeSettledAccount/);
  assert.match(routes,/status==='archived'/);
- assert.match(setup,/\/accounts\/<%= a\._id %>\/remove/);
+ assert.match(ownerMoney,/\/accounts\/<%= account\._id %>\/remove/);
  assert.match(detail,/\/accounts\/<%= account\._id %>\/remove/);
  assert.doesNotMatch(routes.slice(routes.indexOf("router.post('/accounts/:id/remove'"),routes.indexOf("router.post('/accounts/:id/archive'")),/deleteMany\(|deleteOne\(|findOneAndDelete\(/);
 });

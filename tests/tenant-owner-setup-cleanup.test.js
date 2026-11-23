@@ -18,28 +18,34 @@ test('Tenant sidebar matches platform account footer with two opposite functiona
  assert.match(tenant,/href="\/"/);
  assert.match(tenant,/> Website<\/a>/);
 });
-test('Owner can remove eligible accounts while preserving history and restore only unused drafts',async()=>{
- const page=source('src/views/tenant/setup/index.ejs');
- assert.match(page,/\['uninitialized','active'\]\.includes\(a\.status\)/);
- assert.match(page,/String\(a\.bookBalanceMinor\|\|0\)==='0'/);
- assert.match(page,/a\.pendingOpeningId/);
- assert.match(page,/Closed · history retained/);
- assert.match(page,/\/tenant\/treasury\/accounts\/<%= a\._id %>\/remove/);
- assert.match(page,/\/tenant\/treasury\/accounts\/<%= a\._id %>\/restore/);
- assert.match(page,/Confirm remove/);
- assert.match(page,/name="_csrf"/);
- assert.doesNotThrow(()=>ejs.compile(page));
+test('Owner removes eligible accounts on Money and recovers unused drafts from setup',()=>{
+ const money=source('src/views/tenant/treasury/_owner-accounts.ejs');
+ const setup=source('src/views/tenant/setup/index.ejs');
+ assert.match(money,/canRemoveUnused/);
+ assert.match(money,/canRemoveUsed/);
+ assert.match(money,/lastObservationAt/);
+ assert.match(money,/account\.integrityBlocked/);
+ assert.match(money,/\/tenant\/treasury\/accounts\/<%= account\._id %>\/remove/);
+ assert.match(money,/Confirm remove/);
+ assert.match(setup,/Closed · history retained/);
+ assert.match(setup,/\/tenant\/treasury\/accounts\/<%= a\._id %>\/restore/);
+ assert.match(setup,/name="_csrf"/);
+ assert.doesNotThrow(()=>ejs.compile(money));
+ assert.doesNotThrow(()=>ejs.compile(setup));
  const routes=source('src/tenant/treasury/routes.js');
  assert.match(routes,/treasury\.archiveUnusedAccount/);
  assert.match(routes,/treasury\.restoreArchivedAccount/);
- const svc=require('../src/tenant/treasury/service');
- assert.equal(typeof svc.archiveUnusedAccount,'function');
- assert.equal(typeof svc.restoreArchivedAccount,'function');
+ const service=require('../src/tenant/treasury/service');
+ assert.equal(typeof service.archiveUnusedAccount,'function');
+ assert.equal(typeof service.restoreArchivedAccount,'function');
 });
-test('Setup integrity checks are bounded and remain mandatory',()=>{
- const routes=source('src/tenant/setup/routes.js');
- assert.match(routes,/for\(let i=0;i<verified\.length;i\+=4\)/);
- assert.match(routes,/Promise\.all\(verified\.slice\(i,i\+4\)\.map/);
- assert.match(routes,/treasury\.assertBookIntegrity/);
- assert.match(routes,/integrityBlocked=true/);
+test('Quick Setup does not scan eighty ledgers; Money still quarantines damaged balances',()=>{
+ const setup=source('src/tenant/setup/routes.js');
+ const moneyRoutes=source('src/tenant/treasury/routes.js');
+ const service=source('src/tenant/treasury/service.js');
+ assert.doesNotMatch(setup,/for\(let i=0;i<verified\.length/);
+ assert.doesNotMatch(setup,/treasury\.assertBookIntegrity/);
+ assert.match(moneyRoutes,/treasury\.balanceSnapshot/);
+ assert.match(service,/await assertBookIntegrity\(conn,session,account\)/);
+ assert.match(service,/integrityBlocked:true/);
 });

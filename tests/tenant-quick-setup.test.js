@@ -72,41 +72,29 @@ test('Money account naming and currency rules are explicit and cannot overwrite 
  },{},owner,[branch]),{status:400});
  assert.equal(value.account.kind,'cash');
 });
-test('Quick setup templates expose only real existing forms and accurate financial readiness',async()=>{
- const base={users:0,invites:0,accounts:[],openingKeys:{},readyCount:0,roles:['Mobile Money Operator'],
-  branches:[],staff:[],kinds:['cash','bank'],kindLabel:{cash:'Cash drawer',bank:'Bank account'},
-  networks:[],networkCurrencies:{},currencyCodes,timeZones:['Africa/Juba','Africa/Kampala']};
+test('Quick setup has branch, staff and archived recovery but no duplicate money forms',async()=>{
+ const base={users:0,invites:0,archivedAccounts:[],roles:['Mobile Money Operator'],
+  branches:[],currencyCodes,timeZones:['Africa/Juba','Africa/Kampala']};
  const render=data=>ejs.renderFile(path.join(__dirname,'../src/views/tenant/setup/index.ejs'),
   {data,csrfToken:'test-csrf',assetVersion:'test',user:owner,tenant:{slug:'test-business'}});
  const fresh=await render(base);
  assert.match(fresh,/action="\/tenant\/setup\/branch"/);
- assert(!fresh.includes('action="/tenant/setup/staff"'));
- assert(!fresh.includes('action="/tenant/setup/account"'));
- const active=await render({...base,branches:[branch],
-   staff:[{_id:'fedcba987654321001234567',name:'Cashier',role:'Mobile Money Operator'}],
-   accounts:[{_id:'fedcba987654321001234567',name:'Main cash',kind:'cash',
-     currency:'SSP',status:'uninitialized',reconciliationState:'unknown',
-     openingBalanceMinor:null,openingApprovedAt:null}]});
- for(const action of ['/tenant/setup/staff','/tenant/setup/account'])
-   assert(active.includes('action="'+action+'"'));
- assert(active.includes('Cashier'));
- assert(active.includes('/js/tenant-quick-setup.js'));
- assert(active.includes('data-quick-account-kind'));
- assert(active.includes('data-quick-account-name'));
- assert(active.includes('Choose account type'));
- assert(active.includes('What are you creating?'));
- assert(active.includes('data-quick-provider'));
- for(const currency of currencyCodes)assert(active.includes('value="'+currency+'"'),'Every supported currency is visible: '+currency);
- assert.match(active,/<option value="UGX"[^>]*disabled/,'Other branch currency is visible but disabled');
- assert.match(active,/<option value="SSP"[^>]*selected/,'Current branch currency remains selected');
- assert(active.includes('/tenant/branches'),'Missing currencies have an existing settings route');
- assert(active.includes('data-quick-currency-status'),'Currency eligibility has accessible feedback');
- assert(active.includes('Confirm actual opening'));
- assert(active.includes('/tenant/setup/opening/'));
- assert(active.includes('name="actualBalance"'));
- assert(!active.includes('name="confirmed"'));
- assert(!active.includes('name="evidenceReference"'));
- assert(active.includes('not confirmed'));
+ assert.doesNotMatch(fresh,/action="\/tenant\/setup\/staff"/);
+ assert.doesNotMatch(fresh,/action="\/tenant\/setup\/account"/);
+ const active=await render({...base,users:1,branches:[branch],
+  archivedAccounts:[{_id:'fedcba987654321001234567',name:'Old draft',currency:'SSP',
+   openingBalanceMinor:null,sequence:0}]});
+ assert.match(active,/action="\/tenant\/setup\/staff"/);
+ assert.match(active,/href="\/tenant\/treasury"/);
+ assert.match(active,/\/tenant\/treasury\/accounts\/fedcba987654321001234567\/restore/);
+ assert.doesNotMatch(active,/action="\/tenant\/setup\/account"/);
+ assert.doesNotMatch(active,/setupStatsGrid/);
+ assert.match(active,/Removed or closed accounts/);
+ const freshBranch=await render({...base,branches:[]});
+ for(const currency of currencyCodes)assert(freshBranch.includes('value="'+currency+'"'),'First branch currency setup supports '+currency);
+ assert.match(active,/\/tenant\/treasury/);
+ assert.doesNotMatch(active,/name="confirmed"/);
+ assert.doesNotMatch(active,/name="evidenceReference"/);
  assert(!active.includes('Approve staff'));
  assert(!active.includes('Create 1000000 SSP'));
 });
@@ -124,11 +112,16 @@ test('Quick setup routes are authenticated, owner-scoped, CSRF protected and reu
  assert(file('src/services/menu.service.js').includes("item('Quick setup','setup'"));
 });
 
-test('Tenant Owner uses one setup form while branch manager retains scoped Treasury creation',()=>{
+test('Owner creates accounts on Money while branch manager keeps scoped advanced Treasury form',()=>{
  const page=file('src/views/tenant/treasury/index.ejs');
+ const ownerMoney=file('src/views/tenant/treasury/_owner-accounts.ejs');
  const routes=file('src/tenant/treasury/routes.js');
  assert.match(page,/data\.canCreateAccount&&user\.role!=='Tenant Owner'/);
- assert.match(page,/user\.role==='Tenant Owner'\?'\/tenant\/setup#quick-money'/);
+ assert.match(page,/include\('_owner-accounts'\)/);
+ assert.match(ownerMoney,/action="\/tenant\/setup\/account"/);
+ assert.match(ownerMoney,/data-money-create-kind/);
+ assert.match(ownerMoney,/name="currency"/);
+ assert.match(ownerMoney,/name="network"/);
  assert.match(routes,/router\.get\('\/accounts\/new'/);
- assert.match(routes,/\/tenant\/setup#quick-money/);
+ assert.match(routes,/\/tenant\/treasury#money-accounts/);
 });

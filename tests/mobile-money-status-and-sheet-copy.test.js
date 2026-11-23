@@ -45,7 +45,7 @@ test('cash shifts label counted existing cash and do not require separate approv
  const close=src('src/views/tenant/workflow/close-day.ejs');
  assert.match(shifts,/does not create or add money by starting a shift/i);
  assert.match(shifts,/name="openingFromBook" value="on"/);
- assert.match(shifts,/I counted the cash and it matches/);
+ assert.match(shifts,/I counted the physical cash and it matches the amount shown/);
  assert.doesNotMatch(shifts,/name="openingCash"/);
  assert.match(detail,/name="closingFromBook" value="on"/);
  assert.match(detail,/Cash does not match/);

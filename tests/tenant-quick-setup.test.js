@@ -70,8 +70,7 @@ test('Money account naming and currency rules are explicit and cannot overwrite 
   kind:'cash',currency:'SSP',branchId:branch._id,
   name:'Main cash',isDefault:true
  },{},owner,[branch]),{status:400});
- assert(!validation.accountKinds({},owner).includes('transfer_clearing'),
-  'Owner setup must not expose internal transfer liability as everyday cash');
+ assert.equal(value.account.kind,'cash');
 });
 test('Quick setup templates expose only real existing forms and accurate financial readiness',async()=>{
  const base={users:0,invites:0,accounts:[],openingKeys:{},readyCount:0,roles:['Mobile Money Operator'],

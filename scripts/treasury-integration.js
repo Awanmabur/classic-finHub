@@ -157,7 +157,7 @@ async function main(){
  // claim to have verified receipt through an external payment provider.
  const ownerBank=await treasury.createAccount(conn,tenant,owner,{code:'OWNER_CAPITAL_BANK',name:'Owner new capital bank',kind:'bank',currency:'UGX',isDefault:false});
  const bankOpening=await treasury.confirmOwnerOpening(conn,tenant,owner,ownerBank._id,
-   {actualBalance:'0',evidenceReference:'BANK-OPENING-001',confirmed:'yes',idempotencyKey:crypto.randomUUID()});
+   {actualBalance:'0',idempotencyKey:crypto.randomUUID()});
  assert.equal(bankOpening.observation.status,'approved');
  const bankCapital=await treasury.addCapital(conn,tenant,owner,ownerBank._id,
    {amount:'45',idempotencyKey:crypto.randomUUID()});

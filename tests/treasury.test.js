@@ -64,8 +64,11 @@ test('unused account archive and restore require owner permission and verified C
  assert.match(routes,/router\.post\('\/accounts\/:id\/archive',requirePermission\('treasury\.manage'\),throttle/);
  assert.match(view,/user\.role==='Tenant Owner'/);
  assert.match(view,/account\.status==='uninitialized'/);
- assert.match(view,/name="confirmCode"/);
- assert.match(view,/name="confirmCode" value="<%= account.code %>"/);
+ assert.match(routes,/router\.post\('\/accounts\/:id\/remove',requirePermission\('treasury\.manage'\),throttle/);
+ assert.match(view,/\/tenant\/treasury\/accounts\/<%= account\._id %>\/remove/);
+ assert.doesNotMatch(view,/name="confirmCode"/);
+ assert.match(routes,/treasury\.archiveUnusedAccount/);
+ assert.match(routes,/treasury\.closeSettledAccount/);
  assert.match(routes,/router\.post\('\/accounts\/:id\/restore',requirePermission\('treasury\.manage'\),throttle/);
  assert.match(view,/name="_csrf"/);
  assert.doesNotMatch(routes,/router\.(?:delete|get)\('\/accounts\/:id\/archive'/);

@@ -12,7 +12,10 @@ test('actual fund configuration binds cash to operators and wallets to named net
  const cash={code:'CASH_MAIN',name:'Main drawer',kind:'cash',currency:'UGX',operatorId:String(new mongoose.Types.ObjectId())};
  assert.equal(service.validateAccount(cash).operatorId,cash.operatorId);assert.throws(()=>service.validateAccount({...cash,operatorId:''}));
  const wallet=service.validateAccount({code:'MTN_MAIN',name:'MTN actual agent wallet',kind:'wallet',currency:'UGX',network:'MTN'});
- assert.equal(wallet.isDefault,true);assert.equal(wallet.operatorId,null);assert.throws(()=>service.validateAccount({...wallet,network:'Unknown'}));
+ assert.equal(wallet.isDefault,true);assert.equal(wallet.operatorId,null);
+ assert.equal(service.validateAccount({...wallet,isDefault:'auto'}).isDefault,'auto');
+ assert.equal(service.validateAccount({...wallet,isDefault:'false'}).isDefault,false);
+ assert.throws(()=>service.validateAccount({...wallet,isDefault:'not-a-choice'}));assert.throws(()=>service.validateAccount({...wallet,network:'Unknown'}));
  assert.equal(service.moduleForKind('cash'),'shared');assert.equal(service.moduleForKind('wallet'),'mobile_money');assert.equal(service.normalSide('transfer_clearing'),'credit');
 });
 test('dated actual evidence validates appropriate source, precision, review reference and stable idempotency',()=>{

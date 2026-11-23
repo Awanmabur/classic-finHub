@@ -3,10 +3,11 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const path=require('node:path'),ejs=require('ejs');
 const template=path.join(__dirname,'../src/views/tenant/treasury/detail.ejs');
 const owner={id:'507f1f77bcf86cd799439011',role:'Tenant Owner'};
-function render(currency,{opened=true}={}){
+function render(currency,{opened=true,held=false}={}){
  const account={_id:'507f1f77bcf86cd799439012',name:'Real bank balance '+currency,
   code:'BANK_'+currency,kind:'bank',network:'',currency,
-  status:opened?'active':'uninitialized',reconciliationState:opened?'matched':'unknown',
+  status:held?'held':opened?'active':'uninitialized',
+  reconciliationState:held?'mismatch':opened?'matched':'unknown',
   openingBalanceMinor:opened?'0':null,bookBalanceMinor:'0',
   openingApprovedAt:opened?new Date():null,openingObservationId:null,
   pendingOpeningId:null,lastObservedMinor:null,lastVarianceMinor:null,
@@ -37,5 +38,14 @@ test('First owner opening uses one amount without a receipt or confirmation chec
  assert.match(html,/name="actualBalance"/);
  assert(!html.includes('name="confirmed"'));
  assert(!html.includes('name="evidenceReference"'));
+ assert(!html.includes('Submit balance evidence for review'));
+});
+
+test('Held SSP cash still allows audited NEW capital but never clears the balance hold',async()=>{
+ const html=await render('SSP',{held:true});
+ assert.match(html,/<option value="capital"\s*>Add new business money<\/option>/);
+ assert.match(html,/Balance difference still open/);
+ assert.match(html,/account remains held/);
+ assert.match(html,/Check actual account balance/);
  assert(!html.includes('Submit balance evidence for review'));
 });

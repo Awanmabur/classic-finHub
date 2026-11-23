@@ -1,0 +1,121 @@
+<% /* Owner money workspace: one real backend route per action, no duplicate ledger. */ 
+ const ownerAccounts=data.snapshot.accounts||[];
+ const moneyCodes=typeof data.currencyCodes!=='undefined'?data.currencyCodes:['UGX','USD','SSP','KES'];
+ const shownCodes=moneyCodes.filter(code=>ownerAccounts.some(account=>account.currency===code));
+ const formKeys=data.ownerFormKeys||{};
+ const accountKey=(account,action)=>formKeys[String(account._id)]?.[action]||data.idempotencyKey;
+ const moneyLabel=code=>code==='KES'?'KSH':code;
+ const amountLabel=account=>account.expectedFormatted;
+ const isOwner=user.role==='Tenant Owner';
+%>
+<section class="card" id="money-accounts" aria-label="Your money accounts">
+ <div class="cardHead">
+  <div><b>Your money accounts</b><br><span>One account, one currency. Add money, check it or correct a name here.</span></div>
+  <% if(data.canCreateAccount){ %><a class="btn btnPrimary" href="/tenant/setup#quick-money">Add account</a><% } %>
+ </div>
+ <div class="cardBody">
+  <% if(!ownerAccounts.length){ %>
+   <p>No money accounts yet. Create your first cash drawer, mobile money float or bank account.</p>
+   <a class="btn btnPrimary" href="/tenant/setup#quick-money">Create account</a>
+  <% } %>
+  <% shownCodes.forEach(currency=>{ %>
+   <div class="moneyCurrencyGroup">
+    <h3><%= moneyLabel(currency) %> accounts</h3>
+    <div class="moneyAccountGrid">
+     <% ownerAccounts.filter(a=>a.currency===currency).forEach(account=>{
+       const ready=account.status==='active'&&account.reconciliationState==='matched'&&account.openingBalanceMinor!==null&&!account.integrityBlocked;
+       const hasOpening=account.openingBalanceMinor!==null;
+       const isHeld=account.status==='held';
+       const canRemoveUnused=account.status==='uninitialized'&&!hasOpening&&!account.pendingOpeningId;
+       const canRemoveUsed=ready&&String(account.bookBalanceMinor||'0')==='0'&&!account.lastObservationStale&&
+         account.lastObservationAt&&String(account.lastObservedMinor||'0')==='0'&&
+         String(account.lastExpectedAtObservationMinor||'0')==='0'&&String(account.lastVarianceMinor||'0')==='0';
+       const accountType={cash:'Cash',wallet:'Mobile money float',bank:'Bank',forex_stock:'Forex stock',transfer_clearing:'Transfer clearing'}[account.kind]||account.kind.replaceAll('_',' ');
+       const state=account.integrityBlocked?'Ledger problem':isHeld?'Balance needs attention':ready?'Ready':account.pendingOpeningId?'Opening awaiting verification':hasOpening?'Check required':'Needs starting amount';
+     %>
+     <article class="moneyAccount" id="money-account-<%= account._id %>">
+      <div class="moneyAccountHead">
+       <div><b><%= account.name %></b><p class="tiny"><%= accountType %><%= account.network?' · '+account.network:'' %> · <%= moneyLabel(currency) %></p></div>
+       <span class="tag"><%= state %></span>
+      </div>
+      <div class="moneyAmount"><span>Recorded balance</span><strong><%= account.integrityBlocked?'Unavailable':account.expectedFormatted %></strong></div>
+      <% if(isHeld){ %>
+       <p role="alert" class="tiny">This account is Held. The last amount counted did not agree with the recorded money. If a number was typed incorrectly, enter the correct total below. Real shortages must be investigated; never add pretend money to clear a hold.</p>
+      <% }else if(account.integrityBlocked){ %>
+       <p role="alert" class="tiny">The account ledger needs repair before more money can be recorded. Past transactions have been preserved.</p>
+      <% } %>
+      <% if(account.pendingObservation){ %><p class="tiny">Previous count is awaiting review. <a href="/tenant/treasury/accounts/<%= account._id %>#account-history">See what is pending</a>.</p><% } %>
+      <% if(!account.integrityBlocked&&isOwner&&data.canObserve&&account.status==='uninitialized'&&!account.pendingOpeningId){ %>
+       <form method="post" action="/tenant/treasury/accounts/<%= account._id %>/opening" class="moneyQuickForm">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="idempotencyKey" value="<%= accountKey(account,'opening') %>">
+        <input type="hidden" name="returnTo" value="money">
+        <label class="field">Money actually in this account now (<%= moneyLabel(currency) %>)
+         <input class="control" name="actualBalance" inputmode="decimal" required pattern="<%= currency==='UGX'?'[0-9]+':'[0-9]+([.][0-9]{1,2})?' %>" placeholder="Enter amount, including 0">
+        </label>
+        <button class="btn btnPrimary" type="submit">Set starting balance</button>
+       </form>
+      <% } %>
+      <% if(!account.integrityBlocked&&isOwner&&data.canObserve&&hasOpening&&account.status!=='archived'){ %>
+       <div class="moneyAccountActions">
+        <% if(ready){ %>
+         <details class="moneyAction"><summary class="btn btnPrimary">Add money</summary>
+          <form method="post" action="/tenant/treasury/accounts/<%= account._id %>/record" class="moneyQuickForm">
+           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+           <input type="hidden" name="idempotencyKey" value="<%= accountKey(account,'capital') %>">
+           <input type="hidden" name="recordAction" value="capital">
+           <input type="hidden" name="returnTo" value="money">
+           <label class="field">New business money received (<%= moneyLabel(currency) %>)
+            <input class="control" name="amount" inputmode="decimal" required pattern="<%= currency==='UGX'?'[0-9]+':'[0-9]+([.][0-9]{1,2})?' %>" placeholder="Amount received">
+           </label>
+           <p class="tiny">Only for real new money added to the business, without a customer transaction. Adds to this account and records owner capital; it does not move money from another account.</p>
+           <button class="btn btnPrimary" type="submit">Add to account</button>
+          </form>
+         </details>
+        <% } %>
+        <details class="moneyAction" <%= isHeld?'open':'' %>><summary class="btn"><%= isHeld?'Fix / recheck balance':'Check actual balance' %></summary>
+         <form method="post" action="/tenant/treasury/accounts/<%= account._id %>/record" class="moneyQuickForm">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="idempotencyKey" value="<%= accountKey(account,'check') %>">
+          <input type="hidden" name="recordAction" value="check">
+          <input type="hidden" name="returnTo" value="money">
+          <label class="field">Total actually counted now (<%= moneyLabel(currency) %>)
+           <input class="control" name="amount" inputmode="decimal" required pattern="<%= currency==='UGX'?'[0-9]+':'[0-9]+([.][0-9]{1,2})?' %>" placeholder="Enter the full actual balance">
+          </label>
+          <p class="tiny">Enter the TOTAL in the account, not an addition. If a previous count was a typo, this fresh check corrects the current status while retaining the original record. Real differences stay Held.</p>
+          <button class="btn btnPrimary" type="submit">Save actual balance</button>
+         </form>
+        </details>
+       </div>
+      <% } %>
+      <div class="moneyAccountActions">
+       <% if(isOwner&&data.canManage&&account.status!=='archived'){ %>
+        <details class="moneyAction"><summary class="btn">Rename</summary>
+         <form method="post" action="/tenant/treasury/accounts/<%= account._id %>/rename" class="moneyQuickForm">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="returnTo" value="money">
+          <label class="field">Account name<input class="control" name="name" value="<%= account.name %>" required minlength="3" maxlength="120"></label>
+          <button class="btn btnPrimary" type="submit">Save name</button>
+         </form>
+        </details>
+        <% if(!account.integrityBlocked&&(canRemoveUnused||canRemoveUsed)){ %>
+         <details class="moneyAction"><summary class="btn">Remove</summary>
+          <form method="post" action="/tenant/treasury/accounts/<%= account._id %>/remove" class="moneyQuickForm">
+           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+           <input type="hidden" name="returnTo" value="money">
+           <p class="tiny">Stops new operations on this account but retains all earlier records. A used account requires a fresh, verified zero balance.</p>
+           <button class="btn btnDanger" type="submit">Confirm remove</button>
+          </form>
+         </details>
+        <% } %>
+       <% } %>
+       <% if(ready&&data.canObserve&&['wallet','bank','cash'].includes(account.kind)){ %><a class="btn" href="#add-funds">Move money</a><% } %>
+       <a class="btn" href="/tenant/treasury/accounts/<%= account._id %>"><%= isHeld?'Investigate difference':'History / settings' %></a>
+      </div>
+     </article>
+     <% }) %>
+    </div>
+   </div>
+  <% }) %>
+ </div>
+</section>

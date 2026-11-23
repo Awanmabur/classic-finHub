@@ -296,7 +296,8 @@ async function main(){
   assert.equal(legacy.redirect,'/tenant/treasury/accounts/'+starterCash._id+'#record-balance');
   assert.equal((await fetch(base+legacy.redirect)).status,200);
   const unopenedKsh=await treasury.createAccount(conn,tenant,owner,{
-   name:'KSH fresh owner opening from real HTML form',kind:'bank',currency:'KES',isDefault:false});
+   name:'KSH fresh owner cash opening from real HTML form',kind:'cash',currency:'KES',
+   operatorId:owner.id,isDefault:false});
   const kshOpening=await submit('/tenant/treasury/accounts/'+unopenedKsh._id+'/opening',{
    actualBalance:'42.35',idempotencyKey:crypto.randomUUID()
   });

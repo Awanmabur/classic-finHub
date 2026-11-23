@@ -38,27 +38,37 @@
      tooltip:"Today's recorded operations. Monetary amounts stay in native currencies."
    }) %><% }) %>
         <% if(data.hasMobileMoney){ %>
-        <% [['cash',cashFunds,'Physical cash · book balance','ovCash'],['float',floatFunds,'Electronic float · wallet balance','ovFloat']].forEach(([type,accounts,label,id])=>{const totals=filterMoney(data.mobileBookTotals?.[type]);const unapproved=accounts.filter(a=>a.expectedMinor===null||a.expectedMinor===undefined); %>
-        <div class="stat" data-dashboard-fund-stat="<%= type %>" title="Approved opening balances plus recorded internal funds movements, not live provider balances.">
-          <div class="k"><%= label %></div>
-          <% if(fundsVisibility){ %><div class="v" id="<%= id %>"><%= fundsVisibility %></div>
-          <% }else if(type==='cash'&&data.cashMappingRequired&&!accounts.length){ %><div class="v" id="<%= id %>">Cash assignment needed</div><div class="s"><a href="/tenant/treasury">Map this provider wallet to its actual cash drawer</a></div>
-          <% }else if(!accounts.length){ %><div class="v" id="<%= id %>">Not configured</div>
+        <% [['cash',cashFunds,'Physical cash · book balance','ovCash'],['float',floatFunds,'Electronic float · wallet balance','ovFloat']].forEach(([type,accounts,label,id])=>{
+           // Never combine money across currencies or hide it behind an account count.
+           // One compact card per currency, with each account named below its total.
+           const rows=filterMoney(data.mobileBookTotals?.[type]);
+           const currencies=[...new Set(accounts.map(a=>a.currency))].sort();
+           if(!currencies.length)currencies.push(data.dashboardCurrency||'');
+           currencies.forEach((currency,i)=>{
+             const current=accounts.filter(a=>a.currency===currency);
+             const total=rows.find(row=>row.currency===currency);
+             const unapproved=current.filter(a=>a.expectedMinor===null||a.expectedMinor===undefined);
+             const currencyLabel=currency==='KES'?'KSH':currency;
+             const viewId=i===0?id:id+'-'+currency;
+        %>
+        <div class="stat" data-dashboard-fund-stat="<%= type %>" data-fund-currency="<%= currency %>" title="Recorded funds for this currency only. Not a live provider balance.">
+          <div class="k"><%= label %><%= currency?' · '+currencyLabel:'' %></div>
+          <% if(fundsVisibility){ %><div class="v" id="<%= viewId %>"><%= fundsVisibility %></div>
+          <% }else if(type==='cash'&&data.cashMappingRequired&&!current.length){ %><div class="v" id="<%= viewId %>">Cash assignment needed</div><div class="s"><a href="/tenant/treasury">Link this wallet to the real cash drawer</a></div>
+          <% }else if(!current.length){ %><div class="v" id="<%= viewId %>">Not configured</div>
           <% }else{ %>
-             <div class="v" id="<%= id %>"><%= accounts.length===1?(accounts[0].expected||'Opening approval pending'):totals.length===1?totals[0].formatted:accounts.length+' accounts across currencies' %></div>
-             <% if(accounts.length>1&&totals.length>1){ %><div class="s"><span>Approved books by currency: <% totals.forEach(total=>{ %><%= total.formatted %> · <% }) %></span></div><% } %>
-             <% if(unapproved.length){ %><div class="s"><span><%= unapproved.length %> account(s) awaiting approved opening balance</span></div><% } %>
-             <% if(type==='cash'&&data.cashMappingRequired){ %><div class="s">Additional drawers require owner mapping before they can be attributed to this network.</div><% } %>
-             <% accounts.slice(0,3).forEach(account=>{ %><div class="s"><span><%= account.name %> · <%= account.currency %>: <%= account.expected||'Opening approval pending' %></span></div><% }) %>
-             <% if(accounts.length>3){ %><div class="s"><span>+<%= accounts.length-3 %> more accounts in the funds register</span></div><% } %>
+            <div class="v" id="<%= viewId %>"><%= total?.formatted||(current.length===1?current[0].expected:'Opening confirmation needed')||'Opening confirmation needed' %></div>
+            <% if(unapproved.length){ %><div class="s"><%= unapproved.length %> opening <%= unapproved.length===1?'balance needs':'balances need' %> confirmation</div><% } %>
+            <% current.forEach(account=>{ %><div class="s"><%= account.name %>: <%= account.expected||'Opening not confirmed' %></div><% }) %>
+            <% if(type==='cash'&&data.cashMappingRequired){ %><div class="s">Link additional drawers to the correct provider/operator.</div><% } %>
           <% } %>
           <div class="s"><span class="dot <%= type==='float'?'warn':'' %>"></span>
-            <% if(canConfigureFunds){ %><a href="/tenant/treasury"><%= accounts.length?'View accounts / reconcile':'Set up '+(type==='cash'?'cash drawer':'provider wallet') %></a>
+            <% if(canConfigureFunds){ %><a href="/tenant/treasury"><%= current.length?'View / reconcile accounts':'Set up '+(type==='cash'?'cash drawer':'provider wallet') %></a>
             <% }else if(['Tenant Owner','Mobile Money Operator','Branch Manager','Reconciliation Officer','Auditor'].includes(user.role)){ %><a href="/tenant/mobile-money/readiness">Check readiness</a>
             <% }else{ %><span>Branch-scoped funds only</span><% } %>
           </div>
         </div>
-        <% }) %>
+        <% }); }); %>
         <% } %>
       </div>
       <% if(finance.available){ %>

@@ -647,3 +647,28 @@ body[data-workspace="tenant"] .topbar>.title{grid-area:auto;min-width:0}
  #sidePanel .sidePanelClose:focus-visible{outline:2px solid var(--primary);outline-offset:3px}
  #sidePanel>.brand{padding-right:62px;min-height:67px}
 }
+
+/* Owner money operations: scoped to the existing Treasury screen, no new theme. */
+.moneyCurrencyGroup{margin:20px 0 4px}
+.moneyCurrencyGroup>h3{font-size:1rem;line-height:1.4;font-weight:700;margin:0 0 12px}
+.moneyAccountGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.moneyAccount{min-width:0;padding:16px;border:1px solid var(--border,var(--line,#ddd));border-radius:16px;background:var(--card,#fff)}
+.moneyAccountHead{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+.moneyAccountHead b{overflow-wrap:anywhere}
+.moneyAccountHead p{margin:4px 0 0}
+.moneyAccountHead .tag{white-space:normal}
+.moneyAmount{margin:12px 0 14px;display:flex;gap:8px;flex-direction:column}
+.moneyAmount>span{font-size:.82rem;color:var(--muted,var(--text-secondary,#666))}
+.moneyAmount strong{font-size:1.25rem;line-height:1.3;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.moneyAccountActions{display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;margin-top:10px}
+.moneyAccountActions .btn{white-space:normal}
+.moneyAction{min-width:0}
+.moneyAction>summary{cursor:pointer;list-style:none}
+.moneyAction>summary::-webkit-details-marker{display:none}
+.moneyAction[open]{flex:1 0 100%;border-top:1px solid var(--border,var(--line,#ddd));padding-top:10px}
+.moneyAction[open]>summary{margin-bottom:10px}
+.moneyQuickForm{display:flex;flex-direction:column;gap:10px;align-items:flex-start;padding:10px 0}
+.moneyQuickForm .field{width:100%;max-width:420px}
+.moneyQuickForm .control{width:100%}
+.moneyQuickForm p{margin:0}
+@media(max-width:720px){.moneyAccountGrid{grid-template-columns:minmax(0,1fr)}.moneyAccount{padding:14px}.moneyAccountActions{gap:7px}}

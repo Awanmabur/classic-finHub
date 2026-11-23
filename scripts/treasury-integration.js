@@ -198,10 +198,10 @@ async function main(){
    assert.equal(actual.observation.status,'approved');
    assert.equal((await ledger.trialBalance(conn,{branchId:String(branch._id),currency})).balanced,true);
  }
- const mismatch=await treasury.recordOwnerBalanceCheck(conn,tenant,owner,ownerBank._id,{
+ const directOwnerMismatch=await treasury.recordOwnerBalanceCheck(conn,tenant,owner,ownerBank._id,{
    actualBalance:'46',idempotencyKey:crypto.randomUUID()});
- assert.equal(mismatch.matched,false);
- assert.equal(mismatch.observation.status,'approved','Owner count must finish immediately');
+ assert.equal(directOwnerMismatch.matched,false);
+ assert.equal(directOwnerMismatch.observation.status,'approved','Owner count must finish immediately');
  assert.equal(String((await book.models(conn).account.findById(ownerBank._id)).bookBalanceMinor),'45',
    'A counted difference must never rewrite the ledger');
  assert.equal((await book.models(conn).account.findById(ownerBank._id)).status,'held');

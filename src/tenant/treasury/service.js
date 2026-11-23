@@ -269,7 +269,9 @@ function assertSettledAccountClosable(account,confirmCode){
     BigInt(String(account.lastExpectedAtObservationMinor))!==0n||
     account.lastVarianceMinor===null||BigInt(String(account.lastVarianceMinor))!==0n)
   throw fail('To close an account, settle it to zero, record a fresh actual zero balance and resolve any Held or pending review status.',409);
- if(account.selectionKey)throw fail('Choose another default account first, then close this one.',409);
+ // Removing a settled, zero account also clears its default selection. This
+ // never changes any historic posting. Future operations must choose another
+ // active account if no default remains.
 }
 async function closeSettledAccount(conn,tenant,actor,accountId,input={}){
  const confirmCode=text(input.confirmCode,'account code',3,40).toUpperCase();
@@ -320,7 +322,7 @@ async function closeSettledAccount(conn,tenant,actor,accountId,input={}){
   await audit(conn,session,auth.actor,'treasury.account.closed',key,{
    branchId:String(account.branchId),code:account.code,kind:account.kind,
    currency:account.currency,reason,finalBookMinor:'0',
-   historyRetained:true,latestCountAt:account.lastObservationAt
+   historyRetained:true,defaultCleared:Boolean(account.selectionKey),latestCountAt:account.lastObservationAt
   });
   return closed;
  });

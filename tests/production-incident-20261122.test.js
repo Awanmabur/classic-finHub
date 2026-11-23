@@ -24,20 +24,20 @@ test('Offline HTTP failures cannot trigger connection oscillation or automatic f
  assert.match(s,/current\.state = 'pending'/);
  assert.match(s,/await save\(draft\.id, current\)/);
 });
-test('Tenant quick setup never labels a failed opening as ready',()=>{
- const routes=read('src/tenant/setup/routes.js');
- assert.match(routes,/treasury\.assertBookIntegrity/);
- assert.match(routes,/!x\.integrityBlocked&&x\.status==='active'/);
- const view=read('src/views/tenant/setup/index.ejs');
- assert.match(view,/setupStatsGrid/);
- assert.match(view,/Ledger review required/);
- assert.match(view,/else if\(a\.openingBalanceMinor!=null\)/);
- assert.match(view,/Confirm actual opening/);
- assert.match(view,/name="actualBalance"/);
- assert.doesNotMatch(view,/name="confirmed"/);
- const css=read('public/css/tenant-quick-setup.css');
- assert.match(css,/grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
- assert.match(css,/grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
+test('Only audited money workspace can label an account ready; setup cannot bypass ledger verification',()=>{
+ const setup=read('src/tenant/setup/routes.js');
+ const routes=read('src/tenant/treasury/routes.js');
+ const money=read('src/views/tenant/treasury/_owner-accounts.ejs');
+ const service=read('src/tenant/treasury/service.js');
+ assert.doesNotMatch(setup,/await treasury\.assertBookIntegrity\(/,'Setup should never scan financial ledgers');
+ assert.match(routes,/treasury\.balanceSnapshot/);
+ assert.match(service,/await assertBookIntegrity\(conn,session,account\)/);
+ assert.match(service,/integrityBlocked:true/);
+ assert.match(money,/account\.integrityBlocked/);
+ assert.match(money,/Set starting balance/);
+ assert.match(money,/Money actually in this account now/);
+ assert.match(money,/status==='active'&&account\.reconciliationState==='matched'/);
+ assert.doesNotMatch(money,/name="confirmed"/);
 });
 test('One-time ledger reconstruction is evidence-fenced and requires verified backup',()=>{
  const s=read('scripts/repair-ghaja-orphan-ledger-20261122.js');

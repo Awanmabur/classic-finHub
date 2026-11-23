@@ -106,7 +106,7 @@ const status=(done)=>done?'Ready':'Set up';
               <% branches.forEach(b=>{ %><option value="<%= b._id %>"><%= b.name %></option><% }) %>
             </select></label><% } %>
             <label class="field">Currency<select class="control" name="currency" required data-quick-account-currency>
-              <% [...new Set(branches.flatMap(b=>b.currencies?.length?b.currencies:[b.currency]))].forEach(c=>{ %>
+              <% [...new Set(branches.flatMap(b=>b.currencies===undefined||b.currencies===null?data.currencyCodes:b.currencies))].forEach(c=>{ %>
                 <option value="<%= c %>" <%= c===first.currency?'selected':'' %>><%= c==='KES'?'KSH':c %></option>
               <% }) %>
             </select></label>
@@ -120,7 +120,7 @@ const status=(done)=>done?'Ready':'Set up';
             </select></label>
             <label class="field" data-quick-kind-field="wallet bank">Real provider / bank account reference (optional)<input class="control" name="accountReference" maxlength="80" placeholder="Your real provider or bank account reference"></label>
           </div>
-          <p class="tiny">Creating an account is immediate. Its starting balance is <strong>not confirmed</strong> until you confirm the actual counted cash, stock or provider/bank statement. Owners can confirm routine first openings in one action, with evidence and an audit trail. You can move existing verified funds instantly; you cannot create new funds just by entering an amount.</p>
+          <p class="tiny">Creating an account is immediate. Its starting balance is <strong>not confirmed</strong> until you confirm the actual counted cash, stock or provider/bank statement. Owners can record the actual starting amount immediately, with a generated audit reference. You can move existing verified funds instantly; you cannot create new funds just by entering an amount.</p>
           <button type="submit" class="btn btnPrimary">Create money account</button>
         </form>
       <% } %>
@@ -134,7 +134,7 @@ const status=(done)=>done?'Ready':'Set up';
                 <td><span class="tag"><%= a.integrityBlocked?'Ledger review required':usable?'Ready':a.openingBalanceMinor!=null?'Reconciliation required':a.pendingOpeningId?'Opening awaiting review':'Opening not established' %></span></td>
                 <td>
                   <% if(a.integrityBlocked){ %><span class="tiny" role="alert">Financial posting blocked. Ask the platform administrator to restore the missing ledger evidence; do not reconfirm or reset this balance.</span>
-                  <% }else if(usable){ %><a class="btn btnPrimary" href="/tenant/treasury?capitalTo=<%= a._id %>#new-capital">Top up</a> <a class="btn" href="/tenant/treasury/accounts/<%= a._id %>">View balance</a>
+                  <% }else if(usable){ %><a class="btn btnPrimary" href="/tenant/treasury/accounts/<%= a._id %>#record-balance">Record balance / add money</a> <a class="btn" href="/tenant/treasury/accounts/<%= a._id %>">View balance</a>
                   <% }else if(a.pendingOpeningId){ %><a class="btn" href="/tenant/treasury/accounts/<%= a._id %>">Resolve existing opening</a>
                   <% }else if(a.openingBalanceMinor!=null){ %><a class="btn" href="/tenant/treasury/accounts/<%= a._id %>">Review balance</a>
                   <% }else{ %><details>
@@ -144,14 +144,6 @@ const status=(done)=>done?'Ready':'Set up';
                       <input type="hidden" name="idempotencyKey" value="<%= data.openingKeys[String(a._id)] %>">
                       <label class="field">Actual counted or checked balance (<%= a.currency==='KES'?'KSH':a.currency %>)
                         <input class="control" name="actualBalance" inputmode="decimal" required placeholder="Real amount, including zero">
-                      </label>
-                      <label class="field">Evidence reference <%= ['wallet','bank'].includes(a.kind)?'(required)':'(optional for physical count)' %>
-                        <input class="control" name="evidenceReference" minlength="6" maxlength="120"
-                          <%= ['wallet','bank'].includes(a.kind)?'required':'' %>
-                          placeholder="Cash count, provider app or statement reference">
-                      </label>
-                      <label class="field setupConfirm"><input type="checkbox" name="confirmed" value="yes" required><span>
-                        I checked this actual starting balance against the cash in my custody, stock count, or real provider/bank statement.</span>
                       </label>
                       <button class="btn btnPrimary" type="submit">Confirm and start using</button>
                     </form>
@@ -170,7 +162,7 @@ const status=(done)=>done?'Ready':'Set up';
     <div class="cardBody">
       <div class="rowBtns">
         <a class="btn btnPrimary" href="/tenant/dashboard">Open dashboard</a>
-         <a class="btn" href="/tenant/treasury#new-capital">Top up account</a>
+         <a class="btn" href="/tenant/treasury">Money accounts</a>
          <a class="btn" href="/tenant/treasury#add-funds">Move existing funds</a>
         <% if(data.kinds.includes('wallet')){ %><a class="btn" href="/tenant/mobile-money/readiness">Check mobile money readiness</a><% } %>
         <a class="btn" href="/tenant/workspace/landing">Business website</a>

@@ -77,7 +77,9 @@ test('Quick setup templates expose only real existing forms and accurate financi
  assert(active.includes('data-quick-provider'));
  assert(active.includes('Confirm actual opening'));
  assert(active.includes('/tenant/setup/opening/'));
- assert(active.includes('name="confirmed"'));
+ assert(active.includes('name="actualBalance"'));
+ assert(!active.includes('name="confirmed"'));
+ assert(!active.includes('name="evidenceReference"'));
  assert(active.includes('not confirmed'));
  assert(!active.includes('Approve staff'));
  assert(!active.includes('Create 1000000 SSP'));

@@ -235,10 +235,8 @@ async function confirmOwnerOpening(conn,tenant,actor,accountId,input={}){
  // sole proprietor does not have to navigate a separate approval queue.
  if(actor?.role!=='Tenant Owner')throw fail('Only the business owner can confirm an opening balance',403);
  if(!input||typeof input!=='object'||Array.isArray(input)||
-    Object.keys(input).some(k=>!['actualBalance','evidenceReference','confirmed','idempotencyKey'].includes(k)))
+    Object.keys(input).some(k=>!['actualBalance','idempotencyKey'].includes(k)))
   throw fail('Unexpected opening balance field');
- if(input.confirmed!=='yes')throw fail('Confirm that you counted or checked the actual starting balance',400);
- const reference=String(input.evidenceReference||'').trim();
  const keyValue=key(input.idempotencyKey);
  await ensure(conn);
  return transaction(conn,async session=>{
@@ -248,9 +246,9 @@ async function confirmOwnerOpening(conn,tenant,actor,accountId,input={}){
   const evidenceType={cash:'cash_count',wallet:'provider_app',bank:'bank_statement',
     forex_stock:'stock_count',transfer_clearing:'transfer_register'}[account.kind];
   if(!evidenceType)throw fail('This type of account needs its own opening workflow');
-  if(['wallet','bank'].includes(account.kind)&&reference.length<6)
-   throw fail('Enter a real provider-app or bank statement reference (at least 6 characters).');
-  const evidenceReference=reference||'OWNER-COUNT-'+keyValue;
+  // This is the owner's manually entered opening amount, not a provider API
+  // confirmation. Keep the internal reference in the immutable audit trail.
+  const evidenceReference='OWNER-OPEN-'+keyValue;
   // A retry must not depend on a newly sampled server timestamp.
   const prior=await models(conn).observation.findOne({idempotencyKey:keyValue}).session(session).lean();
   if(prior){
@@ -277,6 +275,45 @@ async function confirmOwnerOpening(conn,tenant,actor,accountId,input={}){
     decision:'approve',note:'Tenant Owner directly confirmed opening after checking real evidence.'
   });
   return {observation:confirmed,duplicate:false};
+ });
+}
+// The owner records a dated real-world balance check in one operation. Matching
+// checks finish immediately. A difference is recorded and HELD, not booked as
+// newly received capital or waved through an independent adjustment.
+async function recordOwnerBalanceCheck(conn,tenant,actor,accountId,input={}){
+ if(actor?.role!=='Tenant Owner')throw fail('Only the business owner can directly record the balance check',403);
+ if(!input||typeof input!=='object'||Array.isArray(input)||
+    Object.keys(input).some(k=>!['actualBalance','idempotencyKey'].includes(k)))
+  throw fail('Unexpected balance-check field');
+ const requestKey=key(input.idempotencyKey);
+ await ensure(conn);
+ return transaction(conn,async session=>{
+  const auth=await access(conn,tenant,actor,{permission:'treasury.observe',session,fence:true});
+  if(auth.actor.role!=='Tenant Owner')throw fail('Only the business owner can record direct balance checks',403);
+  const account=await loadAccount(conn,auth,accountId,{session,fence:true});
+  if(account.status==='archived'||account.openingBalanceMinor===null||!account.openingApprovedAt)
+   throw fail('Confirm the account starting balance first',409);
+  const actual=major(input.actualBalance,account.currency,{negative:account.kind==='bank'});
+  const prior=await models(conn).observation.findOne({idempotencyKey:requestKey}).session(session).lean();
+  if(prior){
+   if(String(prior.requestedBy)!==auth.actor.id||String(prior.accountId)!==String(account._id)||
+      prior.kind!=='checkpoint'||String(prior.actualMinor)!==String(actual))
+    throw fail('This balance-check request was reused for different details',409);
+   if(prior.status!=='approved')throw fail('This balance check is not finalized; open its account history',409);
+   return {observation:prior,duplicate:true,matched:String(prior.varianceMinorAtReview||'0')==='0'};
+  }
+  const kind={cash:'cash_count',wallet:'provider_app',bank:'bank_statement',
+   forex_stock:'stock_count',transfer_clearing:'transfer_register'}[account.kind];
+  const requested=await requestObservationInSession(conn,session,auth,accountId,{
+    kind:'checkpoint',actualBalance:input.actualBalance,observedAt:new Date().toISOString(),
+    evidenceType:kind,evidenceReference:'OWNER-CHECK-'+requestKey,
+    note:'Owner entered the actual counted balance. Any difference is kept visible; no funds were invented or erased.',
+    idempotencyKey:requestKey
+  });
+  const approved=await reviewObservationInSession(conn,session,auth,requested.observation._id,{
+    decision:'approve',note:'Owner direct balance check. Difference, if present, stays held for investigation.'
+  },{ownerDirectCheck:true});
+  return {observation:approved,duplicate:false,matched:BigInt(String(approved.varianceMinorAtReview||0))===0n};
  });
 }
 // A capital contribution is NEW, owner-attested business money, unlike an
@@ -325,7 +362,7 @@ async function writeTreasuryJournal(conn,session,authorization,{branchId,currenc
  const validated=ledger.validateJournal({branchId:String(branchId),actorId:authorization.actor.id,sourceType:'treasury',sourceRef,currency,lines});
  return ledger.writeOperationalJournalInSession(conn,validated,session);
 }
-async function reviewObservationInSession(conn,session,authorization,observationId,input){
+async function reviewObservationInSession(conn,session,authorization,observationId,input,internal={}){
  if(!session?.inTransaction())throw fail('Observation review requires an active transaction',409);
  authorization=await access(conn,authorization.tenant,authorization.actor,{permission:'treasury.review',session,fence:true});
  if(!REVIEW_ROLES.includes(authorization.actor.role))throw fail('Independent funds reviewer required',403);
@@ -337,11 +374,17 @@ async function reviewObservationInSession(conn,session,authorization,observation
  const selfReviewed=String(observation.requestedBy)===authorization.actor.id||
   String(account.operatorId||'')===authorization.actor.id;
  if(selfReviewed){
-  const privileged=require('../services/reviewPolicy').canSelfReviewRoutine(authorization.actor,account.branchId);
+  // A directly recorded owner check is evidence only. A discrepancy still
+  // HOLDS the account and never posts a cash/equity adjustment by itself.
+  const ownerDirect=internal.ownerDirectCheck===true&&
+    authorization.actor.role==='Tenant Owner'&&
+    observation.kind==='checkpoint'&&
+    String(observation.requestedBy)===authorization.actor.id&&decision==='approve';
+  const privileged=ownerDirect||require('../services/reviewPolicy').canSelfReviewRoutine(authorization.actor,account.branchId);
   if(!privileged)throw fail('A different authorized person must review the evidence and operator drawer',403);
   // Routine opening or a verified zero-variance cash/float checkpoint can be
   // signed by a branch manager/owner. Discrepancies and adjustments never can.
-  if(observation.kind!=='opening'){
+  if(observation.kind!=='opening'&&!ownerDirect){
    const atObservation=await expectedAt(conn,account,new Date(observation.observedAt),session);
    if(observation.kind!=='checkpoint'||atObservation===null||
       BigInt(String(observation.actualMinor))!==atObservation)
@@ -688,4 +731,4 @@ async function reviewAdjustment(conn,tenant,actor,adjustmentId,input){
   await audit(conn,session,authorization.actor,`treasury.adjustment.${input.decision==='approve'?'approved':'rejected'}`,adjustment._id,{branchId:String(account.branchId),accountId:String(account._id),batchId:batchId?String(batchId):null,deltaMinor:String(adjustment.deltaMinor)});return result;
  });
 }
-module.exports={addCapital,postCrossCurrencyTransferPayout,postBranchTransferPayout,models,ensure,access,loadAccount,createAccount,configureAccount,archiveUnusedWallet,assertUnusedWalletArchivable,validateAccount,requestObservation,requestObservationInSession,confirmOwnerOpening,reviewObservation,reviewObservationInSession,applyMovements,reverseMovements,ensureCounterAccount,findAccount,findOperatingAccounts,balanceSnapshot,accountDetail,reviewQueue,requestAdjustment,reviewAdjustment,expectedAt,assertBookIntegrity,format,major,signedMinor,normalizeMovement,parseObservation,scope,moduleForKind,normalSide,fail,KINDS,NETWORKS};
+module.exports={recordOwnerBalanceCheck,addCapital,postCrossCurrencyTransferPayout,postBranchTransferPayout,models,ensure,access,loadAccount,createAccount,configureAccount,archiveUnusedWallet,assertUnusedWalletArchivable,validateAccount,requestObservation,requestObservationInSession,confirmOwnerOpening,reviewObservation,reviewObservationInSession,applyMovements,reverseMovements,ensureCounterAccount,findAccount,findOperatingAccounts,balanceSnapshot,accountDetail,reviewQueue,requestAdjustment,reviewAdjustment,expectedAt,assertBookIntegrity,format,major,signedMinor,normalizeMovement,parseObservation,scope,moduleForKind,normalSide,fail,KINDS,NETWORKS};

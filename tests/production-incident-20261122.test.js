@@ -32,7 +32,9 @@ test('Tenant quick setup never labels a failed opening as ready',()=>{
  assert.match(view,/setupStatsGrid/);
  assert.match(view,/Ledger review required/);
  assert.match(view,/else if\(a\.openingBalanceMinor!=null\)/);
- assert.match(view,/setupConfirm/);
+ assert.match(view,/Confirm actual opening/);
+ assert.match(view,/name="actualBalance"/);
+ assert.doesNotMatch(view,/name="confirmed"/);
  const css=read('public/css/tenant-quick-setup.css');
  assert.match(css,/grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
  assert.match(css,/grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);

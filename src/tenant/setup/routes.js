@@ -62,7 +62,7 @@ function moneyInput(body,tenant,actor,branches){
  const network=kind==='wallet'?String(body.network||''):'';
  if(kind==='wallet'&&!treasury.NETWORKS.includes(network))throw invalid('Choose the mobile-money provider.');
  const currency=kind==='wallet'&&networkTariffs.NETWORKS[network]?.currency||String(body.currency||'');
- if(!currencyCodes.includes(currency)||!(branch.currencies||[branch.currency]).includes(currency))
+ if(!currencyCodes.includes(currency)||!require('../services/branchCurrency.service').supports(branch,currency))
   throw invalid('Use a currency enabled for the selected branch.');
  // Cash custody always belongs to a real operator, the owner by default.
  const operatorId=kind==='cash'?String(body.operatorId||actor.id):String(body.operatorId||'');
@@ -142,10 +142,10 @@ module.exports=function quickSetupRoutes({renderTenant}){
   try{
    owner(req);
    if(!/^[a-f0-9]{24}$/i.test(req.params.id))throw invalid('Choose an actual money account.');
-   exact(req.body,['actualBalance','evidenceReference','confirmed','idempotencyKey']);
-   const {actualBalance,evidenceReference,confirmed,idempotencyKey}=req.body;
+   exact(req.body,['actualBalance','idempotencyKey']);
+   const {actualBalance,idempotencyKey}=req.body;
    const result=await treasury.confirmOwnerOpening(req.tenantDb,req.tenant,req.user,req.params.id,
-     {actualBalance,evidenceReference,confirmed,idempotencyKey});
+     {actualBalance,idempotencyKey});
    flash(req,'good',result.duplicate?'This opening was already recorded.':'Your counted/checked opening balance is now recorded and ready. The transaction and owner attestation are audited.');
    res.redirect(303,'/tenant/setup#quick-money');
   }catch(e){handleSetupError(req,res,next,e);}

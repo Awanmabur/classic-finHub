@@ -59,13 +59,15 @@ test('all internal directory numbers are read-only and generated on save',()=>{
  assert.doesNotMatch(branch,/name="code" required/);
  const treasury=src('src/views/tenant/treasury/index.ejs');
  const quickSetup=src('src/views/tenant/setup/index.ejs');
+ const ownerMoney=src('src/views/tenant/treasury/_owner-accounts.ejs');
  const treasuryRoutes=src('src/tenant/treasury/routes.js');
  const treasuryService=src('src/tenant/treasury/service.js');
- // Owners use one Quick setup flow; a manager's advanced form likewise has
- // no editable code field. Codes are generated and checked by the backend.
+ // Owners add accounts directly on Money; the advanced manager form also
+ // has no editable internal code. Both use backend-generated identities.
  assert(treasury.includes("user.role!=='Tenant Owner'"));
- assert.match(quickSetup,/data-quick-account-name/);
+ assert.match(ownerMoney,/data-money-create-form/);
  assert.doesNotMatch(treasury,/<input[^>]*name=["']code["']/i);
+ assert.doesNotMatch(ownerMoney,/<input[^>]*name=["']code["']/i);
  assert.doesNotMatch(quickSetup,/<input[^>]*name=["']code["']/i);
  assert(treasuryRoutes.includes("hasOwnProperty.call(req.body||{},'code')"));
  assert(treasuryService.includes('const accountCode=values.code||'));

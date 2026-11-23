@@ -28,8 +28,11 @@
    let fee=0n,cost=0n;
    try{fee=BigInt(rule?.fixedFeeMinor||'0')+(base===null?0n:(base*BigInt(rule?.feeBps||0)+5000n)/10000n);cost=BigInt(rule?.fixedCostMinor||'0')+(base===null?0n:(base*BigInt(rule?.costBps||0)+5000n)/10000n);}catch{return;}
    const next=decimal(fee,scale(currency)),changed=field.value!==next;field.value=next;
-   host.querySelector('[data-pricing-fee]').textContent=amount(fee,currency);host.querySelector('[data-pricing-cost]').textContent=amount(cost,currency);
-   host.querySelector('[data-pricing-label]').textContent=rule?'Configured charges applied automatically. Operating cost is an estimate, not an additional customer charge.':'No charge is configured for this operation and currency. The customer fee is zero.';
+   const total=host.querySelector('[data-pricing-total]'),costField=host.querySelector('[data-pricing-cost]'),label=host.querySelector('[data-pricing-label]');
+   host.querySelector('[data-pricing-fee]').textContent=amount(fee,currency);
+   if(total)total.textContent=base===null?'Enter an amount':amount(base+fee,currency);
+   if(costField)costField.textContent=amount(cost,currency);
+   if(label)label.textContent=rule?'Configured charges applied automatically. Operating cost is an estimate, not an additional customer charge.':'No charge is configured for this operation and currency. The customer fee is zero.';
    if(changed)field.dispatchEvent(new Event('input',{bubbles:true}));
   };
   bindings.set(form,refresh);form.addEventListener('input',event=>{if(event.target!==field)refresh();});form.addEventListener('change',event=>{if(event.target!==field)refresh();});form.addEventListener('reset',()=>queueMicrotask(refresh));refresh();

@@ -32,8 +32,10 @@ test('Customer form includes every approved section and field with CSRF and serv
  for(const text of ['Customer identity','Next of kin / emergency contact','Address and notes','Full name','Phone','Email','ID / Passport No.','Customer type','Customer reference','Next of kin name','Next of kin phone','Relationship','Country','City / area','Address / notes','Create customer'])assert(html.includes(text),text);
  assert.match(html,/name="_csrf" value="csrf-value"/);assert.match(html,/name="idempotencyKey" value="creation-key"/);assert(!html.includes('name="branchId"'));
 });
-test('Account form includes account intelligence and all four opening labels without a branch selector',async()=>{
+test('Account form selects one currency and keeps optional details out of the initial view',async()=>{
  const html=await ejs.renderFile(path.join(__dirname,'../src/views/tenant/customer-accounts/form.ejs'),{csrfToken:'csrf-value',user:{name:'Teller One'},operationBranch:{name:'Kampala'},data:{formKind:'account',formRecord:null,idempotencyKey:'creation-key',customerChoices:[{_id:'507f1f77bcf86cd799439011',name:'Jane <img>',phone:'+256700123456',reference:'CUS-JANE'}]}});
- for(const text of ['Account owner','Account intelligence','Opening balances','Customer','Account number','Account type','Status','Overdraft limit','Account branch','Account officer','Purpose / source of funds','KYC risk level','Opening UGX','Opening USD','Opening SSP','Opening KSH','Create account'])assert(html.includes(text),text);
- assert(html.includes('Jane &lt;img&gt;'));assert(!html.includes('name="branchId"'));assert.match(html,/name="overdraftLimit" value="0" readonly/);assert.match(html,/data-customer-lookup/);
+ for(const text of ['Customer','Account number','Account type','Currency','Account officer','Purpose / source of funds','KYC risk level','Create account'])assert(html.includes(text),text);
+ assert(html.includes('Jane &lt;img&gt;'));assert.match(html,/<details[^>]*>\s*<summary>Additional account details/);
+ assert.doesNotMatch(html,/name="(?:branchId|overdraftLimit|openingUGX|openingUSD|openingSSP|openingKES)"/);
+ assert.match(html,/data-customer-lookup/);
 });

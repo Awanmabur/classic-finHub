@@ -9,7 +9,7 @@ const adapters=require('../reporting/registry');
 const {cashSessionModel,mobileTransactionModel}=require('../models');
 const {expenseModel}=require('../models/expenses');
 const MAX_ROWS=5000;
-const cashSources=Object.freeze({mobile_money:'Mobile Money',money_transfer:'Money Transfer',banking:'Banking',forex:'Forex',expenses:'Expenses'});
+const cashSources=Object.freeze({mobile_money:'Mobile Money',money_transfer:'Money Transfer',banking:'Banking',forex:'Forex',expenses:'Expenses',treasury_funding:'Account funding'});
 const pages=Object.freeze({
  daily:{title:'Daily business report',subtitle:'Daily control, multi-currency income, cash summary, and operation totals.'},
  opening:{title:'Opening cash report',subtitle:'Opening drawer baseline captured for the business day.',source:'cash_shifts'},
@@ -106,11 +106,13 @@ async function generate(conn,tenant,actor,key,query={}){
   if(rows.length>MAX_ROWS)throw fail('Too many report groups. Narrow the date range.',422);
  }
  const hasCash=sources.some(source=>source.key==='cash_shifts'),hasMobile=sources.some(source=>source.key==='mobile_money'),hasExpenses=sources.some(source=>source.key==='expenses');
+ const cashMovementSources=requested.map(source=>source.key);
+ if(key==='daily'&&hasCash&&hasPermission(actor,'treasury.view'))cashMovementSources.push('treasury_funding');
  const [cash,impact,expenses,cashMovements]=await Promise.all([
   hasCash&&['daily','opening','closing'].includes(key)?cashData(conn,scope,filters.dateRange):null,
   hasMobile&&['daily','transactions','mobile'].includes(key)?cashImpact(conn,scope,filters.dateRange,{legacyOnly:true}):{},
   hasExpenses&&key==='expenses'?expenseItems(conn,actor,scope,filters.dateRange):null,
-  sourceAvailable&&!['opening','closing'].includes(key)?postedCash(conn,tenant,scope,filters.dateRange,requested.map(source=>source.key)):[]
+  sourceAvailable&&!['opening','closing'].includes(key)?postedCash(conn,tenant,scope,filters.dateRange,cashMovementSources):[]
  ]);
  return {key,page,filters,sources,scope,sourceAvailable,rows,cash,impact,postedCash:cashMovements,expenses,income:currencyTotals(rows),format:require('./forex.service').amountLabel,
   note:'Each source describes its own internal evidence. Amounts and currencies remain separate. Pending requests and recorded fees do not prove provider settlement, available funds, or realized income.'};

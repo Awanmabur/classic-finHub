@@ -24,7 +24,7 @@ test('transaction launcher uses an accessible real-form dialog and a fixed branc
   assert.match(html,/data-branch-name="Kampala Main" data-branch-currency="UGX"/);
   assert.match(html,/data-transaction-kind="cash_in"/);
   assert.match(html,/data-transaction-kind="cash_out"/);
-  assert.match(html,/href="\/tenant\/money-transfer\/send" data-transaction-kind="transfer"/,'quick actions retain a working page fallback');
+  assert.match(html,/id="newTransactionBtn" href="\/tenant\/transactions\/new"/,'the launcher retains a working page fallback');
   assert.doesNotMatch(html,/<select[^>]+(?:name="branchId"|id="branchSelect")/);
   assert.match(html,/data-transaction-status role="status" aria-live="polite"/);
 });
@@ -45,44 +45,37 @@ test('read-only accounts do not receive write dialogs or a dead New transaction 
   assert.match(html,/href="\/tenant\/mobile-money\/network-activity"/);
 });
 
-test('overview displays supplied database cash and acknowledgements without prototype balances',async()=>{
+test('overview displays cash-day status and acknowledgements without dashboard totals',async()=>{
   const options=fixture(['*']);
-  options.menu[0].items.push({href:'/tenant/treasury',label:'Wallets & balances'},{href:'/tenant/last-receipt',label:'Last receipt'});
+  options.menu[0].items.push({href:'/tenant/cash/shifts',label:'Cash day'},{href:'/tenant/last-receipt',label:'Last receipt'});
   options.data.workspaceSnapshot={
-    cash:[{currency:'UGX',expectedFormatted:'UGX 510,000',shiftCount:1}],cashBranchName:'Kampala Main',
+    cash:[{currency:'UGX',expectedFormatted:'UGX 510,000',shiftCount:1}],cashDay:{status:'open',currency:'UGX',branchName:'Kampala Main'},
     latestAcknowledgement:{href:'/tenant/mobile-money/123/acknowledgement',label:'Last acknowledgement'},
     recentActivity:[{kind:'mobile_money',label:'Mobile money cash in',subtitle:'MTN · VERIFIED-REFERENCE',amountLabel:'UGX 10,000',href:'/tenant/mobile-money/123/acknowledgement',createdAt:new Date()}]
   };
   const html=await ejs.renderFile(template,options);
-  assert.match(html,/Provisional physical cash/);
-  assert.match(html,/UGX 510,000/);
-  assert.match(html,/1 open shift/);
+  assert.match(html,/Cash day/);
+  assert.match(html,/Kampala Main · UGX/);
+  assert.doesNotMatch(html,/UGX 510,000|1 open shift/);
   assert.match(html,/MTN · VERIFIED-REFERENCE/);
   assert.match(html,/href="\/tenant\/mobile-money\/123\/acknowledgement"/);
   assert.match(html,/Last receipt/);
   assert.doesNotMatch(html,/6,500,000|Load demo|id="branchSelect"/);
 });
 
-test('shared cash shift actions use operator roles and the actual current shift',async()=>{
+test('cash day offers the next drawer action without adding it to the transaction launcher',async()=>{
   const options=fixture(['*']);
-  options.menu[0].items.push({href:'/tenant/cash/shifts',label:'Cash shifts',icon:'fa-cash-register'});
-  const opening=await ejs.renderFile(template,options);
-  assert.match(opening,/<a[^>]+href="\/tenant\/cash\/shifts"[^>]+data-transaction-kind="cash_shift_open"[^>]*>Open day/);
-  options.data.workspaceSnapshot={cash:[],recentActivity:[],currentCashShift:{id:'real-shift',status:'open',href:'/tenant/cash/shifts/real-shift'}};
-  const closing=await ejs.renderFile(template,options);
-  assert.match(closing,/<a[^>]+href="\/tenant\/cash\/shifts\/real-shift"[^>]*>Close day/);
-  assert.doesNotMatch(closing,/<a[^>]+href="\/tenant\/cash\/shifts"[^>]+data-transaction-kind="cash_shift_open"[^>]*>Open day/);
+  const items=options.menu[0].items;
+  items.push({href:'/tenant/cash/shifts',label:'Cash day',icon:'fa-cash-register'});
+  for(const [status,action] of [[null,'Open day'],['open','Close day'],['pending_open','View opening count'],['submitted','View closing count'],['disputed','Correct closing count']]){
+    options.data.workspaceSnapshot={cashDay:{status,currency:'UGX',branchName:'Kampala Main'}};
+    const html=await ejs.renderFile(template,options);
+    assert(html.includes('href="/tenant/cash/shifts?currency=UGX">'+action+'</a>'),action);
+    assert.doesNotMatch(html,/data-transaction-kind="cash_shift_(open|close)"/);
+  }
+  options.data.workspaceSnapshot={};
   options.user.role='Branch Manager';
   const supervisor=await ejs.renderFile(template,options);
-  assert.doesNotMatch(supervisor,/data-transaction-kind="cash_shift_open"/,'supervisors review shifts; they do not open an operator shift');
-  for(const [role,moduleKey] of [['Mobile Money Operator','mobile_money'],['Money Transfer Operator','money_transfer'],['Banking Operator','banking'],['Forex Operator','forex']]){
-    const corePath='/tenant/'+moduleKey.replaceAll('_','-');
-    const assigned=fixture(permissionsFor(role),[corePath]);assigned.user.role=role;assigned.data.workspaceSnapshot={};
-    assigned.menu[0].items.push({href:'/tenant/cash/shifts',label:'Open day'});
-    const html=await ejs.renderFile(template,assigned);
-    assert.match(html,/data-transaction-kind="cash_shift_open"/,`${role} can open the actual shared cash drawer with the fixed role permissions`);
-    assigned.user.permissions=assigned.user.permissions.filter(permission=>permission!=='treasury.view');
-    const denied=await ejs.renderFile(template,assigned);
-    assert.doesNotMatch(denied,/data-transaction-kind="cash_shift_open"/,`${role} still requires the shared treasury permission`);
-  }
+  assert.match(supervisor,/href="\/tenant\/cash\/shifts">View cash day/);
+  assert.doesNotMatch(supervisor,/>Open day<|>Close day</);
 });

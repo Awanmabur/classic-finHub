@@ -17,7 +17,7 @@
 </section>
 <% if(ops.modules.length){ %>
 <section class="card" aria-labelledby="workspaceModuleReadinessTitle">
- <div class="cardHead"><div><b id="workspaceModuleReadinessTitle">Subscribed operation checklist</b><br><span>Every operator needs an eligible funds path and a different authorized reviewer</span></div><% if(data.canCash){ %><a class="btn" href="/tenant/treasury">Wallets &amp; balances</a><% } %></div>
+ <div class="cardHead"><div><b id="workspaceModuleReadinessTitle">Subscribed operation checklist</b><br><span>Every operator needs an eligible funds path and a different authorized reviewer</span></div><% if(data.canCash){ %><a class="btn" href="/tenant/treasury">Business funds</a><% } %></div>
  <div class="cardBody tableWrap"><table><thead><tr><th>Operation / branch / currency</th><th>Staff &amp; funds</th><th>Setup status</th><th>Action</th></tr></thead><tbody>
   <% ops.modules.forEach(row=>{ %><tr data-module-readiness="<%= row.key %>" data-branch-id="<%= row.branchId %>" data-currency="<%= row.currency %>" data-state="<%= row.state %>"><td><b><%= row.label %></b><br><span class="tiny"><%= row.branch %> · <%= row.currency==='KES'?'KSH':row.currency %></span></td><td><%= row.operators %> operators · <%= row.reviewers %> reviewers<br><span class="tiny"><%= row.preparedOperators %> operators with reviewed funds paths</span></td><td><span class="tag"><%= row.state==='ready'?'Setup checks complete':'Action required' %></span><% if(row.problems.length){ %><ul class="workspaceIssueList"><% row.problems.forEach(problem=>{ %><li><%= problem %></li><% }) %></ul><% } %></td><td><a class="btn" href="<%= row.path %>">Open <%= row.label %></a></td></tr><% }) %>
  </tbody></table></div>

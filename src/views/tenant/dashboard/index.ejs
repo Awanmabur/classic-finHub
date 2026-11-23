@@ -1,32 +1,48 @@
-<% const snapshot=data.workspaceSnapshot||{};
-   const volumes=snapshot.todayVolumes||{};
-   const financialActions=quickActions.filter(action=>['transfer','mobile_money','forex_buy','banking_deposit'].includes(action.kind));
-   const opener=quickActions.find(action=>action.kind==='cash_shift_open');
-   const currencyRows=typeof currencyOptions==='undefined'?[{code:'UGX',label:'UGX'},{code:'USD',label:'USD'},{code:'SSP',label:'SSP'},{code:'KES',label:'KSH'}]:currencyOptions;
-   const cards=[['hasTransfer','money_transfer','Money transfer volume','ovTransfer','Send + payout'],['hasMobileMoney','mobile_money','Mobile money volume','ovMobile','Cash-in + cash-out'],['hasBanking','banking','Banking volume','ovBanking','Deposit/withdraw/transfer'],['hasForex','forex','Forex volume','ovForex','Buy + sell exchange']];
-   const hasSources=cards.some(([flag])=>data[flag]);
-   const canSeeCash=visiblePaths.has('/tenant/treasury'); %>
+<%
+  const snapshot = data.workspaceSnapshot || {};
+  const cashDay = snapshot.cashDay;
+  const hasCashDay = visiblePaths.has('/tenant/cash/shifts');
+  const recentActivity = (snapshot.recentActivity || []).slice(0, 6);
+  const dayStatus = {
+    open: 'Open',
+    pending_open: 'Opening count awaiting review',
+    submitted: 'Closing count awaiting review',
+    disputed: 'Closing count needs correction'
+  }[cashDay?.status] || 'Closed';
+  const action = {open: 'Close day', disputed: 'Correct closing count', pending_open: 'View opening count',
+    submitted: 'View closing count'}[cashDay?.status] || 'Open day';
+  const cashDayHref = '/tenant/cash/shifts' + (cashDay?.currency ? '?currency=' + encodeURIComponent(cashDay.currency) : '');
+%>
 <section class="view show" id="view-overview">
-  <div class="card"><div class="cardHead"><div><b>Today snapshot</b><br><span>Core modules plus daily control</span></div><span class="mono" id="terminalCode"><%= snapshot.terminalCode||tenant.slug||'—' %></span></div>
+  <% if(hasCashDay){ %>
+    <section class="card">
+      <div class="cardHead">
+        <div><b>Cash day</b><% if(cashDay){ %><br><span><%= cashDay.branchName %> · <%= typeof currencyLabel==='function' ? currencyLabel(cashDay.currency) : cashDay.currency %></span><% } %></div>
+        <% if(cashDay){ %><span class="tag"><%= dayStatus %></span><% } %>
+      </div>
+      <div class="cardBody">
+        <a class="btn btnPrimary" href="<%= cashDayHref %>"><%= cashDay ? action : 'View cash day' %></a>
+      </div>
+    </section>
+  <% } %>
+  <section class="card" <%- hasCashDay ? 'style="margin-top:14px"' : '' %>>
+    <div class="cardHead"><b>Recent activity</b></div>
     <div class="cardBody">
-      <% if(hasSources){ %><div class="grid3">
-        <% cards.forEach(([flag,key,label,id,sub])=>{if(!data[flag])return;const value=volumes[key]; %><div class="stat" title="Today's active recorded <%= key.replaceAll('_',' ') %> operations and instructions. This total is separate from verified external balances."><div class="k"><%= label %></div><div class="v" id="<%= id %>"><%= value?.formatted||'—' %></div><div class="s"><span class="dot <%= key==='forex'?'warn':'' %>"></span><span><%= sub %></span></div></div><% }) %>
-      </div><% } else { %><p>Your workspace is ready.</p><p class="tiny"><%= visiblePaths.has('/tenant/modules')?'Choose the modules your team needs to start recording activity.':'Your administrator can enable the modules you need to get started.' %></p><% if(visiblePaths.has('/tenant/modules')){ %><a class="btn" href="/tenant/modules">Explore modules</a><% } %><% } %>
-      <% if(financialActions.length||visiblePaths.has('/tenant/reports')||visiblePaths.has('/tenant/cash/shifts')){ %><div class="rowBtns" style="margin-top:12px">
-        <% financialActions.forEach((action,index)=>{ %><a class="btn <%= index===0?'btnPrimary':'' %>" href="<%= action.href %>" data-transaction-kind="<%= action.kind %>"><%= action.label %></a><% }) %>
-        <% if(visiblePaths.has('/tenant/reports')){ %><a class="btn" href="/tenant/reports">View reports</a><% } %>
-        <% if(opener){ %><a class="btn" href="<%= opener.href %>" id="openDayBtn" data-transaction-kind="cash_shift_open">Open day</a><% } %>
-        <% if(visiblePaths.has('/tenant/cash/shifts')&&snapshot.currentCashShift){ %><a class="btn" href="<%= snapshot.currentCashShift.href %>" id="closeDayBtn" data-transaction-kind="cash_shift_close">Close day</a><% } %>
-      </div><% } %>
+      <% if(!recentActivity.length){ %><p class="tiny">No recent transactions to show.</p><% } %>
+      <div class="txList" id="recentList">
+        <% recentActivity.forEach(row=>{ %>
+          <a class="tx" data-search-row href="<%= row.href %>">
+            <div class="txLeft">
+              <span class="txDot <%= /voided|rejected|disputed|failed/.test(row.status || '') ? 'bad' : /pending|requested|quoted|awaiting/.test(row.status || '') ? 'warn' : 'good' %>"></span>
+              <div class="txMeta"><b><%= row.label %></b><span><%= row.subtitle %><% if(row.createdAt){ %> · <%= new Date(row.createdAt).toISOString().slice(0,16).replace('T',' ') %> UTC<% } %></span></div>
+            </div>
+            <div class="txAmt"><%= row.amountLabel %><small><%= row.status || '' %></small></div>
+          </a>
+        <% }) %>
+      </div>
+      <% if(!data.hasTransfer && !data.hasMobileMoney && !data.hasBanking && !data.hasForex && visiblePaths.has('/tenant/modules')){ %>
+        <div class="rowBtns"><a class="btn" href="/tenant/modules">Explore modules</a></div>
+      <% } %>
     </div>
-  </div>
-  <div class="<%= canSeeCash?'grid':'' %>" style="margin-top:14px">
-    <div class="card"><div class="cardHead"><div><b>Recent activity</b><br><span>Click any row to open receipt</span></div></div><div class="cardBody"><div class="txList" id="recentList">
-      <% if(!(snapshot.recentActivity||[]).length){ %><div class="tiny">No records yet.</div><% } %>
-      <% (snapshot.recentActivity||[]).forEach(row=>{ %><a class="tx" data-search-row href="<%= row.href %>"><div class="txLeft"><span class="txDot <%= /voided|rejected|disputed|failed/.test(row.status||'')?'bad':/pending|requested|quoted|awaiting/.test(row.status||'')?'warn':'good' %>"></span><div class="txMeta"><b><%= row.label %></b><span><%= row.subtitle %><% if(row.createdAt){ %> • <%= new Date(row.createdAt).toISOString().slice(0,16).replace('T',' ') %><% } %></span></div></div><div class="txAmt"><%= row.amountLabel %><small><%= row.status||'' %></small></div></a><% }) %>
-    </div></div></div>
-    <% if(canSeeCash){ %><div class="card"><div class="cardHead"><div><b>Cash drawer by currency</b><br><span>Automatically updated by operations</span></div></div><div class="cardBody"><div class="summary" id="cashSummary" title="Provisional physical cash from independently verified opening counts and recorded drawer movements.">
-      <% currencyRows.forEach(option=>{const row=(snapshot.cash||[]).find(value=>value.currency===option.code); %><div class="sumRow" <% if(row){ %>title="<%= row.shiftCount %> open shift<%= row.shiftCount===1?'':'s' %>"<% } %>><span><%= option.label %></span><b><%= row?.expectedFormatted?.replace(/^KES\s/,'KSH ')||'—' %></b></div><% }) %>
-    </div><p class="tiny">Expected cash uses verified opening counts and recorded cash movements. Compare against the physical count before closing.</p></div></div><% } %>
-  </div>
+  </section>
 </section>

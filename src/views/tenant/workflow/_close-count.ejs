@@ -1,0 +1,12 @@
+<form method="post" action="/tenant/day/close">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <input type="hidden" name="shiftId" value="<%= shift._id %>">
+  <input type="hidden" name="currency" value="<%= shift.currency %>">
+  <% if(returnToDay){ %><input type="hidden" name="returnToDay" value="1"><% } %>
+  <p>Expected cash <strong><%= expected %></strong></p>
+  <div class="row2">
+    <label class="field">Counted cash<input class="control" name="countedCash" required inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" placeholder="0"></label>
+    <label class="field">Reason if the amounts differ<input class="control" name="note" maxlength="400"></label>
+  </div>
+  <div class="rowBtns"><button class="btn btnPrimary" type="submit">Send closing count</button></div>
+</form>

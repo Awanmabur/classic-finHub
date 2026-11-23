@@ -1,7 +1,7 @@
 <% const cashLabel=(value,currency)=>typeof formatMoneyMinor==='function'?formatMoneyMinor(value,currency):money(currency,amountFromMinor(value,currency)); %>
 <section class="view show">
   <section class="card">
-    <div class="cardHead"><b>Shift <%= data.shift._id %></b><span class="tag"><%= data.shift.status %></span><a class="btn" href="/tenant/cash/shifts">All shifts</a></div>
+    <div class="cardHead"><b>Shift <%= data.shift._id %></b><span class="tag"><%= data.shift.status %></span><a class="btn" href="/tenant/cash/shifts">Cash day</a></div>
     <div class="cardBody">
       <p class="tiny">Physical cash estimate only. Network settlements and agent e-float are not represented here.</p>
       <div class="grid3">
@@ -17,12 +17,7 @@
       </div><% } %>
       <% if(data.shift.openingReviewNote){ %><p class="tiny">Opening verification evidence: <%= data.shift.openingReviewNote %></p><% } %>
       <% if(data.canReviewOpening){ %>
-        <form method="post" action="/tenant/cash/shifts/<%= data.shift._id %>/verify-opening" style="margin-top:16px">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-          <p class="tiny">Independently inspect the counted opening cash before allowing recordings. Reject an incorrect starting balance.</p>
-          <label class="field">Opening verification evidence (12–400 characters)<textarea class="control" name="note" required minlength="12" maxlength="400" rows="2"></textarea></label>
-          <div class="rowBtns"><button class="btn btnPrimary" name="decision" value="approve">Verify and open shift</button><button class="btn" name="decision" value="reject">Reject opening count</button></div>
-        </form>
+        <%- include('../workflow/_review-count', {shift:data.shift, isOpening:true, canApprove:true, returnToDay:false}) %>
       <% } %>
       <% if(data.canSubmit){ %>
         <form method="post" action="/tenant/cash/shifts/<%= data.shift._id %>/submit" style="margin-top:16px">
@@ -34,11 +29,7 @@
         </form>
       <% } %>
       <% if(data.canReview){ %>
-        <form method="post" action="/tenant/cash/shifts/<%= data.shift._id %>/decide" style="margin-top:16px">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-          <label class="field">Independent review evidence (12–400 characters)<textarea class="control" name="note" required minlength="12" maxlength="400" rows="3"></textarea></label>
-          <div class="rowBtns"><% if(data.canApprove !== false){ %><button class="btn btnPrimary" type="submit" name="decision" value="approve">Approve count</button><% } else { %><p class="tiny">A discrepancy requires Tenant Owner or Reconciliation Officer approval.</p><% } %><button class="btn" type="submit" name="decision" value="dispute">Dispute and return to operator</button></div>
-        </form>
+        <%- include('../workflow/_review-count', {shift:data.shift, isOpening:false, canApprove:data.canApprove !== false, returnToDay:false}) %>
       <% } %>
       <% if(data.shift.reviewNote){ %><p class="tiny">Last supervisor decision: <%= data.shift.reviewNote %></p><% } %>
     </div>

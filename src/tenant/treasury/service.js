@@ -90,7 +90,8 @@ async function configureAccount(conn,tenant,actor,accountId,input){
   const changes={$set:{name,feeTreatment:account.kind==='wallet'?feeTreatment:'record_only'},$inc:{revision:1},...(isDefault?{}:{$unset:{selectionKey:''}})};
   if(isDefault)changes.$set.selectionKey=selectionKey;
   const configured=await models(conn).account.findOneAndUpdate({_id:account._id,tenantId:authorization.tenant._id},changes,{session,new:true,runValidators:true}).lean();
-  await audit(conn,session,authorization.actor,'treasury.account.configured',account._id,{branchId:String(account.branchId),isDefault,feeTreatment:configured.feeTreatment});
+  const nameChange=account.name===configured.name?{}:{nameChange:{before:account.name,after:configured.name}};
+  await audit(conn,session,authorization.actor,'treasury.account.configured',account._id,{branchId:String(account.branchId),isDefault,feeTreatment:configured.feeTreatment,...nameChange});
   return configured;
  });
 }
@@ -111,10 +112,10 @@ async function createAccount(conn,tenant,actor,input,{configurationBranchId=null
  });}catch(error){if(error.code===11000)throw fail('This account code or default account already exists. Use a different code and clear the default option for additional accounts.',409);throw error;}
 }
 async function ensureCounterAccount(conn,session,{tenantId,branchId,currency,purpose,actorId}){
- if(!session?.inTransaction()||!currencyCodes.includes(currency)||!['opening_equity','settlement_clearing','reconciliation_suspense','fee_income','expense','interbranch_payable','interbranch_receivable'].includes(purpose))throw fail('Invalid internal treasury counter account');
+ if(!session?.inTransaction()||!currencyCodes.includes(currency)||!['opening_equity','owner_contribution','settlement_clearing','reconciliation_suspense','fee_income','expense','interbranch_payable','interbranch_receivable'].includes(purpose))throw fail('Invalid internal treasury counter account');
  const Counter=models(conn).counter,lookup={branchId:oid(branchId),currency,purpose};let counter=await Counter.findOne(lookup).session(session).lean();if(counter){if(String(counter.tenantId)!==String(tenantId))throw fail('Counter account belongs to a different tenant',403);return counter;}
  const code=`TRS_${purpose.toUpperCase()}_${currency}`;
- const [chart]=await core.ledgerAccountModel(conn).create([{branchId,code,name:`Treasury ${purpose.replaceAll('_',' ')} (${currency})`,currency,category:purpose==='opening_equity'?'equity':purpose==='fee_income'?'income':purpose==='expense'?'expense':purpose==='interbranch_receivable'?'asset':'liability',createdBy:oid(actorId)}],{session});
+ const [chart]=await core.ledgerAccountModel(conn).create([{branchId,code,name:`Treasury ${purpose.replaceAll('_',' ')} (${currency})`,currency,category:['opening_equity','owner_contribution'].includes(purpose)?'equity':purpose==='fee_income'?'income':purpose==='expense'?'expense':purpose==='interbranch_receivable'?'asset':'liability',createdBy:oid(actorId)}],{session});
  [counter]=await Counter.create([{tenantId:oid(tenantId),...lookup,ledgerAccountId:chart._id,ledgerCode:code}],{session});return counter;
 }
 async function expectedAt(conn,account,at,session=null){
@@ -345,9 +346,14 @@ async function accountDetail(conn,tenant,actor,accountId){
 }
 async function reviewQueue(conn,tenant,actor){
  const authorization=await access(conn,tenant,actor,{permission:'treasury.review'});
- const observations=await models(conn).observation.find({tenantId:authorization.tenant._id,status:'pending_review',requestedBy:{$ne:authorization.actor.id},...scope(authorization.actor)}).sort({createdAt:1}).limit(101).lean();
- const accountIds=observations.map(row=>row.accountId),accounts=await models(conn).account.find({_id:{$in:accountIds}}).lean(),byId=new Map(accounts.filter(account=>canSee(account,authorization)&&String(account.operatorId||'')!==authorization.actor.id).map(account=>[String(account._id),account]));
- return observations.filter(row=>byId.has(String(row.accountId))).slice(0,100).map(row=>({...row,account:byId.get(String(row.accountId))}));
+ const {observation,adjustment,account}=models(conn);
+ const pending={tenantId:authorization.tenant._id,status:'pending_review',requestedBy:{$ne:authorization.actor.id},...scope(authorization.actor)};
+ const [observations,adjustments]=await Promise.all([observation,adjustment].map(Model=>Model.find(pending).sort({createdAt:1,_id:1}).limit(100).lean()));
+ const accountIds=[...observations,...adjustments].map(row=>row.accountId);
+ const accounts=await account.find({_id:{$in:accountIds}}).lean();
+ const byId=new Map(accounts.filter(row=>row.status!=='archived'&&canSee(row,authorization)&&String(row.operatorId||'')!==authorization.actor.id).map(row=>[String(row._id),row]));
+ const visible=rows=>rows.filter(row=>byId.has(String(row.accountId))).map(row=>({...row,account:byId.get(String(row.accountId))}));
+ return {observations:visible(observations),adjustments:visible(adjustments)};
 }
 async function requestAdjustment(conn,tenant,actor,observationId,input){
  await ensure(conn);return transaction(conn,async session=>{

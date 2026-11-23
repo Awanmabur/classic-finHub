@@ -4,7 +4,8 @@ const assert=require('node:assert/strict');
 const ejs=require('ejs');
 const path=require('node:path');
 const branch={_id:'507f1f77bcf86cd799439011',name:'Nairobi Main',currency:'KES',currencies:['KES'],status:'active'};
-const data={currencyChoices:require('../src/tenant/services/branchCurrency.service').options(branch),branches:[branch],selectedBranchId:String(branch._id),canRecord:true,canOpen:true,canCreate:true,
+const currencyChoices=require('../src/tenant/services/branchCurrency.service').options(branch);
+const data={currencyChoices,currencyOptions:currencyChoices,selectedCurrency:'KES',branches:[branch],selectedBranchId:String(branch._id),canRecord:true,canOpen:true,canCreate:true,
  canManage:true,canPropose:true,canQuote:true,canSubmit:true,canReview:false,canRateReview:false,
  canQuoteReview:false,canDecide:()=>false,summary:{total:0,recent:[],summaries:[]},records:{items:[]},
  shifts:{items:[]},contacts:[],references:[],institutions:[],policies:[],reviewQueue:[],voidQueue:[],
@@ -19,7 +20,10 @@ test('operational forms show the account branch and never submit a branch select
  for(const file of files){
   const html=await render(file);
   assert.doesNotMatch(html,/<(?:select|input)\b[^>]*name="branchId"/,file);
-  assert.match(html,/Operating at <strong>Nairobi Main<\/strong> · KSH/,file);
+  if(file==='mobile-money/shifts'){
+   assert.match(html,/<span>Nairobi Main · KSH<\/span>/);
+   assert.match(html,/<input type="hidden" name="currency" value="KES"/);
+  }else assert.match(html,/Operating at <strong>Nairobi Main<\/strong> · KSH/,file);
   if(file==='mobile-money/index'){
    const currency=html.match(/<select\b[^>]*name="currency"[^>]*>([\s\S]*?)<\/select>/);
    assert(currency,'Approved currency control must be present');
@@ -36,7 +40,7 @@ test('operational forms show the account branch and never submit a branch select
 
 test('ambiguous owner branch context cannot be replaced by a selected branch from page data',async()=>{
  const multiple=[branch,{...branch,_id:'507f1f77bcf86cd799439099',name:'Other Branch'}];
- const actions=['/tenant/mobile-money/cash-in','/tenant/mobile-money/shifts/open','/tenant/money-transfer/requests',
+ const actions=['/tenant/mobile-money/cash-in','/tenant/day/open','/tenant/money-transfer/requests',
   '/tenant/money-transfer/contacts','/tenant/banking/requests','/tenant/banking/accounts','/tenant/forex/rates',
   '/tenant/forex/quotes','/tenant/approvals/requests'];
  for(const file of files){

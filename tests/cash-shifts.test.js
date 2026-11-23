@@ -67,9 +67,15 @@ test('cash shift views have real server-backed actions and escape notes',async()
   submittedAt:new Date(),expectedClosingMinor:'10000',declaredClosingMinor:'9000',varianceMinor:'-1000',
   reviewNote:'<script>alert(1)</script>',closeHistory:[{at:new Date(),declaredMinor:'9000',expectedMinor:'10000',varianceMinor:'-1000',note:'Cash short during shift'}]};
  const base=path.join(__dirname,'../src/views/tenant/mobile-money');
- const rendered=await ejs.renderFile(path.join(base,'shifts.ejs'),{formatMoneyMinor:mobile.formatMoneyMinor,data:{shifts:{items:[item],nextCursor:'a-valid-token'},canOpen:true,
-  canReview:true,branches:[{_id:branchId,currency:'UGX',name:'Main',status:'active'}]},user:{role:'Tenant Owner',branchId},csrfToken:'csrf'});
- assert.match(rendered,/action="\/tenant\/day\/open"/);assert.match(rendered,/href="\/tenant\/cash\/shifts\?cursor=/);assert.match(rendered,/Next page/);assert.match(rendered,/name="_csrf" value="csrf"/);
+ const branch={_id:branchId,currency:'UGX',name:'Main',status:'active'};
+ const rendered=await ejs.renderFile(path.join(base,'shifts.ejs'),{
+  formatMoneyMinor:mobile.formatMoneyMinor,formatUtcDate:require('../src/utils/view').formatUtcDate,operationBranch:branch,
+  user:{role:'Tenant Owner',branchId},csrfToken:'csrf',
+  data:{shifts:{items:[item],nextCursor:'a-valid-token'},canOpen:true,canReview:true,reviewQueue:[],showHistory:true,
+   branchNames:{[branchId]:branch.name},operatorNames:{[operatorId]:'Operator'},selectedCurrency:'UGX',
+   currencyOptions:require('../src/tenant/services/branchCurrency.service').options(branch)}
+ });
+ assert.match(rendered,/action="\/tenant\/day\/open"/);assert.match(rendered,/href="\/tenant\/cash\/shifts\?cursor=/);assert.match(rendered,/Older shifts/);assert.match(rendered,/name="_csrf" value="csrf"/);
  const detail=await ejs.renderFile(path.join(base,'shift-detail.ejs'),{formatMoneyMinor:mobile.formatMoneyMinor,data:{shift:item,canSubmit:false,canReview:true},csrfToken:'csrf'});
  assert.match(detail,/name="decision" value="approve"/);assert.doesNotMatch(detail,/<script>/);assert.match(detail,/&lt;script&gt;/);
  const noActions=await ejs.renderFile(path.join(base,'shift-detail.ejs'),{formatMoneyMinor:mobile.formatMoneyMinor,data:{shift:item,canSubmit:false,canReview:false},csrfToken:'csrf'});
@@ -117,7 +123,7 @@ test('opening review and report control forms render only for explicitly permitt
  const variance=await ejs.renderFile(f,{formatMoneyMinor:mobile.formatMoneyMinor,data:{shift:{...item,status:'submitted',submittedAt:new Date(),declaredClosingMinor:'9000',expectedClosingMinor:'10000',varianceMinor:'-1000'},
    canReviewOpening:false,canSubmit:false,canReview:true,canApprove:false},csrfToken:'proof'});
  assert.doesNotMatch(variance,/name="decision" value="approve"/);
- assert.match(variance,/Tenant Owner or Reconciliation Officer approval/);
+ assert.match(variance,/approval from a Tenant Owner or Reconciliation Officer/);
 });
 
 test('cash close computes exact minor-unit variances for matched, short and excess counts',async()=>{

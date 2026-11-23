@@ -8,11 +8,14 @@ function query(rows,calls){return filter=>{const call={filter};calls.push(call);
 test('overview reads bounded recent rows without building reports, summaries or review queues',async t=>{
  const tenant=entitledTenant({plan:'enterprise'}),actor={id:account,role:'Tenant Owner',permissions:['*'],branchId:branch,viewBranchId:branch};
  const calls=[],conn={models:Object.fromEntries(['SecureMobileTransaction','BankingRequestV1','ForexQuoteV1','TransferOrderV1'].map(name=>[name,{find:query([],calls)}]))};
- t.mock.method(snapshots,'snapshot',async()=>({todayVolumes:{money_transfer:{amountMinor:'123',formatted:'UGX 123'}},cash:[{currency:'UGX',expectedFormatted:'UGX 50'}]}));
+ t.mock.method(snapshots,'snapshot',async(_conn,_tenant,_actor,_flags,_branch,options)=>{
+  assert.equal(options.includeTotals,false);
+  return {cashDay:{status:'open',currency:'UGX',branchName:'Main'}};
+ });
  for(const [name,method]of[['mobileMoney.service','getSummary'],['banking.service','list'],['forex.service','listQuotes'],['moneyTransfer.service','list'],['approvals.service','list'],['operationsReports.service','generate']])t.mock.method(require('../src/tenant/services/'+name),method,()=>assert.fail('Unrendered data must not block overview'));
  const data=await overview(conn,tenant,actor,{operationBranch:{_id:branch,currency:'UGX'}});
  assert.equal(calls.length,4);assert(calls.every(call=>call.limit===14&&call.fields&&call.order.createdAt===-1));
- assert.equal(data.workspaceSnapshot.todayVolumes.money_transfer.amountMinor,'123');assert.equal(data.workspaceSnapshot.cash[0].expectedFormatted,'UGX 50');
+ assert.deepEqual(data.workspaceSnapshot.cashDay,{status:'open',currency:'UGX',branchName:'Main'});
  assert.equal(data.workspaceSnapshot.recentActivity.length,0);
 });
 test('transfer recent activity preserves incoming paid transfer scope and minimizes party fields',async()=>{

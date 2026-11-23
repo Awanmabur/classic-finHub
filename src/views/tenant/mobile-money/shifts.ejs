@@ -1,34 +1,90 @@
-<% const cashLabel=(value,currency)=>typeof formatMoneyMinor==='function'?formatMoneyMinor(value,currency):money(currency,amountFromMinor(value,currency)); %>
-<% const currentBranch = typeof operationBranch !== 'undefined' ? operationBranch : (data.branches || []).find(b => String(b._id) === String(user.transactionBranchId || user.branchId || data.selectedBranchId || '') && b.status !== 'archived');
-   const currentBranchId = currentBranch ? String(currentBranch._id) : null;
-   const branchProblem = typeof operationBranchError === 'string' && operationBranchError ? operationBranchError : 'An active operating branch must be assigned to your account before creating records.'; %>
+<%
+  const cashLabel = (value, currency) => typeof formatMoneyMinor === 'function'
+    ? formatMoneyMinor(value, currency) : money(currency, amountFromMinor(value, currency));
+  const labels = {
+    pending_open: 'Opening count awaiting review', open: 'Open', submitted: 'Closing count awaiting review',
+    disputed: 'Closing count needs correction', approved: 'Closed', opening_rejected: 'Opening count rejected'
+  };
+  const currentBranch = typeof operationBranch === 'undefined' ? null : operationBranch;
+  const branchProblem = typeof operationBranchError === 'string' && operationBranchError
+    ? operationBranchError : 'An active operating branch must be assigned to your account.';
+  const active = data.currentShift;
+  const selected = data.selectedCurrency;
+  const currencyText = data.currencyOptions.find(option => option.code === selected)?.label || selected;
+  const nextHistory = new URLSearchParams({cursor:data.shifts.nextCursor || ''});
+  if(selected) nextHistory.set('currency', selected);
+%>
 <section class="view show">
- <%- include('../../partials/operation-branch', {currentBranch, branchProblem, user}) %>
-  <section class="card">
-    <div class="cardHead"><b>Physical cash reconciliation</b><span>Per operator · branch · currency</span></div>
-    <div class="cardBody">
-      <p class="tiny">An independent supervisor verifies the opening count. The expected drawer includes posted cash movements from mobile money, banking, forex, transfers and expenses, including explicitly collected cash fees. Compare it with the physical count before closing.</p>
-      <% if(data.canOpen && currentBranch){ %>
-      <form method="post" action="/tenant/day/open" data-cash-open-form>
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <% if(data.canOpen){ %>
+    <section class="card">
+      <div class="cardHead">
+        <div><b>Your cash drawer</b><% if(currentBranch){ %><br><span><%= currentBranch.name %> · <%= currencyText %></span><% } %></div>
+        <% if(currentBranch){ %><span class="tag"><%= labels[active?.status] || 'Closed' %></span><% } %>
+      </div>
+      <div class="cardBody">
+        <% if(!currentBranch){ %>
+          <%- include('../../partials/operation-branch', {currentBranch, branchProblem, user}) %>
+        <% } else if(!active && data.currencyOptions.some(option => option.code === selected)){ %>
+          <form method="post" action="/tenant/day/open" data-cash-open-form>
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <input type="hidden" name="currency" value="<%= selected %>">
+            <label class="field">Counted opening cash<input class="control" name="openingCash" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" required placeholder="0"></label>
+            <p class="tiny">A second staff member verifies your count before the drawer opens.</p>
+            <div class="rowBtns"><button class="btn btnPrimary" type="submit">Send opening count</button></div>
+          </form>
+        <% } else if(active?.status === 'open' || active?.status === 'disputed'){ %>
+          <% if(active.status === 'disputed' && active.reviewNote){ %><p>Reviewer’s note: <%= active.reviewNote %></p><% } %>
+          <%- include('../workflow/_close-count', {shift:active, expected:data.expected, returnToDay:true}) %>
+        <% } else if(active){ %>
+          <p><%= active.status === 'pending_open' ? 'Opening cash counted' : 'Closing cash counted' %> <strong><%= cashLabel(active.status === 'pending_open' ? active.openingMinor : active.declaredClosingMinor, active.currency) %></strong></p>
+        <% } else { %>
+          <p>Choose an enabled operating currency for this branch.</p>
+        <% } %>
+      </div>
+    </section>
+  <% } %>
 
-        <div class="formSection"><div class="formSectionTitle">Opening drawer by currency</div><div class="row2"><label class="field">Currency<select class="control" name="currency" required><% (data.currencyOptions||((typeof currencyOptions!=='undefined'?currencyOptions:[{code:'UGX',label:'UGX'},{code:'USD',label:'USD'},{code:'SSP',label:'SSP'},{code:'KES',label:'KSH'}]).filter(option=>(currentBranch.currencies||['UGX','USD','SSP','KES']).includes(option.code)))).forEach(option=>{ %><option value="<%= option.code %>" <%= option.code===(data.selectedCurrency||currentBranch.currency)?'selected':'' %>><%= option.label %></option><% }) %></select></label><label class="field">Counted opening cash<input class="control" name="openingCash" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" required placeholder="0"></label></div></div>
-        <div class="rowBtns"><button class="btn btnPrimary" type="submit">Open day with these balances</button></div>
-      </form>
-      <% } %>
+  <% if(data.canReview){ %>
+    <section class="card" <%- data.canOpen ? 'style="margin-top:14px"' : '' %>>
+      <div class="cardHead"><b>Counts to review</b></div>
+      <div class="cardBody">
+        <% if(!data.reviewQueue.length){ %><p>No cash counts are waiting for your review.</p><% } %>
+        <% data.reviewQueue.forEach(shift => {
+          const isOpening = shift.status === 'pending_open';
+          const canApprove = isOpening || user.role !== 'Branch Manager' || String(shift.varianceMinor) === '0';
+        %>
+          <details style="margin-block:8px">
+            <summary><%= isOpening ? 'Opening' : 'Closing' %> · <%= data.operatorNames[String(shift.operatorId)] || 'Operator' %> · <%= data.branchNames[String(shift.branchId)] || 'Branch' %> · <%= typeof currencyLabel === 'function' ? currencyLabel(shift.currency) : shift.currency %></summary>
+            <p>Counted cash <strong><%= cashLabel(isOpening ? shift.openingMinor : shift.declaredClosingMinor, shift.currency) %></strong></p>
+            <% if(!isOpening){ %><p>Expected cash <strong><%= cashLabel(shift.expectedClosingMinor, shift.currency) %></strong> · Difference <strong><%= cashLabel(shift.varianceMinor, shift.currency) %></strong></p><% } %>
+            <%- include('../workflow/_review-count', {shift, isOpening, canApprove, returnToDay:true}) %>
+            <p><a href="/tenant/cash/shifts/<%= shift._id %>">Count details</a></p>
+          </details>
+        <% }) %>
+      </div>
+    </section>
+  <% } %>
+
+  <details class="card" style="margin-top:14px" <%- data.showHistory ? 'open' : '' %>>
+    <summary class="cardHead"><b>Cash shift history</b><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary>
+    <div class="cardBody tableWrap">
+      <table>
+        <thead><tr><th>Opened (UTC)</th><th>Branch</th><th>Operator</th><th>Status</th><th>Opening cash</th><th>Details</th></tr></thead>
+        <tbody>
+          <% if(!data.shifts.items.length){ %><tr><td colspan="6">No cash shifts to show.</td></tr><% } %>
+          <% data.shifts.items.forEach(shift => { %>
+            <tr data-search-row>
+              <td><%= formatUtcDate(shift.createdAt) %></td>
+              <td><%= data.branchNames[String(shift.branchId)] || 'Branch' %></td>
+              <td><%= data.operatorNames[String(shift.operatorId)] || 'Operator' %></td>
+              <td><%= labels[shift.status] || shift.status %></td>
+              <td><%= cashLabel(shift.openingMinor, shift.currency) %></td>
+              <td><a class="btn" href="/tenant/cash/shifts/<%= shift._id %>">View shift</a></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+      <% if(data.shifts.nextCursor){ %><p><a class="btn" href="/tenant/cash/shifts?<%= nextHistory.toString() %>">Older shifts</a></p><% } %>
     </div>
-  </section>
-  <section class="card" style="margin-top:14px">
-    <div class="cardHead"><b>Cash shift history</b><span>Chronological history, scoped to your access</span></div>
-    <div class="cardBody tableWrap"><table><thead><tr><th>Opened (UTC)</th><th>Branch</th><th>Operator</th><th>Status</th><th>Currency</th><th>Opening cash</th><th>Records</th><th>Details</th></tr></thead><tbody>
-      <% if(!data.shifts.items.length){ %><tr><td colspan="8">No cash shifts in your permitted scope.</td></tr><% } %>
-      <% data.shifts.items.forEach(shift=>{ %><tr data-search-row>
-        <td><%= new Date(shift.createdAt).toISOString() %></td><td><%= data.branchNames?.[String(shift.branchId)] || shift.branchId %></td><td><%= data.operatorNames?.[String(shift.operatorId)] || shift.operatorId %></td>
-        <td><span class="tag"><%= shift.status %></span></td><td><%= shift.currency %></td>
-        <td><%= cashLabel(shift.openingMinor,shift.currency) %></td><td><%= shift.recordCount %></td>
-        <td><a class="btn" href="/tenant/cash/shifts/<%= shift._id %>">View shift</a></td>
-      </tr><% }) %>
-    </tbody></table></div>
-    <% if(data.shifts.nextCursor){ %><div class="cardBody"><a class="btn" href="/tenant/cash/shifts?cursor=<%= encodeURIComponent(data.shifts.nextCursor) %>">Next page</a></div><% } %>
-  </section>
+  </details>
 </section>

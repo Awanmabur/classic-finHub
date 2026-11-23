@@ -38,7 +38,7 @@ function scope(actor){return ['Tenant Owner','Auditor'].includes(actor.role)?req
 function queryScope(actor){const s=scope(actor);return s.branchId?{branchId:oid(s.branchId)}:{};}
 async function prepare(conn){await Promise.all([models.ensureTenantIndexes(conn),directory.ensureIndexes(conn)]);}
 async function transaction(conn,run){const session=await conn.startSession();try{let result;await session.withTransaction(async()=>{result=await run(session);});return result;}finally{await session.endSession();}}
-async function audit(conn,session,actor,record,action){await models.auditEventModel(conn).create([{action,actorId:actor.id,targetId:record._id,metadata:{branchId:String(record.branchId),revision:record.revision||0}}],{session});}
+async function audit(conn,session,actor,record,action,extra={}){await models.auditEventModel(conn).create([{action,actorId:actor.id,targetId:record._id,metadata:{branchId:String(record.branchId),revision:record.revision||0,...extra}}],{session});}
 async function fenceBranch(conn,session,branchId){const branch=await models.branchModel(conn).findOneAndUpdate({_id:branchId,status:'active'},{$inc:{revision:1}},{session,new:true});if(!branch)throw v.fail('Your operating branch is unavailable',409);return branch;}
 function same(record,actor,branchId,value){return String(record.createdBy)===actor.id&&String(record.branchId)===String(branchId)&&Object.entries(value).every(([key,val])=>String(record[key]??'')===String(val??''));}
 async function customerCreate(conn,tenant,actor,input){
@@ -84,7 +84,14 @@ async function customerChoices(conn,tenant,actor,input={}){actor=await access(co
 async function accountCreate(conn,tenant,actor,input){
  actor=await access(conn,tenant,actor,'accounts','accounts.manage');const value=v.account(input),customerId=v.id(input.customerId),key=v.key(input.idempotencyKey);if(value.status==='closed')throw v.fail('A new account cannot start closed');
  const operatingBranch=await resolveTransactionBranch(conn,actor,input),branchId=String(operatingBranch._id),currency=branchCurrency.resolve(operatingBranch,input.currency);await prepare(conn);const Model=directory.accountModel(conn);
- const replay=async()=>{const record=await Model.findOne({idempotencyKey:key}).lean();if(!record)return null;if(!same(record,actor,branchId,{...value,customerId,currency})||(input.accountNumber&&record.accountNumber!==v.reference(input.accountNumber,'ACC')))throw v.fail('Creation reference was already used with different details',409);return {record,duplicate:true};};
+ const replay=async()=>{
+  const record=await Model.findOne({idempotencyKey:key}).select('+originalAccountNumber').lean();
+  if(!record)return null;
+  const numberAtCreation=record.originalAccountNumber||record.accountNumber;
+  if(!same(record,actor,branchId,{...value,customerId,currency})||(input.accountNumber&&numberAtCreation!==v.reference(input.accountNumber,'ACC')))throw v.fail('Creation reference was already used with different details',409);
+  delete record.originalAccountNumber;
+  return {record,duplicate:true};
+ };
  const prior=await replay();if(prior)return prior;
  try{return await transaction(conn,async session=>{const current=await fenceAccess(conn,session,tenant,actor,'accounts','accounts.manage');const branch=await fenceBranch(conn,session,branchId);
   const customer=await directory.customerModel(conn).findOneAndUpdate({_id:customerId,branchId,status:'active'},{$inc:{revision:1}},{session,new:true});if(!customer)throw v.fail('Choose an active customer in your operating branch',409);
@@ -103,15 +110,53 @@ async function balancesFor(conn,accounts){
   const row=rows.find(r=>String(r._id.account)===String(ledger._id)&&String(r._id.branch)===String(account.branchId)&&r._id.currency===account.currency);result.set(String(account._id),{available:true,minor:row?String(BigInt(String(row.credit))-BigInt(String(row.debit))):'0',postingCount:row?.postingCount||0});
  }return result;
 }
+async function unusedAccountNumber(conn,account,session=null){
+ const posting=models.ledgerPostingModel(conn).exists({accountId:account.ledgerAccountId});
+ const bankingRequest=models.bankingRequestModel(conn).exists({
+  branchId:account.branchId,$or:[
+   {'source.referenceType':'customer_account','source.referenceId':account._id},
+   {'destination.referenceType':'customer_account','destination.referenceId':account._id}
+  ]
+ });
+ if(session){
+  return !(await posting.session(session))&&!(await bankingRequest.session(session));
+ }
+ const [hasPosting,hasRequest]=await Promise.all([posting,bankingRequest]);
+ return !hasPosting&&!hasRequest;
+}
 async function accountUpdate(conn,tenant,actor,accountId,input){
  actor=await access(conn,tenant,actor,'accounts','accounts.manage');const value=v.account(input);await prepare(conn);
- return transaction(conn,async session=>{await fenceAccess(conn,session,tenant,actor,'accounts','accounts.manage');const record=await directory.accountModel(conn).findOne({_id:v.id(accountId),...scope(actor),revision:v.revision(input.revision)}).session(session);
-  if(!record)throw v.fail('Account was changed or is outside your branch. Reload before editing.',409);
-  if(input.customerId&&String(record.customerId)!==String(input.customerId)||input.accountNumber&&record.accountNumber!==input.accountNumber||input.currency&&record.currency!==input.currency)throw v.fail('Account owner, number and currency cannot be changed',409);
-  if(record.status==='closed')throw v.fail('Closed accounts cannot be changed',409);
-  if(value.status==='closed'){const rows=await models.ledgerPostingModel(conn).find({accountId:record.ledgerAccountId,branchId:record.branchId,currency:record.currency}).session(session).select('side amountMinor').lean();let sum=0n;for(const row of rows)sum+=(row.side==='credit'?1n:-1n)*BigInt(String(row.amountMinor));if(sum!==0n)throw v.fail('An account with a nonzero ledger balance cannot be closed',409);}
-  Object.assign(record,value,{updatedBy:actor.id,revision:record.revision+1});await record.save({session});await audit(conn,session,actor,record,'customer.account.updated');return record;
- });
+ try{
+  return await transaction(conn,async session=>{
+   await fenceAccess(conn,session,tenant,actor,'accounts','accounts.manage');
+   const record=await directory.accountModel(conn).findOne({_id:v.id(accountId),...scope(actor),revision:v.revision(input.revision)})
+    .select('+originalAccountNumber').session(session);
+   if(!record)throw v.fail('Account was changed or is outside your branch. Reload before editing.',409);
+   if((input.customerId&&String(record.customerId)!==String(input.customerId))||(input.currency&&record.currency!==input.currency))throw v.fail('Account owner and currency cannot be changed',409);
+   if(record.status==='closed')throw v.fail('Closed accounts cannot be changed',409);
+   const before=record.accountNumber;
+   const accountNumber=input.accountNumber&&input.accountNumber!==before?v.reference(input.accountNumber,'ACC'):before;
+   if(accountNumber!==before){
+    if(!await unusedAccountNumber(conn,record,session))throw v.fail('This account number is already in use on financial records',409);
+    record.originalAccountNumber=record.originalAccountNumber||before;
+    record.accountNumber=accountNumber;
+   }
+   if(value.status==='closed'){
+    const rows=await models.ledgerPostingModel(conn).find({accountId:record.ledgerAccountId,branchId:record.branchId,currency:record.currency}).session(session).select('side amountMinor').lean();
+    const balance=rows.reduce((sum,row)=>sum+(row.side==='credit'?1n:-1n)*BigInt(String(row.amountMinor)),0n);
+    if(balance!==0n)throw v.fail('An account with a nonzero ledger balance cannot be closed',409);
+   }
+   Object.assign(record,value,{updatedBy:actor.id,revision:record.revision+1});
+   await record.save({session});
+   await audit(conn,session,actor,record,'customer.account.updated',accountNumber!==before?{
+    numberCorrected:true,previousLast4:before.slice(-4),correctedLast4:accountNumber.slice(-4)
+   }:{});
+   return record;
+  });
+ }catch(error){
+  if(error.code===11000)throw v.fail('Account number is already in use',409);
+  throw error;
+ }
 }
 async function accountList(conn,tenant,actor,input={}){
  actor=await access(conn,tenant,actor,'accounts','accounts.view');await prepare(conn);const base={...scope(actor)},q=v.text(input.q||'','search',0,100);if(q)base.accountNumber=new RegExp('^'+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'i');
@@ -161,4 +206,4 @@ async function customerExport(conn,tenant,actor,input={}){
  return Model.find(filter).select(EXPORT_FIELDS.join(' ')).sort({_id:1}).limit(MAX_EXPORT_ROWS).maxTimeMS(10000).lean().cursor({batchSize:100});
 }
 function formatMinor(amount,currency){if(amount==null)return 'Unavailable';const n=String(amount),negative=n.startsWith('-'),digits=negative?n.slice(1):n,scale=currencyOptions.find(x=>x.code===currency)?.scale||0,padded=digits.padStart(scale+1,'0'),whole=scale?padded.slice(0,-scale):digits,fraction=scale?'.'+padded.slice(-scale):'';return `${currencyLabel(currency)} ${negative?'-':''}${whole.replace(/\B(?=(\d{3})+(?!\d))/g,',')}${fraction}`;}
-module.exports={access,scope,customerCreate,customerUpdate,customerArchive,customerList,customerDetail,customerChoices,accountCreate,accountUpdate,accountList,accountDetail,movements,logbook,balancesFor,customerExport,EXPORT_FIELDS,MAX_EXPORT_ROWS,formatMinor,prepare};
+module.exports={access,scope,customerCreate,customerUpdate,customerArchive,customerList,customerDetail,customerChoices,accountCreate,accountUpdate,accountList,accountDetail,unusedAccountNumber,movements,logbook,balancesFor,customerExport,EXPORT_FIELDS,MAX_EXPORT_ROWS,formatMinor,prepare};

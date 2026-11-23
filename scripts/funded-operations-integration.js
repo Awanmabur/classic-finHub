@@ -108,9 +108,53 @@ async function main(){
  for(const account of [cashFund,stock,clearing])await treasury.assertBookIntegrity(conn,null,await treasuryModels(conn).account.findById(account._id).lean());
  for(const currency of ['UGX','USD'])assert.equal((await ledger.trialBalance(conn,{branchId:String(branch._id),currency})).balanced,true);
  for(const journal of await core.ledgerJournalModel(conn).find({}).select('_id').lean())assert.equal((await ledger.inspectJournal(conn,journal._id)).valid,true);
+ const directDeposit=require('../src/tenant/customerAccounts/deposit');
+ const depositInput=requestData({cashAccountId:String(cashFund._id),amount:'12345',pricingMode:'configured',pricingPolicy:'default',fee:'9999'});
+ const customerAccount=await directory.accountDetail(conn,tenant,owner,accountA._id);
+ assert((await directDeposit.options(conn,tenant,owner,customerAccount)).some(account=>String(account._id)===depositInput.cashAccountId));
+ assert.deepEqual(await directDeposit.options(conn,tenant,reviewer,customerAccount),[]);
+ const requestsBefore=await core.bankingRequestModel(conn).countDocuments(),customerBefore=await customerBook(accountA),drawerBefore=await book(cashFund);
+ const bankingUsage=await Usage.findOne({tenantId:tenant._id,metric:'banking_requests'}).lean();
+ await assert.rejects(directDeposit.request(conn,tenant,owner,accountA._id,{...depositInput,pricingPolicy:'stale-policy'}),{status:409});
+ await assert.rejects(directDeposit.request(conn,tenant,owner,accountA._id,{...depositInput,evidenceReference:''}),{status:400});
+ assert.equal(await core.bankingRequestModel(conn).countDocuments(),requestsBefore,'invalid evidence rolls back the banking request');
+ assert.equal((await Usage.findById(bankingUsage._id)).quantity,bankingUsage.quantity,'invalid evidence rolls back the request quota reservation');
+ const directResults=await Promise.all([directDeposit.request(conn,tenant,owner,accountA._id,depositInput),directDeposit.request(conn,tenant,owner,accountA._id,depositInput)]);
+ assert.equal(directResults.filter(result=>result.duplicate).length,1);
+ const directExecution=directResults[0].execution;
+ assert.equal(String(directExecution._id),String(directResults[1].execution._id));
+ assert.equal(directExecution.status,'pending_review');
+ assert.equal(directExecution.sourceSnapshot.feeMinor,'0','the submitted display fee cannot override configured charges');
+ assert.equal((await funded.detail(conn,tenant,reviewer,directExecution._id)).receivingAccountName,cashFund.name);
+ assert.equal((await core.bankingRequestModel(conn).findById(directExecution.sourceId)).directDeposit,true);
+ assert(!(await banking.reviewQueue(conn,tenant,reviewer)).some(order=>String(order._id)===String(directExecution.sourceId)));
+ await assert.rejects(banking.decide(conn,tenant,reviewer,directExecution.sourceId,reviewData),{status:409});
+ await assert.rejects(banking.cancel(conn,tenant,owner,directExecution.sourceId,reviewData),{status:409});
+ await assert.rejects(funded.prepare(conn,tenant,owner,'banking',directExecution.sourceId),{status:409});
+ await banking.expireDue(conn,new Date(Date.now()+8*86400000));
+ assert.equal((await core.bankingRequestModel(conn).findById(directExecution.sourceId)).status,'requested');
+ assert.equal(await core.bankingRequestModel(conn).countDocuments(),requestsBefore+1);
+ assert.equal(await book(cashFund),drawerBefore);assert.equal(await customerBook(accountA),customerBefore);
+ await assert.rejects(directDeposit.request(conn,tenant,owner,accountA._id,{...depositInput,amount:'12346'}),{status:409});
+ await assert.rejects(cash.submit(conn,tenant,owner,shift._id,{countedCash:String(drawerBefore+12345n)}),error=>error.status===409&&/pending manual financial movements/.test(error.message));
+ await assert.rejects(funded.review(conn,tenant,owner,directExecution._id,reviewData),{status:403});
+ await funded.review(conn,tenant,reviewer,directExecution._id,reviewData);
+ assert.equal(await book(cashFund),drawerBefore+12345n);assert.equal(await customerBook(accountA),customerBefore+12345n);
+ assert.equal((await core.bankingRequestModel(conn).findById(directExecution.sourceId)).status,'posted_manual');
+ const returnedInput={...depositInput,idempotencyKey:crypto.randomUUID(),amount:'100'};
+ const returned=await directDeposit.request(conn,tenant,owner,accountA._id,returnedInput);
+ await funded.review(conn,tenant,reviewer,returned.execution._id,{decision:'reject',note:'Receipt amount needs correction before approval'});
+ const returnedSource=await core.bankingRequestModel(conn).findById(returned.execution.sourceId).lean();
+ assert.equal(returnedSource.status,'rejected');
+ assert.equal(String(returnedSource.reviewedBy),reviewer.id);
+ assert.equal((await directDeposit.request(conn,tenant,owner,accountA._id,returnedInput)).execution.status,'rejected');
+ assert.equal(await customerBook(accountA),customerBefore+12345n);
  const closing=await core.cashSessionModel(conn).findById(shift._id).lean();assert.equal(BigInt(String(closing.openingMinor))+BigInt(String(closing.provisionalMovementMinor)),await book(cashFund));
  await cash.submit(conn,tenant,owner,shift._id,{countedCash:String(await book(cashFund)),note:'Physical drawer count agrees with all independently posted manual module movements'});await cash.decide(conn,tenant,reviewer,shift._id,{decision:'approve',note:'Independent multi-module cash closing count matches the treasury book'});
  assert.equal((await core.cashSessionModel(conn).findById(shift._id)).status,'approved');
+ assert.equal(await customerBook(accountA),customerBefore+12345n,'closing the cash day does not spend or remove the customer balance');
+ assert((await directDeposit.request(conn,tenant,owner,accountA._id,depositInput)).duplicate,'an identical retry retains its completed deposit after cash day closes');
+ assert(!(await directDeposit.options(conn,tenant,owner,customerAccount)).some(account=>String(account._id)===depositInput.cashAccountId));
  // Every cash-handling module owns its own actual independently verified
  // drawer. An operator dashboard must never expose the branch-wide cash total.
  const workspace=require('../src/tenant/services/workspaceSnapshot.service');
@@ -138,7 +182,7 @@ async function main(){
  await cash.open(conn,tenant,pendingActor,{openingCash:'5000'});
  const pendingSnapshot=await workspace.snapshot(conn,tenant,pendingActor,emptyOverview,branch);assert.deepEqual(pendingSnapshot.cash,[]);assert.equal(pendingSnapshot.currentCashShift,null);assert.equal(pendingSnapshot.dayStatus,'PENDING');
  const logs=JSON.stringify(await core.auditEventModel(conn).find({}).lean());assert(!logs.includes(revealed.pin),'audit must never contain payout PIN');
- console.log('PASS: actual manual banking deposits/withdrawals/internal transfers, customer liability balances, FX stock/settlement/explicit fees, legacy same-branch transfer collection/payable/PIN once-only verification/payout, maker-checker, cash closing, ledger integrity, concurrency/idempotency, insufficient-fund rollback, privacy, revocation and role-scoped cash dashboard snapshots across all four operator modules.');
+ console.log('PASS: atomic direct deposits, actual manual banking deposits/withdrawals/internal transfers, customer liability balances, FX stock/settlement/explicit fees, legacy same-branch transfer collection/payable/PIN once-only verification/payout, maker-checker, cash closing, ledger integrity, concurrency/idempotency, insufficient-fund rollback, privacy, revocation and role-scoped cash dashboard snapshots across all four operator modules.');
 }
 async function cleanup(){if(mongoose.connection.readyState===1&&mongoose.connection.name===platformName&&/^cfh_funded_probe_[a-f0-9]{16}$/.test(platformName)){for(const connection of connections)await connection.db.dropDatabase();await mongoose.connection.db.dropDatabase();}await mongoose.disconnect();}
 main().catch(error=>{console.error('FUNDED OPERATIONS INTEGRATION FAILED:',error.stack||error.message);process.exitCode=1;}).finally(()=>cleanup().catch(error=>{console.error('Funded scratch cleanup failed:',error.message);process.exitCode=1;}));

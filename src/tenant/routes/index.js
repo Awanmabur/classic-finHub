@@ -57,7 +57,7 @@ router.get('/dashboard', requirePermission('dashboard.view'), async (req,res,nex
     // Indexes are prepared by provisioning and awaited by mutation services.
     // Reading an overview must not start collection/index DDL after a restart.
     const overview=await require('../services/dashboardOverview.service').overview(req.tenantDb,req.tenant,req.user,{operationBranch:req.operationBranch,currency:req.query.currency,viewBranch:req.viewBranch,viewBranchId:req.viewBranchId});
-    renderTenant(req,res,'dashboard/index','Overview','Money transfer, mobile money, banking, forex, tenants, roles, reports, analytics, and daily controls.',overview);
+    renderTenant(req,res,'dashboard/index','Today','Your daily work and recent activity.',overview);
   } catch(e) { next(e); }
 });
 router.get('/mobile-money', requireModule('mobile_money'), requirePermission('mobile_money.view'), async (req,res,next)=>{
@@ -118,17 +118,10 @@ router.post('/mobile-money/:id/decide-void',requireModule('mobile_money'),requir
 // Physical cash count shifts are internal operational evidence, not provider float.
 const cash=require('../services/cashDrawer.service');
 const financialThrottle=require('../../platform/services/actionThrottle.service').financial;
-router.get('/mobile-money/shifts',requireModule('mobile_money'),requirePermission('mobile_money.view'),async(req,res,next)=>{
-  try{
-    const [shifts,branches]=await Promise.all([cash.list(req.tenantDb,req.tenant,req.user,{cursor:req.query.cursor}),branchService.list(req.tenant)]);
-    const operators=await require('../models').tenantUserModel(req.tenantDb)
-      .find({_id:{$in:shifts.items.map(x=>x.operatorId)}}).select('_id name').lean();
-    const branchNames=Object.fromEntries(branches.map(x=>[String(x._id),x.name]));
-    const operatorNames=Object.fromEntries(operators.map(x=>[String(x._id),x.name]));
-    renderTenant(req,res,'mobile-money/shifts','Physical Cash Shifts','Operator cash counts and independent branch reconciliation; not electronic float or provider settlement.',
-      {shifts,branchNames,operatorNames,branches:branches.filter(b=>b.status==='active'&&(req.user.role==='Tenant Owner'||String(b._id)===String(req.user.branchId))),
-        canOpen:cash.opener(req.user),canReview:cash.reviewer(req.user)});
-  }catch(e){next(e);}
+router.get('/mobile-money/shifts',requireModule('mobile_money'),requirePermission('mobile_money.view'),(req,res)=>{
+  const params=new URLSearchParams();
+  for(const field of ['cursor','currency'])if(typeof req.query[field]==='string')params.set(field,req.query[field]);
+  res.redirect(303,'/tenant/cash/shifts'+(params.size?'?'+params:''));
 });
 router.post('/mobile-money/shifts/open',requireModule('mobile_money'),requirePermission('mobile_money.view'),financialThrottle,async(req,res,next)=>{
   try{const shift=await cash.open(req.tenantDb,req.tenant,req.user,req.body);

@@ -1,6 +1,5 @@
 'use strict';
-// The approved overview renders recent activity, today's posted volumes and
-// cash. Full reports and review queues are built on their own pages only.
+// The overview reads recent activity and cash-day state. Reports own volume totals.
 const {hasModuleForUser,hasPermission}=require('./moduleAccess.service');
 const snapshot=require('./workspaceSnapshot.service');
 function mobileScope(user){
@@ -18,7 +17,7 @@ async function overview(conn,tenant,user,options={}){
   hasBanking?require('./banking.service').recent(conn,tenant,user):[],
   hasForex?require('./forex.service').recent(conn,tenant,user):[],
   hasTransfer?require('./moneyTransfer.service').recent(conn,tenant,user):[],
-  snapshot.snapshot(conn,tenant,user,flags,options.operationBranch,options)
+  snapshot.snapshot(conn,tenant,user,flags,options.operationBranch,{...options,includeTotals:false})
  ]);
  const data={...flags,summary:{recent:mobileRows},bankingRecords:{items:bankingRows},forexRecords:{items:forexRows},transferRecords:{items:transferRows}};
  return {...data,workspaceSnapshot:{...workspaceSnapshot,...snapshot.activity(data)}};

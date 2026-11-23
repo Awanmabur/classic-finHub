@@ -1,1 +1,78 @@
-<% const r=data.record; %><section class="view show"><div class="rowBtns"><a class="btn" href="/tenant/accounts">Accounts directory</a><a class="btn" href="/tenant/accounts/movements?accountId=<%= r._id %>">Account movements</a><% if(data.canManageAccount&&r.status!=='closed'){ %><button type="button" class="btn btnPrimary" data-directory-open>Edit account</button><% } %></div><div class="grid" style="margin-top:14px"><section class="card"><div class="cardHead"><div><b><%= r.accountNumber %></b><br><span><%= r.type %> · <%= r.status %></span></div></div><div class="cardBody"><div class="stat"><div class="k">Internal ledger balance</div><div class="v"><%= data.formatMinor(r.balance?.minor,r.currency) %></div><div class="s"><span class="dot"></span><span><%= r.balance?.postingCount||0 %> ledger posting(s)</span></div></div><div class="summary"><% [['Customer',r.customer?.name],['Phone',r.customer?.phone],['Customer Ref',r.customer?.reference],['Account number',r.accountNumber],['Currency',r.currency],['Status',r.status]].forEach(([label,value])=>{ %><div class="sumRow"><span><%= label %></span><b><%= value||'—' %></b></div><% }) %></div></div></section><section class="card"><div class="cardHead"><b>Account intelligence</b></div><div class="cardBody"><div class="summary"><% [['Account officer',r.officer],['Purpose / source of funds',r.purpose],['KYC risk level',r.risk],['Overdraft limit','Unavailable']].forEach(([label,value])=>{ %><div class="sumRow"><span><%= label %></span><b><%= value||'—' %></b></div><% }) %></div><p class="tiny">Balances reflect posted internal journals in <%= r.currency %>. Directory changes do not move funds or grant a payment facility.</p></div></section></div><% if(data.canManageAccount&&r.status!=='closed'){ %><%- include('modal',{data,user}) %><% } %></section>
+<% const account=data.record, accountPath='/tenant/accounts/'+account._id;
+   const labels={cash:'Cash drawer',bank:'Bank account',wallet:'Mobile wallet'}; %>
+<section class="view show customerAccountView">
+  <section class="card">
+    <div class="cardHead">
+      <div><b><%= data.formatMinor(account.balance?.minor,account.currency) %></b><br><span>Posted balance · <%= account.type %> · <%= account.status %></span></div>
+      <div class="rowBtns">
+        <a class="btn" href="/tenant/accounts">All accounts</a>
+        <% if(data.canManageAccount&&account.status!=='closed'){ %><button type="button" class="btn" data-directory-open>Edit details</button><% } %>
+        <% if(data.canRecordDeposit){ %><a class="btn btnPrimary" href="<%= accountPath %>?action=deposit#deposit">Deposit</a><% } %>
+      </div>
+    </div>
+    <div class="cardBody">
+      <details class="logicNote">
+        <summary>Account details</summary>
+        <dl>
+          <% [['Phone',account.customer?.phone],['Customer reference',account.customer?.reference],['Account officer',account.officer],['Purpose',account.purpose],['Risk level',account.risk]].filter(([,value])=>value).forEach(([label,value])=>{ %>
+            <div class="sumRow"><dt><%= label %></dt><dd><%= value %></dd></div>
+          <% }) %>
+        </dl>
+        <% if(account.customer&&data.canViewCustomers){ %><a class="btn" href="/tenant/customers/<%= account.customerId %>">Open customer profile</a><% } %>
+      </details>
+    </div>
+  </section>
+
+  <% if(data.canRecordDeposit&&data.depositOpen){ %>
+    <section class="card" id="deposit">
+      <div class="cardHead"><div><b>Record a deposit</b><br><span>Use the account that actually received the money.</span></div><a class="btn" href="<%= accountPath %>">Cancel</a></div>
+      <div class="cardBody">
+        <% if(data.depositAccounts.length){ %>
+          <form method="post" action="<%= accountPath %>/deposits" data-currency="<%= account.currency %>">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
+            <div class="row2">
+              <label class="field">Deposit amount (<%= account.currency==='KES'?'KSH':account.currency %>)
+                <input class="control" name="amount" inputmode="decimal" required pattern="<%= account.currency==='UGX'?'[0-9]+':'[0-9]+([.][0-9]{1,2})?' %>">
+              </label>
+              <label class="field">Money received in
+                <select class="control" name="cashAccountId" required>
+                  <% if(data.depositAccounts.length>1){ %><option value="">Choose an account</option><% } %>
+                  <% data.depositAccounts.forEach(option=>{ %><option value="<%= option._id %>"><%= option.name %> · <%= labels[option.kind] %></option><% }) %>
+                </select>
+              </label>
+              <label class="field">Receipt or statement reference
+                <input class="control" name="evidenceReference" minlength="5" maxlength="120" required>
+              </label>
+              <label class="field">Deposit note
+                <input class="control" name="note" minlength="12" maxlength="400" required placeholder="Where and how the money was received">
+              </label>
+            </div>
+            <%- include('../partials/operation-pricing',{pricingOperation:'banking.deposit',pricingField:'fee',pricingCurrencyOverride:account.currency,currentBranchId:data.operatingBranchId,showDepositTotal:true}) %>
+            <div class="rowBtns"><button class="btn btnPrimary" type="submit">Send for approval</button></div>
+          </form>
+        <% }else{ %>
+          <p>There’s no eligible account to receive this deposit. Open your cash day or check the business account’s balance and setup.</p>
+          <div class="rowBtns"><a class="btn" href="/tenant/cash/shifts?currency=<%= account.currency %>">Cash day</a><a class="btn" href="/tenant/treasury?currency=<%= account.currency %>">Business funds</a></div>
+        <% } %>
+      </div>
+    </section>
+  <% } %>
+
+  <section class="card" id="activity">
+    <div class="cardHead"><b>Account activity</b></div>
+    <div class="cardBody">
+      <% if(data.deposits.length){ %>
+        <h3>Deposits awaiting approval or returned</h3>
+        <ul>
+          <% data.deposits.forEach(deposit=>{ %>
+            <li><a href="/tenant/funded/<%= deposit._id %>"><%= deposit.sourceReference %></a> · <%= data.formatMinor(deposit.sourceSnapshot.amountMinor,account.currency) %> · <%= deposit.status==='pending_review'?'Awaiting approval':'Returned' %>
+            <% if(deposit.status==='rejected'&&deposit.reviewNote){ %><br><%= deposit.reviewNote %><% } %></li>
+          <% }) %>
+        </ul>
+      <% } %>
+      <%- include('_activity',{records:data.activity,formatMinor:data.formatMinor,showAccount:false}) %>
+    </div>
+  </section>
+  <% if(data.canManageAccount&&account.status!=='closed'){ %><%- include('modal',{data,user}) %><% } %>
+</section>

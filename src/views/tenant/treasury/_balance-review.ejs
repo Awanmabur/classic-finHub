@@ -1,0 +1,22 @@
+<%
+  const fmt=value=>value===null||value===undefined?'—':data.format(value,account.currency);
+  const title=isAdjustment?'Balance correction':row.kind==='opening'?'Opening balance':'Balance check';
+  const status={pending_review:'Awaiting approval',approved:'Approved',rejected:'Rejected'}[row.status];
+%>
+<article class="treasuryPending">
+  <h3><%= title %><% if (accountLink) { %> · <a class="treasuryAccountLink" href="/tenant/treasury/accounts/<%= account._id %>#money-review"><%= account.name %></a><% } %></h3>
+  <div class="treasurySource"><b><%= fmt(isAdjustment?row.deltaMinor:row.actualMinor) %></b> · <%= status %></div>
+  <% if (!isAdjustment) { %>
+    <div class="treasurySource">Recorded balance at check <b><%= fmt(row.expectedMinorAtReview??row.expectedMinorAtRequest) %></b> · Difference <b><%= fmt(row.varianceMinorAtReview??row.varianceMinorAtRequest) %></b></div>
+    <div class="treasurySource"><%= row.evidenceType.replaceAll('_',' ') %> · <%= row.evidenceReference %> · <%= new Date(row.observedAt).toISOString() %></div>
+  <% } %>
+  <p><%= isAdjustment?row.reason:row.note %></p>
+  <% if (row.reviewNote) { %><p class="tiny">Review: <%= row.reviewNote %></p><% } %>
+  <% if (allowReview) { %>
+    <form class="workspaceStack" method="post" action="/tenant/treasury/<%= isAdjustment?'adjustments':'observations' %>/<%= row._id %>/review">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label class="field">Review note<textarea class="control" name="note" minlength="<%= isAdjustment?20:12 %>" maxlength="400" required rows="2"></textarea></label>
+      <div class="rowBtns"><button class="btn btnPrimary" name="decision" value="approve">Approve</button><button class="btn" name="decision" value="reject">Reject</button></div>
+    </form>
+  <% } %>
+</article>

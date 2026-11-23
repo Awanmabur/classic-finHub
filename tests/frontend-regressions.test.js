@@ -126,18 +126,19 @@ function overview(role, permissions, paths, data) {
   });
 }
 
-test('overview restores approved snapshot cards and quick actions using real authorized module data', async () => {
-  const html = await overview('Tenant Owner', ['*'], ['/tenant/money-transfer', '/tenant/mobile-money', '/tenant/banking', '/tenant/forex', '/tenant/reports', '/tenant/treasury'], {
-    hasTransfer: true, transferRecords: {items: []}, hasMobileMoney: true, summary: {total: 23, awaitingReview: 2, recent: [], summaries: []},
-    hasBanking: true, bankingRecords: {items: []}, hasForex: true, forexRecords: {items: []},
-    workspaceSnapshot:{todayVolumes:{money_transfer:{formatted:'UGX 41,000'},mobile_money:{formatted:'UGX 230,000'},banking:{formatted:'UGX 75,000'},forex:{formatted:'UGX 32,000'}}}
+test('overview keeps recent activity and a single cash-day action without volume cards', async () => {
+  const recentActivity=Array.from({length:8},(_,index)=>({href:'/tenant/mobile-money/record-'+index,label:'Activity '+index}));
+  const html = await overview('Tenant Owner', ['*'], ['/tenant/money-transfer', '/tenant/mobile-money', '/tenant/banking', '/tenant/forex', '/tenant/reports', '/tenant/cash/shifts'], {
+    workspaceSnapshot:{
+      cashDay:{status:'open',currency:'UGX',branchName:'Main'},
+      recentActivity,
+      todayVolumes:{money_transfer:{formatted:'UGX 41,000'}}
+    }
   });
-  assert.match(html, /Today snapshot/);
-  for (const label of ['Money transfer volume', 'Mobile money volume', 'Banking volume', 'Forex volume', 'New money transfer', 'New mobile money', 'New banking', 'New forex', 'View reports', 'Cash drawer by currency']) assert(html.includes(label), label);
-  for(const [id,value] of [['ovTransfer','UGX 41,000'],['ovMobile','UGX 230,000'],['ovBanking','UGX 75,000'],['ovForex','UGX 32,000']])assert(html.includes(`class="v" id="${id}">${value}</div>`));
-  assert.doesNotMatch(html, /Load demo|id="branchSelect"|class="v">23<\/div>/);
-  assert.match(html,/href="\/tenant\/money-transfer\/send" data-transaction-kind="transfer"/);
-  assert.match(html,/href="\/tenant\/banking\/deposit" data-transaction-kind="banking_deposit"/);
+  assert.match(html,/Recent activity/);
+  assert.match(html,/href="\/tenant\/cash\/shifts\?currency=UGX">Close day/);
+  assert.equal((html.match(/href="\/tenant\/mobile-money\/record-\d+"/g)||[]).length,6);
+  assert.doesNotMatch(html,/Today snapshot|Money transfer volume|UGX 41,000|Cash drawer by currency|Load demo|id="branchSelect"/);
 });
 
 test('read-only overview never offers write actions or links to unassigned modules', async () => {

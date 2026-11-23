@@ -81,6 +81,17 @@
       const outcome=await response(result);
       if(result.ok&&outcome.redirect){if(outcome.flash?.type==='bad'){show(outcome.flash.message,'bad',{form});return;}location.assign(outcome.redirect);return;}
       if(result.redirected&&result.ok&&new URL(result.url).origin===location.origin){location.assign(result.url);return;}
+      if(result.status===404){
+        // Show the actual failed action (not a generic 'Page not found').
+        // Strip private record IDs; only the request reference is needed to
+        // match the origin/proxy logs without replaying a financial POST.
+        const safePath=action.pathname.replace(/\\/[a-f0-9]{24}(?=\\/|$)/gi,'/:record').slice(0,180);
+        const ref=result.headers.get('X-Request-ID');
+        const reference=/^[a-f0-9-]{36}$/i.test(ref||'')?' Reference: '+ref+'.':'';
+        show('Action unavailable (HTTP 404): POST '+safePath+'.'+reference+
+          ' Check the account history before submitting again.','bad',{form});
+        return;
+      }
       show(outcome.message||'The action could not be completed.','bad',{form});
     }catch{show('The connection was interrupted. Your form is still here. Check whether the action completed before trying again.','bad',{form});}
     finally{restore();}

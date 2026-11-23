@@ -458,6 +458,55 @@ async function main(){
  }finally{
   await new Promise(resolve=>listener.close(resolve));
  }
+ // First opening correction must append one balanced journal, preserve
+ // original opening, and reject staff, reuse and post-transaction tampering.
+ const typoBank=await treasury.createAccount(conn,tenant,owner,{
+  name:'Unused opening typo correction bank',kind:'bank',currency:'UGX',isDefault:false
+ });
+ await treasury.confirmOwnerOpening(conn,tenant,owner,typoBank._id,{
+  actualBalance:'100',idempotencyKey:crypto.randomUUID()
+ });
+ const beforeFixJournals=await core.ledgerJournalModel(conn).countDocuments();
+ const correctionKey=crypto.randomUUID();
+ await assert.rejects(treasury.correctUnusedOpening(conn,tenant,operator,typoBank._id,{
+  correctedBalance:'40',confirmed:'on',idempotencyKey:crypto.randomUUID()
+ }),e=>e.status===403);
+ await assert.rejects(treasury.correctUnusedOpening(conn,tenant,owner,typoBank._id,{
+  correctedBalance:'40',idempotencyKey:crypto.randomUUID()
+ }),e=>e.status===403);
+ const fixed=await treasury.correctUnusedOpening(conn,tenant,owner,typoBank._id,{
+  correctedBalance:'40',confirmed:'on',idempotencyKey:correctionKey
+ });
+ assert.equal(fixed.duplicate,false);
+ const actual=await book.models(conn).account.findById(typoBank._id).lean();
+ assert.equal(String(actual.openingBalanceMinor),'100','The old opening is immutable');
+ assert.equal(String(actual.bookBalanceMinor),'40');
+ assert.equal(actual.reconciliationState,'matched');
+ assert.equal(actual.status,'active');
+ assert.equal(Number(actual.sequence),1);
+ assert.equal(await core.ledgerJournalModel(conn).countDocuments(),beforeFixJournals+1);
+ assert.equal((await treasury.correctUnusedOpening(conn,tenant,owner,typoBank._id,{
+  correctedBalance:'40',confirmed:'on',idempotencyKey:correctionKey
+ })).duplicate,true);
+ await assert.rejects(treasury.correctUnusedOpening(conn,tenant,owner,typoBank._id,{
+  correctedBalance:'45',confirmed:'on',idempotencyKey:crypto.randomUUID()
+ }),e=>e.status===409,'Once posted, further corrections require reconciliation');
+ assert.equal(String((await book.models(conn).movement.findOne({accountId:typoBank._id})).deltaMinor),'-60');
+ assert.equal((await ledger.trialBalance(conn,{branchId:String(branch._id),currency:'UGX'})).balanced,true);
+ const heldTypo=await treasury.createAccount(conn,tenant,owner,{
+  name:'Unused Held bank opening typo',kind:'bank',currency:'UGX',isDefault:false
+ });
+ await treasury.confirmOwnerOpening(conn,tenant,owner,heldTypo._id,{
+  actualBalance:'50',idempotencyKey:crypto.randomUUID()
+ });
+ assert.equal((await treasury.recordOwnerBalanceCheck(conn,tenant,owner,heldTypo._id,{
+  actualBalance:'35',idempotencyKey:crypto.randomUUID()
+ })).matched,false);
+ assert.equal((await book.models(conn).account.findById(heldTypo._id)).status,'held');
+ await treasury.correctUnusedOpening(conn,tenant,owner,heldTypo._id,{
+  correctedBalance:'35',confirmed:'on',idempotencyKey:crypto.randomUUID()
+ });
+ assert.equal((await book.models(conn).account.findById(heldTypo._id)).status,'active');
  await Tenant.updateOne({_id:tenant._id},{$set:{enabledModules:[]},$inc:{__v:1}});await assert.rejects(treasury.balanceSnapshot(conn,tenant,owner),e=>e.status===403);
  console.log('PASS: Treasury real independent opening evidence, exact posted funds and cash, balanced journals, idempotency, insufficient-float and mismatch holds, dated checkpoints, explicit suspense adjustments, late-entry invalidation, historical-maker correction, concurrent balance guards, audit rollback, append-only history, live revocation and tenant isolation.');
 }

@@ -49,8 +49,9 @@ test('valid CSRF is verified and removed before strict financial business valida
  const values={_csrf:token,actualBalance:'123.45',idempotencyKey:'12345678-1234-4123-8123-123456789abc'};
  const headers={cookie,'content-type':'application/x-www-form-urlencoded'};
  const valid=await fetch(action,{method:'POST',headers,body:new URLSearchParams(values)});
- assert.equal(valid.status,200,await valid.text());
- assert.deepEqual((await valid.json()).keys.sort(),['actualBalance','idempotencyKey']);
+ const validBody=await valid.text();
+ assert.equal(valid.status,200,validBody);
+ assert.deepEqual(JSON.parse(validBody).keys.sort(),['actualBalance','idempotencyKey']);
  const invalid=await fetch(action,{method:'POST',headers,
   body:new URLSearchParams({...values,_csrf:'invalid-token'})});
  assert.equal(invalid.status,403);

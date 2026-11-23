@@ -1,0 +1,68 @@
+name: Owner money account and cash shift checks
+on:
+  push:
+    branches:
+      - fix/owner-two-click-money-account-cash-day-20261123
+  pull_request:
+    paths:
+      - 'src/tenant/**'
+      - 'src/views/tenant/**'
+      - 'src/views/layouts/dashboard.ejs'
+      - 'src/views/partials/transaction-modal.ejs'
+      - 'src/services/menu.service.js'
+      - 'public/js/dashboard.js'
+      - 'scripts/treasury-integration.js'
+      - 'tests/**'
+      - '.github/workflows/owner-money-accounts.yml'
+permissions:
+  contents: read
+jobs:
+  unit-and-treasury:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install pinned test dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: All source and UI regression tests
+        run: npm test
+        env:
+          NODE_ENV: test
+          SESSION_SECRET: isolated-github-unit-tests-not-production
+      - name: Start disposable local MongoDB replica set
+        run: |
+          docker run -d --name classicfin-ci-money-mongo \
+            -p 127.0.0.1:27018:27018 \
+            mongo:8.0 mongod --replSet rs0 --bind_ip_all --port 27018
+          for i in $(seq 1 45); do
+            if docker exec classicfin-ci-money-mongo mongosh --quiet --port 27018 \
+              --eval 'if(db.adminCommand({ping:1}).ok!==1)quit(2)' >/dev/null 2>&1; then
+              break
+            fi
+            sleep 2
+          done
+          docker exec classicfin-ci-money-mongo mongosh --quiet --port 27018 \
+            --eval 'const r=rs.initiate({_id:"rs0",members:[{_id:0,host:"127.0.0.1:27018"}]});if(r.ok!==1)quit(2)'
+          ready=0
+          for i in $(seq 1 40); do
+            if docker exec classicfin-ci-money-mongo mongosh --quiet --port 27018 \
+              --eval 'if(!db.hello().isWritablePrimary)quit(2)' >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          test "$ready" = 1
+      - name: Full audited Treasury integration on disposable database
+        env:
+          NODE_ENV: test
+          MONGO_PLATFORM_URI: mongodb://127.0.0.1:27018/classicfin_platform_db?replicaSet=rs0&directConnection=true
+          SESSION_SECRET: isolated-github-treasury-tests-not-production
+        run: node scripts/treasury-integration.js
+      - name: Remove disposable MongoDB
+        if: always()
+        run: docker rm -f classicfin-ci-money-mongo || true

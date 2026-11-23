@@ -77,8 +77,8 @@ function validateAccount(input){
  }
  const operatorId=input.operatorId?String(oid(input.operatorId,'assigned operator')):null;if(kind==='cash'&&!operatorId)throw fail('A cash drawer must be assigned to its actual operator');
  const accountReference=text(input.accountReference||'','wallet or account identifier',0,80);
- if(input.isDefault!==undefined&&!['true','false',true,false,'on'].includes(input.isDefault))throw fail('Choose a valid default-account option');
- return {code,name,kind,currency,network,operatorId,accountReference,isDefault:input.isDefault===undefined||['true',true,'on'].includes(input.isDefault)};
+ if(input.isDefault!==undefined&&!['true','false','auto',true,false,'on'].includes(input.isDefault))throw fail('Choose a valid default-account option');
+ return {code,name,kind,currency,network,operatorId,accountReference,isDefault:input.isDefault==='auto'?'auto':input.isDefault===undefined||['true',true,'on'].includes(input.isDefault)};
 }
 async function configureAccount(conn,tenant,actor,accountId,input){
  await ensure(conn);
@@ -142,8 +142,22 @@ async function createAccount(conn,tenant,actor,input,{configurationBranchId=null
   // ObjectId suffix so concurrently created accounts have distinct codes.
   const autoPrefix=(values.kind==='wallet'?values.network.replace(/[^A-Za-z0-9]+/g,'_'):values.kind).toUpperCase();
   const accountCode=values.code||`${autoPrefix}_${values.currency}_${accountId.toString().slice(-8).toUpperCase()}`;
+  // Avoid duplicate setup names in the same real account group; this never
+  // alters old ledger identities or joins different currencies.
+  const duplicate=await models(conn).account.findOne({
+   tenantId:authorization.tenant._id,branchId:branch._id,kind:values.kind,
+   currency:values.currency,network:values.network,operatorId:values.operatorId,
+   status:{$ne:'archived'},name:values.name
+  }).collation({locale:'en',strength:2}).select('_id').session(session).lean();
+  if(duplicate)throw fail('An account with this name already exists for the same type, currency and operator. Choose a distinguishing name or edit the existing one.',409);
+  const defaultKey=`${branch._id}:${values.kind}:${values.network}:${values.currency}:${values.operatorId||'shared'}`;
+  // "auto" is chosen by owner Quick setup and the detailed Treasury form.
+  // Only the first account in that group becomes the automatic default.
+  const isDefault=values.isDefault==='auto'
+   ? !(await models(conn).account.exists({tenantId:authorization.tenant._id,selectionKey:defaultKey}).session(session))
+   : values.isDefault;
+  const selectionKey=isDefault?defaultKey:undefined;
   const [chart]=await core.ledgerAccountModel(conn).create([{branchId:branch._id,code:ledgerCode,name:values.name,currency:values.currency,category:values.kind==='transfer_clearing'?'liability':'asset',createdBy:authorization.actor.id}],{session});
-  const selectionKey=values.isDefault?`${branch._id}:${values.kind}:${values.network}:${values.currency}:${values.operatorId||'shared'}`:undefined;
   const [created]=await models(conn).account.create([{_id:accountId,tenantId:authorization.tenant._id,branchId:branch._id,code:accountCode,name:values.name,kind:values.kind,moduleKey:moduleForKind(values.kind),network:values.network,currency:values.currency,operatorId:values.operatorId,accountReference:values.accountReference,selectionKey,ledgerAccountId:chart._id,ledgerCode,createdBy:authorization.actor.id}],{session});
   await audit(conn,session,authorization.actor,'treasury.account.created',created._id,{branchId:String(branch._id),kind:created.kind,currency:created.currency,code:created.code});return created;
  });}catch(error){if(error.code===11000)throw fail('The default funds account is already assigned or this account already exists. Review existing accounts before trying again.',409);throw error;}

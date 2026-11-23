@@ -15,15 +15,23 @@ module.exports=function treasuryRoutes({renderTenant}){
  function can(req,permission){return req.user.permissions.includes('*')||req.user.permissions.includes(permission);}
  async function renderList(req,res){
   const branchId=branchView.canViewBranches(req.user)?(req.viewBranchId==='all'?null:req.viewBranchId):req.operationBranch?String(req.operationBranch._id):null;
-  const snapshot=await treasury.balanceSnapshot(req.tenantDb,req.tenant,req.user,{branchId,currency:req.query.currency||null});
-  const queue=can(req,'treasury.review')?await treasury.reviewQueue(req.tenantDb,req.tenant,req.user):[];
+  // These are independent reads: avoid blocking each query behind the slowest
+  // ledger verification. The integrity hold is still enforced before a
+  // funding account is offered in the selector.
   const setupBranch=branchView.canViewBranches(req.user)?req.viewBranch:req.operationBranch;
   const operatorScope=setupBranch?[{branchId:String(setupBranch._id)},...(String(req.operationBranch?._id||'')===String(setupBranch._id)?[{_id:req.user.id}]:[])]:[];
-  const operators=can(req,'treasury.manage')&&setupBranch?await tenantUserModel(req.tenantDb).find({status:'active',$or:operatorScope}).select('name role branchId').sort({name:1}).limit(300).lean():[];
-  const fundings=await funding.list(req.tenantDb,req.tenant,req.user);
+  const [snapshot,queue,operators,fundings,operatingAccounts]=await Promise.all([
+   treasury.balanceSnapshot(req.tenantDb,req.tenant,req.user,{branchId,currency:req.query.currency||null}),
+   can(req,'treasury.review')?treasury.reviewQueue(req.tenantDb,req.tenant,req.user):[],
+   can(req,'treasury.manage')&&setupBranch?tenantUserModel(req.tenantDb).find({status:'active',$or:operatorScope}).select('name role branchId').sort({name:1}).limit(300).lean():[],
+   funding.list(req.tenantDb,req.tenant,req.user),
+   can(req,'treasury.observe')?treasury.findOperatingAccounts(req.tenantDb,req.tenant,req.user,{branchId}):[]
+  ]);
   // A ledger integrity hold cannot be bypassed through the funding selector.
   const blocked=new Set(snapshot.accounts.filter(a=>a.integrityBlocked).map(a=>String(a._id)));
-   const fundingAccounts=can(req,'treasury.observe')?(await treasury.findOperatingAccounts(req.tenantDb,req.tenant,req.user,{branchId})).filter(account=>!blocked.has(String(account._id))&&['cash','bank','wallet'].includes(account.kind)&&account.status==='active'&&account.openingBalanceMinor!==null&&account.reconciliationState==='matched'):[];
+  const fundingAccounts=operatingAccounts.filter(account=>!blocked.has(String(account._id))&&
+   ['cash','bank','wallet'].includes(account.kind)&&account.status==='active'&&
+   account.openingBalanceMinor!==null&&account.reconciliationState==='matched');
   const kinds=treasury.KINDS.filter(kind=>kind==='wallet'?hasSource(req,'mobile_money'):kind==='forex_stock'?hasSource(req,'forex'):kind==='transfer_clearing'?hasSource(req,'money_transfer'):true);
   renderTenant(req,res,'treasury/index','Wallets, cash & balances','Create money accounts, add new capital, or move existing funds without routine approval.',{snapshot,queue,operators,setupBranch,allBranches:req.viewBranchId==='all',branchNames:Object.fromEntries((res.locals.viewBranches||[]).map(branch=>[String(branch._id),branch.name])),hasMobileMoney:hasSource(req,'mobile_money'),canCreateAccount:can(req,'treasury.manage')&&Boolean(setupBranch),fundings,fundingAccounts,fundingDestination:String(req.query.to||''),currencyCodes:require('../../config/currencies').currencyCodes,canManage:can(req,'treasury.manage'),canObserve:can(req,'treasury.observe'),canReview:can(req,'treasury.review'),kinds,networks:treasury.NETWORKS,networkMarketCurrencies:Object.fromEntries(Object.entries(require('../pricing/networkTariffs').NETWORKS).map(([key,meta])=>[key,meta.currency||''])),format:treasury.format,idempotencyKey:randomUUID(),fundingIdempotencyKey:randomUUID()});
  }

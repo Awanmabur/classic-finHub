@@ -1,30 +1,31 @@
 <% if(data.canAddCapital){ %>
 <section class="card" id="new-capital" style="margin-top:14px">
- <div class="cardHead"><div><b>Add new business capital</b><br><span>Owner only · new money received · posts immediately in the selected currency</span></div></div>
- <form method="post" class="cardBody" action="/tenant/treasury/capital">
+ <div class="cardHead">
+  <div><b>Top up account</b><br><span>Select an account, enter the money received, and save. No separate approval.</span></div>
+ </div>
+ <form class="cardBody" method="post" action="/tenant/treasury/capital" data-capital-topup-form>
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
   <input type="hidden" name="idempotencyKey" value="<%= data.capitalIdempotencyKey %>">
   <div class="row2">
-   <label class="field">Money goes into<select class="control" name="accountId" required>
-    <option value="">Choose real cash, bank, float or stock account</option>
-    <% (data.capitalAccounts||[]).forEach(account=>{ %>
-     <option value="<%= account._id %>" <%= data.capitalDestination===String(account._id)?'selected':'' %>>
-      <% if(data.allBranches&&data.branchNames[String(account.branchId)]){ %><%= data.branchNames[String(account.branchId)] %> · <% } %>
-      <%= account.name %> · <%= account.currency==='KES'?'KSH':account.currency %> · <%= data.format(account.bookBalanceMinor,account.currency) %>
-     </option>
-    <% }) %>
-   </select></label>
-   <label class="field">Amount received<input class="control" name="amount" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" placeholder="Amount in the account's currency" required></label>
-   <label class="field">Actual receipt / bank / provider / cash-count reference
-    <input class="control" name="evidenceReference" minlength="6" maxlength="120" required placeholder="Real deposit, transfer or cash count reference"></label>
+   <label class="field">Account to top up
+    <select class="control" name="accountId" required data-capital-account>
+     <option value="">Select account</option>
+     <% (data.capitalAccounts||[]).forEach(account=>{ %>
+      <option value="<%= account._id %>" data-balance="<%= data.format(account.bookBalanceMinor,account.currency) %>" data-currency="<%= account.currency %>" <%= data.capitalDestination===String(account._id)?'selected':'' %>>
+       <% if(data.allBranches&&data.branchNames[String(account.branchId)]){ %><%= data.branchNames[String(account.branchId)] %> · <% } %><%= account.name %> · <%= account.currency==='KES'?'KSH':account.currency %>
+      </option>
+     <% }) %>
+    </select>
+   </label>
+   <label class="field">Amount to add
+    <input class="control" name="amount" inputmode="decimal" required pattern="[0-9]+([.][0-9]{1,2})?" placeholder="Enter amount" data-capital-amount>
+   </label>
   </div>
-  <label class="field" style="display:flex;align-items:flex-start;gap:10px">
-   <input type="checkbox" name="confirmed" value="yes" required style="margin-top:4px">
-   <span>I confirm this money was actually received by the business and has not already been recorded in another account.</span>
-  </label>
-  <p class="tiny">This increases the selected account and business owner capital together. It is a manual, audited declaration—not automatic confirmation by a bank or mobile money provider. Moving money already in another business account? Use “Transfer existing funds” below instead.</p>
-  <% if(!(data.capitalAccounts||[]).length){ %><p class="tiny">Create an account and confirm its actual opening balance first.</p><% } %>
-  <button type="submit" class="btn btnPrimary" <%= !(data.capitalAccounts||[]).length?'disabled':'' %>>Add capital now</button>
+  <p><strong>Current account total: <output aria-live="polite" data-capital-balance>Choose an account</output></strong></p>
+  <p class="tiny">Use this for new money received by the business. To move money between existing business accounts, use Transfer existing funds below.</p>
+  <% if(!(data.capitalAccounts||[]).length){ %><p class="tiny">First create an account and confirm its starting balance.</p><% } %>
+  <button type="submit" class="btn btnPrimary" <%= !(data.capitalAccounts||[]).length?'disabled':'' %>>Add money</button>
  </form>
 </section>
+<script src="/js/tenant-capital-topup.js?v=<%= assetVersion %>" defer></script>
 <% } %>

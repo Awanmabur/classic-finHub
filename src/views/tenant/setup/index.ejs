@@ -134,7 +134,7 @@ const status=(done)=>done?'Ready':'Set up';
                 <td><span class="tag"><%= a.integrityBlocked?'Ledger review required':usable?'Ready':a.openingBalanceMinor!=null?'Reconciliation required':a.pendingOpeningId?'Opening awaiting review':'Opening not established' %></span></td>
                 <td>
                   <% if(a.integrityBlocked){ %><span class="tiny" role="alert">Financial posting blocked. Ask the platform administrator to restore the missing ledger evidence; do not reconfirm or reset this balance.</span>
-                  <% }else if(usable){ %><a class="btn btnPrimary" href="/tenant/treasury?capitalTo=<%= a._id %>#new-capital">Add capital</a> <a class="btn" href="/tenant/treasury/accounts/<%= a._id %>">View balance</a>
+                  <% }else if(usable){ %><a class="btn btnPrimary" href="/tenant/treasury?capitalTo=<%= a._id %>#new-capital">Top up</a> <a class="btn" href="/tenant/treasury/accounts/<%= a._id %>">View balance</a>
                   <% }else if(a.pendingOpeningId){ %><a class="btn" href="/tenant/treasury/accounts/<%= a._id %>">Resolve existing opening</a>
                   <% }else if(a.openingBalanceMinor!=null){ %><a class="btn" href="/tenant/treasury/accounts/<%= a._id %>">Review balance</a>
                   <% }else{ %><details>
@@ -170,7 +170,7 @@ const status=(done)=>done?'Ready':'Set up';
     <div class="cardBody">
       <div class="rowBtns">
         <a class="btn btnPrimary" href="/tenant/dashboard">Open dashboard</a>
-         <a class="btn" href="/tenant/treasury#new-capital">Add new capital</a>
+         <a class="btn" href="/tenant/treasury#new-capital">Top up account</a>
          <a class="btn" href="/tenant/treasury#add-funds">Move existing funds</a>
         <% if(data.kinds.includes('wallet')){ %><a class="btn" href="/tenant/mobile-money/readiness">Check mobile money readiness</a><% } %>
         <a class="btn" href="/tenant/workspace/landing">Business website</a>

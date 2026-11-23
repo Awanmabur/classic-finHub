@@ -43,7 +43,7 @@ async function open(conn,tenant,actor,input={}){
     const authorization=await funds.access(conn,tenant,actor,{permission:'treasury.observe',session:tx,fence:true});
     fund=await funds.loadAccount(conn,authorization,input.treasuryAccountId,{session:tx,fence:true});
     if(fund.kind!=='cash'||String(fund.branchId)!==branchId||
-       String(fund.operatorId||'')!==operatorId||fund.currency!==currency)
+       String(fund.operatorId||'')!==String(operatorId)||fund.currency!==currency)
      throw fail('Choose your own cash drawer in this branch and currency',403);
    }else{
     fund=await funds.findAccount(conn,tx,{branchId,kind:'cash',currency,operatorId:actor.id});

@@ -14,16 +14,15 @@
  </select>
  <span class="tiny">Set this once as Tenant Owner. Only link a drawer that physically holds cash for this provider and operator. When one approved drawer exists, the system resolves it automatically.</span>
 </label><label class="field">Fee / commission treatment<select class="control" name="feeTreatment"><% [['record_only','Record only — settle provider commissions separately'],['payment_collected','Verified fee collected from customer — if contract permits']].forEach(([value,label])=>{ %><option value="<%= value %>" <%= (account.feeTreatment||'record_only')===value?'selected':'' %>><%= label %></option><% }) %></select></label><% } %></div><p class="tiny">The default account is selected automatically by operator, network and currency. Provider commission estimates never add spendable float. Customer fees are recognized only when actually collected and contractually permitted. Commission payout destinations are chosen from actual independently reviewed provider-credit evidence under Mobile Money → Agent rate sheets. Historical transactions retain their original policy.</p><button type="submit" class="btn btnPrimary">Save account settings</button></form></section><% } %>
- <% if(data.canManage&&user.role==='Tenant Owner'&&account.kind==='wallet'&&account.status==='uninitialized'&&account.openingBalanceMinor===null&&!account.pendingOpeningId){ %>
- <details class="card" style="margin-top:14px" aria-label="Archive unused wallet">
-  <summary class="cardHead"><b>Archive unused wallet</b><span>Owner only · irreversible operational removal</span></summary>
+ <% if(data.canManage&&user.role==='Tenant Owner'&&['wallet','cash','bank','forex_stock'].includes(account.kind)&&account.status==='uninitialized'&&!known&&!account.pendingOpeningId&&Number(account.sequence||0)===0&&String(account.bookBalanceMinor||0)==='0'){ %>
+ <details class="card" style="margin-top:14px" aria-label="Remove unused account">
+  <summary class="cardHead"><b>Remove unused account</b><span>Owner only · reversible archive</span></summary>
   <div class="cardBody">
-   <p class="tiny">Use only for an incorrect, unfunded wallet. Any pending opening evidence must first be rejected by an independent reviewer. Archival is refused if financial records or movements reference this account. The audit history and rejected observations remain available; do not delete database documents.</p>
-   <form method="post" action="/tenant/treasury/accounts/<%= account._id %>/archive" style="display:grid;gap:12px">
+   <p class="tiny">Created this by mistake? Archive it before its first actual opening or transaction. Its identity and audit history stay saved. Restore it from Quick setup.</p>
+   <form method="post" action="/tenant/treasury/accounts/<%= account._id %>/archive">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-    <label class="field">Confirm wallet code <b><%= account.code %></b><input class="control" name="confirmCode" required maxlength="40" autocomplete="off" placeholder="Type the exact wallet code"></label>
-    <label class="field">Reason for archival (20–400 characters)<textarea class="control" name="reason" minlength="20" maxlength="400" rows="3" required placeholder="Explain why this wallet was created incorrectly and which wallet replaces it"></textarea></label>
-    <div class="rowBtns"><button class="btn btnDanger" type="submit">Archive unused wallet</button></div>
+    <input type="hidden" name="confirmCode" value="<%= account.code %>">
+    <button class="btn btnDanger" type="submit">Archive this unused account</button>
    </form>
   </div>
  </details>

@@ -474,7 +474,10 @@ body[data-workspace="tenant"] .tenantSideFoot .btn{
  font-size:12px;padding:8px 11px
 }
 body[data-workspace="tenant"] .tenantSideFoot .sidebarLogoutForm{
- padding-top:9px;border-top:1px solid var(--border)
+ padding-top:0;border-top:0
+}
+body[data-workspace="tenant"] .tenantSideFoot .accountActions .btn{
+ justify-content:center;min-height:38px
 }
 /* Compact the APPROVED card geometry across overview and module summaries,
    keeping all native-currency amounts and readable dividers visible. */

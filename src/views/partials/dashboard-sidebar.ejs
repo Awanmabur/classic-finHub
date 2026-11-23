@@ -14,10 +14,13 @@
   </nav>
   <% if(context==='tenant'){ %>
   <div class="sideFoot tenantSideFoot" aria-label="Workspace account controls">
-    <form method="post" action="/logout" class="sidebarLogoutForm">
-      <input type="hidden" name="_csrf" value="<%= typeof csrfToken!=='undefined'?csrfToken:'' %>">
-      <button class="btn" type="submit"><i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i> Logout</button>
-    </form>
+    <div class="accountActions">
+      <form method="post" action="/logout" class="sidebarLogoutForm">
+        <input type="hidden" name="_csrf" value="<%= typeof csrfToken!=='undefined'?csrfToken:'' %>">
+        <button class="btn" type="submit"><i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i> Logout</button>
+      </form>
+      <a class="btn" href="/"><i class="fa-solid fa-globe" aria-hidden="true"></i> Website</a>
+    </div>
   </div>
   <% } %>
   <% if(context==='platform'){ %>

@@ -86,29 +86,37 @@ module.exports=function quickSetupRoutes({renderTenant}){
   try{
    owner(req);
    const branches=(await branchService.list(req.tenant)).filter(x=>x.status==='active');
-   const [users,invites,accounts,staff]=await Promise.all([
+   const [users,invites,accounts,staff,archivedAccounts]=await Promise.all([
     tenantUserModel(req.tenantDb).countDocuments({status:'active',role:{$ne:'Tenant Owner'}}).maxTimeMS(3000),
     staffInviteModel(req.tenantDb).countDocuments({status:'pending',expiresAt:{$gt:new Date()}}).maxTimeMS(3000),
     fundModels(req.tenantDb).account.find({tenantId:req.tenant._id,status:{$ne:'archived'}})
-      .select('_id name kind currency network branchId ledgerAccountId ledgerCode openingBalanceMinor bookBalanceMinor sequence openingApprovedAt pendingOpeningId reconciliationState status')
+      .select('_id code name kind currency network branchId ledgerAccountId ledgerCode openingBalanceMinor bookBalanceMinor sequence openingApprovedAt pendingOpeningId reconciliationState status')
       .sort({createdAt:-1,_id:-1}).limit(80).lean().maxTimeMS(3000),
     tenantUserModel(req.tenantDb).find({status:'active',role:{$ne:'Tenant Owner'}})
-      .select('_id name role branchId').sort({name:1}).limit(80).lean().maxTimeMS(3000)
+      .select('_id name role branchId').sort({name:1}).limit(80).lean().maxTimeMS(3000),
+    // Archived setup mistakes are retained for owner recovery, not counted.
+    fundModels(req.tenantDb).account.find({tenantId:req.tenant._id,status:'archived'})
+      .select('_id name kind currency code status openingBalanceMinor sequence')
+      .sort({updatedAt:-1,_id:-1}).limit(12).lean().maxTimeMS(3000)
    ]);
    // Setup must never report an orphaned opening as a spendable account.
    // A new business can use setup before it has any subscribed finance module.
    // Check existing approved accounts directly without requiring a module view.
-   for(const account of accounts){
-    if(account.openingBalanceMinor===null)continue;
-    try{await treasury.assertBookIntegrity(req.tenantDb,null,account);}
-    catch(error){if(error.status!==503)throw error;account.integrityBlocked=true;}
+   // Integrity checks cannot be dropped, but serially waiting for each of 80
+   // accounts made setup feel frozen. Bound concurrent read-only checks to 4.
+   const verified=accounts.filter(account=>account.openingBalanceMinor!==null);
+   for(let i=0;i<verified.length;i+=4){
+    await Promise.all(verified.slice(i,i+4).map(async account=>{
+     try{await treasury.assertBookIntegrity(req.tenantDb,null,account);}
+     catch(error){if(error.status!==503)throw error;account.integrityBlocked=true;}
+    }));
    }
    const ready=accounts.filter(x=>!x.integrityBlocked&&x.status==='active'&&x.openingBalanceMinor!=null&&
      x.openingApprovedAt&&x.reconciliationState==='matched');
    const kinds=accountKinds(req.tenant,req.user);
    renderTenant(req,res,'setup/index','Start using ClassicFin Hub',
      'Set up your branch, staff and actual money accounts in one place.',{
-       branches,users,invites,accounts,staff,openingKeys:Object.fromEntries(accounts.map(a=>[String(a._id),randomUUID()])),readyCount:ready.length,
+       branches,users,invites,accounts,archivedAccounts,staff,openingKeys:Object.fromEntries(accounts.map(a=>[String(a._id),randomUUID()])),readyCount:ready.length,
        roles:staffPolicy.managedRoles(req.user),kinds,
        currencyCodes,networks:treasury.NETWORKS,networkCurrencies:networkTariffs.NETWORKS,
        timeZones:tz,kindLabel

@@ -19,10 +19,8 @@
  <section class="card" style="margin-top:14px" id="account-settings">
   <div class="cardHead"><b>Edit account</b><span>Rename without changing transactions or balances</span></div>
   <div class="cardBody">
-   <form method="post" action="/tenant/treasury/accounts/<%= account._id %>/settings">
+   <form method="post" action="/tenant/treasury/accounts/<%= account._id %>/rename">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-    <input type="hidden" name="isDefault" value="<%= account.selectionKey?'true':'false' %>">
-    <input type="hidden" name="feeTreatment" value="<%= account.feeTreatment||'record_only' %>">
     <label class="field">Account name
       <input class="control" name="name" value="<%= account.name %>" required minlength="3" maxlength="120">
     </label>

@@ -36,6 +36,14 @@
         <% }) %>
        </select>
       </label>
+      <label class="field" data-money-create-operator-field hidden>Cash drawer operator
+       <select class="control" name="operatorId" data-money-create-operator>
+        <option value="">My own drawer (business owner)</option>
+        <% (data.operators||[]).filter(person=>String(person._id)!==String(user.id)&&person.role!=='Auditor').forEach(person=>{ %>
+         <option value="<%= person._id %>"><%= person.name %> · <%= person.role %></option>
+        <% }) %>
+       </select>
+      </label>
       <label class="field" data-money-create-network-field hidden>Mobile money network
        <select class="control" name="network" data-money-create-network>
         <option value="">Choose provider</option>
@@ -47,7 +55,7 @@
      <button class="btn btnPrimary" type="submit">Create account</button>
     </form>
    </details>
-  <% }else if(data.canManage){ %><a class="btn" href="/tenant/setup#quick-money">Select a branch to add an account</a><% } %>
+  <% }else if(data.canManage){ %><span class="tiny">Select an active operating branch in the header to add an account.</span><% } %>
  </div>
  <div class="cardBody">
   <% if(!ownerAccounts.length){ %>

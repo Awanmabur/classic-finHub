@@ -121,6 +121,21 @@
           <button class="btn btnPrimary" type="submit">Save actual balance</button>
          </form>
         </details>
+        <% if(data.canManage&&Number(account.sequence||0)===0&&['active','held'].includes(account.status)&&!account.pendingOpeningId){ %>
+         <details class="moneyAction"><summary class="btn">Correct unused starting money</summary>
+          <form method="post" action="/tenant/treasury/accounts/<%= account._id %>/correct-opening" class="moneyQuickForm">
+           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+           <input type="hidden" name="idempotencyKey" value="<%= accountKey(account,'correction') %>">
+           <input type="hidden" name="returnTo" value="money">
+           <label class="field">Corrected starting total (<%= moneyLabel(currency) %>)
+            <input class="control" name="correctedBalance" inputmode="decimal" required placeholder="Enter actual starting money">
+           </label>
+           <label class="field"><input type="checkbox" name="confirmed" value="on" required> I have recounted this unused account. No payments, transfers or cash shifts have used it.</label>
+           <p class="tiny">Only fixes a mistaken first count before any account activity. The original entry stays in history, with a balancing correction. After any real transaction, use the transaction's correction process instead.</p>
+           <button class="btn btnPrimary" type="submit">Correct starting money</button>
+          </form>
+         </details>
+        <% } %>
        </div>
       <% } %>
       <div class="moneyAccountActions">

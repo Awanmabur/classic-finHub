@@ -109,6 +109,9 @@ async function main(){
  const starterCash=await treasury.createAccount(conn,tenant,owner,{
   code:'OWNER_QUICK_CASH',name:'Owner counted starting drawer',kind:'cash',currency:'UGX',
   operatorId:owner.id,isDefault:false});
+ const firstCapital={amount:'80',evidenceReference:'OWNER-CAPITAL-CASH-001',confirmed:'yes',idempotencyKey:crypto.randomUUID()};
+ await assert.rejects(treasury.addCapital(conn,tenant,owner,starterCash._id,firstCapital),
+  e=>e.status===409,'New capital cannot bypass a verified account opening');
  const openingInput={actualBalance:'150',evidenceReference:'OWNER-COUNT-START-001',
   confirmed:'yes',idempotencyKey:crypto.randomUUID()};
  await assert.rejects(treasury.confirmOwnerOpening(conn,tenant,operator,starterCash._id,openingInput),
@@ -132,6 +135,37 @@ async function main(){
  await assert.rejects(treasury.confirmOwnerOpening(conn,tenant,owner,starterCash._id,
   {...openingInput,idempotencyKey:crypto.randomUUID()}),e=>e.status===409);
  assert.equal(String((await book.models(conn).account.findById(starterCash._id)).bookBalanceMinor),'150');
+ await assert.rejects(treasury.addCapital(conn,tenant,operator,starterCash._id,firstCapital),
+  e=>e.status===403,'Ordinary staff cannot create owner capital');
+ await assert.rejects(treasury.addCapital(conn,tenant,owner,starterCash._id,{...firstCapital,confirmed:'no'}),
+  e=>e.status===400,'New external money must be explicitly confirmed');
+ const capitalBefore=await core.ledgerJournalModel(conn).countDocuments();
+ const added=await treasury.addCapital(conn,tenant,owner,starterCash._id,firstCapital);
+ assert.equal(added.duplicate,false);
+ assert.equal(added.currency,'UGX');
+ assert.equal(String((await book.models(conn).account.findById(starterCash._id)).bookBalanceMinor),'230');
+ assert.equal((await treasury.addCapital(conn,tenant,owner,starterCash._id,firstCapital)).duplicate,true,
+  'Retrying the same receipt does not add funds twice');
+ assert.equal(await core.ledgerJournalModel(conn).countDocuments(),capitalBefore+1,
+  'One capital receipt generates exactly one balanced ledger journal');
+ await assert.rejects(treasury.addCapital(conn,tenant,owner,starterCash._id,
+  {...firstCapital,amount:'200'}),e=>e.status===409,'A UUID cannot be reused for a different amount');
+ await assert.rejects(treasury.addCapital(conn,tenant,owner,starterCash._id,
+  {...firstCapital,idempotencyKey:crypto.randomUUID()}),e=>e.status===409,
+  'The same external receipt cannot be double-counted under a fresh UUID');
+ const ownerBank=await treasury.createAccount(conn,tenant,owner,{code:'OWNER_CAPITAL_BANK',name:'Owner new capital bank',kind:'bank',currency:'UGX',isDefault:false});
+ const bankOpening=await treasury.confirmOwnerOpening(conn,tenant,owner,ownerBank._id,
+   {actualBalance:'0',evidenceReference:'BANK-OPENING-001',confirmed:'yes',idempotencyKey:crypto.randomUUID()});
+ assert.equal(bankOpening.observation.status,'approved');
+ const bankCapital=await treasury.addCapital(conn,tenant,owner,ownerBank._id,
+   {amount:'45',evidenceReference:'NEW-BANK-CAPITAL-002',confirmed:'yes',idempotencyKey:crypto.randomUUID()});
+ assert.equal(bankCapital.duplicate,false);
+ assert.equal(String((await book.models(conn).account.findById(ownerBank._id)).bookBalanceMinor),'45');
+ const contribution=await book.models(conn).counter.findOne({branchId:branch._id,currency:'UGX',purpose:'capital_contribution'}).lean();
+ assert(contribution,'Separate capital equity chart must exist');
+ assert.equal((await core.ledgerAccountModel(conn).findById(contribution.ledgerAccountId).lean()).category,'equity');
+ assert.equal((await book.models(conn).batch.countDocuments({sourceType:'treasury_capital'})),2);
+ assert.equal((await ledger.trialBalance(conn,{branchId:String(branch._id),currency:'UGX'})).balanced,true);
  assert.equal((await ledger.trialBalance(conn,{branchId:String(branch._id),currency:'UGX'})).balanced,true);
  await Tenant.updateOne({_id:tenant._id},{$set:{enabledModules:[]},$inc:{__v:1}});await assert.rejects(treasury.balanceSnapshot(conn,tenant,owner),e=>e.status===403);
  console.log('PASS: Treasury real independent opening evidence, exact posted funds and cash, balanced journals, idempotency, insufficient-float and mismatch holds, dated checkpoints, explicit suspense adjustments, late-entry invalidation, historical-maker correction, concurrent balance guards, audit rollback, append-only history, live revocation and tenant isolation.');

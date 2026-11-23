@@ -139,6 +139,14 @@ module.exports=function treasuryRoutes({renderTenant}){
   flash(req,'good','Account restored. Confirm its real opening balance before using it.');
   branchView.followRecord(req,account);res.redirect(303,'/tenant/setup#quick-money');
  }));
+ router.post('/accounts/:id/rename',requirePermission('treasury.manage'),throttle,wrap(async(req,res)=>{
+  if(!req.body||Object.keys(req.body).some(key=>!['name','_csrf'].includes(key)))
+   throw treasury.fail('Rename accepts only the account name',400);
+  const account=await treasury.renameAccount(req.tenantDb,req.tenant,req.user,req.params.id,{name:req.body.name});
+  flash(req,'good','Account name updated. Balances and old transactions are unchanged.');
+  branchView.followRecord(req,account);
+  res.redirect(303,`/tenant/treasury/accounts/${account._id}#account-settings`);
+ }));
  router.post('/accounts/:id/settings',requirePermission('treasury.manage'),throttle,wrap(async(req,res)=>{const account=await treasury.configureAccount(req.tenantDb,req.tenant,req.user,req.params.id,req.body);flash(req,'good','Account defaults saved for future transactions.');branchView.followRecord(req,account);res.redirect(303,`/tenant/treasury/accounts/${req.params.id}`);}));
  router.post('/accounts/:id/observations',requirePermission('treasury.observe'),throttle,wrap(async(req,res)=>{
   const input={...req.body};if(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(input.observedAt||''))input.observedAt+=':00.000Z';

@@ -483,8 +483,8 @@
       banking: {page:'/tenant/banking',form:'/tenant/banking/requests',action:'/tenant/banking/requests',title:'New banking request'},
       forex: {page:'/tenant/forex',form:'/tenant/forex/quotes',action:'/tenant/forex/quotes',title:'New forex quotation'},
       approval: {page:'/tenant/approvals',form:'/tenant/approvals/requests',action:'/tenant/approvals/requests',title:'New approval request'},
-      cash_shift_close: {page:'/tenant/day/close',form:'/tenant/day/close',action:'/tenant/day/close',title:'Close day',description:'Auto closing balances from reports.'},
-      cash_shift_open: {page:'/tenant/cash/shifts',form:'/tenant/day/open',action:'/tenant/day/open',title:'Open day',description:'Opening drawer by currency. An independent supervisor verifies the opening count.'}
+      cash_shift_close: {page:'/tenant/day/close',form:'/tenant/day/close',action:'/tenant/day/close',title:'Finish cash shift',description:'Count cash and confirm it matches the recorded balance.'},
+      cash_shift_open: {page:'/tenant/cash/shifts',form:'/tenant/day/open',action:'/tenant/day/open',title:'Start cash shift',description:'Count physical cash before starting your shift.'}
     });
     const choices = transactionDialog.querySelector('[data-transaction-choices]');
     const formHost = transactionDialog.querySelector('[data-transaction-form]');

@@ -28,14 +28,41 @@
         <div class="sumRow"><span><%= account.name %> · <%= account.currency==='KES'?'KSH':account.currency %></span><b><%= cashLabel(account.bookBalanceMinor,account.currency) %></b></div>
        </div>
        <% if(existing){ %>
-        <a class="btn" href="/tenant/cash/shifts/<%= existing._id %>">Continue current <%= account.currency %> shift</a>
+        <% if(user.role==='Tenant Owner'&&String(existing.treasuryAccountId||'')===String(account._id)&&existing.status==='open'){const expected=BigInt(String(existing.openingMinor))+BigInt(String(existing.provisionalMovementMinor)); %>
+         <p class="tiny">Cash work is open for this drawer. Expected cash now: <strong><%= cashLabel(String(expected),account.currency) %></strong>.</p>
+         <form method="post" action="/tenant/cash/shifts/<%= existing._id %>/submit" class="moneyQuickForm">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="closingFromBook" value="on">
+          <label class="field"><input type="checkbox" name="physicalCountConfirmed" value="on" required> I counted the physical cash and it matches the expected amount.</label>
+          <button class="btn btnPrimary" type="submit">Finish cash shift</button>
+         </form>
+         <a class="btn" href="/tenant/cash/shifts/<%= existing._id %>">Cash doesn't match? Report difference</a>
+        <% }else if(user.role==='Tenant Owner'&&String(existing.treasuryAccountId||'')===String(account._id)&&existing.status==='pending_open'){ %>
+         <form method="post" action="/tenant/cash/shifts/<%= existing._id %>/verify-opening">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="decision" value="approve">
+          <input type="hidden" name="note" value="Owner counted opening cash and confirmed that it matched the recorded balance.">
+          <button class="btn btnPrimary" type="submit">Finish starting cash shift</button>
+         </form>
+        <% }else if(user.role==='Tenant Owner'&&String(existing.treasuryAccountId||'')===String(account._id)&&existing.status==='submitted'&&String(existing.varianceMinor||'0')==='0'){ %>
+         <form method="post" action="/tenant/cash/shifts/<%= existing._id %>/decide">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="decision" value="approve">
+          <input type="hidden" name="note" value="Owner verified the matching physical closing count against the recorded cash.">
+          <button class="btn btnPrimary" type="submit">Finish closing cash shift</button>
+         </form>
+        <% }else{ %>
+         <p class="tiny">A cash shift already exists in this currency. Finish or resolve it before opening another.</p>
+         <a class="btn" href="/tenant/cash/shifts/<%= existing._id %>">Open existing cash shift</a>
+        <% } %>
        <% }else{ %>
-        <form method="post" action="/tenant/day/open" data-cash-open-form>
+        <form method="post" action="/tenant/day/open" data-cash-open-form class="moneyQuickForm">
          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
          <input type="hidden" name="currency" value="<%= account.currency %>">
+         <input type="hidden" name="treasuryAccountId" value="<%= account._id %>">
          <input type="hidden" name="openingFromBook" value="on">
-         <label class="field"><input type="checkbox" name="physicalCountConfirmed" value="on" required> I counted the cash and it matches.</label>
-         <div class="rowBtns"><button class="btn btnPrimary" type="submit"><%= user.role==='Tenant Owner'?'Start shift':'Submit opening count' %></button></div>
+         <label class="field"><input type="checkbox" name="physicalCountConfirmed" value="on" required> I counted the physical cash and it matches the amount shown.</label>
+         <button class="btn btnPrimary" type="submit"><%= user.role==='Tenant Owner'?'Start cash shift':'Submit opening count' %></button>
         </form>
        <% } %>
        <% }) %>

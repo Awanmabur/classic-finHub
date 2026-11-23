@@ -1,7 +1,7 @@
 <section class="view show">
  <section class="card">
   <div class="cardHead"><div><b>Money</b><br><span>See each currency separately. Add money, check balances or correct account details without switching pages.</span></div>
-   <% if(user.role==='Tenant Owner'){ %><div class="rowBtns"><a class="btn" href="/tenant/cash/shifts">Start / finish cash shift</a></div><% } %>
+   <% if(user.role==='Tenant Owner'&&data.canUseCashShifts){ %><div class="rowBtns"><a class="btn" href="/tenant/cash/shifts">Start / finish cash shift</a></div><% } %>
   </div>
  </section>
  <% if(user.role==='Tenant Owner'){ %>

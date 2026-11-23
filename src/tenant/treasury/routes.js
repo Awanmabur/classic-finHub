@@ -94,9 +94,14 @@ module.exports=function treasuryRoutes({renderTenant}){
    }).select('_id name operatorId').sort({name:1}).lean():[];
   renderTenant(req,res,'treasury/detail',detail.account.name,'Expected book balance and independently reviewed actual observations.',{...detail,cashDrawerOptions,canManage:can(req,'treasury.manage'),canObserve:can(req,'treasury.observe'),canReview:can(req,'treasury.review'),idempotencyKey:randomUUID()});}));
  router.post('/accounts/:id/archive',requirePermission('treasury.manage'),throttle,wrap(async(req,res)=>{
-  const account=await treasury.archiveUnusedWallet(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
-  flash(req,'good','Unused wallet archived. Rejected evidence and ledger identity were preserved in the audit history.');
-  branchView.followRecord(req,account);res.redirect(303,'/tenant/treasury');
+  const account=await treasury.archiveUnusedAccount(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
+  flash(req,'good','Unused '+account.kind.replaceAll('_',' ')+' hidden from setup. You can restore it below; its audit history was preserved.');
+  res.redirect(303,'/tenant/setup#quick-money');
+ }));
+ router.post('/accounts/:id/restore',requirePermission('treasury.manage'),throttle,wrap(async(req,res)=>{
+  const account=await treasury.restoreArchivedAccount(req.tenantDb,req.tenant,req.user,req.params.id);
+  flash(req,'good','Account restored. Confirm its real opening balance before using it.');
+  branchView.followRecord(req,account);res.redirect(303,'/tenant/setup#quick-money');
  }));
  router.post('/accounts/:id/settings',requirePermission('treasury.manage'),throttle,wrap(async(req,res)=>{const account=await treasury.configureAccount(req.tenantDb,req.tenant,req.user,req.params.id,req.body);flash(req,'good','Account defaults saved for future transactions.');branchView.followRecord(req,account);res.redirect(303,`/tenant/treasury/accounts/${req.params.id}`);}));
  router.post('/accounts/:id/observations',requirePermission('treasury.observe'),throttle,wrap(async(req,res)=>{

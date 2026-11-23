@@ -1,0 +1,30 @@
+<% if(data.canAddCapital){ %>
+<section class="card" id="new-capital" style="margin-top:14px">
+ <div class="cardHead"><div><b>Add new business capital</b><br><span>Owner only · new money received · posts immediately in the selected currency</span></div></div>
+ <form method="post" class="cardBody" action="/tenant/treasury/capital">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <input type="hidden" name="idempotencyKey" value="<%= data.capitalIdempotencyKey %>">
+  <div class="row2">
+   <label class="field">Money goes into<select class="control" name="accountId" required>
+    <option value="">Choose real cash, bank, float or stock account</option>
+    <% (data.capitalAccounts||[]).forEach(account=>{ %>
+     <option value="<%= account._id %>" <%= data.capitalDestination===String(account._id)?'selected':'' %>>
+      <% if(data.allBranches&&data.branchNames[String(account.branchId)]){ %><%= data.branchNames[String(account.branchId)] %> · <% } %>
+      <%= account.name %> · <%= account.currency==='KES'?'KSH':account.currency %> · <%= data.format(account.bookBalanceMinor,account.currency) %>
+     </option>
+    <% }) %>
+   </select></label>
+   <label class="field">Amount received<input class="control" name="amount" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" placeholder="Amount in the account's currency" required></label>
+   <label class="field">Actual receipt / bank / provider / cash-count reference
+    <input class="control" name="evidenceReference" minlength="6" maxlength="120" required placeholder="Real deposit, transfer or cash count reference"></label>
+  </div>
+  <label class="field" style="display:flex;align-items:flex-start;gap:10px">
+   <input type="checkbox" name="confirmed" value="yes" required style="margin-top:4px">
+   <span>I confirm this money was actually received by the business and has not already been recorded in another account.</span>
+  </label>
+  <p class="tiny">This increases the selected account and business owner capital together. It is a manual, audited declaration—not automatic confirmation by a bank or mobile money provider. Moving money already in another business account? Use “Transfer existing funds” below instead.</p>
+  <% if(!(data.capitalAccounts||[]).length){ %><p class="tiny">Create an account and confirm its actual opening balance first.</p><% } %>
+  <button type="submit" class="btn btnPrimary" <%= !(data.capitalAccounts||[]).length?'disabled':'' %>>Add capital now</button>
+ </form>
+</section>
+<% } %>

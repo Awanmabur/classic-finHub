@@ -149,10 +149,37 @@ const status=(done)=>done?'Ready':'Set up';
                       <button class="btn btnPrimary" type="submit">Confirm and start using</button>
                     </form>
                   </details><% } %>
+                  <% if(!a.integrityBlocked&&a.status==='uninitialized'&&a.openingBalanceMinor===null&&!a.pendingOpeningId&&!a.openingApprovedAt&&Number(a.sequence||0)===0&&String(a.bookBalanceMinor||0)==='0'){ %>
+                    <details style="margin-top:10px">
+                      <summary class="btn">Remove unused account</summary>
+                      <p class="tiny">Only an account never opened or used can be archived. It can be restored below.</p>
+                      <form method="post" action="/tenant/treasury/accounts/<%= a._id %>/archive">
+                        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                        <input type="hidden" name="confirmCode" value="<%= a.code %>">
+                        <button class="btn btnDanger" type="submit">Archive this unused account</button>
+                      </form>
+                    </details>
+                  <% } %>
                 </td></tr>
             <% }) %>
           </tbody></table>
         </div>
+      <% } %>
+      <% if((data.archivedAccounts||[]).length){ %>
+        <details style="margin-top:14px">
+          <summary class="btn">Archived setup accounts (<%= data.archivedAccounts.length %>)</summary>
+          <div class="tableWrap" style="margin-top:10px">
+            <table><thead><tr><th>Account</th><th>Currency</th><th>Restore</th></tr></thead><tbody>
+            <% data.archivedAccounts.forEach(a=>{ %>
+              <tr><td><%= a.name %></td><td><%= a.currency==='KES'?'KSH':a.currency %></td>
+              <td><form method="post" action="/tenant/treasury/accounts/<%= a._id %>/restore">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button type="submit" class="btn">Restore account</button>
+              </form></td></tr>
+            <% }) %>
+            </tbody></table>
+          </div>
+        </details>
       <% } %>
     </div>
   </section>

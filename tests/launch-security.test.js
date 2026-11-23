@@ -29,6 +29,38 @@ test('mixed-case authentication forms get a usable CSRF token without relaxing t
  assert.equal((await post('wrong-token')).status,403);assert.equal((await post(data.csrf)).status,204);
 });
 
+test('valid CSRF is verified and removed before strict financial business validation',async t=>{
+ const app=express();
+ app.use(session({secret:'verified-business-form-test-secret-0123456789',resave:false,saveUninitialized:false}));
+ app.use(express.urlencoded({extended:false}));app.use(csrf);
+ app.get('/tenant/treasury',(req,res)=>res.json({csrf:req.session.csrfToken}));
+ let calls=0;
+ app.post('/tenant/treasury/accounts/:id/opening',(req,res)=>{
+  calls++;
+  if(Object.keys(req.body).some(key=>!['actualBalance','idempotencyKey'].includes(key)))
+   return res.status(400).send('Unexpected opening balance field');
+  res.json({keys:Object.keys(req.body),value:req.body.actualBalance});
+ });
+ app.use((error,_req,res,_next)=>res.status(error.status||500).send(error.message));
+ const base=await serverFor(app,t);
+ const open=await fetch(base+'/tenant/treasury');
+ const cookie=open.headers.get('set-cookie').split(';')[0],token=(await open.json()).csrf;
+ const action=base+'/tenant/treasury/accounts/507f1f77bcf86cd799439012/opening';
+ const values={_csrf:token,actualBalance:'123.45',idempotencyKey:'12345678-1234-4123-8123-123456789abc'};
+ const headers={cookie,'content-type':'application/x-www-form-urlencoded'};
+ const valid=await fetch(action,{method:'POST',headers,body:new URLSearchParams(values)});
+ assert.equal(valid.status,200,await valid.text());
+ assert.deepEqual((await valid.json()).keys.sort(),['actualBalance','idempotencyKey']);
+ const invalid=await fetch(action,{method:'POST',headers,
+  body:new URLSearchParams({...values,_csrf:'invalid-token'})});
+ assert.equal(invalid.status,403);
+ assert.equal(calls,1,'An invalid token must never reach the business handler');
+ const unknown=await fetch(action,{method:'POST',headers,
+  body:new URLSearchParams({...values,unknownField:'untrusted'})});
+ assert.equal(unknown.status,400,'Unknown business fields remain rejected');
+ assert.equal(calls,2);
+});
+
 test('production configuration requires explicit named Mongo storage and valid listening ports',()=>{
  const base={...process.env,NODE_ENV:'production',APP_URL:'https://fin.example',TRUST_PROXY:'1',SESSION_SECRET:'test-session-secret-'.repeat(4),MFA_ENCRYPTION_KEY:'ab'.repeat(32),PORT:'3000',MONGO_PLATFORM_URI:'mongodb://db-a:27017,db-b:27017/platform?replicaSet=rs0'};
  const run=extra=>spawnSync(process.execPath,['-e',"require('./src/config/env')"],{cwd:path.resolve(__dirname,'..'),env:{...base,...extra},encoding:'utf8'});

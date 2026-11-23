@@ -58,3 +58,10 @@ test('held guidance and close controls compile and do not offer a restore on use
  assert.match(setup,/Closed · history retained/);
  assert.match(setup,/a\.openingBalanceMinor!==null\|\|Number\(a\.sequence\|\|0\)>0/);
 });
+
+test('a matched negative balance stays Held with an explanatory reason',()=>{
+ const code=source('src/tenant/treasury/service.js');
+ assert.match(code,/Negative bank\/account balance: spending requires settlement and a fresh balance check/);
+ assert.match(code,/Negative account balance: settlement and a fresh check are required/);
+ assert.match(code,/status:matched&&nonnegative\?'active':'held'/);
+});

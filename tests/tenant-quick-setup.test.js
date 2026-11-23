@@ -43,7 +43,7 @@ test('Cash account setup generates name, chooses real operator and never creates
  assert.equal(value.branchId,branch._id);
  assert.equal(value.account.kind,'cash');
  assert.equal(value.account.operatorId,owner.id);
- assert.equal(value.account.isDefault,true);
+ assert.equal(value.account.isDefault,'auto');
  assert(!Object.hasOwn(value.account,'openingBalanceMinor'));
  assert(!Object.hasOwn(value.account,'bookBalanceMinor'));
  assert(!Object.hasOwn(value.account,'amount'));
@@ -53,6 +53,25 @@ test('Cash account setup generates name, chooses real operator and never creates
    branchId:branch._id,network:''}, {},owner,[branch]),{status:400});
  assert.throws(()=>validation.moneyInput({kind:'cash',currency:'SSP',
    branchId:branch._id,network:'',amount:'100000'}, {},owner,[branch]),{status:400});
+});
+test('Money account naming and currency rules are explicit and cannot overwrite balance',()=>{
+ const value=validation.moneyInput({
+  kind:'cash',currency:'SSP',branchId:branch._id,name:'Front counter SSP cash',
+  network:'',operatorId:'',accountReference:''
+ },{},owner,[branch]);
+ assert.equal(value.account.name,'Front counter SSP cash');
+ assert.equal(value.account.isDefault,'auto');
+ assert.equal(value.account.operatorId,owner.id);
+ assert.throws(()=>validation.moneyInput({
+  kind:'cash',currency:'SSP',branchId:branch._id,
+  name:'Main cash',openingBalanceMinor:'5000'
+ },{},owner,[branch]),{status:400});
+ assert.throws(()=>validation.moneyInput({
+  kind:'cash',currency:'SSP',branchId:branch._id,
+  name:'Main cash',isDefault:true
+ },{},owner,[branch]),{status:400});
+ assert(!validation.accountKinds({},owner).includes('transfer_clearing'),
+  'Owner setup must not expose internal transfer liability as everyday cash');
 });
 test('Quick setup templates expose only real existing forms and accurate financial readiness',async()=>{
  const base={users:0,invites:0,accounts:[],openingKeys:{},readyCount:0,roles:['Mobile Money Operator'],
@@ -74,6 +93,9 @@ test('Quick setup templates expose only real existing forms and accurate financi
  assert(active.includes('Cashier'));
  assert(active.includes('/js/tenant-quick-setup.js'));
  assert(active.includes('data-quick-account-kind'));
+ assert(active.includes('data-quick-account-name'));
+ assert(active.includes('Choose account type'));
+ assert(active.includes('What are you creating?'));
  assert(active.includes('data-quick-provider'));
  for(const currency of currencyCodes)assert(active.includes('value="'+currency+'"'),'Every supported currency is visible: '+currency);
  assert.match(active,/<option value="UGX"[^>]*disabled/,'Other branch currency is visible but disabled');

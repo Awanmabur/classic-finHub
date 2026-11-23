@@ -35,7 +35,19 @@ async function open(conn,tenant,actor,input={}){
    if(!touched)throw fail('Branch unavailable',409);
    require('./branchCurrency.service').resolve(touched,currency);
    if(await cashSessionModel(conn).exists({...activeFilter(branchId,operatorId,currency),status:{$in:['pending_open','open','submitted','disputed']}}).session(tx))throw fail('An unfinished cash shift already exists for this operator, branch and currency',409);
-   const funds=require('../treasury/service'),fund=await funds.findAccount(conn,tx,{branchId,kind:'cash',currency,operatorId:actor.id});
+   const funds=require('../treasury/service');
+   let fund;
+   if(input.treasuryAccountId){
+    // Multiple real cash drawers may share the same operator and currency.
+    // Bind the exact owner-selected drawer, never a different default.
+    const authorization=await funds.access(conn,tenant,actor,{permission:'treasury.observe',session:tx,fence:true});
+    fund=await funds.loadAccount(conn,authorization,input.treasuryAccountId,{session:tx,fence:true});
+    if(fund.kind!=='cash'||String(fund.branchId)!==branchId||
+       String(fund.operatorId||'')!==operatorId||fund.currency!==currency)
+     throw fail('Choose your own cash drawer in this branch and currency',403);
+   }else{
+    fund=await funds.findAccount(conn,tx,{branchId,kind:'cash',currency,operatorId:actor.id});
+   }
    if(useBookCount&&(!fund||fund.openingBalanceMinor===null||!fund.openingApprovedAt||fund.status!=='active'||fund.reconciliationState!=='matched'))
     throw fail('An active, reconciled cash drawer is required to reuse the automatic book balance',409);
    const opening=useBookCount?String(fund.bookBalanceMinor):manuallyCounted;

@@ -237,8 +237,10 @@ router.get('/mobile-money/shifts',requireModule('mobile_money'),requirePermissio
  res.redirect(303,'/tenant/cash/shifts'+cursor);
 });
 router.post('/mobile-money/shifts/open',requireModule('mobile_money'),requirePermission('mobile_money.view'),financialThrottle,async(req,res,next)=>{
-  try{const shift=await cash.open(req.tenantDb,req.tenant,req.user,req.body);
-    flash(req,'good','Opening cash count submitted. A different authorized supervisor must approve it before you can record operations.');require('../services/branchView.service').followRecord(req,shift);res.redirect(303,'/tenant/mobile-money/shifts');
+  try{
+    const routine=req.user.role==='Tenant Owner'&&req.body.openingFromBook==='on';
+    const shift=await (routine?cash.startOwnerMatchedShift:cash.open)(req.tenantDb,req.tenant,req.user,req.body);
+    flash(req,'good',routine?'Cash shift started. You can record transactions.':'Opening count submitted for verification.');require('../services/branchView.service').followRecord(req,shift);res.redirect(303,'/tenant/mobile-money/shifts');
   }catch(e){next(e);}
 });
 router.post('/mobile-money/shifts/:id/verify-opening',requireModule('mobile_money'),requirePermission('mobile_money.view'),financialThrottle,async(req,res,next)=>{
@@ -247,8 +249,11 @@ router.post('/mobile-money/shifts/:id/verify-opening',requireModule('mobile_mone
   }catch(e){next(e);}
 });
 router.post('/mobile-money/shifts/:id/submit',requireModule('mobile_money'),requirePermission('mobile_money.view'),financialThrottle,async(req,res,next)=>{
-  try{const shift=await cash.submit(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
-    flash(req,'good','Cash count submitted for independent review; it is not a provider settlement.');require('../services/branchView.service').followRecord(req,shift);res.redirect(303,'/tenant/mobile-money/shifts');
+  try{
+    const routine=req.user.role==='Tenant Owner'&&req.body.closingFromBook==='on';
+    const shift=await (routine?cash.finishOwnerMatchedShift:cash.submit)(
+      req.tenantDb,req.tenant,req.user,req.params.id,req.body);
+    flash(req,'good',routine?'Cash shift closed with a matching physical count.':'Cash count submitted for verification.');require('../services/branchView.service').followRecord(req,shift);res.redirect(303,'/tenant/mobile-money/shifts');
   }catch(e){next(e);}
 });
 router.post('/mobile-money/shifts/:id/decide',requireModule('mobile_money'),requirePermission('mobile_money.view'),financialThrottle,async(req,res,next)=>{

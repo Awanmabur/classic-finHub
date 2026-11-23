@@ -80,6 +80,36 @@ function validateAccount(input){
  if(input.isDefault!==undefined&&!['true','false','auto',true,false,'on'].includes(input.isDefault))throw fail('Choose a valid default-account option');
  return {code,name,kind,currency,network,operatorId,accountReference,isDefault:input.isDefault==='auto'?'auto':input.isDefault===undefined||['true',true,'on'].includes(input.isDefault)};
 }
+// Name-only edit: never mutate money, account identifiers, permissions,
+// default selection, provider rules, chart mappings or previous transactions.
+async function renameAccount(conn,tenant,actor,accountId,input={}){
+ const name=text(input.name,'account name',3,120);
+ await Promise.all([ensure(conn),core.ensureTenantIndexes(conn)]);
+ return transaction(conn,async session=>{
+  const auth=await access(conn,tenant,actor,{permission:'treasury.manage',session,fence:true});
+  if(!['Tenant Owner','Branch Manager'].includes(auth.actor.role))
+   throw fail('Only an authorized owner or assigned branch manager may rename an account',403);
+  const account=await loadAccount(conn,auth,accountId,{session,fence:true});
+  if(account.status==='archived')throw fail('Removed accounts retain their original history and cannot be renamed',409);
+  if(account.name===name)return account;
+  const conflict=await models(conn).account.findOne({
+   _id:{$ne:account._id},tenantId:auth.tenant._id,
+   branchId:account.branchId,kind:account.kind,currency:account.currency,
+   network:account.network,operatorId:account.operatorId||null,
+   status:{$ne:'archived'},name
+  }).collation({locale:'en',strength:2}).select('_id').session(session).lean();
+  if(conflict)throw fail('An account with this name already exists for the same type and currency. Choose a different name.',409);
+  const updated=await models(conn).account.findOneAndUpdate({
+   _id:account._id,tenantId:auth.tenant._id,status:{$ne:'archived'},
+   revision:account.revision
+  },{$set:{name},$inc:{revision:1}},{session,new:true,runValidators:true}).lean();
+  if(!updated)throw fail('Account changed while renaming. Reload and try again.',409);
+  await audit(conn,session,auth.actor,'treasury.account.renamed',account._id,{
+   branchId:String(account.branchId),oldName:account.name,newName:name
+  });
+  return updated;
+ });
+}
 async function configureAccount(conn,tenant,actor,accountId,input){
  await ensure(conn);
  const name=text(input.name,'account name',3,120),isDefault=['true',true,'on'].includes(input.isDefault);
@@ -269,7 +299,9 @@ function assertSettledAccountClosable(account,confirmCode){
     BigInt(String(account.lastExpectedAtObservationMinor))!==0n||
     account.lastVarianceMinor===null||BigInt(String(account.lastVarianceMinor))!==0n)
   throw fail('To close an account, settle it to zero, record a fresh actual zero balance and resolve any Held or pending review status.',409);
- if(account.selectionKey)throw fail('Choose another default account first, then close this one.',409);
+ // Removing a settled, zero account also clears its default selection. This
+ // never changes any historic posting. Future operations must choose another
+ // active account if no default remains.
 }
 async function closeSettledAccount(conn,tenant,actor,accountId,input={}){
  const confirmCode=text(input.confirmCode,'account code',3,40).toUpperCase();
@@ -320,7 +352,7 @@ async function closeSettledAccount(conn,tenant,actor,accountId,input={}){
   await audit(conn,session,auth.actor,'treasury.account.closed',key,{
    branchId:String(account.branchId),code:account.code,kind:account.kind,
    currency:account.currency,reason,finalBookMinor:'0',
-   historyRetained:true,latestCountAt:account.lastObservationAt
+   historyRetained:true,defaultCleared:Boolean(account.selectionKey),latestCountAt:account.lastObservationAt
   });
   return closed;
  });
@@ -876,4 +908,4 @@ async function reviewAdjustment(conn,tenant,actor,adjustmentId,input){
   await audit(conn,session,authorization.actor,`treasury.adjustment.${input.decision==='approve'?'approved':'rejected'}`,adjustment._id,{branchId:String(account.branchId),accountId:String(account._id),batchId:batchId?String(batchId):null,deltaMinor:String(adjustment.deltaMinor)});return result;
  });
 }
-module.exports={recordOwnerBalanceCheck,addCapital,postCrossCurrencyTransferPayout,postBranchTransferPayout,models,ensure,access,loadAccount,createAccount,configureAccount,archiveUnusedAccount,restoreArchivedAccount,closeSettledAccount,assertSettledAccountClosable,archiveUnusedWallet,assertUnusedAccountArchivable,assertUnusedWalletArchivable,validateAccount,requestObservation,requestObservationInSession,confirmOwnerOpening,reviewObservation,reviewObservationInSession,applyMovements,reverseMovements,ensureCounterAccount,findAccount,findOperatingAccounts,balanceSnapshot,accountDetail,reviewQueue,requestAdjustment,reviewAdjustment,expectedAt,assertBookIntegrity,format,major,signedMinor,normalizeMovement,parseObservation,scope,moduleForKind,normalSide,fail,KINDS,NETWORKS};
+module.exports={recordOwnerBalanceCheck,addCapital,postCrossCurrencyTransferPayout,postBranchTransferPayout,models,ensure,access,loadAccount,createAccount,configureAccount,renameAccount,archiveUnusedAccount,restoreArchivedAccount,closeSettledAccount,assertSettledAccountClosable,archiveUnusedWallet,assertUnusedAccountArchivable,assertUnusedWalletArchivable,validateAccount,requestObservation,requestObservationInSession,confirmOwnerOpening,reviewObservation,reviewObservationInSession,applyMovements,reverseMovements,ensureCounterAccount,findAccount,findOperatingAccounts,balanceSnapshot,accountDetail,reviewQueue,requestAdjustment,reviewAdjustment,expectedAt,assertBookIntegrity,format,major,signedMinor,normalizeMovement,parseObservation,scope,moduleForKind,normalSide,fail,KINDS,NETWORKS};

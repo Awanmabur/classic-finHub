@@ -67,18 +67,18 @@ test('shared cash shift actions use operator roles and the actual current shift'
   const options=fixture(['*']);
   options.menu[0].items.push({href:'/tenant/cash/shifts',label:'Cash shifts',icon:'fa-cash-register'});
   const opening=await ejs.renderFile(template,options);
-  assert.match(opening,/<a[^>]+href="\/tenant\/cash\/shifts"[^>]+data-transaction-kind="cash_shift_open"[^>]*>Open day/);
+  assert.match(opening,/<a[^>]+href="\/tenant\/cash\/shifts"[^>]+data-transaction-kind="cash_shift_open"[^>]*>Start cash shift/);
   options.data.workspaceSnapshot={cash:[],recentActivity:[],currentCashShift:{id:'real-shift',status:'open',href:'/tenant/cash/shifts/real-shift'}};
   const closing=await ejs.renderFile(template,options);
-  assert.match(closing,/<a[^>]+href="\/tenant\/cash\/shifts\/real-shift"[^>]*>Close day/);
-  assert.doesNotMatch(closing,/<a[^>]+href="\/tenant\/cash\/shifts"[^>]+data-transaction-kind="cash_shift_open"[^>]*>Open day/);
+  assert.match(closing,/<a[^>]+href="\/tenant\/cash\/shifts\/real-shift"[^>]*>Finish cash shift/);
+  assert.doesNotMatch(closing,/<a[^>]+href="\/tenant\/cash\/shifts"[^>]+data-transaction-kind="cash_shift_open"[^>]*>Start cash shift/);
   options.user.role='Branch Manager';
   const supervisor=await ejs.renderFile(template,options);
   assert.doesNotMatch(supervisor,/data-transaction-kind="cash_shift_open"/,'supervisors review shifts; they do not open an operator shift');
   for(const [role,moduleKey] of [['Mobile Money Operator','mobile_money'],['Money Transfer Operator','money_transfer'],['Banking Operator','banking'],['Forex Operator','forex']]){
     const corePath='/tenant/'+moduleKey.replaceAll('_','-');
     const assigned=fixture(permissionsFor(role),[corePath]);assigned.user.role=role;assigned.data.workspaceSnapshot={};
-    assigned.menu[0].items.push({href:'/tenant/cash/shifts',label:'Open day'});
+    assigned.menu[0].items.push({href:'/tenant/cash/shifts',label:'Start cash shift'});
     const html=await ejs.renderFile(template,assigned);
     assert.match(html,/data-transaction-kind="cash_shift_open"/,`${role} can open the actual shared cash drawer with the fixed role permissions`);
     assigned.user.permissions=assigned.user.permissions.filter(permission=>permission!=='treasury.view');

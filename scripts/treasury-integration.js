@@ -151,6 +151,38 @@ async function main(){
   'Retrying the same receipt does not add funds twice');
  assert.equal(await core.ledgerJournalModel(conn).countDocuments(),capitalBefore+1,
   'One capital receipt generates exactly one balanced ledger journal');
+ // The owner's physically matched cash shifts now open and finish in one
+ // submission each, using the existing persisted owner reviewer fence.
+ // No cash is invented and no discrepancy can be silently approved.
+ const ownerShift=await cash.startOwnerMatchedShift(conn,tenant,owner,{
+  currency:'UGX',openingFromBook:'on',physicalCountConfirmed:'on'
+ });
+ assert.equal(ownerShift.status,'open');
+ assert.equal(String(ownerShift.openingMinor),'230');
+ const ownerClosed=await cash.finishOwnerMatchedShift(conn,tenant,owner,ownerShift._id,{
+  closingFromBook:'on',physicalCountConfirmed:'on'
+ });
+ assert.equal(ownerClosed.status,'approved');
+ assert.equal(String(ownerClosed.varianceMinor),'0');
+ assert.equal(String((await book.models(conn).account.findById(starterCash._id)).bookBalanceMinor),'230',
+  'Cash shift verification cannot create or remove money');
+ await assert.rejects(cash.finishOwnerMatchedShift(conn,tenant,operator,ownerShift._id,{
+  closingFromBook:'on',physicalCountConfirmed:'on'
+ }),e=>e.status===403,'Staff must never use owner one-step closing');
+ const beforeRename=await book.models(conn).account.findById(starterCash._id).lean();
+ const postingsBeforeRename=await core.ledgerPostingModel(conn).countDocuments();
+ const renamed=await treasury.renameAccount(conn,tenant,owner,starterCash._id,{
+  name:'Owner front-counter cash UGX'
+ });
+ assert.equal(renamed.name,'Owner front-counter cash UGX');
+ assert.equal(String(renamed.ledgerAccountId),String(beforeRename.ledgerAccountId));
+ assert.equal(String(renamed.bookBalanceMinor),String(beforeRename.bookBalanceMinor));
+ assert.equal(renamed.selectionKey,beforeRename.selectionKey);
+ assert.equal(renamed.feeTreatment,beforeRename.feeTreatment);
+ assert.equal(await core.ledgerPostingModel(conn).countDocuments(),postingsBeforeRename,
+  'Renaming cannot post financial entries or alter journal history');
+
+
  await assert.rejects(treasury.addCapital(conn,tenant,owner,starterCash._id,
   {...firstCapital,amount:'200'}),e=>e.status===409,'A UUID cannot be reused for a different amount');
  // A fresh submission is a new capital declaration. It must never

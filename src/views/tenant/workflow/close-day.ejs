@@ -1,19 +1,19 @@
-<section class="view show"><section class="card"><div class="cardHead"><div><b>Close day</b><br><span>Auto closing balances from reports</span></div><a class="btn" href="/tenant/cash/shifts">Cash control review</a></div><div class="cardBody">
+<section class="view show"><section class="card"><div class="cardHead"><div><b>Finish cash shift</b><br><span>Compare the physical cash in your drawer with the recorded amount.</span></div><a class="btn" href="/tenant/cash/shifts">All cash shifts</a></div><div class="cardBody">
 <% if(data.shift){ %>
-  <div class="summary"><div class="sumRow"><span>System closing cash · <%= data.shift.currency==='KES'?'KSH':data.shift.currency %></span><b><%= data.expected %></b></div></div>
-  <p class="tiny">Calculated from opening balance and posted movements in your own drawer. This is the expected book amount, not proof of the physical count.</p>
+  <div class="summary"><div class="sumRow"><span>Expected cash · <%= data.shift.currency==='KES'?'KSH':data.shift.currency %></span><b><%= data.expected %></b></div></div>
+  <p class="tiny">This amount comes from posted transactions. Count the physical notes and coins before confirming.</p>
   <form method="post" action="/tenant/day/close">
    <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="shiftId" value="<%= data.shift._id %>"><input type="hidden" name="currency" value="<%= data.shift.currency %>"><input type="hidden" name="closingFromBook" value="on">
-   <label class="field"><input type="checkbox" name="physicalCountConfirmed" value="on" required> I counted the physical cash and confirm it matches the system balance.</label>
-   <div class="rowBtns"><button class="btn btnPrimary" type="submit">Submit matching closing count</button></div>
+   <label class="field"><input type="checkbox" name="physicalCountConfirmed" value="on" required> I counted my cash and it matches this amount.</label>
+   <div class="rowBtns"><button class="btn btnPrimary" type="submit"><%= typeof user!=='undefined'&&user.role==='Tenant Owner'?'Finish and close':'Submit closing count' %></button></div>
   </form>
-  <details class="logicNote"><summary>Physical cash differs from the system balance?</summary>
+  <details class="logicNote"><summary>Cash does not match?</summary>
    <form method="post" action="/tenant/day/close">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="shiftId" value="<%= data.shift._id %>"><input type="hidden" name="currency" value="<%= data.shift.currency %>">
     <label class="field">Actually counted closing cash<input class="control" name="countedCash" required inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" placeholder="Actual physical count"></label>
     <label class="field">Evidence or explanation<textarea class="control" name="note" minlength="12" maxlength="400" rows="2" required></textarea></label>
-    <div class="rowBtns"><button class="btn" type="submit">Submit discrepancy for review</button></div>
+    <div class="rowBtns"><button class="btn" type="submit">Report difference</button></div>
    </form>
   </details>
-<% } else { %><p>No verified open cash shift is available for your account in your operating branch.</p><a class="btn btnPrimary" href="/tenant/cash/shifts" data-transaction-kind="cash_shift_open">Open day</a><% } %>
+<% } else { %><p>No open cash shift. Start one only when you are physically taking responsibility for a cash drawer.</p><a class="btn btnPrimary" href="/tenant/cash/shifts" data-transaction-kind="cash_shift_open">Start cash shift</a><% } %>
 </div></section></section>

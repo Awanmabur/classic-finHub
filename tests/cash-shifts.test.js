@@ -82,7 +82,7 @@ test('cash shift views have real server-backed actions and escape notes',async()
  const openView=await ejs.renderFile(path.join(base,'shift-detail.ejs'),{formatMoneyMinor:mobile.formatMoneyMinor,data:{shift:openShift,canSubmit:true,canReview:false},csrfToken:'csrf'});
  assert.match(openView,/name="closingFromBook" value="on"/);
  assert.match(openView,/name="physicalCountConfirmed" value="on"/);
- assert.match(openView,/Cash differs from the system amount/);
+ assert.match(openView,/Cash does not match/);
  assert.match(openView,/name="countedCash"/,'real discrepancies must still be possible');
  const ack=await ejs.renderFile(path.join(base,'acknowledgement.ejs'),{record:{_id:shiftId,createdAt:new Date(),operation:'cash_in',network:'MTN',networkReference:'REF-123',
   customer:'<script>alert(1)</script>',status:'pending_verification',reviewState:'accepted',correctionState:'none'},
@@ -181,4 +181,20 @@ test('stale SMS is rejected before cash and float posting with a stable review r
  assert.doesNotThrow(()=>assertSmsShiftTime(shift,null));
  assert.throws(()=>assertSmsShiftTime({...shift,openingVerifiedAt:null},'2026-11-16T08:03:00Z'),
   error=>error.code==='SMS_SHIFT_MISMATCH');
+});
+
+test('owner matching shifts use the real audited open/close services without removing variance safeguards',()=>{
+ const cashCode=require('node:fs').readFileSync(path.join(__dirname,'../src/tenant/services/cashDrawer.service.js'),'utf8');
+ const cashRoutes=require('node:fs').readFileSync(path.join(__dirname,'../src/tenant/routes/cashControl.routes.js'),'utf8');
+ const dayRoutes=require('node:fs').readFileSync(path.join(__dirname,'../src/tenant/routes/dayControl.routes.js'),'utf8');
+ assert.equal(typeof cash.startOwnerMatchedShift,'function');
+ assert.equal(typeof cash.finishOwnerMatchedShift,'function');
+ assert.match(cashCode,/await open\(conn,tenant,actor,input\)/);
+ assert.match(cashCode,/await decideOpening\(conn,tenant,actor,shift\._id/);
+ assert.match(cashCode,/await submit\(conn,tenant,actor,shiftId,input\)/);
+ assert.match(cashCode,/await decide\(conn,tenant,actor,shiftId/);
+ assert.match(cashCode,/String\(submitted\.varianceMinor\)!=='0'/);
+ assert.match(cashRoutes,/cash\.startOwnerMatchedShift/);
+ assert.match(cashRoutes,/cash\.finishOwnerMatchedShift/);
+ assert.match(dayRoutes,/cash\.finishOwnerMatchedShift/);
 });

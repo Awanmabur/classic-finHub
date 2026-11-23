@@ -116,8 +116,8 @@
       <% if(financialActions.length||visiblePaths.has('/tenant/reports')||visiblePaths.has('/tenant/cash/shifts')){ %><div class="rowBtns" style="margin-top:12px">
         <% financialActions.forEach((action,index)=>{ %><a class="btn <%= index===0?'btnPrimary':'' %>" href="<%= action.href %>" data-transaction-kind="<%= action.kind %>"><%= action.label %></a><% }) %>
         <% if(visiblePaths.has('/tenant/reports')){ %><a class="btn" href="/tenant/reports">View reports</a><% } %>
-        <% if(opener){ %><a class="btn" href="<%= opener.href %>" id="openDayBtn" data-transaction-kind="cash_shift_open">Open day</a><% } %>
-        <% if(visiblePaths.has('/tenant/cash/shifts')&&snapshot.currentCashShift){ %><a class="btn" href="<%= snapshot.currentCashShift.href %>" id="closeDayBtn" data-transaction-kind="cash_shift_close">Close day</a><% } %>
+        <% if(opener){ %><a class="btn" href="<%= opener.href %>" id="openDayBtn" data-transaction-kind="cash_shift_open">Start cash shift</a><% } %>
+        <% if(visiblePaths.has('/tenant/cash/shifts')&&snapshot.currentCashShift){ %><a class="btn" href="<%= snapshot.currentCashShift.href %>" id="closeDayBtn" data-transaction-kind="cash_shift_close">Finish cash shift</a><% } %>
       </div><% } %>
     </div>
   </div>

@@ -21,6 +21,7 @@ const ugx=account('111111111111111111111111','UGX','active','500');
 const ssp=account('222222222222222222222222','SSP','uninitialized','0');
 const ksh=account('333333333333333333333333','KES','held','70','wallet');
 ksh.network='MTN';
+ksh.sequence=0; // A mistyped opening with no financial operations is correctable.
 const keys=Object.fromEntries([ugx,ssp,ksh].map(a=>[a._id,{
  opening:'00000000-0000-4000-8000-000000000001',
  capital:'00000000-0000-4000-8000-000000000002',

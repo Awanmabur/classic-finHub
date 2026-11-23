@@ -277,9 +277,9 @@ async function closeSettledAccount(conn,tenant,actor,accountId,input={}){
    t.observation.exists({accountId:key,status:'pending_review'}).session(session),
    t.adjustment.exists({accountId:key,status:'pending_review'}).session(session),
    require('./funding.models').model(conn).exists({...orFunds,status:'pending_review'}).session(session),
-   core.mobileTransactionModel(conn).exists({...orMobile,$or:[
+   core.mobileTransactionModel(conn).exists({$and:[orMobile,{$or:[
     {status:'pending_verification'},{reviewState:'awaiting_review'},{correctionState:'requested'}
-   ]}).session(session),
+   ]}]}).session(session),
    core.cashSessionModel(conn).exists({treasuryAccountId:key,status:{
     $in:['pending_open','open','submitted','disputed']
    }}).session(session),

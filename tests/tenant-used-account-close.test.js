@@ -82,3 +82,17 @@ test('a two-click owner Remove action uses only server-derived account identity 
  assert.match(detail,/\/accounts\/<%= account\._id %>\/remove/);
  assert.doesNotMatch(routes.slice(routes.indexOf("router.post('/accounts/:id/remove'"),routes.indexOf("router.post('/accounts/:id/archive'")),/deleteMany\(|deleteOne\(|findOneAndDelete\(/);
 });
+
+test('name-only account editing never submits defaults or financial values',()=>{
+ const detail=source('src/views/tenant/treasury/detail.ejs');
+ const routes=source('src/tenant/treasury/routes.js');
+ const serviceSource=source('src/tenant/treasury/service.js');
+ assert.match(detail,/action="\/tenant\/treasury\/accounts\/<%= account\._id %>\/rename"/);
+ assert.match(detail,/Save name/);
+ assert.match(routes,/router\.post\('\/accounts\/:id\/rename',requirePermission\('treasury\.manage'\),throttle/);
+ assert.match(serviceSource,/async function renameAccount/);
+ const fn=serviceSource.slice(serviceSource.indexOf('async function renameAccount'),serviceSource.indexOf('async function configureAccount'));
+ assert.match(fn,/treasury\.account\.renamed/);
+ assert.doesNotMatch(fn,/applyMovements|openingBalanceMinor|bookBalanceMinor|ledgerPostingModel|selectionKey:/);
+ assert.equal(typeof service.renameAccount,'function');
+});

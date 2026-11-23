@@ -672,3 +672,9 @@ body[data-workspace="tenant"] .topbar>.title{grid-area:auto;min-width:0}
 .moneyQuickForm .control{width:100%}
 .moneyQuickForm p{margin:0}
 @media(max-width:720px){.moneyAccountGrid{grid-template-columns:minmax(0,1fr)}.moneyAccount{padding:14px}.moneyAccountActions{gap:7px}}
+
+.moneyCreate[open]{flex-basis:min(100%,720px);max-width:100%}
+.moneyCreate .moneyQuickForm{margin:8px 0 0;padding:16px;border:1px solid var(--border,var(--line,#ddd));border-radius:14px;background:var(--card,#fff)}
+.moneyCreate .row2{width:100%}
+[data-money-create-network-field][hidden]{display:none!important}
+.moneyCurrencyGroup:target,.moneyAccount:target{scroll-margin-top:100px}

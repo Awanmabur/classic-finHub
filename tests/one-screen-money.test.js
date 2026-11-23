@@ -33,7 +33,7 @@ const locals={
  data:{
   snapshot:{accounts:[ugx,ssp,ksh],note:''},
   ownerFormKeys:keys,canManage:true,canCreateAccount:true,canObserve:true,
-  canReview:true,queue:[],setupBranch:{_id:'0123456789abcdef01234567',currency:'UGX',currencies:['UGX','SSP','KES']},
+  canReview:true,canUseCashShifts:true,queue:[],setupBranch:{_id:'0123456789abcdef01234567',currency:'UGX',currencies:['UGX','SSP','KES']},
   kinds:['cash','wallet','bank'],networks:['MTN'],
   currencyCodes:['UGX','USD','SSP','KES'],fundingAccounts:[],fundings:[],
   fundingIdempotencyKey:'00000000-0000-4000-8000-000000000005',
@@ -65,6 +65,14 @@ test('Money is one rendered owner screen with real account forms, each currency 
  assert.match(html,/name="_csrf" value="test-csrf"/);
  assert.match(html,/idempotencyKey/);
  assert.match(html,/\/js\/tenant-money-workspace\.js/);
+});
+test('Cash-shift shortcut is shown only for authorized money operations',async()=>{
+ const allowed=await ejs.renderFile(view,locals);
+ assert.match(allowed,/href="\/tenant\/cash\/shifts"/);
+ const notAllowed=await ejs.renderFile(view,{...locals,data:{...locals.data,canUseCashShifts:false}});
+ assert.doesNotMatch(notAllowed,/href="\/tenant\/cash\/shifts"/);
+ const routes=src('src/tenant/treasury/routes.js');
+ assert.match(routes,/cashDrawer\.service'\)\.allowed\(req\.tenant,req\.user\)/);
 });
 test('Money posts strict semantics; a counted total never turns into unearned capital',()=>{
  const route=src('src/tenant/treasury/routes.js'),money=src('src/views/tenant/treasury/_owner-accounts.ejs');

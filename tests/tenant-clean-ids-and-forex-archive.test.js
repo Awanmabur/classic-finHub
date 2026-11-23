@@ -63,12 +63,12 @@ test('all internal directory numbers are read-only and generated on save',()=>{
  const treasuryService=src('src/tenant/treasury/service.js');
  // Owners use one Quick setup flow; a manager's advanced form likewise has
  // no editable code field. Codes are generated and checked by the backend.
- assert.match(treasury,/user\\.role!=='Tenant Owner'/);
+ assert(treasury.includes("user.role!=='Tenant Owner'"));
  assert.match(quickSetup,/data-quick-account-name/);
  assert.doesNotMatch(treasury,/<input[^>]*name=["']code["']/i);
  assert.doesNotMatch(quickSetup,/<input[^>]*name=["']code["']/i);
- assert.match(treasuryRoutes,/hasOwnProperty\\.call\\(req\\.body\\|\\|\\{\\},'code'\\)/);
- assert.match(treasuryService,/const accountCode=values\\.code\\|\\|/);
+ assert(treasuryRoutes.includes("hasOwnProperty.call(req.body||{},'code')"));
+ assert(treasuryService.includes('const accountCode=values.code||'));
  assert.match(treasuryService,/code:accountCode/);
 });
 test('Forex rate board retires only an active immutable price with recorded actor and reason',()=>{

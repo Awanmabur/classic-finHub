@@ -66,7 +66,11 @@
 
   document.addEventListener('submit',async event=>{
     const form=event.target;if(event.defaultPrevented||!(form instanceof HTMLFormElement)||form.method.toLowerCase()!=='post'||form.target&&form.target!=='_self'||form.hasAttribute('data-feedback-skip')||form.enctype==='multipart/form-data'||!navigator.onLine)return;
-    const action=new URL(event.submitter?.getAttribute('formaction')||form.action,location.origin);
+    // Never read form.action here: a select/input named "action" overrides
+    // the native HTMLFormElement.action property, producing a POST to
+    // /[object%20HTMLSelectElement] instead of the declared destination.
+    const action=new URL(event.submitter?.getAttribute('formaction')||
+      form.getAttribute('action')||location.href,location.origin);
     // These handoffs render private one-time HTML or use the dedicated,
     // durable financial submission handlers. Preserve their normal behavior.
     if(action.origin!==location.origin||action.pathname==='/logout'||action.pathname==='/tenant/view-branch'||/^\/platform\/tenants(?:\/[a-f0-9]{24}\/owner-invitation)?\/?$/i.test(action.pathname)||/\/reveal-pin\/?$/i.test(action.pathname)||action.pathname==='/tenant/backups/action'||action.pathname==='/tenant/users/invite'||form.matches('[data-mobile-money-form],[data-transfer-form],[data-forex-form],[data-funded-form],[data-payout-form],[data-expense-form]'))return;
@@ -81,6 +85,17 @@
       const outcome=await response(result);
       if(result.ok&&outcome.redirect){if(outcome.flash?.type==='bad'){show(outcome.flash.message,'bad',{form});return;}location.assign(outcome.redirect);return;}
       if(result.redirected&&result.ok&&new URL(result.url).origin===location.origin){location.assign(result.url);return;}
+      if(result.status===404){
+        // Show the actual failed action (not a generic 'Page not found').
+        // Strip private record IDs; only the request reference is needed to
+        // match the origin/proxy logs without replaying a financial POST.
+        const safePath=action.pathname.replace(/\/[a-f0-9]{24}(?=\/|$)/gi,'/:record').slice(0,180);
+        const ref=result.headers.get('X-Request-ID');
+        const reference=/^[a-f0-9-]{36}$/i.test(ref||'')?' Reference: '+ref+'.':'';
+        show('Action unavailable (HTTP 404): POST '+safePath+'.'+reference+
+          ' Check the account history before submitting again.','bad',{form});
+        return;
+      }
       show(outcome.message||'The action could not be completed.','bad',{form});
     }catch{show('The connection was interrupted. Your form is still here. Check whether the action completed before trying again.','bad',{form});}
     finally{restore();}

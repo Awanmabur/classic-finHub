@@ -586,7 +586,7 @@
       // Deposit/out share one immutable server-issued request key. Switching the
       // approved child tabs preserves entered details until the operation saves.
       if(present?.matches('[data-mobile-money-form]')&&['cash_in','cash_out'].includes(kind)){
-        selectKind(kind);present.action=operations[kind].action;syncMobileOperation(present,kind);
+        selectKind(kind);present.setAttribute('action',operations[kind].action);syncMobileOperation(present,kind);
         window.ClassicFinPricing?.initialise(present);
         window.ClassicFinMobileQuote?.initialise(present);
         window.ClassicFinMobileUnified?.initialise(present);
@@ -635,7 +635,7 @@
           keepTemplate(key,source);
         }
         if(source.querySelector('select[name="branchId"]'))throw new Error('Your operating branch must come from your account assignment.');
-        const form=source.cloneNode(true);form.action=operation.action;form.classList.remove('card');form.classList.add('transactionForm','svc');form.id='transactionOperationForm';
+        const form=source.cloneNode(true);form.setAttribute('action',operation.action);form.classList.remove('card');form.classList.add('transactionForm','svc');form.id='transactionOperationForm';
         delete form.dataset.operationLoading;
         const reference=form.elements.namedItem('idempotencyKey');if(reference){const previous=reference.value;reference.value=reference.defaultValue=crypto.randomUUID();form.querySelectorAll('[data-mobile-reference],.summary .mono').forEach(label=>{if(label.hasAttribute('data-mobile-reference')||label.textContent.trim()===previous)label.textContent=reference.value;});}
         if(seed){for(const [name,value]of new FormData(seed)){if(typeof value!=='string'||['_csrf','idempotencyKey','pricingMode','pricingPolicy','fee','commission'].includes(name))continue;const field=form.elements.namedItem(name);if(!field||field.type==='hidden'||field.readOnly)continue;if(field.tagName==='SELECT'&&![...field.options].some(option=>option.value===value&&!option.disabled))continue;field.value=value;}}

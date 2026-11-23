@@ -109,12 +109,14 @@ async function main(){
  const starterCash=await treasury.createAccount(conn,tenant,owner,{
   code:'OWNER_QUICK_CASH',name:'Owner counted starting drawer',kind:'cash',currency:'UGX',
   operatorId:owner.id,isDefault:false});
- const openingInput={actualBalance:'150',evidenceReference:'OWNER-COUNT-START-001',
-  confirmed:'yes',idempotencyKey:crypto.randomUUID()};
+ const firstCapital={amount:'80',idempotencyKey:crypto.randomUUID()};
+ await assert.rejects(treasury.addCapital(conn,tenant,owner,starterCash._id,firstCapital),
+  e=>e.status===409,'New capital cannot bypass a verified account opening');
+ const openingInput={actualBalance:'150',idempotencyKey:crypto.randomUUID()};
  await assert.rejects(treasury.confirmOwnerOpening(conn,tenant,operator,starterCash._id,openingInput),
   e=>e.status===403,'An operator must never self-approve initial funds');
  await assert.rejects(treasury.confirmOwnerOpening(conn,tenant,owner,starterCash._id,
-  {...openingInput,confirmed:'no'}),e=>e.status===400);
+  {...openingInput,actualBalance:'150.30'}),e=>e.status===400);
  const journalsBefore=await core.ledgerJournalModel(conn).countDocuments();
  const quickOpened=await treasury.confirmOwnerOpening(conn,tenant,owner,starterCash._id,openingInput);
  assert.equal(quickOpened.duplicate,false);
@@ -132,7 +134,235 @@ async function main(){
  await assert.rejects(treasury.confirmOwnerOpening(conn,tenant,owner,starterCash._id,
   {...openingInput,idempotencyKey:crypto.randomUUID()}),e=>e.status===409);
  assert.equal(String((await book.models(conn).account.findById(starterCash._id)).bookBalanceMinor),'150');
+ await assert.rejects(treasury.addCapital(conn,tenant,operator,starterCash._id,firstCapital),
+  e=>e.status===403,'Ordinary staff cannot create owner capital');
+ await assert.rejects(treasury.addCapital(conn,tenant,owner,starterCash._id,{...firstCapital,amount:'0'}),
+  e=>e.status===400,'Zero top-up cannot post');
+ await assert.rejects(treasury.addCapital(conn,tenant,owner,starterCash._id,{...firstCapital,amount:'-1'}),
+  e=>e.status===400,'Negative capital cannot post');
+ const capitalBefore=await core.ledgerJournalModel(conn).countDocuments();
+ const added=await treasury.addCapital(conn,tenant,owner,starterCash._id,firstCapital);
+ assert.equal(added.duplicate,false);
+ assert.equal(added.currency,'UGX');
+ assert.equal(added.batch.evidenceReference,'CAPITAL-'+firstCapital.idempotencyKey,'Server generates internal audit reference');
+ assert(!('evidenceReference' in firstCapital)&&!('confirmed' in firstCapital),'Top-up takes only amount and account');
+ assert.equal(String((await book.models(conn).account.findById(starterCash._id)).bookBalanceMinor),'230');
+ assert.equal((await treasury.addCapital(conn,tenant,owner,starterCash._id,firstCapital)).duplicate,true,
+  'Retrying the same receipt does not add funds twice');
+ assert.equal(await core.ledgerJournalModel(conn).countDocuments(),capitalBefore+1,
+  'One capital receipt generates exactly one balanced ledger journal');
+ await assert.rejects(treasury.addCapital(conn,tenant,owner,starterCash._id,
+  {...firstCapital,amount:'200'}),e=>e.status===409,'A UUID cannot be reused for a different amount');
+ // A fresh submission is a new capital declaration. It must never
+ // claim to have verified receipt through an external payment provider.
+ const ownerBank=await treasury.createAccount(conn,tenant,owner,{code:'OWNER_CAPITAL_BANK',name:'Owner new capital bank',kind:'bank',currency:'UGX',isDefault:false});
+ const bankOpening=await treasury.confirmOwnerOpening(conn,tenant,owner,ownerBank._id,
+   {actualBalance:'0',idempotencyKey:crypto.randomUUID()});
+ assert.equal(bankOpening.observation.status,'approved');
+ const bankCapital=await treasury.addCapital(conn,tenant,owner,ownerBank._id,
+   {amount:'45',idempotencyKey:crypto.randomUUID()});
+ assert.equal(bankCapital.duplicate,false);
+ assert.equal(String((await book.models(conn).account.findById(ownerBank._id)).bookBalanceMinor),'45');
+ const contribution=await book.models(conn).counter.findOne({branchId:branch._id,currency:'UGX',purpose:'capital_contribution'}).lean();
+ assert(contribution,'Separate capital equity chart must exist');
+ assert.equal((await core.ledgerAccountModel(conn).findById(contribution.ledgerAccountId).lean()).category,'equity');
+ assert.equal((await book.models(conn).batch.countDocuments({sourceType:'treasury_capital'})),2);
  assert.equal((await ledger.trialBalance(conn,{branchId:String(branch._id),currency:'UGX'})).balanced,true);
+ // A direct owner check is final immediately without a second reviewer.
+ const countKey=crypto.randomUUID();
+ const checked=await treasury.recordOwnerBalanceCheck(conn,tenant,owner,ownerBank._id,{
+   actualBalance:'45',idempotencyKey:countKey});
+ assert.equal(checked.matched,true);
+ assert.equal(checked.observation.status,'approved');
+ assert.equal((await treasury.recordOwnerBalanceCheck(conn,tenant,owner,ownerBank._id,{
+   actualBalance:'45',idempotencyKey:countKey})).duplicate,true);
+ await assert.rejects(treasury.recordOwnerBalanceCheck(conn,tenant,operator,ownerBank._id,{
+   actualBalance:'45',idempotencyKey:crypto.randomUUID()}),e=>e.status===403);
+ await assert.rejects(treasury.recordOwnerBalanceCheck(conn,tenant,owner,ownerBank._id,{
+   actualBalance:'47.10',idempotencyKey:crypto.randomUUID()}),e=>e.status===400,
+   'UGX amount must be a whole number');
+ // Same owner process works per-currency without converting into UGX.
+ for(const [currency,amount,minor] of [['USD','12.34','1234'],['SSP','101.25','10125'],['KES','250.75','25075']]){
+   const account=await treasury.createAccount(conn,tenant,owner,{
+     name:'Capital bank '+currency,kind:'bank',currency,isDefault:false});
+   const opened=await treasury.confirmOwnerOpening(conn,tenant,owner,account._id,{
+     actualBalance:'0',idempotencyKey:crypto.randomUUID()});
+   assert.equal(opened.observation.status,'approved');
+   const capital=await treasury.addCapital(conn,tenant,owner,account._id,{
+     amount,idempotencyKey:crypto.randomUUID()});
+   assert.equal(capital.currency,currency);
+   assert.equal(String((await book.models(conn).account.findById(account._id)).bookBalanceMinor),minor);
+   const actual=await treasury.recordOwnerBalanceCheck(conn,tenant,owner,account._id,{
+     actualBalance:amount,idempotencyKey:crypto.randomUUID()});
+   assert.equal(actual.matched,true);
+   assert.equal(actual.observation.status,'approved');
+   assert.equal((await ledger.trialBalance(conn,{branchId:String(branch._id),currency})).balanced,true);
+ }
+ const directOwnerMismatch=await treasury.recordOwnerBalanceCheck(conn,tenant,owner,ownerBank._id,{
+   actualBalance:'46',idempotencyKey:crypto.randomUUID()});
+ assert.equal(directOwnerMismatch.matched,false);
+ assert.equal(directOwnerMismatch.observation.status,'approved','Owner count must finish immediately');
+ assert.equal(String((await book.models(conn).account.findById(ownerBank._id)).bookBalanceMinor),'45',
+   'A counted difference must never rewrite the ledger');
+ assert.equal((await book.models(conn).account.findById(ownerBank._id)).status,'held');
+ // Recording newly received owner capital is not an adjustment. A held
+ // account can receive genuine new money without clearing the old mismatch.
+ const heldKey=crypto.randomUUID();
+ const heldCapital=await treasury.addCapital(conn,tenant,owner,ownerBank._id,{
+   amount:'5',idempotencyKey:heldKey});
+ assert.equal(heldCapital.holdPreserved,true);
+ assert.equal(heldCapital.duplicate,false);
+ assert.equal((await treasury.addCapital(conn,tenant,owner,ownerBank._id,{
+   amount:'5',idempotencyKey:heldKey})).duplicate,true);
+ const heldBank=await book.models(conn).account.findById(ownerBank._id).lean();
+ assert.equal(String(heldBank.bookBalanceMinor),'50','Real new capital must increase the held book');
+ assert.equal(heldBank.status,'held','Capital must never release an observed mismatch');
+ assert.equal(heldBank.reconciliationState,'mismatch');
+ assert.equal(String(heldBank.lastObservedMinor),'46','The original count remains auditable');
+ assert.equal((await ledger.trialBalance(conn,{branchId:String(branch._id),currency:'UGX'})).balanced,true);
+ // SSP cash with an observed shortage follows the same flow, in its own
+ // precision and without creating spendable funds or falsifying the count.
+ const heldCash=await treasury.createAccount(conn,tenant,owner,{
+   name:'Owner held SSP cash',kind:'cash',currency:'SSP',operatorId:owner.id,isDefault:false});
+ await treasury.confirmOwnerOpening(conn,tenant,owner,heldCash._id,{
+   actualBalance:'30.00',idempotencyKey:crypto.randomUUID()});
+ const shortage=await treasury.recordOwnerBalanceCheck(conn,tenant,owner,heldCash._id,{
+   actualBalance:'3.00',idempotencyKey:crypto.randomUUID()});
+ assert.equal(shortage.matched,false);
+ const sspCapital=await treasury.addCapital(conn,tenant,owner,heldCash._id,{
+   amount:'5.50',idempotencyKey:crypto.randomUUID()});
+ assert.equal(sspCapital.currency,'SSP');
+ assert.equal(sspCapital.holdPreserved,true);
+ const sspCash=await book.models(conn).account.findById(heldCash._id).lean();
+ assert.equal(String(sspCash.bookBalanceMinor),'3550');
+ assert.equal(String(sspCash.lastObservedMinor),'300');
+ assert.equal(sspCash.status,'held');
+ assert.equal(sspCash.reconciliationState,'mismatch');
+ assert.equal((await ledger.trialBalance(conn,{branchId:String(branch._id),currency:'SSP'})).balanced,true);
+ await assert.rejects(treasury.addCapital(conn,tenant,operator,heldCash._id,{
+   amount:'1',idempotencyKey:crypto.randomUUID()}),e=>e.status===403);
+
+ // Tenant Owner may clean up only MISTAKEN UNUSED setup accounts.
+ // This is a reversible status change, never deletion of the ledger mapping.
+ for(const [kind,currency] of [['cash','KES'],['bank','USD'],['forex_stock','SSP'],['wallet','UGX']]){
+  const draft=await treasury.createAccount(conn,tenant,owner,{
+   name:'Unused owner setup '+kind+' '+currency,kind,currency,isDefault:false,
+   ...(kind==='cash'?{operatorId:owner.id}:{}),
+   ...(kind==='wallet'?{network:'MTN',operatorId:owner.id}:{})
+  });
+  const ledgerRef=String(draft.ledgerAccountId);
+  await assert.rejects(treasury.archiveUnusedAccount(conn,tenant,operator,draft._id,{
+   confirmCode:draft.code
+  }),e=>e.status===403,'Only owner can archive setup drafts');
+  await assert.rejects(treasury.archiveUnusedAccount(conn,tenant,owner,draft._id,{
+   confirmCode:'WRONG'
+  }),e=>e.status===400,'An incorrect account confirmation must fail');
+  const archived=await treasury.archiveUnusedAccount(conn,tenant,owner,draft._id,{
+   confirmCode:draft.code
+  });
+  assert.equal(archived.status,'archived');
+  assert.equal(String(archived.ledgerAccountId),ledgerRef,'Archive retains the ledger identity');
+  assert.equal(await core.ledgerAccountModel(conn).countDocuments({_id:draft.ledgerAccountId}),1);
+  assert.equal((await treasury.restoreArchivedAccount(conn,tenant,owner,draft._id)).status,'uninitialized');
+  assert.equal((await treasury.archiveUnusedAccount(conn,tenant,owner,draft._id,{
+   confirmCode:draft.code
+  })).status,'archived');
+ }
+ await assert.rejects(treasury.archiveUnusedAccount(conn,tenant,owner,starterCash._id,{
+  confirmCode:starterCash.code
+ }),e=>e.status===409,'An opened/used account cannot be archived');
+ // A link from a funded wallet is a dependency even without new movements.
+ const linkedDraft=await treasury.createAccount(conn,tenant,owner,{
+  name:'Unused linked drawer',kind:'cash',currency:'UGX',operatorId:operator.id,isDefault:false
+ });
+ const W=book.models(conn).account;
+ await W.updateOne({_id:wallet._id},{$set:{cashDrawerAccountId:linkedDraft._id}});
+ await assert.rejects(treasury.archiveUnusedAccount(conn,tenant,owner,linkedDraft._id,{
+  confirmCode:linkedDraft.code
+ }),e=>e.status===409,'A drawer assigned to another wallet must not be hidden');
+ await W.updateOne({_id:wallet._id},{$set:{cashDrawerAccountId:null}});
+ assert.equal((await treasury.archiveUnusedAccount(conn,tenant,owner,linkedDraft._id,{
+  confirmCode:linkedDraft.code
+ })).status,'archived');
+ // A real POST response must reach the existing Treasury endpoint and
+ // return the correct AJAX redirect. Previously service-only tests missed
+ // production complaints of "Page not found" after balance submissions.
+ const express=require('express'),httpApp=express(),httpCsrf=crypto.randomBytes(32).toString('hex');
+ httpApp.use(express.urlencoded({extended:false}));
+ httpApp.use((req,res,next)=>{
+  req.user=owner;req.tenant=tenant;req.tenantDb=conn;req.session={csrfToken:httpCsrf};
+  next();
+ });
+ // Match the production security and AJAX middleware ordering: a real form
+ // includes _csrf, which MUST be verified then stripped before the service.
+ httpApp.use(require('../src/middleware/csrfProtection'));
+ httpApp.use(require('../src/middleware/ajaxRedirect').ajaxRedirect);
+ httpApp.use('/tenant/treasury',require('../src/tenant/treasury/routes')({
+  renderTenant:(req,res,view)=>res.status(200).json({view})
+ }));
+ const listener=await new Promise((resolve,reject)=>{
+  const server=httpApp.listen(0,'127.0.0.1',()=>resolve(server));
+  server.once('error',reject);
+ });
+ try{
+  const base='http://127.0.0.1:'+listener.address().port;
+  const submit=async(path,values)=>{
+   const response=await fetch(base+path,{method:'POST',redirect:'manual',headers:{
+    'Content-Type':'application/x-www-form-urlencoded',
+    'X-ClassicFin-Redirect':'json'
+   },body:new URLSearchParams({_csrf:httpCsrf,...values})});
+   const body=await response.text();
+   assert.equal(response.status,200,'Treasury action failed instead of returning AJAX success: '+body.slice(0,400));
+   return JSON.parse(body);
+  };
+  const sspRoute='/tenant/treasury/accounts/'+heldCash._id+'/record';
+  const sspPosted=await submit(sspRoute,{
+   recordAction:'capital',amount:'1.25',idempotencyKey:crypto.randomUUID()});
+  assert.equal(sspPosted.redirect,'/tenant/treasury/accounts/'+heldCash._id+'#record-balance');
+  assert.equal(sspPosted.flash.type,'good');
+  // A legacy already-open tab still submits "action" and is accepted,
+  // but newly loaded HTML sends "recordAction" to avoid DOM action collisions.
+  assert.match(sspPosted.flash.message,/still held/);
+  const sspDestination=await fetch(base+sspPosted.redirect);
+  assert.equal(sspDestination.status,200,'Account destination must exist after successful posting');
+  assert.equal((await sspDestination.json()).view,'treasury/detail');
+  const updatedSSP=await book.models(conn).account.findById(heldCash._id).lean();
+  assert.equal(updatedSSP.status,'held');
+  assert.equal(String(updatedSSP.bookBalanceMinor),'3675');
+  const ugxRoute='/tenant/treasury/accounts/'+starterCash._id+'/record';
+  const ugxPosted=await submit(ugxRoute,{
+   action:'capital',amount:'2',idempotencyKey:crypto.randomUUID()});
+  assert.equal(ugxPosted.redirect,'/tenant/treasury/accounts/'+starterCash._id+'#record-balance');
+  assert.equal((await fetch(base+ugxPosted.redirect)).status,200);
+  // Old forms still posted by an already-open browser tab remain functional.
+  const legacy=await submit('/tenant/treasury/capital',{
+   accountId:String(starterCash._id),amount:'3',idempotencyKey:crypto.randomUUID()});
+  assert.equal(legacy.redirect,'/tenant/treasury/accounts/'+starterCash._id+'#record-balance');
+  assert.equal((await fetch(base+legacy.redirect)).status,200);
+  const unopenedKsh=await treasury.createAccount(conn,tenant,owner,{
+   name:'KSH fresh owner cash opening from real HTML form',kind:'cash',currency:'KES',
+   operatorId:owner.id,isDefault:false});
+  const kshOpening=await submit('/tenant/treasury/accounts/'+unopenedKsh._id+'/opening',{
+   actualBalance:'42.35',idempotencyKey:crypto.randomUUID()
+  });
+  assert.equal(kshOpening.redirect,'/tenant/treasury/accounts/'+unopenedKsh._id);
+  assert.equal(kshOpening.flash?.type,'good');
+  const liveKsh=await book.models(conn).account.findById(unopenedKsh._id).lean();
+  assert.equal(liveKsh.status,'active');
+  assert.equal(String(liveKsh.bookBalanceMinor),'4235');
+  assert.equal((await fetch(base+kshOpening.redirect)).status,200);
+  // Tampered CSRF must be denied by the actual middleware before any write.
+  const forged=await fetch(base+'/tenant/treasury/accounts/'+unopenedKsh._id+'/opening',{
+   method:'POST',redirect:'manual',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+   body:new URLSearchParams({_csrf:'forged',actualBalance:'500',
+    idempotencyKey:crypto.randomUUID()})
+  });
+  assert.equal(forged.status,403);
+  assert.equal(String((await book.models(conn).account.findById(unopenedKsh._id)).bookBalanceMinor),'4235');
+
+ }finally{
+  await new Promise(resolve=>listener.close(resolve));
+ }
  await Tenant.updateOne({_id:tenant._id},{$set:{enabledModules:[]},$inc:{__v:1}});await assert.rejects(treasury.balanceSnapshot(conn,tenant,owner),e=>e.status===403);
  console.log('PASS: Treasury real independent opening evidence, exact posted funds and cash, balanced journals, idempotency, insufficient-float and mismatch holds, dated checkpoints, explicit suspense adjustments, late-entry invalidation, historical-maker correction, concurrent balance guards, audit rollback, append-only history, live revocation and tenant isolation.');
 }

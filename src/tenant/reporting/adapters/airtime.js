@@ -6,16 +6,17 @@ const {models}=require('../../retailFinance/airtime.models');
 const fmt=require('../../services/mobileMoney.service').formatMoneyMinor;
 async function rows({conn,scope,dateRange}){
  const branch=branchMatch(scope,id=>new Types.ObjectId(id));
+ const operator=scope.operatorId?{createdBy:new Types.ObjectId(String(scope.operatorId))}:{};
  const M=models(conn);
  const data=await M.record.aggregate([
-  {$match:{...branch,createdAt:dateRange}},
+  {$match:{...branch,...operator,createdAt:dateRange}},
   {$group:{_id:{type:'$type',currency:'$currency',network:'$network'},
    count:{$sum:1},amount:{$sum:{$cond:[{$eq:['$type','sale']},'$retailMinor','$costMinor']}},
    profit:{$sum:'$profitMinor'}}},
   {$limit:301}
  ]).option({maxTimeMS:5000});
  const corrections=await M.correction.aggregate([
-  {$match:{...branch,createdAt:dateRange}},
+  {$match:{...branch,...operator,createdAt:dateRange}},
   {$group:{_id:{type:'$type',currency:'$currency'},count:{$sum:1},amount:{$sum:'$amountMinor'},profit:{$sum:'$profitMinor'}}},
   {$limit:301}
  ]).option({maxTimeMS:5000});

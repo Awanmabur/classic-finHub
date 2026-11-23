@@ -20,7 +20,7 @@
     const row = button.closest('[data-branch-row]');
     if (!row || !edit || !/^[a-f0-9]{24}$/i.test(row.dataset.branchId)) return;
     const form = edit.querySelector('form');
-    form.action = '/tenant/branches/' + row.dataset.branchId + '/update';
+    form.setAttribute('action', '/tenant/branches/' + row.dataset.branchId + '/update');
     form.elements.namedItem('name').value = row.dataset.branchName;
     form.elements.namedItem('address').value = row.dataset.branchAddress;
     edit.querySelector('[data-branch-edit-code]').textContent = row.dataset.branchCode;
@@ -59,7 +59,7 @@
   document.querySelectorAll('form[data-branch-write]').forEach(form => form.addEventListener('submit', async event => {
     if (!window.fetch || !navigator.onLine) return;
     event.preventDefault(); if (submitting.has(form) || !form.reportValidity()) return;
-    const target = new URL(form.action, location.origin);
+    const target = new URL(form.getAttribute('action')||location.href, location.origin);
     if (target.origin !== location.origin || !/^\/tenant\/branches(?:\/[a-f0-9]{24}\/(?:update|archive|restore)|\/operating)?$/i.test(target.pathname)) return;
     const status = form.querySelector('[data-branch-form-status]') || form.closest('[data-branch-row]')?.querySelector('[data-branch-row-status]');
     const buttons = [...form.elements].filter(input => input.tagName === 'BUTTON' && input.type === 'submit'), disabled = buttons.map(button => button.disabled);

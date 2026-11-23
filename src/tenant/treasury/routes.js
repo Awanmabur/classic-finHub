@@ -15,17 +15,25 @@ module.exports=function treasuryRoutes({renderTenant}){
  function can(req,permission){return req.user.permissions.includes('*')||req.user.permissions.includes(permission);}
  async function renderList(req,res){
   const branchId=branchView.canViewBranches(req.user)?(req.viewBranchId==='all'?null:req.viewBranchId):req.operationBranch?String(req.operationBranch._id):null;
-  const snapshot=await treasury.balanceSnapshot(req.tenantDb,req.tenant,req.user,{branchId,currency:req.query.currency||null});
-  const queue=can(req,'treasury.review')?await treasury.reviewQueue(req.tenantDb,req.tenant,req.user):[];
+  // These are independent reads: avoid blocking each query behind the slowest
+  // ledger verification. The integrity hold is still enforced before a
+  // funding account is offered in the selector.
   const setupBranch=branchView.canViewBranches(req.user)?req.viewBranch:req.operationBranch;
   const operatorScope=setupBranch?[{branchId:String(setupBranch._id)},...(String(req.operationBranch?._id||'')===String(setupBranch._id)?[{_id:req.user.id}]:[])]:[];
-  const operators=can(req,'treasury.manage')&&setupBranch?await tenantUserModel(req.tenantDb).find({status:'active',$or:operatorScope}).select('name role branchId').sort({name:1}).limit(300).lean():[];
-  const fundings=await funding.list(req.tenantDb,req.tenant,req.user);
+  const [snapshot,queue,operators,fundings,operatingAccounts]=await Promise.all([
+   treasury.balanceSnapshot(req.tenantDb,req.tenant,req.user,{branchId,currency:req.query.currency||null}),
+   can(req,'treasury.review')?treasury.reviewQueue(req.tenantDb,req.tenant,req.user):[],
+   can(req,'treasury.manage')&&setupBranch?tenantUserModel(req.tenantDb).find({status:'active',$or:operatorScope}).select('name role branchId').sort({name:1}).limit(300).lean():[],
+   funding.list(req.tenantDb,req.tenant,req.user),
+   can(req,'treasury.observe')?treasury.findOperatingAccounts(req.tenantDb,req.tenant,req.user,{branchId}):[]
+  ]);
   // A ledger integrity hold cannot be bypassed through the funding selector.
   const blocked=new Set(snapshot.accounts.filter(a=>a.integrityBlocked).map(a=>String(a._id)));
-  const fundingAccounts=can(req,'treasury.observe')?(await treasury.findOperatingAccounts(req.tenantDb,req.tenant,req.user,{branchId})).filter(account=>!blocked.has(String(account._id))&&['cash','bank','wallet'].includes(account.kind)&&account.status==='active'&&account.openingBalanceMinor!==null&&account.reconciliationState==='matched'):[];
+  const fundingAccounts=operatingAccounts.filter(account=>!blocked.has(String(account._id))&&
+   ['cash','bank','wallet'].includes(account.kind)&&account.status==='active'&&
+   account.openingBalanceMinor!==null&&account.reconciliationState==='matched');
   const kinds=treasury.KINDS.filter(kind=>kind==='wallet'?hasSource(req,'mobile_money'):kind==='forex_stock'?hasSource(req,'forex'):kind==='transfer_clearing'?hasSource(req,'money_transfer'):true);
-  renderTenant(req,res,'treasury/index','Wallets, cash & balances','Set up accounts, transfer funds and review actual balances.',{snapshot,queue,operators,setupBranch,allBranches:req.viewBranchId==='all',branchNames:Object.fromEntries((res.locals.viewBranches||[]).map(branch=>[String(branch._id),branch.name])),hasMobileMoney:hasSource(req,'mobile_money'),canCreateAccount:can(req,'treasury.manage')&&Boolean(setupBranch),fundings,fundingAccounts,fundingDestination:String(req.query.to||''),canManage:can(req,'treasury.manage'),canObserve:can(req,'treasury.observe'),canReview:can(req,'treasury.review'),kinds,networks:treasury.NETWORKS,networkMarketCurrencies:Object.fromEntries(Object.entries(require('../pricing/networkTariffs').NETWORKS).map(([key,meta])=>[key,meta.currency||''])),format:treasury.format,idempotencyKey:randomUUID(),fundingIdempotencyKey:randomUUID()});
+  renderTenant(req,res,'treasury/index','Wallets, cash & balances','Create money accounts, add new capital, or move existing funds without routine approval.',{snapshot,queue,operators,setupBranch,allBranches:req.viewBranchId==='all',branchNames:Object.fromEntries((res.locals.viewBranches||[]).map(branch=>[String(branch._id),branch.name])),hasMobileMoney:hasSource(req,'mobile_money'),canCreateAccount:can(req,'treasury.manage')&&Boolean(setupBranch),fundings,fundingAccounts,fundingDestination:String(req.query.to||''),currencyCodes:require('../../config/currencies').currencyCodes,canManage:can(req,'treasury.manage'),canObserve:can(req,'treasury.observe'),canReview:can(req,'treasury.review'),kinds,networks:treasury.NETWORKS,networkMarketCurrencies:Object.fromEntries(Object.entries(require('../pricing/networkTariffs').NETWORKS).map(([key,meta])=>[key,meta.currency||''])),format:treasury.format,idempotencyKey:randomUUID(),fundingIdempotencyKey:randomUUID()});
  }
  function hasSource(req,key){return require('../services/moduleAccess.service').hasModuleForUser(req.tenant,req.user,key);}
  router.get('/',wrap(renderList));
@@ -33,7 +41,55 @@ module.exports=function treasuryRoutes({renderTenant}){
  router.get('/review',requirePermission('treasury.review'),wrap(renderList));
  router.post('/accounts',requirePermission('treasury.manage'),throttle,wrap(async(req,res)=>{
   if(branchView.canViewBranches(req.user)&&!req.viewBranch)throw treasury.fail('Choose a branch before adding an account',409);
-  const account=await treasury.createAccount(req.tenantDb,req.tenant,req.user,req.body,{configurationBranchId:req.viewBranch?String(req.viewBranch._id):null});flash(req,'good','Funds account created. Submit actual opening evidence and have an authorized owner or manager verify it before use.');branchView.followRecord(req,account);res.redirect(303,`/tenant/treasury/accounts/${account._id}`);
+  const account=await treasury.createAccount(req.tenantDb,req.tenant,req.user,req.body,{configurationBranchId:req.viewBranch?String(req.viewBranch._id):null});flash(req,'good','Account created. Owner: confirm its starting balance on the account page, then begin transactions.');branchView.followRecord(req,account);res.redirect(303,`/tenant/treasury/accounts/${account._id}`);
+ }));
+ // Existing per-account balance section now handles BOTH owner capital and
+ // direct actual checks; no duplicate top-up screen or routine review queue.
+ // Old bookmarks and already-open forms must not become 404 after removing
+ // the duplicate top-up page. They use the SAME audited owner capital service.
+ router.get('/capital',(req,res)=>res.redirect(303,'/tenant/treasury'));
+ router.post('/capital',requirePermission('treasury.manage'),throttle,wrap(async(req,res)=>{
+  const result=await treasury.addCapital(req.tenantDb,req.tenant,req.user,
+   req.body.accountId,{amount:req.body.amount,idempotencyKey:req.body.idempotencyKey});
+  flash(req,'good',result.duplicate?
+   'Already recorded. No duplicate funds were added.':
+   result.holdPreserved?
+    'New money recorded in the account. The earlier balance difference remains held; spending is still blocked.':
+    'New money recorded. See the updated account balance.');
+  branchView.followRecord(req,result.batch);
+  res.redirect(303,`/tenant/treasury/accounts/${result.accountId}#record-balance`);
+ }));
+ router.post('/accounts/:id/record',requirePermission('treasury.observe'),throttle,wrap(async(req,res)=>{
+  if(req.user.role!=='Tenant Owner')throw treasury.fail('Only the business owner can record money directly',403);
+  // Older already-open forms submit "action"; new forms submit
+  // "recordAction" to avoid shadowing the DOM form.action property.
+  // Reject inconsistent dual values rather than choose one silently.
+  if(req.body.recordAction&&req.body.action&&req.body.recordAction!==req.body.action)
+   throw treasury.fail('Conflicting account operation. Reload the account page.',400);
+  const operation=req.body.recordAction||req.body.action;
+  if(operation==='capital'){
+   const result=await treasury.addCapital(req.tenantDb,req.tenant,req.user,req.params.id,{
+     amount:req.body.amount,idempotencyKey:req.body.idempotencyKey
+   });
+   flash(req,'good',result.duplicate?'This addition was already saved. No duplicate credit.':result.holdPreserved?
+    'New money added to the recorded balance. This account is still held for its earlier discrepancy; spending is not enabled.':
+    'New money added. The account total is updated and ready for transactions.');
+   branchView.followRecord(req,result.batch);
+  }else if(operation==='check'){
+   const result=await treasury.recordOwnerBalanceCheck(req.tenantDb,req.tenant,req.user,req.params.id,{
+     actualBalance:req.body.amount,idempotencyKey:req.body.idempotencyKey
+   });
+   flash(req,result.matched?'good':'bad',result.duplicate?'This check was already saved.':result.matched?
+     'Actual balance checked and recorded. No review required.':
+     'Balance difference recorded. The account is held until the missing transaction or discrepancy is resolved; no money was created or removed.');
+   branchView.followRecord(req,result.observation);
+  }else throw treasury.fail('Choose Add new money or Check actual balance',400);
+  res.redirect(303,`/tenant/treasury/accounts/${req.params.id}#record-balance`);
+ }));
+ router.post('/accounts/:id/opening',requirePermission('treasury.observe'),throttle,wrap(async(req,res)=>{
+  const result=await treasury.confirmOwnerOpening(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
+  flash(req,'good',result.duplicate?'Opening already confirmed.':'Starting balance confirmed. Your money account is ready for transactions.');
+  res.redirect(303,`/tenant/treasury/accounts/${req.params.id}`);
  }));
  router.post('/funding',requirePermission('treasury.observe'),throttle,wrap(async(req,res)=>{const result=await funding.postDirect(req.tenantDb,req.tenant,req.user,req.body);flash(req,'good',result.duplicate?'This transfer was already posted.':'Funds transferred immediately between the two existing accounts.');branchView.followRecord(req,result.funding);res.redirect(303,'/tenant/treasury#funding-history');}));
  router.post('/funding/:id/review',requirePermission('treasury.review'),throttle,wrap(async(req,res)=>{const result=await funding.review(req.tenantDb,req.tenant,req.user,req.params.id,req.body);flash(req,'good',result.funding.status==='posted'?'Funding posted to both accounts.':'Funding transfer rejected.');branchView.followRecord(req,result.funding);res.redirect(303,'/tenant/treasury#funding-history');}));
@@ -46,9 +102,14 @@ module.exports=function treasuryRoutes({renderTenant}){
    }).select('_id name operatorId').sort({name:1}).lean():[];
   renderTenant(req,res,'treasury/detail',detail.account.name,'Expected book balance and independently reviewed actual observations.',{...detail,cashDrawerOptions,canManage:can(req,'treasury.manage'),canObserve:can(req,'treasury.observe'),canReview:can(req,'treasury.review'),idempotencyKey:randomUUID()});}));
  router.post('/accounts/:id/archive',requirePermission('treasury.manage'),throttle,wrap(async(req,res)=>{
-  const account=await treasury.archiveUnusedWallet(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
-  flash(req,'good','Unused wallet archived. Rejected evidence and ledger identity were preserved in the audit history.');
-  branchView.followRecord(req,account);res.redirect(303,'/tenant/treasury');
+  const account=await treasury.archiveUnusedAccount(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
+  flash(req,'good','Unused '+account.kind.replaceAll('_',' ')+' hidden from setup. You can restore it below; its audit history was preserved.');
+  res.redirect(303,'/tenant/setup#quick-money');
+ }));
+ router.post('/accounts/:id/restore',requirePermission('treasury.manage'),throttle,wrap(async(req,res)=>{
+  const account=await treasury.restoreArchivedAccount(req.tenantDb,req.tenant,req.user,req.params.id);
+  flash(req,'good','Account restored. Confirm its real opening balance before using it.');
+  branchView.followRecord(req,account);res.redirect(303,'/tenant/setup#quick-money');
  }));
  router.post('/accounts/:id/settings',requirePermission('treasury.manage'),throttle,wrap(async(req,res)=>{const account=await treasury.configureAccount(req.tenantDb,req.tenant,req.user,req.params.id,req.body);flash(req,'good','Account defaults saved for future transactions.');branchView.followRecord(req,account);res.redirect(303,`/tenant/treasury/accounts/${req.params.id}`);}));
  router.post('/accounts/:id/observations',requirePermission('treasury.observe'),throttle,wrap(async(req,res)=>{

@@ -148,51 +148,97 @@ async function createAccount(conn,tenant,actor,input,{configurationBranchId=null
   await audit(conn,session,authorization.actor,'treasury.account.created',created._id,{branchId:String(branch._id),kind:created.kind,currency:created.currency,code:created.code});return created;
  });}catch(error){if(error.code===11000)throw fail('The default funds account is already assigned or this account already exists. Review existing accounts before trying again.',409);throw error;}
 }
-function assertUnusedWalletArchivable(account,confirmCode) {
-  if(account.kind!=='wallet')throw fail('Only an unused provider wallet can be archived through this control',409);
-  if(account.code!==confirmCode)throw fail('Type the exact wallet account code to confirm archival',400);
-  if(account.status!=='uninitialized'||account.openingBalanceMinor!==null||account.openingApprovedAt||
-     account.openingObservationId||account.pendingOpeningId||account.lastObservationId||
-     account.sequence!==0||BigInt(String(account.bookBalanceMinor))!==0n||
-     account.reconciliationState!=='unknown')
-    throw fail('Only a wallet with no approved opening, balance, pending evidence or financial activity can be archived',409);
+// Owner cleanup is a SOFT archive of mistaken, UNUSED setup accounts.
+// Real money and operational evidence may never be discarded or hidden.
+function assertUnusedAccountArchivable(account,confirmCode){
+ if(!['wallet','cash','bank','forex_stock'].includes(account.kind))
+  throw fail('This account type cannot be removed from setup',409);
+ if(account.code!==confirmCode)
+  throw fail('Account confirmation does not match. Reload setup and retry.',400);
+ if(account.status!=='uninitialized'||account.openingBalanceMinor!==null||account.openingApprovedAt||
+    account.openingObservationId||account.pendingOpeningId||account.lastObservationId||
+    account.sequence!==0||BigInt(String(account.bookBalanceMinor))!==0n||
+    account.reconciliationState!=='unknown')
+  throw fail('This account already has an opening, balance, cash activity or financial evidence. Keep its history and reconcile it instead.',409);
 }
-async function archiveUnusedWallet(conn,tenant,actor,accountId,input) {
-  const reason=text(input?.reason,'account archival reason',20,400);
-  const confirmCode=text(input?.confirmCode,'account code confirmation',3,40).toUpperCase();
-  await Promise.all([ensure(conn),core.ensureTenantIndexes(conn)]);
-  return transaction(conn,async session=>{
-    const authorization=await access(conn,tenant,actor,{permission:'treasury.manage',session,fence:true});
-    if(authorization.actor.role!=='Tenant Owner')throw fail('Only the Tenant Owner can archive an unused wallet',403);
-    const account=await loadAccount(conn,authorization,accountId,{session,fence:true});
-    assertUnusedWalletArchivable(account,confirmCode);
-    const treasury=models(conn), funding=require('./funding.models').model(conn);
-    const blockers=await Promise.all([
-      treasury.observation.exists({accountId:account._id,status:{$ne:'rejected'}}).session(session),
-      treasury.movement.exists({accountId:account._id}).session(session),
-      treasury.adjustment.exists({accountId:account._id}).session(session),
-      funding.exists({$or:[{sourceAccountId:account._id},{destinationAccountId:account._id}]}).session(session),
-      core.mobileTransactionModel(conn).exists({$or:[{walletAccountId:account._id},{paymentAccountId:account._id}]}).session(session),
-      core.ledgerPostingModel(conn).exists({accountId:account.ledgerAccountId}).session(session)
-    ]);
-    if(blockers.some(Boolean))
-      throw fail('This wallet has pending evidence or linked financial records. Resolve its dependencies before archival; no history can be deleted.',409);
-    const updated=await treasury.account.findOneAndUpdate({
-      _id:account._id,tenantId:authorization.tenant._id,status:'uninitialized',revision:account.revision
-    },{$set:{status:'archived',holdReason:'Unused wallet archived by Tenant Owner.'},$unset:{selectionKey:''},$inc:{revision:1}},{new:true,session}).lean();
-    if(!updated)throw fail('Wallet changed while archiving. Reload and inspect its latest state.',409);
-    await audit(conn,session,authorization.actor,'treasury.account.archived',account._id,{
-      branchId:String(account.branchId),code:account.code,kind:account.kind,reason,
-      retainedEvidence:'rejected observations and ledger identity'
-    });
-    return updated;
+async function archiveUnusedAccount(conn,tenant,actor,accountId,input={}){
+ const confirmCode=text(input.confirmCode,'account confirmation',3,40).toUpperCase();
+ const reason=text(input.reason||'Owner archived an unused setup account.','account archival reason',12,400);
+ await Promise.all([ensure(conn),core.ensureTenantIndexes(conn)]);
+ return transaction(conn,async session=>{
+  const authorization=await access(conn,tenant,actor,{permission:'treasury.manage',session,fence:true});
+  if(authorization.actor.role!=='Tenant Owner')throw fail('Only the Tenant Owner may archive setup accounts',403);
+  const account=await loadAccount(conn,authorization,accountId,{session,fence:true});
+  assertUnusedAccountArchivable(account,confirmCode);
+  const treasury=models(conn),funding=require('./funding.models').model(conn);
+  const key=account._id,linkedFunds=await treasury.account.exists({
+   cashDrawerAccountId:key,status:{$ne:'archived'}
+  }).session(session);
+  const tasks=[
+   treasury.observation.exists({accountId:key,status:{$ne:'rejected'}}).session(session),
+   treasury.movement.exists({accountId:key}).session(session),
+   treasury.adjustment.exists({accountId:key}).session(session),
+   funding.exists({$or:[{sourceAccountId:key},{destinationAccountId:key}]}).session(session),
+   core.mobileTransactionModel(conn).exists({$or:[{walletAccountId:key},{paymentAccountId:key}]}).session(session),
+   core.ledgerPostingModel(conn).exists({accountId:account.ledgerAccountId}).session(session),
+   core.cashSessionModel(conn).exists({treasuryAccountId:key}).session(session),
+   require('../models/expenses').expenseModel(conn).exists({
+    $or:[{treasuryAccountId:key},{postedTreasuryAccountId:key}]
+   }).session(session),
+   require('../funded/models').models(conn).execution.exists({
+    $or:['cashAccountId','foreignAccountId','settlementAccountId','collectionAccountId',
+      'clearingAccountId','payoutAccountId'].map(field=>({['accounts.'+field]:key}))
+   }).session(session)
+  ];
+  // Never execute queries concurrently on one MongoDB transaction session.
+  const blockers=[];
+  for(const query of tasks)blockers.push(await query);
+  if(linkedFunds||blockers.some(Boolean))
+   throw fail('This account has linked financial or cash-shift records and cannot be removed. Its history must stay available.',409);
+  const updated=await treasury.account.findOneAndUpdate({
+   _id:key,tenantId:authorization.tenant._id,status:'uninitialized',revision:account.revision
+  },{$set:{status:'archived',holdReason:'Archived unused setup account by Tenant Owner.'},
+     $unset:{selectionKey:''},$inc:{revision:1}},{new:true,session}).lean();
+  if(!updated)throw fail('Account changed while archiving. Reload the page.',409);
+  await audit(conn,session,authorization.actor,'treasury.account.archived',key,{
+   branchId:String(account.branchId),code:account.code,kind:account.kind,reason,
+   retainedEvidence:'Existing account identity and rejected observations'
   });
+  return updated;
+ });
 }
+async function restoreArchivedAccount(conn,tenant,actor,accountId){
+ await Promise.all([ensure(conn),core.ensureTenantIndexes(conn)]);
+ return transaction(conn,async session=>{
+  const authorization=await access(conn,tenant,actor,{permission:'treasury.manage',session,fence:true});
+  if(authorization.actor.role!=='Tenant Owner')throw fail('Only the Tenant Owner can restore setup accounts',403);
+  const account=await loadAccount(conn,authorization,accountId,{session,fence:true});
+  if(account.status!=='archived'||account.openingBalanceMinor!==null||account.sequence!==0||
+     BigInt(String(account.bookBalanceMinor))!==0n||account.pendingOpeningId||
+     account.openingApprovedAt)
+   throw fail('Only a previously archived, unused setup account can be restored',409);
+  const branch=await core.branchModel(conn).findOne({_id:account.branchId,status:'active'}).session(session);
+  if(!branch)throw fail('Restore the branch first before restoring the account.',409);
+  if(!authorization.modules.includes(account.moduleKey)&&account.moduleKey!=='shared')
+   throw fail('This financial module is no longer assigned',403);
+  require('../services/branchCurrency.service').resolve(branch,account.currency);
+  const restored=await models(conn).account.findOneAndUpdate({
+   _id:account._id,tenantId:authorization.tenant._id,status:'archived',revision:account.revision
+  },{$set:{status:'uninitialized',holdReason:''},$inc:{revision:1}},{session,new:true}).lean();
+  if(!restored)throw fail('Account changed while restoring. Reload and inspect it.',409);
+  await audit(conn,session,authorization.actor,'treasury.account.restored',account._id,{
+   branchId:String(account.branchId),code:account.code,kind:account.kind
+  });
+  return restored;
+ });
+}
+// Retained for existing integrations that invoke the old wallet-specific API.
+const archiveUnusedWallet=archiveUnusedAccount,assertUnusedWalletArchivable=assertUnusedAccountArchivable;
 async function ensureCounterAccount(conn,session,{tenantId,branchId,currency,purpose,actorId}){
- if(!session?.inTransaction()||!currencyCodes.includes(currency)||!['opening_equity','settlement_clearing','reconciliation_suspense','fee_income','agent_commission_income','expense','interbranch_payable','interbranch_receivable','loan_receivable','loan_interest_income','airtime_inventory','airtime_profit_income'].includes(purpose))throw fail('Invalid internal treasury counter account');
+ if(!session?.inTransaction()||!currencyCodes.includes(currency)||!['opening_equity','capital_contribution','settlement_clearing','reconciliation_suspense','fee_income','agent_commission_income','expense','interbranch_payable','interbranch_receivable','loan_receivable','loan_interest_income','airtime_inventory','airtime_profit_income'].includes(purpose))throw fail('Invalid internal treasury counter account');
  const Counter=models(conn).counter,lookup={branchId:oid(branchId),currency,purpose};let counter=await Counter.findOne(lookup).session(session).lean();if(counter){if(String(counter.tenantId)!==String(tenantId))throw fail('Counter account belongs to a different tenant',403);return counter;}
  const code=`TRS_${purpose.toUpperCase()}_${currency}`;
- const [chart]=await core.ledgerAccountModel(conn).create([{branchId,code,name:`Treasury ${purpose.replaceAll('_',' ')} (${currency})`,currency,category:purpose==='opening_equity'?'equity':['fee_income','agent_commission_income','loan_interest_income','airtime_profit_income'].includes(purpose)?'income':purpose==='expense'?'expense':['interbranch_receivable','loan_receivable','airtime_inventory'].includes(purpose)?'asset':'liability',createdBy:oid(actorId)}],{session});
+ const [chart]=await core.ledgerAccountModel(conn).create([{branchId,code,name:`Treasury ${purpose.replaceAll('_',' ')} (${currency})`,currency,category:['opening_equity','capital_contribution'].includes(purpose)?'equity':['fee_income','agent_commission_income','loan_interest_income','airtime_profit_income'].includes(purpose)?'income':purpose==='expense'?'expense':['interbranch_receivable','loan_receivable','airtime_inventory'].includes(purpose)?'asset':'liability',createdBy:oid(actorId)}],{session});
  [counter]=await Counter.create([{tenantId:oid(tenantId),...lookup,ledgerAccountId:chart._id,ledgerCode:code}],{session});return counter;
 }
 async function expectedAt(conn,account,at,session=null){
@@ -235,10 +281,8 @@ async function confirmOwnerOpening(conn,tenant,actor,accountId,input={}){
  // sole proprietor does not have to navigate a separate approval queue.
  if(actor?.role!=='Tenant Owner')throw fail('Only the business owner can confirm an opening balance',403);
  if(!input||typeof input!=='object'||Array.isArray(input)||
-    Object.keys(input).some(k=>!['actualBalance','evidenceReference','confirmed','idempotencyKey'].includes(k)))
+    Object.keys(input).some(k=>!['actualBalance','idempotencyKey'].includes(k)))
   throw fail('Unexpected opening balance field');
- if(input.confirmed!=='yes')throw fail('Confirm that you counted or checked the actual starting balance',400);
- const reference=String(input.evidenceReference||'').trim();
  const keyValue=key(input.idempotencyKey);
  await ensure(conn);
  return transaction(conn,async session=>{
@@ -248,9 +292,9 @@ async function confirmOwnerOpening(conn,tenant,actor,accountId,input={}){
   const evidenceType={cash:'cash_count',wallet:'provider_app',bank:'bank_statement',
     forex_stock:'stock_count',transfer_clearing:'transfer_register'}[account.kind];
   if(!evidenceType)throw fail('This type of account needs its own opening workflow');
-  if(['wallet','bank'].includes(account.kind)&&reference.length<6)
-   throw fail('Enter a real provider-app or bank statement reference (at least 6 characters).');
-  const evidenceReference=reference||'OWNER-COUNT-'+keyValue;
+  // This is the owner's manually entered opening amount, not a provider API
+  // confirmation. Keep the internal reference in the immutable audit trail.
+  const evidenceReference='OWNER-OPEN-'+keyValue;
   // A retry must not depend on a newly sampled server timestamp.
   const prior=await models(conn).observation.findOne({idempotencyKey:keyValue}).session(session).lean();
   if(prior){
@@ -279,12 +323,96 @@ async function confirmOwnerOpening(conn,tenant,actor,accountId,input={}){
   return {observation:confirmed,duplicate:false};
  });
 }
+// The owner records a dated real-world balance check in one operation. Matching
+// checks finish immediately. A difference is recorded and HELD, not booked as
+// newly received capital or waved through an independent adjustment.
+async function recordOwnerBalanceCheck(conn,tenant,actor,accountId,input={}){
+ if(actor?.role!=='Tenant Owner')throw fail('Only the business owner can directly record the balance check',403);
+ if(!input||typeof input!=='object'||Array.isArray(input)||
+    Object.keys(input).some(k=>!['actualBalance','idempotencyKey'].includes(k)))
+  throw fail('Unexpected balance-check field');
+ const requestKey=key(input.idempotencyKey);
+ await ensure(conn);
+ return transaction(conn,async session=>{
+  const auth=await access(conn,tenant,actor,{permission:'treasury.observe',session,fence:true});
+  if(auth.actor.role!=='Tenant Owner')throw fail('Only the business owner can record direct balance checks',403);
+  const account=await loadAccount(conn,auth,accountId,{session,fence:true});
+  if(account.status==='archived'||account.openingBalanceMinor===null||!account.openingApprovedAt)
+   throw fail('Confirm the account starting balance first',409);
+  const actual=major(input.actualBalance,account.currency,{negative:account.kind==='bank'});
+  const prior=await models(conn).observation.findOne({idempotencyKey:requestKey}).session(session).lean();
+  if(prior){
+   if(String(prior.requestedBy)!==auth.actor.id||String(prior.accountId)!==String(account._id)||
+      prior.kind!=='checkpoint'||String(prior.actualMinor)!==String(actual))
+    throw fail('This balance-check request was reused for different details',409);
+   if(prior.status!=='approved')throw fail('This balance check is not finalized; open its account history',409);
+   return {observation:prior,duplicate:true,matched:String(prior.varianceMinorAtReview||'0')==='0'};
+  }
+  const kind={cash:'cash_count',wallet:'provider_app',bank:'bank_statement',
+   forex_stock:'stock_count',transfer_clearing:'transfer_register'}[account.kind];
+  const requested=await requestObservationInSession(conn,session,auth,accountId,{
+    kind:'checkpoint',actualBalance:input.actualBalance,observedAt:new Date().toISOString(),
+    evidenceType:kind,evidenceReference:'OWNER-CHECK-'+requestKey,
+    note:'Owner entered the actual counted balance. Any difference is kept visible; no funds were invented or erased.',
+    idempotencyKey:requestKey
+  });
+  const approved=await reviewObservationInSession(conn,session,auth,requested.observation._id,{
+    decision:'approve',note:'Owner direct balance check. Difference, if present, stays held for investigation.'
+  },{ownerDirectCheck:true});
+  return {observation:approved,duplicate:false,matched:BigInt(String(approved.varianceMinorAtReview||0))===0n};
+ });
+}
+// A capital contribution is NEW, owner-attested business money, unlike an
+// internal funding transfer. It is posted only after real receipt, once per UUID.
+// The matching owner-equity credit avoids creating an unbalanced asset journal.
+async function addCapital(conn,tenant,actor,accountId,input={}){
+ // Only the account, amount, and retry key are entered by the owner.
+ // Record an internal traceable reference; never require or fabricate an
+ // external provider/bank receipt identifier for manually received funds.
+ const requestKey=key(input.idempotencyKey);
+ const evidenceReference='CAPITAL-'+requestKey;
+ await ensure(conn);
+ try{return await transaction(conn,async session=>{
+  const authorization=await access(conn,tenant,actor,{permission:'treasury.manage',session,fence:true});
+  if(authorization.actor.role!=='Tenant Owner')throw fail('Only the tenant owner can add business capital',403);
+  const account=await loadAccount(conn,authorization,accountId,{session,fence:true});
+  if(!['cash','wallet','bank','forex_stock'].includes(account.kind))throw fail('Capital can only be received into a real cash, wallet, bank or stock account',409);
+  // New capital is a real receipt; it is not a reconciliation or write-off.
+  // Record it for a reviewed mismatch, but preserve the hold until resolved.
+  const heldMismatch=account.status==='held'&&account.reconciliationState==='mismatch';
+  const ready=account.status==='active'&&account.reconciliationState==='matched';
+  if((!ready&&!heldMismatch)||account.openingBalanceMinor===null||!account.openingApprovedAt)
+   throw fail('Confirm the account opening first. Stale or unavailable accounts need reconciliation before recording new money.',409);
+  const amount=major(input.amount,account.currency);
+  if(amount<=0n)throw fail('New capital must be greater than zero');
+  // The same submission key is safe to retry; this is not external
+  // settlement verification and a different submission is a new declaration.
+  const counter=await ensureCounterAccount(conn,session,{tenantId:authorization.tenant._id,
+    branchId:account.branchId,currency:account.currency,purpose:'capital_contribution',actorId:authorization.actor.id});
+  const posted=await applyMovements(conn,session,authorization,{
+    sourceType:'treasury_capital',sourceRef:'CAP:'+requestKey,branchId:String(account.branchId),
+    operatingActorId:authorization.actor.id,
+    legs:[{accountId:String(account._id),deltaMinor:String(amount)}],
+    ledgerLines:[{currency:account.currency,accountId:String(counter.ledgerAccountId),
+      side:'credit',amountMinor:String(amount)}],
+    description:'Owner capital received into business funds',
+    evidenceReference
+  },{ownerCapital:true,allowHeld:heldMismatch});
+  if(!posted.duplicate)await audit(conn,session,authorization.actor,'treasury.capital.posted',posted.batch._id,{
+    branchId:String(account.branchId),accountId:String(account._id),currency:account.currency,
+    amountMinor:String(amount),evidenceReference,sourceRef:'CAP:'+requestKey,holdPreserved:heldMismatch});
+  return {batch:posted.batch,duplicate:posted.duplicate,accountId:String(account._id),currency:account.currency,amountMinor:String(amount),holdPreserved:heldMismatch};
+ });}catch(error){
+  if(error.code===11000)throw fail('This top-up has already been recorded. Check the account balance before adding more money.',409);
+  throw error;
+ }
+}
 function opposite(side){return side==='debit'?'credit':'debit';}
 async function writeTreasuryJournal(conn,session,authorization,{branchId,currency,sourceRef,lines}){
  const validated=ledger.validateJournal({branchId:String(branchId),actorId:authorization.actor.id,sourceType:'treasury',sourceRef,currency,lines});
  return ledger.writeOperationalJournalInSession(conn,validated,session);
 }
-async function reviewObservationInSession(conn,session,authorization,observationId,input){
+async function reviewObservationInSession(conn,session,authorization,observationId,input,internal={}){
  if(!session?.inTransaction())throw fail('Observation review requires an active transaction',409);
  authorization=await access(conn,authorization.tenant,authorization.actor,{permission:'treasury.review',session,fence:true});
  if(!REVIEW_ROLES.includes(authorization.actor.role))throw fail('Independent funds reviewer required',403);
@@ -296,11 +424,17 @@ async function reviewObservationInSession(conn,session,authorization,observation
  const selfReviewed=String(observation.requestedBy)===authorization.actor.id||
   String(account.operatorId||'')===authorization.actor.id;
  if(selfReviewed){
-  const privileged=require('../services/reviewPolicy').canSelfReviewRoutine(authorization.actor,account.branchId);
+  // A directly recorded owner check is evidence only. A discrepancy still
+  // HOLDS the account and never posts a cash/equity adjustment by itself.
+  const ownerDirect=internal.ownerDirectCheck===true&&
+    authorization.actor.role==='Tenant Owner'&&
+    observation.kind==='checkpoint'&&
+    String(observation.requestedBy)===authorization.actor.id&&decision==='approve';
+  const privileged=ownerDirect||require('../services/reviewPolicy').canSelfReviewRoutine(authorization.actor,account.branchId);
   if(!privileged)throw fail('A different authorized person must review the evidence and operator drawer',403);
   // Routine opening or a verified zero-variance cash/float checkpoint can be
   // signed by a branch manager/owner. Discrepancies and adjustments never can.
-  if(observation.kind!=='opening'){
+  if(observation.kind!=='opening'&&!ownerDirect){
    const atObservation=await expectedAt(conn,account,new Date(observation.observedAt),session);
    if(observation.kind!=='checkpoint'||atObservation===null||
       BigInt(String(observation.actualMinor))!==atObservation)
@@ -332,7 +466,7 @@ async function reviewObservationInSession(conn,session,authorization,observation
 async function reviewObservation(conn,tenant,actor,observationId,input){await ensure(conn);return transaction(conn,async session=>{const authorization=await access(conn,tenant,actor,{permission:'treasury.review',session,fence:true});return reviewObservationInSession(conn,session,authorization,observationId,input);});}
 function stableHash(value){return crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');}
 function normalizeMovement(input){
- const sourceType=input?.sourceType;if(!SOURCES.includes(sourceType)&&!['treasury_adjustment','treasury_funding'].includes(sourceType))throw fail('Unsupported funds movement source');
+ const sourceType=input?.sourceType;if(!SOURCES.includes(sourceType)&&!['treasury_adjustment','treasury_funding','treasury_capital'].includes(sourceType))throw fail('Unsupported funds movement source');
  const sourceRef=reference(input.sourceRef),branchId=String(oid(input.branchId,'operating branch'));
  if(!Array.isArray(input.legs)||input.legs.length>20||(!input.legs.length&&!(Array.isArray(input.ledgerLines)&&input.ledgerLines.length>=2)))throw fail('Choose the actual funds account movements');
  const seen=new Set(),legs=input.legs.map(leg=>{const accountId=String(oid(leg.accountId,'funds account'));if(seen.has(accountId))throw fail('Combine each funds account into one movement');seen.add(accountId);return {accountId,deltaMinor:String(signedMinor(leg.deltaMinor,{zero:false}))};}).sort((a,b)=>a.accountId.localeCompare(b.accountId));
@@ -343,10 +477,11 @@ function normalizeMovement(input){
 }
 async function postingAuthorization(conn,session,authorization,value,internal={}){
  if(internal.branchTransferExecutionId){
-  const {execution,source,collection}=await require('../funded/branchTransfer').validate(conn,session,authorization.tenant,authorization.actor,internal.branchTransferExecutionId);
+  const cashierFinal=internal.cashierFinal===true;
+  const {execution,source,collection}=await require('../funded/branchTransfer').validate(conn,session,authorization.tenant,authorization.actor,internal.branchTransferExecutionId,{cashierFinal});
   const counter=await models(conn).counter.findOne({branchId:source.branchId,currency:source.currency,purpose:'interbranch_payable'}).session(session).lean();
   if(value.sourceType!=='money_transfer'||value.sourceRef!==`BRANCH_PAYOUT:${execution._id}:ORIGIN`||value.branchId!==String(source.branchId)||value.operatingActorId!==String(collection.createdBy)||value.legs.length!==1||value.legs[0].accountId!==String(collection.accounts.clearingAccountId)||value.legs[0].deltaMinor!==`-${source.amountMinor}`||value.ledgerLines.length!==1||!counter||value.ledgerLines[0].accountId!==String(counter.ledgerAccountId)||value.ledgerLines[0].currency!==source.currency||value.ledgerLines[0].side!=='credit'||value.ledgerLines[0].amountMinor!==String(source.amountMinor))throw fail('Only the exact originating transfer payable may be reclassified',403);
-  const current=await access(conn,authorization.tenant,authorization.actor,{permission:'money_transfer.review',session,fence:true,sourceType:'money_transfer'});
+  const current=await access(conn,authorization.tenant,authorization.actor,{permission:cashierFinal?'money_transfer.payout':'money_transfer.review',session,fence:true,sourceType:'money_transfer'});
   const branch=await core.branchModel(conn).findOneAndUpdate({_id:source.branchId,status:'active'},{$inc:{revision:1}},{session,new:true}).lean();
   if(!branch)throw fail('The sending branch is unavailable',409);
   return {...current,operatingActor:{id:String(collection.createdBy)},operatingBranch:branch,historicalCorrection:false,branchTransfer:true};
@@ -365,6 +500,17 @@ async function postingAuthorization(conn,session,authorization,value,internal={}
  // It must be an exact balanced pair moving EXISTING funds, never a single
  // credit leg, adjustment or provider money creation.
  const directFunding=internal.directFunding===true;
+  const ownerCapital=internal.ownerCapital===true;
+  if(value.sourceType==='treasury_capital'&&!ownerCapital)
+    throw fail('Owner capital may only be posted through the verified owner funding workflow',403);
+  if(ownerCapital){
+    const leg=value.legs[0],line=value.ledgerLines[0];
+    if(value.sourceType!=='treasury_capital'||!/^CAP:[0-9a-f-]{36}$/.test(value.sourceRef)||
+      value.legs.length!==1||value.ledgerLines.length!==1||
+      !leg||BigInt(leg.deltaMinor)<=0n||!line||line.side!=='credit'||
+      line.amountMinor!==leg.deltaMinor)
+      throw fail('Owner capital must credit one genuine funds account and matching equity',403);
+  }
  if(directFunding){
   const legs=value.legs;
   if(value.sourceType!=='treasury_funding'||!/^FUND:[0-9a-f]{24}$/i.test(value.sourceRef)||
@@ -374,12 +520,13 @@ async function postingAuthorization(conn,session,authorization,value,internal={}
      legs[0].accountId===legs[1].accountId)
    throw fail('Direct funding must be an exactly balanced internal transfer',403);
  }
- const internalSource=['treasury_adjustment','treasury_funding'].includes(value.sourceType),
+ const internalSource=['treasury_adjustment','treasury_funding','treasury_capital'].includes(value.sourceType),
   source=internal.momoFx?'mobile_money':internalSource?null:value.sourceType;
  const current=await access(conn,authorization.tenant,authorization.actor,{
-  permission:directFunding?'treasury.observe':internalSource?'treasury.review':'treasury.observe',
+  permission:ownerCapital?'treasury.manage':directFunding?'treasury.observe':internalSource?'treasury.review':'treasury.observe',
   session,fence:true,sourceType:source});
- const branch=await core.branchModel(conn).findOneAndUpdate({_id:value.branchId,status:'active'},{$inc:{revision:1}},{session,new:true}).lean();if(!branch)throw fail('The operating branch is unavailable',409);
+ if(ownerCapital&&current.actor.role!=='Tenant Owner')throw fail('Only the tenant owner may record new capital',403);
+  const branch=await core.branchModel(conn).findOneAndUpdate({_id:value.branchId,status:'active'},{$inc:{revision:1}},{session,new:true}).lean();if(!branch)throw fail('The operating branch is unavailable',409);
  if(current.actor.role!=='Tenant Owner'&&String(current.actor.branchId)!==value.branchId)throw fail('Funds movements cannot cross the assigned branch',403);
  const operatorId=value.operatingActorId||current.actor.id;if(operatorId!==current.actor.id&&!REVIEW_ROLES.includes(current.actor.role))throw fail('Only an authorized reviewer can post a different operator’s execution',403);
  const historicalCorrection=Boolean(internal.reversesBatchId)||value.sourceType==='treasury_adjustment';
@@ -400,7 +547,7 @@ async function applyMovements(conn,session,authorization,input,internal={}){
   if(!current.historicalCorrection)require('../services/branchCurrency.service').resolve(current.operatingBranch,account.currency);
   if(!current.branchTransfer&&!internal.reversesBatchId&&value.sourceType!=='treasury_adjustment'&&account.moduleKey!=='shared'&&!hasModuleForUser(current.tenant,current.operatingActor,account.moduleKey))throw fail('The originating operator no longer has access to this underlying funds module',403);
   if(current.branchTransfer&&account.kind!=='transfer_clearing')throw fail('Only the collected transfer payable can be reclassified',403);
-  if(account.operatorId&&String(account.operatorId)!==current.operatingActor.id)throw fail('Use the actual account assigned to the originating operator',403);
+  if(account.operatorId&&String(account.operatorId)!==current.operatingActor.id&&!internal.ownerCapital)throw fail('Use the actual account assigned to the originating operator',403);
   if(account.openingBalanceMinor===null||!account.openingApprovedAt)throw fail(`Independently approve the actual opening balance for ${account.name} first`,409);
   if(account.status!=='active'&&!(internal.allowHeld&&account.status==='held'))throw fail(`${account.name} is held or archived. Reconcile its actual balance first.`,409);
   if(account.reconciliationState!=='matched'&&!internal.allowHeld)throw fail(`${account.name} has an unresolved balance difference`,409);
@@ -409,11 +556,11 @@ async function applyMovements(conn,session,authorization,input,internal={}){
   const before=BigInt(String(account.bookBalanceMinor)),delta=BigInt(leg.deltaMinor),after=before+delta;
   if(after<0n&&!internal.allowNegative)throw fail(`Insufficient ${account.currency} funds in ${account.name}`,409);
   if(after>MAX||after< -MAX)throw fail('Funds book exceeds supported exact limits',409);
-  if(account.kind==='cash')await require('../services/cashDrawer.service').bindFundAccount(conn,session,account,String(before),{allowNoActiveShift:Boolean(internal.allowSuspense)});
+  if(account.kind==='cash')await require('../services/cashDrawer.service').bindFundAccount(conn,session,account,String(before),{allowNoActiveShift:Boolean(internal.allowSuspense||internal.ownerCapital)});
   const changes={bookBalanceMinor:decimal(after)};
   if(account.lastObservationAt&&occurredAt<=new Date(account.lastObservationAt)){changes.status='held';changes.reconciliationState='stale';changes.lastObservationStale=true;changes.holdReason='A late entry changed a previously reviewed observation. Obtain a new actual balance check.';}
   const changed=await Account.findOneAndUpdate({_id:account._id,revision:account.revision},{$set:changes,$inc:{sequence:1,revision:1}},{session,new:true}).lean();if(!changed)throw fail('Funds account changed concurrently',409);
-  if(account.kind==='cash')await require('../services/cashDrawer.service').refreshFundBalance(conn,session,changed,String(after),{allowNoActiveShift:Boolean(internal.allowSuspense)});
+  if(account.kind==='cash')await require('../services/cashDrawer.service').refreshFundBalance(conn,session,changed,String(after),{allowNoActiveShift:Boolean(internal.allowSuspense||internal.ownerCapital)});
   const chart=await core.ledgerAccountModel(conn).findOne({_id:account.ledgerAccountId,branchId:value.branchId,currency:account.currency,code:account.ledgerCode}).session(session).lean();if(!chart||chart.category!==(account.kind==='transfer_clearing'?'liability':'asset'))throw fail('Funds account ledger mapping is invalid',503);
   accounts.set(String(account._id),account);updates.push({account:changed,delta,balanceAfter:after});addLine(account.currency,account.ledgerCode,delta>0n?normalSide(account.kind):opposite(normalSide(account.kind)),delta<0n?-delta:delta);
  }
@@ -426,7 +573,7 @@ async function applyMovements(conn,session,authorization,input,internal={}){
   const net=lines.reduce((sum,line)=>sum+BigInt(line.amountMinor)*(line.side==='debit'?1n:-1n),0n);
   if(net!==0n){if(value.sourceType!=='forex'&&!internal.allowSuspense)throw fail('Funds and counterparty lines must balance exactly in each currency');const counter=await ensureCounterAccount(conn,session,{tenantId:current.tenant._id,branchId:value.branchId,currency,purpose:internal.allowSuspense?'reconciliation_suspense':'settlement_clearing',actorId:current.actor.id});lines.push({accountCode:counter.ledgerCode,side:net>0n?'credit':'debit',amountMinor:String(net<0n?-net:net)});}
   if(!lines.length)continue;
-  const journal=current.branchTransfer?await ledger.writeBranchTransferJournalInSession(conn,{branchId:value.branchId,currency,sourceRef:`BRANCH:${internal.branchTransferExecutionId}:ORIGIN`,lines,actorId:current.actor.id,sourceType:'treasury'},session,internal.branchTransferExecutionId,current.tenant,current.actor):await writeTreasuryJournal(conn,session,current,{branchId:value.branchId,currency,sourceRef:`TRS:${batchId}:${currency}`,lines});journalIds.push(journal._id);journalByCurrency.set(currency,journal._id);
+  const journal=current.branchTransfer?await ledger.writeBranchTransferJournalInSession(conn,{branchId:value.branchId,currency,sourceRef:`BRANCH:${internal.branchTransferExecutionId}:ORIGIN`,lines,actorId:current.actor.id,sourceType:'treasury'},session,internal.branchTransferExecutionId,current.tenant,current.actor,{cashierFinal:internal.cashierFinal===true}):await writeTreasuryJournal(conn,session,current,{branchId:value.branchId,currency,sourceRef:`TRS:${batchId}:${currency}`,lines});journalIds.push(journal._id);journalByCurrency.set(currency,journal._id);
  }
  if(updates.some(row=>!journalByCurrency.has(row.account.currency)))throw fail('A fund movement must have a nonzero balanced journal',409);
  const [batch]=await Batch.create([{_id:batchId,tenantId:current.tenant._id,branchId:value.branchId,actorId:current.actor.id,operatingActorId:current.operatingActor.id,sourceType:value.sourceType,sourceRef:value.sourceRef,fingerprint,description:value.description,evidenceReference:value.evidenceReference,occurredAt,journalIds,reversesBatchId:internal.reversesBatchId||null}],{session});
@@ -434,15 +581,17 @@ async function applyMovements(conn,session,authorization,input,internal={}){
  await audit(conn,session,current.actor,'treasury.movements.posted',batch._id,{branchId:value.branchId,sourceType:value.sourceType,sourceRef:value.sourceRef,movementCount:movements.length,journalCount:journalIds.length,reversesBatchId:internal.reversesBatchId?String(internal.reversesBatchId):null});
  return {batch,movements,journalIds,duplicate:false};
 }
-async function postBranchTransferPayout(conn,session,authorization,payoutId){
- const {execution,source,collection}=await require('../funded/branchTransfer').validate(conn,session,authorization.tenant,authorization.actor,payoutId);
+async function postBranchTransferPayout(conn,session,authorization,payoutId,options={}){
+ const cashierFinal=options.cashierFinal===true;
+ const {execution,source,collection}=await require('../funded/branchTransfer').validate(conn,session,authorization.tenant,authorization.actor,payoutId,{cashierFinal});
  const payable=await ensureCounterAccount(conn,session,{tenantId:authorization.tenant._id,branchId:source.branchId,currency:source.currency,purpose:'interbranch_payable',actorId:authorization.actor.id});
  const receivable=await ensureCounterAccount(conn,session,{tenantId:authorization.tenant._id,branchId:execution.branchId,currency:source.currency,purpose:'interbranch_receivable',actorId:authorization.actor.id});
- const origin=await applyMovements(conn,session,authorization,{sourceType:'money_transfer',sourceRef:`BRANCH_PAYOUT:${execution._id}:ORIGIN`,branchId:String(source.branchId),operatingActorId:String(collection.createdBy),legs:[{accountId:String(collection.accounts.clearingAccountId),deltaMinor:`-${source.amountMinor}`}],ledgerLines:[{currency:source.currency,accountId:String(payable.ledgerAccountId),side:'credit',amountMinor:String(source.amountMinor)}],evidenceRef:execution.evidenceReference,description:execution.note},{branchTransferExecutionId:execution._id});
+ const origin=await applyMovements(conn,session,authorization,{sourceType:'money_transfer',sourceRef:`BRANCH_PAYOUT:${execution._id}:ORIGIN`,branchId:String(source.branchId),operatingActorId:String(collection.createdBy),legs:[{accountId:String(collection.accounts.clearingAccountId),deltaMinor:`-${source.amountMinor}`}],ledgerLines:[{currency:source.currency,accountId:String(payable.ledgerAccountId),side:'credit',amountMinor:String(source.amountMinor)}],evidenceRef:execution.evidenceReference,description:execution.note},{branchTransferExecutionId:execution._id,cashierFinal});
  const destination=await applyMovements(conn,session,authorization,{sourceType:'money_transfer',sourceRef:`FUNDED:${execution._id}`,branchId:String(execution.branchId),operatingActorId:String(execution.createdBy),legs:[{accountId:String(execution.accounts.payoutAccountId),deltaMinor:`-${source.amountMinor}`}],ledgerLines:[{currency:source.currency,accountId:String(receivable.ledgerAccountId),side:'debit',amountMinor:String(source.amountMinor)}],evidenceRef:execution.evidenceReference,description:execution.note});
  return {...destination,journalIds:[...origin.journalIds,...destination.journalIds]};
 }
-async function postCrossCurrencyTransferPayout(conn,session,authorization,execution,source,collection){
+async function postCrossCurrencyTransferPayout(conn,session,authorization,execution,source,collection,options={}){
+ const cashierFinal=options.cashierFinal===true;
  if(!session?.inTransaction()||execution.action!=='transfer_payout'||!execution.payoutFx)
   throw fail('Cross-currency remittance payout must use one verified transaction',409);
  const fx=execution.payoutFx;
@@ -476,9 +625,9 @@ async function postCrossCurrencyTransferPayout(conn,session,authorization,execut
   ]});
  }
  // Sending and receiving branches must each post their own exact currency.
- // The original transfer payable is settled only by an independent reviewer
- // through the existing branch-transfer authorization fence.
- await require('../funded/branchTransfer').validate(conn,session,authorization.tenant,authorization.actor,execution._id);
+ // The original transfer payable is settled only through the exact PIN-backed
+ // interbranch authorization fence, whether posted by the cashier or legacy reviewer.
+ await require('../funded/branchTransfer').validate(conn,session,authorization.tenant,authorization.actor,execution._id,{cashierFinal});
  const payable=await ensureCounterAccount(conn,session,{tenantId:authorization.tenant._id,branchId:source.branchId,
   currency:source.currency,purpose:'interbranch_payable',actorId:authorization.actor.id});
  const receivable=await ensureCounterAccount(conn,session,{tenantId:authorization.tenant._id,branchId:execution.branchId,
@@ -489,7 +638,7 @@ async function postCrossCurrencyTransferPayout(conn,session,authorization,execut
   legs:[{accountId:String(collection.accounts.clearingAccountId),deltaMinor:'-'+source.amountMinor}],
   ledgerLines:[{currency:source.currency,accountId:String(payable.ledgerAccountId),side:'credit',amountMinor:String(source.amountMinor)}],
   evidenceRef:execution.evidenceReference,description:execution.note
- },{branchTransferExecutionId:execution._id});
+ },{branchTransferExecutionId:execution._id,cashierFinal});
  const dest=await applyMovements(conn,session,authorization,{...base,
   legs:[{accountId:String(execution.accounts.payoutAccountId),deltaMinor:'-'+fx.payoutMinor}],
   ledgerLines:[{currency:fx.targetCurrency,accountId:String(receivable.ledgerAccountId),
@@ -632,4 +781,4 @@ async function reviewAdjustment(conn,tenant,actor,adjustmentId,input){
   await audit(conn,session,authorization.actor,`treasury.adjustment.${input.decision==='approve'?'approved':'rejected'}`,adjustment._id,{branchId:String(account.branchId),accountId:String(account._id),batchId:batchId?String(batchId):null,deltaMinor:String(adjustment.deltaMinor)});return result;
  });
 }
-module.exports={postCrossCurrencyTransferPayout,postBranchTransferPayout,models,ensure,access,loadAccount,createAccount,configureAccount,archiveUnusedWallet,assertUnusedWalletArchivable,validateAccount,requestObservation,requestObservationInSession,confirmOwnerOpening,reviewObservation,reviewObservationInSession,applyMovements,reverseMovements,ensureCounterAccount,findAccount,findOperatingAccounts,balanceSnapshot,accountDetail,reviewQueue,requestAdjustment,reviewAdjustment,expectedAt,assertBookIntegrity,format,major,signedMinor,normalizeMovement,parseObservation,scope,moduleForKind,normalSide,fail,KINDS,NETWORKS};
+module.exports={recordOwnerBalanceCheck,addCapital,postCrossCurrencyTransferPayout,postBranchTransferPayout,models,ensure,access,loadAccount,createAccount,configureAccount,archiveUnusedAccount,restoreArchivedAccount,archiveUnusedWallet,assertUnusedAccountArchivable,assertUnusedWalletArchivable,validateAccount,requestObservation,requestObservationInSession,confirmOwnerOpening,reviewObservation,reviewObservationInSession,applyMovements,reverseMovements,ensureCounterAccount,findAccount,findOperatingAccounts,balanceSnapshot,accountDetail,reviewQueue,requestAdjustment,reviewAdjustment,expectedAt,assertBookIntegrity,format,major,signedMinor,normalizeMovement,parseObservation,scope,moduleForKind,normalSide,fail,KINDS,NETWORKS};

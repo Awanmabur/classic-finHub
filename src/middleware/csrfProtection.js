@@ -22,5 +22,11 @@ module.exports = function csrfProtection(req, res, next) {
     err.status = 403;
     return next(err);
   }
+  // CSRF is verified transport/security metadata, never a business field.
+  // Leaving it in req.body caused real owner opening forms to fail strict
+  // validation ("Unexpected opening balance field") even for valid tokens.
+  // Strip it ONLY after successful verification; keep unknown business fields
+  // intact so each service can reject them rather than silently ignore them.
+  if (req.body && Object.hasOwn(req.body, '_csrf')) delete req.body._csrf;
   next();
 };

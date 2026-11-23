@@ -7,24 +7,25 @@ const fmt=require('../../services/mobileMoney.service').formatMoneyMinor;
 const MAX=150;
 async function rows({conn,scope,dateRange}){
  const branch=branchMatch(scope,id=>new Types.ObjectId(id)),L=models(conn);
+ const operator=scope.operatorId?new Types.ObjectId(String(scope.operatorId)):null;
  const requested=L.loan.aggregate([
-  {$match:{...branch,createdAt:dateRange}},
+  {$match:{...branch,...(operator?{requestedBy:operator}:{}),createdAt:dateRange}},
   {$group:{_id:{currency:'$currency',status:'$status'},count:{$sum:1},principal:{$sum:'$principalMinor'}}},
   {$limit:MAX+1}
  ]).option({maxTimeMS:5000});
  const disbursed=L.loan.aggregate([
-  {$match:{...branch,disbursedAt:dateRange,status:{$in:['active','paid']}}},
+  {$match:{...branch,...(operator?{disbursedBy:operator}:{}),disbursedAt:dateRange,status:{$in:['active','paid']}}},
   {$group:{_id:'$currency',count:{$sum:1},principal:{$sum:'$principalMinor'}}},
   {$limit:MAX+1}
  ]).option({maxTimeMS:5000});
  const repaid=L.payment.aggregate([
-  {$match:{...branch,createdAt:dateRange}},
+  {$match:{...branch,...(operator?{createdBy:operator}:{}),createdAt:dateRange}},
   {$group:{_id:'$currency',count:{$sum:1},amount:{$sum:'$amountMinor'},
     principal:{$sum:'$principalMinor'},interest:{$sum:'$interestMinor'}}},
   {$limit:MAX+1}
  ]).option({maxTimeMS:5000});
  const corrections=L.correction.aggregate([
-  {$match:{...branch,createdAt:dateRange}},
+  {$match:{...branch,...(operator?{createdBy:operator}:{}),createdAt:dateRange}},
   {$group:{_id:'$currency',count:{$sum:1},amount:{$sum:'$amountMinor'},principal:{$sum:'$principalMinor'},interest:{$sum:'$interestMinor'}}},
   {$limit:MAX+1}
  ]).option({maxTimeMS:5000});

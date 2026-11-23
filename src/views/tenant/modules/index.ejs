@@ -1,27 +1,41 @@
-<section class="view show">
-  <section class="card"><div class="cardHead"><b>Independent module subscriptions</b><span>Modules work separately; platform approval is required for activation</span></div>
-    <div class="cardBody"><p class="tiny">A module grant has its own term and limits. The Operations Reports module does not require Mobile Money. Invoices and automatic collection are not active; grant approval does not prove payment.</p></div>
-  </section>
-  <div class="grid3" style="margin-top:14px"><% data.modules.forEach(m=>{
-     const included=Boolean(data.plan?.modules?.includes(m.key)&&tenant.enabledModules?.includes(m.key));
-     const grant=data.grants.find(g=>g.moduleKey===m.key);
-     const access=data.moduleAccessStates?.[m.key]||{state:'unsubscribed',message:'Unavailable',href:null};
-  %><article class="card" data-search-row><div class="cardHead"><b><i class="fa-solid <%= m.icon %>"></i> <%= m.name %></b>
-    <span><%= (included||grant) ? (m.runtimeStatus==='recording_only'?(m.key==='sms_capture'?'SMS capture':'Manual operations'):'Subscribed') : m.runtimeStatus==='disabled'?'Not yet available':'Not subscribed' %></span></div>
-    <div class="cardBody"><p class="tiny"><%= m.description %></p><p class="tiny"><b>Pricing:</b> <%= m.requiresQuote?'Agreed individually with the platform administrator':'USD '+m.priceMonthly+'/month (indicative)' %></p>
-      <% if(grant){ %><p class="tiny">Independent entitlement until <%= new Date(grant.periodEnd).toISOString().slice(0,10) %>. Limits: <%= grant.limits.users %> seats, <%= grant.limits.branches %> branches.</p><% } %>
-      <% if(included){ %><p class="tiny">Included in your active workspace plan.</p><% } %>
-      <% if(user.role==='Tenant Owner' && data.pendingKeys?.includes(m.key)){ %><p class="tiny">Request pending platform review.</p><% } %>
-      <% if(user.role==='Tenant Owner' && !included && !grant && !data.pendingKeys?.includes(m.key) && ['enabled','recording_only'].includes(m.runtimeStatus)){ %>
-      <form method="post" action="/tenant/modules/request"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="moduleKey" value="<%= m.key %>">
-        <label class="field">Request reason<textarea class="control" name="reason" required minlength="20" maxlength="600" rows="2" placeholder="Explain how your organization will use this module."></textarea></label>
-        <button class="btn" type="submit"><%= m.requiresQuote?'Request quotation & review':'Request module' %></button>
-      </form><% } %>
-      <% if(user.role==='Tenant Owner'&&m.requiresQuote&&!included&&!grant){ %><p class="tiny">The platform team will review this request and agree a price before any grant. No price or charge is assumed.</p><% } %>
-      <% if(included||grant){ %><div class="workspaceModuleAccess"><strong>For your account:</strong> <%= access.message %>.
-      <% if(access.href){ %><a class="btn" href="<%= access.href %>"><%= access.state==='operate'?'Open module':'Open permitted view' %></a><% } %>
-      <% if(['view-only','review-only','role-blocked'].includes(access.state)&&user.role!=='Tenant Owner'){ %><p class="tiny">The tenant owner can assign an operating role suited to this module; assignment alone cannot override financial permissions.</p><% } %>
-      </div><% } %>
-      <div class="seg"><% m.permissions.forEach(permission=>{ %><span class="chip <%= included||grant?'active':'' %>"><%= permission %></span><% }) %></div>
-    </div></article><% }) %></div>
+<section class="view show tenantModulePage">
+ <section class="card modulePageIntro">
+  <div class="cardHead"><div><b>Modules for your business</b><br><span>Active access, requests, and independent subscriptions</span></div><% if(user.role==='Tenant Owner'){ %><a class="btn" href="/tenant/workspace/roles">Assign staff access</a><% } %></div>
+  <div class="cardBody"><p class="tiny">Request a module directly below. The platform reviews and activates subscriptions; submitting a request does not charge you or give staff new financial rights.</p></div>
+ </section>
+ <div class="tenantModuleCards">
+ <% data.modules.forEach(m=>{
+   const active=data.entitledKeys?.includes(m.key);
+   const grant=data.grants.find(g=>g.moduleKey===m.key);
+   const pending=Boolean(data.pendingKeys?.includes(m.key));
+   const access=data.moduleAccessStates?.[m.key]||{state:'unsubscribed',message:'Unavailable',href:null};
+   const requestable=user.role==='Tenant Owner'&&!active&&!pending&&['enabled','recording_only'].includes(m.runtimeStatus);
+ %>
+  <article class="card tenantModuleCard" data-search-row>
+   <div class="cardHead"><div class="moduleCardTitle"><i class="fa-solid <%= m.icon %>" aria-hidden="true"></i><b><%= m.name %></b></div><span class="tag"><%= active?'Active':pending?'Requested':m.runtimeStatus==='disabled'?'Unavailable':'Not subscribed' %></span></div>
+   <div class="cardBody moduleCardBody">
+    <p class="moduleCardDescription"><%= m.description %></p>
+    <% if(active){ %>
+      <p class="tiny"><%= grant?'Independent subscription through '+new Date(grant.periodEnd).toISOString().slice(0,10):'Included in your current subscription' %></p>
+      <p class="tiny"><strong>Your access:</strong> <%= access.message %></p>
+      <% if(access.href){ %><a class="btn" href="<%= access.href %>">Open module</a><% } %>
+    <% }else if(pending){ %>
+      <p class="tiny modulePendingText">Request submitted · awaiting platform review</p>
+    <% }else if(requestable){ %>
+      <p class="tiny"><%= m.requiresQuote?'Price agreed after platform review':'Indicative price: USD '+m.priceMonthly+'/month' %></p>
+      <form method="post" action="/tenant/modules/request" class="moduleRequestForm">
+       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+       <input type="hidden" name="moduleKey" value="<%= m.key %>">
+       <label class="field">How will you use this module?
+        <textarea class="control" name="reason" required minlength="20" maxlength="600" rows="2" placeholder="Describe the business need briefly"></textarea>
+       </label>
+       <button class="btn btnPrimary" type="submit"><%= m.requiresQuote?'Request a quotation':'Request module' %></button>
+      </form>
+    <% }else if(!active){ %>
+      <p class="tiny"><%= m.runtimeStatus==='disabled'?'This module is not currently available for activation.':'Your tenant owner manages module subscriptions.' %></p>
+    <% } %>
+   </div>
+  </article>
+ <% }); %>
+ </div>
 </section>

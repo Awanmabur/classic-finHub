@@ -134,14 +134,14 @@ test('Transfer dashboard allows typed names with no saved contacts and escapes i
  assert.doesNotMatch(html,/name="(?:senderId|beneficiaryId)"|Select sender|Select beneficiary|before submitting a request|type="submit" disabled/);
  assert.doesNotMatch(html,/<script>alert/);assert.match(html,/&lt;script&gt;/);
  assert.match(html,/action="\/tenant\/money-transfer\/requests"/);
- assert.match(html,/Issued after reviewed collection/);
+ assert.match(html,/Issued after final collection/);
  assert.doesNotMatch(html,/<form[^>]+action="\/tenant\/money-transfer\/payout"/);
  const auditor=await ejs.renderFile(page,{data:{...data,canCreate:false,canReview:false},user:actor('Auditor'),csrfToken:'token'});
  assert.doesNotMatch(auditor,/Save transfer &amp; continue/);
  const reviewer=await ejs.renderFile(page,{data:{...data,canCreate:false,canReview:true,queue:[{
   _id:id(),reference:'TR-ABC',amountMinor:'1000',currency:'UGX',sender:{name:'Sender'},beneficiary:{name:'Recipient'},
   expiresAt:new Date(Date.now()+86400000)}]},user:actor('Reconciliation Officer'),csrfToken:'token'});
- assert.match(reviewer,/Approve pending provider/);assert.doesNotMatch(reviewer,/Save transfer &amp; continue/);
+ assert.doesNotMatch(reviewer,/Approve pending provider|name="decision" value="approve"/);assert.doesNotMatch(reviewer,/Save transfer &amp; continue/);
 });
 test('Transfer expiry job requires actual tenant cursor and never silently reports completion',async()=>{
  const job=require('../src/jobs/transferExpiry.job');

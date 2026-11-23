@@ -148,11 +148,14 @@ for (const [path,op,permission] of [['cash-in','cash_in','mobile_money.cash_in']
        const error=new Error('Wallet, provider network or cash account changed. Reload and select the actual accounts.');
        error.status=409;throw error;
       }
+      let printDestination=null;
+      const receiptPrint=require('../services/receiptPrint.service');
       if(wallet.currency===cash.currency){
        const result=await mobile.recordMobileMoney(req.tenantDb,req.user,req.body,op,req.tenant,null,{requireFunds:true});
        flash(req,'good',result.duplicate?'Already recorded. No duplicate cash or float movement.':
         (op==='cash_in'?'Deposit':'Withdrawal')+' recorded. TX ID: '+result.created.networkReference);
        require('../services/branchView.service').followRecord(req,result.created);
+       printDestination=receiptPrint.mobile(result);
       }else{
        // Fee and conversion must be the exact same terms the cashier previewed.
        // In particular, no client may silently post an extra fee outside the
@@ -186,8 +189,9 @@ for (const [path,op,permission] of [['cash-in','cash_in','mobile_money.cash_in']
        flash(req,'good',result.duplicate?'Already recorded. No duplicate cash or float movement.':
         (op==='cash_in'?'Deposit':'Withdrawal')+' recorded with Forex. TX ID: '+(result.mobile?.networkReference||result.record.providerReference));
        if(result.mobile)require('../services/branchView.service').followRecord(req,result.mobile);
+       printDestination=receiptPrint.mobile(result);
       }
-      res.redirect(303,'/tenant/mobile-money');
+      res.redirect(303,printDestination||'/tenant/mobile-money');
     } catch(e) { next(e); }
   });
 }
@@ -260,7 +264,8 @@ router.get('/mobile-money/:id/acknowledgement',requireModule('mobile_money'),req
     const record=await mobile.getRecordDetails(req.tenantDb,req.params.id,recordScope(req));
     res.set('Cache-Control','private, no-store');res.set('X-Robots-Tag','noindex, nofollow');
     const timeZone=businessTime.forBranch((res.locals.viewBranches||[]).find(b=>String(b._id)===String(record.branchId))||req.operationBranch);
-    res.render('tenant/mobile-money/acknowledgement',{...require('../services/receipt.service').acknowledgement(mobile.visibleRecordForRole(record,req.user.role)),identity:req.workspaceIdentity,flash:consumeFlash(req),
+    const printable=record.status==='recorded'&&record.fundingState==='book_recorded'&&record.correctionState!=='voided';
+    res.render('tenant/mobile-money/acknowledgement',{...require('../services/receipt.service').acknowledgement(mobile.visibleRecordForRole(record,req.user.role)),autoPrint:printable&&req.query.autoPrint==='1',identity:req.workspaceIdentity,flash:consumeFlash(req),
       businessTimeZone:timeZone,formatLocalDate:value=>businessTime.format(value,timeZone)});
   }catch(e){next(e);}
 });
@@ -394,10 +399,10 @@ router.post('/users/role-defaults',requirePermission('users.manage'),async(req,r
   try{
     await require('../services/roleModules.service').save(req.tenantDb,req.tenant,req.user,req.body);
     flash(req,'good',req.body.applyExisting==='yes'
-      ?'Role default modules saved and applied to existing staff. Active sessions must sign in again before gaining new access.'
-      :'Role default modules saved. New staff assignments will use this role template.');
-    res.redirect(303,'/tenant/users');
-  }catch(e){if([400,403,409].includes(e?.status)){flash(req,'bad',e.message);return res.redirect(303,'/tenant/users');}next(e);}
+      ?'Your saved role assignments are now applied to current staff. They must sign in again before using newly granted modules.'
+      :'Role assignments saved for future staff. Existing staff are unchanged.');
+    res.redirect(303,req.body.returnTo==='/tenant/workspace/roles'?'/tenant/workspace/roles':'/tenant/users');
+  }catch(e){if([400,403,409].includes(e?.status)){flash(req,'bad',e.message);return res.redirect(303,req.body.returnTo==='/tenant/workspace/roles'?'/tenant/workspace/roles':'/tenant/users');}next(e);}
 });
 router.post('/users/invite',requirePermission('users.manage_branch'),async(req,res,next)=>{
   try{
@@ -467,6 +472,7 @@ router.get('/modules',requirePermission('modules.view'),async(req,res,next)=>{
     renderTenant(req,res,'modules/index','Tenant Modules','Your independently subscribed modules and permissions.',{
       modules:req.user.role==='Tenant Owner'?modules:modules.filter(m=>hasModuleForUser(req.tenant,req.user,m.key)),
       plan:planForTenant(req.tenant),grants:require('../../platform/services/moduleSubscriptions.service').activeGrants(req.tenant),
+      entitledKeys:modules.filter(m=>require('../services/moduleAccess.service').hasModule(req.tenant,m.key)).map(m=>m.key),
        moduleAccessStates:Object.fromEntries(modules.map(m=>[m.key,require('../services/moduleAccess.service').moduleAccessState(req.tenant,req.user,m.key)])),
       pendingKeys:pending.map(p=>p.moduleKey)
     });

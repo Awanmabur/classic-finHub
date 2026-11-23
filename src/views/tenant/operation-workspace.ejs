@@ -44,6 +44,13 @@ const reportMode=!['records','pending','payout'].includes(data.mode);
    <div class="rowBtns"><button class="btn btnPrimary" type="submit">Apply filters</button><% if(data.canExport){ %><a class="btn" href="<%= data.basePath %>/report/export.csv?<%= filterQuery.toString() %>">Export CSV</a><% } %></div>
   </form></div>
  </section>
+<% if(moduleKey==='forex'&&data.mode==='report'){ %>
+ <section class="card" style="margin-top:14px"><div class="cardHead"><div><b>Finalized Forex exchanges</b><br><span>Actual posted Treasury executions, grouped by business date, side and currency pair</span></div><strong><%= data.finalizedForexCount||0 %> final</strong></div>
+ <div class="cardBody tableWrap"><table><thead><tr><th>Date · <%= operationReportZone %></th><th>Buy / sell</th><th>Transactions</th><th>Currency received or sold</th><th>Settlement currency</th><th>Status</th></tr></thead><tbody>
+ <% if(!(data.finalizedForexRows||[]).length){ %><tr><td colspan="6">No finalized Forex trades for this period. Unposted quotes never count as completed exchanges.</td></tr><% } %>
+ <% (data.finalizedForexRows||[]).forEach(row=>{ %><tr><td><%= row.day %></td><td><%= row.kind %></td><td><%= row.count %></td><td><%= row.volume %></td><td><%= row.target %></td><td>Final · ledger posted</td></tr><% }) %>
+ </tbody></table><p class="tiny">Amounts in different currencies are never added. The tables below show quotation and instruction history; do not add those volumes to finalized turnover.</p></div></section>
+ <% } %>
  <% if(!reportMode){ %>
  <section class="card" style="margin-top:14px"><div class="cardHead"><b><%= data.mode==='pending'?'Collected funds awaiting payout':'Recorded activity' %></b><span><%= data.records.items.length %> records on this page</span></div>
   <div class="cardBody tableWrap"><table><thead><tr><th>Date · <%= operationReportZone %></th><th>Reference</th><th>Customer / parties</th><th>Operation</th><th>Amount</th><% if(moduleKey==='forex'){ %><th>Target quote</th><th>Source / network</th><% } %><% if(moduleKey==='money_transfer'){ %><th>Proposed fee</th><% } %><th>Internal status</th><th>Balance after posting</th><th>Details</th></tr></thead><tbody>
@@ -64,7 +71,7 @@ const reportMode=!['records','pending','payout'].includes(data.mode);
   <% if(data.records.nextCursor){ filterQuery.set('cursor',data.records.nextCursor); %><div class="cardBody"><a class="btn" href="?<%= filterQuery.toString() %>">Next page</a></div><% } %>
  </section>
  <% } else { %>
- <section class="card" style="margin-top:14px"><div class="cardHead"><b><%= data.mode==='fees'?'Proposed transfer fees by day and currency':'Activity by day, currency and status' %></b><span>Amounts stay separate by currency</span></div>
+ <section class="card" style="margin-top:14px"><div class="cardHead"><b><%= data.mode==='fees'?'Proposed transfer fees by day and currency':moduleKey==='forex'?'Quotation and instruction history':'Activity by day, currency and status' %></b><span>Amounts stay separate by currency</span></div>
   <div class="cardBody tableWrap"><table><thead><tr><th>Date · <%= operationReportZone %></th><th>Operation</th><th>Currency</th><th>Records</th><th>Requested / quoted amount</th><% if(moduleKey==='forex'){ %><th>Target quoted amount</th><th>Source / network</th><% } %><% if(moduleKey==='money_transfer'){ %><th>Proposed fees</th><% } %><th>Internal status</th></tr></thead><tbody>
    <% if(!data.rows.length){ %><tr><td colspan="8">No activity matches these filters.</td></tr><% } %>
    <% data.rows.forEach(row=>{ %><tr><td><%= row.day %></td><td><%= row.kind.replaceAll('_',' ') %></td><td><%= row.currency %></td><td><%= row.count %></td><td><%= row.volume %></td><% if(moduleKey==='forex'){ %><td><%= row.target %></td>

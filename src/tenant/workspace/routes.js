@@ -50,7 +50,7 @@ const entryPages={
 };
 const pageNames={
  overview:['Tenant Workspace','Operating readiness, pending reviews, and business setup.'],profile:['Tenant profile','Business identity, operating setup, and account controls.'],
- branding:['Branding & receipts','Tenant colors, receipt template, and footer settings.'],roles:['Roles & permissions','Fixed server roles and their current permissions.'],
+ branding:['Branding & receipts','Tenant colors, receipt template, and footer settings.'],roles:['Roles & permissions','Your saved role-module assignments and account-specific access.'],
  database:['Tenant database','Current tenant database statistics and managed backup configuration.'],subscription:['Subscription & limits','Authoritative subscription terms, module grants, and usage limits.'],
  'landing-preview':['Landing preview','Preview current tenant content before publishing.'],'receipt-preview':['Receipt preview','Preview the configured receipt identity and wording.'],
  'customer-portal-preview':['Customer portal preview','Public customer support and receipt verification availability.'],audit:['Tenant audit activity','Recorded workspace configuration changes.']
@@ -205,11 +205,25 @@ function factory({renderTenant}){
   }catch(err){next(err);}
  });
  router.get('/roles',async(req,res,next)=>{
-  // Owners should land on the actual saved module assignment editor, not the
-  // historical read-only capability catalogue. Preserve the catalogue for
-  // other permitted viewers and existing role audit references.
-  if(req.user.role==='Tenant Owner')return res.redirect(303,'/tenant/users#role-module-assignments');
-  try{await render(req,res,'roles',{roles:service.roles(req.user)});}catch(error){next(error);}
+  try{
+   // This is the working role configuration screen, not a static capability
+   // catalogue. The owner sees persisted selections from the tenant DB.
+   const owner=req.user.role==='Tenant Owner';
+   const policy=require('../services/roleModules.service');
+   const roles=owner?require('../../config/roles').INVITABLE:[];
+   const saved=owner?await policy.all(req.tenantDb,req.tenant):{};
+   const allowedByRole=owner?Object.fromEntries(roles.map(role=>[
+     role,policy.availableModules(req.tenant,role)
+   ])):{};
+   const allModules=[...new Set(Object.values(allowedByRole).flat())];
+   const access=require('../services/moduleAccess.service');
+   const current=(req.user.allowedModules||[]).filter(key=>access.hasModuleForUser(req.tenant,req.user,key));
+   renderTenant(req,res,'workspace/role-access','Roles & permissions',
+    owner?'Configure saved module access for each role and apply changes to current staff.':'Your effective, branch-scoped module access.',{
+     owner,roles,saved,allowedByRole,assignable:allModules,
+     current:current.map(key=>({key,...access.moduleAccessState(req.tenant,req.user,key)}))
+    });
+  }catch(error){next(error);}
  });
  router.get('/database',async(req,res,next)=>{try{await render(req,res,'database',{stats:await service.database(req.tenantDb,req.tenant,req.user)});}catch(error){next(error);}});
  router.get('/subscription',async(req,res,next)=>{try{await render(req,res,'subscription',{terms:await service.subscription(req.tenantDb,req.tenant,req.user)});}catch(error){next(error);}});

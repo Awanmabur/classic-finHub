@@ -95,6 +95,16 @@ async function main(){
  await funded.finalizeForex(conn,tenant,owner,sell.execution._id,{confirmFundsExchanged:'yes',confirmEvidenceChecked:'yes'});
  assert.equal((await fundedModel.models(conn).execution.findById(sell.execution._id)).reviewedBy,null,'cashier confirmation must never claim independent review');
  assert.equal(await book(stock),100500n);assert.equal(await book(cashFund),988500n);
+ // The Forex summary is a database-backed completed-execution view, not merely
+ // an array of quotes. It uses the operating branch's local business day.
+ const businessTime=require('../src/utils/businessTime'),fxZone=businessTime.forBranch(branch),
+  fxDay=businessTime.localDay(new Date(),fxZone);
+ const forexReport=await require('../src/tenant/services/operationWorkspace.service').report(
+  conn,tenant,owner,'forex',{from:fxDay,to:fxDay},fxZone);
+ assert.equal(forexReport.finalizedForexCount,2,'two final cash exchanges must appear in the Forex summary');
+ assert.equal(forexReport.finalizedForexRows.filter(row=>row.kind==='buy').length,1);
+ assert.equal(forexReport.finalizedForexRows.filter(row=>row.kind==='sell').length,1);
+ assert.match(require('../src/tenant/services/operationWorkspace.service').csv(forexReport),/Final Treasury posting/);
  const originReports=require('../src/tenant/services/financeOverview.service');
  assert.equal((await originReports.postedOriginFxActivity(conn,tenant,owner,branch,{moduleKey:'banking',timeZone:'Africa/Juba'})).count,0,
   'standalone Forex trades cannot be misattributed to Banking');

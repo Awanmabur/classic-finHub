@@ -156,8 +156,26 @@ async function main() {
     // the existing Roles & permissions shortcut, not a read-only catalogue.
     const rolesShortcut=await fetch(base+'/tenant/workspace/roles',{
       headers:{cookie:ownerFull.cookie},redirect:'manual'});
-    assert.equal(rolesShortcut.status,303);
-    assert.equal(rolesShortcut.headers.get('location'),'/tenant/users#role-module-assignments');
+    assert.equal(rolesShortcut.status,200);
+    const rolesHtml=await rolesShortcut.text();
+    assert.match(rolesHtml,/action="\/tenant\/users\/role-defaults"/);
+    assert.match(rolesHtml,/saved role assignments/i);
+    // The role editor must actually save tenant-owned module assignments.
+    // This uses the authenticated owner session, CSRF and the real POST route.
+    const roleUpdate=await fetch(base+'/tenant/users/role-defaults',{
+      method:'POST',redirect:'manual',headers:{cookie:ownerFull.cookie,'content-type':'application/x-www-form-urlencoded'},
+      body:new URLSearchParams({_csrf:csrf(rolesHtml),role:'Mobile Money Operator',
+        allowedModules:'mobile_money',revision:'0',returnTo:'/tenant/workspace/roles'}).toString()
+    });
+    assert.equal(roleUpdate.status,303,'Owner role-module changes must be persisted via real POST');
+    assert.equal(roleUpdate.headers.get('location'),'/tenant/workspace/roles');
+    const savedModules=await require('../src/tenant/services/roleModules.service')
+      .model(tenantDb).findOne({tenantId:tenant._id,role:'Mobile Money Operator'}).lean();
+    assert.deepEqual(savedModules.allowedModules,['mobile_money']);
+    const updatedRolePage=await fetch(base+'/tenant/workspace/roles',{headers:{cookie:ownerFull.cookie}});
+    assert.equal(updatedRolePage.status,200);
+    assert.match(await updatedRolePage.text(),/Mobile Money Operator/);
+
     const staffAccess=await fetch(base+'/tenant/users',{headers:{cookie:ownerFull.cookie}});
     assert.equal(staffAccess.status,200);
     const staffHtml=await staffAccess.text();

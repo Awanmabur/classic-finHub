@@ -75,9 +75,16 @@ test('Quick setup templates expose only real existing forms and accurate financi
  assert(active.includes('/js/tenant-quick-setup.js'));
  assert(active.includes('data-quick-account-kind'));
  assert(active.includes('data-quick-provider'));
+ for(const currency of currencyCodes)assert(active.includes('value="'+currency+'"'),'Every supported currency is visible: '+currency);
+ assert.match(active,/<option value="UGX"[^>]*disabled/,'Other branch currency is visible but disabled');
+ assert.match(active,/<option value="SSP"[^>]*selected/,'Current branch currency remains selected');
+ assert(active.includes('/tenant/branches'),'Missing currencies have an existing settings route');
+ assert(active.includes('data-quick-currency-status'),'Currency eligibility has accessible feedback');
  assert(active.includes('Confirm actual opening'));
  assert(active.includes('/tenant/setup/opening/'));
- assert(active.includes('name="confirmed"'));
+ assert(active.includes('name="actualBalance"'));
+ assert(!active.includes('name="confirmed"'));
+ assert(!active.includes('name="evidenceReference"'));
  assert(active.includes('not confirmed'));
  assert(!active.includes('Approve staff'));
  assert(!active.includes('Create 1000000 SSP'));

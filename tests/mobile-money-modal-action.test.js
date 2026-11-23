@@ -35,7 +35,7 @@ test('transaction modal switches submit button between Record deposit and Record
 });
 test('popup lifecycle synchronizes action wording on reuse, first mount, cached seed and reset',()=>{
  const js=source('public/js/dashboard.js');
- assert.match(js,/present\.action=operations\[kind\]\.action;syncMobileOperation\(present,kind\)/);
+ assert.match(js,/present\.setAttribute\('action',operations\[kind\]\.action\);syncMobileOperation\(present,kind\)/);
  assert.match(js,/formHost\.append\(seed\);syncMobileOperation\(seed,kind\)/);
  assert.match(js,/form\.append\(submitActions\);syncMobileOperation\(form,kind\)/);
  assert.match(js,/if\(form\.matches\('\[data-mobile-money-form\]'\)\)syncMobileOperation\(form,currentKind\)/);

@@ -86,7 +86,7 @@ test('tenant role defaults render as an owner-only real form and staff role assi
 });
 
 test('roles shortcut points to live owner editor instead of read-only capability chart',()=>{
- assert.match(source('src/tenant/workspace/routes.js'),/res\.redirect\(303,'\/tenant\/users#role-module-assignments'\)/);
+ assert.match(source('src/tenant/workspace/routes.js'),/renderTenant\(req,res,'workspace\/role-access'/);
  assert.match(source('src/views/tenant/users/index.ejs'),/id="role-module-assignments"/);
  assert.match(source('src/views/tenant/users/index.ejs'),/Role module assignments/);
 });

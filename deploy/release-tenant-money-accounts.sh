@@ -42,6 +42,18 @@ git -c safe.directory="$ROOT" -C "$ROOT" merge-base --is-ancestor "$LIVE" "$ACTU
 # remote/authenticated database URIs and uses randomized disposable DB names.
 TEST_URI='mongodb://127.0.0.1:27018/classicfin_platform_db?replicaSet=rs0&directConnection=true'
 echo "=== ISOLATED TREASURY INTEGRATION: no production DB credentials ==="
+# The checked-out worktree may be 0700 due to umask 077 and owned by a
+# different host UID than the container's node user (1000). A direct bind
+# mount then exists but its source JS is unreadable (MODULE_NOT_FOUND).
+# Archive only tracked files to a short-lived, readable copy. Never chmod
+# the operator's home directory or access production Mongo credentials.
+STAGE="$(mktemp -d /tmp/classicfin-accounts-test.XXXXXXXX)"
+trap 'rm -rf -- "$STAGE"' EXIT
+git -c safe.directory="$ROOT" -C "$ROOT" archive "$ACTUAL" | tar -xf - -C "$STAGE"
+chmod -R a+rX "$STAGE"
+test -r "$STAGE/scripts/treasury-integration.js" || {
+  echo "The reviewed release does not contain the integration test." >&2; exit 2;
+}
 image="$(docker inspect -f '{{.Image}}' classicfin-web-only)"
 docker run --rm --network host --read-only \
   --tmpfs /tmp:rw,nosuid,nodev,size=128m \
@@ -50,9 +62,9 @@ docker run --rm --network host --read-only \
   --env NODE_ENV=test --env "MONGO_PLATFORM_URI=$TEST_URI" \
   --env NODE_PATH=/app/node_modules \
   --env SESSION_SECRET=isolated-account-release-test-only \
-  --mount "type=bind,src=$ROOT,dst=/workspace,readonly" \
-  --workdir /workspace --entrypoint node "$image" \
-  scripts/treasury-integration.js
+  --mount "type=bind,src=$STAGE,dst=/workspace,readonly" \
+  --workdir /workspace --entrypoint /bin/sh "$image" \
+  -c 'test -r scripts/treasury-integration.js || { echo "Test source is unreadable inside container" >&2; exit 2; }; exec node scripts/treasury-integration.js'
 
 echo "=== RELEASE, UNIT TESTS, BACKUP CHECK AND CANARY ==="
 bash "$ROOT/deploy/standalone-ui-release.sh"

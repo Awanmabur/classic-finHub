@@ -138,9 +138,9 @@ const status=(done)=>done?'Ready':'Set up';
                 <td><span class="tag"><%= a.integrityBlocked?'Ledger review required':a.status==='held'?'Held — check balance':usable?'Ready':a.openingBalanceMinor!=null?'Review balance':a.pendingOpeningId?'Opening awaiting review':'Confirm starting balance' %></span></td>
                 <td>
                   <% if(a.integrityBlocked){ %><span class="tiny" role="alert">Financial posting blocked. Ask the platform administrator to restore the missing ledger evidence; do not reconfirm or reset this balance.</span>
-                  <% }else if(usable){ %><a class="btn btnPrimary" href="/tenant/treasury/accounts/<%= a._id %>#record-balance">Record balance / add money</a> <a class="btn" href="/tenant/treasury/accounts/<%= a._id %>">View balance</a>
+                  <% }else if(usable){ %><a class="btn btnPrimary" href="/tenant/treasury/accounts/<%= a._id %>#record-balance">Check balance / add money</a> <a class="btn" href="/tenant/treasury/accounts/<%= a._id %>">View balance</a>
                   <% }else if(a.pendingOpeningId){ %><a class="btn" href="/tenant/treasury/accounts/<%= a._id %>">Resolve existing opening</a>
-                  <% }else if(a.openingBalanceMinor!=null){ %><a class="btn" href="/tenant/treasury/accounts/<%= a._id %>">Review balance</a>
+                  <% }else if(a.openingBalanceMinor!=null){ %><a class="btn" href="/tenant/treasury/accounts/<%= a._id %>">Fix balance</a>
                   <% }else{ %><details>
                     <summary class="btn">Confirm actual opening</summary>
                     <form method="post" action="/tenant/setup/opening/<%= a._id %>">
@@ -152,17 +152,18 @@ const status=(done)=>done?'Ready':'Set up';
                       <button class="btn btnPrimary" type="submit">Confirm and start using</button>
                     </form>
                   </details><% } %>
-                  <% if(!a.integrityBlocked&&a.status==='uninitialized'&&a.openingBalanceMinor===null&&!a.pendingOpeningId&&!a.openingApprovedAt&&Number(a.sequence||0)===0&&String(a.bookBalanceMinor||0)==='0'){ %>
-                    <details style="margin-top:10px">
-                      <summary class="btn">Remove unused account</summary>
-                      <p class="tiny">Only an account never opened or used can be archived. It can be restored below.</p>
-                      <form method="post" action="/tenant/treasury/accounts/<%= a._id %>/archive">
+                  <a class="btn" href="/tenant/treasury/accounts/<%= a._id %>#account-settings">Edit name / settings</a>
+                  <% if(!a.integrityBlocked&&(['uninitialized','active'].includes(a.status))&&String(a.bookBalanceMinor||0)==='0'&&!a.pendingOpeningId){ %>
+                    <details style="margin-top:8px">
+                      <summary class="btn">Remove account</summary>
+                      <p class="tiny">Removes this account from new transactions; does not erase financial history. An opened account must also have a fresh matching zero balance.</p>
+                      <form method="post" action="/tenant/treasury/accounts/<%= a._id %>/remove">
                         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                        <input type="hidden" name="confirmCode" value="<%= a.code %>">
-                        <button class="btn btnDanger" type="submit">Archive this unused account</button>
+                        <button class="btn btnDanger" type="submit">Confirm remove</button>
                       </form>
                     </details>
-                  <% } %>
+                  <% }else if(a.status==='held'){ %><a class="btn" href="/tenant/treasury/accounts/<%= a._id %>#record-balance">Fix balance difference</a>
+                  <% }else if(String(a.bookBalanceMinor||0)!=='0'){ %><span class="tiny">Move or settle remaining funds before removing</span><% } %>
                 </td></tr>
             <% }) %>
           </tbody></table>

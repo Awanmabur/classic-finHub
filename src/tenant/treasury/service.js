@@ -518,6 +518,10 @@ async function correctUnusedOpening(conn,tenant,actor,accountId,input={}){
   if(!['active','held'].includes(account.status)||account.openingBalanceMinor===null||
      !account.openingApprovedAt||account.pendingOpeningId||Number(account.sequence||0)!==0)
    throw fail('This account has already been used. Correct the original transaction or reconcile the difference instead.',409);
+  const openingAt=new Date(account.openingObservedAt);
+  if(!Number.isFinite(openingAt.getTime())||Date.now()-openingAt.getTime()>24*60*60*1000||
+     openingAt.getTime()>Date.now()+60*1000)
+   throw fail('Direct opening corrections are available only during the first 24 hours of unused setup. Resolve older differences through audited reconciliation.',409);
   await assertBookIntegrity(conn,session,account);
   // No connected cash custody, transfer, transaction, approval or expense
   // may exist. Never use a cosmetic zero balance as evidence of being unused.

@@ -242,6 +242,59 @@ async function main(){
  await assert.rejects(treasury.addCapital(conn,tenant,operator,heldCash._id,{
    amount:'1',idempotencyKey:crypto.randomUUID()}),e=>e.status===403);
 
+ // A real POST response must reach the existing Treasury endpoint and
+ // return the correct AJAX redirect. Previously service-only tests missed
+ // production complaints of "Page not found" after balance submissions.
+ const express=require('express'),httpApp=express();
+ httpApp.use(express.urlencoded({extended:false}));
+ httpApp.use((req,res,next)=>{
+  req.user=owner;req.tenant=tenant;req.tenantDb=conn;req.session={};
+  next();
+ });
+ httpApp.use(require('../src/middleware/ajaxRedirect').ajaxRedirect);
+ httpApp.use('/tenant/treasury',require('../src/tenant/treasury/routes')({
+  renderTenant:(req,res,view)=>res.status(200).json({view})
+ }));
+ const listener=await new Promise((resolve,reject)=>{
+  const server=httpApp.listen(0,'127.0.0.1',()=>resolve(server));
+  server.once('error',reject);
+ });
+ try{
+  const base='http://127.0.0.1:'+listener.address().port;
+  const submit=async(path,values)=>{
+   const response=await fetch(base+path,{method:'POST',redirect:'manual',headers:{
+    'Content-Type':'application/x-www-form-urlencoded',
+    'X-ClassicFin-Redirect':'json'
+   },body:new URLSearchParams(values)});
+   const body=await response.text();
+   assert.equal(response.status,200,'Treasury action failed instead of returning AJAX success: '+body.slice(0,400));
+   return JSON.parse(body);
+  };
+  const sspRoute='/tenant/treasury/accounts/'+heldCash._id+'/record';
+  const sspPosted=await submit(sspRoute,{
+   action:'capital',amount:'1.25',idempotencyKey:crypto.randomUUID()});
+  assert.equal(sspPosted.redirect,'/tenant/treasury/accounts/'+heldCash._id+'#record-balance');
+  assert.equal(sspPosted.flash.type,'good');
+  assert.match(sspPosted.flash.message,/still held/);
+  const sspDestination=await fetch(base+sspPosted.redirect);
+  assert.equal(sspDestination.status,200,'Account destination must exist after successful posting');
+  assert.equal((await sspDestination.json()).view,'treasury/detail');
+  const updatedSSP=await book.models(conn).account.findById(heldCash._id).lean();
+  assert.equal(updatedSSP.status,'held');
+  assert.equal(String(updatedSSP.bookBalanceMinor),'3675');
+  const ugxRoute='/tenant/treasury/accounts/'+starterCash._id+'/record';
+  const ugxPosted=await submit(ugxRoute,{
+   action:'capital',amount:'2',idempotencyKey:crypto.randomUUID()});
+  assert.equal(ugxPosted.redirect,'/tenant/treasury/accounts/'+starterCash._id+'#record-balance');
+  assert.equal((await fetch(base+ugxPosted.redirect)).status,200);
+  // Old forms still posted by an already-open browser tab remain functional.
+  const legacy=await submit('/tenant/treasury/capital',{
+   accountId:String(starterCash._id),amount:'3',idempotencyKey:crypto.randomUUID()});
+  assert.equal(legacy.redirect,'/tenant/treasury/accounts/'+starterCash._id+'#record-balance');
+  assert.equal((await fetch(base+legacy.redirect)).status,200);
+ }finally{
+  await new Promise(resolve=>listener.close(resolve));
+ }
  await Tenant.updateOne({_id:tenant._id},{$set:{enabledModules:[]},$inc:{__v:1}});await assert.rejects(treasury.balanceSnapshot(conn,tenant,owner),e=>e.status===403);
  console.log('PASS: Treasury real independent opening evidence, exact posted funds and cash, balanced journals, idempotency, insufficient-float and mismatch holds, dated checkpoints, explicit suspense adjustments, late-entry invalidation, historical-maker correction, concurrent balance guards, audit rollback, append-only history, live revocation and tenant isolation.');
 }

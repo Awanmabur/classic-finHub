@@ -86,11 +86,11 @@
       <option value="capital" <%= (account.status==='active'&&account.reconciliationState==='matched')||(account.status==='held'&&account.reconciliationState==='mismatch')?'':'disabled' %>>Add new business money</option>
      </select>
     </label>
-    <label class="field"><span data-owner-balance-label>Amount of new money received (<%= account.currency==='KES'?'KSH':account.currency %>)</span>
+    <label class="field"><span data-owner-balance-label>Current total actually counted (<%= account.currency==='KES'?'KSH':account.currency %>)</span>
      <input class="control" name="amount" required inputmode="decimal" pattern="<%= account.currency==='UGX'?'[0-9]+':'[0-9]+([.][0-9]{1,2})?' %>" placeholder="Enter amount" data-owner-balance-amount>
     </label>
    </div>
-   <p class="tiny" data-owner-balance-hint>Adding new money increases this account and owner capital. Enter the amount ADDED, not the new total. It must be money your business actually received.</p>
+   <p class="tiny" data-owner-balance-hint>Enter the total real balance you counted or checked. A difference will be flagged without inventing or removing money.</p>
    <button class="btn btnPrimary" type="submit" data-owner-balance-submit>Save now</button>
   </form>
  </section>

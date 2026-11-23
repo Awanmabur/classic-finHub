@@ -8,18 +8,14 @@
     <div class="cardHead"><b>Cash drawer · <%= data.shift.currency==='KES'?'KSH':data.shift.currency %> · <%= String(data.shift._id).slice(-8).toUpperCase() %></b><span class="tag"><%= shiftStatus %></span><a class="btn" href="/tenant/cash/shifts">All shifts</a></div>
     <div class="cardBody">
       <p class="tiny">This tracks the cash physically in your drawer. Electronic float is separate.</p>
-      <div class="grid3">
-        <div class="stat"><div class="k">Opening cash</div><div class="v"><%= cashLabel(data.shift.openingMinor,data.shift.currency) %></div></div>
-        <div class="stat"><div class="k">Net recorded cash movement</div><div class="v"><%= cashLabel(data.shift.provisionalMovementMinor,data.shift.currency) %></div></div>
-        <div class="stat"><div class="k">Expected cash now</div><div class="v"><%= cashLabel(String(expectedNow),data.shift.currency) %></div></div>
-        <div class="stat"><div class="k">Recorded operations</div><div class="v"><%= data.shift.recordCount %></div></div>
+      <div class="summary">
+       <div class="sumRow"><span>Expected physical cash now</span><b><%= cashLabel(String(expectedNow),data.shift.currency) %></b></div>
+       <div class="sumRow"><span>Recorded transactions</span><b><%= data.shift.recordCount %></b></div>
+       <% if(data.shift.submittedAt){ %>
+        <div class="sumRow"><span>Cash counted at closing</span><b><%= cashLabel(data.shift.declaredClosingMinor,data.shift.currency) %></b></div>
+        <div class="sumRow"><span>Difference</span><b><%= cashLabel(data.shift.varianceMinor,data.shift.currency) %></b></div>
+       <% } %>
       </div>
-      <% if(data.shift.submittedAt){ %>
-      <div class="grid3" style="margin-top:14px">
-        <div class="stat"><div class="k">Estimated closing cash</div><div class="v"><%= cashLabel(data.shift.expectedClosingMinor,data.shift.currency) %></div></div>
-        <div class="stat"><div class="k">Counted closing cash</div><div class="v"><%= cashLabel(data.shift.declaredClosingMinor,data.shift.currency) %></div></div>
-        <div class="stat"><div class="k">Count variance (+ / −)</div><div class="v"><%= cashLabel(data.shift.varianceMinor,data.shift.currency) %></div></div>
-      </div><% } %>
       <% if(data.shift.openingReviewNote){ %><p class="tiny">Opening verification evidence: <%= data.shift.openingReviewNote %></p><% } %>
       <% if(data.canReviewOpening){ %>
         <% if(typeof user!=='undefined'&&user.role==='Tenant Owner'&&String(data.shift.operatorId)===String(user.id)){ %>
@@ -75,10 +71,10 @@
       <% if(data.shift.reviewNote){ %><p class="tiny">Last supervisor decision: <%= data.shift.reviewNote %></p><% } %>
     </div>
   </section>
-  <section class="card" style="margin-top:14px"><div class="cardHead"><b>Past cash counts</b><span>History preserved</span></div>
+  <details class="card" style="margin-top:14px"><summary class="cardHead"><b>Past cash counts</b><span>History preserved</span></summary>
     <div class="cardBody tableWrap"><table><thead><tr><th>Local time</th><th>Declared</th><th>Estimated</th><th>Difference</th><th>Explanation</th></tr></thead><tbody>
       <% if(!data.shift.closeHistory.length){ %><tr><td colspan="5">Shift has not been submitted.</td></tr><% } %>
       <% data.shift.closeHistory.forEach(entry=>{ %><tr><td><%= regionalTime(entry.at,data.shift?.branchId) %></td><td><%= cashLabel(entry.declaredMinor,data.shift.currency) %></td><td><%= cashLabel(entry.expectedMinor,data.shift.currency) %></td><td><%= cashLabel(entry.varianceMinor,data.shift.currency) %></td><td><%= entry.note %></td></tr><% }) %>
     </tbody></table></div>
-  </section>
+  </details>
 </section>

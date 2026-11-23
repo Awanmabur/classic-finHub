@@ -271,6 +271,23 @@ async function main(){
  await assert.rejects(treasury.archiveUnusedAccount(conn,tenant,owner,starterCash._id,{
   confirmCode:starterCash.code
  }),e=>e.status===409,'An opened/used account cannot be archived');
+ // Standard setup assigns one default per actual account group without
+ // preventing the owner from adding a second named wallet in that currency.
+ const autoOne=await treasury.createAccount(conn,tenant,owner,{
+  name:'Standard primary owner MTN wallet',kind:'wallet',network:'MTN',
+  currency:'UGX',operatorId:owner.id,isDefault:'auto'
+ });
+ const autoTwo=await treasury.createAccount(conn,tenant,owner,{
+  name:'Standard secondary owner MTN wallet',kind:'wallet',network:'MTN',
+  currency:'UGX',operatorId:owner.id,isDefault:'auto'
+ });
+ assert(autoOne.selectionKey,'First account in its real wallet group is default');
+ assert(!autoTwo.selectionKey,'Second real wallet cannot steal an existing default');
+ assert.notEqual(String(autoOne._id),String(autoTwo._id));
+ await assert.rejects(treasury.createAccount(conn,tenant,owner,{
+  name:'standard secondary owner mtn wallet',kind:'wallet',network:'MTN',
+  currency:'UGX',operatorId:owner.id,isDefault:'auto'
+ }),e=>e.status===409,'Duplicate group/name is blocked without inventing another account');
  // A previously used, settled wallet can be closed without deleting its history.
  const retiringSource=await treasury.createAccount(conn,tenant,owner,{
   name:'Historical wallet to close',kind:'wallet',network:'MTN',currency:'UGX',

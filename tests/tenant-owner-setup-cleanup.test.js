@@ -24,7 +24,7 @@ test('Owner quick setup archives only unused accounts and can restore without de
  assert.match(page,/a\.openingBalanceMinor===null/);
  assert.match(page,/a\.pendingOpeningId/);
  assert.match(page,/a\.sequence/);
- assert.match(page,/\/tenant\/treasury\/accounts\/<%= a\._id %>\/archive/);
+ assert.match(page,/\/tenant\/treasury\/accounts\/<%= a\._id %>\/remove/);
  assert.match(page,/\/tenant\/treasury\/accounts\/<%= a\._id %>\/restore/);
  assert.match(page,/name="confirmCode"/);
  assert.match(page,/name="_csrf"/);

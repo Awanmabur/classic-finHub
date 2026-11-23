@@ -331,8 +331,12 @@ async function addCapital(conn,tenant,actor,accountId,input={}){
   if(authorization.actor.role!=='Tenant Owner')throw fail('Only the tenant owner can add business capital',403);
   const account=await loadAccount(conn,authorization,accountId,{session,fence:true});
   if(!['cash','wallet','bank','forex_stock'].includes(account.kind))throw fail('Capital can only be received into a real cash, wallet, bank or stock account',409);
-  if(account.status!=='active'||account.openingBalanceMinor===null||!account.openingApprovedAt||
-     account.reconciliationState!=='matched')throw fail('Confirm the account opening balance first. Existing discrepancies need reconciliation.',409);
+  // New capital is a real receipt; it is not a reconciliation or write-off.
+  // Record it for a reviewed mismatch, but preserve the hold until resolved.
+  const heldMismatch=account.status==='held'&&account.reconciliationState==='mismatch';
+  const ready=account.status==='active'&&account.reconciliationState==='matched';
+  if((!ready&&!heldMismatch)||account.openingBalanceMinor===null||!account.openingApprovedAt)
+   throw fail('Confirm the account opening first. Stale or unavailable accounts need reconciliation before recording new money.',409);
   const amount=major(input.amount,account.currency);
   if(amount<=0n)throw fail('New capital must be greater than zero');
   // The same submission key is safe to retry; this is not external
@@ -347,11 +351,11 @@ async function addCapital(conn,tenant,actor,accountId,input={}){
       side:'credit',amountMinor:String(amount)}],
     description:'Owner capital received into business funds',
     evidenceReference
-  },{ownerCapital:true});
+  },{ownerCapital:true,allowHeld:heldMismatch});
   if(!posted.duplicate)await audit(conn,session,authorization.actor,'treasury.capital.posted',posted.batch._id,{
     branchId:String(account.branchId),accountId:String(account._id),currency:account.currency,
-    amountMinor:String(amount),evidenceReference,sourceRef:'CAP:'+requestKey});
-  return {batch:posted.batch,duplicate:posted.duplicate,accountId:String(account._id),currency:account.currency,amountMinor:String(amount)};
+    amountMinor:String(amount),evidenceReference,sourceRef:'CAP:'+requestKey,holdPreserved:heldMismatch});
+  return {batch:posted.batch,duplicate:posted.duplicate,accountId:String(account._id),currency:account.currency,amountMinor:String(amount),holdPreserved:heldMismatch};
  });}catch(error){
   if(error.code===11000)throw fail('This top-up has already been recorded. Check the account balance before adding more money.',409);
   throw error;

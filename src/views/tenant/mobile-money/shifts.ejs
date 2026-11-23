@@ -9,16 +9,6 @@
    const shiftStateLabel=state=>({pending_open:'Waiting for verification',open:'Open · recording',submitted:'Closing cash to check',approved:'Closed and reconciled',opening_rejected:'Opening rejected',disputed:'Count disputed'})[state]||String(state).replaceAll('_',' '); %>
 <section class="view show">
  <%- include('../../partials/operation-branch', {currentBranch, branchProblem, user}) %>
- <% const visibleShifts=data.shifts?.items||[];
-    const shiftCounts=[
-     ['Open shifts',visibleShifts.filter(s=>s.status==='open').length],
-     ['Awaiting count review',visibleShifts.filter(s=>['pending_open','submitted'].includes(s.status)).length],
-     ['Disputed',visibleShifts.filter(s=>s.status==='disputed').length],
-     ['Reconciled',visibleShifts.filter(s=>s.status==='approved').length]
-    ]; %>
- <div class="grid3 overviewStatsGrid moduleStatsGrid" aria-label="Cash control summary of loaded records" style="margin-bottom:12px">
-  <% shiftCounts.forEach(([name,count])=>{ %><div class="stat"><div class="k"><%= name %> · current page</div><div class="v"><%= count %></div></div><% }); %>
- </div>
   <section class="card">
     <div class="cardHead"><b>Start cash shift</b><span>Only when you are taking responsibility for physical cash</span></div>
     <div class="cardBody">
@@ -59,8 +49,8 @@
       <% } %>
     </div>
   </section>
-  <section class="card" style="margin-top:14px">
-    <div class="cardHead"><b>Past cash shifts</b><span>History, when you need it</span></div>
+  <details class="card" style="margin-top:14px">
+    <summary class="cardHead"><b>Past cash shifts</b><span>Open only when you need old records</span></summary>
     <div class="cardBody tableWrap"><table><thead><tr><th>Opened (local)</th><th>Branch</th><th>Operator</th><th>Status</th><th>Currency</th><th>Opening cash</th><th>Records</th><th>Details</th></tr></thead><tbody>
       <% if(!data.shifts.items.length){ %><tr><td colspan="8">No cash shifts in your permitted scope.</td></tr><% } %>
       <% data.shifts.items.forEach(shift=>{ %><tr data-search-row>
@@ -71,5 +61,5 @@
       </tr><% }) %>
     </tbody></table></div>
     <% if(data.shifts.nextCursor){ %><div class="cardBody"><a class="btn" href="/tenant/cash/shifts?cursor=<%= encodeURIComponent(data.shifts.nextCursor) %>">Next page</a></div><% } %>
-  </section>
+  </details>
 </section>

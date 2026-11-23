@@ -93,6 +93,7 @@ function tenantMenu(tenant,user) {
   ],[...(reports?['reports']:[]),...(expenses?['expenses']:[]),...(sharedCash?['cash/shifts']:[]),...(module('approval_workflows')&&can('approvals.view')?['approvals']:[]),...(manualMovements?['funded']:[])]);
   group('Tenant Workspace',[
     ...(user.role==='Tenant Owner'?[item('Quick setup','setup','fa-wand-magic-sparkles')]:[]),
+    ...(module('approval_workflows')&&can('approvals.view')?[item('Exceptions & requests','approvals','fa-user-check')]:[]),
     ...(workspace?[item('Tenant profile','workspace/profile','fa-building')]:[]),
     ...(sharedCash?[item('Wallets & balances','treasury','fa-wallet')]:[]),
     ...(workspace&&can('workspace.manage')&&user.role==='Tenant Owner'&&['mobile_money','money_transfer','banking','forex'].some(module)?[item('Fees & commissions','workspace/pricing','fa-coins')]:[]),

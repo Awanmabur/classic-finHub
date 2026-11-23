@@ -25,7 +25,7 @@ module.exports=function treasuryRoutes({renderTenant}){
   const blocked=new Set(snapshot.accounts.filter(a=>a.integrityBlocked).map(a=>String(a._id)));
    const fundingAccounts=can(req,'treasury.observe')?(await treasury.findOperatingAccounts(req.tenantDb,req.tenant,req.user,{branchId})).filter(account=>!blocked.has(String(account._id))&&['cash','bank','wallet'].includes(account.kind)&&account.status==='active'&&account.openingBalanceMinor!==null&&account.reconciliationState==='matched'):[];
   const kinds=treasury.KINDS.filter(kind=>kind==='wallet'?hasSource(req,'mobile_money'):kind==='forex_stock'?hasSource(req,'forex'):kind==='transfer_clearing'?hasSource(req,'money_transfer'):true);
-  renderTenant(req,res,'treasury/index','Wallets, cash & balances','Create money accounts, add new capital, or move existing funds without routine approval.',{snapshot,queue,operators,setupBranch,allBranches:req.viewBranchId==='all',branchNames:Object.fromEntries((res.locals.viewBranches||[]).map(branch=>[String(branch._id),branch.name])),hasMobileMoney:hasSource(req,'mobile_money'),canCreateAccount:can(req,'treasury.manage')&&Boolean(setupBranch),fundings,fundingAccounts,fundingDestination:String(req.query.to||''),canManage:can(req,'treasury.manage'),canObserve:can(req,'treasury.observe'),canReview:can(req,'treasury.review'),kinds,networks:treasury.NETWORKS,networkMarketCurrencies:Object.fromEntries(Object.entries(require('../pricing/networkTariffs').NETWORKS).map(([key,meta])=>[key,meta.currency||''])),format:treasury.format,idempotencyKey:randomUUID(),fundingIdempotencyKey:randomUUID()});
+  renderTenant(req,res,'treasury/index','Wallets, cash & balances','Create money accounts, add new capital, or move existing funds without routine approval.',{snapshot,queue,operators,setupBranch,allBranches:req.viewBranchId==='all',branchNames:Object.fromEntries((res.locals.viewBranches||[]).map(branch=>[String(branch._id),branch.name])),hasMobileMoney:hasSource(req,'mobile_money'),canCreateAccount:can(req,'treasury.manage')&&Boolean(setupBranch),fundings,fundingAccounts,fundingDestination:String(req.query.to||''),currencyCodes:require('../../config/currencies').currencyCodes,canManage:can(req,'treasury.manage'),canObserve:can(req,'treasury.observe'),canReview:can(req,'treasury.review'),kinds,networks:treasury.NETWORKS,networkMarketCurrencies:Object.fromEntries(Object.entries(require('../pricing/networkTariffs').NETWORKS).map(([key,meta])=>[key,meta.currency||''])),format:treasury.format,idempotencyKey:randomUUID(),fundingIdempotencyKey:randomUUID()});
  }
  function hasSource(req,key){return require('../services/moduleAccess.service').hasModuleForUser(req.tenant,req.user,key);}
  router.get('/',wrap(renderList));
@@ -37,6 +37,18 @@ module.exports=function treasuryRoutes({renderTenant}){
  }));
  // Existing per-account balance section now handles BOTH owner capital and
  // direct actual checks; no duplicate top-up screen or routine review queue.
+ // Old bookmarks and already-open forms must not become 404 after removing
+ // the duplicate top-up page. They use the SAME audited owner capital service.
+ router.get('/capital',(req,res)=>res.redirect(303,'/tenant/treasury'));
+ router.post('/capital',requirePermission('treasury.manage'),throttle,wrap(async(req,res)=>{
+  const result=await treasury.addCapital(req.tenantDb,req.tenant,req.user,
+   req.body.accountId,{amount:req.body.amount,idempotencyKey:req.body.idempotencyKey});
+  flash(req,'good',result.duplicate?
+   'Already recorded. No duplicate funds were added.':
+   'New money recorded. See the updated account balance.');
+  branchView.followRecord(req,result.batch);
+  res.redirect(303,`/tenant/treasury/accounts/${result.accountId}#record-balance`);
+ }));
  router.post('/accounts/:id/record',requirePermission('treasury.observe'),throttle,wrap(async(req,res)=>{
   if(req.user.role!=='Tenant Owner')throw treasury.fail('Only the business owner can record money directly',403);
   if(req.body.action==='capital'){

@@ -24,7 +24,7 @@ module.exports=function treasuryRoutes({renderTenant}){
   const [snapshot,queue,operators,fundings,operatingAccounts]=await Promise.all([
    treasury.balanceSnapshot(req.tenantDb,req.tenant,req.user,{branchId,currency:req.query.currency||null}),
    showReview&&can(req,'treasury.review')?treasury.reviewQueue(req.tenantDb,req.tenant,req.user):[],
-   can(req,'treasury.manage')&&setupBranch&&req.user.role!=='Tenant Owner'?tenantUserModel(req.tenantDb).find({status:'active',$or:operatorScope}).select('name role branchId').sort({name:1}).limit(300).lean():[],
+   can(req,'treasury.manage')&&setupBranch?tenantUserModel(req.tenantDb).find({status:'active',$or:operatorScope}).select('name role branchId').sort({name:1}).limit(100).lean():[],
    showFundingHistory?funding.list(req.tenantDb,req.tenant,req.user):[],
    can(req,'treasury.observe')?treasury.findOperatingAccounts(req.tenantDb,req.tenant,req.user,{branchId}):[]
   ]);

@@ -48,7 +48,10 @@ echo "=== ISOLATED TREASURY INTEGRATION: no production DB credentials ==="
 # Archive only tracked files to a short-lived, readable copy. Never chmod
 # the operator's home directory or access production Mongo credentials.
 STAGE="$(mktemp -d /tmp/classicfin-accounts-test.XXXXXXXX)"
-TEST_DB_CONTAINER="classicfin-accounts-mongo-$(date -u +%s)-$"
+TEST_DB_CONTAINER="classicfin-accounts-mongo-$(date -u +%s)-$RANDOM"
+[[ "$TEST_DB_CONTAINER" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]+$ ]] || {
+  echo "Generated test MongoDB container name is invalid. Release stopped." >&2; exit 2;
+}
 DB_STARTED=0
 cleanup_release_tests() {
   # Only remove a test container we actually started; never touch other Mongo.

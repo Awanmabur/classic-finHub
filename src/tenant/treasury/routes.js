@@ -40,6 +40,10 @@ module.exports=function treasuryRoutes({renderTenant}){
  router.get('/accounts/new',requirePermission('treasury.manage'),wrap((req,res)=>req.user.role==='Tenant Owner'?res.redirect(303,'/tenant/setup#quick-money'):renderList(req,res)));
  router.get('/review',requirePermission('treasury.review'),wrap(renderList));
  router.post('/accounts',requirePermission('treasury.manage'),throttle,wrap(async(req,res)=>{
+  // Never trust hidden/legacy fields for internal ledger identity.
+  // Only a server-generated account code can be assigned through the UI.
+  if(Object.prototype.hasOwnProperty.call(req.body||{},'code'))
+   throw treasury.fail('Account codes are generated automatically. Remove the supplied code and retry.',400);
   if(branchView.canViewBranches(req.user)&&!req.viewBranch)throw treasury.fail('Choose a branch before adding an account',409);
   const account=await treasury.createAccount(req.tenantDb,req.tenant,req.user,req.body,{configurationBranchId:req.viewBranch?String(req.viewBranch._id):null});flash(req,'good','Account created. Owner: confirm its starting balance on the account page, then begin transactions.');branchView.followRecord(req,account);res.redirect(303,`/tenant/treasury/accounts/${account._id}`);
  }));

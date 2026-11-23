@@ -123,5 +123,5 @@ test('Owner creates accounts on Money while branch manager keeps scoped advanced
  assert.match(ownerMoney,/name="currency"/);
  assert.match(ownerMoney,/name="network"/);
  assert.match(routes,/router\.get\('\/accounts\/new'/);
- assert.match(routes,/\/tenant\/setup#quick-money/);
+ assert.match(routes,/\/tenant\/treasury#money-accounts/);
 });

@@ -72,7 +72,7 @@ const status=(done)=>done?'Ready':'Set up';
               <% data.roles.forEach(role=>{ %><option value="<%= role %>" <%= role==='Mobile Money Operator'?'selected':'' %>><%= role %></option><% }) %>
             </select></label>
             <% if(branches.length===1){ %>
-              <input type="hidden" name="branchId" value="<%= first._id %>">
+              <input type="hidden" name="branchId" value="<%= first._id %>" data-quick-account-branch>
             <% }else{ %><label class="field">Work location<select class="control" name="branchId" required>
               <% branches.forEach(b=>{ %><option value="<%= b._id %>"><%= b.name %></option><% }) %>
             </select></label><% } %>
@@ -106,10 +106,11 @@ const status=(done)=>done?'Ready':'Set up';
               <% branches.forEach(b=>{ %><option value="<%= b._id %>"><%= b.name %></option><% }) %>
             </select></label><% } %>
             <label class="field">Currency<select class="control" name="currency" required data-quick-account-currency>
-              <% [...new Set(branches.flatMap(b=>b.currencies===undefined||b.currencies===null?data.currencyCodes:b.currencies))].forEach(c=>{ %>
-                <option value="<%= c %>" <%= c===first.currency?'selected':'' %>><%= c==='KES'?'KSH':c %></option>
+              <option value="" disabled>Choose enabled currency</option>
+              <% data.currencyCodes.forEach(c=>{const supported=branches.filter(b=>(b.currencies===undefined||b.currencies===null?data.currencyCodes:b.currencies).includes(c)); %>
+                <option value="<%= c %>" data-enabled-branches="<%= supported.map(b=>String(b._id)).join(',') %>" <%= c===first.currency?'selected':'' %> <%= supported.some(b=>String(b._id)===String(first._id))?'':'disabled' %>><%= c==='KES'?'KSH':c %><%= supported.some(b=>String(b._id)===String(first._id))?'':' — enable in branch settings' %></option>
               <% }) %>
-            </select></label>
+            </select><span class="tiny">Every account uses one currency. UGX, USD, SSP and KSH are supported. Missing or disabled? <a href="/tenant/branches">Enable currencies in the selected branch</a>.</span><small role="status" aria-live="polite" data-quick-currency-status></small></label>
             <label class="field" data-quick-kind-field="wallet">Mobile money provider<select class="control" name="network" data-quick-provider>
               <option value="">Not a provider wallet</option>
               <% data.networks.forEach(n=>{ %><option value="<%= n %>" data-market-currency="<%= data.networkCurrencies?.[n]?.currency||'' %>"><%= n %></option><% }) %>

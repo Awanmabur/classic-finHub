@@ -16,7 +16,7 @@ const approved={
  'Forex Operations':['Buy forex from customer','Sell forex to customer','Active rate board','Forex cash impact','Forex operation records','Forex report summary'],
  'Banking Operations':['Customers directory','New customer','Customer logbook','Accounts directory','New account','Deposit','Withdraw','Account transfer','Account balances','Account movements','Banking report summary'],
  'Operation Reports':['Daily business report','Cash shifts','Add expense','Expenses summary report','Final financial movements','Export CSV','Print report','General reports page','Opening cash report','Closing cash / expected cash','Transaction summary','Expenses report','Transfer report','Mobile report','Banking report','Forex report','Loan Management report','Airtime report'],
- 'Tenant Workspace':['Quick setup','Tenant profile','Wallets & balances','Fees & commissions','Business website','Customer reviews','Branding & receipts','Branches & locations','Admins, tellers & users','Request modules','Roles & permissions','Customer/KYC setup','Tenant database','Subscription & limits','Notification rules','Integrations & API','Import / export data','Compliance controls','Website preview','Receipt preview','Notifications center','Tenant audit activity','System settings']
+ 'Tenant Workspace':['Quick setup','Exceptions & requests','Tenant profile','Wallets & balances','Fees & commissions','Business website','Customer reviews','Branding & receipts','Branches & locations','Admins, tellers & users','Request modules','Roles & permissions','Customer/KYC setup','Tenant database','Subscription & limits','Notification rules','Integrations & API','Import / export data','Compliance controls','Website preview','Receipt preview','Notifications center','Tenant audit activity','System settings']
 };
 const branchId='507f1f77bcf86cd799439011',owner={id:branchId,name:'Owner',role:'Tenant Owner',permissions:['*']};
 function subscribed(){
@@ -31,7 +31,7 @@ function paths(menu){return menu.flatMap(group=>group.items.map(item=>item.href)
 test('fully entitled owner retains approved groups with wallet controls and no disabled portal',()=>{
  const menu=tenantMenu(subscribed(),owner);
  assert.deepEqual(Object.fromEntries(menu.map(group=>[group.label,group.items.map(item=>item.label)])),approved);
- assert.equal(menu.length,9);assert.equal(menu.reduce((sum,group)=>sum+group.items.length,0),80);
+ assert.equal(menu.length,9);assert.equal(menu.reduce((sum,group)=>sum+group.items.length,0),81);
  assert(!menu.some(group=>/Phase 2/i.test(group.label)));
  for(const href of ['/tenant/users','/tenant/audit','/tenant/workspace/roles'])assert.equal(paths(menu).filter(path=>path===href).length,1,href+' is not duplicated');
  for(const item of menu.flatMap(group=>group.items)){

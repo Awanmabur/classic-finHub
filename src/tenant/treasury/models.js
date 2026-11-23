@@ -52,6 +52,9 @@ const batchSchema=new Schema({
 },{strict:'throw'});appendOnly(batchSchema);
 batchSchema.index({sourceType:1,sourceRef:1},{unique:true});batchSchema.index({reversesBatchId:1},{unique:true,partialFilterExpression:{reversesBatchId:{$type:'objectId'}}});
 batchSchema.index({branchId:1,createdAt:-1,_id:-1});
+// Prevent one owner-declared external receipt from minting capital twice, even if
+// the browser retries with a different UUID or chooses another funds account.
+batchSchema.index({tenantId:1,sourceType:1,evidenceReference:1},{unique:true,partialFilterExpression:{sourceType:'treasury_capital'}});
 const movementSchema=new Schema({
  tenantId:{type:O,required:true,immutable:true},branchId:{type:O,required:true,immutable:true},accountId:{type:O,required:true,immutable:true},batchId:{type:O,required:true,immutable:true},
  sourceType:{type:String,required:true,immutable:true},sourceRef:{type:String,required:true,maxlength:120,immutable:true},

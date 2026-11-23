@@ -75,12 +75,10 @@ function tenantMenu(tenant,user) {
   ],banking?['banking']:[]);
   group('Operation Reports',[
     ...(reports?[item('Daily business report','reports/daily','fa-chart-simple')]:[]),
-    ...(sharedCash&&['Tenant Owner','Mobile Money Operator','Money Transfer Operator','Banking Operator','Forex Operator'].includes(user.role)?[item('Open day','cash/shifts','fa-unlock',{transactionKind:'cash_shift_open'}),item('Close day','day/close','fa-lock',{transactionKind:'cash_shift_close'})]:[]),
+    ...(sharedCash&&['Tenant Owner','Mobile Money Operator','Money Transfer Operator','Banking Operator','Forex Operator','Branch Manager','Reconciliation Officer','Auditor'].includes(user.role)?[item('Cash shifts','cash/shifts','fa-cash-register')]:[]),
     ...(expenses&&can('expenses.create')?[item('Add expense','expenses/new','fa-money-bill',{transactionKind:'expense'})]:[]),
     ...(expenses?[item('Expenses summary report','expenses/report','fa-chart-column')]:[]),
-    ...(module('approval_workflows')&&can('approvals.view')?[item('Approvals & corrections','approvals','fa-user-check')]:[]),
     ...(manualMovements?[item('Final financial movements','funded','fa-list-check')]:[]),
-    ...(sharedCash&&['Tenant Owner','Branch Manager','Reconciliation Officer','Auditor'].includes(user.role)?[item('Cash control review','cash/shifts','fa-cash-register')]:[]),
     ...(reports&&can('reports.export')?[item('Export CSV','reports/export.csv','fa-download')]:[]),
     ...(reports?[item('Print report','reports/print','fa-print'),item('General reports page','reports','fa-file-lines'),
       ...(cashReportSource?[item('Opening cash report','reports/opening','fa-unlock'),item('Closing cash / expected cash','reports/closing','fa-lock')]:[]),

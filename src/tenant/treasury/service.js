@@ -148,46 +148,90 @@ async function createAccount(conn,tenant,actor,input,{configurationBranchId=null
   await audit(conn,session,authorization.actor,'treasury.account.created',created._id,{branchId:String(branch._id),kind:created.kind,currency:created.currency,code:created.code});return created;
  });}catch(error){if(error.code===11000)throw fail('The default funds account is already assigned or this account already exists. Review existing accounts before trying again.',409);throw error;}
 }
-function assertUnusedWalletArchivable(account,confirmCode) {
-  if(account.kind!=='wallet')throw fail('Only an unused provider wallet can be archived through this control',409);
-  if(account.code!==confirmCode)throw fail('Type the exact wallet account code to confirm archival',400);
-  if(account.status!=='uninitialized'||account.openingBalanceMinor!==null||account.openingApprovedAt||
-     account.openingObservationId||account.pendingOpeningId||account.lastObservationId||
-     account.sequence!==0||BigInt(String(account.bookBalanceMinor))!==0n||
-     account.reconciliationState!=='unknown')
-    throw fail('Only a wallet with no approved opening, balance, pending evidence or financial activity can be archived',409);
+// Owner cleanup is a SOFT archive of mistaken, UNUSED setup accounts.
+// Real money and operational evidence may never be discarded or hidden.
+function assertUnusedAccountArchivable(account,confirmCode){
+ if(!['wallet','cash','bank','forex_stock'].includes(account.kind))
+  throw fail('This account type cannot be removed from setup',409);
+ if(account.code!==confirmCode)
+  throw fail('Account confirmation does not match. Reload setup and retry.',400);
+ if(account.status!=='uninitialized'||account.openingBalanceMinor!==null||account.openingApprovedAt||
+    account.openingObservationId||account.pendingOpeningId||account.lastObservationId||
+    account.sequence!==0||BigInt(String(account.bookBalanceMinor))!==0n||
+    account.reconciliationState!=='unknown')
+  throw fail('This account already has an opening, balance, cash activity or financial evidence. Keep its history and reconcile it instead.',409);
 }
-async function archiveUnusedWallet(conn,tenant,actor,accountId,input) {
-  const reason=text(input?.reason,'account archival reason',20,400);
-  const confirmCode=text(input?.confirmCode,'account code confirmation',3,40).toUpperCase();
-  await Promise.all([ensure(conn),core.ensureTenantIndexes(conn)]);
-  return transaction(conn,async session=>{
-    const authorization=await access(conn,tenant,actor,{permission:'treasury.manage',session,fence:true});
-    if(authorization.actor.role!=='Tenant Owner')throw fail('Only the Tenant Owner can archive an unused wallet',403);
-    const account=await loadAccount(conn,authorization,accountId,{session,fence:true});
-    assertUnusedWalletArchivable(account,confirmCode);
-    const treasury=models(conn), funding=require('./funding.models').model(conn);
-    const blockers=await Promise.all([
-      treasury.observation.exists({accountId:account._id,status:{$ne:'rejected'}}).session(session),
-      treasury.movement.exists({accountId:account._id}).session(session),
-      treasury.adjustment.exists({accountId:account._id}).session(session),
-      funding.exists({$or:[{sourceAccountId:account._id},{destinationAccountId:account._id}]}).session(session),
-      core.mobileTransactionModel(conn).exists({$or:[{walletAccountId:account._id},{paymentAccountId:account._id}]}).session(session),
-      core.ledgerPostingModel(conn).exists({accountId:account.ledgerAccountId}).session(session)
-    ]);
-    if(blockers.some(Boolean))
-      throw fail('This wallet has pending evidence or linked financial records. Resolve its dependencies before archival; no history can be deleted.',409);
-    const updated=await treasury.account.findOneAndUpdate({
-      _id:account._id,tenantId:authorization.tenant._id,status:'uninitialized',revision:account.revision
-    },{$set:{status:'archived',holdReason:'Unused wallet archived by Tenant Owner.'},$unset:{selectionKey:''},$inc:{revision:1}},{new:true,session}).lean();
-    if(!updated)throw fail('Wallet changed while archiving. Reload and inspect its latest state.',409);
-    await audit(conn,session,authorization.actor,'treasury.account.archived',account._id,{
-      branchId:String(account.branchId),code:account.code,kind:account.kind,reason,
-      retainedEvidence:'rejected observations and ledger identity'
-    });
-    return updated;
+async function archiveUnusedAccount(conn,tenant,actor,accountId,input={}){
+ const confirmCode=text(input.confirmCode,'account confirmation',3,40).toUpperCase();
+ const reason=text(input.reason||'Owner archived an unused setup account.','account archival reason',12,400);
+ await Promise.all([ensure(conn),core.ensureTenantIndexes(conn)]);
+ return transaction(conn,async session=>{
+  const authorization=await access(conn,tenant,actor,{permission:'treasury.manage',session,fence:true});
+  if(authorization.actor.role!=='Tenant Owner')throw fail('Only the Tenant Owner may archive setup accounts',403);
+  const account=await loadAccount(conn,authorization,accountId,{session,fence:true});
+  assertUnusedAccountArchivable(account,confirmCode);
+  const treasury=models(conn),funding=require('./funding.models').model(conn);
+  const key=account._id,linkedFunds=await treasury.account.exists({
+   cashDrawerAccountId:key,status:{$ne:'archived'}
+  }).session(session);
+  const tasks=[
+   treasury.observation.exists({accountId:key,status:{$ne:'rejected'}}).session(session),
+   treasury.movement.exists({accountId:key}).session(session),
+   treasury.adjustment.exists({accountId:key}).session(session),
+   funding.exists({$or:[{sourceAccountId:key},{destinationAccountId:key}]}).session(session),
+   core.mobileTransactionModel(conn).exists({$or:[{walletAccountId:key},{paymentAccountId:key}]}).session(session),
+   core.ledgerPostingModel(conn).exists({accountId:account.ledgerAccountId}).session(session),
+   core.cashSessionModel(conn).exists({treasuryAccountId:key}).session(session),
+   require('../models/expenses').expenseModel(conn).exists({
+    $or:[{treasuryAccountId:key},{postedTreasuryAccountId:key}]
+   }).session(session),
+   require('../funded/models').models(conn).execution.exists({
+    $or:['cashAccountId','foreignAccountId','settlementAccountId','collectionAccountId',
+      'clearingAccountId','payoutAccountId'].map(field=>({['accounts.'+field]:key}))
+   }).session(session)
+  ];
+  const blockers=await Promise.all(tasks);
+  if(linkedFunds||blockers.some(Boolean))
+   throw fail('This account has linked financial or cash-shift records and cannot be removed. Its history must stay available.',409);
+  const updated=await treasury.account.findOneAndUpdate({
+   _id:key,tenantId:authorization.tenant._id,status:'uninitialized',revision:account.revision
+  },{$set:{status:'archived',holdReason:'Archived unused setup account by Tenant Owner.'},
+     $unset:{selectionKey:''},$inc:{revision:1}},{new:true,session}).lean();
+  if(!updated)throw fail('Account changed while archiving. Reload the page.',409);
+  await audit(conn,session,authorization.actor,'treasury.account.archived',key,{
+   branchId:String(account.branchId),code:account.code,kind:account.kind,reason,
+   retainedEvidence:'Existing account identity and rejected observations'
   });
+  return updated;
+ });
 }
+async function restoreArchivedAccount(conn,tenant,actor,accountId){
+ await Promise.all([ensure(conn),core.ensureTenantIndexes(conn)]);
+ return transaction(conn,async session=>{
+  const authorization=await access(conn,tenant,actor,{permission:'treasury.manage',session,fence:true});
+  if(authorization.actor.role!=='Tenant Owner')throw fail('Only the Tenant Owner can restore setup accounts',403);
+  const account=await loadAccount(conn,authorization,accountId,{session,fence:true});
+  if(account.status!=='archived'||account.openingBalanceMinor!==null||account.sequence!==0||
+     BigInt(String(account.bookBalanceMinor))!==0n||account.pendingOpeningId||
+     account.openingApprovedAt)
+   throw fail('Only a previously archived, unused setup account can be restored',409);
+  const branch=await core.branchModel(conn).findOne({_id:account.branchId,status:'active'}).session(session);
+  if(!branch)throw fail('Restore the branch first before restoring the account.',409);
+  if(!authorization.modules.includes(account.moduleKey)&&account.moduleKey!=='shared')
+   throw fail('This financial module is no longer assigned',403);
+  require('../services/branchCurrency.service').resolve(branch,account.currency);
+  const restored=await models(conn).account.findOneAndUpdate({
+   _id:account._id,tenantId:authorization.tenant._id,status:'archived',revision:account.revision
+  },{$set:{status:'uninitialized',holdReason:''},$inc:{revision:1}},{session,new:true}).lean();
+  if(!restored)throw fail('Account changed while restoring. Reload and inspect it.',409);
+  await audit(conn,session,authorization.actor,'treasury.account.restored',account._id,{
+   branchId:String(account.branchId),code:account.code,kind:account.kind
+  });
+  return restored;
+ });
+}
+// Retained for existing integrations that invoke the old wallet-specific API.
+const archiveUnusedWallet=archiveUnusedAccount,assertUnusedWalletArchivable=assertUnusedAccountArchivable;
 async function ensureCounterAccount(conn,session,{tenantId,branchId,currency,purpose,actorId}){
  if(!session?.inTransaction()||!currencyCodes.includes(currency)||!['opening_equity','capital_contribution','settlement_clearing','reconciliation_suspense','fee_income','agent_commission_income','expense','interbranch_payable','interbranch_receivable','loan_receivable','loan_interest_income','airtime_inventory','airtime_profit_income'].includes(purpose))throw fail('Invalid internal treasury counter account');
  const Counter=models(conn).counter,lookup={branchId:oid(branchId),currency,purpose};let counter=await Counter.findOne(lookup).session(session).lean();if(counter){if(String(counter.tenantId)!==String(tenantId))throw fail('Counter account belongs to a different tenant',403);return counter;}
@@ -735,4 +779,4 @@ async function reviewAdjustment(conn,tenant,actor,adjustmentId,input){
   await audit(conn,session,authorization.actor,`treasury.adjustment.${input.decision==='approve'?'approved':'rejected'}`,adjustment._id,{branchId:String(account.branchId),accountId:String(account._id),batchId:batchId?String(batchId):null,deltaMinor:String(adjustment.deltaMinor)});return result;
  });
 }
-module.exports={recordOwnerBalanceCheck,addCapital,postCrossCurrencyTransferPayout,postBranchTransferPayout,models,ensure,access,loadAccount,createAccount,configureAccount,archiveUnusedWallet,assertUnusedWalletArchivable,validateAccount,requestObservation,requestObservationInSession,confirmOwnerOpening,reviewObservation,reviewObservationInSession,applyMovements,reverseMovements,ensureCounterAccount,findAccount,findOperatingAccounts,balanceSnapshot,accountDetail,reviewQueue,requestAdjustment,reviewAdjustment,expectedAt,assertBookIntegrity,format,major,signedMinor,normalizeMovement,parseObservation,scope,moduleForKind,normalSide,fail,KINDS,NETWORKS};
+module.exports={recordOwnerBalanceCheck,addCapital,postCrossCurrencyTransferPayout,postBranchTransferPayout,models,ensure,access,loadAccount,createAccount,configureAccount,archiveUnusedAccount,restoreArchivedAccount,archiveUnusedWallet,assertUnusedAccountArchivable,assertUnusedWalletArchivable,validateAccount,requestObservation,requestObservationInSession,confirmOwnerOpening,reviewObservation,reviewObservationInSession,applyMovements,reverseMovements,ensureCounterAccount,findAccount,findOperatingAccounts,balanceSnapshot,accountDetail,reviewQueue,requestAdjustment,reviewAdjustment,expectedAt,assertBookIntegrity,format,major,signedMinor,normalizeMovement,parseObservation,scope,moduleForKind,normalSide,fail,KINDS,NETWORKS};

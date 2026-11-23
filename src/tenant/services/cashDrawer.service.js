@@ -260,4 +260,30 @@ async function reportRows({conn,filters,scope:filter,dateRange}){
  return rows.map(r=>({module:'Mobile Money',activity:'Physical cash shifts',status:r._id.status,currency:r._id.currency,
  count:r.count,volume:mobile.formatMoneyMinor(r.expected||0,r._id.currency),fees:'N/A'}));
 }
-module.exports={allowed,bindFundAccount,refreshFundBalance,open,decideOpening,assertSmsWithinShift,assertSmsShiftTime,attachRecord,fenceRecordChange,submit,decide,list,detail,reportRows,key,activeFilter,minor,decimal,visibleScope,opener,reviewer};
+// Single-action routine count for an owner operating their own cash drawer.
+// These use the exact same audited create/review services as the manual path;
+// they do NOT bypass ledger checks or auto-approve a cash discrepancy.
+// A failed second step leaves an auditable pending shift for recovery.
+async function startOwnerMatchedShift(conn,tenant,actor,input={}){
+ if(actor?.role!=='Tenant Owner'||input.openingFromBook!=='on'||input.physicalCountConfirmed!=='on')
+  throw fail('Only the Tenant Owner can start a verified matching cash shift in one step',403);
+ const shift=await open(conn,tenant,actor,input);
+ const verified=await decideOpening(conn,tenant,actor,shift._id,{
+  decision:'approve',note:'Owner counted the physical opening cash; it matches the independently verified cash book.'
+ });
+ if(verified.status!=='open')throw fail('Opening count could not be finalized. Open Cash shifts to review its status.',409);
+ return verified;
+}
+async function finishOwnerMatchedShift(conn,tenant,actor,shiftId,input={}){
+ if(actor?.role!=='Tenant Owner'||input.closingFromBook!=='on'||input.physicalCountConfirmed!=='on')
+  throw fail('Only the Tenant Owner can finish a matching physical cash shift in one step',403);
+ const submitted=await submit(conn,tenant,actor,shiftId,input);
+ if(String(submitted.varianceMinor)!=='0')
+  throw fail('Actual cash differs from the book. Keep the shift for discrepancy investigation.',409);
+ const verified=await decide(conn,tenant,actor,shiftId,{
+  decision:'approve',note:'Owner counted physical closing cash and confirmed exact reconciliation with the audited cash book.'
+ });
+ if(verified.status!=='approved')throw fail('Closing count could not be finalized. Open Cash shifts to review its status.',409);
+ return verified;
+}
+module.exports={startOwnerMatchedShift,finishOwnerMatchedShift,allowed,bindFundAccount,refreshFundBalance,open,decideOpening,assertSmsWithinShift,assertSmsShiftTime,attachRecord,fenceRecordChange,submit,decide,list,detail,reportRows,key,activeFilter,minor,decimal,visibleScope,opener,reviewer};

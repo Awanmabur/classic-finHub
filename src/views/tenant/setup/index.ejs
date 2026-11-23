@@ -16,13 +16,7 @@ const status=(done)=>done?'Ready':'Set up';
       <a href="/tenant/dashboard" class="btn">Go to dashboard</a>
     </div>
     <div class="cardBody">
-      <div class="setupStatsGrid overviewStatsGrid">
-        <div class="stat"><div class="k">Operating branch</div><div class="v"><%= status(hasBranch) %></div><div class="s"><%= branches.length %> active</div></div>
-        <div class="stat"><div class="k">Staff access</div><div class="v"><%= activatedStaff %></div><div class="s"><%= invitedStaff %> invitations awaiting employee acceptance</div></div>
-        <div class="stat"><div class="k">Money accounts</div><div class="v"><%= moneyAccounts.length %></div><div class="s">Created funds accounts</div></div>
-        <div class="stat"><div class="k">Ready balances</div><div class="v"><%= data.readyCount %></div><div class="s">Verified usable accounts</div></div>
-      </div>
-      <p class="tiny">You do not need to configure every module, policy, or integration before starting. Use only the steps your business needs. Staff set their own passwords; the owner does not wait for an administrator to approve them. Creating a money account does not manufacture an opening balance.</p>
+      <p class="tiny">Set up your branch and invite staff if needed. All cash, float, bank balances and money operations are managed on the Money page, without a second setup queue.</p>
     </div>
   </section>
 
@@ -86,89 +80,11 @@ const status=(done)=>done?'Ready':'Set up';
   </section>
 
   <section class="card" style="margin-top:14px" id="quick-money">
-    <div class="cardHead"><div><b>3. Cash, float and money accounts</b><br>
-      <span>Create the accounts you actually use. The system generates the bookkeeping codes and default settings.</span></div>
-      <a class="btn" href="/tenant/treasury">All balances and accounts</a>
+    <div class="cardHead"><div><b>3. Money accounts</b><br><span>One clear place to create accounts, add money, check it and fix mistakes.</span></div>
+      <a class="btn btnPrimary" href="/tenant/treasury">Open Money</a>
     </div>
     <div class="cardBody">
-      <% if(!hasBranch){ %>
-        <p class="tiny">Create your first branch above to assign money accounts to the correct business location.</p>
-      <% }else{ %>
-        <form method="post" action="/tenant/setup/account">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-          <div class="row2">
-            <label class="field">What are you creating?<select class="control" name="kind" required data-quick-account-kind>
-              <option value="" disabled selected>Choose account type</option>
-              <% data.kinds.forEach(k=>{ %><option value="<%= k %>"><%= data.kindLabel[k]||k %></option><% }) %>
-            </select></label>
-            <label class="field">Account name<input class="control" name="name" data-quick-account-name required minlength="3" maxlength="120" placeholder="e.g. Main MTN float or Counter 1 cash">
-              <small>Use a name you can recognize later. The suggested name can be edited.</small></label>
-            <% if(branches.length===1){ %>
-              <input type="hidden" name="branchId" value="<%= first._id %>" data-quick-account-branch>
-            <% }else{ %><label class="field">Branch<select class="control" name="branchId" required data-quick-account-branch>
-              <% branches.forEach(b=>{ %><option value="<%= b._id %>"><%= b.name %></option><% }) %>
-            </select></label><% } %>
-            <label class="field">Currency<select class="control" name="currency" required data-quick-account-currency>
-              <option value="" disabled>Choose enabled currency</option>
-              <% data.currencyCodes.forEach(c=>{const supported=branches.filter(b=>(b.currencies===undefined||b.currencies===null?data.currencyCodes:b.currencies).includes(c)); %>
-                <option value="<%= c %>" data-enabled-branches="<%= supported.map(b=>String(b._id)).join(',') %>" <%= c===first.currency?'selected':'' %> <%= supported.some(b=>String(b._id)===String(first._id))?'':'disabled' %>><%= c==='KES'?'KSH':c %><%= supported.some(b=>String(b._id)===String(first._id))?'':' — enable in branch settings' %></option>
-              <% }) %>
-            </select><span class="tiny">Every account uses one currency. UGX, USD, SSP and KSH are supported. Missing or disabled? <a href="/tenant/branches">Enable currencies in the selected branch</a>.</span><small role="status" aria-live="polite" data-quick-currency-status></small></label>
-            <label class="field" data-quick-kind-field="wallet">Mobile money provider<select class="control" name="network" data-quick-provider>
-              <option value="">Not a provider wallet</option>
-              <% data.networks.forEach(n=>{ %><option value="<%= n %>" data-market-currency="<%= data.networkCurrencies?.[n]?.currency||'' %>"><%= n %></option><% }) %>
-            </select><small>For provider wallets, the system enforces that provider’s actual supported currency.</small></label>
-            <label class="field" data-quick-kind-field="cash">Cash operator<select class="control" name="operatorId" data-quick-operator>
-              <option value="">Owner (default)</option>
-              <% (data.staff||[]).forEach(person=>{ %><option value="<%= person._id %>" data-branch-id="<%= person.branchId %>"><%= person.name %> · <%= person.role %></option><% }) %>
-            </select></label>
-            <label class="field" data-quick-kind-field="wallet bank">Real provider / bank account reference (optional)<input class="control" name="accountReference" maxlength="80" placeholder="Your real provider or bank account reference"></label>
-          </div>
-          <p class="tiny">A new account has one branch, one currency and its own generated code. Its starting balance is <strong>not confirmed</strong> until you check real cash, stock or a provider/bank statement. Owners can record the actual starting amount immediately, with a generated audit reference. You can move existing verified funds instantly; you cannot create new funds just by entering an amount.</p>
-          <button type="submit" class="btn btnPrimary">Create money account</button>
-        </form>
-      <% } %>
-
-      <% if(moneyAccounts.length){ %>
-        <div class="tableWrap" style="margin-top:18px">
-          <table><thead><tr><th>Account</th><th>Currency</th><th>Opening status</th><th>Next action</th></tr></thead><tbody>
-            <% moneyAccounts.forEach(a=>{const usable=!a.integrityBlocked&&a.status==='active'&&a.openingBalanceMinor!=null&&a.openingApprovedAt&&a.reconciliationState==='matched'; %>
-              <tr><td><b><%= a.name %></b><br><span class="tiny"><%= data.kindLabel[a.kind]||a.kind.replaceAll('_',' ') %> · <%= a.code %><% if(a.selectionKey){ %> · Default<% } %></span></td>
-                <td><%= a.currency==='KES'?'KSH':a.currency %></td>
-                <td><span class="tag"><%= a.integrityBlocked?'Ledger review required':a.status==='held'?'Held — check balance':usable?'Ready':a.openingBalanceMinor!=null?'Review balance':a.pendingOpeningId?'Opening awaiting review':'Confirm starting balance' %></span></td>
-                <td>
-                  <% if(a.integrityBlocked){ %><span class="tiny" role="alert">Financial posting blocked. Ask the platform administrator to restore the missing ledger evidence; do not reconfirm or reset this balance.</span>
-                  <% }else if(usable){ %><a class="btn btnPrimary" href="/tenant/treasury/accounts/<%= a._id %>#record-balance">Check balance / add money</a> <a class="btn" href="/tenant/treasury/accounts/<%= a._id %>">View balance</a>
-                  <% }else if(a.pendingOpeningId){ %><a class="btn" href="/tenant/treasury/accounts/<%= a._id %>">Resolve existing opening</a>
-                  <% }else if(a.openingBalanceMinor!=null){ %><a class="btn" href="/tenant/treasury/accounts/<%= a._id %>">Fix balance</a>
-                  <% }else{ %><details>
-                    <summary class="btn">Confirm actual opening</summary>
-                    <form method="post" action="/tenant/setup/opening/<%= a._id %>">
-                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                      <input type="hidden" name="idempotencyKey" value="<%= data.openingKeys[String(a._id)] %>">
-                      <label class="field">Actual counted or checked balance (<%= a.currency==='KES'?'KSH':a.currency %>)
-                        <input class="control" name="actualBalance" inputmode="decimal" required placeholder="Real amount, including zero">
-                      </label>
-                      <button class="btn btnPrimary" type="submit">Confirm and start using</button>
-                    </form>
-                  </details><% } %>
-                  <a class="btn" href="/tenant/treasury/accounts/<%= a._id %>#account-settings">Edit name / settings</a>
-                  <% if(!a.integrityBlocked&&(['uninitialized','active'].includes(a.status))&&String(a.bookBalanceMinor||0)==='0'&&!a.pendingOpeningId){ %>
-                    <details style="margin-top:8px">
-                      <summary class="btn">Remove account</summary>
-                      <p class="tiny">Removes this account from new transactions; does not erase financial history. An opened account must also have a fresh matching zero balance.</p>
-                      <form method="post" action="/tenant/treasury/accounts/<%= a._id %>/remove">
-                        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                        <button class="btn btnDanger" type="submit">Confirm remove</button>
-                      </form>
-                    </details>
-                  <% }else if(a.status==='held'){ %><a class="btn" href="/tenant/treasury/accounts/<%= a._id %>#record-balance">Fix balance difference</a>
-                  <% }else if(String(a.bookBalanceMinor||0)!=='0'){ %><span class="tiny">Move or settle remaining funds before removing</span><% } %>
-                </td></tr>
-            <% }) %>
-          </tbody></table>
-        </div>
-      <% } %>
+      <p class="tiny">You only set up a money account once. Open Money to enter the real starting amount, see separate currency balances and record new business funds. Account history stays protected.</p>
       <% if((data.archivedAccounts||[]).length){ %>
         <details style="margin-top:14px">
           <summary class="btn">Removed or closed accounts (<%= data.archivedAccounts.length %>)</summary>
@@ -195,21 +111,6 @@ const status=(done)=>done?'Ready':'Set up';
     </div>
   </section>
 
-  <section class="card" style="margin-top:14px">
-    <div class="cardHead"><div><b>Start recording real operations</b><br>
-      <span>No need to complete unrelated settings. Use only the modules included in your plan.</span></div></div>
-    <div class="cardBody">
-      <div class="rowBtns">
-        <a class="btn btnPrimary" href="/tenant/dashboard">Open dashboard</a>
-         <a class="btn" href="/tenant/treasury">Money accounts</a>
-         <a class="btn" href="/tenant/treasury#add-funds">Move existing funds</a>
-        <% if(data.kinds.includes('wallet')){ %><a class="btn" href="/tenant/mobile-money/readiness">Check mobile money readiness</a><% } %>
-        <a class="btn" href="/tenant/workspace/landing">Business website</a>
-        <% if(data.kinds.some(kind=>kind==='wallet'||kind==='forex_stock'||kind==='transfer_clearing')){ %><a class="btn" href="/tenant/workspace/pricing">Fees and commissions</a><% } %>
-      </div>
-      <p class="tiny">If a cash or wallet action is unavailable, follow the specific account's opening or cash-shift instructions. The system should never imply a real balance has been received before it is recorded and verified.</p>
-    </div>
-  </section>
 </section>
 
 <script src="/js/tenant-quick-setup.js?v=<%= assetVersion %>" defer></script>

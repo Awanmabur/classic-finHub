@@ -53,10 +53,14 @@ TEST_DB_CONTAINER="classicfin-accounts-mongo-$(date -u +%s)-$RANDOM"
   echo "Generated test MongoDB container name is invalid. Release stopped." >&2; exit 2;
 }
 DB_STARTED=0
+TEST_DB_DIR=""
 cleanup_release_tests() {
-  # Only remove a test container we actually started; never touch other Mongo.
+  # Only remove resources created by this release. Never touch production Mongo.
   if [ "$DB_STARTED" -eq 1 ]; then
     docker rm -f "$TEST_DB_CONTAINER" >/dev/null 2>&1 || true
+  fi
+  if [ -n "$TEST_DB_DIR" ]; then
+    rm -rf -- "$TEST_DB_DIR"
   fi
   rm -rf -- "$STAGE"
 }
@@ -103,13 +107,27 @@ finally:
     s.close()
 PY
 echo "=== START DISPOSABLE LOOPBACK MONGODB REPLICA SET ==="
+# MongoDB 8 refuses to build indexes with under 500 MiB FREE on its data
+# filesystem. A 512 MiB tmpfs leaves only ~311 MiB after Mongo starts.
+# Use a private disposable ON-DISK path with a conservative free-space gate;
+# retain a small tmpfs solely for the Unix socket and temporary process files.
+TEST_DB_DIR="$(mktemp -d /var/tmp/classicfin-accounts-db.XXXXXXXX)"
+disk_free_kib="$(df -Pk "$TEST_DB_DIR" | awk 'NR==2 {print $4}')"
+if ! [[ "$disk_free_kib" =~ ^[0-9]+$ ]] || [ "$disk_free_kib" -lt 2097152 ]; then
+  echo "Scratch MongoDB needs at least 2 GiB free on /var/tmp; actual free: ${disk_free_kib:-unknown} KiB. Do not delete production data. Release stopped." >&2
+  exit 2
+fi
+chown 999:999 "$TEST_DB_DIR"
+chmod 0700 "$TEST_DB_DIR"
 docker run -d --rm --name "$TEST_DB_CONTAINER" --network host \
   --read-only --user 999:999 \
-  --tmpfs /tmp:rw,nosuid,nodev,mode=1777,size=512m \
+  --tmpfs /tmp:rw,nosuid,nodev,mode=1777,size=128m \
+  --mount "type=bind,src=$TEST_DB_DIR,dst=/data/db" \
   --cap-drop ALL --security-opt no-new-privileges:true \
   --memory 1024m --cpus 2 --pids-limit 256 \
-  mongo:8.0 /bin/sh -c \
-  'mkdir -p /tmp/classicfin-accounts-db && exec mongod --dbpath /tmp/classicfin-accounts-db --bind_ip 127.0.0.1 --port 27018 --replSet rs0 --wiredTigerCacheSizeGB 0.25 --quiet' >/dev/null
+  --entrypoint mongod mongo:8.0 \
+  --dbpath /data/db --bind_ip 127.0.0.1 --port 27018 \
+  --replSet rs0 --wiredTigerCacheSizeGB 0.25 --quiet >/dev/null
 DB_STARTED=1
 db_ping=0
 for i in {1..40}; do

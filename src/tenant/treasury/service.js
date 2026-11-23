@@ -232,6 +232,78 @@ async function restoreArchivedAccount(conn,tenant,actor,accountId){
   return restored;
  });
 }
+// Closing an already-used account is NOT deletion. It preserves every
+// transaction, account identifier, observation and ledger posting. Require a
+// verified, post-activity ZERO balance and no unfinished work before hiding.
+function assertSettledAccountClosable(account,confirmCode){
+ if(!['wallet','cash','bank','forex_stock'].includes(account.kind))
+  throw fail('This account type cannot be closed from the business setup',409);
+ if(account.code!==confirmCode)throw fail('Type the exact account code to confirm closure',400);
+ if(account.status!=='active'||account.openingBalanceMinor===null||!account.openingApprovedAt||
+    account.reconciliationState!=='matched'||account.lastObservationStale||
+    !account.lastObservationAt||account.pendingOpeningId||
+    BigInt(String(account.bookBalanceMinor))!==0n||
+    account.lastObservedMinor===null||BigInt(String(account.lastObservedMinor))!==0n||
+    account.lastExpectedAtObservationMinor===null||
+    BigInt(String(account.lastExpectedAtObservationMinor))!==0n||
+    account.lastVarianceMinor===null||BigInt(String(account.lastVarianceMinor))!==0n)
+  throw fail('To close an account, settle it to zero, record a fresh actual zero balance and resolve any Held or pending review status.',409);
+ if(account.selectionKey)throw fail('Choose another default account first, then close this one.',409);
+}
+async function closeSettledAccount(conn,tenant,actor,accountId,input={}){
+ const confirmCode=text(input.confirmCode,'account code',3,40).toUpperCase();
+ const reason=text(input.reason,'reason for closing this account',12,400);
+ await Promise.all([ensure(conn),core.ensureTenantIndexes(conn)]);
+ return transaction(conn,async session=>{
+  const auth=await access(conn,tenant,actor,{permission:'treasury.manage',session,fence:true});
+  if(auth.actor.role!=='Tenant Owner')throw fail('Only the Tenant Owner may close an account',403);
+  const account=await loadAccount(conn,auth,accountId,{session,fence:true});
+  assertSettledAccountClosable(account,confirmCode);
+  await assertBookIntegrity(conn,session,account);
+  const t=models(conn),key=account._id;
+  // A zero balance shown before a later posting is not a valid closure count.
+  const lastMovement=await t.movement.findOne({accountId:key})
+    .select('createdAt').sort({sequence:-1}).session(session).lean();
+  if(lastMovement&&new Date(account.lastObservationAt)<new Date(lastMovement.createdAt))
+   throw fail('Count and record the actual zero balance after the last transaction before closing.',409);
+  const orFunds={$or:[{sourceAccountId:key},{destinationAccountId:key}]};
+  const orMobile={$or:[{walletAccountId:key},{paymentAccountId:key}]};
+  const orExecution={$or:['cashAccountId','foreignAccountId','settlementAccountId',
+    'collectionAccountId','clearingAccountId','payoutAccountId'].map(field=>({['accounts.'+field]:key}))};
+  // Historical records do not block closure. Only active dependencies and
+  // pending decisions do; all settled evidence remains stored immutably.
+  const checks=[
+   t.account.exists({cashDrawerAccountId:key,status:{$ne:'archived'}}).session(session),
+   t.observation.exists({accountId:key,status:'pending_review'}).session(session),
+   t.adjustment.exists({accountId:key,status:'pending_review'}).session(session),
+   require('./funding.models').model(conn).exists({...orFunds,status:'pending_review'}).session(session),
+   core.mobileTransactionModel(conn).exists({...orMobile,$or:[
+    {status:'pending_verification'},{reviewState:'awaiting_review'},{correctionState:'requested'}
+   ]}).session(session),
+   core.cashSessionModel(conn).exists({treasuryAccountId:key,status:{
+    $in:['pending_open','open','submitted','disputed']
+   }}).session(session),
+   require('../models/expenses').expenseModel(conn).exists({
+    status:'pending_review',$or:[{treasuryAccountId:key},{postedTreasuryAccountId:key}]
+   }).session(session),
+   require('../funded/models').models(conn).execution.exists({...orExecution,status:'pending_review'}).session(session)
+  ];
+  for(const q of checks)if(await q)
+   throw fail('This account still has a linked active account, open shift or pending financial review. Finish it before closing.',409);
+  const closed=await t.account.findOneAndUpdate({
+   _id:key,tenantId:auth.tenant._id,status:'active',revision:account.revision,
+   reconciliationState:'matched',bookBalanceMinor:account.bookBalanceMinor
+  },{$set:{status:'archived',holdReason:'Closed at verified zero balance by Tenant Owner.'},
+     $unset:{selectionKey:''},$inc:{revision:1}},{session,new:true}).lean();
+  if(!closed)throw fail('Account changed while closing. Reload to review its latest balance.',409);
+  await audit(conn,session,auth.actor,'treasury.account.closed',key,{
+   branchId:String(account.branchId),code:account.code,kind:account.kind,
+   currency:account.currency,reason,finalBookMinor:'0',
+   historyRetained:true,latestCountAt:account.lastObservationAt
+  });
+  return closed;
+ });
+}
 // Retained for existing integrations that invoke the old wallet-specific API.
 const archiveUnusedWallet=archiveUnusedAccount,assertUnusedWalletArchivable=assertUnusedAccountArchivable;
 async function ensureCounterAccount(conn,session,{tenantId,branchId,currency,purpose,actorId}){
@@ -781,4 +853,4 @@ async function reviewAdjustment(conn,tenant,actor,adjustmentId,input){
   await audit(conn,session,authorization.actor,`treasury.adjustment.${input.decision==='approve'?'approved':'rejected'}`,adjustment._id,{branchId:String(account.branchId),accountId:String(account._id),batchId:batchId?String(batchId):null,deltaMinor:String(adjustment.deltaMinor)});return result;
  });
 }
-module.exports={recordOwnerBalanceCheck,addCapital,postCrossCurrencyTransferPayout,postBranchTransferPayout,models,ensure,access,loadAccount,createAccount,configureAccount,archiveUnusedAccount,restoreArchivedAccount,archiveUnusedWallet,assertUnusedAccountArchivable,assertUnusedWalletArchivable,validateAccount,requestObservation,requestObservationInSession,confirmOwnerOpening,reviewObservation,reviewObservationInSession,applyMovements,reverseMovements,ensureCounterAccount,findAccount,findOperatingAccounts,balanceSnapshot,accountDetail,reviewQueue,requestAdjustment,reviewAdjustment,expectedAt,assertBookIntegrity,format,major,signedMinor,normalizeMovement,parseObservation,scope,moduleForKind,normalSide,fail,KINDS,NETWORKS};
+module.exports={recordOwnerBalanceCheck,addCapital,postCrossCurrencyTransferPayout,postBranchTransferPayout,models,ensure,access,loadAccount,createAccount,configureAccount,archiveUnusedAccount,restoreArchivedAccount,closeSettledAccount,assertSettledAccountClosable,archiveUnusedWallet,assertUnusedAccountArchivable,assertUnusedWalletArchivable,validateAccount,requestObservation,requestObservationInSession,confirmOwnerOpening,reviewObservation,reviewObservationInSession,applyMovements,reverseMovements,ensureCounterAccount,findAccount,findOperatingAccounts,balanceSnapshot,accountDetail,reviewQueue,requestAdjustment,reviewAdjustment,expectedAt,assertBookIntegrity,format,major,signedMinor,normalizeMovement,parseObservation,scope,moduleForKind,normalSide,fail,KINDS,NETWORKS};

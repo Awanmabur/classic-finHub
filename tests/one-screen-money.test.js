@@ -34,7 +34,7 @@ const locals={
   snapshot:{accounts:[ugx,ssp,ksh],note:''},
   ownerFormKeys:keys,canManage:true,canCreateAccount:true,canObserve:true,
   canReview:true,canUseCashShifts:true,queue:[],setupBranch:{_id:'0123456789abcdef01234567',currency:'UGX',currencies:['UGX','SSP','KES']},
-  kinds:['cash','wallet','bank'],networks:['MTN'],
+  kinds:['cash','wallet','bank'],networks:['MTN'],networkMarketCurrencies:{MTN:'UGX'},
   currencyCodes:['UGX','USD','SSP','KES'],fundingAccounts:[],fundings:[],
   fundingIdempotencyKey:'00000000-0000-4000-8000-000000000005',
   idempotencyKey:'00000000-0000-4000-8000-000000000006',
@@ -49,6 +49,14 @@ test('Money is one rendered owner screen with real account forms, each currency 
  for(const currency of ['UGX','SSP','KSH'])assert.match(html,new RegExp(currency+' accounts'));
  for(const id of [ugx._id,ssp._id,ksh._id])assert.match(html,new RegExp('money-account-'+id));
  assert.match(html,/action="\/tenant\/setup\/account"/);
+ assert.match(html,/data-market-currency="UGX"/);
+ assert.match(html,/data-money-create-currency-help/);
+ assert.match(html,/data-money-create-currency/);
+ const js=src('public/js/tenant-money-workspace.js');
+ assert.match(js,/network\.addEventListener\('change', update\)/);
+ assert.match(js,/currency\.value = fixed/);
+ assert.match(js,/if \(!choice \|\| choice\.disabled\)/);
+
  assert.match(html,/data-money-create-operator-field/);
  assert.match(html,/data-money-create-kind/);
  assert.match(html,/data-money-create-network-field/);

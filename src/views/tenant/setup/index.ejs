@@ -167,15 +167,22 @@ const status=(done)=>done?'Ready':'Set up';
       <% } %>
       <% if((data.archivedAccounts||[]).length){ %>
         <details style="margin-top:14px">
-          <summary class="btn">Archived setup accounts (<%= data.archivedAccounts.length %>)</summary>
+          <summary class="btn">Removed or closed accounts (<%= data.archivedAccounts.length %>)</summary>
           <div class="tableWrap" style="margin-top:10px">
             <table><thead><tr><th>Account</th><th>Currency</th><th>Restore</th></tr></thead><tbody>
             <% data.archivedAccounts.forEach(a=>{ %>
               <tr><td><%= a.name %></td><td><%= a.currency==='KES'?'KSH':a.currency %></td>
-              <td><form method="post" action="/tenant/treasury/accounts/<%= a._id %>/restore">
-                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                <button type="submit" class="btn">Restore account</button>
-              </form></td></tr>
+              <td>
+               <% if(a.openingBalanceMinor!==null||Number(a.sequence||0)>0){ %>
+                <span class="tag">Closed · history retained</span>
+                <a class="btn" href="/tenant/treasury/accounts/<%= a._id %>">View history</a>
+               <% }else{ %>
+                <form method="post" action="/tenant/treasury/accounts/<%= a._id %>/restore">
+                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                 <button type="submit" class="btn">Restore unused account</button>
+                </form>
+               <% } %>
+              </td></tr>
             <% }) %>
             </tbody></table>
           </div>

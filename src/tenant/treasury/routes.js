@@ -45,7 +45,9 @@ module.exports=function treasuryRoutes({renderTenant}){
    req.body.accountId,{amount:req.body.amount,idempotencyKey:req.body.idempotencyKey});
   flash(req,'good',result.duplicate?
    'Already recorded. No duplicate funds were added.':
-   'New money recorded. See the updated account balance.');
+   result.holdPreserved?
+    'New money recorded in the account. The earlier balance difference remains held; spending is still blocked.':
+    'New money recorded. See the updated account balance.');
   branchView.followRecord(req,result.batch);
   res.redirect(303,`/tenant/treasury/accounts/${result.accountId}#record-balance`);
  }));
@@ -55,7 +57,9 @@ module.exports=function treasuryRoutes({renderTenant}){
    const result=await treasury.addCapital(req.tenantDb,req.tenant,req.user,req.params.id,{
      amount:req.body.amount,idempotencyKey:req.body.idempotencyKey
    });
-   flash(req,'good',result.duplicate?'This addition was already saved. No duplicate credit.':'New money added. The account total is updated and ready for transactions.');
+   flash(req,'good',result.duplicate?'This addition was already saved. No duplicate credit.':result.holdPreserved?
+    'New money added to the recorded balance. This account is still held for its earlier discrepancy; spending is not enabled.':
+    'New money added. The account total is updated and ready for transactions.');
    branchView.followRecord(req,result.batch);
   }else if(req.body.action==='check'){
    const result=await treasury.recordOwnerBalanceCheck(req.tenantDb,req.tenant,req.user,req.params.id,{

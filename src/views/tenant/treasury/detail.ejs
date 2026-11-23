@@ -49,11 +49,14 @@
    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
    <input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
    <p><strong>Current recorded balance: <%= fmt(account.bookBalanceMinor) %></strong></p>
+   <% if(account.status==='held'&&account.reconciliationState==='mismatch'){ %>
+   <p role="status" class="tiny"><strong>Balance difference still open.</strong> You can record genuinely new money received, but the account remains held and cannot be used for ordinary transactions until the difference is resolved. The existing book balance and count will not be silently changed.</p>
+   <% } %>
    <div class="row2">
     <label class="field">What are you recording?
      <select class="control" name="action" required data-owner-balance-action>
       <option value="check" selected>Check actual account balance</option>
-      <option value="capital" <%= account.status==='active'&&account.reconciliationState==='matched'?'':'disabled' %>>Add new business money</option>
+      <option value="capital" <%= (account.status==='active'&&account.reconciliationState==='matched')||(account.status==='held'&&account.reconciliationState==='mismatch')?'':'disabled' %>>Add new business money</option>
      </select>
     </label>
     <label class="field"><span data-owner-balance-label>Amount of new money received (<%= account.currency==='KES'?'KSH':account.currency %>)</span>

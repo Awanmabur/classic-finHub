@@ -167,8 +167,8 @@ module.exports=function quickSetupRoutes({renderTenant}){
    const values=moneyInput(req.body,req.tenant,req.user,branches);
    const created=await treasury.createAccount(req.tenantDb,req.tenant,req.user,
      values.account,{configurationBranchId:values.branchId});
-   flash(req,'good','Account created instantly. Confirm its real counted or checked starting balance below to start using it.');
-   res.redirect(303,'/tenant/setup#quick-money');
+   flash(req,'good','Account created. Enter the real starting balance now, including zero.');
+   res.redirect(303,`/tenant/treasury#money-account-${created._id}`);
   }catch(e){handleSetupError(req,res,next,e);}
  });
  return router;

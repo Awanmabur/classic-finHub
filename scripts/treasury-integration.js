@@ -245,12 +245,15 @@ async function main(){
  // A real POST response must reach the existing Treasury endpoint and
  // return the correct AJAX redirect. Previously service-only tests missed
  // production complaints of "Page not found" after balance submissions.
- const express=require('express'),httpApp=express();
+ const express=require('express'),httpApp=express(),httpCsrf=crypto.randomBytes(32).toString('hex');
  httpApp.use(express.urlencoded({extended:false}));
  httpApp.use((req,res,next)=>{
-  req.user=owner;req.tenant=tenant;req.tenantDb=conn;req.session={};
+  req.user=owner;req.tenant=tenant;req.tenantDb=conn;req.session={csrfToken:httpCsrf};
   next();
  });
+ // Match the production security and AJAX middleware ordering: a real form
+ // includes _csrf, which MUST be verified then stripped before the service.
+ httpApp.use(require('../src/middleware/csrfProtection'));
  httpApp.use(require('../src/middleware/ajaxRedirect').ajaxRedirect);
  httpApp.use('/tenant/treasury',require('../src/tenant/treasury/routes')({
   renderTenant:(req,res,view)=>res.status(200).json({view})
@@ -265,7 +268,7 @@ async function main(){
    const response=await fetch(base+path,{method:'POST',redirect:'manual',headers:{
     'Content-Type':'application/x-www-form-urlencoded',
     'X-ClassicFin-Redirect':'json'
-   },body:new URLSearchParams(values)});
+   },body:new URLSearchParams({_csrf:httpCsrf,...values})});
    const body=await response.text();
    assert.equal(response.status,200,'Treasury action failed instead of returning AJAX success: '+body.slice(0,400));
    return JSON.parse(body);
@@ -292,6 +295,26 @@ async function main(){
    accountId:String(starterCash._id),amount:'3',idempotencyKey:crypto.randomUUID()});
   assert.equal(legacy.redirect,'/tenant/treasury/accounts/'+starterCash._id+'#record-balance');
   assert.equal((await fetch(base+legacy.redirect)).status,200);
+  const unopenedKsh=await treasury.createAccount(conn,tenant,owner,{
+   name:'KSH fresh owner opening from real HTML form',kind:'bank',currency:'KES',isDefault:false});
+  const kshOpening=await submit('/tenant/treasury/accounts/'+unopenedKsh._id+'/opening',{
+   actualBalance:'42.35',idempotencyKey:crypto.randomUUID()
+  });
+  assert.equal(kshOpening.redirect,'/tenant/treasury/accounts/'+unopenedKsh._id);
+  assert.equal(kshOpening.flash?.type,'good');
+  const liveKsh=await book.models(conn).account.findById(unopenedKsh._id).lean();
+  assert.equal(liveKsh.status,'active');
+  assert.equal(String(liveKsh.bookBalanceMinor),'4235');
+  assert.equal((await fetch(base+kshOpening.redirect)).status,200);
+  // Tampered CSRF must be denied by the actual middleware before any write.
+  const forged=await fetch(base+'/tenant/treasury/accounts/'+unopenedKsh._id+'/opening',{
+   method:'POST',redirect:'manual',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+   body:new URLSearchParams({_csrf:'forged',actualBalance:'500',
+    idempotencyKey:crypto.randomUUID()})
+  });
+  assert.equal(forged.status,403);
+  assert.equal(String((await book.models(conn).account.findById(unopenedKsh._id)).bookBalanceMinor),'4235');
+
  }finally{
   await new Promise(resolve=>listener.close(resolve));
  }

@@ -35,7 +35,7 @@ module.exports=function treasuryRoutes({renderTenant}){
    account.openingBalanceMinor!==null&&account.reconciliationState==='matched');
   const kinds=treasury.KINDS.filter(kind=>kind==='wallet'?hasSource(req,'mobile_money'):kind==='forex_stock'?hasSource(req,'forex'):kind==='transfer_clearing'?hasSource(req,'money_transfer'):true);
   renderTenant(req,res,'treasury/index','Wallets, cash & balances','Create money accounts, add new capital, or move existing funds without routine approval.',{snapshot,queue,operators,setupBranch,allBranches:req.viewBranchId==='all',branchNames:Object.fromEntries((res.locals.viewBranches||[]).map(branch=>[String(branch._id),branch.name])),hasMobileMoney:hasSource(req,'mobile_money'),canCreateAccount:can(req,'treasury.manage')&&Boolean(setupBranch),fundings,showFundingHistory,ownerFormKeys:Object.fromEntries(snapshot.accounts.map(a=>[String(a._id),{
-   opening:randomUUID(),capital:randomUUID(),check:randomUUID()
+   opening:randomUUID(),capital:randomUUID(),check:randomUUID(),correction:randomUUID()
   }])),fundingAccounts,fundingDestination:String(req.query.to||''),currencyCodes:require('../../config/currencies').currencyCodes,canManage:can(req,'treasury.manage'),canObserve:can(req,'treasury.observe'),canReview:can(req,'treasury.review'),kinds,networks:treasury.NETWORKS,networkMarketCurrencies:Object.fromEntries(Object.entries(require('../pricing/networkTariffs').NETWORKS).map(([key,meta])=>[key,meta.currency||''])),format:treasury.format,idempotencyKey:randomUUID(),fundingIdempotencyKey:randomUUID()});
  }
  function hasSource(req,key){return require('../services/moduleAccess.service').hasModuleForUser(req.tenant,req.user,key);}
@@ -91,6 +91,21 @@ module.exports=function treasuryRoutes({renderTenant}){
      'Balance difference recorded. The account is held until the missing transaction or discrepancy is resolved; no money was created or removed.');
    branchView.followRecord(req,result.observation);
   }else throw treasury.fail('Choose Add new money or Check actual balance',400);
+  res.redirect(303,req.body.returnTo==='money'?'/tenant/treasury#money-accounts':
+   `/tenant/treasury/accounts/${req.params.id}#record-balance`);
+ }));
+ // A wrong first count on an entirely unused account is different from
+ // changing real transactions. The service appends a balanced correction,
+ // verifies a fresh count, and refuses accounts with any activity.
+ router.post('/accounts/:id/correct-opening',requirePermission('treasury.manage'),throttle,wrap(async(req,res)=>{
+  if(!req.body||Object.keys(req.body).some(k=>!['correctedBalance','idempotencyKey','confirmed','returnTo','_csrf'].includes(k)))
+   throw treasury.fail('Correction accepts only the new counted amount',400);
+  const result=await treasury.correctUnusedOpening(req.tenantDb,req.tenant,req.user,req.params.id,{
+   correctedBalance:req.body.correctedBalance,idempotencyKey:req.body.idempotencyKey,
+   confirmed:req.body.confirmed
+  });
+  flash(req,'good',result.duplicate?'This correction was already recorded.':
+   'Unused starting amount corrected. The original count and adjustment remain in the audit history.');
   res.redirect(303,req.body.returnTo==='money'?'/tenant/treasury#money-accounts':
    `/tenant/treasury/accounts/${req.params.id}#record-balance`);
  }));

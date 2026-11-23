@@ -49,6 +49,9 @@ test('Money is one rendered owner screen with real account forms, each currency 
  for(const currency of ['UGX','SSP','KSH'])assert.match(html,new RegExp(currency+' accounts'));
  for(const id of [ugx._id,ssp._id,ksh._id])assert.match(html,new RegExp('money-account-'+id));
  assert.match(html,/action="\/tenant\/setup\/account"/);
+ assert.match(html,/data-money-create-operator-field/);
+ assert.match(html,/data-money-create-kind/);
+ assert.match(html,/data-money-create-network-field/);
  assert.match(html,/action="\/tenant\/treasury\/accounts\/222222222222222222222222\/opening"/);
  assert.match(html,/action="\/tenant\/treasury\/accounts\/111111111111111111111111\/record"/);
  assert.match(html,/name="recordAction" value="capital"/);

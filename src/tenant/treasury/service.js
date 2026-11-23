@@ -90,6 +90,13 @@ async function configureAccount(conn,tenant,actor,accountId,input){
   if(!['Tenant Owner','Branch Manager'].includes(authorization.actor.role))throw fail('Authorized tenant owner or assigned branch manager required',403);
   const account=await loadAccount(conn,authorization,accountId,{session,fence:true});
   if(account.status==='archived')throw fail('Restore this funds account before changing its settings',409);
+  const nameConflict=await models(conn).account.findOne({
+   _id:{$ne:account._id},tenantId:authorization.tenant._id,
+   branchId:account.branchId,kind:account.kind,network:account.network,
+   currency:account.currency,operatorId:account.operatorId||null,
+   status:{$ne:'archived'},name
+  }).collation({locale:'en',strength:2}).select('_id').session(session).lean();
+  if(nameConflict)throw fail('That name already belongs to an account with the same type, currency and operator. Choose a unique name.',409);
   // The owner chooses this once, not the agent on every operation. Restrict
   // mapping to a genuine, approved, same-branch and same-currency cash account.
   // An operator-bound wallet can only map to its own operator's cash drawer.

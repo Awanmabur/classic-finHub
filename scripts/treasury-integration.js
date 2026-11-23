@@ -164,6 +164,36 @@ async function main(){
  });
  assert.equal(ownerClosed.status,'approved');
  assert.equal(String(ownerClosed.varianceMinor),'0');
+ // Two owner cash drawers may share a currency. A shift must bind to the
+ // drawer selected on screen, not silently take another default's balance.
+ const chosenDrawer=await treasury.createAccount(conn,tenant,owner,{
+  name:'Owner second UGX physical cash drawer',kind:'cash',currency:'UGX',
+  operatorId:owner.id,isDefault:false
+ });
+ await treasury.confirmOwnerOpening(conn,tenant,owner,chosenDrawer._id,{
+  actualBalance:'30',idempotencyKey:crypto.randomUUID()
+ });
+ const selectedShift=await cash.startOwnerMatchedShift(conn,tenant,owner,{
+  currency:'UGX',treasuryAccountId:String(chosenDrawer._id),
+  openingFromBook:'on',physicalCountConfirmed:'on'
+ });
+ assert.equal(String(selectedShift.treasuryAccountId),String(chosenDrawer._id));
+ assert.equal(String(selectedShift.openingMinor),'30');
+ assert.equal((await cash.finishOwnerMatchedShift(conn,tenant,owner,selectedShift._id,{
+  closingFromBook:'on',physicalCountConfirmed:'on'
+ })).status,'approved');
+ const staffDrawer=await treasury.createAccount(conn,tenant,owner,{
+  name:'Another operator UGX cash drawer',kind:'cash',currency:'UGX',
+  operatorId:operator.id,isDefault:false
+ });
+ await treasury.confirmOwnerOpening(conn,tenant,owner,staffDrawer._id,{
+  actualBalance:'10',idempotencyKey:crypto.randomUUID()
+ });
+ await assert.rejects(cash.startOwnerMatchedShift(conn,tenant,owner,{
+  currency:'UGX',treasuryAccountId:String(staffDrawer._id),
+  openingFromBook:'on',physicalCountConfirmed:'on'
+ }),e=>e.status===403,'Owner may not bind their shift to a staff member drawer');
+
  assert.equal(String((await book.models(conn).account.findById(starterCash._id)).bookBalanceMinor),'230',
   'Cash shift verification cannot create or remove money');
  await assert.rejects(cash.finishOwnerMatchedShift(conn,tenant,operator,ownerShift._id,{

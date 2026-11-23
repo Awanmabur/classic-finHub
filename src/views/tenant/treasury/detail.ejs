@@ -54,7 +54,7 @@
    <% } %>
    <div class="row2">
     <label class="field">What are you recording?
-     <select class="control" name="action" required data-owner-balance-action>
+     <select class="control" name="recordAction" required data-owner-balance-action>
       <option value="check" selected>Check actual account balance</option>
       <option value="capital" <%= (account.status==='active'&&account.reconciliationState==='matched')||(account.status==='held'&&account.reconciliationState==='mismatch')?'':'disabled' %>>Add new business money</option>
      </select>

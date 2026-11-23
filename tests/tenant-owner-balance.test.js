@@ -23,6 +23,8 @@ test('Owner uses existing balance panel; no duplicate top-up or balance evidence
   assert.match(html,/Record actual balance check/);
   assert.match(html,/action="\/tenant\/treasury\/accounts\/507f1f77bcf86cd799439012\/record"/);
   assert.match(html,/<option value="check" selected>/);
+  assert.match(html,/name="recordAction"/);
+  assert.doesNotMatch(html,/name="action"/,'No named action control may mask the form URL');
   assert.match(html,/value="capital"/);
   assert.match(html,/Current recorded balance/);
   assert(!html.includes('Submit balance evidence for review'));

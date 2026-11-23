@@ -105,6 +105,24 @@ module.exports=function treasuryRoutes({renderTenant}){
     openingApprovedAt:{$ne:null}
    }).select('_id name operatorId').sort({name:1}).lean():[];
   renderTenant(req,res,'treasury/detail',detail.account.name,'Expected book balance and independently reviewed actual observations.',{...detail,cashDrawerOptions,canManage:can(req,'treasury.manage'),canObserve:can(req,'treasury.observe'),canReview:can(req,'treasury.review'),idempotencyKey:randomUUID()});}));
+ // One owner-facing removal action. The server reads account identity
+ // and invokes the existing audited reversible archive or zero-balance
+ // closure. Neither path deletes any historic ledger or operation.
+ router.post('/accounts/:id/remove',requirePermission('treasury.manage'),throttle,wrap(async(req,res)=>{
+  if(req.user.role!=='Tenant Owner')throw treasury.fail('Only the business owner can remove money accounts',403);
+  if(!require('mongoose').isValidObjectId(req.params.id))throw treasury.fail('Choose an existing account',400);
+  const account=await treasury.models(req.tenantDb).account.findOne({
+   _id:req.params.id,tenantId:req.tenant._id
+  }).select('code status openingBalanceMinor').lean();
+  if(!account)throw treasury.fail('Account unavailable in your business',404);
+  if(account.status==='archived')throw treasury.fail('This account is already removed',409);
+  const reason='Tenant Owner removed account from active operations while retaining its financial history.';
+  await (account.status==='uninitialized'&&account.openingBalanceMinor==null
+   ?treasury.archiveUnusedAccount(req.tenantDb,req.tenant,req.user,req.params.id,{confirmCode:account.code,reason})
+   :treasury.closeSettledAccount(req.tenantDb,req.tenant,req.user,req.params.id,{confirmCode:account.code,reason}));
+  flash(req,'good','Account removed from active operations. All historical transactions are retained.');
+  res.redirect(303,'/tenant/setup#quick-money');
+ }));
  router.post('/accounts/:id/archive',requirePermission('treasury.manage'),throttle,wrap(async(req,res)=>{
   const account=await treasury.archiveUnusedAccount(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
   flash(req,'good','Unused '+account.kind.replaceAll('_',' ')+' hidden from setup. You can restore it below; its audit history was preserved.');

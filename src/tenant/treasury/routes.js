@@ -53,7 +53,13 @@ module.exports=function treasuryRoutes({renderTenant}){
  }));
  router.post('/accounts/:id/record',requirePermission('treasury.observe'),throttle,wrap(async(req,res)=>{
   if(req.user.role!=='Tenant Owner')throw treasury.fail('Only the business owner can record money directly',403);
-  if(req.body.action==='capital'){
+  // Older already-open forms submit "action"; new forms submit
+  // "recordAction" to avoid shadowing the DOM form.action property.
+  // Reject inconsistent dual values rather than choose one silently.
+  if(req.body.recordAction&&req.body.action&&req.body.recordAction!==req.body.action)
+   throw treasury.fail('Conflicting account operation. Reload the account page.',400);
+  const operation=req.body.recordAction||req.body.action;
+  if(operation==='capital'){
    const result=await treasury.addCapital(req.tenantDb,req.tenant,req.user,req.params.id,{
      amount:req.body.amount,idempotencyKey:req.body.idempotencyKey
    });
@@ -61,7 +67,7 @@ module.exports=function treasuryRoutes({renderTenant}){
     'New money added to the recorded balance. This account is still held for its earlier discrepancy; spending is not enabled.':
     'New money added. The account total is updated and ready for transactions.');
    branchView.followRecord(req,result.batch);
-  }else if(req.body.action==='check'){
+  }else if(operation==='check'){
    const result=await treasury.recordOwnerBalanceCheck(req.tenantDb,req.tenant,req.user,req.params.id,{
      actualBalance:req.body.amount,idempotencyKey:req.body.idempotencyKey
    });

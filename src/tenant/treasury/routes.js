@@ -33,10 +33,21 @@ module.exports=function treasuryRoutes({renderTenant}){
   const fundingAccounts=operatingAccounts.filter(account=>!blocked.has(String(account._id))&&
    ['cash','bank','wallet'].includes(account.kind)&&account.status==='active'&&
    account.openingBalanceMinor!==null&&account.reconciliationState==='matched');
+  // Do not render a cash-shift action if this tenant or role is not allowed
+  // to use cash controls. The POST retains its own identical guard.
+  let canUseCashShifts=false;
+  if(req.user.role==='Tenant Owner'){
+   try{
+    require('../services/cashDrawer.service').allowed(req.tenant,req.user);
+    canUseCashShifts=true;
+   }catch(error){
+    if(error.status!==403)throw error;
+   }
+  }
   const kinds=treasury.KINDS.filter(kind=>kind==='wallet'?hasSource(req,'mobile_money'):kind==='forex_stock'?hasSource(req,'forex'):kind==='transfer_clearing'?hasSource(req,'money_transfer'):true);
   renderTenant(req,res,'treasury/index','Wallets, cash & balances','Create money accounts, add new capital, or move existing funds without routine approval.',{snapshot,queue,operators,setupBranch,allBranches:req.viewBranchId==='all',branchNames:Object.fromEntries((res.locals.viewBranches||[]).map(branch=>[String(branch._id),branch.name])),hasMobileMoney:hasSource(req,'mobile_money'),canCreateAccount:can(req,'treasury.manage')&&Boolean(setupBranch),fundings,showFundingHistory,ownerFormKeys:Object.fromEntries(snapshot.accounts.map(a=>[String(a._id),{
    opening:randomUUID(),capital:randomUUID(),check:randomUUID(),correction:randomUUID()
-  }])),fundingAccounts,fundingDestination:String(req.query.to||''),currencyCodes:require('../../config/currencies').currencyCodes,canManage:can(req,'treasury.manage'),canObserve:can(req,'treasury.observe'),canReview:can(req,'treasury.review'),kinds,networks:treasury.NETWORKS,networkMarketCurrencies:Object.fromEntries(Object.entries(require('../pricing/networkTariffs').NETWORKS).map(([key,meta])=>[key,meta.currency||''])),format:treasury.format,idempotencyKey:randomUUID(),fundingIdempotencyKey:randomUUID()});
+  }])),fundingAccounts,fundingDestination:String(req.query.to||''),currencyCodes:require('../../config/currencies').currencyCodes,canUseCashShifts,canManage:can(req,'treasury.manage'),canObserve:can(req,'treasury.observe'),canReview:can(req,'treasury.review'),kinds,networks:treasury.NETWORKS,networkMarketCurrencies:Object.fromEntries(Object.entries(require('../pricing/networkTariffs').NETWORKS).map(([key,meta])=>[key,meta.currency||''])),format:treasury.format,idempotencyKey:randomUUID(),fundingIdempotencyKey:randomUUID()});
  }
  function hasSource(req,key){return require('../services/moduleAccess.service').hasModuleForUser(req.tenant,req.user,key);}
  router.get('/',wrap(renderList));

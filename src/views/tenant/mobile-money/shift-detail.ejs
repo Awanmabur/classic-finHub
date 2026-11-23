@@ -22,12 +22,21 @@
       </div><% } %>
       <% if(data.shift.openingReviewNote){ %><p class="tiny">Opening verification evidence: <%= data.shift.openingReviewNote %></p><% } %>
       <% if(data.canReviewOpening){ %>
+        <% if(user.role==='Tenant Owner'&&String(data.shift.operatorId)===String(user.id)){ %>
+         <form method="post" action="/tenant/cash/shifts/<%= data.shift._id %>/verify-opening" style="margin-top:12px">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="decision" value="approve">
+          <input type="hidden" name="note" value="Owner counted the physical opening cash and matched the recorded balance.">
+          <button class="btn btnPrimary" type="submit">Finish starting shift</button>
+         </form>
+        <% }else{ %>
         <form method="post" action="/tenant/cash/shifts/<%= data.shift._id %>/verify-opening" style="margin-top:16px">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <p class="tiny">Verify the counted opening cash before allowing recordings. Reject an incorrect starting balance.</p>
           <label class="field">Opening verification evidence (12–400 characters)<textarea class="control" name="note" required minlength="12" maxlength="400" rows="2"></textarea></label>
           <div class="rowBtns"><button class="btn btnPrimary" name="decision" value="approve">Verify and open shift</button><button class="btn" name="decision" value="reject">Reject opening count</button></div>
         </form>
+        <% } %>
       <% } %>
       <% if(data.canSubmit){ %>
         <div class="summary"><div class="sumRow"><span>System closing cash from posted movements</span><b><%= cashLabel(String(expectedNow),data.shift.currency) %></b></div></div>
@@ -48,11 +57,20 @@
         </details>
       <% } %>
       <% if(data.canReview){ %>
+        <% if(user.role==='Tenant Owner'&&String(data.shift.operatorId)===String(user.id)&&data.canApprove!==false){ %>
+         <form method="post" action="/tenant/cash/shifts/<%= data.shift._id %>/decide" style="margin-top:12px">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="decision" value="approve">
+          <input type="hidden" name="note" value="Owner checked physical cash and confirmed exact matching closing amount.">
+          <button class="btn btnPrimary" type="submit">Finish closing shift</button>
+         </form>
+        <% }else{ %>
         <form method="post" action="/tenant/cash/shifts/<%= data.shift._id %>/decide" style="margin-top:16px">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <label class="field">Cash count review evidence (12–400 characters)<textarea class="control" name="note" required minlength="12" maxlength="400" rows="3"></textarea></label>
           <div class="rowBtns"><% if(data.canApprove !== false){ %><button class="btn btnPrimary" type="submit" name="decision" value="approve">Approve count</button><% } else { %><p class="tiny">A discrepancy needs a different authorized supervisor; it cannot be self-approved.</p><% } %><button class="btn" type="submit" name="decision" value="dispute">Dispute and return to operator</button></div>
         </form>
+        <% } %>
       <% } %>
       <% if(data.shift.reviewNote){ %><p class="tiny">Last supervisor decision: <%= data.shift.reviewNote %></p><% } %>
     </div>

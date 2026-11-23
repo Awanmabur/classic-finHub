@@ -30,7 +30,7 @@
        <input class="control" name="name" required minlength="3" maxlength="120" placeholder="e.g. Counter cash or MTN float">
       </label>
       <label class="field">Currency
-       <select class="control" name="currency" required>
+       <select class="control" name="currency" required data-money-create-currency>
         <% moneyCodes.forEach(code=>{const enabled=!data.setupBranch.currencies||data.setupBranch.currencies.includes(code); %>
          <option value="<%= code %>" <%= enabled?'':'disabled' %> <%= data.setupBranch.currency===code?'selected':'' %>><%= moneyLabel(code) %></option>
         <% }) %>
@@ -47,10 +47,11 @@
       <label class="field" data-money-create-network-field hidden>Mobile money network
        <select class="control" name="network" data-money-create-network>
         <option value="">Choose provider</option>
-        <% data.networks.forEach(network=>{ %><option value="<%= network %>"><%= network %></option><% }) %>
+        <% data.networks.forEach(network=>{ %><option value="<%= network %>" data-market-currency="<%= data.networkMarketCurrencies?.[network]||'' %>"><%= network %></option><% }) %>
        </select>
       </label>
      </div>
+     <small class="tiny" role="status" aria-live="polite" data-money-create-currency-help></small>
      <p class="tiny">An account holds only one currency. You will enter the real starting money immediately after creating it; no fictitious funds are added.</p>
      <button class="btn btnPrimary" type="submit">Create account</button>
     </form>

@@ -92,7 +92,7 @@ module.exports=function quickSetupRoutes({renderTenant}){
     tenantUserModel(req.tenantDb).countDocuments({status:'active',role:{$ne:'Tenant Owner'}}).maxTimeMS(3000),
     staffInviteModel(req.tenantDb).countDocuments({status:'pending',expiresAt:{$gt:new Date()}}).maxTimeMS(3000),
     fundModels(req.tenantDb).account.find({tenantId:req.tenant._id,status:{$ne:'archived'}})
-      .select('_id code name kind currency network branchId ledgerAccountId ledgerCode openingBalanceMinor bookBalanceMinor sequence openingApprovedAt pendingOpeningId reconciliationState status')
+      .select('_id code name kind currency network branchId ledgerAccountId ledgerCode openingBalanceMinor bookBalanceMinor sequence openingApprovedAt pendingOpeningId reconciliationState status selectionKey')
       .sort({createdAt:-1,_id:-1}).limit(80).lean().maxTimeMS(3000),
     tenantUserModel(req.tenantDb).find({status:'active',role:{$ne:'Tenant Owner'}})
       .select('_id name role branchId').sort({name:1}).limit(80).lean().maxTimeMS(3000),

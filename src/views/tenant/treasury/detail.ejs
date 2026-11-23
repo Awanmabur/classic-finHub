@@ -1,9 +1,20 @@
 <% const account=data.account,known=account.openingBalanceMinor!==null,fmt=value=>value===null||value===undefined?'—':data.format(value,account.currency),byBatch=new Map(data.batches.map(batch=>[String(batch._id),batch])); %>
 <section class="view show">
- <section class="card"><div class="cardHead"><div><b><%= account.name %></b><br><span><%= account.code %> · <%= account.kind.replaceAll('_',' ') %> · <%= account.network||account.currency %></span></div><div class="rowBtns"><a class="btn" href="/tenant/treasury">All balances</a><a class="btn" href="/tenant/dashboard">Start transactions</a><% if(data.canManage&&user.role==='Tenant Owner'&&['wallet','cash','bank','forex_stock'].includes(account.kind)&&known){ %><a class="btn btnPrimary" href="#record-balance">Record balance</a><% } %><% if(data.canObserve&&['wallet','cash','bank'].includes(account.kind)){ %><a class="btn" href="/tenant/treasury?to=<%= account._id %>#add-funds">Transfer existing funds</a><% } %></div></div><div class="cardBody">
+ <section class="card"><div class="cardHead"><div><b><%= account.name %></b><br><span><%= account.code %> · <%= account.kind.replaceAll('_',' ') %> · <%= account.network||account.currency %></span></div><div class="rowBtns"><a class="btn" href="/tenant/treasury">All balances</a><a class="btn" href="/tenant/dashboard">Start transactions</a><% if(data.canManage&&user.role==='Tenant Owner'&&['wallet','cash','bank','forex_stock'].includes(account.kind)&&known&&account.status!=='archived'){ %><a class="btn btnPrimary" href="#record-balance">Record balance</a><% } %><% if(data.canObserve&&account.status!=='archived'&&['wallet','cash','bank'].includes(account.kind)){ %><a class="btn" href="/tenant/treasury?to=<%= account._id %>#add-funds">Transfer existing funds</a><% } %></div></div><div class="cardBody">
   <div class="grid3"><div class="stat"><div class="k">Current recorded balance</div><div class="v"><%= known?fmt(account.bookBalanceMinor):'Not initialized' %></div><div class="s">Derived from posted ledger entries</div></div><div class="stat"><div class="k">Last recorded actual balance</div><div class="v"><%= fmt(account.lastObservedMinor) %></div><div class="s"><%= account.lastObservationAt?new Date(account.lastObservationAt).toISOString():'No recorded check' %></div></div><div class="stat"><div class="k">Difference at observation</div><div class="v"><%= fmt(account.lastVarianceMinor) %></div><div class="s"><%= account.status %> · <%= account.reconciliationState==='matched'?'matched at last reviewed observation':account.reconciliationState %></div></div></div>
   <% if(account.holdReason){ %><p role="status"><%= account.holdReason %></p><% } %><p class="tiny">The actual balance is dated evidence from a count, provider screen or statement. It is not a live provider API query. A mismatch holds further spending; it does not automatically create or erase money. Record the missing real transaction or resolve a genuine discrepancy before spending again.</p>
  </div></section>
+ <% if(account.status==='held'){ %>
+ <section class="card" style="margin-top:14px" role="status" aria-label="Resolve held account">
+  <div class="cardHead"><div><b>Account on hold — what to check</b><br><span>No spending or closure until this is resolved safely</span></div></div>
+  <div class="cardBody">
+   <p><strong>Reason:</strong> <%= account.holdReason||'Balance check or ledger review requires attention.' %></p>
+   <p class="tiny">Compare the book with the latest real count or statement. If a genuine past transaction was missed or entered incorrectly, use its operation module to record or correct it.</p>
+   <p class="tiny">Record a fresh actual balance check below. If a real difference remains, request an independently reviewed reconciliation adjustment. Never change opening capital just to remove a hold.</p>
+   <div class="rowBtns"><a class="btn" href="#record-balance">Check actual balance</a><a class="btn" href="/tenant/treasury/review">Review queue</a></div>
+  </div>
+ </section>
+ <% } %>
  <% if(data.canManage&&account.status!=='archived'){ %><section class="card" style="margin-top:14px"><div class="cardHead"><b>Account settings</b><span>Defaults for future transactions</span></div><form method="post" action="/tenant/treasury/accounts/<%= account._id %>/settings" class="cardBody" data-wallet-settings-form><input type="hidden" name="_csrf" value="<%= csrfToken %>"><div class="row2"><label class="field">Account name<input class="control" name="name" minlength="3" maxlength="120" required value="<%= account.name %>"></label><label class="field">Default for this operation<select class="control" name="isDefault"><option value="true" <%= account.selectionKey?'selected':'' %>>Yes</option><option value="false" <%= !account.selectionKey?'selected':'' %>>No, choose explicitly</option></select></label>
  <% if(account.kind==='wallet'){ %><label class="field">Cash drawer for this network
  <select class="control" name="cashDrawerAccountId">
@@ -23,6 +34,23 @@
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <input type="hidden" name="confirmCode" value="<%= account.code %>">
     <button class="btn btnDanger" type="submit">Archive this unused account</button>
+   </form>
+  </div>
+ </details>
+ <% } %>
+ <% if(data.canManage&&user.role==='Tenant Owner'&&['wallet','cash','bank','forex_stock'].includes(account.kind)&&known&&account.status==='active'){ %>
+ <details class="card" style="margin-top:14px" aria-label="Close reconciled account">
+  <summary class="cardHead"><b>Close this account</b><span>Owner only · keeps all old transactions</span></summary>
+  <div class="cardBody">
+   <p class="tiny">Settle funds to zero, record a fresh actual zero check, and choose a replacement default. Closure hides this account from NEW transactions but keeps its original IDs, receipts and ledger history.</p>
+   <p class="tiny">Book: <b><%= fmt(account.bookBalanceMinor) %></b> · Last actual: <b><%= fmt(account.lastObservedMinor) %></b> · Reconciliation: <b><%= account.reconciliationState %></b></p>
+   <form method="post" action="/tenant/treasury/accounts/<%= account._id %>/close" style="display:grid;gap:10px">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <label class="field">Confirm account code <b><%= account.code %></b>
+     <input class="control" name="confirmCode" required maxlength="40" autocomplete="off" placeholder="Type exact account code"></label>
+    <label class="field">Reason for closing
+     <textarea class="control" name="reason" rows="2" minlength="12" maxlength="400" required placeholder="Replaced with a new account after reconciliation"></textarea></label>
+    <button class="btn btnDanger" type="submit">Close account · keep history</button>
    </form>
   </div>
  </details>

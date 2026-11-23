@@ -37,7 +37,8 @@ test('Only audited money workspace can label an account ready; setup cannot bypa
  assert.match(money,/Set starting balance/);
  assert.match(money,/Money actually in this account now/);
  assert.match(money,/status==='active'&&account\.reconciliationState==='matched'/);
- assert.doesNotMatch(money,/name="confirmed"/);
+ assert.match(money,/name="confirmed" value="on" required/,'Explicit owner attestation is required only for unused-opening corrections');
+ assert.match(money,/\/correct-opening/);
 });
 test('One-time ledger reconstruction is evidence-fenced and requires verified backup',()=>{
  const s=read('scripts/repair-ghaja-orphan-ledger-20261122.js');

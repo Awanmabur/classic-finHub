@@ -49,8 +49,9 @@ test('dashboard shows posted-only earnings and distinguishes Forex from unmeasur
  assert.match(html,/Posted net income/);
  assert.match(html,/SSP 7,000/);
  assert.match(html,/Operating assets/);
- assert.match(html,/Forex trading profit/);
- assert.match(html,/Not yet measurable/);
+ assert.doesNotMatch(html,/Forex trading profit<\/div>/);
+ assert.doesNotMatch(html,/Not yet measurable/);
+ assert.match(html,/Trading profit requires verified acquisition cost/);
  assert.match(html,/overviewStatsGrid/);
 });
 test('platform tenant form reflects persisted active state and effective module entitlements',()=>{

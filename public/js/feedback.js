@@ -66,7 +66,11 @@
 
   document.addEventListener('submit',async event=>{
     const form=event.target;if(event.defaultPrevented||!(form instanceof HTMLFormElement)||form.method.toLowerCase()!=='post'||form.target&&form.target!=='_self'||form.hasAttribute('data-feedback-skip')||form.enctype==='multipart/form-data'||!navigator.onLine)return;
-    const action=new URL(event.submitter?.getAttribute('formaction')||form.action,location.origin);
+    // Never read form.action here: a select/input named "action" overrides
+    // the native HTMLFormElement.action property, producing a POST to
+    // /[object%20HTMLSelectElement] instead of the declared destination.
+    const action=new URL(event.submitter?.getAttribute('formaction')||
+      form.getAttribute('action')||location.href,location.origin);
     // These handoffs render private one-time HTML or use the dedicated,
     // durable financial submission handlers. Preserve their normal behavior.
     if(action.origin!==location.origin||action.pathname==='/logout'||action.pathname==='/tenant/view-branch'||/^\/platform\/tenants(?:\/[a-f0-9]{24}\/owner-invitation)?\/?$/i.test(action.pathname)||/\/reveal-pin\/?$/i.test(action.pathname)||action.pathname==='/tenant/backups/action'||action.pathname==='/tenant/users/invite'||form.matches('[data-mobile-money-form],[data-transfer-form],[data-forex-form],[data-funded-form],[data-payout-form],[data-expense-form]'))return;

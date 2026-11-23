@@ -101,7 +101,7 @@
       <% } %>
       <% if(!account.integrityBlocked&&isOwner&&data.canObserve&&hasOpening&&account.status!=='archived'){ %>
        <div class="moneyAccountActions">
-        <% if(ready){ %>
+        <% if(ready||(isHeld&&account.reconciliationState==='mismatch')){ %>
          <details class="moneyAction"><summary class="btn btnPrimary">Add money</summary>
           <form method="post" action="/tenant/treasury/accounts/<%= account._id %>/record" class="moneyQuickForm">
            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
@@ -111,7 +111,7 @@
            <label class="field">New business money received (<%= moneyLabel(currency) %>)
             <input class="control" name="amount" inputmode="decimal" required pattern="<%= currency==='UGX'?'[0-9]+':'[0-9]+([.][0-9]{1,2})?' %>" placeholder="Amount received">
            </label>
-           <p class="tiny">Only for real new money added to the business, without a customer transaction. Adds to this account and records owner capital; it does not move money from another account.</p>
+           <p class="tiny">Only for genuinely new business money received, without a customer transaction. The amount credits this account and owner capital, not another account. <% if(isHeld){ %>A prior difference remains Held after this addition and must be resolved separately.<% } %></p>
            <button class="btn btnPrimary" type="submit">Add to account</button>
           </form>
          </details>

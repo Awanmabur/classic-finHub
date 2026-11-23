@@ -90,7 +90,9 @@ test('Quick setup has branch, staff and archived recovery but no duplicate money
  assert.doesNotMatch(active,/action="\/tenant\/setup\/account"/);
  assert.doesNotMatch(active,/setupStatsGrid/);
  assert.match(active,/Removed or closed accounts/);
- for(const currency of currencyCodes)assert(active.includes('value="'+currency+'"'),'Branch currency setup still supports '+currency);
+ const freshBranch=await render({...base,branches:[]});
+ for(const currency of currencyCodes)assert(freshBranch.includes('value="'+currency+'"'),'First branch currency setup supports '+currency);
+ assert.match(active,/\/tenant\/treasury/);
  assert.doesNotMatch(active,/name="confirmed"/);
  assert.doesNotMatch(active,/name="evidenceReference"/);
  assert(!active.includes('Approve staff'));

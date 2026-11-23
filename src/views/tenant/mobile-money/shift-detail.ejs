@@ -22,7 +22,7 @@
       </div><% } %>
       <% if(data.shift.openingReviewNote){ %><p class="tiny">Opening verification evidence: <%= data.shift.openingReviewNote %></p><% } %>
       <% if(data.canReviewOpening){ %>
-        <% if(user.role==='Tenant Owner'&&String(data.shift.operatorId)===String(user.id)){ %>
+        <% if(typeof user!=='undefined'&&user.role==='Tenant Owner'&&String(data.shift.operatorId)===String(user.id)){ %>
          <form method="post" action="/tenant/cash/shifts/<%= data.shift._id %>/verify-opening" style="margin-top:12px">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <input type="hidden" name="decision" value="approve">
@@ -44,7 +44,7 @@
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <input type="hidden" name="closingFromBook" value="on">
           <label class="field"><input type="checkbox" name="physicalCountConfirmed" value="on" required> I counted the cash and it matches the amount above.</label>
-          <div class="rowBtns"><button class="btn btnPrimary" type="submit"><%= user.role==='Tenant Owner'?'Finish cash shift':'Submit matching count' %></button></div>
+          <div class="rowBtns"><button class="btn btnPrimary" type="submit"><%= typeof user!=='undefined'&&user.role==='Tenant Owner'?'Finish cash shift':'Submit matching count' %></button></div>
         </form>
         <details class="logicNote"><summary>Cash does not match?</summary>
           <p>Enter the real counted cash, not an adjusted system figure. A supervisor must investigate the difference.</p>
@@ -57,7 +57,7 @@
         </details>
       <% } %>
       <% if(data.canReview){ %>
-        <% if(user.role==='Tenant Owner'&&String(data.shift.operatorId)===String(user.id)&&data.canApprove!==false){ %>
+        <% if(typeof user!=='undefined'&&user.role==='Tenant Owner'&&String(data.shift.operatorId)===String(user.id)&&data.canApprove!==false){ %>
          <form method="post" action="/tenant/cash/shifts/<%= data.shift._id %>/decide" style="margin-top:12px">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <input type="hidden" name="decision" value="approve">

@@ -37,7 +37,7 @@ module.exports=function treasuryRoutes({renderTenant}){
  }
  function hasSource(req,key){return require('../services/moduleAccess.service').hasModuleForUser(req.tenant,req.user,key);}
  router.get('/',wrap(renderList));
- router.get('/accounts/new',requirePermission('treasury.manage'),wrap(renderList));
+ router.get('/accounts/new',requirePermission('treasury.manage'),wrap((req,res)=>req.user.role==='Tenant Owner'?res.redirect(303,'/tenant/setup#quick-money'):renderList(req,res)));
  router.get('/review',requirePermission('treasury.review'),wrap(renderList));
  router.post('/accounts',requirePermission('treasury.manage'),throttle,wrap(async(req,res)=>{
   if(branchView.canViewBranches(req.user)&&!req.viewBranch)throw treasury.fail('Choose a branch before adding an account',409);

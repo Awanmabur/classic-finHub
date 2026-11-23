@@ -11,12 +11,47 @@
 <section class="card" id="money-accounts" aria-label="Your money accounts">
  <div class="cardHead">
   <div><b>Your money accounts</b><br><span>One account, one currency. Add money, check it or correct a name here.</span></div>
-  <% if(data.canCreateAccount){ %><a class="btn btnPrimary" href="/tenant/setup#quick-money">Add account</a><% } %>
+  <% if(data.canCreateAccount&&data.setupBranch){ %>
+   <details class="moneyAction moneyCreate">
+    <summary class="btn btnPrimary">Add account</summary>
+    <form class="moneyQuickForm" method="post" action="/tenant/setup/account" data-money-create-form>
+     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+     <input type="hidden" name="branchId" value="<%= data.setupBranch._id %>">
+     <div class="row2">
+      <label class="field">Account type
+       <select class="control" name="kind" required data-money-create-kind>
+        <option value="">Choose account type</option>
+        <% ['cash','wallet','bank','forex_stock'].filter(kind=>data.kinds.includes(kind)).forEach(kind=>{ %>
+         <option value="<%= kind %>"><%= ({cash:'Cash drawer',wallet:'Mobile money float',bank:'Bank account',forex_stock:'Forex cash stock'})[kind] %></option>
+        <% }) %>
+       </select>
+      </label>
+      <label class="field">Account name
+       <input class="control" name="name" required minlength="3" maxlength="120" placeholder="e.g. Counter cash or MTN float">
+      </label>
+      <label class="field">Currency
+       <select class="control" name="currency" required>
+        <% moneyCodes.forEach(code=>{const enabled=!data.setupBranch.currencies||data.setupBranch.currencies.includes(code); %>
+         <option value="<%= code %>" <%= enabled?'':'disabled' %> <%= data.setupBranch.currency===code?'selected':'' %>><%= moneyLabel(code) %></option>
+        <% }) %>
+       </select>
+      </label>
+      <label class="field" data-money-create-network-field hidden>Mobile money network
+       <select class="control" name="network" data-money-create-network>
+        <option value="">Choose provider</option>
+        <% data.networks.forEach(network=>{ %><option value="<%= network %>"><%= network %></option><% }) %>
+       </select>
+      </label>
+     </div>
+     <p class="tiny">An account holds only one currency. You will enter the real starting money immediately after creating it; no fictitious funds are added.</p>
+     <button class="btn btnPrimary" type="submit">Create account</button>
+    </form>
+   </details>
+  <% }else if(data.canManage){ %><a class="btn" href="/tenant/setup#quick-money">Select a branch to add an account</a><% } %>
  </div>
  <div class="cardBody">
   <% if(!ownerAccounts.length){ %>
-   <p>No money accounts yet. Create your first cash drawer, mobile money float or bank account.</p>
-   <a class="btn btnPrimary" href="/tenant/setup#quick-money">Create account</a>
+   <p>No money accounts yet. Choose <strong>Add account</strong> above to create your first cash drawer, mobile money float or bank account.</p>
   <% } %>
   <% shownCodes.forEach(currency=>{ %>
    <div class="moneyCurrencyGroup">

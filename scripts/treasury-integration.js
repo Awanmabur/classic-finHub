@@ -205,8 +205,43 @@ async function main(){
  assert.equal(String((await book.models(conn).account.findById(ownerBank._id)).bookBalanceMinor),'45',
    'A counted difference must never rewrite the ledger');
  assert.equal((await book.models(conn).account.findById(ownerBank._id)).status,'held');
- await assert.rejects(treasury.addCapital(conn,tenant,owner,ownerBank._id,{
-   amount:'5',idempotencyKey:crypto.randomUUID()}),e=>e.status===409);
+ // Recording newly received owner capital is not an adjustment. A held
+ // account can receive genuine new money without clearing the old mismatch.
+ const heldKey=crypto.randomUUID();
+ const heldCapital=await treasury.addCapital(conn,tenant,owner,ownerBank._id,{
+   amount:'5',idempotencyKey:heldKey});
+ assert.equal(heldCapital.holdPreserved,true);
+ assert.equal(heldCapital.duplicate,false);
+ assert.equal((await treasury.addCapital(conn,tenant,owner,ownerBank._id,{
+   amount:'5',idempotencyKey:heldKey})).duplicate,true);
+ const heldBank=await book.models(conn).account.findById(ownerBank._id).lean();
+ assert.equal(String(heldBank.bookBalanceMinor),'50','Real new capital must increase the held book');
+ assert.equal(heldBank.status,'held','Capital must never release an observed mismatch');
+ assert.equal(heldBank.reconciliationState,'mismatch');
+ assert.equal(String(heldBank.lastObservedMinor),'46','The original count remains auditable');
+ assert.equal((await ledger.trialBalance(conn,{branchId:String(branch._id),currency:'UGX'})).balanced,true);
+ // SSP cash with an observed shortage follows the same flow, in its own
+ // precision and without creating spendable funds or falsifying the count.
+ const heldCash=await treasury.createAccount(conn,tenant,owner,{
+   name:'Owner held SSP cash',kind:'cash',currency:'SSP',operatorId:owner.id,isDefault:false});
+ await treasury.confirmOwnerOpening(conn,tenant,owner,heldCash._id,{
+   actualBalance:'30.00',idempotencyKey:crypto.randomUUID()});
+ const shortage=await treasury.recordOwnerBalanceCheck(conn,tenant,owner,heldCash._id,{
+   actualBalance:'3.00',idempotencyKey:crypto.randomUUID()});
+ assert.equal(shortage.matched,false);
+ const sspCapital=await treasury.addCapital(conn,tenant,owner,heldCash._id,{
+   amount:'5.50',idempotencyKey:crypto.randomUUID()});
+ assert.equal(sspCapital.currency,'SSP');
+ assert.equal(sspCapital.holdPreserved,true);
+ const sspCash=await book.models(conn).account.findById(heldCash._id).lean();
+ assert.equal(String(sspCash.bookBalanceMinor),'3550');
+ assert.equal(String(sspCash.lastObservedMinor),'300');
+ assert.equal(sspCash.status,'held');
+ assert.equal(sspCash.reconciliationState,'mismatch');
+ assert.equal((await ledger.trialBalance(conn,{branchId:String(branch._id),currency:'SSP'})).balanced,true);
+ await assert.rejects(treasury.addCapital(conn,tenant,operator,heldCash._id,{
+   amount:'1',idempotencyKey:crypto.randomUUID()}),e=>e.status===403);
+
  await Tenant.updateOne({_id:tenant._id},{$set:{enabledModules:[]},$inc:{__v:1}});await assert.rejects(treasury.balanceSnapshot(conn,tenant,owner),e=>e.status===403);
  console.log('PASS: Treasury real independent opening evidence, exact posted funds and cash, balanced journals, idempotency, insufficient-float and mismatch holds, dated checkpoints, explicit suspense adjustments, late-entry invalidation, historical-maker correction, concurrent balance guards, audit rollback, append-only history, live revocation and tenant isolation.');
 }

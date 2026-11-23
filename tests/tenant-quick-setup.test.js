@@ -123,3 +123,12 @@ test('Quick setup routes are authenticated, owner-scoped, CSRF protected and reu
  assert(file('src/views/tenant/setup/index.ejs').includes('name="_csrf"'));
  assert(file('src/services/menu.service.js').includes("item('Quick setup','setup'"));
 });
+
+test('Tenant Owner uses one setup form while branch manager retains scoped Treasury creation',()=>{
+ const page=file('src/views/tenant/treasury/index.ejs');
+ const routes=file('src/tenant/treasury/routes.js');
+ assert.match(page,/data\.canCreateAccount&&user\.role!=='Tenant Owner'/);
+ assert.match(page,/user\.role==='Tenant Owner'\?'\/tenant\/setup#quick-money'/);
+ assert.match(routes,/router\.get\('\/accounts\/new'/);
+ assert.match(routes,/\/tenant\/setup#quick-money/);
+});

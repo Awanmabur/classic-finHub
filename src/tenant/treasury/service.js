@@ -287,7 +287,7 @@ async function addCapital(conn,tenant,actor,accountId,input={}){
  const requestKey=key(input.idempotencyKey);
  const evidenceReference=reference(input.evidenceReference);
  await ensure(conn);
- return transaction(conn,async session=>{
+ try{return await transaction(conn,async session=>{
   const authorization=await access(conn,tenant,actor,{permission:'treasury.manage',session,fence:true});
   if(authorization.actor.role!=='Tenant Owner')throw fail('Only the tenant owner can add business capital',403);
   const account=await loadAccount(conn,authorization,accountId,{session,fence:true});
@@ -313,7 +313,10 @@ async function addCapital(conn,tenant,actor,accountId,input={}){
     branchId:String(account.branchId),accountId:String(account._id),currency:account.currency,
     amountMinor:String(amount),evidenceReference,sourceRef:'CAP:'+requestKey});
   return {batch:posted.batch,duplicate:posted.duplicate,accountId:String(account._id),currency:account.currency,amountMinor:String(amount)};
- });
+ });}catch(error){
+  if(error.code===11000)throw fail('This capital receipt or request has already been recorded. Check the account history before adding more money.',409);
+  throw error;
+ }
 }
 function opposite(side){return side==='debit'?'credit':'debit';}
 async function writeTreasuryJournal(conn,session,authorization,{branchId,currency,sourceRef,lines}){

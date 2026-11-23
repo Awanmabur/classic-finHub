@@ -190,7 +190,9 @@ async function archiveUnusedAccount(conn,tenant,actor,accountId,input={}){
       'clearingAccountId','payoutAccountId'].map(field=>({['accounts.'+field]:key}))
    }).session(session)
   ];
-  const blockers=await Promise.all(tasks);
+  // Never execute queries concurrently on one MongoDB transaction session.
+  const blockers=[];
+  for(const query of tasks)blockers.push(await query);
   if(linkedFunds||blockers.some(Boolean))
    throw fail('This account has linked financial or cash-shift records and cannot be removed. Its history must stay available.',409);
   const updated=await treasury.account.findOneAndUpdate({

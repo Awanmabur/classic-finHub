@@ -22,6 +22,7 @@
   const selectedCurrency = container.querySelector('[data-quick-account-currency]');
   const selectedBranch = container.querySelector('[data-quick-account-branch]');
   const operator = container.querySelector('[data-quick-operator]');
+  const currencyStatus = container.querySelector('[data-quick-currency-status]');
   if (!kind) return;
   const update = () => {
     for (const row of container.querySelectorAll('[data-quick-kind-field]')) {
@@ -42,15 +43,40 @@
       }
       if (operator.selectedOptions[0]?.disabled) operator.value = '';
     }
-    if (kind.value === 'wallet' && provider && selectedCurrency) {
-      const fixed = provider.selectedOptions[0]?.dataset.marketCurrency;
-      if (fixed && [...selectedCurrency.options].some(option => option.value === fixed)) {
-        selectedCurrency.value = fixed;
+    if (selectedCurrency) {
+      // Currency availability belongs to the selected branch, not the
+      // platform-wide catalogue or currencies of other branches.
+      const branchId = selectedBranch?.value || '';
+      for (const option of selectedCurrency.options) {
+        if (!option.value) continue;
+        const branches = (option.dataset.enabledBranches || '').split(',').filter(Boolean);
+        option.disabled = !branches.includes(branchId);
+      }
+      const fixed = kind.value === 'wallet'
+        ? provider?.selectedOptions[0]?.dataset.marketCurrency || '' : '';
+      const fixedOption = [...selectedCurrency.options].find(option => option.value === fixed);
+      if (fixed && (!fixedOption || fixedOption.disabled)) {
+        selectedCurrency.value = '';
+        if (currencyStatus) currencyStatus.textContent =
+          'This provider uses ' + (fixed === 'KES' ? 'KSH' : fixed) +
+          '. Enable that currency in Branches before creating this wallet.';
+      } else {
+        if (fixed) selectedCurrency.value = fixed;
+        else if (!selectedCurrency.value || selectedCurrency.selectedOptions[0]?.disabled) {
+          const first = [...selectedCurrency.options].find(option => option.value && !option.disabled);
+          selectedCurrency.value = first?.value || '';
+        }
+        if (currencyStatus) currencyStatus.textContent = selectedCurrency.value
+          ? '' : 'Enable a supported currency in Branches to create this account.';
       }
     }
   };
   kind.addEventListener('change', update);
   provider?.addEventListener('change', update);
   selectedBranch?.addEventListener('change', update);
+  selectedCurrency?.addEventListener('change', () => {
+    // Provider currency is authoritative; do not show a misleading choice.
+    if (kind.value === 'wallet') update();
+  });
   update();
 })();

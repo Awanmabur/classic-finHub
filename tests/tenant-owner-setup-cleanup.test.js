@@ -18,15 +18,15 @@ test('Tenant sidebar matches platform account footer with two opposite functiona
  assert.match(tenant,/href="\/"/);
  assert.match(tenant,/> Website<\/a>/);
 });
-test('Owner quick setup archives only unused accounts and can restore without deleting records',async()=>{
+test('Owner can remove eligible accounts while preserving history and restore only unused drafts',async()=>{
  const page=source('src/views/tenant/setup/index.ejs');
- assert.match(page,/a\.status==='uninitialized'/);
- assert.match(page,/a\.openingBalanceMinor===null/);
+ assert.match(page,/\['uninitialized','active'\]\.includes\(a\.status\)/);
+ assert.match(page,/String\(a\.bookBalanceMinor\|\|0\)==='0'/);
  assert.match(page,/a\.pendingOpeningId/);
- assert.match(page,/a\.sequence/);
+ assert.match(page,/Closed · history retained/);
  assert.match(page,/\/tenant\/treasury\/accounts\/<%= a\._id %>\/remove/);
  assert.match(page,/\/tenant\/treasury\/accounts\/<%= a\._id %>\/restore/);
- assert.match(page,/name="confirmCode"/);
+ assert.match(page,/Confirm remove/);
  assert.match(page,/name="_csrf"/);
  assert.doesNotThrow(()=>ejs.compile(page));
  const routes=source('src/tenant/treasury/routes.js');

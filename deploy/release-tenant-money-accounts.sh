@@ -64,6 +64,28 @@ test -r "$STAGE/scripts/treasury-integration.js" || {
   echo "The reviewed release does not contain the integration test." >&2; exit 2;
 }
 
+# Reject a financial release before provisioning test infrastructure if
+# focused tenant workflows fail. Dependencies come from the currently running
+# trusted app image; source comes only from the pinned Git archive.
+echo "=== ACCOUNT UNIT TESTS (NO NETWORK, NO PRODUCTION CREDENTIALS) ==="
+image="$(docker inspect -f '{{.Image}}' classicfin-web-only)"
+docker run --rm --network none --read-only \
+  --tmpfs /tmp:rw,nosuid,nodev,size=128m \
+  --cap-drop ALL --security-opt no-new-privileges:true \
+  --user 1000:1000 --env NODE_ENV=test --env NODE_PATH=/app/node_modules \
+  --env SESSION_SECRET=isolated-account-release-test-only \
+  --mount "type=bind,src=$STAGE,dst=/workspace,readonly" \
+  --workdir /workspace --entrypoint node "$image" \
+  --test tests/tenant-quick-setup.test.js tests/tenant-owner-setup-cleanup.test.js \
+  tests/tenant-used-account-close.test.js tests/treasury.test.js
+
+# Do not let a temporary Mongo process starve the production app.
+available_kib="$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)"
+if [ -z "$available_kib" ] || [ "$available_kib" -lt 1250000 ]; then
+  echo "Insufficient available memory for safe isolated MongoDB tests on the production host (needs 1.25GB free). Release stopped." >&2
+  exit 2
+fi
+
 # Fail closed instead of using an existing service on this port. This release
 # owns a disposable single-node Mongo replica set, with no persisted volume,
 # no credentials and a listener on host loopback only.

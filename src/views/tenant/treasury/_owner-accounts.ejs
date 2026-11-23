@@ -39,7 +39,7 @@
       <label class="field" data-money-create-operator-field hidden>Cash drawer operator
        <select class="control" name="operatorId" data-money-create-operator>
         <option value="">My own drawer (business owner)</option>
-        <% (data.operators||[]).filter(person=>String(person._id)!==String(user.id)&&person.role!=='Auditor').forEach(person=>{ %>
+        <% (data.operators||[]).filter(person=>String(person._id)!==String(user.id)&&['Branch Manager','Mobile Money Operator','Money Transfer Operator','Banking Operator','Forex Operator'].includes(person.role)).forEach(person=>{ %>
          <option value="<%= person._id %>"><%= person.name %> · <%= person.role %></option>
         <% }) %>
        </select>

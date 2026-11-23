@@ -275,9 +275,11 @@ async function main(){
   };
   const sspRoute='/tenant/treasury/accounts/'+heldCash._id+'/record';
   const sspPosted=await submit(sspRoute,{
-   action:'capital',amount:'1.25',idempotencyKey:crypto.randomUUID()});
+   recordAction:'capital',amount:'1.25',idempotencyKey:crypto.randomUUID()});
   assert.equal(sspPosted.redirect,'/tenant/treasury/accounts/'+heldCash._id+'#record-balance');
   assert.equal(sspPosted.flash.type,'good');
+  // A legacy already-open tab still submits "action" and is accepted,
+  // but newly loaded HTML sends "recordAction" to avoid DOM action collisions.
   assert.match(sspPosted.flash.message,/still held/);
   const sspDestination=await fetch(base+sspPosted.redirect);
   assert.equal(sspDestination.status,200,'Account destination must exist after successful posting');

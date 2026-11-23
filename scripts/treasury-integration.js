@@ -112,12 +112,11 @@ async function main(){
  const firstCapital={amount:'80',idempotencyKey:crypto.randomUUID()};
  await assert.rejects(treasury.addCapital(conn,tenant,owner,starterCash._id,firstCapital),
   e=>e.status===409,'New capital cannot bypass a verified account opening');
- const openingInput={actualBalance:'150',evidenceReference:'OWNER-COUNT-START-001',
-  confirmed:'yes',idempotencyKey:crypto.randomUUID()};
+ const openingInput={actualBalance:'150',idempotencyKey:crypto.randomUUID()};
  await assert.rejects(treasury.confirmOwnerOpening(conn,tenant,operator,starterCash._id,openingInput),
   e=>e.status===403,'An operator must never self-approve initial funds');
  await assert.rejects(treasury.confirmOwnerOpening(conn,tenant,owner,starterCash._id,
-  {...openingInput,confirmed:'no'}),e=>e.status===400);
+  {...openingInput,actualBalance:'150.30'}),e=>e.status===400);
  const journalsBefore=await core.ledgerJournalModel(conn).countDocuments();
  const quickOpened=await treasury.confirmOwnerOpening(conn,tenant,owner,starterCash._id,openingInput);
  assert.equal(quickOpened.duplicate,false);
@@ -169,6 +168,45 @@ async function main(){
  assert.equal((await core.ledgerAccountModel(conn).findById(contribution.ledgerAccountId).lean()).category,'equity');
  assert.equal((await book.models(conn).batch.countDocuments({sourceType:'treasury_capital'})),2);
  assert.equal((await ledger.trialBalance(conn,{branchId:String(branch._id),currency:'UGX'})).balanced,true);
+ // A direct owner check is final immediately without a second reviewer.
+ const countKey=crypto.randomUUID();
+ const checked=await treasury.recordOwnerBalanceCheck(conn,tenant,owner,ownerBank._id,{
+   actualBalance:'45',idempotencyKey:countKey});
+ assert.equal(checked.matched,true);
+ assert.equal(checked.observation.status,'approved');
+ assert.equal((await treasury.recordOwnerBalanceCheck(conn,tenant,owner,ownerBank._id,{
+   actualBalance:'45',idempotencyKey:countKey})).duplicate,true);
+ await assert.rejects(treasury.recordOwnerBalanceCheck(conn,tenant,operator,ownerBank._id,{
+   actualBalance:'45',idempotencyKey:crypto.randomUUID()}),e=>e.status===403);
+ await assert.rejects(treasury.recordOwnerBalanceCheck(conn,tenant,owner,ownerBank._id,{
+   actualBalance:'47.10',idempotencyKey:crypto.randomUUID()}),e=>e.status===400,
+   'UGX amount must be a whole number');
+ // Same owner process works per-currency without converting into UGX.
+ for(const [currency,amount,minor] of [['USD','12.34','1234'],['SSP','101.25','10125'],['KES','250.75','25075']]){
+   const account=await treasury.createAccount(conn,tenant,owner,{
+     name:'Capital bank '+currency,kind:'bank',currency,isDefault:false});
+   const opened=await treasury.confirmOwnerOpening(conn,tenant,owner,account._id,{
+     actualBalance:'0',idempotencyKey:crypto.randomUUID()});
+   assert.equal(opened.observation.status,'approved');
+   const capital=await treasury.addCapital(conn,tenant,owner,account._id,{
+     amount,idempotencyKey:crypto.randomUUID()});
+   assert.equal(capital.currency,currency);
+   assert.equal(String((await book.models(conn).account.findById(account._id)).bookBalanceMinor),minor);
+   const actual=await treasury.recordOwnerBalanceCheck(conn,tenant,owner,account._id,{
+     actualBalance:amount,idempotencyKey:crypto.randomUUID()});
+   assert.equal(actual.matched,true);
+   assert.equal(actual.observation.status,'approved');
+   assert.equal((await ledger.trialBalance(conn,{branchId:String(branch._id),currency})).balanced,true);
+ }
+ const mismatch=await treasury.recordOwnerBalanceCheck(conn,tenant,owner,ownerBank._id,{
+   actualBalance:'46',idempotencyKey:crypto.randomUUID()});
+ assert.equal(mismatch.matched,false);
+ assert.equal(mismatch.observation.status,'approved','Owner count must finish immediately');
+ assert.equal(String((await book.models(conn).account.findById(ownerBank._id)).bookBalanceMinor),'45',
+   'A counted difference must never rewrite the ledger');
+ assert.equal((await book.models(conn).account.findById(ownerBank._id)).status,'held');
+ await assert.rejects(treasury.addCapital(conn,tenant,owner,ownerBank._id,{
+   amount:'5',idempotencyKey:crypto.randomUUID()}),e=>e.status===409);
  await Tenant.updateOne({_id:tenant._id},{$set:{enabledModules:[]},$inc:{__v:1}});await assert.rejects(treasury.balanceSnapshot(conn,tenant,owner),e=>e.status===403);
  console.log('PASS: Treasury real independent opening evidence, exact posted funds and cash, balanced journals, idempotency, insufficient-float and mismatch holds, dated checkpoints, explicit suspense adjustments, late-entry invalidation, historical-maker correction, concurrent balance guards, audit rollback, append-only history, live revocation and tenant isolation.');
 }

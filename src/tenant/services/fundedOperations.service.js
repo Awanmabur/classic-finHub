@@ -45,7 +45,7 @@ function sourceSnapshot(type,source){
  if(!currencyCodes.includes(source.currency))throw fail('Unsupported manual financial currency',409);
  if(type==='banking'){
   if(source.source?.referenceType!=='customer_account'||(source.kind==='transfer_request'&&source.destination?.referenceType!=='customer_account'))throw fail('Manual banking posting requires real internal customer accounts. External bank references remain instructions until independently verified.',409);
-  return {...base,kind:source.kind,currency:source.currency,amountMinor:minor(source.amountMinor),feeMinor:minor(source.feeMinor||'0',true),customerAccountId:id(source.source.referenceId),destinationAccountId:source.destination?id(source.destination.referenceId):null,paymentChannel:source.capture?.paymentChannel||'Cash'};
+  return {...base,kind:source.kind,currency:source.currency,amountMinor:minor(source.amountMinor),feeMinor:minor(source.feeMinor||'0',true),customerAccountId:id(source.source.referenceId),destinationAccountId:source.destination?id(source.destination.referenceId):null,paymentChannel:source.capture?.paymentChannel||'Cash',...(source.directDeposit?{directDeposit:true}:{})};
  }
  return {...base,destinationBranchId:id(source.destinationBranchId||source.branchId),currency:source.currency,amountMinor:minor(source.amountMinor),feeMinor:minor(source.feeMinor,true),method:source.capture?.method||'Cash',receiverPhone:pin.normalPhone(source.beneficiary.phone),receiverName:String(source.beneficiary.name),senderPhone:pin.normalPhone(source.sender.phone),senderName:String(source.sender.name)};
 }
@@ -92,7 +92,9 @@ function paymentKind(method){return ['Cash','Cash payment'].includes(method)?'ca
 function arrayAccounts(result){return Array.isArray(result)?result:(result?.accounts||result?.items||[]);}
 function selectableAccount(account,actorId){return account.status==='active'&&account.openingBalanceMinor!=null&&Boolean(account.openingApprovedAt)&&account.reconciliationState==='matched'&&
  (!account.operatorId||String(account.operatorId)===String(actorId))&&(account.kind!=='cash'||String(account.operatorId||'')===String(actorId));}
-async function availableAccounts(conn,tenant,actor,branchId,type){return arrayAccounts(await treasury().findOperatingAccounts(conn,tenant,actor,{branchId:String(branchId),moduleKey:type})).filter(account=>selectableAccount(account,actor.id));}
+async function availableAccounts(conn,tenant,actor,branchId,type,{currency=null,session=null}={}){
+ return arrayAccounts(await treasury().findOperatingAccounts(conn,tenant,actor,{branchId:String(branchId),moduleKey:type,currency},session)).filter(account=>selectableAccount(account,actor.id));
+}
 function choose(accounts,submitted,{kind,currency,actorId,label}){
  const candidates=accounts.filter(account=>account.kind===kind&&account.currency===currency&&selectableAccount(account,actorId));
  let selected;
@@ -110,10 +112,11 @@ function choose(accounts,submitted,{kind,currency,actorId,label}){
  if(!selected)throw fail(`Configure and reconcile ${label||kind} in your operating branch before posting this movement`,409);
  return id(selected._id);
 }
-async function selectedAccounts(conn,authorization,snapshot,input,action){
- const accounts=await availableAccounts(conn,authorization.tenant,authorization.actor,snapshot.branchId,snapshot.sourceType);
+function movementAccounts(cashAccountId=null){return {cashAccountId,foreignAccountId:null,settlementAccountId:null,collectionAccountId:null,clearingAccountId:null,payoutAccountId:null};}
+async function selectedAccounts(conn,authorization,snapshot,input,action,session){
+ const accounts=await availableAccounts(conn,authorization.tenant,authorization.actor,snapshot.branchId,snapshot.sourceType,{session});
  const chooseAccount=(submitted,kind,currency,label)=>choose(accounts,submitted,{kind,currency,actorId:authorization.actor.id,label});
- const result={cashAccountId:null,foreignAccountId:null,settlementAccountId:null,collectionAccountId:null,clearingAccountId:null,payoutAccountId:null};
+ const result=movementAccounts();
  if(action==='forex'){
   result.foreignAccountId=chooseAccount(input.foreignAccountId,'forex_stock',snapshot.fromCurrency,`${snapshot.fromCurrency} foreign-currency stock`);
   result.settlementAccountId=chooseAccount(input.settlementAccountId,paymentKind(snapshot.settlementMethod),snapshot.toCurrency,`${snapshot.toCurrency} settlement balance`);
@@ -128,12 +131,16 @@ function assertSourceAvailable(source,type,action){
  if(!source)throw fail('The original instruction is unavailable',404);
  if(action==='transfer_payout'){if(source.status!=='collected_manual')throw fail('Only collected manual transfer funds can enter payout',409);return;}
  if(!definition(type).statuses.includes(source.status))throw fail('This instruction is already posted, cancelled, rejected or unavailable',409);
+ // These funds have already been received. Their review stays open until
+ // someone decides it, so an expiry worker cannot strand the cash day.
+ if(type==='banking'&&source.directDeposit)return;
  if(!(source.expiresAt instanceof Date)||source.expiresAt<=new Date())throw fail('The instruction or quote expired. Create a fresh instruction before accepting funds.',409);
 }
 async function prepare(conn,tenant,actor,type,sourceId){
  const current=await context(conn,tenant,actor,type,permission(type));await prepareIndexes(conn);
  const source=await definition(type).model(conn).findOne({_id:id(sourceId),...scope(current.actor)}).lean();
  if(!source)throw fail('Financial instruction not found',404);
+ if(type==='banking'&&source.directDeposit)throw fail('Open the deposit review from the customer account',409);
  if(current.actor.role!=='Tenant Owner'&&String(source.createdBy)!==current.actor.id)throw fail('Only the originator may request this manual posting',403);
  assertSourceAvailable(source,type,definition(type).action);
  const branch=await resolveTransactionBranch(conn,current.actor);if(String(branch._id)!==String(source.branchId))throw fail('The instruction belongs to a different operating branch',403);
@@ -141,19 +148,30 @@ async function prepare(conn,tenant,actor,type,sourceId){
  const accounts=await availableAccounts(conn,current.tenant,current.actor,source.branchId,type);
  return {source,snapshot,accounts,type,actor:current.actor,action:definition(type).action,idempotencyKey:crypto.randomUUID()};
 }
-async function request(conn,tenant,actor,type,sourceId,input={}){
- const v=formInput(input),current=await context(conn,tenant,actor,type,permission(type));await prepareIndexes(conn);
- const branch=await resolveTransactionBranch(conn,current.actor,input),action=definition(type).action;
- const source=await definition(type).model(conn).findOne({_id:id(sourceId),branchId:branch._id}).lean();
+async function request(conn,tenant,actor,type,sourceId,input={}, {session=null}={}){
+ const v=formInput(input),current=await context(conn,tenant,actor,type,permission(type),session);
+ if(!session)await prepareIndexes(conn);
+ const Branch=session?{
+  findOne:query=>models.branchModel(conn).findOne(query).session(session),
+  find:query=>models.branchModel(conn).find(query).session(session)
+ }:undefined;
+ const branch=await resolveTransactionBranch(conn,current.actor,input,{Branch}),action=definition(type).action;
+ const source=await definition(type).model(conn).findOne({_id:id(sourceId),branchId:branch._id}).session(session).lean();
  if(!source)throw fail('Financial instruction not found in your operating branch',404);
+ if(type==='banking'&&source.directDeposit&&!session)throw fail('Open the deposit review from the customer account',409);
  if(current.actor.role!=='Tenant Owner'&&String(source.createdBy)!==current.actor.id)throw fail('Only the originator may request this manual posting',403);
  const snapshot=sourceSnapshot(type,source);assertBranchCurrencies(branch,snapshot);
- const accounts=await selectedAccounts(conn,current,snapshot,input,action);
+ const Execution=fundedModels(conn).execution;
+ const prior=await Execution.findOne({idempotencyKey:v.idempotencyKey}).session(session).lean();
+ // Atomic direct deposits carry an explicit account ID. Their exact replay
+ // remains identifiable after the cash shift closes or the account is held.
+ const accounts=session&&prior&&type==='banking'&&snapshot.kind==='deposit_request'&&input.cashAccountId
+  ?movementAccounts(id(input.cashAccountId))
+  :await selectedAccounts(conn,current,snapshot,input,action,session);
  const canonical={sourceType:type,sourceId:id(sourceId),action,branchId:String(branch._id),createdBy:current.actor.id,accounts,...v};
- const fingerprint=hash(canonical),Execution=fundedModels(conn).execution;
- const prior=await Execution.findOne({idempotencyKey:v.idempotencyKey}).lean();
+ const fingerprint=hash(canonical);
  if(prior){if(prior.fingerprint!==fingerprint)throw fail('Request reference reused with different financial details',409);return {execution:prior,duplicate:true};}
- try{return await transaction(conn,async session=>{
+ async function save(session){
   const authorization=await auth.fenceAction(conn,session,actor,current.tenant,type,permission(type),{branchId:String(branch._id)});
   const activeBranch=await models.branchModel(conn).findOneAndUpdate({_id:branch._id,status:'active'},{$inc:{revision:1}},{new:true,session}).lean();
   if(!activeBranch)throw fail('The operating branch is unavailable',409);assertBranchCurrencies(activeBranch,snapshot);
@@ -162,7 +180,9 @@ async function request(conn,tenant,actor,type,sourceId,input={}){
   const [execution]=await Execution.create([{...canonical,sourceReference:fresh.reference,fingerprint,sourceFingerprint:hash(snapshot),sourceSnapshot:snapshot,
    activeKey:`${type}:${fresh._id}:${action}`}],{session});
   await audit(conn,session,authorization.actor,execution,'manual.requested');return {execution,duplicate:false};
- });}catch(error){if(error.code===11000)throw fail('This instruction already has a pending or posted manual movement',409);throw error;}
+ }
+ if(session)return save(session);
+ try{return await transaction(conn,save);}catch(error){if(error.code===11000)throw fail('This instruction already has a pending or posted manual movement',409);throw error;}
 }
 async function lockCustomerAccount(conn,session,authorization,accountId,branchId,currency){
  if(!hasModuleForUser(authorization.tenant,authorization.actor,'accounts')||!hasPermission(authorization.actor,'accounts.view'))throw fail('Customer Accounts access is required for internal banking',403);
@@ -247,8 +267,15 @@ async function review(conn,tenant,actor,executionId,input={},options={}){
   if(!execution)throw fail('Manual movement already reviewed or outside your branch',409);
   const sourceModel=definition(execution.sourceType).model(conn),source=await sourceModel.findById(execution.sourceId).session(session).lean();
   if(!source||!sourceMatches(execution,source))throw fail('Original instruction is missing or its economics changed',409);
+  const directDeposit=execution.sourceType==='banking'&&source.directDeposit;
+  if(directDeposit&&directFinal)throw fail('A different authorized reviewer must decide this customer deposit',403);
+  const decision={reviewedBy:actor.id,reviewedAt:new Date(),reviewNote:note};
   if(input.decision==='reject'){
-   const rejected=await Execution.findOneAndUpdate({_id:execution._id,status:'pending_review'},{$set:{status:'rejected',reviewedBy:actor.id,reviewedAt:new Date(),reviewNote:note},$unset:{activeKey:''}},{new:true,session}).lean();
+   if(directDeposit){
+    const returned=await sourceModel.updateOne({_id:source._id,status:'requested'},{$set:{status:'rejected',...decision},$inc:{revision:1}},{session,runValidators:true});
+    if(!returned.modifiedCount)throw fail('The deposit instruction has already changed',409);
+   }
+   const rejected=await Execution.findOneAndUpdate({_id:execution._id,status:'pending_review'},{$set:{status:'rejected',...decision},$unset:{activeKey:''}},{new:true,session}).lean();
    await audit(conn,session,authorization.actor,rejected,'manual.rejected');return {execution:rejected,duplicate:false};
   }
   assertSourceAvailable(source,execution.sourceType,execution.action);
@@ -309,6 +336,7 @@ async function review(conn,tenant,actor,executionId,input={},options={}){
   const posted=await Execution.findOneAndUpdate({_id:execution._id,status:'pending_review'},{$set:changes},{new:true,session}).lean();
   const sourceChanges=execution.action==='transfer_collect'?{status:'collected_manual',manualCollectionExecutionId:execution._id,manualPostedAt:new Date()}:
    execution.action==='transfer_payout'?{status:'paid_out_manual',manualPayoutExecutionId:execution._id,manualPostedAt:new Date()}:{status:'posted_manual',manualExecutionId:execution._id,manualPostedAt:new Date()};
+  if(directDeposit)Object.assign(sourceChanges,decision);
   const changed=await sourceModel.findOneAndUpdate({_id:source._id,status:source.status},{$set:sourceChanges,$inc:{revision:1}},{new:true,session,runValidators:true}).lean();
   if(!changed)throw fail('The instruction changed during manual posting',409);
   if(execution.action==='transfer_payout'){
@@ -335,13 +363,21 @@ async function detail(conn,tenant,actor,executionId){
  const current=await context(conn,tenant,actor,execution.sourceType),view=scope(current.actor);if(view.branchId&&String(view.branchId)!==String(execution.branchId))throw fail('Manual movement not found in the selected branch',404);
  if(['Banking Operator','Forex Operator','Money Transfer Operator'].includes(current.actor.role)&&String(execution.createdBy)!==current.actor.id)throw fail('Manual movement not found in your scope',404);
  const source=await definition(execution.sourceType).model(conn).findById(execution.sourceId).lean();
+ let receivingAccountName=null;
+ if(execution.sourceType==='banking'&&source?.directDeposit&&execution.accounts.cashAccountId&&hasPermission(current.actor,'treasury.view')){
+  try{
+   const authorization=await treasury().access(conn,current.tenant,current.actor,{sourceType:'banking'});
+   const account=await treasury().loadAccount(conn,authorization,execution.accounts.cashAccountId);
+   if(String(account.branchId)===String(execution.branchId)&&account.currency===execution.sourceSnapshot.currency)receivingAccountName=account.name;
+  }catch(error){if(![403,404].includes(error.status))throw error;}
+ }
  const sms=execution.action==='transfer_collect'?await transferSms().summary(conn,execution._id):null;
  const smsRetryAt=sms?.lastRequeuedAt?new Date(new Date(sms.lastRequeuedAt).getTime()+60000):null;
  const smsRetryConfigured=require('../transferSms/config').validateConfig().enabled;
  const smsRetryLimited=(sms?.redrives||0)>=3;
  const smsRetryCooling=!!smsRetryAt&&smsRetryAt>new Date();
- return {execution,source,sms,smsRetryAt,smsRetryLimited,smsRetryCooling,canRetrySms:execution.action==='transfer_collect'&&execution.status==='posted_manual'&&source?.status==='collected_manual'&&current.actor.role==='Tenant Owner'&&['dead','not_configured'].includes(sms?.state)&&smsRetryConfigured&&!smsRetryLimited&&!smsRetryCooling,
-  canFinalizeCashier:['money_transfer','banking'].includes(execution.sourceType)&&['transfer_collect','banking'].includes(execution.action)&&
+ return {execution,source,receivingAccountName,sms,smsRetryAt,smsRetryLimited,smsRetryCooling,canRetrySms:execution.action==='transfer_collect'&&execution.status==='posted_manual'&&source?.status==='collected_manual'&&current.actor.role==='Tenant Owner'&&['dead','not_configured'].includes(sms?.state)&&smsRetryConfigured&&!smsRetryLimited&&!smsRetryCooling,
+  canFinalizeCashier:!source?.directDeposit&&['money_transfer','banking'].includes(execution.sourceType)&&['transfer_collect','banking'].includes(execution.action)&&
    execution.status==='pending_review'&&String(execution.createdBy)===current.actor.id&&
    ['Tenant Owner','Branch Manager',execution.sourceType==='banking'?'Banking Operator':'Money Transfer Operator'].includes(current.actor.role)&&
    hasPermission(current.actor,permission(execution.sourceType)),
@@ -540,4 +576,4 @@ async function finalizeForex(conn,tenant,actor,executionId,confirmation={}){
   confirmEvidenceChecked:confirmation.confirmEvidenceChecked
  },{mode:'forex_cashier_confirmed'});
 }
-module.exports={finalizePayout,finalizeForex,finalizeCashier,sourceMatches,payoutLookup,transferMessage,retrySms,definitions,definition,sourceSnapshot,economicPlan,context,prepare,request,review,list,detail,revealPin,checkPayout,payoutContext,requestPayout,prepareIndexes,fail,minor,paymentKind,choose};
+module.exports={finalizePayout,finalizeForex,finalizeCashier,sourceMatches,payoutLookup,transferMessage,retrySms,definitions,definition,sourceSnapshot,economicPlan,context,prepare,request,review,list,detail,revealPin,checkPayout,payoutContext,requestPayout,prepareIndexes,availableAccounts,fail,minor,paymentKind,choose};

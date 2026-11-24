@@ -170,6 +170,11 @@ async function submit(conn,tenant,actor,shiftId,input={}){
    if(result.treasuryAccountId){
     const unresolved=await require('../funded/models').models(conn).execution.countDocuments({branchId:result.branchId,createdBy:result.operatorId,status:'pending_review',$or:['cashAccountId','settlementAccountId','collectionAccountId','payoutAccountId'].map(key=>({['accounts.'+key]:result.treasuryAccountId}))}).session(tx);
     if(unresolved)throw fail(`Review or reject ${unresolved} pending manual financial movements before closing`,409);
+    const pendingFunding=await require('../treasury/funding.models').model(conn).exists({
+     tenantId:tenant._id,branchId:result.branchId,status:'pending_review',
+     $or:[{sourceAccountId:result.treasuryAccountId},{destinationAccountId:result.treasuryAccountId}]
+    }).session(tx);
+    if(pendingFunding)throw fail('Review or reject pending money added or transferred to this drawer before closing',409);
    }
    // Recompute movement from immutable source records. Comparing with the
    // incrementally maintained drawer figure catches drift or missing updates.

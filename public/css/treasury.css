@@ -1,0 +1,15 @@
+.treasuryAccounts{display:grid;gap:0}
+.treasuryAccountRow{display:grid;grid-template-columns:minmax(0,1fr) minmax(100px,.65fr) auto;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)}
+.treasuryAccountRow:first-child{padding-top:0}
+.treasuryAccountRow:last-child{padding-bottom:0;border-bottom:0}
+.treasuryAccountRow>div{min-width:0}
+.treasuryAccountLink{font-weight:800;color:var(--primary);overflow-wrap:anywhere}
+.treasuryAccountLink:hover{text-decoration:underline}
+.treasuryAccountBalance{display:flex;flex-direction:column;gap:3px}
+.treasuryAmount{font-size:clamp(24px,4vw,38px);font-weight:900;line-height:1.2;overflow-wrap:anywhere}
+.treasurySource{font-size:13px;color:var(--muted);overflow-wrap:anywhere}
+.treasuryNotice{margin:0;padding:12px;border-radius:12px;background:var(--card2);border:1px solid var(--border)}
+.treasuryPending{display:grid;gap:8px;padding:12px;border:1px solid var(--border);border-radius:12px}
+.treasuryPending h3{font-size:14px;margin:0}
+.treasuryPending p,.treasuryPending form{margin:0}
+@media(max-width:1120px){.treasuryAccountRow{grid-template-columns:minmax(0,1fr) auto}.treasuryAccountRow>.rowBtns{grid-column:1/-1}}

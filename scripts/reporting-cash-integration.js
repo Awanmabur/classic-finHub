@@ -41,6 +41,9 @@ async function main(){
  movement('banking','111',{at:new Date(event.getTime()-86400000)});
  movement('banking','222',{createdAt:new Date(event.getTime()+86400000)});
  movement('banking','333',{batchTenant:otherTenant});movement('treasury_adjustment','444');
+ movement('treasury_funding','50');movement('treasury_funding','-18');
+ movement('treasury_funding','400',{fund:bank});movement('treasury_funding','800',{fund:otherBranchCash});
+ movement('treasury_capital','80');movement('treasury_capital','900',{fund:bank});
  await funds.batch.collection.insertMany(batches);await funds.movement.collection.insertMany(movements);
  const rows=await reports.postedCash(conn,tenant,scope,dateRange,modules);
  const find=(source,currency='UGX')=>rows.find(row=>row.sourceType===source&&row.currency===currency);
@@ -67,6 +70,15 @@ async function main(){
  const banking=await reports.generate(conn,tenant,actor,'banking',range);
  assert(banking.postedCash.length);assert(banking.postedCash.every(row=>row.sourceType==='banking'));
  assert.equal(banking.postedCash.find(row=>row.currency==='UGX').netMinor,'10999','branch analyst can include both operators, but not another branch');
+ const manager={...actor,role:'Branch Manager',permissions:permissionsFor('Branch Manager')};
+ const managerDay=await reports.generate(conn,tenant,manager,'daily',range);
+ assert.deepEqual(managerDay.postedCash.find(row=>row.sourceType==='treasury_funding'),{
+  sourceType:'treasury_funding',module:'Account funding',currency:'UGX',count:2,
+  cashInMinor:'50',cashOutMinor:'18',netMinor:'32'
+ });
+ assert.equal(managerDay.postedCash.find(row=>row.sourceType==='treasury_capital').netMinor,'80');
+ assert(!(await reports.generate(conn,tenant,actor,'daily',range)).postedCash.some(row=>row.sourceType==='treasury_funding'));
+ assert(!(await reports.generate(conn,tenant,manager,'transactions',range)).postedCash.some(row=>row.sourceType==='treasury_funding'));
  const limited={...tenant,enabledModules:['reports','forex'],subscription:{...tenant.subscription,modules:['reports','forex']}};
  const unavailable=await reports.generate(conn,limited,actor,'banking',range);assert.equal(unavailable.sourceAvailable,false);assert.deepEqual(unavailable.postedCash,[]);
  assert.match(reports.csv(banking),/Net cash movement minor units/);assert.match(reports.csv(banking),/9007199254740993/);

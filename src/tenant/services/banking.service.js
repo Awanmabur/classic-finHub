@@ -61,7 +61,7 @@ function validateRequest(input){
  return {kind,sourceId,destinationId,currency,amountMinor,feeMinor,note,idempotencyKey,validDays,capture};
 }
 function snapshot(reference){return {referenceId:reference._id,referenceType:reference.referenceType||'bank_reference',customerName:reference.customerName,institutionName:reference.institutionName,last4:reference.last4};}
-function sameRequest(existing,actor,branchId,v){return String(existing.createdBy)===String(actor.id)&&String(existing.branchId)===branchId&&
+function sameRequest(existing,actor,branchId,v,directDeposit=false){return Boolean(existing.directDeposit)===directDeposit&&String(existing.createdBy)===String(actor.id)&&String(existing.branchId)===branchId&&
  existing.kind===v.kind&&require('../customerAccounts/bankingBridge').matches(existing.source,v.sourceId)&&
  (v.destinationId?require('../customerAccounts/bankingBridge').matches(existing.destination,v.destinationId):!existing.destination)&&
  // Historical transfer instructions could retain a cash/bank channel even
@@ -117,36 +117,46 @@ async function listReferences(conn,tenant,actor,{branchId=null}={}){
  if(branchId){id(branchId);if(scope.branchId&&String(scope.branchId)!==String(branchId))throw fail('Cross-branch reference access',403);scope.branchId=branchId;}
  return bankReferenceModel(conn).find({status:'active',...scope}).sort({customerName:1,_id:1}).limit(500).lean();
 }
-async function createRequest(conn,tenant,actor,input){
+async function createRequest(conn,tenant,actor,input,{session=null,directDeposit=false}={}){
  moduleAccess(tenant,actor,'banking.requests.create');if(!operator(actor))throw fail('Banking request permission denied',403);
- const value=validateRequest(input),branchId=String((await require('./transactionBranch.service').resolveTransactionBranch(conn,actor,input))._id);
- await ensureTenantIndexes(conn);const Model=bankingRequestModel(conn);
- const existing=await Model.findOne({idempotencyKey:value.idempotencyKey}).lean();
- if(existing){const pricing=await require('../pricing/apply').resolve(conn,tenant,branchId,input,{operation:'banking.'+({deposit_request:'deposit',withdrawal_request:'withdrawal',transfer_request:'transfer'}[value.kind]),currency:value.currency,amountMinor:value.amountMinor,existing,providedMinor:value.feeMinor});if(pricing)value.feeMinor=BigInt(pricing.feeMinor);if(!sameRequest(existing,actor,branchId,value))throw fail('Form reference reused with different details',409);return {order:existing,duplicate:true};}
- const session=await conn.startSession();let order;
- try{await session.withTransaction(async()=>{
+ const Branch=session?{
+  findOne:query=>branchModel(conn).findOne(query).session(session),
+  find:query=>branchModel(conn).find(query).session(session)
+ }:undefined;
+ const value=validateRequest(input),branchId=String((await require('./transactionBranch.service').resolveTransactionBranch(conn,actor,input,{Branch}))._id);
+ if(directDeposit&&(!session||value.kind!=='deposit_request'||!value.sourceId.startsWith('account:')))throw fail('Direct deposits require a customer account and a recording transaction');
+ if(!session)await ensureTenantIndexes(conn);
+ const Model=bankingRequestModel(conn);
+ const existing=await Model.findOne({idempotencyKey:value.idempotencyKey}).session(session).lean();
+ if(existing){const pricing=await require('../pricing/apply').resolve(conn,tenant,branchId,input,{operation:'banking.'+({deposit_request:'deposit',withdrawal_request:'withdrawal',transfer_request:'transfer'}[value.kind]),currency:value.currency,amountMinor:value.amountMinor,existing,providedMinor:value.feeMinor});if(pricing)value.feeMinor=BigInt(pricing.feeMinor);if(!sameRequest(existing,actor,branchId,value,directDeposit))throw fail('Form reference reused with different details',409);return {order:existing,duplicate:true};}
+ const providedMinor=value.feeMinor;
+ async function save(session){
   const authorization=await financialAuth.fenceAction(conn,session,actor,tenant,'banking','banking.requests.create',{branchId});
   const branch=await branchModel(conn).findOneAndUpdate({_id:branchId,status:'active'},{$inc:{revision:1}},{session,new:true});
   if(!branch)throw fail('Branch unavailable',409);
   require('./branchCurrency.service').resolve(branch,value.currency);
-  const pricing=await require('../pricing/apply').resolve(conn,authorization.tenant,branch,input,{operation:'banking.'+({deposit_request:'deposit',withdrawal_request:'withdrawal',transfer_request:'transfer'}[value.kind]),currency:value.currency,amountMinor:value.amountMinor,providedMinor:value.feeMinor,session});
-  if(pricing){value.pricing=pricing;value.feeMinor=BigInt(pricing.feeMinor);}
+  const pricing=await require('../pricing/apply').resolve(conn,authorization.tenant,branch,input,{operation:'banking.'+({deposit_request:'deposit',withdrawal_request:'withdrawal',transfer_request:'transfer'}[value.kind]),currency:value.currency,amountMinor:value.amountMinor,providedMinor,session});
+  value.feeMinor=pricing?BigInt(pricing.feeMinor):providedMinor;
   // Snapshot and fence either a masked bank reference or an entitled internal
   // customer account. Neither selection posts funds or changes ledger balances.
   const bridge=require('../customerAccounts/bankingBridge');
   const source=await bridge.fenceSelection(conn,session,authorization,{selection:value.sourceId,branchId,currency:value.currency});
   const dest=value.destinationId?await bridge.fenceSelection(conn,session,authorization,{selection:value.destinationId,branchId,currency:value.currency}):null;
   await reserveUsage(authorization.tenant,'banking_requests',session);
-  [order]=await Model.create([{reference:`BK-${crypto.randomBytes(12).toString('hex').toUpperCase()}`,
+  const [order]=await Model.create([{reference:`BK-${crypto.randomBytes(12).toString('hex').toUpperCase()}`,
    idempotencyKey:value.idempotencyKey,branchId,createdBy:actor.id,kind:value.kind,source:snapshot(source),
-   destination:dest?snapshot(dest):null,capture:value.capture,pricing:value.pricing,currency:value.currency,amountMinor:String(value.amountMinor),feeMinor:String(value.feeMinor),note:value.note,validDays:value.validDays,
-   expiresAt:new Date(Date.now()+value.validDays*86400000),status:'requested'}],{session});
+   destination:dest?snapshot(dest):null,capture:value.capture,pricing:pricing||undefined,currency:value.currency,amountMinor:String(value.amountMinor),feeMinor:String(value.feeMinor),note:value.note,validDays:value.validDays,
+   expiresAt:new Date(Date.now()+value.validDays*86400000),status:'requested',...(directDeposit?{directDeposit:true}:{})}],{session});
   await auditEventModel(conn).create([{action:'banking.request.created',actorId:actor.id,targetId:order._id,
    metadata:{branchId,kind:value.kind,currency:value.currency,reference:order.reference,amountMinor:value.amountMinor}}],{session});
- });return {order,duplicate:false};}
+  return {order,duplicate:false};
+ }
+ if(session)return save(session);
+ const ownSession=await conn.startSession();let result;
+ try{await ownSession.withTransaction(async()=>{result=await save(ownSession);});return result;}
  catch(e){if(e.code===11000){const found=await Model.findOne({idempotencyKey:value.idempotencyKey}).lean();
-  if(found&&sameRequest(found,actor,branchId,value))return {order:found,duplicate:true};
-  throw fail('Request reference already used',409);}throw e;}finally{await session.endSession();}
+  if(found&&sameRequest(found,actor,branchId,value,directDeposit))return {order:found,duplicate:true};
+  throw fail('Request reference already used',409);}throw e;}finally{await ownSession.endSession();}
 }
 async function decide(conn,tenant,actor,requestId,input){
  moduleAccess(tenant,actor,'banking.review');if(!reviewer(actor))throw fail('Independent reviewer role required',403);
@@ -155,7 +165,7 @@ async function decide(conn,tenant,actor,requestId,input){
  const session=await conn.startSession();let updated;
  try{await session.withTransaction(async()=>{
   const authorization=await financialAuth.fenceAction(conn,session,actor,tenant,'banking','banking.review');
-  updated=await bankingRequestModel(conn).findOneAndUpdate({_id:id(requestId),status:'requested',...require('./reviewPolicy').creatorFilter(actor),expiresAt:{$gt:new Date()},...branchScope(actor)},
+  updated=await bankingRequestModel(conn).findOneAndUpdate({_id:id(requestId),status:'requested',directDeposit:{$ne:true},...require('./reviewPolicy').creatorFilter(actor),expiresAt:{$gt:new Date()},...branchScope(actor)},
    {$set:{status:decision==='approve'?'approved_pending_bank':'rejected',reviewedBy:actor.id,reviewedAt:new Date(),reviewNote:note},$inc:{revision:1}},
    {session,new:true});
   if(!updated)throw fail('Request already decided, outside your branch or submitted by yourself',409);
@@ -168,7 +178,7 @@ async function cancel(conn,tenant,actor,requestId,input){
  const session=await conn.startSession();let updated;
  try{await session.withTransaction(async()=>{
   const authorization=await financialAuth.fenceAction(conn,session,actor,tenant,'banking','banking.view');
-  updated=await bankingRequestModel(conn).findOneAndUpdate({_id:id(requestId),status:'requested',...branchScope(actor),
+  updated=await bankingRequestModel(conn).findOneAndUpdate({_id:id(requestId),status:'requested',directDeposit:{$ne:true},...branchScope(actor),
    ...(actor.role==='Tenant Owner'?{}:{createdBy:id(actor.id)})},
    {$set:{status:'cancelled',cancelledBy:actor.id,cancelledAt:new Date(),cancelReason:note},$inc:{revision:1}},
    {session,new:true});
@@ -197,7 +207,7 @@ async function detail(conn,tenant,actor,requestId){
 }
 async function reviewQueue(conn,tenant,actor){
  moduleAccess(tenant,actor,'banking.review');if(!reviewer(actor))throw fail('Review role required',403);
- return bankingRequestModel(conn).find({status:'requested',...require('./reviewPolicy').creatorFilter(actor),expiresAt:{$gt:new Date()},...branchScope(actor)}).sort({createdAt:1}).limit(30).lean();
+ return bankingRequestModel(conn).find({status:'requested',directDeposit:{$ne:true},...require('./reviewPolicy').creatorFilter(actor),expiresAt:{$gt:new Date()},...branchScope(actor)}).sort({createdAt:1}).limit(30).lean();
 }
 async function reportRows({conn,filters,scope,dateRange}){
  const query={createdAt:dateRange||mobile.dateBounds({from:filters.from,to:filters.to},filters.timeZone||'UTC'),...(scope.branchId?{branchId:new mongoose.Types.ObjectId(id(scope.branchId))}:{}),
@@ -212,12 +222,13 @@ async function expireDue(conn,now=new Date(),limit=100){
  if(!(now instanceof Date)||!Number.isFinite(now.getTime())||!Number.isSafeInteger(limit)||limit<1||limit>200)
   throw fail('Invalid expiry sweep parameters');
  await ensureTenantIndexes(conn);
- const due=await bankingRequestModel(conn).find({status:'requested',expiresAt:{$lte:now}}).select('_id').sort({expiresAt:1,_id:1}).limit(limit).lean();
+ const dueFilter={status:'requested',directDeposit:{$ne:true},expiresAt:{$lte:now}};
+ const due=await bankingRequestModel(conn).find(dueFilter).select('_id').sort({expiresAt:1,_id:1}).limit(limit).lean();
  let expired=0;
  for(const item of due){
   const session=await conn.startSession();
   try{await session.withTransaction(async()=>{
-   const changed=await bankingRequestModel(conn).findOneAndUpdate({_id:item._id,status:'requested',expiresAt:{$lte:now}},
+   const changed=await bankingRequestModel(conn).findOneAndUpdate({_id:item._id,...dueFilter},
     {$set:{status:'expired',expiredAt:now},$inc:{revision:1}},{session,new:true});
    if(!changed)return;
    await auditEventModel(conn).create([{action:'banking.request.expired',actorId:new mongoose.Types.ObjectId('000000000000000000000000'),

@@ -1,0 +1,22 @@
+<% if(!records.items.length){ %>
+  <p>No posted activity yet.</p>
+<% }else{ %>
+  <div class="tableWrap customerAccountActivity">
+    <table>
+      <thead><tr><% if(showAccount){ %><th scope="col">Account</th><% } %><th scope="col">Posted (UTC)</th><th scope="col">Reference</th><th scope="col">Amount</th></tr></thead>
+      <tbody>
+        <% records.items.forEach(row=>{ %>
+          <tr data-search-row>
+            <% if(showAccount){ %><td><a href="/tenant/accounts/<%= row.accountId %>"><%= row.accountNumber %></a></td><% } %>
+            <td><time datetime="<%= formatUtcDate(row.createdAt,'') %>"><%= formatUtcDate(row.createdAt).slice(0,16).replace('T',' ') %></time></td>
+            <td class="mono"><%= row.journal?.sourceRef||row.journalId %></td>
+            <td><%= formatMinor(row.signedMinor,row.currency) %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+<% } %>
+<% if(records.nextCursor){ %>
+  <a class="btn" href="/tenant/accounts/movements?<%= new URLSearchParams({...(records.accountId?{accountId:records.accountId}:{}),cursor:records.nextCursor}).toString() %>">Older activity</a>
+<% } %>

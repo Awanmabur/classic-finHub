@@ -142,20 +142,22 @@ function routes({renderTenant}){
  });
  router.get('/:id',requirePermission('banking.view'),async(req,res,next)=>{
   try{const request=await bank.detail(req.tenantDb,req.tenant,req.user,req.params.id);
-   const pendingMovement=await require('../funded/models').models(req.tenantDb).execution.findOne({sourceType:'banking',sourceId:request._id,status:'pending_review'}).select('_id createdBy').lean();
+   const movement=await require('../funded/models').models(req.tenantDb).execution.findOne({
+    sourceType:'banking',sourceId:request._id,status:request.directDeposit?{$in:['pending_review','rejected']}:'pending_review'
+   }).select('_id createdBy status').lean();
    const afterBalances=await require('../services/recordBalances.service').forRecord(req.tenantDb,req.tenant,req.user,'banking',request);
    renderTenant(req,res,'banking/detail','Banking Request Details','Banking instruction and final cashier-posted ledger movements.',{
     request,afterBalances,formatMoneyMinor,
-    canFx:hasModuleForUser(req.tenant,req.user,'forex')&&hasModuleForUser(req.tenant,req.user,'accounts')&&
+    canFx:!request.directDeposit&&hasModuleForUser(req.tenant,req.user,'forex')&&hasModuleForUser(req.tenant,req.user,'accounts')&&
      hasPermission(req.user,'forex.quotes.create')&&hasPermission(req.user,'banking.requests.create')&&
      String(req.operationBranch?._id||'')===String(request.branchId),
-    pendingMovementId:pendingMovement&&(req.user.role!=='Banking Operator'||String(pendingMovement.createdBy)===String(req.user.id))?pendingMovement._id:null,
-    canRecordManual:!pendingMovement&&bank.operator(req.user)&&hasPermission(req.user,'banking.requests.create')&&hasPermission(req.user,'treasury.view')&&
+    movement:movement&&(req.user.role!=='Banking Operator'||String(movement.createdBy)===String(req.user.id))?movement:null,
+    canRecordManual:!request.directDeposit&&!movement&&bank.operator(req.user)&&hasPermission(req.user,'banking.requests.create')&&hasPermission(req.user,'treasury.view')&&
      (req.user.role==='Tenant Owner'||String(request.createdBy)===String(req.user.id))&&String(req.operationBranch?._id||'')===String(request.branchId)&&
      ['requested','approved_pending_bank'].includes(request.status)&&new Date(request.expiresAt)>new Date()&&request.source?.referenceType==='customer_account'&&
      (request.kind!=='transfer_request'||request.destination?.referenceType==='customer_account'),
-    canReview:request.status==='requested'&&new Date(request.expiresAt)>new Date()&&bank.reviewer(req.user)&&hasPermission(req.user,'banking.review')&&(String(request.createdBy)!==String(req.user.id)||require('../services/reviewPolicy').canSelfReviewRoutine(req.user,request.branchId)),
-    canCancel:request.status==='requested'&&(req.user.role==='Tenant Owner'||String(request.createdBy)===String(req.user.id))
+    canReview:!request.directDeposit&&request.status==='requested'&&new Date(request.expiresAt)>new Date()&&bank.reviewer(req.user)&&hasPermission(req.user,'banking.review')&&(String(request.createdBy)!==String(req.user.id)||require('../services/reviewPolicy').canSelfReviewRoutine(req.user,request.branchId)),
+    canCancel:!request.directDeposit&&request.status==='requested'&&(req.user.role==='Tenant Owner'||String(request.createdBy)===String(req.user.id))
    });
   }catch(e){next(e);}
  });

@@ -33,7 +33,7 @@ module.exports=function dayControlRoutes({renderTenant,recordScope}){
   return cashSessionModel(req.tenantDb).findOne({...cash.activeFilter(branch._id,req.user.id,currency),status:{$in:['open','disputed']}}).lean();
  }
  router.get('/day/close',...guard,async(req,res,next)=>{
-  try{const shift=await ownShift(req);renderTenant(req,res,'workflow/close-day','Close day','Auto closing balances from reports.',{shift,
+  try{const shift=await ownShift(req);renderTenant(req,res,'workflow/close-day','Close day','Count the cash in your drawer.',{shift,
    expected:shift?mobile.formatMoneyMinor(BigInt(String(shift.openingMinor))+BigInt(String(shift.provisionalMovementMinor)),shift.currency):null});
   }catch(error){next(error);}
  });
@@ -42,9 +42,9 @@ module.exports=function dayControlRoutes({renderTenant,recordScope}){
    const shift=await ownShift(req);
    if(!shift||String(shift._id)!==String(req.body.shiftId))throw fail('Your open cash shift changed. Refresh and try again.',409);
    await cash.submit(req.tenantDb,req.tenant,req.user,shift._id,req.body);
-   flash(req,'good','Closing cash submitted for independent reconciliation.');
+   flash(req,'good','Closing count sent for review.');
    require('../services/branchView.service').followRecord(req,shift);
-   res.redirect(303,`/tenant/cash/shifts/${shift._id}`);
+   res.redirect(303,req.body.returnToDay==='1'?`/tenant/cash/shifts?currency=${encodeURIComponent(shift.currency)}`:`/tenant/cash/shifts/${shift._id}`);
   }catch(error){next(error);}
  });
  return router;

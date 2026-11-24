@@ -67,13 +67,19 @@ test('cash shift views have real server-backed actions and escape notes',async()
   submittedAt:new Date(),expectedClosingMinor:'10000',declaredClosingMinor:'9000',varianceMinor:'-1000',
   reviewNote:'<script>alert(1)</script>',closeHistory:[{at:new Date(),declaredMinor:'9000',expectedMinor:'10000',varianceMinor:'-1000',note:'Cash short during shift'}]};
  const base=path.join(__dirname,'../src/views/tenant/mobile-money');
- const rendered=await ejs.renderFile(path.join(base,'shifts.ejs'),{formatMoneyMinor:mobile.formatMoneyMinor,data:{shifts:{items:[item],nextCursor:'a-valid-token'},canOpen:true,
-  canReview:true,openingBooks:[{currency:'UGX',name:'Main Cash Drawer',bookBalanceMinor:'10000'}],
-  branches:[{_id:branchId,currency:'UGX',name:'Main',status:'active'}]},user:{role:'Tenant Owner',branchId},csrfToken:'csrf'});
- assert.match(rendered,/action="\/tenant\/day\/open"/);assert.match(rendered,/name="openingFromBook" value="on"/);
+ const branch={_id:branchId,currency:'UGX',name:'Main',status:'active'};
+ const rendered=await ejs.renderFile(path.join(base,'shifts.ejs'),{
+  formatMoneyMinor:mobile.formatMoneyMinor,operationBranch:branch,
+  user:{role:'Tenant Owner',branchId},csrfToken:'csrf',
+  data:{shifts:{items:[item],nextCursor:'a-valid-token'},canOpen:true,canReview:true,reviewQueue:[],showHistory:true,
+   openingBook:{currency:'UGX',name:'Main Cash Drawer',bookBalanceMinor:'10000'},
+   branchNames:{[branchId]:branch.name},operatorNames:{[operatorId]:'Operator'},selectedCurrency:'UGX',
+   currencyOptions:require('../src/tenant/services/branchCurrency.service').options(branch)}
+ });
+ assert.match(rendered,/name="openingFromBook" value="on"/);
  assert.match(rendered,/name="physicalCountConfirmed" value="on"/);
  assert.doesNotMatch(rendered,/name="openingCash"/);
- assert.match(rendered,/href="\/tenant\/cash\/shifts\?cursor=/);assert.match(rendered,/Next page/);assert.match(rendered,/name="_csrf" value="csrf"/);
+ assert.match(rendered,/action="\/tenant\/day\/open"/);assert.match(rendered,/href="\/tenant\/cash\/shifts\?cursor=/);assert.match(rendered,/Older shifts/);assert.match(rendered,/name="_csrf" value="csrf"/);
  const detail=await ejs.renderFile(path.join(base,'shift-detail.ejs'),{formatMoneyMinor:mobile.formatMoneyMinor,data:{shift:item,canSubmit:false,canReview:true},csrfToken:'csrf'});
  assert.match(detail,/name="decision" value="approve"/);assert.doesNotMatch(detail,/<script>/);assert.match(detail,/&lt;script&gt;/);
  const noActions=await ejs.renderFile(path.join(base,'shift-detail.ejs'),{formatMoneyMinor:mobile.formatMoneyMinor,data:{shift:item,canSubmit:false,canReview:false},csrfToken:'csrf'});
@@ -82,7 +88,7 @@ test('cash shift views have real server-backed actions and escape notes',async()
  const openView=await ejs.renderFile(path.join(base,'shift-detail.ejs'),{formatMoneyMinor:mobile.formatMoneyMinor,data:{shift:openShift,canSubmit:true,canReview:false},csrfToken:'csrf'});
  assert.match(openView,/name="closingFromBook" value="on"/);
  assert.match(openView,/name="physicalCountConfirmed" value="on"/);
- assert.match(openView,/Cash differs from the system amount/);
+ assert.match(openView,/Counted a different amount/);
  assert.match(openView,/name="countedCash"/,'real discrepancies must still be possible');
  const ack=await ejs.renderFile(path.join(base,'acknowledgement.ejs'),{record:{_id:shiftId,createdAt:new Date(),operation:'cash_in',network:'MTN',networkReference:'REF-123',
   customer:'<script>alert(1)</script>',status:'pending_verification',reviewState:'accepted',correctionState:'none'},

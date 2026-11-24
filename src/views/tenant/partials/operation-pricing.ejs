@@ -5,11 +5,16 @@
    const pricingInitial=pricingRules.filter(rule=>rule.enabled!==false&&rule.operation===pricingOperation&&rule.currency===pricingCurrency&&(!rule.branchId||String(rule.branchId)===pricingBranchId)&&(!rule.network||rule.network===pricingNetwork)).sort((a,b)=>(Number(Boolean(b.branchId))*2+Number(Boolean(b.network)))-(Number(Boolean(a.branchId))*2+Number(Boolean(a.network))))[0];
    const pricingToken=pricingInitial?String(pricingInitial._id)+':'+pricingInitial.revision:'default';
    const isMobilePricing=pricingOperation.startsWith('mobile_money.');
-   const initialMobileRate=pricingInitial&&(BigInt(pricingInitial.fixedFeeMinor||'0')>0n||Number(pricingInitial.feeBps||0)>0||BigInt(pricingInitial.fixedCostMinor||'0')>0n||Number(pricingInitial.costBps||0)>0); %>
+   const initialMobileRate=pricingInitial&&(BigInt(pricingInitial.fixedFeeMinor||'0')>0n||Number(pricingInitial.feeBps||0)>0||BigInt(pricingInitial.fixedCostMinor||'0')>0n||Number(pricingInitial.costBps||0)>0);
+   const depositTotal=typeof showDepositTotal!=='undefined'&&showDepositTotal; %>
 <input type="hidden" name="pricingMode" value="configured"><input type="hidden" name="pricingPolicy" value="<%= pricingToken %>">
 <% if(pricingOperation.startsWith('banking.')){ %><input type="hidden" name="fee" value="0"><% } %>
 <div class="summary" data-pricing-context="<%= JSON.stringify({rules:pricingRules,branchId:pricingBranchId,operation:pricingOperation,field:pricingField}) %>" aria-live="polite" <%- isMobilePricing&&!initialMobileRate?'hidden':'' %>>
- <div class="sumRow"><span><%= pricingOperation.startsWith('mobile_money.')?'Additional agent service fee':'Fee / commission' %></span><b data-pricing-fee>Calculated automatically</b></div>
- <div class="sumRow"><span>Estimated operating cost</span><b data-pricing-cost>Calculated automatically</b></div>
- <p class="tiny" data-pricing-label><%= pricingOperation.startsWith('mobile_money.')?'Extra agent fees are separate from network customer charges and provider commissions.':'Saved charges apply automatically. Operating cost is an estimate, not an additional customer charge.' %></p>
+ <div class="sumRow"><span><%= isMobilePricing?'Additional agent service fee':depositTotal?'Deposit fee':'Fee / commission' %></span><b data-pricing-fee>Calculated automatically</b></div>
+ <% if(depositTotal){ %>
+   <div class="sumRow"><span>Total received</span><b data-pricing-total>Enter an amount</b></div>
+ <% }else{ %>
+   <div class="sumRow"><span>Estimated operating cost</span><b data-pricing-cost>Calculated automatically</b></div>
+   <p class="tiny" data-pricing-label><%= isMobilePricing?'Extra agent fees are separate from network customer charges and provider commissions.':'Saved charges apply automatically. Operating cost is an estimate, not an additional customer charge.' %></p>
+ <% } %>
 </div>

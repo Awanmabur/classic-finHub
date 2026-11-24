@@ -7,17 +7,25 @@ Publishing these features does not silently change existing immutable subscripti
 snapshots. Enable the modules through a new published plan or an audited platform
 grant with a nonzero record allowance before creating records.
 
-The approved Banking Operations navigation now has database-backed customer and
-account directories, customer creation, customer logbook, account creation,
-account balances and account movements. Transaction branch selection follows the
-signed-in account's operating branch. A customer account uses that branch's
-currency (UGX, USD, SSP or canonical KES, displayed as KSH).
+**Customer accounts** lists customers' accounts and posted balances together.
+Open an account to see its activity or correct its details. **All activity**
+shows postings across the accounts in your branch view. A customer account uses
+its operating branch currency (UGX, USD, SSP or KSH).
+
+Choose **Deposit** beside the account or from its details. Enter the amount,
+where the money was received, and the receipt or statement reference. Submit the
+deposit in one form. The pending entry appears under **Account activity**. An
+independent reviewer can open it from there or the manual movement queue. Once
+approved, it appears in posted activity and the balance. The customer can leave
+that balance in the account across cash days.
 
 Customer forms include identity and contact details, customer type/reference,
 next of kin, country, city and address/notes. Customer references stay fixed.
 Account forms include the customer owner, account number/type/status, officer,
-purpose/source of funds and risk metadata. Account owner, number, branch and
-currency stay fixed. Directory metadata is not evidence of completed KYC.
+purpose/source of funds and risk metadata. Account owner, branch and currency
+stay fixed. **Edit details** allows an audited account number correction before
+the number appears on financial records. The account keeps the same ledger
+mapping.
 
 Each new account has a separate zero-posting liability ledger mapping. Balances
 and movements come only from existing append-only ledger postings in the same

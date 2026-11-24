@@ -1,5 +1,6 @@
 <% const operationsReportZone=typeof businessTimeZone==='string'?businessTimeZone:'UTC'; %>
 <section class="view show financialReportsPage">
+  <% if(typeof visiblePaths !== 'undefined'){ %><%- include('_types', {visiblePaths, currentPath}) %><% } %>
   <section class="card"><div class="cardHead"><b>Operations reports</b><span>Filter recorded activity by module and date</span></div>
     <div class="cardBody"><form method="get" action="/tenant/reports" class="row3">
       <label class="field">From (<%= operationsReportZone %>)<input class="control" type="date" name="from" value="<%= data.report.filters.from %>"></label>

@@ -4,10 +4,10 @@ The application keeps an expected funds book separately from actual observations
 
 ## Establish actual balances
 
-1. Open **Wallets, cash & balances** at `/tenant/treasury`, also linked from financial entry and manual movement pages.
+1. Open **Quick setup** as an owner to create money accounts. Use **Business funds** at `/tenant/treasury` to work with existing accounts.
 2. Register the real cash drawer, mobile wallet, bank account, foreign-currency stock or transfer payable account for the assigned operating branch and currency. Cash drawers belong to an individual operator. Select an account explicitly when more than one can serve an operation.
-3. On the account page, enter the opening amount and actual observation time with a suitable count, provider app/statement/SMS, stock count or transfer register reference. An account starts with an unknown opening; creating it does not create funds. A genuine zero balance still requires reviewed evidence.
-4. A different authorized reviewer approves the opening evidence. Financial use requires the relevant subscribed module, staff assignment and fixed permission; sensitive reviews require authenticator enrollment. Cash payments also require an independently verified open cash shift.
+3. Record the amount actually in the account, including a genuine zero. Owners can confirm routine openings from the account page. For entries that require approval, record the count, statement or other evidence so a reviewer can confirm it.
+4. Financial use requires the subscribed module, staff assignment and action permission. Sensitive reviews require authenticator enrollment. Cash payments require a verified open cash day.
 
 Each funds account has an underlying ledger mapping. Posting checks that its cached book agrees with its immutable movements and ledger, and rejects insufficient funds or an unusable account. The opening is posted once; opening another day's shift does not credit the same funds again. Legacy records are preserved and remain distinguishable from entries connected to the funds book.
 
@@ -32,15 +32,23 @@ Wallet settings define how fees affect future entries: record only, fee actually
 
 ## Add funds and configure wallets
 
-Use **Wallets & balances** to register accounts, confirm their opening evidence, configure default accounts and fee treatment, and request a funding transfer. Funding moves an exact amount from an existing cash, bank or wallet account to another account in the same branch and currency. A separate authorized reviewer approves it before either book changes. Insufficient funds, unresolved discrepancies, changed access and duplicate requests cannot create an extra credit. Cash funding also updates the linked verified physical drawer. Funding history retains the source, destination, amount, review and journal references.
+From **Business funds**, find the account that received the money and choose **Add money**. Owners can record money they already put into the business with **Add new business money** and **Save now**. Staff with the necessary access choose **Record an owner contribution**, enter the amount and receipt or statement reference, then send it for independent approval.
+
+Use **Transfer existing funds** when the money came from another tracked business account. The transfer posts to both accounts in the same branch and currency. An owner contribution credits owner equity. Cash funding updates the verified open drawer. Money can stay in the account across days without creating a customer transaction. The account activity shows the funding and journal.
+
+Choose **Edit details** to correct an account name or change its defaults for future entries. Name corrections are audited and keep the same funds account and ledger.
 
 Tenant owners can set up an account in the branch selected for administration. All-branches view requires choosing a specific branch before creating an account. Funding derives its branch from the selected accounts. Daily customer transactions continue to use the operator account’s assigned operating branch.
 
 ## Compare actual and expected
 
-The balance screen distinguishes expected book, last independently reviewed actual amount, observation time, discrepancy and account control state. A pending reported amount remains identified as pending. A reviewed match is a match at that observation time, not a claim of a live balance.
+Choose **Check balance** on the account and enter the amount you counted or saw on the statement. Routine checks entered by the owner are recorded immediately. Entries that require a separate decision appear in **Review balances and funding**. The account shows the recorded balance, the last confirmed actual amount and any difference.
 
-A reported discrepancy holds the account for investigation. A later entry can also make an earlier observation stale. Review the actual evidence first; if the book requires a correction, request and independently review a linked reconciliation adjustment. The original transaction and evidence remain retained. An ordinary balance check never overwrites the book.
+A reported discrepancy holds the account for investigation. A later entry can also make an earlier observation stale. Once the difference has been reviewed and confirmed, use **Correct balance** on the account to explain and submit the adjustment. After independent approval, the adjustment appears in **Activity** alongside the original records.
+
+## Open and close the cash day
+
+Open **Cash day**, select the currency, and confirm or enter the opening cash count. When work is finished, return to **Cash day**, check the expected cash and enter the amount you counted. Resolve pending cash movements before closing. The same page shows the day’s status, review actions when needed and prior days. Closing cash stays in the drawer's funds account for the next opening.
 
 The supported explicit SMS profile may append `; Agent Balance: UGX 500,000` (or KES matching the transaction currency). Only that labelled agent amount is treated as wallet evidence; generic/customer balances, ambiguous messages and changed provider wording remain for review. The observed time follows the SMS source time. SMS capture is not a direct provider balance API and requires a configured, authorized Android gateway and supported message profile.
 

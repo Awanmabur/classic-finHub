@@ -32,10 +32,10 @@ test('dashboard navigation differs by role and tenant plans', () => {
   const paths = user => tenantMenu(tenant,user).flatMap(g=>g.items.map(i=>i.href));
   assert(paths(operator).includes('/tenant/mobile-money/cash-in'));
   assert(!paths(operator).includes('/tenant/reports'));
-  assert(!paths(operator).includes('/tenant/workspace/subscription'));
+  assert(!paths(operator).includes('/tenant/workspace'));
   assert(paths(auditor).includes('/tenant/reports'));
-  assert(!paths(auditor).includes('/tenant/workspace/subscription'));
-  assert(paths(owner).includes('/tenant/workspace/subscription'));
+  assert(!paths(auditor).includes('/tenant/workspace'));
+  assert(paths(owner).includes('/tenant/workspace'));
   assert(!paths(owner).includes('/tenant/forex/buy'));
   assert(!tenantMenu({...tenant, plan:'finance'},owner).flatMap(g=>g.items.map(i=>i.href)).includes('/tenant/mobile-money/cash-in'));
 });

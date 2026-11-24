@@ -49,13 +49,15 @@ async function main(){
  const owner=await client(people[0]),operator=await client(people[1]),auditor=await client(people[3]);
  const businessTime=require('../src/utils/businessTime'),zone=businessTime.forBranch(mainBranch),today=businessTime.localDay(new Date(),zone),yesterday=businessTime.localDay(new Date(Date.now()-86400000),zone),filter=`from=${yesterday}&to=${today}`;
  async function switchTo(request,branchId){const page=await request('/tenant/dashboard');assert.equal(page.response.status,200,page.html);return request('/tenant/view-branch',{viewBranchId:String(branchId),returnTo:`/tenant/mobile-money/network-activity?${filter}&network=MTN&currency=UGX&cursor=stale`,_csrf:csrf(page.html)});}
- async function expectPage(request,path,present,absent,tableOnly=false){const page=await request(path);assert.equal(page.response.status,200,path+': '+page.html.slice(0,500));const content=tableOnly?page.html.match(/<tbody>[\s\S]*?<\/tbody>/)?.[0]||'':page.html;assert(content.includes(present),path+' missing '+present);if(absent)assert(!content.includes(absent),path+' leaked '+absent);return page;}
+ async function expectPage(request,path,present,absent,region){const page=await request(path);assert.equal(page.response.status,200,path+': '+page.html.slice(0,500));const content=region?page.html.match(region)?.[0]||'':page.html;assert(content.includes(present),path+' missing '+present);if(absent)assert(!content.includes(absent),path+' leaked '+absent);return page;}
  const initial=await owner('/tenant/dashboard');assert.equal(initial.response.status,200,initial.html);assert(initial.html.includes(`value="${mainId}" selected`),'initial owner view defaults to main');
  await expectPage(owner,`/tenant/mobile-money/network-activity?${filter}`,'VIEW_MAIN_MOBILE','VIEW_EAST_MOBILE');
  const badCsrf=await owner('/tenant/view-branch',{viewBranchId:String(eastId),returnTo:'/tenant/dashboard',_csrf:'forged'});assert.equal(badCsrf.response.status,403);
  const changed=await switchTo(owner,eastId);assert.equal(changed.response.status,303,changed.html);assert.equal(changed.response.headers.get('location'),`/tenant/mobile-money/network-activity?${filter}&network=MTN&currency=UGX`);
  await expectPage(owner,`/tenant/mobile-money/network-activity?${filter}`,'VIEW_EAST_MOBILE','VIEW_MAIN_MOBILE');
- await expectPage(owner,'/tenant/customers','VIEW_EAST_CUSTOMER','VIEW_MAIN_CUSTOMER');await expectPage(owner,'/tenant/accounts','VIEW_EAST_CUSTOMER','VIEW_MAIN_CUSTOMER',true);await expectPage(owner,'/tenant/expenses','VIEW_EAST_VENDOR','VIEW_MAIN_VENDOR');
+ await expectPage(owner,'/tenant/customers','VIEW_EAST_CUSTOMER','VIEW_MAIN_CUSTOMER');
+ await expectPage(owner,'/tenant/accounts','VIEW_EAST_CUSTOMER','VIEW_MAIN_CUSTOMER',/<ul class="customerAccountList">[\s\S]*?<\/ul>/);
+ await expectPage(owner,'/tenant/expenses','VIEW_EAST_VENDOR','VIEW_MAIN_VENDOR');
  await expectPage(owner,'/tenant/banking/history','BK-VIEW-EAST','BK-VIEW-MAIN');await expectPage(owner,'/tenant/banking/accounts','VIEW_EAST_BANK_REFERENCE','VIEW_MAIN_BANK_REFERENCE');await expectPage(owner,'/tenant/funded','BK-VIEW-EAST','BK-VIEW-MAIN');
  await expectPage(owner,'/tenant/treasury','VIEW_EAST_FUNDS','VIEW_MAIN_FUNDS');await expectPage(owner,'/tenant/cash/shifts','Only East Operator','Only Main Operator');await expectPage(owner,'/tenant/audit','VIEW_EAST_AUDIT','VIEW_MAIN_AUDIT');await expectPage(owner,'/tenant/users','Only East Operator','Only Main Operator');
  await expectPage(owner,`/tenant/reports?source=workspace&${filter}`,'VIEW_EAST_AUDIT','VIEW_MAIN_AUDIT');await expectPage(owner,'/tenant/analytics?source=workspace&days=7','VIEW_EAST_AUDIT','VIEW_MAIN_AUDIT');
@@ -72,15 +74,55 @@ async function main(){
  const create=await owner('/tenant/banking/requests',{_csrf:csrf(form.html),idempotencyKey:uuid(),kind:'deposit_request',sourceId:String(bankRefs[0]._id),currency:'UGX',amount:'25',note:'Created from assigned main while viewing another branch',validDays:'7'});assert.equal(create.response.status,303,create.html);
  const saved=await core.bankingRequestModel(conn).findOne({amountMinor:mongoose.Types.Decimal128.fromString('25')}).lean();assert(saved);assert.equal(String(saved.branchId),String(mainId));assert.equal((await core.tenantUserModel(conn).findById(ownerId).lean()).branchId,String(mainId));
  const detail=await owner(create.response.headers.get('location'));assert.equal(detail.response.status,200,detail.html);assert.match(detail.html,/Viewing View Kampala Main, where this record was saved/);assert(detail.html.includes(`value="${mainId}" selected`));
+ const ownerActor={id:String(ownerId),role:'Tenant Owner',branchId:String(mainId),permissions:['*'],allowedModules:modules,authVersion:0};
+ const drawerService=require('../src/tenant/treasury/service');
+ const ownerDrawer=await drawerService.createAccount(conn,tenant,ownerActor,{name:'Branch view cash drawer',kind:'cash',currency:'UGX',operatorId:String(ownerId)});
+ await drawerService.confirmOwnerOpening(conn,tenant,ownerActor,ownerDrawer._id,{actualBalance:'0',idempotencyKey:uuid()});
  await switchTo(owner,eastId);const openingPage=await owner('/tenant/cash/shifts');
- const opened=await owner('/tenant/day/open',{_csrf:csrf(openingPage.html),openingCash:'0'});assert.equal(opened.response.status,303,opened.html);
+ assert.equal(openingPage.response.status,200,openingPage.html);
+ assert.match(openingPage.html,/name="openingFromBook" value="on"/);
+ assert.doesNotMatch(openingPage.html,/name="openingCash"/);
+ const opened=await owner('/tenant/day/open',{_csrf:csrf(openingPage.html),currency:'UGX',openingFromBook:'on',physicalCountConfirmed:'on'});
+ assert.equal(opened.response.status,303,opened.html);
  const ownerShift=await core.cashSessionModel(conn).findOne({operatorId:ownerId,status:'pending_open'}).lean();assert(ownerShift);assert.equal(String(ownerShift.branchId),String(mainId));
  const afterOpen=await owner(opened.response.headers.get('location'));assert.equal(afterOpen.response.status,200,afterOpen.html);assert(afterOpen.html.includes(`value="${mainId}" selected`),'cash opening follows the actual assigned branch');
+ assert.match(afterOpen.html,/Opening count awaiting review/);
+ assert.doesNotMatch(afterOpen.html,/data-cash-open-form/,'an awaiting count replaces the opening form');
  const reviewer=await core.tenantUserModel(conn).create({name:'Cash Reviewer',email:`view-reviewer-${nonce}@example.invalid`,passwordHash,role:'Branch Manager',branchId:String(mainId),status:'active',allowedModules:modules,mfaSecretEncrypted:mfa.encryptSecret(secret),mfaEnabledAt:new Date()});
- await require('../src/tenant/services/cashDrawer.service').decideOpening(conn,tenant,{id:String(reviewer._id),name:reviewer.name,role:reviewer.role,branchId:reviewer.branchId,allowedModules:modules,permissions:require('../src/config/roles').permissionsFor(reviewer.role),authVersion:0},ownerShift._id,{decision:'approve',note:'Independent physical opening count checked for branch view test'});
- await switchTo(owner,eastId);const closingPage=await owner('/tenant/day/close');assert.equal(closingPage.response.status,200,closingPage.html);
- const closed=await owner('/tenant/day/close',{_csrf:csrf(closingPage.html),shiftId:String(ownerShift._id),countedCash:'0',note:'Physical closing count remains zero and matches the opening'});assert.equal(closed.response.status,303,closed.html);assert.equal(closed.response.headers.get('location'),`/tenant/cash/shifts/${ownerShift._id}`);
- const afterClose=await owner(closed.response.headers.get('location'));assert.equal(afterClose.response.status,200,afterClose.html);assert(afterClose.html.includes(`value="${mainId}" selected`),'cash close follows its actual branch');
+ await Identity.create({email:reviewer.email,kind:'tenant',tenantId:tenant._id,accountId:reviewer._id});
+ const manager=await client(reviewer);
+ const openingReviewUrl=`/tenant/cash/shifts/${ownerShift._id}/verify-opening`;
+ assert(afterOpen.html.includes('action="'+openingReviewUrl+'"'),'the owner can review a routine matching opening');
+ const reviewPage=await manager('/tenant/cash/shifts');
+ assert.equal(reviewPage.response.status,200,reviewPage.html);
+ assert(reviewPage.html.includes('action="'+openingReviewUrl+'"'),'review is available on Cash day');
+ const verified=await manager(openingReviewUrl,{_csrf:csrf(reviewPage.html),decision:'approve',note:'Independent opening count checked in the cash day workflow',returnToDay:'1'});
+ assert.equal(verified.response.status,303,verified.html);
+ assert.equal(verified.response.headers.get('location'),'/tenant/cash/shifts?currency=UGX');
+ await switchTo(owner,eastId);
+ const legacyClose=await owner('/tenant/day/close');assert.equal(legacyClose.response.status,200,legacyClose.html);
+ const closingPage=await owner('/tenant/cash/shifts?currency=UGX');
+ assert.equal(closingPage.response.status,200,closingPage.html);
+ assert.match(closingPage.html,/action="\/tenant\/day\/close"/);
+ assert.match(closingPage.html,/Expected cash <strong>UGX 0<\/strong>/);
+ const closed=await owner('/tenant/day/close',{_csrf:csrf(closingPage.html),shiftId:String(ownerShift._id),currency:'UGX',closingFromBook:'on',physicalCountConfirmed:'on',returnToDay:'1'});
+ assert.equal(closed.response.status,303,closed.html);
+ assert.equal(closed.response.headers.get('location'),'/tenant/cash/shifts?currency=UGX');
+ const afterClose=await owner(closed.response.headers.get('location'));
+ assert.equal(afterClose.response.status,200,afterClose.html);
+ assert.match(afterClose.html,/Closing count awaiting review/);
+ assert(afterClose.html.includes(`value="${mainId}" selected`),'cash close follows its actual branch');
+ const closingReview=await manager('/tenant/cash/shifts');
+ const closingReviewUrl=`/tenant/cash/shifts/${ownerShift._id}/decide`;
+ assert(closingReview.html.includes('action="'+closingReviewUrl+'"'),'the closing count is in the same review queue');
+ const reconciled=await manager(closingReviewUrl,{_csrf:csrf(closingReview.html),decision:'approve',note:'Independent closing count matches the expected physical balance',returnToDay:'1'});
+ assert.equal(reconciled.response.status,303,reconciled.html);
+ const finished=await owner('/tenant/cash/shifts?currency=UGX');
+ assert.equal(finished.response.status,200,finished.html);
+ assert.match(finished.html,/data-cash-open-form/,'approval makes the drawer available to open again');
+ const shiftDetail=await owner(`/tenant/cash/shifts/${ownerShift._id}`);
+ assert.equal(shiftDetail.response.status,200,shiftDetail.html);
+ assert.match(shiftDetail.html,/Independent closing count matches the expected physical balance/);
  console.log('PASS: real HTTP main/default and All branch views, selected source/customer/account/expense/funded/treasury/cash/audit/report/analytics isolation, preserved filters, CSRF/foreign branch/operator denial, tenant-wide Auditor, assigned-branch transaction choices and writes, actual saved-record redirects, staff directory and assigned-branch cash opening/closing.');
 }
 async function cleanup(){if(server)await new Promise(resolve=>server.close(resolve));if(mongoose.connection.readyState===1&&mongoose.connection.name===database&&/^cfh_branch_view_[a-f0-9]{16}$/.test(database)){for(const c of[conn,foreign])if(c)await c.db.dropDatabase();await mongoose.connection.db.dropDatabase();}await mongoose.disconnect();}

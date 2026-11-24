@@ -7,17 +7,6 @@ const {tenantMenu,tenantNavigationPath}=require('../src/services/menu.service');
 const {plans,modules}=require('../src/data/store');
 const {asPlanVersion,planSnapshot}=require('../src/platform/services/commercial.service');
 const {permissionsFor}=require('../src/config/roles');
-const approved={
- Overview:['Today snapshot','New transaction','Last receipt','Remote owner dashboard'],
- 'Money Transfer':['Send money / Generate PIN','Payout by PIN','Pending payout queue','Branch transfer balances','Money transfer record','Transfer fee summary','Transfer report summary'],
- 'Mobile Money':['Deposit','Withdrawal','Onboarding guide','Network activity','Cash impact','Mobile money report'],
- 'Loan Management':['Loan portfolio','Loan applications','Loan Management report'],
- 'Airtime':['Airtime sales & stock','Airtime report'],
- 'Forex Operations':['Buy forex from customer','Sell forex to customer','Active rate board','Forex cash impact','Forex operation records','Forex report summary'],
- 'Banking Operations':['Customers directory','New customer','Customer logbook','Accounts directory','New account','Deposit','Withdraw','Account transfer','Account balances','Account movements','Banking report summary'],
- 'Operation Reports':['Daily business report','Open day','Close day','Add expense','Expenses summary report','Approvals & corrections','Final financial movements','Cash control review','Export CSV','Print report','General reports page','Opening cash report','Closing cash / expected cash','Transaction summary','Expenses report','Transfer report','Mobile report','Banking report','Forex report','Loan Management report','Airtime report'],
- 'Tenant Workspace':['Quick setup','Tenant profile','Wallets & balances','Fees & commissions','Business website','Customer reviews','Branding & receipts','Branches & locations','Admins, tellers & users','Request modules','Roles & permissions','Customer/KYC setup','Tenant database','Subscription & limits','Notification rules','Integrations & API','Import / export data','Compliance controls','Website preview','Receipt preview','Notifications center','Tenant audit activity','System settings']
-};
 const branchId='507f1f77bcf86cd799439011',owner={id:branchId,name:'Owner',role:'Tenant Owner',permissions:['*']};
 function subscribed(){
  const terms=planSnapshot({...asPlanVersion(plans.find(plan=>plan.code==='enterprise')),status:'published'});
@@ -27,21 +16,23 @@ function subscribed(){
 }
 function actor(role,allowedModules){return {id:branchId,name:'Staff',role,branchId,permissions:permissionsFor(role),allowedModules};}
 function paths(menu){return menu.flatMap(group=>group.items.map(item=>item.href));}
+function reportPaths(menu){return menu.find(group=>group.label==='Operation Reports')?.paths||[];}
 
-test('fully entitled owner retains approved groups with wallet controls and no disabled portal',()=>{
- const menu=tenantMenu(subscribed(),owner);
- assert.deepEqual(Object.fromEntries(menu.map(group=>[group.label,group.items.map(item=>item.label)])),approved);
- assert.equal(menu.length,9);assert.equal(menu.reduce((sum,group)=>sum+group.items.length,0),83);
- assert(!menu.some(group=>/Phase 2/i.test(group.label)));
- for(const href of ['/tenant/users','/tenant/audit','/tenant/workspace/roles'])assert.equal(paths(menu).filter(path=>path===href).length,1,href+' is not duplicated');
- for(const item of menu.flatMap(group=>group.items)){
-  assert.match(item.href,/^\/tenant\/[a-z0-9/.-]+$/);
-  assert.doesNotMatch(item.href,/javascript:|undefined|#|\?/);
- }
- assert.deepEqual(menu.find(group=>group.label==='Mobile Money').items.map(item=>[item.label,item.href]),[
-  ['Deposit','/tenant/mobile-money/cash-in'],['Withdrawal','/tenant/mobile-money/cash-out'],
-  ['Onboarding guide','/tenant/mobile-money/onboarding'],['Network activity','/tenant/mobile-money/network-activity'],['Cash impact','/tenant/mobile-money/cash-impact'],['Mobile money report','/tenant/mobile-money/report']
+test('fully entitled owner has one entry per daily workflow',()=>{
+ const menu=tenantMenu(subscribed(),owner),links=paths(menu);
+ const work=menu.find(group=>group.label==='Daily work').items;
+ assert.deepEqual(work.map(item=>[item.label,item.href]),[
+  ['Cash day','/tenant/cash/shifts'],['Business funds','/tenant/treasury'],['Expenses','/tenant/expenses'],
+  ['Movement requests','/tenant/funded'],['Approvals & corrections','/tenant/approvals']
  ]);
+ for(const link of ['/tenant/dashboard','/tenant/cash/shifts','/tenant/treasury','/tenant/customers','/tenant/accounts','/tenant/reports','/tenant/users','/tenant/workspace','/tenant/audit','/tenant/setup','/tenant/modules','/tenant/workspace/reviews']){
+  assert.equal(links.filter(path=>path===link).length,1,link+' is linked once');
+ }
+ for(const removed of ['/tenant/day/close','/tenant/accounts/balances','/tenant/accounts/movements','/tenant/reports/export.csv','/tenant/reports/opening','/tenant/reports/closing','/tenant/transactions/new','/tenant/last-receipt']){
+  assert(!links.includes(removed),removed+' is handled within its workflow');
+ }
+ for(const link of links)assert.match(link,/^\/tenant\/[a-z0-9/.-]+$/);
+ assert(links.length<45);
 });
 
 test('only active subscribed and assigned source modules appear in navigation and report links',()=>{
@@ -51,13 +42,17 @@ test('only active subscribed and assigned source modules appear in navigation an
  const grant=moduleKey=>({moduleKey,status:'granted',generation:1,periodStart:new Date('2026-01-01'),periodEnd:new Date('2030-01-01'),limits:{users:10,branches:3,recordsPerMonth:1000}});
  const bankingOnly={...expired,moduleGrants:[grant('reports'),grant('banking'),{...grant('forex'),status:'revoked'},{...grant('mobile_money'),periodEnd:new Date('2020-01-01')},{...grant('money_transfer'),periodStart:new Date('2030-01-01'),periodEnd:new Date('2031-01-01')}]};
  const bankingPaths=paths(tenantMenu(bankingOnly,owner));
- for(const expected of ['/tenant/banking/deposit','/tenant/reports/banking','/tenant/reports/opening','/tenant/reports/closing','/tenant/treasury','/tenant/funded'])assert(bankingPaths.includes(expected),expected);
+ for(const expected of ['/tenant/banking/deposit','/tenant/reports','/tenant/treasury','/tenant/funded'])assert(bankingPaths.includes(expected),expected);
+ const bankingReports=reportPaths(tenantMenu(bankingOnly,owner));
+ for(const expected of ['/tenant/reports/banking','/tenant/reports/opening','/tenant/reports/closing'])assert(bankingReports.includes(expected),expected);
+ for(const hidden of ['/tenant/reports/mobile','/tenant/reports/transfer','/tenant/reports/expenses'])assert(!bankingReports.includes(hidden),hidden);
  for(const forbidden of ['/tenant/mobile-money/cash-in','/tenant/forex/buy','/tenant/money-transfer/send','/tenant/reports/mobile','/tenant/reports/transfer','/tenant/reports/expenses','/tenant/last-receipt'])assert(!bankingPaths.includes(forbidden),forbidden);
  const analyst=actor('Reports Analyst',['reports']);
- const reportsOnly=paths(tenantMenu(bankingOnly,analyst));
+ const reportsOnly=[...paths(tenantMenu(bankingOnly,analyst)),...reportPaths(tenantMenu(bankingOnly,analyst))];
  for(const forbidden of ['/tenant/reports/opening','/tenant/reports/closing','/tenant/reports/banking','/tenant/reports/transactions','/tenant/treasury','/tenant/funded','/tenant/transactions/new'])assert(!reportsOnly.includes(forbidden),`Unassigned source shown: ${forbidden}`);
- const readSource=paths(tenantMenu(bankingOnly,{...analyst,allowedModules:['reports','banking']}));
- assert(readSource.includes('/tenant/reports/banking'));assert(readSource.includes('/tenant/reports/opening'));
+ const analystWithSource=tenantMenu(bankingOnly,{...analyst,allowedModules:['reports','banking']});
+ const readSource=paths(analystWithSource),readReports=reportPaths(analystWithSource);
+ assert(readReports.includes('/tenant/reports/banking'));assert(readReports.includes('/tenant/reports/opening'));
  assert(!readSource.includes('/tenant/treasury'),'Report source access does not grant wallet administration');
  assert(!readSource.includes('/tenant/banking/deposit'),'Report source access does not grant banking execution');
  const operator=actor('Banking Operator',['banking']);
@@ -76,22 +71,23 @@ test('rendered topbar hides receipt and transaction actions when no subscribed s
  const base=subscribed(),reportsOnly={...base,enabledModules:['reports'],moduleGrants:[]};
  const reportHtml=await render(reportsOnly);
  assert.doesNotMatch(reportHtml,/id="lastReceiptBtn"|id="newTransactionBtn"|data-operation-dialog/);
- assert.doesNotMatch(reportHtml,/Cash drawer by currency|id="cashSummary"/,'A report subscription alone does not expose an unsubscribed financial card');
+ assert.doesNotMatch(reportHtml,/href="\/tenant\/cash\/shifts"/,'A report subscription alone does not expose cash controls');
  const bankingHtml=await render({...base,enabledModules:['banking'],moduleGrants:[]});
  assert.doesNotMatch(bankingHtml,/id="lastReceiptBtn"/,'Banking instructions do not supply the Mobile/Transfer receipt page');
  assert.match(bankingHtml,/id="newTransactionBtn"/);
- assert.match(bankingHtml,/Cash drawer by currency/,'A subscribed banking source supplies the shared physical drawer');
+ assert.match(bankingHtml,/href="\/tenant\/cash\/shifts"/,'A subscribed banking source supplies the shared physical drawer');
  const mobileHtml=await render({...base,enabledModules:['mobile_money'],moduleGrants:[]});
  assert.match(mobileHtml,/id="lastReceiptBtn"/);
  assert.match(mobileHtml,/data-transaction-kind="cash_in"/);
 });
 
-test('expanded navigation still requires module entitlement, assignment and fixed permissions',()=>{
+test('consolidated navigation still requires module entitlement, assignment and fixed permissions',()=>{
  const tenant=subscribed();
  const operator=actor('Mobile Money Operator',['mobile_money']);
  const menu=tenantMenu(tenant,operator),operatorPaths=paths(menu);
- assert(menu.some(group=>group.label==='Mobile Money'&&group.items.length===6));
- assert(operatorPaths.includes('/tenant/mobile-money/report'));
+ assert(menu.some(group=>group.label==='Mobile Money'&&group.items.length===4));
+ assert(operatorPaths.includes('/tenant/mobile-money/network-activity'));
+ assert(operatorPaths.includes('/tenant/mobile-money/onboarding'));
  assert(!operatorPaths.includes('/tenant/mobile-money/fx'),'Cross-currency requires Forex module assignment');
  const fxOperator=actor('Mobile Money Operator',['mobile_money','forex']);
  assert(!paths(tenantMenu(tenant,fxOperator)).includes('/tenant/mobile-money/fx'),'Exchange is embedded in existing cashier forms, not a sidebar destination');
@@ -103,7 +99,8 @@ test('expanded navigation still requires module entitlement, assignment and fixe
  assert(viewerMobile);assert(!viewerMobile.items.some(item=>item.transactionKind),'Read-only links cannot launch a financial form');
  assert(!paths(tenantMenu(tenant,viewer)).includes('/tenant/mobile-money/report'));
  const analyst=actor('Reports Analyst',['reports']);
- assert(paths(tenantMenu(tenant,analyst)).includes('/tenant/reports/daily'));
+ assert(paths(tenantMenu(tenant,analyst)).includes('/tenant/reports'));
+ assert(reportPaths(tenantMenu(tenant,analyst)).includes('/tenant/reports/daily'));
  assert(!tenantMenu(tenant,analyst).some(group=>['Money Transfer','Mobile Money','Forex Operations','Banking Operations'].includes(group.label)));
  const withoutGrants={...tenant,moduleGrants:[]};
  assert(!paths(tenantMenu(withoutGrants,owner)).includes('/tenant/customers'));
@@ -157,14 +154,15 @@ test('assigned view-only modules never advertise cashier-only entry screens',()=
  assert(auditPaths.includes('/tenant/money-transfer/records'));
 });
 
-test('tenant owner sees real module request entry and role link; ordinary staff cannot request modules',()=>{
+test('tenant owner keeps module requests and accesses role assignments from settings',()=>{
  const ownerItems=tenantMenu(subscribed(),owner).flatMap(group=>group.items);
  assert.equal(ownerItems.find(item=>item.label==='Request modules')?.href,'/tenant/modules');
- assert.equal(ownerItems.find(item=>item.label==='Roles & permissions')?.href,'/tenant/workspace/roles');
+ assert.equal(ownerItems.find(item=>item.label==='Settings')?.href,'/tenant/workspace');
  const member=actor('Mobile Money Operator',['mobile_money']);
  assert(!paths(tenantMenu(subscribed(),member)).includes('/tenant/modules'));
  const workspace=require('fs').readFileSync(path.resolve(__dirname,'../src/views/tenant/workspace/index.ejs'),'utf8');
  assert.match(workspace,/href="\/tenant\/modules">Request modules/);
+ assert.match(workspace,/href="\/tenant\/workspace\/roles"/);
  const routes=require('fs').readFileSync(path.resolve(__dirname,'../src/tenant/workspace/routes.js'),'utf8');
  assert.match(routes,/renderTenant\(req,res,'workspace\/role-access'/);
  const users=require('fs').readFileSync(path.resolve(__dirname,'../src/views/tenant/users/index.ejs'),'utf8');

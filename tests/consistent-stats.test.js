@@ -62,13 +62,17 @@ test('tenant overview and platform overview use the SAME stat component',async()
  assert.equal((platform.match(/class="stat"/g)||[]).length,3);
 });
 
-test('directory cards show real scoped counts instead of invented account balances or icon metrics',async()=>{
+test('directories show scoped account balances and customer counts',async()=>{
+ const {formatMinor}=require('../src/tenant/customerAccounts/service');
  const accounts=await render('src/views/tenant/customer-accounts/accounts.ejs',{
-  data:{mode:'balances',records:{total:12,items:[],q:'',nextCursor:null},
-   canManageAccount:false,canBank:false}
+  data:{records:{total:12,q:'',nextCursor:null,items:[
+   {_id:'one',accountNumber:'ACC-ONE',status:'active',customer:{name:'First Customer'},balance:{minor:'1250'},currency:'USD'},
+   {_id:'two',accountNumber:'ACC-TWO',status:'active',customer:{name:'Second Customer'},balance:{minor:'31000'},currency:'UGX'}
+  ]},canManageAccount:false,canDeposit:false,formatMinor}
  });
- assert.match(accounts,/Matching accounts/);
- assert.match(accounts,/Displayed accounts/);
+ assert.match(accounts,/First Customer[\s\S]*USD 12\.50/);
+ assert.match(accounts,/Second Customer[\s\S]*UGX 31,000/);
+ assert.doesNotMatch(accounts,/Matching accounts|Displayed accounts/);
  assert.doesNotMatch(accounts,/class="k">Account balances/);
  assert.doesNotMatch(accounts,/class="v">UGX \/ USD \/ SSP \/ KSH/);
  const customers=await render('src/views/tenant/customer-accounts/customers.ejs',{

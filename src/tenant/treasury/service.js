@@ -15,6 +15,7 @@ const {hasPermission,hasModuleForUser}=require('../services/moduleAccess.service
 const {effectiveSubscription}=require('../../platform/services/commercial.service');
 const {activeGrants}=require('../../platform/services/moduleSubscriptions.service');
 const {resolveTransactionBranch}=require('../services/transactionBranch.service');
+const {canSelfReviewRoutine}=require('../services/reviewPolicy');
 const OID=/^[a-f0-9]{24}$/i,UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 const SOURCES=['mobile_money','money_transfer','banking','forex','expenses','loans','airtime'];
 const KINDS=['wallet','cash','bank','forex_stock','transfer_clearing'];
@@ -129,8 +130,9 @@ async function configureAccount(conn,tenant,actor,accountId,input){
    ...(isDefault?{}:{$unset:{selectionKey:''}})};
   if(isDefault)changes.$set.selectionKey=selectionKey;
   const configured=await models(conn).account.findOneAndUpdate({_id:account._id,tenantId:authorization.tenant._id},changes,{session,new:true,runValidators:true}).lean();
+  const nameChange=account.name===configured.name?{}:{nameChange:{before:account.name,after:configured.name}};
   await audit(conn,session,authorization.actor,'treasury.account.configured',account._id,{branchId:String(account.branchId),isDefault,feeTreatment:configured.feeTreatment,
-   cashDrawerAccountId:String(configured.cashDrawerAccountId||'')});
+   cashDrawerAccountId:String(configured.cashDrawerAccountId||''),...nameChange});
   return configured;
  });
 }
@@ -610,7 +612,6 @@ async function postingAuthorization(conn,session,authorization,value,internal={}
   const legs=value.legs;
   if(value.sourceType!=='treasury_funding'||!/^FUND:[0-9a-f]{24}$/i.test(value.sourceRef)||
      legs.length!==2||value.ledgerLines.length!==0||
-     BigInt(legs[0].deltaMinor)>=0n||BigInt(legs[1].deltaMinor)<=0n||
      BigInt(legs[0].deltaMinor)+BigInt(legs[1].deltaMinor)!==0n||
      legs[0].accountId===legs[1].accountId)
    throw fail('Direct funding must be an exactly balanced internal transfer',403);
@@ -830,21 +831,33 @@ async function accountDetail(conn,tenant,actor,accountId){
   return {account,observations,movements,adjustments,batches,format};
  });
 }
+function canReviewAdjustment(row,account,actor){
+ return String(row.requestedBy)!==actor.id&&String(account.operatorId||'')!==actor.id;
+}
+function canReviewBalance(row,account,actor){
+ if(canReviewAdjustment(row,account,actor))return true;
+ return canSelfReviewRoutine(actor,account.branchId)&&
+  (row.kind==='opening'||(row.kind==='checkpoint'&&row.varianceMinorAtRequest!=null&&
+   BigInt(String(row.varianceMinorAtRequest))===0n));
+}
 async function reviewQueue(conn,tenant,actor){
  const authorization=await access(conn,tenant,actor,{permission:'treasury.review'});
- const privileged=require('../services/reviewPolicy').canSelfReviewRoutine(authorization.actor,authorization.actor.branchId);
- const observations=await models(conn).observation.find({tenantId:authorization.tenant._id,status:'pending_review',
-  ...(privileged?{}:{requestedBy:{$ne:authorization.actor.id}}),...scope(authorization.actor)}).sort({createdAt:1}).limit(101).lean();
- const accountIds=observations.map(row=>row.accountId),accounts=await models(conn).account.find({_id:{$in:accountIds}}).lean(),
-  byId=new Map(accounts.filter(account=>canSee(account,authorization)).map(account=>[String(account._id),account]));
- return observations.filter(row=>{
-  const account=byId.get(String(row.accountId));if(!account)return false;
-  const self=String(row.requestedBy)===authorization.actor.id||String(account.operatorId||'')===authorization.actor.id;
-  if(!self)return true;
-  return require('../services/reviewPolicy').canSelfReviewRoutine(authorization.actor,account.branchId)&&
-   (row.kind==='opening'||(row.kind==='checkpoint'&&row.varianceMinorAtRequest!==null&&
-    BigInt(String(row.varianceMinorAtRequest))===0n));
+ const {observation,adjustment,account}=models(conn);
+ const pending={tenantId:authorization.tenant._id,status:'pending_review',...scope(authorization.actor)};
+ const otherMakers={requestedBy:{$ne:authorization.actor.id}};
+ const privileged=canSelfReviewRoutine(authorization.actor,authorization.actor.branchId);
+ const [observations,adjustments]=await Promise.all([
+  observation.find({...pending,...(privileged?{}:otherMakers)}).sort({createdAt:1,_id:1}).limit(101).lean(),
+  adjustment.find({...pending,...otherMakers}).sort({createdAt:1,_id:1}).limit(101).lean()
+ ]);
+ const accountIds=[...observations,...adjustments].map(row=>row.accountId);
+ const accounts=await account.find({_id:{$in:accountIds}}).lean();
+ const byId=new Map(accounts.filter(row=>row.status!=='archived'&&canSee(row,authorization)).map(row=>[String(row._id),row]));
+ const eligible=(rows,canReview)=>rows.filter(row=>{
+  const fund=byId.get(String(row.accountId));
+  return fund&&canReview(row,fund,authorization.actor);
  }).slice(0,100).map(row=>({...row,account:byId.get(String(row.accountId))}));
+ return {observations:eligible(observations,canReviewBalance),adjustments:eligible(adjustments,canReviewAdjustment)};
 }
 async function requestAdjustment(conn,tenant,actor,observationId,input){
  await ensure(conn);return transaction(conn,async session=>{
@@ -876,4 +889,4 @@ async function reviewAdjustment(conn,tenant,actor,adjustmentId,input){
   await audit(conn,session,authorization.actor,`treasury.adjustment.${input.decision==='approve'?'approved':'rejected'}`,adjustment._id,{branchId:String(account.branchId),accountId:String(account._id),batchId:batchId?String(batchId):null,deltaMinor:String(adjustment.deltaMinor)});return result;
  });
 }
-module.exports={recordOwnerBalanceCheck,addCapital,postCrossCurrencyTransferPayout,postBranchTransferPayout,models,ensure,access,loadAccount,createAccount,configureAccount,archiveUnusedAccount,restoreArchivedAccount,closeSettledAccount,assertSettledAccountClosable,archiveUnusedWallet,assertUnusedAccountArchivable,assertUnusedWalletArchivable,validateAccount,requestObservation,requestObservationInSession,confirmOwnerOpening,reviewObservation,reviewObservationInSession,applyMovements,reverseMovements,ensureCounterAccount,findAccount,findOperatingAccounts,balanceSnapshot,accountDetail,reviewQueue,requestAdjustment,reviewAdjustment,expectedAt,assertBookIntegrity,format,major,signedMinor,normalizeMovement,parseObservation,scope,moduleForKind,normalSide,fail,KINDS,NETWORKS};
+module.exports={recordOwnerBalanceCheck,addCapital,postCrossCurrencyTransferPayout,postBranchTransferPayout,models,ensure,access,loadAccount,createAccount,configureAccount,archiveUnusedAccount,restoreArchivedAccount,closeSettledAccount,assertSettledAccountClosable,archiveUnusedWallet,assertUnusedAccountArchivable,assertUnusedWalletArchivable,validateAccount,requestObservation,requestObservationInSession,confirmOwnerOpening,reviewObservation,reviewObservationInSession,applyMovements,reverseMovements,ensureCounterAccount,findAccount,findOperatingAccounts,balanceSnapshot,accountDetail,reviewQueue,canReviewBalance,canReviewAdjustment,requestAdjustment,reviewAdjustment,expectedAt,assertBookIntegrity,format,major,signedMinor,normalizeMovement,parseObservation,scope,moduleForKind,normalSide,fail,KINDS,NETWORKS};

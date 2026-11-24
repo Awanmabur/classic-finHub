@@ -5,7 +5,9 @@ const {currencyCodes}=require('../../config/currencies');
 const O=Schema.Types.ObjectId;
 const schema=new Schema({
  tenantId:{type:O,required:true,immutable:true},branchId:{type:O,required:true,immutable:true},
- sourceAccountId:{type:O,required:true,immutable:true},destinationAccountId:{type:O,required:true,immutable:true},
+ sourceKind:{type:String,enum:['account_transfer','owner_contribution'],default:'account_transfer',immutable:true},
+ sourceAccountId:{type:O,required:function(){return this.sourceKind!=='owner_contribution';},immutable:true},
+ destinationAccountId:{type:O,required:true,immutable:true},
  currency:{type:String,enum:currencyCodes,required:true,immutable:true},amountMinor:{type:Schema.Types.Decimal128,required:true,immutable:true},
  requestedBy:{type:O,required:true,immutable:true},requestedRole:{type:String,required:true,immutable:true},requestedAuthVersion:{type:Number,required:true,immutable:true,min:0},
  operatingActorId:{type:O,required:true,immutable:true},operatingRole:{type:String,required:true,immutable:true},operatingAuthVersion:{type:Number,required:true,immutable:true,min:0},

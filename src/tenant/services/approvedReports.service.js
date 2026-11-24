@@ -10,7 +10,7 @@ const adapters=require('../reporting/registry');
 const {cashSessionModel,mobileTransactionModel}=require('../models');
 const {expenseModel}=require('../models/expenses');
 const MAX_ROWS=5000;
-const cashSources=Object.freeze({mobile_money:'Mobile Money',money_transfer:'Money Transfer',banking:'Banking',forex:'Forex',expenses:'Expenses',loans:'Loan Management',airtime:'Airtime'});
+const cashSources=Object.freeze({mobile_money:'Mobile Money',money_transfer:'Money Transfer',banking:'Banking',forex:'Forex',expenses:'Expenses',loans:'Loan Management',airtime:'Airtime',treasury_funding:'Account funding',treasury_capital:'Owner capital'});
 const pages=Object.freeze({
  daily:{title:'Daily business report',subtitle:'Daily control, multi-currency income, cash summary, and operation totals.'},
  opening:{title:'Opening cash report',subtitle:'Opening drawer baseline captured for the business day.',source:'cash_shifts'},
@@ -189,11 +189,13 @@ async function generate(conn,tenant,actor,key,query={},timeZone='UTC'){
   if(rows.length>MAX_ROWS)throw fail('Too many report groups. Narrow the date range.',422);
  }
  const hasCash=sources.some(source=>source.key==='cash_shifts'),hasMobile=sources.some(source=>source.key==='mobile_money'),hasExpenses=sources.some(source=>source.key==='expenses');
+ const cashMovementSources=requested.map(source=>source.key);
+ if(key==='daily'&&hasCash&&hasPermission(actor,'treasury.view'))cashMovementSources.push('treasury_funding','treasury_capital');
  const [cash,impact,expenses,cashMovements,realizedIncome]=await Promise.all([
   hasCash&&['daily','opening','closing'].includes(key)?cashData(conn,scope,filters.dateRange):null,
   hasMobile&&['daily','transactions','mobile'].includes(key)?cashImpact(conn,scope,filters.dateRange,{legacyOnly:true}):{},
   hasExpenses&&key==='expenses'?expenseItems(conn,actor,scope,filters.dateRange):null,
-  sourceAvailable&&!['opening','closing'].includes(key)?postedCash(conn,tenant,scope,filters.dateRange,requested.map(source=>source.key)):[],
+  sourceAvailable&&!['opening','closing'].includes(key)?postedCash(conn,tenant,scope,filters.dateRange,cashMovementSources):[],
   sourceAvailable&&['daily','transfer','mobile','banking','loans','airtime','transactions'].includes(key)?
    postedIncome(conn,tenant,scope,filters.dateRange,requested):[]
  ]);

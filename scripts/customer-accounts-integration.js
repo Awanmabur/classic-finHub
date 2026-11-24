@@ -15,6 +15,80 @@ const commerce=require('../src/platform/services/commercial.service'),{permissio
 const {csvCell}=require('../src/tenant/services/mobileMoney.service');
 let connections=[];
 const oid=()=>new mongoose.Types.ObjectId();
+async function checkAccountPages(conn,tenant,owner,banker,bankerRow,account){
+ const treasury=require('../src/tenant/treasury/service');
+ const bank=await treasury.createAccount(conn,tenant,owner,{kind:'bank',code:'deposits',name:'Deposit bank',currency:'USD'});
+ const opening=await treasury.requestObservation(conn,tenant,banker,bank._id,{
+  kind:'opening',actualBalance:'0.00',evidenceType:'bank_statement',evidenceReference:'BANK-OPEN-1',
+  observedAt:new Date(Date.now()-1000).toISOString(),note:'Checked the opening bank statement.',idempotencyKey:crypto.randomUUID()
+ });
+ await treasury.reviewObservation(conn,tenant,owner,opening.observation._id,{decision:'approve',note:'Independently checked the bank statement.'});
+ const password='Directory-Integration-'+crypto.randomBytes(12).toString('hex')+'#9a';
+ const passwordHash=await require('bcryptjs').hash(password,10);
+ await models.tenantUserModel(conn).updateOne({_id:bankerRow._id},{$set:{passwordHash}});
+ const Identity=require('../src/platform/models/AccountIdentity');
+ await Identity.createIndexes();
+ await Identity.create({email:bankerRow.email,accountId:bankerRow._id,kind:'tenant',tenantId:tenant._id});
+ const server=await new Promise(resolve=>{const app=require('../src/app')();const http=app.listen(0,'127.0.0.1',()=>resolve(http));});
+ const base='http://127.0.0.1:'+server.address().port;
+ const accountPath='/tenant/accounts/'+account._id;
+ let cookie='';
+ const token=markup=>markup.match(/name="_csrf" value="([^"]+)"/)?.[1];
+ async function request(path,body){
+  const headers={cookie};
+  if(body)headers['content-type']='application/x-www-form-urlencoded';
+  const response=await fetch(base+path,{method:body?'POST':'GET',body:body?new URLSearchParams(body):undefined,headers,redirect:'manual'});
+  const newCookie=response.headers.getSetCookie().find(value=>value.startsWith('cfh.sid='));
+  if(newCookie)cookie=newCookie.split(';')[0];
+  return response;
+ }
+ try{
+  const login=await request('/signin');
+  const loggedIn=await request('/signin',{_csrf:token(await login.text()),email:bankerRow.email,password});
+  assert.equal(loggedIn.headers.get('location'),'/tenant/dashboard');
+  const oldBalances=await request('/tenant/accounts/balances?q=ACC');
+  assert.equal(oldBalances.status,303);
+  assert.equal(oldBalances.headers.get('location'),'/tenant/accounts?q=ACC');
+  const list=await request('/tenant/accounts');
+  assert.equal(list.status,200);
+  const listMarkup=await list.text();
+  assert(listMarkup.includes(accountPath+'?action=deposit#deposit'));
+  assert.doesNotMatch(listMarkup,/Accounts directory|Account balances|Overdraft/);
+  const page=await request(accountPath+'?action=deposit');
+  assert.equal(page.status,200);
+  const markup=await page.text();
+  assert.match(markup,/Record a deposit|Deposit bank/);
+  assert.match(markup,/USD 123\.45/);
+  const depositForm=markup.match(/<form method="post" action="\/tenant\/accounts\/[a-f0-9]+\/deposits"[^>]*>([\s\S]+?)<\/form>/)?.[1];
+  assert(depositForm,'Deposit submission is available from the account page');
+  const submitted=await request(accountPath+'/deposits',{
+   _csrf:token(depositForm),amount:'5.25',cashAccountId:String(bank._id),
+   evidenceReference:'BANK-DEPOSIT-2',note:'Received the deposit into the bank.',
+   idempotencyKey:depositForm.match(/name="idempotencyKey" value="([^"]+)"/)[1],
+   pricingMode:'configured',pricingPolicy:'default'
+  });
+  assert.equal(submitted.status,303,await submitted.text());
+  assert.equal(submitted.headers.get('location'),accountPath+'#activity');
+  const pending=await (await request(accountPath)).text();
+  assert.match(pending,/Awaiting approval/);
+  assert.match(pending,/USD 123\.45/);
+  const executionId=pending.match(/href="\/tenant\/funded\/([a-f0-9]{24})"/)?.[1];
+  assert(executionId,'Pending deposit links to its review');
+  const details=await request('/tenant/funded/'+executionId);
+  assert.equal(details.status,200);
+  const detailsMarkup=await details.text();
+  assert.match(detailsMarkup,/Customer deposit/);
+  assert.match(detailsMarkup,/Deposit bank/);
+  assert.match(detailsMarkup,/USD 5\.25/);
+  assert.match(detailsMarkup,/BANK-DEPOSIT-2/);
+  const funded=require('../src/tenant/services/fundedOperations.service');
+  await funded.review(conn,tenant,owner,executionId,{decision:'approve',note:'Independently matched the deposit to the bank statement.'});
+  const posted=await (await request(accountPath)).text();
+  assert.match(posted,/USD 128\.70/);
+  assert.doesNotMatch(posted,/Awaiting approval/);
+  assert.match(posted,/BANK-DEPOSIT-2|USD 5\.25/);
+ }finally{await new Promise(resolve=>server.close(resolve));}
+}
 async function main(){
  await connectPlatformMongo();require('../src/config/mongoTopology').verifyReplicaPrimary(await mongoose.connection.db.admin().command({hello:1}));
  await Promise.all([Tenant.createIndexes(),Usage.createIndexes()]);
@@ -56,6 +130,13 @@ async function main(){
  assert.equal(ugxAccount.currency,'UGX');assert.equal((await models.ledgerAccountModel(conn).findById(ugxAccount.ledgerAccountId)).currency,'UGX');
  assert.equal((await service.accountCreate(conn,tenant,banker,ugxInput)).duplicate,true);
  await assert.rejects(service.accountCreate(conn,tenant,banker,{...ugxInput,currency:'SSP'}),{status:409},'idempotency cannot change account currency');
+ const corrected=await service.accountUpdate(conn,tenant,banker,ugxAccount._id,{
+  ...ugxInput,accountNumber:'CORRECTED-'+nonce.toUpperCase(),revision:ugxAccount.revision
+ });
+ assert.equal(corrected.accountNumber,'CORRECTED-'+nonce.toUpperCase());
+ assert.equal(String(corrected.ledgerAccountId),String(ugxAccount.ledgerAccountId));
+ assert(await models.auditEventModel(conn).exists({action:'customer.account.updated',targetId:ugxAccount._id,'metadata.numberCorrected':true}));
+ assert.equal((await service.accountCreate(conn,tenant,banker,ugxInput)).duplicate,true);
  await assert.rejects(service.accountCreate(conn,tenant,banker,{...accountBody,idempotencyKey:crypto.randomUUID(),accountNumber:'INVALID-'+nonce.toUpperCase(),currency:'EUR'}),{status:409});
  const usageBefore=await Usage.findOne({tenantId:tenant._id,metric:'customer_accounts'}).lean(),ledgerBefore=await models.ledgerAccountModel(conn).countDocuments(),customerBefore=await directory.customerModel(conn).findById(customer._id).lean();
  await assert.rejects(service.accountCreate(conn,tenant,banker,{...accountBody,idempotencyKey:crypto.randomUUID()}),{status:409},'duplicate account number rolls back ledger mapping and quota');
@@ -94,6 +175,10 @@ async function main(){
  // The logbook links only entitled source records and exact recorded phones.
  const mobile=await models.mobileTransactionModel(conn).create({idempotencyKey:crypto.randomUUID(),operation:'cash_in',customer:'Recorded customer',customerPhone:customer.phone,network:'MTN',networkReference:'DIRECTORY-'+nonce,currency:'USD',amountMinor:'500',feeMinor:'0',operatorId:owner.id,branchId:branch._id});
  const logbook=await service.logbook(conn,tenant,owner,{customerId:String(customer._id)});assert(logbook.items.some(x=>String(x._id)===String(mobile._id)));assert(logbook.items.some(x=>x.label==='Account credit'));assert.equal((await service.logbook(conn,tenant,manager)).items.length,0);
+ await assert.rejects(service.accountUpdate(conn,tenant,banker,account._id,{
+  ...accountBody,accountNumber:'USED-'+nonce.toUpperCase(),revision:detail.revision
+ }),error=>error.status===409&&/already in use on financial records/.test(error.message));
+ await checkAccountPages(conn,tenant,owner,banker,bankerRow,account);
  // Authoritative account/tenant state wins over forged or stale caller context.
  const viewer=await models.tenantUserModel(conn).create({name:'Read only',email:`viewer-${nonce}@example.invalid`,passwordHash:'integration-only-hash',role:'Viewer',branchId:String(branch._id),allowedModules:modules});
  await assert.rejects(service.customerCreate(conn,tenant,{...owner,id:String(viewer._id)},{...customerBody,idempotencyKey:crypto.randomUUID(),reference:'FORGED-'+nonce.toUpperCase()}),{status:403});

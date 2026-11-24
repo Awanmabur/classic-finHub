@@ -8,12 +8,12 @@ function query(rows,calls){return filter=>{const call={filter};calls.push(call);
 test('overview reads bounded recent rows without building reports, summaries or review queues',async t=>{
  const tenant=entitledTenant({plan:'enterprise'}),actor={id:account,role:'Tenant Owner',permissions:['*'],branchId:branch,viewBranchId:branch};
  const calls=[],conn={models:Object.fromEntries(['SecureMobileTransaction','BankingRequestV1','ForexQuoteV1','TransferOrderV1'].map(name=>[name,{find:query([],calls)}]))};
- t.mock.method(snapshots,'snapshot',async()=>({todayVolumes:{money_transfer:{amountMinor:'123',formatted:'UGX 123'}},cash:[{currency:'UGX',expectedFormatted:'UGX 50'}]}));
+ t.mock.method(snapshots,'snapshot',async()=>({todayVolumes:{money_transfer:{amountMinor:'123',formatted:'UGX 123'}},cash:[{currency:'UGX',expectedFormatted:'UGX 50'}],cashDay:{status:'open',currency:'UGX',branchName:'Main'}}));
  t.mock.method(require('../src/tenant/services/mobileMoneyFunds.service'),'context',async()=>({wallets:[{name:'MTN Uganda wallet',kind:'wallet',network:'MTN',currency:'UGX',expected:'UGX 200,000'}],paymentAccounts:[{name:'Agent drawer',kind:'cash',currency:'UGX',expected:'UGX 50,000'}],customerAccounts:[]}));
  for(const [name,method]of[['mobileMoney.service','getSummary'],['banking.service','list'],['forex.service','listQuotes'],['moneyTransfer.service','list'],['approvals.service','list'],['operationsReports.service','generate']])t.mock.method(require('../src/tenant/services/'+name),method,()=>assert.fail('Unrendered data must not block overview'));
  const data=await overview(conn,tenant,actor,{operationBranch:{_id:branch,currency:'UGX'}});
  assert.equal(calls.length,4);assert(calls.every(call=>call.limit===14&&call.fields&&call.order.createdAt===-1));
- assert.equal(data.workspaceSnapshot.todayVolumes.money_transfer.amountMinor,'123');assert.equal(data.workspaceSnapshot.cash[0].expectedFormatted,'UGX 50');
+ assert.deepEqual(data.workspaceSnapshot.cashDay,{status:'open',currency:'UGX',branchName:'Main'});
  assert.equal(data.workspaceSnapshot.recentActivity.length,0);
  assert.equal(data.mobileFunds.wallets[0].expected,'UGX 200,000');
  assert.equal(data.mobileFunds.paymentAccounts[0].expected,'UGX 50,000');

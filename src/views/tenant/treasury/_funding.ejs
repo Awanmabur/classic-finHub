@@ -1,5 +1,5 @@
 <% if(data.canObserve){ %>
-<section class="card" style="margin-top:14px" id="add-funds"><div class="cardHead"><div><b>Transfer existing funds</b><br><span>Source → Destination → Amount. Both balances update together instantly.</span></div></div><form class="cardBody" method="post" action="/tenant/treasury/funding" data-wallet-funding-form>
+<details class="card workspaceSecondary" id="add-funds" <%= data.fundingDestination?'open':'' %>><summary>Transfer existing funds</summary><form class="cardBody" method="post" action="/tenant/treasury/funding" data-wallet-funding-form>
  <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="idempotencyKey" value="<%= data.fundingIdempotencyKey %>">
  <div class="formSection"><div class="formSectionTitle">Internal transfer</div><div class="row2">
   <label class="field">From account<select class="control" name="sourceAccountId" required><option value="">Select funding source</option><% data.fundingAccounts.forEach(account=>{ %><option value="<%= account._id %>" data-branch-id="<%= account.branchId %>" data-currency="<%= account.currency %>" data-operator-id="<%= account.operatorId||'' %>"><% if(data.allBranches&&data.branchNames[String(account.branchId)]){ %><%= data.branchNames[String(account.branchId)] %> · <% } %><%= account.name %> · <%= data.format(account.bookBalanceMinor,account.currency) %></option><% }) %></select></label>
@@ -10,5 +10,5 @@
  <% if(data.fundingAccounts.length<2){ %><p class="tiny">Set up two existing funded accounts with validated opening positions first. A cash source also needs an open drawer.</p><% } %>
  <p class="tiny" data-funding-choices-status role="status" aria-live="polite"></p>
  <div class="rowBtns"><button type="submit" class="btn btnPrimary" data-funding-submit <%= data.fundingAccounts.length<2?'disabled':'' %>>Transfer funds now</button></div>
-</form></section>
+</form></details>
 <% } %>

@@ -1,36 +1,85 @@
+<link rel="stylesheet" href="/css/workspace.css?v=<%= assetVersion %>">
+<link rel="stylesheet" href="/css/treasury.css?v=<%= assetVersion %>">
 <section class="view show">
- <section class="card treasurySetupGuide" aria-label="Easy cash and float setup">
-   <div class="cardHead"><div><b>Set up accounts and start transactions</b><br>
-     <span>Create your accounts, record the real starting balance, then use each account to add money or check balances.</span></div>
-     <% if(user.role==='Tenant Owner'){ %><a class="btn btnPrimary" href="/tenant/setup#quick-money">Quick setup</a><% } %>
+ <div class="workspaceStack">
+ <% if(data.mode==='review'){ %>
+  <section class="card" id="money-review">
+   <div class="cardHead"><b>Awaiting your review</b><a class="btn" href="/tenant/treasury">Back to accounts</a></div>
+   <div class="cardBody workspaceStack">
+    <% if(!data.fundings.length&&!data.queue.observations.length&&!data.queue.adjustments.length){ %><p>Nothing to review.</p><% } %>
+    <%- include('_funding-history',{fundings:data.fundings,allowReview:data.canReviewFunding,onAccount:false}) %>
+    <% for(const row of data.queue.observations){ %><%- include('_balance-review',{row,account:row.account,isAdjustment:false,allowReview:true,accountLink:true}) %><% } %>
+    <% for(const row of data.queue.adjustments){ %><%- include('_balance-review',{row,account:row.account,isAdjustment:true,allowReview:true,accountLink:true}) %><% } %>
    </div>
-   <div class="cardBody">
-     <p>Use Quick setup to add cash, mobile money float and bank accounts with generated identifiers. The owner can confirm a first routine opening against an actual cash count or provider/bank statement in one audited action. No routine second approval is needed for the owner.</p>
-     <p class="tiny">Creating an account does not invent a balance. Add new money in the selected account's existing balance panel. An internal transfer only moves existing money. Disputed balances and corrections remain independently controlled. The full account register below remains available for advanced settings and exceptions.</p>
+  </section>
+ <% } %>
+ <% if(data.mode==='history'){ %>
+  <section class="card" id="funding-history">
+   <div class="cardHead"><b>Funding history</b><a class="btn" href="/tenant/treasury">Back to accounts</a></div>
+   <div class="cardBody workspaceStack">
+    <% if(!data.fundings.length){ %><p>No funding activity in this view.</p><% } %>
+    <%- include('_funding-history',{fundings:data.fundings,allowReview:data.canReviewFunding,onAccount:false}) %>
    </div>
+  </section>
+ <% } %>
+ <section class="card" id="treasury-accounts">
+  <div class="cardHead">
+   <b>Business accounts</b>
+   <div class="rowBtns">
+    <% if(user.role==='Tenant Owner'||data.canManage){ %><a class="btn btnPrimary" href="<%= user.role==='Tenant Owner'?'/tenant/setup#quick-money':'/tenant/treasury/accounts/new#account-setup' %>"><%= user.role==='Tenant Owner'?'Quick setup':'Add account' %></a><% } %>
+    <% if(data.canObserve){ %><a class="btn" href="#add-funds">Transfer existing funds</a><% } %>
+    <% if(data.canReview&&data.mode!=='review'){ %><a class="btn" href="/tenant/treasury/review#money-review">Review balances and funding</a><% } %>
+   </div>
+  </div>
+  <div class="cardBody treasuryAccounts">
+   <% if(data.snapshot.accounts.some(account=>account.integrityBlocked)){ %>
+    <p role="alert" class="treasuryNotice"><strong>Ledger review required.</strong> Affected accounts are on hold. Ask the platform administrator to reconcile their original ledger records.</p>
+   <% } %>
+   <% if(!data.snapshot.accounts.length){ %><p>No accounts in this view. Set up a cash drawer, wallet or bank account to get started.</p><% } %>
+   <% for(const account of data.snapshot.accounts){
+    const href='/tenant/treasury/accounts/'+account._id;
+    const known=account.openingBalanceMinor!==null;
+    const owner=user.role==='Tenant Owner';
+    const status=account.integrityBlocked?'Ledger review required':
+      account.status==='archived'?'Archived':
+      account.pendingOpeningId?'Opening awaiting review':
+      !known?'Needs opening balance':
+      account.status==='held'?'On hold':
+      account.reconciliationState==='stale'?'Needs new balance check':
+      account.pendingObservation?'Check awaiting review':'Ready';
+    const ownerCapital=owner&&known&&['wallet','cash','bank','forex_stock'].includes(account.kind)&&
+      ((account.status==='active'&&account.reconciliationState==='matched')||(account.status==='held'&&account.reconciliationState==='mismatch'));
+   %>
+    <article class="treasuryAccountRow" data-search-row>
+     <div>
+      <% if(account.integrityBlocked){ %><b><%= account.name %></b><% }else{ %><a class="treasuryAccountLink" href="<%= href %>"><%= account.name %></a><% } %>
+      <div class="tiny"><% if(data.allBranches&&data.branchNames[String(account.branchId)]){ %><%= data.branchNames[String(account.branchId)] %> · <% } %><%= account.kind.replaceAll('_',' ') %><%= account.network?' · '+account.network:'' %></div>
+     </div>
+     <div class="treasuryAccountBalance">
+      <b><%= account.integrityBlocked?'—':known?account.expectedFormatted:'—' %></b><span class="tiny"><%= status %></span>
+     </div>
+     <% if(!account.integrityBlocked&&account.status!=='archived'){ %>
+      <div class="rowBtns">
+       <% if(data.canObserve&&(owner?ownerCapital:data.canRequestContribution(account))){ %><a class="btn" href="<%= href %>?action=money<%= owner?'#record-balance':'#add-money' %>">Add money</a><% } %>
+       <% if(data.canObserve&&(known||!account.pendingOpeningId)){ %><a class="btn" href="<%= href %><%= !known&&owner?'#confirm-opening':'?action=check#record-balance' %>"><%= known?'Check balance':'Set opening balance' %></a><% } %>
+       <% if(data.canManage){ %><a class="btn" href="<%= href %>?action=edit#edit-account">Edit details</a><% } %>
+      </div>
+     <% } %>
+    </article>
+   <% } %>
+  </div>
  </section>
- <section class="card" id="treasury-accounts"><div class="cardHead"><div><b>Wallets, cash &amp; balances</b><br><span>Expected book and actual evidence</span></div><div class="rowBtns"><% if(data.canCreateAccount){ %><a class="btn" href="<%= user.role==='Tenant Owner'?'/tenant/setup#quick-money':'#account-setup' %>">Add account</a><% } %><% if(data.canObserve){ %><a class="btn" href="#add-funds">Transfer existing funds</a><% } %><% if(data.canReview){ %><a class="btn" href="/tenant/treasury/review">Review evidence</a><% } %></div></div><div class="cardBody">
-  <p class="tiny"><%= data.snapshot.note %></p>
-  <% if(data.snapshot.accounts.some(account=>account.integrityBlocked)){ %>
-  <p role="alert" class="tiny" style="border:1px solid var(--line);border-left:4px solid var(--accent);padding:14px;border-radius:var(--radius);margin-bottom:16px">
-   <strong>Ledger review required.</strong> One or more accounts have incomplete accounting evidence. Their amounts are hidden and they cannot be used for funding or transactions. Other verified accounts remain visible. Ask the platform administrator to restore or reconcile the original ledger records; do not reset the opening balance.
-  </p>
-  <% } %>
-  <div class="tableWrap"><table><thead><tr><th>Account</th><th>Expected book</th><th>Last actual observation</th><th>Observed at (UTC)</th><th>Difference</th><th>Control</th></tr></thead><tbody>
-   <% if(!data.snapshot.accounts.length){ %><tr><td colspan="6">No accounts are configured in this view. Add the wallet, drawer, bank or stock account and confirm its opening balance before using it.</td></tr><% } %>
-   <% data.snapshot.accounts.forEach(account=>{ %><tr data-search-row><td><% if(account.integrityBlocked){ %><b><%= account.name %></b><% }else{ %><a href="/tenant/treasury/accounts/<%= account._id %>"><b><%= account.name %></b></a><% } %><br><span class="tiny"><% if(data.allBranches&&data.branchNames[String(account.branchId)]){ %><%= data.branchNames[String(account.branchId)] %> · <% } %><%= account.code %> · <%= account.kind.replaceAll('_',' ') %><%= account.network?' · '+account.network:'' %></span></td><td><%= account.expectedFormatted %></td><td><%= account.observedFormatted %><% if(account.pendingObservation){ %><br><span class="tiny">Pending actual: <%= account.pendingObservation.actualFormatted %> at <%= new Date(account.pendingObservation.observedAt).toISOString() %></span><% } %></td><td><%= account.lastObservationAt?new Date(account.lastObservationAt).toISOString().slice(0,16).replace('T',' '):'Not observed' %></td><td><%= account.varianceFormatted %></td><td><span class="tag"><%= account.integrityBlocked?'Blocked — ledger review required':account.status+' · '+(account.reconciliationState==='matched'?'matched at last reviewed observation':account.reconciliationState) %></span></td></tr><% }) %>
-  </tbody></table></div>
- </div></section>
-  <%- include('_funding') %>
- <% if(data.canCreateAccount&&user.role!=='Tenant Owner'){ %><section class="card" style="margin-top:14px" id="account-setup"><div class="cardHead"><b>Create money account</b><span><%= data.setupBranch.name %></span></div><form class="cardBody" method="post" action="/tenant/treasury/accounts" data-treasury-account-setup><input type="hidden" name="_csrf" value="<%= csrfToken %>"><div class="row2">
+ <%- include('_funding') %>
+ <% if(data.canCreateAccount&&user.role!=='Tenant Owner'){ %><details class="card workspaceSecondary" id="account-setup" <%= data.mode==='create'?'open':'' %>><summary>Create money account · <%= data.setupBranch.name %></summary><form class="cardBody" method="post" action="/tenant/treasury/accounts" data-treasury-account-setup><input type="hidden" name="_csrf" value="<%= csrfToken %>"><div class="row2">
   <label class="field">Account name<input class="control" name="name" required minlength="3" maxlength="120" placeholder="Actual wallet or drawer name"></label>
   <label class="field">Account kind<select class="control" name="kind" required data-treasury-account-kind><% data.kinds.forEach(kind=>{ %><option value="<%= kind %>"><%= kind.replaceAll('_',' ') %></option><% }) %></select></label><label class="field" data-treasury-account-currency-field>Currency<select class="control" name="currency" required data-treasury-account-currency><% data.currencyCodes.forEach(currency=>{const enabled=!data.setupBranch.currencies||data.setupBranch.currencies.includes(currency); %><option value="<%= currency %>" <%= currency===data.setupBranch.currency?'selected':'' %> <%= enabled?'':'disabled' %>><%= currency==='KES'?'KSH':currency %><%= enabled?'':' — enable for this branch' %></option><% }) %></select><span class="tiny">UGX, USD, SSP and KSH are supported. Each account holds one currency. Disabled? <a href="/tenant/branches">Enable it in branch settings</a>.</span></label>
   <label class="field" data-treasury-account-network-field>Wallet network (wallet accounts only)<select class="control" name="network" data-treasury-account-network><option value="">Choose a network</option><% data.networks.forEach(network=>{ %><option data-market-currency="<%= data.networkMarketCurrencies?.[network]||'' %>"><%= network %></option><% }) %></select><small>Currency will follow the provider market where it is fixed. Multi-market wallets require an explicit approved currency.</small></label><label class="field">Assigned operator (required for cash)<select class="control" name="operatorId"><option value="">Shared branch account</option><% data.operators.forEach(operator=>{ %><option value="<%= operator._id %>"><%= operator.name %> · <%= operator.role %></option><% }) %></select></label>
   <label class="field">Wallet / bank identifier<input class="control" name="accountReference" maxlength="80" placeholder="Identifier for the real account; never a PIN or API key"></label><label class="field">Default for this operation<select class="control" name="isDefault"><option value="auto">Automatic — first account for this operation</option><option value="true">Make default</option><option value="false">Choose manually</option></select></label>
- </div><p class="tiny">One currency per account. The code is generated automatically and cannot change after transactions. Creating an account does not create funds.</p><button class="btn btnPrimary" type="submit">Create account</button></form></section><% }else if(data.canManage&&user.role!=='Tenant Owner'){ %><section class="card" style="margin-top:14px" id="account-setup"><div class="cardHead"><b>Add wallet / funds account</b></div><div class="cardBody"><p class="tiny">Choose a branch in the viewing control to add an account.</p></div></section><% } %>
- <% if(data.canReview){ %><section class="card" style="margin-top:14px"><div class="cardHead"><b>Actual balance review queue</b><span>Owner / manager permitted for matching balances</span></div><div class="cardBody">
-  <% if(!data.queue.length){ %><p class="tiny">No account evidence awaits your review.</p><% } %>
-  <% data.queue.forEach(observation=>{ %><div class="tx"><div class="txMeta"><b><a href="/tenant/treasury/accounts/<%= observation.accountId %>"><%= observation.account.name %> · <%= observation.kind %></a></b><span><%= observation.evidenceType.replaceAll('_',' ') %> · <%= observation.evidenceReference %> · <%= new Date(observation.observedAt).toISOString() %></span></div><b><%= data.format(observation.actualMinor,observation.account.currency) %></b></div><% }) %>
- </div></section><% } %>
- <%- include('_funding-history') %>
+ </div><p class="tiny">One currency per account. The code is generated automatically and cannot change after transactions. Creating an account does not create funds.</p><button class="btn btnPrimary" type="submit">Create account</button></form></details><% }else if(data.canManage&&user.role!=='Tenant Owner'){ %><section class="card" style="margin-top:14px" id="account-setup"><div class="cardHead"><b>Add wallet / funds account</b></div><div class="cardBody"><p class="tiny">Choose a branch in the viewing control to add an account.</p></div></section><% } %>
+ <% if(user.role==='Tenant Owner'){ %>
+  <div id="account-setup"><a class="btn" href="/tenant/setup#quick-money">Set up business accounts</a></div>
+ <% } %>
+ <% if(data.mode!=='history'){ %><div id="funding-history"><a class="btn" href="/tenant/treasury?view=history#funding-history" data-treasury-history-link>Funding history</a></div><% } %>
+ </div>
 </section>
+<script defer src="/js/treasury.js?v=<%= assetVersion %>"></script>

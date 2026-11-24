@@ -5,9 +5,9 @@
    <li><b>Set up accounts</b><p>Use Quick setup to create your first branch and its real cash or float accounts. Account codes are generated automatically.</p></li>
    <li><b>Confirm actual opening</b><p>The owner checks real counted cash or a provider statement and confirms a first routine opening in one audited action. Discrepancies still require separate reconciliation.</p></li>
    <li><b>Choose defaults</b><p>Save the default wallet, payment accounts and fee treatment. Configure fees and commissions once; daily entries calculate the matching charge automatically.</p></li>
-   <li><b>Fund and reconcile</b><p>Move existing verified funds instantly between accounts; compare recorded balances with actual counts or statements.</p></li>
+   <li><b>Fund and reconcile</b><p>Open a business account to add money or check its balance. Transfers between existing eligible accounts post immediately.</p></li>
   </ol>
   <p class="tiny">Daily transactions use your assigned operating branch. The administrator branch selector changes the records being viewed.</p>
-  <div class="workspaceActions"><% if(user.role==='Tenant Owner'){ %><a class="btn btnPrimary" href="/tenant/setup">Quick setup</a><% } %><a class="btn" href="/tenant/treasury">Wallets &amp; balances</a><% if(data.canManage){ %><a class="btn" href="/tenant/workspace/pricing">Fees &amp; commissions</a><% } %><% if(data.canObserveFunds){ %><a class="btn" href="/tenant/treasury#add-funds">Add funds</a><% } %><% if(data.canReviewFunds){ %><a class="btn" href="/tenant/treasury/review">Review balances</a><% } %></div>
+  <div class="workspaceActions"><% if(user.role==='Tenant Owner'){ %><a class="btn btnPrimary" href="/tenant/setup">Quick setup</a><% } %><a class="btn" href="/tenant/treasury">Business funds</a><% if(data.canManage){ %><a class="btn" href="/tenant/workspace/pricing">Fees &amp; commissions</a><% } %><% if(data.canObserveFunds){ %><a class="btn" href="/tenant/treasury#add-funds">Transfer funds</a><% } %><% if(data.canReviewFunds){ %><a class="btn" href="/tenant/treasury/review">Review balances</a><% } %></div>
  </div>
 </section>

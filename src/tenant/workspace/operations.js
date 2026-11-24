@@ -105,10 +105,11 @@ function build({tenant,actor,allBranches,people,accounts=[],shifts=[],rates=[],c
  const queues=[];
  const queue=(id,label,count,href,detail)=>queues.push({id,label,count:Number(count||0),href,detail});
  if(modules.length&&hasPermission(actor,'treasury.view')){
-  queue('opening','Opening balances awaiting review',queueCounts.opening,'/tenant/treasury/review','Independent approval establishes the opening book balance.');
-  queue('observations','Balance observations awaiting review',queueCounts.observations,'/tenant/treasury/review','Review dated statements or physical counts against the book.');
-  queue('funding','Funding transfers awaiting review',queueCounts.funding,'/tenant/treasury#funding-history','Approve the recorded transfer between existing accounts.');
-  queue('adjustments','Reconciliation adjustments awaiting review',queueCounts.adjustments,'/tenant/treasury/review','Review evidence before changing the funds book.');
+  const reviewPath=hasPermission(actor,'treasury.review')?'/tenant/treasury/review':null;
+  queue('opening','Opening balances awaiting review',queueCounts.opening,reviewPath||'/tenant/treasury','Independent approval establishes the opening book balance.');
+  queue('observations','Balance observations awaiting review',queueCounts.observations,reviewPath||'/tenant/treasury','Review dated statements or physical counts against the book.');
+  queue('funding','Money awaiting review',queueCounts.funding,reviewPath||'/tenant/treasury?view=history','Review owner contributions and transfers between accounts.');
+  queue('adjustments','Reconciliation adjustments awaiting review',queueCounts.adjustments,reviewPath||'/tenant/treasury','Review evidence before changing the funds book.');
   queue('shift-opening','Cash openings awaiting verification',scopedShifts.filter(shift=>shift.status==='pending_open').length,'/tenant/cash/shifts','A different authorized person must verify each opening.');
   queue('shift-closing','Cash closings awaiting review',scopedShifts.filter(shift=>shift.status==='submitted').length,'/tenant/cash/shifts','Review closing counts and the recorded variance.');
   queue('shift-disputed','Disputed cash shifts',scopedShifts.filter(shift=>shift.status==='disputed').length,'/tenant/cash/shifts','Investigate the difference before closing the shift.');
@@ -161,7 +162,10 @@ async function snapshot(conn,tenant,actor){
   count('opening',observation.countDocuments({...fundScope,kind:'opening'}));
   count('observations',observation.countDocuments({...fundScope,kind:'checkpoint'}));
   count('adjustments',adjustment.countDocuments(fundScope));
-  count('funding',require('../treasury/funding.models').model(conn).countDocuments({tenantId:tenant._id,...scope,status:'pending_review',sourceAccountId:{$in:accountIds},destinationAccountId:{$in:accountIds}}));
+  count('funding',require('../treasury/funding.models').model(conn).countDocuments({
+   tenantId:tenant._id,...scope,status:'pending_review',destinationAccountId:{$in:accountIds},
+   $or:[{sourceAccountId:{$in:accountIds}},{sourceKind:'owner_contribution'}]
+  }));
  }
  if(modules.includes('mobile_money')){
   count('momo',core.mobileTransactionModel(conn).countDocuments({...scope,reviewState:'awaiting_review',status:{$ne:'voided_internal'}}));

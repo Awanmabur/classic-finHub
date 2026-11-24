@@ -97,11 +97,11 @@ router.get('/dashboard', requirePermission('dashboard.view'), async (req,res,nex
     // Indexes are prepared by provisioning and awaited by mutation services.
     // Reading an overview must not start collection/index DDL after a restart.
     const started=process.hrtime.bigint();
- const overview=await require('../services/dashboardOverview.service').overview(req.tenantDb,req.tenant,req.user,{operationBranch:req.operationBranch,currency:req.query.currency,viewBranch:req.viewBranch,viewBranchId:req.viewBranchId,viewBranches:res.locals.viewBranches});
- const duration=Number(process.hrtime.bigint()-started)/1e6;
- res.append('Server-Timing',`dashboard;dur=${duration.toFixed(1)}`);
- if(duration>1200)console.warn(JSON.stringify({event:'tenant_dashboard_slow',durationMs:Math.round(duration)}));
-    renderTenant(req,res,'dashboard/index','Overview','Money transfer, mobile money, banking, forex, tenants, roles, reports, analytics, and daily controls.',overview);
+    const overview=await require('../services/dashboardOverview.service').overview(req.tenantDb,req.tenant,req.user,{operationBranch:req.operationBranch,currency:req.query.currency,viewBranch:req.viewBranch,viewBranchId:req.viewBranchId,viewBranches:res.locals.viewBranches});
+    const duration=Number(process.hrtime.bigint()-started)/1e6;
+    res.append('Server-Timing',`dashboard;dur=${duration.toFixed(1)}`);
+    if(duration>1200)console.warn(JSON.stringify({event:'tenant_dashboard_slow',durationMs:Math.round(duration)}));
+    renderTenant(req,res,'dashboard/index','Today','Your daily work and recent activity.',overview);
   } catch(e) { next(e); }
 });
 router.get('/mobile-money', requireModule('mobile_money'), requirePermission('mobile_money.view'), async (req,res,next)=>{
@@ -233,8 +233,10 @@ const cash=require('../services/cashDrawer.service');
 const financialThrottle=require('../../platform/services/actionThrottle.service').financial;
 // Keep one operating cash control page across Mobile Money and other modules.
 router.get('/mobile-money/shifts',requireModule('mobile_money'),requirePermission('mobile_money.view'),(req,res)=>{
- const cursor=typeof req.query.cursor==='string'&&req.query.cursor.length<=200?'?cursor='+encodeURIComponent(req.query.cursor):'';
- res.redirect(303,'/tenant/cash/shifts'+cursor);
+  const params=new URLSearchParams();
+  if(typeof req.query.cursor==='string'&&req.query.cursor.length<=200)params.set('cursor',req.query.cursor);
+  if(typeof req.query.currency==='string'&&/^[A-Z]{3}$/i.test(req.query.currency))params.set('currency',req.query.currency);
+  res.redirect(303,'/tenant/cash/shifts'+(params.size?'?'+params:''));
 });
 router.post('/mobile-money/shifts/open',requireModule('mobile_money'),requirePermission('mobile_money.view'),financialThrottle,async(req,res,next)=>{
   try{const shift=await cash.open(req.tenantDb,req.tenant,req.user,req.body);

@@ -15,7 +15,7 @@ const customerSchema=new Schema({
 customerSchema.index({reference:1},{unique:true});customerSchema.index({idempotencyKey:1},{unique:true});
 customerSchema.index({branchId:1,createdAt:-1,_id:-1});customerSchema.index({branchId:1,status:1,normalizedName:1});customerSchema.index({branchId:1,phone:1});
 const accountSchema=new Schema({
- ...common,customerId:{type:O,required:true,immutable:true},accountNumber:{type:String,required:true,immutable:true},idempotencyKey:{type:String,required:true,immutable:true},
+ ...common,customerId:{type:O,required:true,immutable:true},accountNumber:{type:String,required:true},originalAccountNumber:{type:String,select:false},idempotencyKey:{type:String,required:true,immutable:true},
  type:{type:String,enum:['Current Account','Savings Account','Agent Account','Business Account'],required:true},
  currency:{type:String,enum:currencyCodes,required:true,immutable:true},ledgerAccountId:{type:O,required:true,immutable:true},
  status:{type:String,enum:['active','pending','suspended','closed'],required:true,default:'active'},

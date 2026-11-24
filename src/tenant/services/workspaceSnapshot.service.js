@@ -4,6 +4,8 @@ const {cashSessionModel,notificationMessageModel}=require('../models');
 const {hasModuleForUser,hasPermission}=require('./moduleAccess.service');
 const {formatMoneyMinor}=require('./mobileMoney.service');
 const volumeService=require('./dashboardVolumes.service');
+const branchCurrency=require('./branchCurrency.service');
+const {activeFilter,opener}=require('./cashDrawer.service');
 const cashOperators=new Set(['Mobile Money Operator','Money Transfer Operator','Banking Operator','Forex Operator']);
 const cashRoles=new Set(['Tenant Owner',...cashOperators,'Branch Manager','Reconciliation Officer','Auditor']);
 const cashModules=['mobile_money','money_transfer','banking','forex','expenses'];
@@ -31,17 +33,19 @@ async function snapshot(conn,tenant,user,data,operationBranch,options={}){
  const viewing=require('./branchView.service').canViewBranches(user)&&user.viewBranchId!==undefined;
  const viewedBranch=viewing?options.viewBranch:operationBranch;
  const selectedCurrency=volumeService.selectedCurrency(options.currency,viewedBranch||operationBranch);
+ const requestedCashDayCurrency=options.cashDayCurrency||selectedCurrency;
+ const cashDayCurrency=operationBranch&&(branchCurrency.supports(operationBranch,requestedCashDayCurrency)?requestedCashDayCurrency:operationBranch.currency);
  const canCash=(operationBranch||viewing)&&cashRoles.has(user.role)&&hasPermission(user,'treasury.view')&&
   cashModules.some(key=>hasModuleForUser(tenant,user,key))&&
   (['Tenant Owner','Auditor'].includes(user.role)||String(operationBranch._id)===String(user.branchId));
  const scope={...(viewing?require('./branchView.service').readScope(user):{branchId:operationBranch?._id}),status:{$in:['open','disputed']},openingVerifiedAt:{$ne:null}};
  if(canCash&&cashOperators.has(user.role))scope.operatorId=new mongoose.Types.ObjectId(user.id);
- const canOwnShift=canCash&&operationBranch&&(user.role==='Tenant Owner'||cashOperators.has(user.role));
+ const canOwnShift=canCash&&operationBranch&&opener(user);
  // These are independent read-only summaries; one slow network round trip must
  // not serialize cash, shift, inbox and volume reads.
  const [totals,ownShift,unread,volumeData]=await Promise.all([
   canCash?cashSessionModel(conn).aggregate([{$match:scope},{$group:{_id:'$currency',amount:{$sum:{$add:['$openingMinor','$provisionalMovementMinor']}},shiftCount:{$sum:1}}}]).option({maxTimeMS:2000}):[],
-  canOwnShift?cashSessionModel(conn).findOne({branchId:operationBranch._id,operatorId:user.id,currency:selectedCurrency}).select('_id status currency openingVerifiedAt').sort({createdAt:-1,_id:-1}).lean():null,
+  canOwnShift?cashSessionModel(conn).findOne(activeFilter(operationBranch._id,user.id,cashDayCurrency)).select('_id status currency openingVerifiedAt').lean():null,
   hasModuleForUser(tenant,user,'notifications')&&hasPermission(user,'notifications.view')?notificationMessageModel(conn).countDocuments({recipientId:user.id,readAt:null}).maxTimeMS(2000):null,
   volumeService.volumes(conn,tenant,user,options,viewedBranch,data)
  ]);
@@ -50,11 +54,12 @@ async function snapshot(conn,tenant,user,data,operationBranch,options={}){
   for(const total of totals)cash.push({currency:total._id,expectedFormatted:formatMoneyMinor(total.amount,total._id),shiftCount:total.shiftCount});
   dayStatus=totals.some(total=>total._id===selectedCurrency)?'OPEN':null;
   if(ownShift){
-   if(!viewing||String(viewedBranch?._id)===String(operationBranch._id))dayStatus=({open:'OPEN',disputed:'REVIEW',submitted:'REVIEW',pending_open:'PENDING',approved:'CLOSED',opening_rejected:'CLOSED'})[ownShift.status]||null;
+   if(selectedCurrency===cashDayCurrency&&(!viewing||String(viewedBranch?._id)===String(operationBranch._id)))dayStatus=({open:'OPEN',disputed:'REVIEW',submitted:'REVIEW',pending_open:'PENDING',approved:'CLOSED',opening_rejected:'CLOSED'})[ownShift.status]||null;
    if(['open','disputed'].includes(ownShift.status)&&ownShift.openingVerifiedAt)currentCashShift={id:String(ownShift._id),status:ownShift.status,currency:ownShift.currency,href:`/tenant/cash/shifts/${ownShift._id}`,submitAction:`/tenant/cash/shifts/${ownShift._id}/submit`};
   }
  }
- return {...volumeData,cash,currentCashShift,dayStatus,notificationUnread,terminalCode:viewedBranch?.code||(viewing?'ALL':null),
+ const cashDay=canOwnShift?{currency:cashDayCurrency,branchName:operationBranch.name,status:ownShift?.status||null}:null;
+ return {...volumeData,cash,currentCashShift,cashDay,dayStatus,notificationUnread,terminalCode:viewedBranch?.code||(viewing?'ALL':null),
   cashBranchName:viewedBranch?.name||(viewing?'All branches':null),...activity(data)};
 }
 module.exports={snapshot,activity,recentRow,cashRoles};

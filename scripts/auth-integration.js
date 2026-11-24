@@ -149,11 +149,11 @@ async function main() {
     const oDashboard=await fetch(`${base}/tenant/dashboard`,{headers:{cookie:ownerFull.cookie}});
     assert.equal(oDashboard.status,200);
     const ownerDashboardHtml=await oDashboard.text();
-    assert.match(ownerDashboardHtml,/Admins, tellers &amp; users/);
     assert.match(ownerDashboardHtml,/href="\/tenant\/users"/,'owner sees the authorized staff directory');
-    assert.match(ownerDashboardHtml,/Roles &amp; permissions/);
-    // An owner must reach the actual editable roles/modules screen through
-    // the existing Roles & permissions shortcut, not a read-only catalogue.
+    assert.match(ownerDashboardHtml,/href="\/tenant\/setup"/,'owner can still reach Quick setup');
+    const settings=await fetch(base+'/tenant/workspace',{headers:{cookie:ownerFull.cookie}});
+    assert.equal(settings.status,200);
+    assert.match(await settings.text(),/href="\/tenant\/workspace\/roles"/,'settings links to editable role-module assignments');
     const rolesShortcut=await fetch(base+'/tenant/workspace/roles',{
       headers:{cookie:ownerFull.cookie},redirect:'manual'});
     assert.equal(rolesShortcut.status,200);
@@ -193,7 +193,6 @@ async function main() {
     const tDashboard=await fetch(`${base}/tenant/dashboard`,{headers:{cookie:operator.cookie}});
     assert.equal(tDashboard.status,200);
     const operatorDashboardHtml=await tDashboard.text();
-    assert.doesNotMatch(operatorDashboardHtml,/Admins, tellers &amp; users/);
     assert.doesNotMatch(operatorDashboardHtml,/href="\/tenant\/users"/,'operator cannot receive staff management navigation');
     assert.equal((await fetch(`${base}/tenant/users`,{headers:{cookie:operator.cookie}})).status,403,'direct staff management access remains denied');
     assert.equal((await fetch(`${base}/tenant/reports`,{headers:{cookie:operator.cookie}})).status,403);
@@ -225,7 +224,12 @@ async function main() {
     const beforeOpening=await post('/tenant/mobile-money/cash-in',operator.cookie,csrf(moneyHtml),recordFields);
     assert.equal(beforeOpening.status,409,'recording without an open cash shift must fail');assert.match(await beforeOpening.text(),/Open and independently verify the assigned operator cash drawer/);
     assert.equal(await require('../src/tenant/models').mobileTransactionModel(tenantDb).countDocuments({networkReference:serverTxId}),0);
-    const opened=await post('/tenant/mobile-money/shifts/open',operator.cookie,csrf(moneyHtml),{openingCash:'0'});
+    const cashDay=await fetch(base+'/tenant/cash/shifts',{headers:{cookie:operator.cookie}});
+    assert.equal(cashDay.status,200);
+    const cashDayHtml=await cashDay.text();
+    assert.match(cashDayHtml,/name="openingFromBook" value="on"/);
+    assert.doesNotMatch(cashDayHtml,/name="openingCash"/);
+    const opened=await post('/tenant/day/open',operator.cookie,csrf(cashDayHtml),{currency:'UGX',openingFromBook:'on',physicalCountConfirmed:'on'});
     assert.equal(opened.status,303);
     const shift=await require('../src/tenant/models').cashSessionModel(tenantDb).findOne({operatorId:owners.find(o=>o.suffix==='operator').account._id,status:'pending_open'}).lean();
     assert(shift,'opening must await independent verification');
@@ -271,7 +275,10 @@ async function main() {
     assert.equal(auditDashboard.status,200);
     const auditorDashboardHtml=await auditDashboard.text();
     assert.match(auditorDashboardHtml,/Operation Reports/);
-    assert.match(auditorDashboardHtml,/href="\/tenant\/reports\/daily"/,'auditor receives the approved daily report navigation');
+    assert.match(auditorDashboardHtml,/href="\/tenant\/reports"/,'auditor receives the Reports navigation');
+    const auditorReports=await fetch(`${base}/tenant/reports`,{headers:{cookie:auditorFull.cookie}});
+    assert.equal(auditorReports.status,200);
+    assert.match(await auditorReports.text(),/href="\/tenant\/reports\/daily"/,'Daily business report remains available from Reports');
     const wrong=await signIn('platform','invalid-password');
     assert.equal(wrong.response.status,303);assert.equal(wrong.response.headers.get('location'),'/signin');
     const resetToken=crypto.randomBytes(32).toString('hex');

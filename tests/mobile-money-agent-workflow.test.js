@@ -73,7 +73,7 @@ test('financial readiness diagnostic is read-only and scoped to the operating br
  assert.doesNotMatch(diagnosis,/\.update|\.create|applyMovements/);
 });
 
-test('cash opening remains a real audited and independently reviewed action',()=>{
+test('cash opening stays book-backed and uses the audited Cash day route',()=>{
  const template=source('src/views/tenant/mobile-money/shifts.ejs');
  const routes=source('src/tenant/routes/cashControl.routes.js');
  const main=source('src/views/tenant/dashboard/index.ejs');
@@ -87,8 +87,8 @@ test('cash opening remains a real audited and independently reviewed action',()=
  assert.match(template,/action="\/tenant\/day\/open"/);
  assert.match(routes,/router\.post\('\/day\/open'/);
  assert.match(main,/visiblePaths\.has\('\/tenant\/cash\/shifts'\)/);
- assert.match(main,/href="<%= opener\.href %>"/);
- assert.match(main,/id="openDayBtn"/);
+ assert.match(main,/href="<%= cashDayHref %>"/);
+ assert.match(drawer,/mobile_money\.shift\.opened/);
 });
 
 test('standalone EJS operation partial never requires dashboard-only assetVersion local',()=>{

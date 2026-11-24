@@ -51,10 +51,25 @@ test('tenant header starts with signed-in user then branch then currency, withou
  assert.match(css,/body\[data-workspace="tenant"\] \.topbar>\.topActions\{display:flex/);
  assert.match(css,/body\[data-workspace="tenant"\] \.tenantHeaderControlGroup\{display:flex/);
 });
-test('all internal directory numbers are read-only and generated on save',()=>{
- const customer=src('src/views/tenant/customer-accounts/form.ejs');
- assert.match(customer,/Customer reference<input[^>]*value="<%= editing\?val\('reference'\):'Generated automatically on save' %>" readonly/);
- assert.match(customer,/Account number<input[^>]*value="<%= editing\?val\('accountNumber'\):'Generated automatically on save' %>" readonly/);
+test('directory numbers are generated on creation and only unused account numbers can be edited',async()=>{
+ const ejs=require('ejs');
+ const form=path.join(__dirname,'../src/views/tenant/customer-accounts/form.ejs');
+ const render=(formKind,formRecord=null,canCorrectNumber=false)=>ejs.renderFile(form,{
+  csrfToken:'fixture',user:{name:'Fixture'},data:{formKind,formRecord,canCorrectNumber,idempotencyKey:'fixture'}
+ });
+ const customer=await render('customer');
+ assert.match(customer,/Customer reference<input[^>]*value="Generated automatically on save" readonly/);
+ assert.doesNotMatch(customer,/name="reference"/);
+ const created=await render('account');
+ assert.match(created,/Account number\s*<input[^>]*value="Generated automatically on save" readonly/);
+ assert.doesNotMatch(created,/name="accountNumber"/);
+ const account={_id:'example',accountNumber:'ACC-EXAMPLE',currency:'UGX'};
+ assert.match(await render('account',account,true),/name="accountNumber" value="ACC-EXAMPLE"[^>]*required/);
+ const used=await render('account',account);
+ assert.match(used,/value="ACC-EXAMPLE" readonly/);
+ assert.doesNotMatch(used,/name="accountNumber"/);
+});
+test('branch and treasury codes are generated on save',()=>{
  const branch=src('src/views/tenant/branches/index.ejs');
  assert.doesNotMatch(branch,/name="code" required/);
  const treasury=src('src/views/tenant/treasury/index.ejs');

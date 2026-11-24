@@ -43,7 +43,7 @@ async function overview(conn,tenant,user,options={}){
  const mobileMarket=mobileMarkets[0]||null;
  // Use the provider's actual currency in Mobile Money, independently of the
  // currency selected for unrelated Money Transfer, Banking and Forex cards.
- const overviewOptions={...options,mobileMarket,
+ const overviewOptions={...options,mobileMarket,cashDayCurrency:options.currency||options.operationBranch?.currency,
   timeZone:businessTime.forBranch(options.viewBranch||options.operationBranch)};
  if(options.viewBranchId==='all'){
   // The trusted branch-view middleware already resolved active branches.

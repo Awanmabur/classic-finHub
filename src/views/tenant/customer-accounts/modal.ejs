@@ -1,7 +1,7 @@
 <dialog id="directoryDialog" class="transactionDialog" data-operation-dialog aria-labelledby="directoryTitle" <%= data.autoOpen?'open':'' %> data-directory-dialog <%= data.autoOpen?'data-directory-auto-open':'' %>>
  <div class="sheet" data-operation-sheet>
-  <header class="sheetHead"><div><b id="directoryTitle"><%= data.formRecord?(data.formKind==='customer'?'Edit customer':'Edit account'):(data.formKind==='customer'?'New customer':'New account') %></b><br><span>Choose a service and enter clean details</span></div><button class="btn btnIcon" type="button" data-directory-close aria-label="Close dialog">×</button></header>
+  <header class="sheetHead"><div><b id="directoryTitle"><%= data.formRecord?(data.formKind==='customer'?'Edit customer':'Edit account'):(data.formKind==='customer'?'New customer':'New account') %></b></div><button class="btn btnIcon" type="button" data-directory-close aria-label="Close dialog">×</button></header>
   <div class="sheetBody"><%- include('form',{data,user}) %></div>
-  <footer class="sheetFoot"><button type="button" class="btn" data-directory-clear>Clear</button><button type="button" class="btn" data-directory-close>Close</button></footer>
+  <footer class="sheetFoot"><button type="button" class="btn" data-directory-close>Close</button></footer>
  </div>
 </dialog>

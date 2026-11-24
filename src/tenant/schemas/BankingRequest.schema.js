@@ -20,6 +20,7 @@ const schema=new mongoose.Schema({
   branchId:{type:O,required:true,immutable:true},
   createdBy:{type:O,required:true,immutable:true},
   kind:{type:String,enum:['deposit_request','withdrawal_request','transfer_request'],required:true,immutable:true},
+  directDeposit:{type:Boolean,immutable:true},
   source:{type:account,required:true,immutable:true},
   destination:{type:account,default:null,immutable:true},
   currency:{type:String,enum:currencyCodes,required:true,immutable:true},

@@ -92,8 +92,18 @@ async function main(){
  assert.deepEqual(pending.adjustments.map(row=>String(row._id)),[String(adjustment.adjustment._id)]);
  await treasury.reviewAdjustment(conn,tenant,reviewer,adjustment.adjustment._id,{decision:'approve',note:'Independent reconciliation proof supports this visible suspense adjustment'});
  const adjusted=await book.models(conn).account.findById(wallet._id).lean();assert.equal(String(adjusted.bookBalanceMinor),'9400');assert.equal(String(adjusted.lastVarianceMinor),'0');assert.equal(adjusted.status,'active');
- const historical=await treasury.requestObservation(conn,tenant,operator,wallet._id,{kind:'checkpoint',actualBalance:'9000',observedAt:new Date(Date.now()-30000).toISOString(),evidenceType:'provider_statement',evidenceReference:'OLD-ACTUAL-STATEMENT',note:'Historical statement preserved without replacing later evidence',idempotencyKey:crypto.randomUUID()});assert.equal((await book.models(conn).account.findById(wallet._id)).status,'active','old mismatches cannot invalidate a later confirmed observation');await treasury.reviewObservation(conn,tenant,reviewer,historical.observation._id,{decision:'approve',note:'Historical evidence retained without replacing the newer checkpoint'});assert.equal(String((await book.models(conn).account.findById(wallet._id)).lastObservationId),String(mismatch.observation._id));
- const late=await post({sourceRef:'LATE-MANUAL-MOMO-123',occurredAt:new Date(Date.now()-1000).toISOString(),legs:[{accountId:wallet._id,deltaMinor:'-10'},{accountId:drawer._id,deltaMinor:'10'}]});assert(late.batch);assert.equal((await book.models(conn).account.findById(wallet._id)).reconciliationState,'stale');
+ // Derive backdated evidence from stored observations so slow Mongo calls
+ // cannot move the test events past the checkpoint they are meant to affect.
+ const openingTime=adjusted.openingObservedAt.getTime();
+ const checkpointTime=adjusted.lastObservationAt.getTime();
+ const historicalAt=new Date(Math.floor((openingTime+checkpointTime)/2)).toISOString();
+ const historical=await treasury.requestObservation(conn,tenant,operator,wallet._id,{kind:'checkpoint',actualBalance:'9000',observedAt:historicalAt,evidenceType:'provider_statement',evidenceReference:'OLD-ACTUAL-STATEMENT',note:'Historical statement preserved without replacing later evidence',idempotencyKey:crypto.randomUUID()});
+ assert.equal((await book.models(conn).account.findById(wallet._id)).status,'active','old mismatches cannot invalidate a later confirmed observation');
+ await treasury.reviewObservation(conn,tenant,reviewer,historical.observation._id,{decision:'approve',note:'Historical evidence retained without replacing the newer checkpoint'});
+ assert.equal(String((await book.models(conn).account.findById(wallet._id)).lastObservationId),String(mismatch.observation._id));
+ const late=await post({sourceRef:'LATE-MANUAL-MOMO-123',occurredAt:new Date(checkpointTime-1).toISOString(),legs:[{accountId:wallet._id,deltaMinor:'-10'},{accountId:drawer._id,deltaMinor:'10'}]});
+ assert(late.batch);
+ assert.equal((await book.models(conn).account.findById(wallet._id)).reconciliationState,'stale','a posted entry dated before the checkpoint invalidates it');
  const recheck=await treasury.requestObservation(conn,tenant,operator,wallet._id,{kind:'checkpoint',actualBalance:'9390',observedAt:new Date().toISOString(),evidenceType:'provider_app',evidenceReference:'ACTUAL-RECHECK-1234',note:'Latest actual wallet checked after the late record',idempotencyKey:crypto.randomUUID()});await treasury.reviewObservation(conn,tenant,reviewer,recheck.observation._id,{decision:'approve',note:'Independent latest observation agrees with all ledger movements'});
  await core.tenantUserModel(conn).updateOne({_id:operator.id},{$set:{status:'disabled'},$inc:{authVersion:1}});
  await assert.rejects(post({sourceRef:'DISABLED-MAKER-123',legs:[{accountId:wallet._id,deltaMinor:'-1'},{accountId:drawer._id,deltaMinor:'1'}]}),e=>e.status===403);

@@ -31,7 +31,7 @@ test('non-owner cannot pick another branch to read capital or earnings',()=>{
  assert.deepEqual(finance.branchScope({role:'Tenant Owner'},{viewBranchId:'all'}),{});
 });
 
-test('dashboard shows posted-only earnings and distinguishes Forex from unmeasured profit',()=>{
+test('dashboard shows posted earnings above activity and omits unmeasured Forex profit',()=>{
  const file=path.join(__dirname,'../src/views/tenant/dashboard/index.ejs');
  const view=fs.readFileSync(file,'utf8');
  const html=ejs.render(view,{
@@ -49,8 +49,7 @@ test('dashboard shows posted-only earnings and distinguishes Forex from unmeasur
  assert.match(html,/Posted net income/);
  assert.match(html,/SSP 7,000/);
  assert.match(html,/Operating assets/);
- assert.match(html,/Forex trading profit/);
- assert.match(html,/Not yet measurable/);
+ assert.doesNotMatch(html,/Forex trading profit|Not yet measurable/);
  assert.match(html,/overviewStatsGrid/);
 });
 test('platform tenant form reflects persisted active state and effective module entitlements',()=>{
@@ -100,4 +99,39 @@ test('posted module earnings classify actual journals by source without counting
  assert.equal(report.find(r=>r.moduleKey==='mobile_money').income[0].amountMinor,'1200');
  assert.equal(report.find(r=>r.moduleKey==='expenses').net[0].amountMinor,'-300');
  assert.equal(report.some(r=>r.moduleKey==='forex'),false);
+});
+
+test('a dashboard supervisor receives earnings only from assigned modules',async t=>{
+ const mongoose=require('mongoose');
+ const core=require('../src/tenant/models');
+ const {models}=require('../src/tenant/treasury/models');
+ const {entitledTenant}=require('./helpers/entitlement');
+ const conn=mongoose.createConnection();
+ t.after(()=>conn.close());
+ const journalId=new mongoose.Types.ObjectId();
+ const tenant=entitledTenant({_id:id,plan:'enterprise',enabledModules:['mobile_money','forex']});
+ const user={role:'Branch Manager',branchId:id,allowedModules:['mobile_money'],
+  permissions:['treasury.view','mobile_money.view','forex.view']};
+ t.mock.method(models(conn).account,'find',query=>{
+  assert.deepEqual(query.moduleKey.$in,['shared','mobile_money']);
+  return {select:()=>({limit:()=>({lean:async()=>[
+   {moduleKey:'shared',currency:'UGX',bookBalanceMinor:'9000'}
+  ]})})};
+ });
+ t.mock.method(models(conn).batch,'find',query=>{
+  assert.deepEqual(query.sourceType.$in,['mobile_money']);
+  return {select:()=>({limit:()=>({maxTimeMS:()=>({lean:async()=>[{sourceType:'mobile_money',journalIds:[journalId]}]})})})};
+ });
+ t.mock.method(core.ledgerPostingModel(conn),'aggregate',pipeline=>{
+  assert.deepEqual(pipeline[0].$match.journalId.$in,[journalId]);
+  return {option:async()=>[
+   {_id:{journalId,currency:'UGX',category:'income',side:'credit'},amount:'1200'}
+  ]};
+ });
+ const result=await finance.overview(conn,tenant,user,{
+  operationBranch:{_id:id},scopeToAssignedModules:true,now:new Date('2026-11-17T12:00:00Z')
+ });
+ assert.equal(result.postedNet[0].amountMinor,'1200');
+ assert.equal(result.bookAssets[0].amountMinor,'9000');
+ assert.deepEqual(result.moduleEarnings.map(row=>row.moduleKey),['mobile_money']);
 });

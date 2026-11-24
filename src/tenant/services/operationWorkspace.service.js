@@ -252,11 +252,11 @@ async function formContext(conn,tenant,actor,key,operationBranch,input={}){
    canReview:service.reviewer(actor)&&hasPermission(actor,'banking.review')};
  }
  const service=require('./forex.service');
- const [listedRates,list,rateQueue,quoteQueue]=await Promise.all([service.listRates(conn,tenant,operatingActor,{status:'active',...(selected?{branchId:selectedId}:{})}),service.listQuotes(conn,tenant,actor),
+ const [choices,list,rateQueue,quoteQueue]=await Promise.all([selected?
+  service.entryRateChoices(conn,tenant,operatingActor,selected):{rates:[],expiredPairs:[]},service.listQuotes(conn,tenant,actor),
   service.reviewer(actor)&&hasPermission(actor,'forex.rate_review')?service.rateReviewQueue(conn,tenant,actor):[],
   service.reviewer(actor)&&hasPermission(actor,'forex.quotes.review')?service.quoteReviewQueue(conn,tenant,actor):[]]);
- const rates=selected?listedRates.filter(rate=>service.enabledRate(selected,rate)):listedRates;
- return {...common,rates,records:list,rateQueue,quoteQueue,amountLabel:service.amountLabel,
+ return {...common,...choices,records:list,rateQueue,quoteQueue,amountLabel:service.amountLabel,
   canPropose:service.operator(actor)&&hasPermission(actor,'forex.rate_manage'),canQuote:service.operator(actor)&&hasPermission(actor,'forex.quotes.create'),
   canRateReview:service.reviewer(actor)&&hasPermission(actor,'forex.rate_review'),canQuoteReview:service.reviewer(actor)&&hasPermission(actor,'forex.quotes.review')};
 }

@@ -35,7 +35,7 @@
 
  <% if(needsOnboarding){ %>
  <section class="card" data-mobile-onboarding aria-label="Mobile Money start and opening checklist">
-  <div class="cardHead"><div><b>Cash and float setup</b><br><span><%= currentBranch?currentBranch.name:'Operating branch not assigned' %></span></div><% if(user.role!=='Tenant Owner'){ %><div class="rowBtns"><a class="btn" href="/tenant/mobile-money/onboarding">Operating guide</a><a class="btn" href="/tenant/mobile-money/readiness">Check readiness</a></div><% } %></div>
+  <div class="cardHead"><div><b>Cash and float setup</b><br><span><%= currentBranch?currentBranch.name:'Operating branch not assigned' %></span></div><% if(user.role!=='Tenant Owner'){ %><a class="btn" href="/tenant/mobile-money/readiness">Check readiness</a><% } %></div>
   <div class="cardBody">
     <% if(user.role==='Tenant Owner'){ %>
       <p>Create the cash drawer and wallet, enter their starting balances, then open Cash Day.</p>
@@ -78,7 +78,7 @@
     <% }else{ %><p class="tiny">No active cash drawer or mobile network wallet is assigned to this operating branch. Configure accounts and approve their opening balances in Treasury. Opening a cash shift alone does not create a treasury wallet.</p><% } %>
    </div>
   </section>
-  <div class="richActions" style="margin-top:14px">
+  <div class="richActions">
     <a class="btn" href="/tenant/mobile-money/network-activity">Network activity</a><a class="btn" href="/tenant/mobile-money/cash-impact">Cash impact</a><% if((user.permissions||[]).includes('*')||(user.permissions||[]).includes('treasury.view')){ %><a class="btn" href="/tenant/mobile-money/tariffs">Agent rate sheets</a><% } %><% if((user.permissions||[]).some(permission=>['*','mobile_money.report','reports.view'].includes(permission))){ %><a class="btn" href="/tenant/mobile-money/report">Mobile money report</a><% } %>
   </div>
   <div class="grid">
@@ -113,7 +113,7 @@
     <% } %>
   </div>
   <% if (data.canReview&&(data.voidQueue||[]).length) { %>
-  <section class="card" style="margin-top:14px">
+  <section class="card">
     <div class="cardHead"><b>Correction requests</b><span>Separate reviewer · full audit trail</span></div>
     <div class="cardBody"><p class="tiny">Approve an internal void only after examining supporting evidence. The original entry and reference are retained. This action never refunds money or reverses a settled journal.</p>
       <% if (!(data.voidQueue||[]).length) { %><p class="tiny">No pending correction requests.</p><% } %>

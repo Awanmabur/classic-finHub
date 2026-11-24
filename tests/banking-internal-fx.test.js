@@ -42,11 +42,26 @@ test('Banking internal currency exchange template uses CSRF, evidence and two na
  assert.match(html,/name="confirmCustomerAuthority"/);
  assert.match(html,/name="rateChoice"/);
  assert.match(html,/action="\/tenant\/banking\/exchange\/preview"/);
+ assert.match(html,/data-feedback-skip data-banking-fx/,'the preview response is the browser confirmation page');
  assert.match(html,/name="sourceAccountId"/);
  assert.match(html,/name="destinationAccountId"/);
  assert.match(html,/0\.00027/);
  assert.match(html,/internal financial-book transfer/);
  assert.doesNotMatch(html,/<script>alert/);
+});
+test('Banking FX retains account choices when no rate can be used',async()=>{
+ const filename=path.join(__dirname,'../src/views/tenant/banking/fx-exchange.ejs');
+ const customerId='507f1f77bcf86cd799439013';
+ const html=await ejs.renderFile(filename,{csrfToken:'test-csrf',data:{
+  accounts:['UGX','USD'].map((currency,i)=>({_id:'507f1f77bcf86cd79943901'+i,customerId,customerName:'Customer',accountNumber:'Masked-1234',currency})),
+  rates:[],records:[],expiredPairs:[{fromCurrency:'UGX',toCurrency:'USD'}],
+  submitted:{sourceAccountId:'507f1f77bcf86cd799439010',amount:'2000'},rateError:'The exchange rate for UGX → USD has expired.'
+ }});
+ assert.match(html,/role="alert"[^>]*>The exchange rate for UGX → USD has expired/);
+ assert.match(html,/data-expired-pairs="UGX:USD"/);
+ assert.match(html,/value="507f1f77bcf86cd799439010"[^>]*selected/);
+ assert.match(html,/name="amount" value="2000"/);
+ assert.match(html,/data-banking-fx-submit disabled/);
 });
 test('Banking FX code never claims that customer ledger transfer executes an external wire',()=>{
  const service=fs.readFileSync(path.join(__dirname,'../src/tenant/services/bankingInternalFx.service.js'),'utf8');

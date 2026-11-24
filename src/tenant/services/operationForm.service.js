@@ -47,7 +47,11 @@ async function context(conn,tenant,actor,branch,kind,input={},options={}){
    if(hasModuleForUser(tenant,actor,'accounts')&&hasPermission(actor,'accounts.view'))references.push(...await require('../customerAccounts/bankingBridge').choices(conn,tenant,actor,{branchId:String(branch._id)}));
    return {references};})();
  }else{
-  const forex=require('./forex.service');choices=forex.listRates(conn,tenant,operatingActor,{status:'active',branchId:String(branch._id)}).then(rates=>({rates:rates.filter(rate=>forex.enabledRate(branch,rate))}));
+  const forex=require('./forex.service');
+  choices=forex.entryRateChoices(conn,tenant,operatingActor,branch).then(rates=>({
+   ...rates,canPropose:forex.operator(actor)&&hasPermission(actor,'forex.rate_manage'),
+   rateDisplay:require('./forexRateUnits.service').display
+  }));
  }
  const [matchingRules,selection]=await Promise.all([pricing,choices]);
  const pricingContext=matchingRules.filter(rule=>rule.operation.startsWith(spec.module+'.')).map(rule=>Object.fromEntries(['_id','revision','branchId','operation','currency','network','fixedFeeMinor','feeBps','fixedCostMinor','costBps','enabled'].map(key=>[key,rule[key]])));

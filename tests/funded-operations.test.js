@@ -70,8 +70,20 @@ test('payout PIN storage is domain-separated, bound to tenant/branch/receiver an
 });
 test('payout form uses one protected MVC stage and cannot pay before a matched receiver',async()=>{
  const file=path.resolve(__dirname,'../src/views/tenant/funded/payout.ejs');const html=await ejs.renderFile(file,{data:{verification:null,idempotencyKey:crypto.randomUUID()},csrfToken:'csrf'});
- for(const field of ['PIN','Sender phone','Receiver name check','ID / Passport presented','Payout note','Match','Collected amount','Status'])assert(html.includes(field));
+ for(const field of ['PIN','Sender phone','Receiver name check','ID / Passport presented','Match','Collected amount','Status'])assert(html.includes(field));
+ assert.doesNotMatch(html,/Payout note|name="confirmCashPaid"/);
  assert.match(html,/name="phase" value="check"/);assert.match(html,/name="_csrf" value="csrf"/);assert.match(html,/<button class="btn" type="submit" disabled>Pay out cash/);assert.doesNotMatch(html,/name="branchId"/);
+});
+
+test('verified payout shows the exact blocked currency pair and disables the unavailable drawer',async()=>{
+ const file=path.resolve(__dirname,'../src/views/tenant/funded/payout.ejs');
+ const html=await ejs.renderFile(file,{csrfToken:'csrf',data:{verification:{expiresAt:new Date(Date.now()+60000)},
+  verificationToken:'test-token',idempotencyKey:crypto.randomUUID(),payoutAccounts:[],
+  rateIssues:['The Buy rate for UGX → SSP has expired. Ask the owner to renew it before continuing.']}});
+ assert.match(html,/Buy rate for UGX → SSP has expired/);
+ assert.match(html,/name="payoutAccountId" data-payout-account disabled/);
+ assert.match(html,/data-payout-submit disabled>Pay out cash/);
+ assert.doesNotMatch(html,/name="confirmCashPaid"/);
 });
 
 test('sender-phone PIN lookup is versioned and cannot be downgraded to receiver verification',()=>{

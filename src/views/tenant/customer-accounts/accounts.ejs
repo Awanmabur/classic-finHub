@@ -5,7 +5,7 @@
    const statusLink='/tenant/accounts'+(searchParams.size?'?'+searchParams:'');
    if(closed)searchParams.set('status','closed');else searchParams.delete('status');
    if(data.records.nextCursor)searchParams.set('cursor',data.records.nextCursor); %>
-<section class="view show">
+<section class="view show tenantContentFlow">
   <section class="card">
     <div class="cardHead">
       <form method="get" action="/tenant/accounts" class="rowBtns">

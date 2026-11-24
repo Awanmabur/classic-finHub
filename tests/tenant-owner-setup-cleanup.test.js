@@ -6,8 +6,8 @@ test('Owner sees clean independent currency cards instead of mixed-currency acco
  const page=source('src/views/tenant/dashboard/index.ejs');
  assert.doesNotMatch(page,/accounts across currencies/);
  assert.match(page,/data-fund-currency/);
- assert.match(page,/accounts\.filter\(a=>a\.currency===currency\)/);
- assert.match(page,/total\?\.formatted/);
+ assert.match(page,/accounts\.filter\(account => account\.currency === currency\)/);
+ assert.match(page,/total \? displayAmount\(total\)/);
  assert.doesNotThrow(()=>ejs.compile(page));
 });
 test('Tenant sidebar matches platform account footer with two opposite functional links',()=>{

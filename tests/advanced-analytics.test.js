@@ -76,24 +76,29 @@ test('Analytics change rates handle no baseline, zero activity, and count overfl
  denied(()=>analytics.countOf([{count:'5'}]),422);
  denied(()=>analytics.countOf([{count:Number.MAX_SAFE_INTEGER},{count:1}]),422);
 });
-test('Read-only analytics generation returns actual tenant audit totals, daily trend, and excludes another branch',async()=>{
+test('Analytics compares scoped audit data across both periods and leaves unused chart sources out',async()=>{
  const called=[];
- const conn={models:{SecureAuditEvent:{aggregate:async pipeline=>{
+ const conn={models:{SecureAuditEvent:{aggregate:pipeline=>{
   called.push(pipeline);
   assert.equal(pipeline[0].$match['metadata.branchId'],oid);
-  if(pipeline[1].$group._id==='$action')return [{_id:'staff.invited',count:3}];
-  return [{_id:'2026-11-02',count:3}];
+  if(pipeline[1].$group._id==='$action')return Promise.resolve([{_id:'staff.invited',count:3}]);
+  return {option:async()=>[{_id:'2026-11-02',count:3},{_id:'2026-10-26',count:3}]};
  }}}};
  const user=actor('Analytics Analyst',['analytics']);
  const output=await analytics.generate(conn,tenant(['analytics']),user,{days:'7'},now);
  assert.equal(output.data[0].current,3);
  assert.equal(output.data[0].previous,3); // test adapter returns fixed mock each period
- assert.equal(output.workspaceTrend.length,7);
- assert.equal(output.workspaceTrend.at(-1).count,3);
- assert.equal(output.workspaceTrend[0].count,0);
+ assert.equal(output.trend.days.length,7);
+ assert.deepEqual(output.trend.days.at(-1),{date:'2026-11-02',current:3,previousDate:'2026-10-26',previous:3});
+ assert.equal(output.trend.days[0].current,0);
+ assert.deepEqual(output.trend.activities,[{label:'staff.invited',count:3}]);
  assert.equal(output.data[0].change,'0%');
  assert.equal(called.length,3);
- assert.match(output.note,/not.*added together/i);
+ assert.match(output.note,/same activity can appear/i);
+ assert.deepEqual(output.sources.map(source=>source.key),['workspace']);
+ const exported=await analytics.generate(conn,tenant(['analytics']),user,{days:'7'},now,'UTC',{charts:false});
+ assert.equal(exported.trend,null);
+ assert.equal(called.length,5);
 });
 test('Analytics CSV neutralizes spreadsheet formulas and outputs no personal data',()=>{
  const content=analytics.csv({from:'2026-10-28',to:'2026-11-03',data:[{label:'=HYPERLINK("evil")',current:1,previous:0,change:'New activity'}]});
@@ -105,7 +110,8 @@ test('Analytics dashboard escapes user data, and viewer has no fake export contr
  const base={sources:[{key:'workspace',label:'Workspace activity'}],filters:{source:'all',days:7},
   data:[{label:'<img src=x onerror=alert(1)>',key:'workspace',current:5,previous:3,change:'+66.7%',
    breakdown:[{activity:'<script>alert(1)</script>',status:'recorded',currency:'—',count:5}]}],
-  workspaceTrend:[{date:'2026-11-03',count:5,percent:100}],from:'2026-10-28',to:'2026-11-03',
+  trend:{key:'workspace',days:[{date:'2026-11-03',current:5,previousDate:'2026-10-27',previous:3}],
+   currencies:[{label:'UGX',count:3},{label:'KSH',count:2}],activities:[],statuses:[]},from:'2026-10-28',to:'2026-11-03',
   previousFrom:'2026-10-21',previousTo:'2026-10-27',note:'No settlement implied.'};
  const file=path.join(__dirname,'../src/views/tenant/analytics/index.ejs');
  const editable=await ejs.renderFile(file,{data:{insights:base,canExport:true}});
@@ -113,6 +119,10 @@ test('Analytics dashboard escapes user data, and viewer has no fake export contr
  assert.match(editable,/&lt;img src=x/);
  assert.match(editable,/&lt;script&gt;/);
  assert(!editable.includes('<script>alert(1)</script>'));
+ assert.match(editable,/Daily activity/);
+ assert.match(editable,/By currency/);
+ assert.match(editable,/Daily totals/);
+ assert.match(editable,/data-analytics-day aria-pressed="true"/);
  const viewer=await ejs.renderFile(file,{data:{insights:base,canExport:false}});
  assert(!viewer.includes('/tenant/analytics/export.csv'));
 });

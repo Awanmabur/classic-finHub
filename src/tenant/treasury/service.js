@@ -700,13 +700,13 @@ async function postCrossCurrencyTransferPayout(conn,session,authorization,execut
   String(source.currency)===String(fx.targetCurrency)||
   !require('../services/fundedOperations.service').sourceMatches(execution,source))
   throw fail('Collected transfer or cross-currency payout snapshot was changed',409);
- if(new Date(fx.rateExpiresAt)<=new Date())throw fail('Exchange rate has expired. Reject and reissue a payout request at an approved rate.',409);
- const Rate=core.forexRateModel(conn);
- const rate=await Rate.findOne({_id:fx.rateId,branchId:execution.branchId,
-   side:'buy',fromCurrency:source.currency,toCurrency:fx.targetCurrency,
-   rateDecimal:fx.rateDecimal,status:'active',revision:fx.rateVersion,
-   reviewedBy:{$ne:null},expiresAt:{$gt:new Date()}}).session(session).lean();
- if(!rate)throw fail('The approved payout exchange rate was replaced. Request an updated payout.',409);
+ const exchangeRates=require('../services/exchangeRateAvailability.service');
+ const direction={branchId:execution.branchId,fromCurrency:source.currency,toCurrency:fx.targetCurrency,side:'buy'};
+ if(new Date(fx.rateExpiresAt)<=new Date())throw exchangeRates.problem('expired',direction);
+ const {status,rate}=await exchangeRates.find(conn,{...direction,session});
+ if(status!=='active')throw exchangeRates.problem(status,direction);
+ if(String(rate._id)!==String(fx.rateId)||rate.rateDecimal!==fx.rateDecimal||rate.revision!==fx.rateVersion)
+  throw exchangeRates.problem('changed',direction);
  const forex=require('../services/forex.service');
  const amount=forex.converted(BigInt(String(source.amountMinor)),source.currency,fx.targetCurrency,
   forex.rateScaled(rate.rateDecimal));

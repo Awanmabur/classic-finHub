@@ -54,7 +54,6 @@ function tenantMenu(tenant,user) {
   group('Mobile Money',mobile?[
     ...(can('mobile_money.cash_in')?[item('Deposit','mobile-money/cash-in','fa-arrow-down',{transactionKind:'cash_in'})]:[]),
     ...(can('mobile_money.cash_out')?[item('Withdrawal','mobile-money/cash-out','fa-arrow-up',{transactionKind:'cash_out'})]:[]),
-    item('Onboarding guide','mobile-money/onboarding','fa-book-open'),
     item('Network activity','mobile-money/network-activity','fa-tower-broadcast')
   ]:[],mobile?['mobile-money','mobile-money/shifts',...(module('sms_capture')?['sms-capture']:[])]:[]);
   const loanAccess=module('loans')&&can('loans.view');

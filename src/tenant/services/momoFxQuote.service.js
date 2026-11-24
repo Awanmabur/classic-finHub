@@ -19,7 +19,7 @@ function rateParts(value){
  if(n===0n)throw fail('Exchange rate must be positive');
  return n;
 }
-function quote(input){
+function quote(input,{now=Date.now()}={}){
  if(!input||typeof input!=='object'||Array.isArray(input))throw fail('Invalid exchange request');
  const {operation,providerCurrency,cashCurrency,providerAmountMinor,cashAmountMinor,rateDecimal,rateSide,rateId,rateVersion,approved,expiresAt}=input;
  if(!['withdraw_provider_receive_cash','deposit_cash_send_provider'].includes(operation))throw fail('Invalid exchange direction');
@@ -29,7 +29,7 @@ function quote(input){
  if(rateSide!==expected)throw fail('Wrong approved Buy/Sell side for exchange direction');
  if(approved!==true||typeof rateId!=='string'||!/^[a-f0-9]{24}$/i.test(rateId)
    ||!Number.isSafeInteger(rateVersion)||rateVersion<1)throw fail('Current approved rate is required');
- if(typeof expiresAt!=='string'||!Number.isFinite(Date.parse(expiresAt))||Date.parse(expiresAt)<=Date.now())
+ if(typeof expiresAt!=='string'||!Number.isFinite(Date.parse(expiresAt))||Date.parse(expiresAt)<=now)
    throw fail('Approved exchange rate has expired');
  const rate=rateParts(rateDecimal);
  // Rate convention: one whole provider unit equals rateDecimal whole cash units.

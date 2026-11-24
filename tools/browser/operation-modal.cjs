@@ -18,6 +18,20 @@ async function main(){
  const branches=await core.branchModel(conn).create([{name:'Main Branch',code:'main',currency:'UGX',currencies:['UGX','USD','SSP','KES'],createdBy:ownerId,updatedBy:ownerId},{name:'Receiving Branch',code:'receive',currency:'UGX',currencies:['UGX','USD','SSP','KES'],createdBy:ownerId,updatedBy:ownerId}]);
  const password='Modal-Review-'+nonce+'#9a',owner=await core.tenantUserModel(conn).create({_id:ownerId,name:'Owner',email:tenant.email,passwordHash:await bcrypt.hash(password,10),role:'Tenant Owner',branchId:branches[0]._id,allowedModules:modules,status:'active',authVersion:0});
  await Identity.create({email:owner.email,kind:'tenant',tenantId:tenant._id,accountId:owner._id});
+ const treasury=req('./src/tenant/treasury/service');
+ const ownerActor={id:String(ownerId),name:owner.name,role:owner.role,permissions:['*'],branchId:String(branches[0]._id),authVersion:0};
+ const openingAccounts=[
+  {kind:'cash',currency:'UGX',name:'Main cash drawer',operatorId:ownerActor.id},
+  {kind:'wallet',currency:'UGX',name:'Main MTN wallet',network:'MTN'},
+  {kind:'cash',currency:'USD',name:'Main USD cash drawer',operatorId:ownerActor.id},
+  {kind:'transfer_clearing',currency:'USD',name:'Main transfer clearing'}
+ ];
+ for(const config of openingAccounts){
+  const account=await treasury.createAccount(conn,tenant,ownerActor,config);
+  await treasury.confirmOwnerOpening(conn,tenant,ownerActor,account._id,{
+   actualBalance:config.kind==='transfer_clearing'?'0':'1000',idempotencyKey:crypto.randomUUID()
+  });
+ }
  let fragmentCommands=null;const app=req('./src/app')();server=await new Promise(resolve=>{const listener=require('node:http').createServer((request,response)=>{if(request.url.startsWith('/tenant/operation-form/transfer')){fragmentCommands=[];response.once('finish',()=>{if(response.statusCode===200&&!result.fragmentCommands)result.fragmentCommands=fragmentCommands;fragmentCommands=null;});}app(request,response);}).listen(0,()=>resolve(listener));});
  mongoose.connection.getClient().on('commandStarted',event=>{if(fragmentCommands&&!['hello','endSessions'].includes(event.commandName))fragmentCommands.push({command:event.commandName,collection:event.command[event.commandName]});});
  const base='http://127.0.0.1:'+server.address().port;browser=await chromium.launch({executablePath:'/usr/bin/chromium',headless:true,args:['--no-sandbox']});const context=await browser.newContext({viewport:{width:1440,height:1000}});page=await context.newPage();

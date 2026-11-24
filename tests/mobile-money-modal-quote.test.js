@@ -67,7 +67,8 @@ test('newly mounted Mobile Money popup receives MTN rates without refreshing or 
 });
 test('the transaction launcher invokes the shared rate calculator on every newly inserted form',()=>{
  const dashboard=source('public/js/dashboard.js');
- assert.match(dashboard,/formHost\.replaceChildren\(form\);[^;\n]*;[^;\n]*;[^;\n]*;window\.ClassicFinMobileQuote\?\.initialise\(form\)/);
+ const inserted=dashboard.slice(dashboard.indexOf('formHost.replaceChildren(form)'),dashboard.indexOf("message('');",dashboard.indexOf('formHost.replaceChildren(form)')));
+ assert.match(inserted,/window\.ClassicFinMobileQuote\?\.initialise\(form\)/);
  assert.match(dashboard,/window\.ClassicFinMobileQuote\?\.initialise\(seed\)/);
  assert.match(dashboard,/window\.ClassicFinMobileQuote\?\.initialise\(present\)/);
  const layout=source('src/views/layouts/dashboard.ejs');

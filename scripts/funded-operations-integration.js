@@ -147,10 +147,6 @@ async function main(){
  await assert.rejects(funded.checkPayout(conn,tenant,owner,{pin:'123456',senderPhone:'+256700199999'}),{status:429},'same phone and branch guesses are limited across database-backed attempts');
  // Same-branch cash pickup remittance: collect UGX, pay SSP at an approved
  // locked rate. No provider transfer is simulated or treated as completed.
- const ugxSspRateProposal=await forex.proposeRate(conn,tenant,owner,{
-  fromCurrency:'UGX',toCurrency:'SSP',side:'buy',rateDecimal:'1.2',validHours:24,
-  note:'Independently checked cash-remittance exchange rate for genuine UGX to SSP payout'});
- const ugxSspRate=await forex.decideRate(conn,tenant,reviewer,ugxSspRateProposal._id,reviewData);
  const sspShift=await cash.open(conn,tenant,owner,{currency:'SSP',openingCash:'20000'});
  await cash.decideOpening(conn,tenant,reviewer,sspShift._id,{
   decision:'approve',note:'Independently counted physical SSP cash before native-currency remittance payout'});
@@ -172,21 +168,47 @@ async function main(){
   pin:fxPin.pin,senderPhone:'+256700111222',receiverNameCheck:'Verified receiver',
   identityDocument:'RECEIVER-IDENTITY-SSP'
  });
+ const fxRequest=requestData({verificationToken:fxMatched.token,payoutAccountId:String(sspCash._id)});
+ const missingPayoutCtx=await funded.payoutContext(conn,tenant,owner,fxMatched);
+ assert(missingPayoutCtx.payoutAccounts.some(a=>String(a._id)===String(cashFund._id)),'native payout remains available');
+ assert(!missingPayoutCtx.payoutAccounts.some(a=>String(a._id)===String(sspCash._id)));
+ assert(missingPayoutCtx.rateIssues.some(message=>/No Buy rate for UGX → SSP is set/.test(message)));
+ await assert.rejects(funded.requestPayout(conn,tenant,owner,fxRequest),{status:409,code:'FX_RATE_MISSING'});
+ const ugxSspRateProposal=await forex.proposeRate(conn,tenant,owner,{
+  fromCurrency:'UGX',toCurrency:'SSP',side:'buy',rateDecimal:'1.2',validHours:24,
+  note:'Independently checked cash-remittance exchange rate for genuine UGX to SSP payout'});
+ const ugxSspRate=await forex.decideRate(conn,tenant,reviewer,ugxSspRateProposal._id,reviewData);
+ const rateRef={_id:ugxSspRate._id};
+ const Rate=core.forexRateModel(conn).collection;
+ const expiresAt=ugxSspRate.expiresAt;
+ const payoutChoice={...fxRequest,rateChoice:`${ugxSspRate._id}:${ugxSspRate.revision}:${ugxSspRate.rateDecimal}`};
+ await Rate.updateOne(rateRef,{$set:{expiresAt:new Date(Date.now()-1000)}});
+ const expiredPayoutCtx=await funded.payoutContext(conn,tenant,owner,fxMatched);
+ assert(!expiredPayoutCtx.payoutAccounts.some(a=>String(a._id)===String(sspCash._id)));
+ assert(expiredPayoutCtx.rateIssues.some(message=>/Buy rate for UGX → SSP has expired/.test(message)));
+ await assert.rejects(funded.requestPayout(conn,tenant,owner,payoutChoice),{status:409,code:'FX_RATE_EXPIRED'});
+ await Rate.updateOne(rateRef,{$set:{expiresAt:new Date(Date.now()+30000)}});
+ const expiringPayoutCtx=await funded.payoutContext(conn,tenant,owner,fxMatched);
+ assert(expiringPayoutCtx.rateIssues.some(message=>/Buy rate for UGX → SSP expires too soon/.test(message)));
+ await assert.rejects(funded.requestPayout(conn,tenant,owner,payoutChoice),{status:409,code:'FX_RATE_EXPIRING'});
+ await Rate.updateOne(rateRef,{$set:{expiresAt}});
  const fxPayoutCtx=await funded.payoutContext(conn,tenant,owner,fxMatched);
  assert(fxPayoutCtx.fxRates.some(r=>String(r._id)===String(ugxSspRate._id)));
- assert(fxPayoutCtx.payoutAccounts.some(a=>String(a._id)===String(sspCash._id)));
+ assert.equal(fxPayoutCtx.payoutAccounts.find(a=>String(a._id)===String(sspCash._id)).payoutAmount,'SSP 12,000.00');
  const sspBefore=await book(sspCash),clearingBefore=await book(clearing);
  assert.equal(clearingBefore,10000n);
- const fxPayout=await funded.requestPayout(conn,tenant,owner,requestData({
-  verificationToken:fxMatched.token,payoutAccountId:String(sspCash._id),
-  rateChoice:String(ugxSspRate._id)+':'+ugxSspRate.revision+':'+ugxSspRate.rateDecimal
- }));
+ const fxPayout=await funded.requestPayout(conn,tenant,owner,payoutChoice);
  assert.equal(fxPayout.sameBranch,true);
  assert.equal(String(fxPayout.execution.payoutFx.targetCurrency),'SSP');
  assert.equal(String(fxPayout.execution.payoutFx.payoutMinor),'1200000');
  assert.equal(await book(sspCash),sspBefore,'creating a payout request cannot release SSP funds');
  await assert.rejects(funded.finalizePayout(conn,tenant,owner,fxPayout.execution._id,{
   confirmRecipientVerified:'yes'}),{status:403},'a payout without physical handover confirmation cannot post');
+ await Rate.updateOne(rateRef,{$set:{expiresAt:new Date(Date.now()-1000)}});
+ await assert.rejects(funded.finalizePayout(conn,tenant,owner,fxPayout.execution._id,{
+  confirmRecipientVerified:'yes',confirmCashPaid:'yes'
+ }),{status:409,code:'FX_RATE_EXPIRED'},'a payout cannot post against a rate that expired after verification');
+ await Rate.updateOne(rateRef,{$set:{expiresAt}});
  assert.equal(await book(sspCash),sspBefore);
  assert.equal((await funded.finalizePayout(conn,tenant,owner,fxPayout.execution._id,{
   confirmRecipientVerified:'yes',confirmCashPaid:'yes'})).execution.status,'posted_manual');
@@ -379,6 +401,36 @@ async function main(){
  await assert.rejects(bankFx.convert(other,tenant,owner,branch,{...fxBankInput,idempotencyKey:crypto.randomUUID(),
   evidenceReference:'BANKFX-CROSS-TENANT-'+nonce}),{status:403});
  assert.equal((await bankFx.history(conn,tenant,owner,branch)).length,1);
+ const dashboard=require('../src/tenant/services/dashboardVolumes.service');
+ const dashboardInput={timeZone:fxZone,now:new Date(bankFxPosted.record.postedAt)};
+ const dashboardSummary=await dashboard.volumes(conn,tenant,owner,dashboardInput,branch);
+ const row=(key,ccy)=>dashboardSummary.todayByCurrency[key].find(item=>item.currency===ccy);
+ assert.equal(row('forex','USD').amountMinor,'1554','two native forex legs plus the Banking FX dollar credit');
+ assert.equal(row('forex','UGX').amountMinor,'67500','two native forex legs plus one PIN payout and one Banking FX debit');
+ assert.equal(row('forex','SSP').amountMinor,'1200000');
+ assert.equal(row('banking','USD').amountMinor,'54');
+ assert.equal(row('money_transfer','SSP').amountMinor,'1200000');
+ assert.equal(row('money_transfer','UGX').count,2,'a collection and payout share one receipt');
+ assert.equal(dashboardSummary.todayTransactionCount,row('banking','UGX').count+4,'native receipts count once across modules and currencies');
+ const sspDashboard=await dashboard.volumes(conn,tenant,owner,{...dashboardInput,currency:'SSP'},branch);
+ assert.equal(sspDashboard.todayTransactionCount,1,'a cross-currency payout counts once for its destination currency');
+ const restricted={...operatorDrawers.find(item=>item.actor.role==='Forex Operator').actor};
+ const staffDashboard=await dashboard.volumes(conn,tenant,restricted,dashboardInput,branch);
+ assert.deepEqual(staffDashboard.todayByCurrency.forex,[],'forex cashiers only see authorized receipts created by them');
+ assert.equal(staffDashboard.todayByCurrency.banking,undefined);
+ const expiryInput={...fxBankInput,idempotencyKey:crypto.randomUUID(),evidenceReference:'BANKFX-EXPIRED-'+nonce};
+ await core.forexRateModel(conn).collection.updateOne({_id:ugxUsdRate._id},{$set:{expiresAt:new Date(Date.now()-1000)}});
+ const expiredRate=error=>error.status===409&&error.code==='FX_RATE_EXPIRED'&&/UGX → USD has expired/.test(error.message);
+ await assert.rejects(bankFx.preview(conn,tenant,owner,branch,expiryInput),expiredRate);
+ await assert.rejects(bankFx.convert(conn,tenant,owner,branch,expiryInput),expiredRate);
+ const sspAccount=(await directory.accountCreate(conn,tenant,owner,{
+  customerId:String(customer._id),accountNumber:'FUNDED-SSP-'+nonce.toUpperCase(),
+  currency:'SSP',type:'Current Account',status:'active',risk:'Low',idempotencyKey:crypto.randomUUID()
+ })).record;
+ await assert.rejects(bankFx.preview(conn,tenant,owner,branch,{
+  ...expiryInput,sourceAccountId:String(usdAccount._id),destinationAccountId:String(sspAccount._id),rateId:null
+ }),error=>error.status===409&&error.code==='FX_RATE_MISSING'&&/USD → SSP/.test(error.message));
+ assert.equal(await core.ledgerJournalModel(conn).countDocuments(),journalBeforeDenied,'invalid rate cannot post either currency');
  for(const ccy of ['UGX','USD'])assert.equal((await ledger.trialBalance(conn,{branchId:String(branch._id),currency:ccy})).balanced,true);
  const logs=JSON.stringify(await core.auditEventModel(conn).find({}).lean());assert(!logs.includes(revealed.pin),'audit must never contain payout PIN');
  console.log('PASS: atomic customer deposits, native-currency manual finance, standalone Forex, atomic internal Banking FX, immediate PIN-verified UGX/SSP remittance payout, correct cross-module reports, idempotency, insufficient balance rollback, journal integrity and tenant/role isolation.');

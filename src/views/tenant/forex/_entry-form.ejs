@@ -1,22 +1,46 @@
 <% const formTime=Date.now(),operation=['buy','sell'].includes(data.workspaceOperation)?data.workspaceOperation:'quote';
-   const operatingCurrencies=(data.currencyChoices||(typeof currencyOptions==='undefined'?[{code:'UGX'},{code:'USD'},{code:'SSP'},{code:'KES'}]:currencyOptions)).map(option=>option.code);
-   const availableRates=(data.formRates||data.rates).filter(r=>r.status==='active'&&String(r.branchId)===currentBranchId&&new Date(r.expiresAt).getTime()>formTime+5*60000&&(operation==='quote'||(r.side===operation&&[r.fromCurrency,r.toCurrency].every(code=>operatingCurrencies.includes(code)))));
+   const bankCurrencies=(data.currencyChoices||(typeof currencyOptions==='undefined'?[{code:'UGX'},{code:'USD'},{code:'SSP'},{code:'KES'}]:currencyOptions)).map(option=>option.code);
+   const label=code=>code==='KES'?'KSH':code;
+   const rateName=operation==='buy'?'Buy':operation==='sell'?'Sell':'Exchange';
+   const operatingCurrencies=operation==='quote'?[...new Set([...bankCurrencies,'EUR'])]:bankCurrencies;
+   const enabled=r=>[r.fromCurrency,r.toCurrency].every(code=>operatingCurrencies.includes(code))&&(operation==='quote'||r.side===operation);
+   const consideredRates=(data.formRates||data.rates||[]).filter(r=>r.status==='active'&&String(r.branchId)===currentBranchId&&enabled(r));
+   const availableRates=consideredRates.filter(r=>new Date(r.expiresAt).getTime()>formTime+5*60000+1000);
+   const expiredPairs=(data.expiredPairs||[]).filter(enabled);
    const firstRate=availableRates[0];
+   const fallbackPair=consideredRates[0]||expiredPairs[0];
+   const firstFrom=firstRate?.fromCurrency||fallbackPair?.fromCurrency||operatingCurrencies[0];
+   const firstTo=firstRate?.toCurrency||fallbackPair?.toCurrency||operatingCurrencies.find(code=>code!==firstFrom);
+   const expiring=consideredRates.some(r=>r.fromCurrency===firstFrom&&r.toCurrency===firstTo&&new Date(r.expiresAt).getTime()>formTime);
+   const expired=Boolean(fallbackPair)&&!expiring;
+   const rateStatus=firstRate?'':operatingCurrencies.length<2?'Enable another currency for this branch before recording an exchange.':
+    expiring?rateName+' rate for '+label(firstFrom)+' → '+label(firstTo)+' expires too soon to create a quote.':
+    expired?rateName+' rate for '+label(firstFrom)+' → '+label(firstTo)+' has expired.':
+    'No '+rateName+' rate is set for '+label(firstFrom)+' → '+label(firstTo)+' in this branch.';
    const initialMaxValidity=firstRate?Math.min(60,Math.max(5,Math.floor((new Date(firstRate.expiresAt).getTime()-formTime-1000)/60000))):60;
    const initialValidity=Math.min(15,initialMaxValidity); %>
-<% if(!availableRates.length){ %>
- <p class="tiny">No active Forex rate is approved for this operating branch and the currencies available for this operation.</p>
- <p class="tiny">Enabled currencies: <%= operatingCurrencies.length?operatingCurrencies.map(c=>c==='KES'?'KSH':c).join(', '):'none' %>. A separately approved, unexpired exchange rate is required before recording a quote or operation.</p>
- <a class="btn" href="/tenant/forex">Configure a real exchange rate</a>
-<% }else{ %>
 <input type="hidden" name="originModule" value="forex">
 <div class="formSection"><div class="formSectionTitle">Customer and operation</div>
  <div class="row2"><label class="field">Operation<input class="control" value="<%= operation==='buy'?'Buy forex from customer':operation==='sell'?'Sell forex to customer':'Indicative quotation' %>" readonly></label><label class="field">Customer name<input name="customerLabel" class="control" minlength="2" maxlength="120" placeholder="Customer full name" required></label></div>
  <label class="field">Customer phone<input class="control" name="customerPhone" type="tel" required maxlength="16" placeholder="+211..."></label>
 </div>
 <div class="formSection"><div class="formSectionTitle">Currency exchange details</div>
- <div class="row2"><label class="field">Foreign currency<select class="control" data-forex-currency="from" aria-label="Foreign currency"><% [...new Set(availableRates.map(rate=>rate.fromCurrency))].forEach(code=>{ %><option value="<%= code %>" <%= firstRate?.fromCurrency===code?'selected':'' %>><%= code==='KES'?'KSH':code %></option><% }) %></select></label><label class="field">Settlement currency<select class="control" data-forex-currency="to" aria-label="Settlement currency"><% [...new Set(availableRates.map(rate=>rate.toCurrency))].forEach(code=>{ %><option value="<%= code %>" <%= firstRate?.toCurrency===code?'selected':'' %>><%= code==='KES'?'KSH':code %></option><% }) %></select></label></div>
- <div class="row2"><label class="field">Foreign amount<input name="amount" class="control" inputmode="decimal" required placeholder="0"></label><label class="field">Exchange rate<select name="rateId" class="control approvedRatePicker" required aria-describedby="approvedRateHelp"><% if(!availableRates.length){ %><option value="">No approved rate</option><% }else{ %><option value="">Select active rate</option><% availableRates.forEach((r,index)=>{ %><option value="<%= r._id %>" data-from="<%= r.fromCurrency %>" data-to="<%= r.toCurrency %>" data-rate="<%= r.rateDecimal %>" data-side="<%= r.side||'quote' %>" data-expires-at="<%= new Date(r.expiresAt).toISOString() %>" <%= index===0?'selected':'' %>><% const rd=data.rateDisplay?data.rateDisplay(r.rateDecimal,r.fromCurrency):{text:'1 '+r.fromCurrency,rate:r.rateDecimal}; %><%= rd.text %> = <%= rd.rate %> <%= r.toCurrency %> · <%= r.side==='buy'?'Buying':r.side==='sell'?'Selling':'Indicative' %></option><% }) %><% } %></select></label></div>
+ <div class="row2">
+  <label class="field">Foreign currency<select class="control" data-forex-currency="from" aria-label="Foreign currency"><% operatingCurrencies.forEach(code=>{ %><option value="<%= code %>" <%= firstFrom===code?'selected':'' %>><%= label(code) %></option><% }) %></select></label>
+  <label class="field">Settlement currency<select class="control" data-forex-currency="to" aria-label="Settlement currency"><% operatingCurrencies.forEach(code=>{ %><option value="<%= code %>" <%= firstTo===code?'selected':'' %> <%= firstFrom===code?'disabled':'' %>><%= label(code) %></option><% }) %></select></label>
+ </div>
+ <div class="row2">
+  <label class="field">Foreign amount<input name="amount" class="control" inputmode="decimal" required placeholder="0"></label>
+  <label class="field">Exchange rate<select name="rateId" class="control approvedRatePicker" required aria-describedby="approvedRateHelp">
+   <option value="">Select active rate</option><% consideredRates.forEach(r=>{ %>
+    <option value="<%= r._id %>" data-from="<%= r.fromCurrency %>" data-to="<%= r.toCurrency %>" data-rate="<%= r.rateDecimal %>" data-side="<%= r.side||'quote' %>" data-expires-at="<%= new Date(r.expiresAt).toISOString() %>" <%= r===firstRate?'selected':'' %> <%= availableRates.includes(r)?'':'disabled' %>><% const rd=data.rateDisplay?data.rateDisplay(r.rateDecimal,r.fromCurrency):{text:'1 '+label(r.fromCurrency),rate:r.rateDecimal}; %><%= rd.text %> = <%= rd.rate %> <%= label(r.toCurrency) %> · <%= r.side==='buy'?'Buying':r.side==='sell'?'Selling':'Indicative' %></option>
+   <% }) %>
+  </select></label>
+ </div>
+ <div class="rowBtns" data-forex-rate-notice <%= rateStatus?'':'hidden' %>>
+  <span id="approvedRateHelp" role="status" data-forex-rate-status data-rate-name="<%= rateName %>" data-expired-pairs="<%= expiredPairs.map(pair=>pair.fromCurrency+':'+pair.toCurrency).join(' ') %>" data-can-set="<%= Boolean(data.canPropose) %>"><%= rateStatus %><% if(rateStatus&&!data.canPropose&&operatingCurrencies.length>1){ %> Ask the owner to update the rate.<% } %></span>
+  <% if(data.canPropose&&operatingCurrencies.length>1){ %><a class="btn" href="/tenant/forex/rates#forexRateProposalForm">Set exchange rate</a><% } %>
+ </div>
  <input type="hidden" name="commission" value="0">
 </div>
 <p class="tiny">No extra Forex fee. The approved Buy/Sell rate determines the exchange amount. Profit requires a recorded acquisition-cost basis.</p>
@@ -25,6 +49,5 @@
  <label class="field">Note / narration<input name="note" class="control" maxlength="400" placeholder="Optional teller note"></label>
 </div></details>
 <div class="summary"><div class="sumRow"><span><%= operation==='sell'?'Customer pays':operation==='buy'?'Customer receives':'Quoted settlement' %></span><b data-forex-total>—</b></div><div class="sumRow"><span>Drawer effect</span><b>Finalize after cashier confirmation</b></div><div class="sumRow"><span>Reference</span><b class="mono"><%= data.idempotencyKey %></b></div></div>
-<input type="hidden" name="validMinutes" value="<%= initialValidity %>"><p class="tiny" id="approvedRateHelp">Your approved branch rate and quotation window are applied automatically. Saving this quote does not exchange physical cash or post a ledger movement.</p>
-<button type="submit" class="btn btnPrimary">Save <%= operation==='buy'?'buy':operation==='sell'?'sell':'exchange' %> quote</button>
-<% } %>
+<input type="hidden" name="validMinutes" value="<%= initialValidity %>">
+<button type="submit" class="btn btnPrimary" data-forex-save <%= firstRate?'':'disabled' %>>Save <%= operation==='buy'?'buy':operation==='sell'?'sell':'exchange' %> quote</button>

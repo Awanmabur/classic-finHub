@@ -398,31 +398,51 @@
     if(form.matches('[data-forex-form]')){
       const rate=form.elements.namedItem('rateId'),validity=form.elements.namedItem('validMinutes'),commission=form.elements.namedItem('commission');
       const fromField=form.querySelector('[data-forex-currency="from"]'),toField=form.querySelector('[data-forex-currency="to"]');
-      const pairOptions=()=>[...rate.options].filter(option=>option.value&&!option.disabled);
-      const filterDestinations=()=>{
+      const notice=form.querySelector('[data-forex-rate-notice]'),status=form.querySelector('[data-forex-rate-status]');
+      const submit=form.querySelector('[data-forex-save]'),output=form.querySelector('[data-forex-total]');
+      if(!rate||!fromField||!toField||!output)return;
+      const expiredPairs=new Set((status?.dataset.expiredPairs||'').split(' '));
+      const label=code=>code==='KES'?'KSH':code;
+      const expiry=option=>Date.parse(option.dataset.expiresAt);
+      const minValidityMs=5*60000+1000;
+      let timer;
+      const setDestinations=()=>{
         if(toField?.tagName!=='SELECT')return;
-        for(const option of toField.options){option.hidden=option.value===fromField.value||!pairOptions().some(candidate=>candidate.dataset.from===fromField.value&&candidate.dataset.to===option.value);option.disabled=option.hidden;}
-        if(toField.selectedOptions[0]?.disabled)toField.value=[...toField.options].find(option=>!option.disabled)?.value||'';
+        for(const option of toField.options){option.disabled=option.value===fromField.value;option.hidden=option.disabled;}
+        if(!toField.value||toField.selectedOptions[0]?.disabled)
+          toField.value=[...toField.options].find(option=>!option.disabled)?.value||'';
       };
       const update=()=>{
         const now=Date.now();
-        for(const candidate of rate.options){if(candidate.value&&candidate.dataset.expiresAt){const expiresAt=new Date(candidate.dataset.expiresAt).getTime();candidate.hidden=!Number.isFinite(expiresAt)||expiresAt<=now+5*60000+1000;candidate.disabled=candidate.hidden;}}
-        if(rate.selectedOptions[0]?.disabled)rate.value='';
-        const option=rate.selectedOptions[0],from=option?.dataset.from,to=option?.dataset.to;
-        if(from)fromField.value=fromField.tagName==='SELECT'?from:from==='KES'?'KSH':from;
-        if(to)toField.value=toField.tagName==='SELECT'?to:to==='KES'?'KSH':to;
-        filterDestinations();
+        setDestinations();
+        const from=fromField.value,to=toField.value;
+        const pair=[...rate.options].filter(option=>option.value&&option.dataset.from===from&&option.dataset.to===to);
+        const available=pair.filter(option=>expiry(option)>now+minValidityMs);
+        for(const option of rate.options){if(option.value)option.hidden=option.disabled=!available.includes(option);}
+        if(!available.some(option=>option.value===rate.value))rate.value=available[0]?.value||'';
+        const option=rate.selectedOptions[0];
+        const rateName=status?.dataset.rateName||'Exchange';
+        const pairLabel=rateName+' rate for '+label(from)+' → '+label(to);
+        const problem=!from||!to?'Enable another currency for this branch before recording an exchange.':
+          pair.some(item=>expiry(item)>now)?pairLabel+' expires too soon to create a quote.':
+          pair.some(item=>expiry(item)<=now)||expiredPairs.has(from+':'+to)?pairLabel+' has expired.':
+          'No '+pairLabel+' is set for this branch.';
+        if(status){status.textContent=rate.value?'':problem+(from&&to&&status.dataset.canSet!=='true'?' Ask the owner to update the rate.':'');}
+        if(notice)notice.hidden=Boolean(rate.value);
+        if(submit&&!form.hasAttribute?.('aria-busy')&&!form.dataset.operationSaving)submit.disabled=!rate.value;
+        window.clearTimeout?.(timer);
+        const nextBoundary=pair.flatMap(item=>[expiry(item)-minValidityMs,expiry(item)]).filter(at=>at>now).sort((a,b)=>a-b)[0];
+        if(nextBoundary&&form.isConnected)timer=window.setTimeout?.(()=>{if(form.isConnected)update();}, Math.min(nextBoundary-now+10,2147483647));
         if(validity&&option?.dataset.expiresAt){
-          const expiresAt=new Date(option.dataset.expiresAt).getTime(),previous=Number(validity.value)||15;
+          const expiresAt=expiry(option),previous=Number(validity.value)||15;
           if(validity.tagName==='SELECT'){
             for(const minutes of validity.options){minutes.hidden=!Number.isFinite(expiresAt)||expiresAt<=now+Number(minutes.value)*60000+1000;minutes.disabled=minutes.hidden;}
             if(!validity.value||validity.selectedOptions[0]?.disabled)validity.value=[...validity.options].filter(minutes=>!minutes.disabled&&Number(minutes.value)<=previous).at(-1)?.value||[...validity.options].find(minutes=>!minutes.disabled)?.value||'';
           }else{const maximum=Math.min(60,Math.floor((expiresAt-now-1000)/60000));validity.value=Number.isFinite(maximum)&&maximum>=5?String(Math.min(15,maximum)):'';}
         }
-        rate.setCustomValidity(!rate.value||validity&&!validity.value?'Choose an approved rate with enough remaining validity.':'');
+        rate.setCustomValidity(!rate.value?problem:validity&&!validity.value?'Choose a rate with sufficient remaining validity.':'');
         const source=from?operationMinor(form.elements.namedItem('amount').value,from==='UGX'?0:2):null;
         const scaled=option?.dataset.rate?operationMinor(option.dataset.rate,8):null;
-        const output=form.querySelector('[data-forex-total]');
         commission?.setCustomValidity('');
         if(source===null||source<=0n||scaled===null||scaled<=0n||!to){output.textContent='—';return;}
         const numerator=source*scaled*10n**BigInt(to==='UGX'?0:2),denominator=100000000n*10n**BigInt(from==='UGX'?0:2);
@@ -432,17 +452,62 @@
         if(invalidFee){output.textContent='—';return;}
         output.textContent=operationAmount(operation==='buy'?converted-fee:operation==='sell'?converted+fee:converted,to)+' (indicative)';
       };
-      form.addEventListener('input',event=>{if(event.target!==fromField&&event.target!==toField)update();});rate.addEventListener('change',update);
-      form.querySelectorAll('select[data-forex-currency]').forEach(select=>select.addEventListener('change',()=>{
-        filterDestinations();
-        const from=form.querySelector('[data-forex-currency="from"]').value,to=form.querySelector('[data-forex-currency="to"]').value;
-        const match=pairOptions().find(option=>option.dataset.from===from&&option.dataset.to===to);rate.value=match?.value||'';update();
-      }));
-      form.addEventListener('submit',event=>{update();if(!rate.value||validity&&!validity.value){event.preventDefault();rate.setCustomValidity('Choose an approved rate with enough remaining validity.');rate.reportValidity();}else rate.setCustomValidity('');},{capture:true});
+      form.addEventListener('input',event=>{if(event.target!==fromField&&event.target!==toField)update();});
+      rate.addEventListener('change',update);
+      fromField.addEventListener('change',update);
+      toField.addEventListener('change',update);
+      form.addEventListener('submit',event=>{update();if(!rate.value||validity&&!validity.value){event.preventDefault();rate.reportValidity();}},{capture:true});
+      form.addEventListener('classicfin:submit-restored',update);
       form.addEventListener('reset',()=>queueMicrotask(update));update();
     }
   };
   document.querySelectorAll('[data-transfer-form],[data-forex-form],form:has([data-account-currency])').forEach(initialiseOperationForm);
+  const payoutBindings=new WeakSet();
+  const initialisePayoutForm=form=>{
+    if(!form?.matches('[data-payout-form]')||payoutBindings.has(form))return;
+    const drawer=form.querySelector('[data-payout-account]');
+    if(!drawer)return;
+    payoutBindings.add(form);
+    const rate=form.elements.namedItem('rateChoice');
+    const rateField=form.querySelector('[data-payout-rate-field]');
+    const status=form.querySelector('[data-payout-status]');
+    const amount=form.querySelector('.sumRow [data-payout-amount]');
+    const submit=form.querySelector('[data-payout-submit]');
+    const refresh=form.querySelector('[data-payout-refresh]');
+    const windowMs=Number(form.dataset.payoutRateWindow);
+    const verificationExpires=Number(form.dataset.payoutTokenExpires);
+    let timer;
+    const update=()=>{
+      clearTimeout(timer);
+      if(!form.isConnected)return false;
+      const now=Date.now(),option=drawer.selectedOptions[0];
+      const choice=option?.dataset.payoutRate||'',pair=option?.dataset.payoutPair;
+      const expires=Number(option?.dataset.payoutRateExpires);
+      const expired=verificationExpires<=now;
+      const issue=expired?'PIN verification expired. Check the PIN again.':
+        choice&&expires<=now?'The Buy rate for '+pair+' has expired. Refresh the payout.':
+        choice&&expires<=now+windowMs?'The Buy rate for '+pair+' expires too soon. Refresh the payout.':'';
+      if(rate){rate.value=choice;rateField.hidden=true;}
+      if(amount)amount.textContent=issue?'—':option?.dataset.payoutAmount||'—';
+      status.textContent=issue;
+      status.hidden=!issue;
+      refresh.hidden=!issue;
+      drawer.setCustomValidity(issue);
+      submit.disabled=Boolean(issue||!drawer.value);
+      const next=[verificationExpires,expires-windowMs,expires].filter(time=>time>now);
+      if(next.length)timer=setTimeout(update,Math.min(...next)-now);
+      return !submit.disabled;
+    };
+    drawer.addEventListener('change',()=>{
+      const confirmed=form.elements.namedItem('confirmCashPaid');
+      if(confirmed)confirmed.checked=false;
+      update();
+    });
+    form.addEventListener('reset',()=>queueMicrotask(update));
+    form.addEventListener('submit',event=>{if(!update())event.preventDefault();},{capture:true});
+    update();
+  };
+  document.querySelectorAll('[data-payout-form]').forEach(initialisePayoutForm);
 
   document.querySelectorAll('[data-wallet-funding-form]').forEach(form=>{
     const source=form.elements.namedItem('sourceAccountId'),destination=form.elements.namedItem('destinationAccountId'),submit=form.querySelector('[data-funding-submit]'),status=form.querySelector('[data-funding-choices-status]');
@@ -656,12 +721,13 @@
         initialiseMobileMoneyForm(form);
         form.addEventListener('invalid',event=>message(event.target.validationMessage||'Check the highlighted field.',true),true);
         form.addEventListener('submit',async event=>{
+          if(event.defaultPrevented)return;
           event.preventDefault();if(saving||!form.reportValidity())return;
           const disabled=submitButtons.map(button=>button.disabled),data=new FormData(form);
           if(event.submitter?.name)data.set(event.submitter.name,event.submitter.value);
           const fields=new URLSearchParams(data);
           const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),20000);
-          saving=true;submitButtons.forEach(button=>{button.disabled=true;});
+          saving=true;form.dataset.operationSaving='true';submitButtons.forEach(button=>{button.disabled=true;});
           transactionDialog.querySelectorAll('[data-close-transaction],[data-transaction-clear],[data-transaction-service],[data-transaction-kind]').forEach(button=>{button.disabled=true;});
           message('Saving the operation…');
           try{
@@ -669,8 +735,14 @@
             const result=await fetch(action,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded','X-ClassicFin-Redirect':'json','X-ClassicFin-Background':'true'},body:fields,signal:controller.signal});
             if(result.headers.get('content-type')?.includes('application/json')){
               const outcome=await window.ClassicFinFeedback.response(result);
+              if(window.ClassicFinMobileUnified?.handleRateError(form,result,outcome.message)){message('');return;}
               if(result.ok&&outcome.redirect){
-                if(outcome.flash?.type==='bad'){message(outcome.flash.message,true);return;}
+                if(outcome.flash?.type==='bad'){
+                  if(currentKind==='payout'&&new URL(outcome.redirect).pathname===operations.payout.page){
+                    saving=false;await load(currentKind,{refresh:true});
+                  }
+                  message(outcome.flash.message,true);return;
+                }
                 if(operations[currentKind]?.keepOpenAfterPost&&new URL(outcome.redirect).pathname===operations[currentKind].page){saving=false;await load(currentKind,{refresh:true});message(outcome.flash?.message||'Request completed.');return;}
                 location.assign(outcome.redirect);return;
               }
@@ -682,12 +754,17 @@
             }
             message(await responseMessage(result),true);
           }catch{message('The connection was interrupted. Check the module history before retrying; your request may already have been recorded.',true);}
-          finally{clearTimeout(timeout);saving=false;submitButtons.forEach((button,index)=>{button.disabled=disabled[index];});transactionDialog.querySelectorAll('[data-close-transaction],[data-transaction-clear],[data-transaction-service],[data-transaction-kind]').forEach(button=>{button.disabled=false;});}
+          finally{
+            clearTimeout(timeout);saving=false;delete form.dataset.operationSaving;
+            submitButtons.forEach((button,index)=>{button.disabled=disabled[index];});
+            form.dispatchEvent(new Event('classicfin:submit-restored'));
+            transactionDialog.querySelectorAll('[data-close-transaction],[data-transaction-clear],[data-transaction-service],[data-transaction-kind]').forEach(button=>{button.disabled=false;});
+          }
         });
         if(version!==requestVersion)return;
         const activeSeed=seed?.contains(document.activeElement)?document.activeElement:null;
         const seedFocus=activeSeed?.name?{name:activeSeed.name,start:activeSeed.selectionStart,end:activeSeed.selectionEnd,direction:activeSeed.selectionDirection}:null;
-        formHost.replaceChildren(form);window.ClassicFinDirectory?.initialiseForm(form);initialiseOperationForm(form);initialiseMobileFunds(form);window.ClassicFinMobileQuote?.initialise(form);window.ClassicFinMobileUnified?.initialise(form);message('');
+        formHost.replaceChildren(form);window.ClassicFinDirectory?.initialiseForm(form);initialiseOperationForm(form);initialisePayoutForm(form);initialiseMobileFunds(form);window.ClassicFinMobileQuote?.initialise(form);window.ClassicFinMobileUnified?.initialise(form);message('');
         form.dataset.operationLoadedAt=String(Date.now());form.dataset.operationDirty=seed?.dataset.operationDirty==='true'?'true':'false';
         const markDirty=event=>{if(event.target.matches('input:not([type="hidden"]):not([readonly]),select,textarea'))form.dataset.operationDirty='true';};form.addEventListener('input',markDirty);form.addEventListener('change',markDirty);
         const restoredFocus=seedFocus?form.elements.namedItem(seedFocus.name):null;

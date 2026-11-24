@@ -49,7 +49,7 @@ test('tenant header starts with signed-in user then branch then currency, withou
  assert(start>=0&&branch>start&&currency>branch&&search>currency);
  const css=src('public/css/dashboard-layout.css');
  assert.match(css,/body\[data-workspace="tenant"\] \.topbar>\.topActions\{display:flex/);
- assert.match(css,/body\[data-workspace="tenant"\] \.tenantHeaderControlGroup\{display:flex/);
+ assert.match(css,/body\[data-workspace="tenant"\] \.tenantHeaderControlGroup\{\s*display:flex/);
 });
 test('directory numbers are generated on creation and only unused account numbers can be edited',async()=>{
  const ejs=require('ejs');

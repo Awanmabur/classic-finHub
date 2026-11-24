@@ -88,13 +88,10 @@ test('main tenant dashboard keeps cash and electronic float separate from transa
  assert.doesNotMatch(html,/mobileDashboardBalances/,'no duplicate balances panel');
  assert.doesNotMatch(top,/UGX 900,000/);
 });
-test('missing dashboard cash and float records are disclosed rather than displayed as fake zero balances',async()=>{
+test('unconfigured dashboard cash and float sections are omitted',async()=>{
  const html=await render({context:'tenant',currentPath:'/tenant/dashboard',view:'../tenant/dashboard/index',tenant:{slug:'agent-test',name:'Agent test'},menu:[],data:{
-  hasMobileMoney:true,mobileFundsState:'branch_required',workspaceSnapshot:{},
+  hasMobileMoney:true,visibleDashboardModules:[],dashboardCashAvailable:false,mobileFundsState:'branch_required',workspaceSnapshot:{},
   mobileFunds:null
  }});
- assert.match(html,/No operating branch is selected/);
- assert.match(html,/data-dashboard-fund-stat="cash"/);
- assert.match(html,/data-dashboard-fund-stat="float"/);
- assert.doesNotMatch(html,/data-dashboard-fund-stat="(?:cash|float)"[^>]*>[\s\S]*?UGX 0/);
+ assert.doesNotMatch(html,/No operating branch is selected|data-dashboard-fund-stat|Financial details|Today by currency/);
 });

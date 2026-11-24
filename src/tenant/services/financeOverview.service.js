@@ -41,13 +41,18 @@ async function overview(conn,tenant,user,options={}){
   return {available:false,reason:'Financial totals are available to authorized financial supervisors'};
  const scope=branchScope(user,options);
  if(scope===null)return {available:false,reason:'Choose an operating branch'};
+ const assignedOnly=options.scopeToAssignedModules&&user.role!=='Tenant Owner';
+ const hasSource=key=>hasModuleForUser(tenant,user,key)&&hasPermission(user,key+'.view');
+ const assignedAssets=assignedOnly?[...MODULES,'loans','airtime'].filter(hasSource):[];
+ if(assignedOnly&&!assignedAssets.length)return {available:false};
  const Account=fundsModels(conn).account;
  const [assets,recognized,moduleEarnings]=await Promise.all([
   Account.find({tenantId:tenant._id,...scope,kind:{$in:ASSET_KINDS},
+   ...(assignedOnly?{moduleKey:{$in:['shared',...assignedAssets]}}:{}),
    status:{$in:['active','held']},openingBalanceMinor:{$ne:null}})
    .select('currency kind moduleKey bookBalanceMinor').limit(1001).lean(),
-  postedEarnings(conn,scope,options),
-  postedEarningsByModule(conn,tenant,scope,options)
+  assignedOnly?null:postedEarnings(conn,scope,options),
+  postedEarningsByModule(conn,tenant,scope,assignedOnly?{...options,sourceModules:MODULES.filter(hasSource)}:options)
  ]);
  if(assets.length>1000)return {available:false,reason:'Too many capital accounts for one overview. Select a branch.'};
  const visibleAssets=assets.filter(account=>account.moduleKey==='shared'||['Tenant Owner','Auditor'].includes(user.role)||hasModuleForUser(tenant,user,account.moduleKey));
@@ -59,11 +64,14 @@ async function overview(conn,tenant,user,options={}){
   const m=byModule.get(key);
   m.set(currency,(m.get(currency)||0n)+BigInt(String(account.bookBalanceMinor)));
  }
+ const earnings=recognized||Object.fromEntries(['income','expenses','net'].map(key=>[
+  key,rowsOf(groupMoney(moduleEarnings.flatMap(module=>module[key]),'amountMinor'))
+ ]));
  return {available:true,periodLabel:options.from&&options.to?`${options.from} to ${options.to}`:'today',
   bookAssets:rowsOf(assetMap),
   byModule:[...byModule].sort(([a],[b])=>a.localeCompare(b))
     .map(([moduleKey,totals])=>({moduleKey,totals:rowsOf(totals)})),
-  postedIncome:recognized.income,postedExpenses:recognized.expenses,postedNet:recognized.net,
+  postedIncome:earnings.income,postedExpenses:earnings.expenses,postedNet:earnings.net,
   moduleEarnings:moduleEarnings.filter(entry=>['Tenant Owner','Auditor'].includes(user.role)||hasModuleForUser(tenant,user,entry.moduleKey)),
   // Never present spread or operating assets as realized profit/capital funding.
   forexProfit:{available:false,reason:'Cannot calculate realized Forex profit until purchase cost basis and disposal lots are recorded'},
@@ -102,10 +110,11 @@ async function postedEarnings(conn,scope,options={}){
 // Journal-to-batch linkage attributes fee/expense postings to the underlying
 // module. This is posted LEDGER contribution, not FX dealing profit or margin.
 async function postedEarningsByModule(conn,tenant,scope,options={}){
- if(options.suppressTodayVolumes)return [];
+ const sourceModules=options.sourceModules||MODULES;
+ if(options.suppressTodayVolumes||!sourceModules.length)return [];
  const {$gte,$lt}=businessTime.dayBounds({from:options.from,to:options.to},options.timeZone||'UTC',366,options.now||new Date());
  const batches=await fundsModels(conn).batch.find({
-  tenantId:tenant._id,...scope,sourceType:{$in:MODULES},createdAt:{$gte,$lt}
+  tenantId:tenant._id,...scope,sourceType:{$in:sourceModules},createdAt:{$gte,$lt}
  }).select('sourceType journalIds').limit(2001).maxTimeMS(2500).lean();
  if(batches.length>2000)throw new Error('TOO_MANY_FINANCIAL_BATCHES');
  const journalModules=new Map(),journalIds=[];

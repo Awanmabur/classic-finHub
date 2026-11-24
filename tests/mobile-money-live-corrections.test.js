@@ -42,7 +42,7 @@ test('the two public provider tables can be quoted but never posted as agent inc
  assert.equal(customer.quote('MTN','cash_in','250000').customerFeeMinor,'0');
  assert.equal(customer.quote('MTN','cash_out','250000').customerFeeMinor,'3575');
  const routes=source('src/tenant/routes/mobileMoneyWorkspace.routes.js');
- const quoteRoute=routes.slice(routes.indexOf("router.get('/quote'"),routes.indexOf("router.get('/onboarding'"));
+ const quoteRoute=routes.slice(routes.indexOf("router.get('/quote'"),routes.indexOf("router.get('/cash-in'"));
  assert.match(quoteRoute,/source:'published_reference'/);
  assert.match(quoteRoute,/transactionEstimates/);
  assert.match(quoteRoute,/No additional customer charge, funds or income is posted/);

@@ -8,6 +8,7 @@ const {hasModuleForUser,hasPermission}=require('./moduleAccess.service');
 const {forexRateModel,forexQuoteModel,branchModel,auditEventModel,ensureTenantIndexes}=require('../models');
 const {reserveUsage}=require('../../platform/services/commercial.service');
 const mobile=require('./mobileMoney.service');
+const rateAvailability=require('./exchangeRateAvailability.service');
 const OID=/^[a-f\d]{24}$/i;
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const {forexCurrencies:DECIMALS,currencyCodes}=require('../../config/currencies');
@@ -192,7 +193,16 @@ async function createQuote(conn,tenant,actor,input){
   const Rate=forexRateModel(conn);const now=new Date();
   const rate=await Rate.findOneAndUpdate({_id:v.rateId,branchId,status:'active',...(v.operation==='quote'?{}:{side:v.operation}),expiresAt:{$gt:new Date(now.getTime()+v.validMinutes*60000)}},
    {$inc:{revision:1}},{session,new:true});
-  if(!rate)throw fail('The approved rate is unavailable, expires too soon, or does not match the Buy/Sell operation',409);
+  if(!rate){
+   const selected=await Rate.findOne({_id:v.rateId,branchId}).select('fromCurrency toCurrency side status expiresAt').session(session).lean();
+   if(!selected||v.operation!=='quote'&&selected.side!==v.operation)
+    throw Object.assign(fail('Choose a current exchange rate for this operation in your branch.',409),{code:'FX_RATE_MISSING'});
+   const state=selected.status==='active'
+    ? (new Date(selected.expiresAt)<=now?'expired':'expiring')
+    : selected.status==='expired'?'expired':'changed';
+   throw rateAvailability.problem(state,{fromCurrency:selected.fromCurrency,toCurrency:selected.toCurrency,
+    side:selected.side,minRemainingMs:v.validMinutes*60000});
+  }
   const {sourceMinor,targetMinor}=quoteEconomics(v,rate);
   // Do not apply legacy "additional commission" pricing on new direct Forex.
   // Historical quotes and their immutable captured fees are retained.
@@ -276,6 +286,26 @@ async function listRates(conn,tenant,actor,{status=null,branchId=null}={}){
  if(branchId){id(branchId);if(scope.branchId&&String(scope.branchId)!==String(branchId))throw fail('Cross-branch rate access forbidden',403);scope.branchId=branchId;}
  return forexRateModel(conn).find({...scope,...(status?{status}:{})}).sort({createdAt:-1,_id:-1}).limit(100).lean();
 }
+async function expiredRatePairs(conn,branchId){
+ return forexRateModel(conn).aggregate([
+  {$match:{branchId:new mongoose.Types.ObjectId(id(branchId)),reviewedBy:{$type:'objectId'},
+   $or:[{status:'expired'},{status:'active',expiresAt:{$lte:new Date()}}]}},
+  {$group:{_id:{fromCurrency:'$fromCurrency',toCurrency:'$toCurrency',side:{$ifNull:['$side','quote']}}}},
+  {$replaceWith:'$_id'}
+ ]).option({maxTimeMS:3000});
+}
+async function entryRateChoices(conn,tenant,actor,branch){
+ const branchId=String(branch._id);
+ // listRates applies the assigned branch and Forex view permissions.
+ moduleAccess(tenant,actor,'forex.view');
+ const scope=branchScope(actor);
+ if(scope.branchId&&String(scope.branchId)!==branchId)throw fail('Cross-branch rate access forbidden',403);
+ const [rates,expiredPairs]=await Promise.all([
+  listRates(conn,tenant,actor,{status:'active',branchId}),
+  expiredRatePairs(conn,branchId)
+ ]);
+ return {rates:rates.filter(rate=>enabledRate(branch,rate)),expiredPairs:expiredPairs.filter(pair=>enabledRate(branch,pair))};
+}
 async function rateReviewQueue(conn,tenant,actor){
  moduleAccess(tenant,actor,'forex.rate_review');if(!reviewer(actor))throw fail('Independent reviewer required',403);
  return forexRateModel(conn).find({status:'pending_review',
@@ -337,4 +367,4 @@ async function reportRows({conn,filters,scope,dateRange}){
 const unavailable=require('../../utils/unavailableOperation');
 const buy=()=>unavailable('forex currency purchase');const sell=()=>unavailable('forex currency sale');
 module.exports={fail,id,text,currency,rateScaled,minor,converted,amountLabel,enabledRate,moduleAccess,operator,reviewer,branchScope,quoteScope,branchFor,
- rateInput,quoteInput,quoteEconomics,proposeRate,decideRate,retireRate,createQuote,decideQuote,cancelQuote,listRates,rateReviewQueue,listQuotes,recent,detail,quoteReviewQueue,expireDue,reportRows,buy,sell};
+ rateInput,quoteInput,quoteEconomics,proposeRate,decideRate,retireRate,createQuote,decideQuote,cancelQuote,listRates,entryRateChoices,expiredRatePairs,rateReviewQueue,listQuotes,recent,detail,quoteReviewQueue,expireDue,reportRows,buy,sell};

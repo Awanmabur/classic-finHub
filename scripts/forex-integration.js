@@ -67,6 +67,18 @@ async function main(){
    {decision:'approve',note:'Repeat approval must fail'}),e=>e.status===409);
   const quoteInput=()=>({branchId:String(a.branch._id),rateId:String(active._id),customerLabel:'Scratch customer',
    customerPhone:'+256700123456',identityDocument:'FX-DOC',commission:'0',settlementMethod:'Bank settlement',rateSource:'Internal rate board',externalReference:'FX-SLIP',amount:'20000',validMinutes:15,note:'Indicative quote with no currency execution',operation:'buy',idempotencyKey:crypto.randomUUID()});
+  await assert.rejects(forex.createQuote(a.conn,a.tenant,maker,{...quoteInput(),rateId:String(new mongoose.Types.ObjectId())}),
+   error=>error.status===409&&error.code==='FX_RATE_MISSING');
+  const rates=forexRateModel(a.conn);
+  await rates.collection.updateOne({_id:active._id},{$set:{expiresAt:past}});
+  await assert.rejects(forex.createQuote(a.conn,a.tenant,maker,quoteInput()),
+   error=>error.status===409&&error.code==='FX_RATE_EXPIRED'&&/UGX → USD/.test(error.message));
+  assert((await forex.entryRateChoices(a.conn,a.tenant,maker,a.branch)).expiredPairs
+   .some(pair=>pair.fromCurrency==='UGX'&&pair.toCurrency==='USD'&&pair.side==='buy'));
+  await rates.collection.updateOne({_id:active._id},{$set:{expiresAt:new Date(Date.now()+120000)}});
+  await assert.rejects(forex.createQuote(a.conn,a.tenant,maker,quoteInput()),
+   error=>error.status===409&&error.code==='FX_RATE_EXPIRING'&&/UGX → USD/.test(error.message));
+  await rates.collection.updateOne({_id:active._id},{$set:{expiresAt:active.expiresAt}});
   await assert.rejects(forex.createQuote(a.conn,a.tenant,maker,{...quoteInput(),operation:'sell'}),e=>e.status===409,
    'Sell must not accept an approved Buy rate');
   const input=quoteInput(),created=await forex.createQuote(a.conn,a.tenant,maker,input);

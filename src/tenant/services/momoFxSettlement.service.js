@@ -10,6 +10,7 @@ const treasury=require('../treasury/service');
 const {forexRateModel,forexQuoteModel,branchModel,auditEventModel,mobileTransactionModel,ensureTenantIndexes}=require('../models');
 const {hasModuleForUser,hasPermission}=require('./moduleAccess.service');
 const {quote}=require('./momoFxQuote.service');
+const exchangeRates=require('./exchangeRateAvailability.service');
 const OID=/^[a-f0-9]{24}$/i,UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 function fail(message,status=409){return Object.assign(new Error(message),{status});}
 const ref=value=>typeof value==='string'&&/^[A-Za-z0-9][A-Za-z0-9._:/-]{5,119}$/.test(value);
@@ -154,17 +155,24 @@ async function settleVerified(conn,tenant,actor,input,proof){
     if(!grant)throw fail('Pair access changed during recording; retry',409);
    }
    const side=input.operation==='withdraw_provider_receive_cash'?'buy':'sell';
+   const direction={branchId:branch._id,fromCurrency:wallet.currency,toCurrency:cash.currency,side,
+    canSetRate:auth.actor.role==='Tenant Owner'&&hasPermission(auth.actor,'treasury.manage')};
    const rate=await forexRateModel(conn).findOne({_id:input.rateId,
-    branchId:branch._id,fromCurrency:wallet.currency,toCurrency:cash.currency,
-    side,status:'active',reviewedBy:{$ne:null},expiresAt:{$gt:new Date()},
+    ...exchangeRates.pairFilter(branch._id,wallet.currency,cash.currency,side),
+    status:'active',expiresAt:{$gt:new Date()},
     revision:Number(input.rateVersion)}).session(session).lean();
-   if(!rate)throw fail('Approved rate was replaced or expired; obtain a fresh quote');
+   if(!rate){
+    const {status}=await exchangeRates.find(conn,{...direction,session});
+    throw exchangeRates.problem(status==='active'?'changed':status,direction);
+   }
+   const now=Date.now();
+   exchangeRates.remaining(rate,direction,now);
    const q=quote({operation:input.operation,providerCurrency:wallet.currency,cashCurrency:cash.currency,
     providerAmountMinor:input.providerAmountMinor,
     ...(input.operation==='deposit_cash_send_provider'?{cashAmountMinor:input.cashAmountMinor}:{}),
     rateDecimal:rate.rateDecimal,
     rateSide:rate.side,rateId:String(rate._id),rateVersion:rate.revision,
-    approved:true,expiresAt:new Date(rate.expiresAt).toISOString()});
+    approved:true,expiresAt:new Date(rate.expiresAt).toISOString()},{now});
    if(q.cashAmountMinor!==String(input.cashAmountMinor)||
       input.providerCurrency!==wallet.currency||input.cashCurrency!==cash.currency||
       String(input.rateDecimal)!==rate.rateDecimal)throw fail('Submitted quote has changed; calculate the approved amounts again');

@@ -1,20 +1,85 @@
-<% const verified=!!data.verification; %><section class="view show"><section class="card"><div class="cardHead"><div><b>Payout by PIN</b><br><span>Verify the receiver before requesting cash payout</span></div></div><div class="cardBody"><form method="post" action="/tenant/funded/payout" autocomplete="off" data-payout-form>
-<input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="phase" value="<%= verified?'request':'check' %>"><input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>"><% if(verified){ %><input type="hidden" name="verificationToken" value="<%= data.verificationToken %>"><% } %>
-<div class="formSection"><div class="formSectionTitle">Payout verification</div><div class="row2"><label class="field">PIN<input class="control" name="pin" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="<%= verified?'PIN matched':'6-digit PIN' %>" <%= verified?'readonly':'required' %>></label><label class="field"><%= data.verification?.lookupVersion==='receiver_v1'?'Receiver phone (older transfer)':'Sender phone' %><input class="control" name="senderPhone" type="tel" maxlength="16" placeholder="Sender international phone, +211…" value="<%= data.verification?.lookupPhone||'' %>" <%= verified?'readonly':'' %>><span class="tiny">Enter the sender number shown in the receiver SMS.</span></label><label class="field">Receiver name check<input class="control" name="receiverNameCheck" maxlength="120" placeholder="Receiver's actual verified full name" <%= verified?'':'required' %> value="<%= data.verification?.receiverNameCheck||'' %>" <%= verified?'readonly':'' %>></label><label class="field">ID / Passport presented<input class="control" name="identityDocument" maxlength="80" placeholder="Receiver identity document or authorized identity reference" <%= verified?'':'required' %> value="<%= data.verification?.identityDocument||'' %>" <%= verified?'readonly':'' %>></label></div><% if(!verified){ %><details class="workspaceSecondary"><summary>Claim an older transfer</summary><label class="field">Receiver phone (older transfer)<input class="control" type="tel" name="legacyReceiverPhone" maxlength="16" placeholder="Original receiver international phone"><span class="tiny">Only for older PINs issued with receiver-phone verification. Leave Sender phone empty.</span></label></details><% } %><label class="field">Payout note<textarea class="control" name="note" maxlength="400" minlength="12" <%= verified?'required':'' %> placeholder="Record the physical receiver verification and cash count"></textarea></label><% if(verified){ %><label class="field">Payout cash drawer<select class="control" name="payoutAccountId" required><% (data.payoutAccounts||[]).forEach(account=>{ %><option value="<%= account._id %>"><%= account.name %> · <%= account.currency %></option><% }) %></select></label>
-<% if((data.fxRates||[]).length){ %>
- <label class="field">Currency conversion rate (required when drawer currency differs from collected funds)
-  <select class="control" name="rateChoice"><option value="">No FX — pay in collected currency</option>
-   <% data.fxRates.forEach(rate=>{ %>
-    <option value="<%= rate._id %>:<%= rate.revision %>:<%= rate.rateDecimal %>"><% const rd=data.rateDisplay(rate.rateDecimal,rate.fromCurrency); %><%= rate.fromCurrency %> → <%= rate.toCurrency %> · Buy · <%= rd.text %> = <%= rd.rate %> <%= rate.toCurrency %> · expires <%= new Date(rate.expiresAt).toISOString().slice(0,16).replace('T',' ') %> UTC</option>
-   <% }) %>
-  </select>
-  <span class="tiny">Choose the exact rate matching the selected payout cash currency. The server calculates and locks the receiver amount; no payout takes place until the actual cash posting.</span>
- </label>
-<% } %><label class="field">Counted cash / statement reference<input class="control" name="evidenceReference" minlength="5" maxlength="120" required placeholder="Payout cash voucher or receipt reference"></label>
-<label class="field"><input type="checkbox" name="confirmRecipientVerified" value="yes" required> I verified the receiver’s identity against the transfer details and PIN.</label>
-<label class="field"><input type="checkbox" name="confirmCashPaid" value="yes" required> I physically paid the recipient the exact confirmed cash amount in the selected currency.</label>
-<% } %></div>
-<div class="summary"><div class="sumRow"><span>Match</span><b><%= data.verification?.receiverName||'—' %></b></div><div class="sumRow"><span>Collected amount</span><b><%= data.source?(typeof formatMoneyMinor==='function'?formatMoneyMinor(data.source.amountMinor,data.source.currency):data.source.amountMinor+' '+data.source.currency):'—' %></b></div><div class="sumRow"><span>Status</span><b><%= verified?'PIN verified · final payout posts immediately after receiver cash confirmation, including cross-branch settlements':'Check PIN and sender phone' %></b></div></div>
-<div class="row2"><button class="btn btnPrimary" type="submit" <%= verified?'disabled':'' %>>Check PIN</button><button class="btn" type="submit" <%= verified?'':'disabled' %>>Pay out cash</button></div></form>
-<% if(verified){ %><form method="post" action="/tenant/funded/payout/reset" class="rowBtns" style="margin-top:12px"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn" type="submit">Check a different PIN</button></form><% } %>
-</div></section></section>
+<%
+ const verified=Boolean(data.verification);
+ const drawers=data.payoutAccounts||[];
+ const rates=data.fxRates||[];
+ const issues=data.rateIssues||[];
+ const eligible=verified&&drawers.length>0;
+ const label=code=>code==='KES'?'KSH':code;
+%>
+<section class="view show">
+ <section class="card">
+  <div class="cardHead"><b>Payout by PIN</b></div>
+  <div class="cardBody workspaceStack">
+   <form method="post" action="/tenant/funded/payout" autocomplete="off" class="workspaceStack" data-payout-form
+    <% if(verified){ %>data-payout-token-expires="<%= new Date(data.verification.expiresAt).getTime() %>" data-payout-rate-window="<%= data.payoutRateWindowMs %>"<% } %>>
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="phase" value="<%= verified?'request':'check' %>">
+    <input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
+    <% if(verified){ %><input type="hidden" name="verificationToken" value="<%= data.verificationToken %>"><% } %>
+    <div class="formSection">
+     <div class="formSectionTitle">Payout verification</div>
+     <div class="row2">
+      <label class="field">PIN<input class="control" name="pin" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="<%= verified?'PIN matched':'6-digit PIN' %>" <%= verified?'readonly':'required' %>></label>
+      <label class="field"><%= data.verification?.lookupVersion==='receiver_v1'?'Receiver phone (older transfer)':'Sender phone' %>
+       <input class="control" name="senderPhone" type="tel" maxlength="16" placeholder="Sender international phone, +211…" value="<%= data.verification?.lookupPhone||'' %>" <%= verified?'readonly':'' %>>
+       <% if(!verified){ %><span class="tiny">Use the sender number in the receiver’s SMS.</span><% } %>
+      </label>
+      <label class="field">Receiver name check<input class="control" name="receiverNameCheck" maxlength="120" placeholder="Receiver's actual verified full name" <%= verified?'readonly':'required' %> value="<%= data.verification?.receiverNameCheck||'' %>"></label>
+      <label class="field">ID / Passport presented<input class="control" name="identityDocument" maxlength="80" placeholder="Receiver identity document or authorized identity reference" <%= verified?'readonly':'required' %> value="<%= data.verification?.identityDocument||'' %>"></label>
+     </div>
+     <% if(!verified){ %>
+      <details class="workspaceSecondary">
+       <summary>Claim an older transfer</summary>
+       <label class="field">Receiver phone (older transfer)<input class="control" type="tel" name="legacyReceiverPhone" maxlength="16" placeholder="Original receiver international phone"><span class="tiny">Use the original receiver number and leave Sender phone empty.</span></label>
+      </details>
+     <% } %>
+     <% if(verified){ %>
+      <label class="field">Payout cash drawer
+       <select class="control" name="payoutAccountId" data-payout-account <%= eligible?'required':'disabled' %>>
+        <% if(!eligible){ %><option value="">No drawer available</option><% } %>
+        <% drawers.forEach(account=>{ %>
+         <option value="<%= account._id %>" data-payout-amount="<%= account.payoutAmount %>"
+          data-payout-pair="<%= account.ratePair||'' %>" data-payout-rate="<%= account.rateChoice||'' %>"
+          data-payout-rate-expires="<%= account.rateExpiresAt||'' %>"><%= account.name %> · <%= account.payoutAmount %></option>
+        <% }) %>
+       </select>
+      </label>
+      <% if(issues.length){ %><ul class="workspaceIssueList"><% issues.forEach(issue=>{ %><li><%= issue %></li><% }) %></ul><% } %>
+      <% if(!eligible&&!issues.length){ %><p class="workspaceNote">No reconciled cash drawer in an enabled payout currency is assigned to you.</p><% } %>
+      <% if(rates.length&&eligible){ %>
+       <label class="field" data-payout-rate-field>Currency conversion rate
+        <select class="control" name="rateChoice">
+         <option value="">Pay in the collected currency</option>
+         <% rates.forEach(rate=>{ const display=data.rateDisplay(rate.rateDecimal,rate.fromCurrency); %>
+          <option value="<%= rate._id %>:<%= rate.revision %>:<%= rate.rateDecimal %>" <%= drawers[0].rateChoice===String(rate._id)+':'+rate.revision+':'+rate.rateDecimal?'selected':'' %>><%= label(rate.fromCurrency) %> → <%= label(rate.toCurrency) %> · Buy · <%= display.text %> = <%= display.rate %> <%= label(rate.toCurrency) %></option>
+         <% }) %>
+        </select>
+       </label>
+      <% } %>
+      <div class="workspaceNote" role="status" data-payout-status hidden></div>
+      <a class="btn" href="/tenant/funded/payout" data-payout-refresh hidden>Refresh payout</a>
+      <% if(eligible){ %>
+       <label class="field">Payout note<textarea class="control" name="note" maxlength="400" minlength="12" required placeholder="Record the physical receiver verification and cash count"></textarea></label>
+       <label class="field">Counted cash / statement reference<input class="control" name="evidenceReference" minlength="5" maxlength="120" required placeholder="Payout cash voucher or receipt reference"></label>
+       <label class="field"><input type="checkbox" name="confirmRecipientVerified" value="yes" required> I verified the receiver’s identity against the transfer details and PIN.</label>
+       <label class="field"><input type="checkbox" name="confirmCashPaid" value="yes" required> I physically paid the receiver the displayed amount.</label>
+      <% } %>
+     <% } %>
+    </div>
+
+    <div class="summary">
+     <div class="sumRow"><span>Match</span><b><%= data.verification?.receiverName||'—' %></b></div>
+     <div class="sumRow"><span>Collected amount</span><b><%= data.source?(typeof formatMoneyMinor==='function'?formatMoneyMinor(data.source.amountMinor,data.source.currency):data.source.amountMinor+' '+label(data.source.currency)):'—' %></b></div>
+     <% if(eligible){ %><div class="sumRow"><span>Cash to pay</span><b data-payout-amount><%= drawers[0].payoutAmount %></b></div><% } %>
+     <div class="sumRow"><span>Status</span><b><%= verified?'PIN verified':'Check PIN and sender phone' %></b></div>
+    </div>
+    <div class="rowBtns">
+     <button class="btn btnPrimary" type="submit" <%= verified?'disabled':'' %>>Check PIN</button><button class="btn" type="submit"<% if(verified){ %> data-payout-submit<% } %><% if(!eligible){ %> disabled<% } %>>Pay out cash</button>
+    </div>
+   </form>
+   <% if(verified){ %>
+    <form method="post" action="/tenant/funded/payout/reset" class="rowBtns"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn" type="submit">Check a different PIN</button></form>
+   <% } %>
+  </div>
+ </section>
+</section>

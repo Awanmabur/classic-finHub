@@ -1,7 +1,7 @@
 <% const currentBranch = typeof operationBranch !== 'undefined' ? operationBranch : (data.branches || []).find(b => String(b._id) === String(user.transactionBranchId || user.branchId || data.selectedBranchId || '') && b.status !== 'archived');
    const currentBranchId = currentBranch ? String(currentBranch._id) : null;
    const branchProblem = typeof operationBranchError === 'string' && operationBranchError ? operationBranchError : 'An active operating branch must be assigned to your account before creating records.'; %>
-<section class="view show">
+<section class="view show tenantContentFlow">
  <%- include('../../partials/operation-branch', {currentBranch, branchProblem, user}) %>
  <%- include('../partials/module-finance',{moduleKey:'banking'}) %>
  <section class="card"><div class="cardHead"><b><%= data.workspaceTitle||'Banking requests' %></b><span>Internal banking requests</span></div>
@@ -9,7 +9,7 @@
    <div class="rowBtns"><a class="btn" href="/tenant/funded">Final movements &amp; receipts</a><a class="btn" href="/tenant/treasury">Balances &amp; reconciliation</a><% if(data.canFx){ %><a class="btn" href="/tenant/banking/exchange">Transfer balances across currencies</a><% } %><a class="btn" href="/tenant/banking/deposit">Deposit</a><a class="btn" href="/tenant/banking/withdraw">Withdraw</a><a class="btn" href="/tenant/banking/transfer">Account transfer</a><a class="btn" href="/tenant/banking/accounts">Masked account references</a><a class="btn" href="/tenant/banking/records">Full request history</a><a class="btn" href="/tenant/banking/report">Banking report summary</a></div>
 
   </div></section>
- <div class="grid" style="margin-top:14px">
+ <div class="grid">
   <% if(data.canCreate && currentBranchId){ %><form method="post" action="/tenant/banking/requests" class="card" autocomplete="off">
    <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
    <div class="cardHead"><b><%= data.workspaceTitle||'Record banking request' %></b><span>Final upon cashier posting</span></div><div class="cardBody" style="display:grid;gap:12px">

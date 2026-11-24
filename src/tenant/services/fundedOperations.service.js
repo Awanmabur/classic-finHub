@@ -14,8 +14,10 @@ const {hasModuleForUser,hasPermission}=require('./moduleAccess.service');
 const auth=require('./financialAuthorization.service');
 const {resolveTransactionBranch}=require('./transactionBranch.service');
 const directory=require('../customerAccounts/models');
-const {currencyCodes}=require('../../config/currencies');
+const {currencyCodes,currencyLabel}=require('../../config/currencies');
 const branchCurrency=require('./branchCurrency.service');
+const exchangeRates=require('./exchangeRateAvailability.service');
+const payoutRateWindowMs=60_000;
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 const OID=/^[a-f0-9]{24}$/i;
 const definitions=Object.freeze({
@@ -495,20 +497,55 @@ async function payoutContext(conn,tenant,actor,state){
  const current=await context(conn,tenant,actor,'money_transfer','money_transfer.payout');await prepareIndexes(conn);
  if(!state?.token||!state?.id)return {verification:null,idempotencyKey:crypto.randomUUID()};
  const verification=await fundedModels(conn).verification.findOne({_id:id(state.id),tokenHash:pin.tokenHash(state.token),createdBy:actor.id,consumedAt:null,expiresAt:{$gt:new Date()}}).lean();
- if(!verification||String(verification.branchId)!==String((await resolveTransactionBranch(conn,current.actor))._id))return {verification:null,idempotencyKey:crypto.randomUUID()};
+ const branch=verification&&await resolveTransactionBranch(conn,current.actor);
+ if(!verification||String(verification.branchId)!==String(branch._id))return {verification:null,idempotencyKey:crypto.randomUUID()};
  const collection=await fundedModels(conn).execution.findOne({_id:verification.collectionExecutionId,status:'posted_manual'}).lean();
  const source=collection?await models.transferOrderModel(conn).findOne({_id:collection.sourceId,status:'collected_manual'}).lean():null;
  if(!source)return {verification:null,idempotencyKey:crypto.randomUUID()};
  const available=(await availableAccounts(conn,current.tenant,current.actor,verification.branchId,'money_transfer'))
-  .filter(account=>account.kind==='cash'&&String(account.operatorId)===String(actor.id));
+  .filter(account=>account.kind==='cash'&&String(account.operatorId)===String(actor.id)&&branchCurrency.supports(branch,account.currency));
  const canFx=hasModuleForUser(current.tenant,current.actor,'forex')&&hasPermission(current.actor,'forex.quotes.create');
- const rates=canFx?await models.forexRateModel(conn).find({
-  branchId:verification.branchId,fromCurrency:source.currency,toCurrency:{$ne:source.currency},
-  side:'buy',status:'active',reviewedBy:{$ne:null},expiresAt:{$gt:new Date()}
- }).select('_id fromCurrency toCurrency rateDecimal revision expiresAt').sort({toCurrency:1}).limit(30).lean():[];
- return {verification,collection,source,payoutAccounts:available.filter(a=>a.currency===source.currency||
-  canFx&&rates.some(r=>r.toCurrency===a.currency)),fxRates:rates,
+ const foreignCurrencies=[...new Set(available.map(account=>account.currency))].filter(currency=>currency!==source.currency);
+ const fxRates=[],rateIssues=[];
+ if(canFx){
+  const rates=await Promise.all(foreignCurrencies.map(async toCurrency=>{
+   const direction=payoutRateDirection(verification.branchId,source.currency,toCurrency);
+   return {...await exchangeRates.find(conn,direction),direction};
+  }));
+  for(const {status,rate,direction} of rates){
+   if(status==='active')fxRates.push(rate);
+   else rateIssues.push(exchangeRates.problem(status,direction).message);
+  }
+ }else if(foreignCurrencies.length){
+  rateIssues.push('Use a '+currencyLabel(source.currency)+' drawer or ask the owner for Forex access before paying in a different currency.');
+ }
+ const format=require('./mobileMoney.service').formatMoneyMinor;
+ const amount=BigInt(String(source.amountMinor));
+ const amountIssues=new Set();
+ const payoutAccounts=available.flatMap(account=>{
+  const rate=fxRates.find(candidate=>candidate.toCurrency===account.currency);
+  if(account.currency!==source.currency&&!rate)return [];
+  let payoutMinor;
+  try{payoutMinor=rate?convertPayout(amount,source.currency,account.currency,rate):amount;}
+  catch(error){
+   if(error.status!==400)throw error;
+   amountIssues.add('The converted payout in '+currencyLabel(account.currency)+' is outside the supported amount range.');
+   return [];
+  }
+  return [{...account,payoutAmount:format(payoutMinor,account.currency).replace(/^KES /,'KSH '),
+   ...(rate?{rateChoice:payoutRateChoice(rate),rateExpiresAt:new Date(rate.expiresAt).getTime(),
+    ratePair:currencyLabel(source.currency)+' → '+currencyLabel(account.currency)}:{})}];
+ });
+ return {verification,collection,source,payoutAccounts,fxRates,rateIssues:[...rateIssues,...amountIssues],payoutRateWindowMs,
   verificationToken:state.token,idempotencyKey:crypto.randomUUID()};
+}
+function payoutRateDirection(branchId,fromCurrency,toCurrency){
+ return {branchId,fromCurrency,toCurrency,side:'buy',minRemainingMs:payoutRateWindowMs};
+}
+function payoutRateChoice(rate){return `${rate._id}:${rate.revision}:${rate.rateDecimal}`;}
+function convertPayout(amount,fromCurrency,toCurrency,rate){
+ const forex=require('./forex.service');
+ return forex.converted(amount,fromCurrency,toCurrency,forex.rateScaled(rate.rateDecimal));
 }
 async function requestPayout(conn,tenant,actor,input={}){
  const v=formInput(input),current=await context(conn,tenant,actor,'money_transfer','money_transfer.payout');await prepareIndexes(conn);
@@ -516,7 +553,7 @@ async function requestPayout(conn,tenant,actor,input={}){
  const prior=await Execution.findOne({idempotencyKey:v.idempotencyKey,createdBy:actor.id,action:'transfer_payout',...scope(current.actor)}).select('+verificationDigest').lean();
  if(prior){if(prior.evidenceReference!==v.evidenceReference||prior.note!==v.note||prior.verificationDigest!==tokenHash||
   (input.payoutAccountId&&String(prior.accounts.payoutAccountId)!==id(input.payoutAccountId))||
-  String(prior.payoutFx?.rateId||'')!==String((input.rateChoice||'').split(':')[0]||''))
+  String(prior.payoutFx?.rateId||'')!==String(input.rateChoice||'').split(':')[0])
   throw fail('Payout request reference was reused with changed details',409);return {execution:prior,duplicate:true,sameBranch:String(prior.sourceSnapshot?.branchId)===String(prior.branchId)};}
  try{return await transaction(conn,async session=>{
   const authorization=await auth.fenceAction(conn,session,actor,current.tenant,'money_transfer','money_transfer.payout');
@@ -539,16 +576,12 @@ async function requestPayout(conn,tenant,actor,input={}){
    if(!hasModuleForUser(authorization.tenant,authorization.actor,'forex')||
      !hasPermission(authorization.actor,'forex.quotes.create'))
     throw fail('Cross-currency remittance payout requires Forex entitlement',403);
-   const selectedRate=String(input.rateChoice||'').split(':');
-   if(selectedRate.length!==3||!OID.test(selectedRate[0])||!/^(0|[1-9][0-9]*)$/.test(selectedRate[1]))
-    throw fail('Choose an active approved payout-currency exchange rate',409);
-   const rate=await models.forexRateModel(conn).findOne({_id:selectedRate[0],branchId:branch._id,
-    status:'active',side:'buy',fromCurrency:snapshot.currency,toCurrency:selected.currency,
-    revision:Number(selectedRate[1]),rateDecimal:selectedRate[2],
-    reviewedBy:{$ne:null},expiresAt:{$gt:new Date(Date.now()+60000)}}).session(session).lean();
-   if(!rate)throw fail('Payout currency rate is unavailable or expired. Recheck the quote.',409);
-   const forex=require('./forex.service');
-   const payoutMinor=forex.converted(BigInt(snapshot.amountMinor),snapshot.currency,selected.currency,forex.rateScaled(rate.rateDecimal));
+   branchCurrency.resolve(branch,selected.currency);
+   const direction=payoutRateDirection(branch._id,snapshot.currency,selected.currency);
+   const {status,rate}=await exchangeRates.find(conn,{...direction,session});
+   if(status!=='active')throw exchangeRates.problem(status,direction);
+   if(input.rateChoice!==payoutRateChoice(rate))throw exchangeRates.problem('changed',direction);
+   const payoutMinor=convertPayout(BigInt(snapshot.amountMinor),snapshot.currency,selected.currency,rate);
    payoutFx={targetCurrency:selected.currency,payoutMinor:String(payoutMinor),rateId:rate._id,
     rateDecimal:rate.rateDecimal,rateVersion:rate.revision,rateExpiresAt:rate.expiresAt};
   }else if(input.rateChoice)throw fail('A same-currency payout does not require a Forex conversion',400);

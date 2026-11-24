@@ -1,39 +1,165 @@
-<% const insightsZone=typeof businessTimeZone==='string'?businessTimeZone:'UTC'; %>
-<section class="view show">
-  <section class="card"><div class="cardHead"><b>Advanced operational analytics</b><span>Independently subscribed · authorization checked per source</span></div>
-    <div class="cardBody"><form method="get" action="/tenant/analytics" class="row3">
-      <label class="field">Comparison window (local)<select class="control" name="days">
-        <% [7,14,30].forEach(n=>{ %><option value="<%= n %>" <%= data.insights.filters.days===n?'selected':'' %>>Last <%= n %> days vs preceding <%= n %> days</option><% }) %>
-      </select></label>
-      <label class="field">Permitted source<select class="control" name="source">
-        <option value="all" <%= data.insights.filters.source==='all'?'selected':'' %>>All available sources</option>
-        <% data.insights.sources.forEach(s=>{ %><option value="<%= s.key %>" <%= data.insights.filters.source===s.key?'selected':'' %>><%= s.label %></option><% }) %>
-      </select></label>
-      <div class="rowBtns"><button class="btn btnPrimary" type="submit">Compare periods</button><a class="btn" href="/tenant/analytics">Reset</a></div>
-    </form><p class="tiny">Current: <%= data.insights.from %> to <%= data.insights.to %> · Previous: <%= data.insights.previousFrom %> to <%= data.insights.previousTo %> (<%= insightsZone %>)</p></div>
-  </section>
-  <div class="grid3" style="margin-top:14px">
-    <div class="stat"><div class="k">Available source assignments</div><div class="v"><%= data.insights.sources.length %></div><div class="s"><span class="dot"></span>Analytics entitlement required</div></div>
-    <div class="stat"><div class="k">Comparison period</div><div class="v"><%= data.insights.filters.days %> days</div><div class="s"><span class="dot"></span>Complete local business days only</div></div>
-    <div class="stat"><div class="k">Export access</div><div class="v"><%= data.canExport?'CSV':'View only' %></div><div class="s"><span class="dot warn"></span>Aggregate counts only</div></div>
-  </div>
-  <section class="card" style="margin-top:14px"><div class="cardHead"><b>Period-over-period comparisons</b><span>Recorded activity, not money movement</span>
-    <% if(data.canExport){ %><a class="btn" href="/tenant/analytics/export.csv?days=<%= data.insights.filters.days %>&amp;source=<%= encodeURIComponent(data.insights.filters.source) %>">Export aggregate CSV</a><% } %>
-  </div><div class="cardBody tableWrap"><table><thead><tr><th>Source</th><th>Current records</th><th>Previous records</th><th>Change</th></tr></thead><tbody>
-    <% if(!data.insights.data.length){ %><tr><td colspan="4">No authorized analytics sources.</td></tr><% } %>
-    <% data.insights.data.forEach(s=>{ %><tr data-search-row><td><%= s.label %></td><td><%= s.current %></td><td><%= s.previous %></td><td><span class="tag"><%= s.change %></span></td></tr><% }) %>
-  </tbody></table></div></section>
-  <% if(data.insights.workspaceTrend.length){ %>
-    <section class="card" style="margin-top:14px"><div class="cardHead"><b>Daily workspace audit activity</b><span>Counts of logged events, not total financial transactions</span></div>
-      <div class="cardBody"><div class="tableWrap"><table><thead><tr><th>Date (local)</th><th>Audit events</th><th>Relative volume</th></tr></thead><tbody>
-        <% data.insights.workspaceTrend.forEach(d=>{ %><tr><td><%= d.date %></td><td><%= d.count %></td><td style="min-width:120px"><div style="background:currentColor;opacity:.55;height:7px;width:<%= d.percent %>%;max-width:100%;border-radius:4px" role="img" aria-label="<%= d.count %> logged events"></div></td></tr><% }) %>
-      </tbody></table></div></div>
+<%
+  const insights = data.insights;
+  const trend = insights?.trend;
+  const focus = insights?.data.find(row => row.key === trend?.key);
+  const formatCount = new Intl.NumberFormat('en-GB').format;
+  const filterLabels = {mobile_money:'Mobile Money',money_transfer:'Money Transfer',
+    forex:'Forex',banking:'Banking',workspace:'Workspace',cash_shifts:'Cash shifts'};
+  const dayDisplay = new Intl.DateTimeFormat('en-GB', {day:'numeric', month:'short', timeZone:'UTC'});
+  const shortDay = day => dayDisplay.format(new Date(day+'T00:00:00Z'));
+  const range = (start, end) => shortDay(start)+' – '+shortDay(end);
+  const percent = (value, max) => Math.round(value / max * 1000) / 10;
+  const sourceMax = Math.max(1, ...(insights?.data || []).flatMap(row => [row.current,row.previous]));
+  const days = trend?.days || [];
+  const latestIndex = days.findLastIndex(day => day.current || day.previous);
+  const selectedIndex = Math.max(latestIndex, 0);
+  const selectedDay = days[selectedIndex];
+  const maximum = Math.max(1, ...days.flatMap(day => [day.current,day.previous]));
+  const step = Math.max(1, Math.ceil(maximum / 4));
+  const axisLimit = Math.ceil(maximum / step) * step;
+  const ticks = Array.from({length:axisLimit/step+1}, (_, i) => axisLimit-i*step);
+  const dateIndexes = [...new Set([0, Math.floor((days.length-1)/2), days.length-1])];
+  const detailPanels = trend ? [
+    {title:'By currency', rows:trend.currencies, note:trend.currencyOverlap?'Currency pairs appear under both currencies.':''},
+    {title:'By status', rows:trend.statuses?.length>1?trend.statuses:[]},
+    {title:'By activity', rows:trend.activities?.length>1 || trend.key==='workspace'?trend.activities:[]}
+  ].filter(panel => panel.rows?.length) : [];
+%>
+<section class="view show analyticsPage" aria-label="Activity analytics">
+  <% if(data.scopeNotice){ %>
+    <section class="card analyticsEmpty" role="status"><p><%= data.scopeNotice %></p></section>
+  <% }else if(insights){ %>
+    <section class="card analyticsFilters" aria-label="Analytics filters">
+      <form method="get" action="/tenant/analytics" class="analyticsFilterForm">
+        <label class="field">Period<select class="control" name="days">
+          <% for(const days of [7,14,30]){ %><option value="<%= days %>" <%= insights.filters.days===days?'selected':'' %>>Last <%= days %> days</option><% } %>
+        </select></label>
+        <% if(insights.sources.length){ %>
+          <label class="field">Source<select class="control" name="source">
+            <option value="all" <%= insights.filters.source==='all'?'selected':'' %>>All sources</option>
+            <% for(const source of insights.sources){ %><option value="<%= source.key %>" <%= insights.filters.source===source.key?'selected':'' %>><%= filterLabels[source.key] || source.label %></option><% } %>
+          </select></label>
+        <% } %>
+        <button class="btn btnPrimary" type="submit">Apply filters</button>
+      </form>
+      <% if(data.canExport){ %><a class="btn" href="/tenant/analytics/export.csv?days=<%= insights.filters.days %>&amp;source=<%= encodeURIComponent(insights.filters.source) %>"><i class="fa-solid fa-download" aria-hidden="true"></i> Export CSV</a><% } %>
     </section>
+
+    <% if(!insights.data.length){ %>
+      <section class="card analyticsEmpty">
+        <h3>No activity in this period</h3>
+        <p><%= range(insights.from,insights.to) %> · <%= insights.timeZone %></p>
+      </section>
+    <% } %>
+
+    <% if(focus && selectedDay){ %>
+      <section class="card analyticsTrendCard" aria-labelledby="analyticsTrendTitle">
+        <header class="analyticsChartHeader">
+          <div><h3 id="analyticsTrendTitle">Daily activity</h3><p><%= focus.label %> · <%= insights.timeZone %></p></div>
+          <div class="analyticsLegend" role="group" aria-label="Compared periods">
+            <span><i class="analyticsCurrent" aria-hidden="true"></i><%= range(insights.from,insights.to) %></span>
+            <span><i class="analyticsPrevious" aria-hidden="true"></i><%= range(insights.previousFrom,insights.previousTo) %></span>
+          </div>
+        </header>
+        <dl class="analyticsMetrics">
+          <div><dt>Current records</dt><dd><%= formatCount(focus.current) %></dd></div>
+          <div><dt>Previous records</dt><dd><%= formatCount(focus.previous) %></dd></div>
+          <div><dt>Change</dt><dd><%= focus.change %></dd></div>
+        </dl>
+        <div class="analyticsPlot" data-analytics-plot>
+          <div class="analyticsAxis" aria-hidden="true">
+            <% for(const tick of ticks){ %><span><%= formatCount(tick) %></span><% } %>
+          </div>
+          <div class="analyticsPlotBody">
+            <div class="analyticsGridLines" aria-hidden="true">
+              <% for(const tick of ticks){ %><span></span><% } %>
+            </div>
+            <div class="analyticsDayBars" role="group" aria-label="Daily record counts">
+              <% for(const [index,day] of days.entries()){ %>
+                <button type="button" data-analytics-day aria-pressed="<%= index===selectedIndex %>"
+                  aria-label="<%= shortDay(day.date) %>, <%= formatCount(day.current) %> records. <%= shortDay(day.previousDate) %>, <%= formatCount(day.previous) %> records."
+                  title="<%= shortDay(day.date) %> · <%= formatCount(day.current) %> records / <%= shortDay(day.previousDate) %> · <%= formatCount(day.previous) %> records"
+                  data-current-date="<%= shortDay(day.date) %>" data-current-count="<%= formatCount(day.current) %>"
+                  data-previous-date="<%= shortDay(day.previousDate) %>" data-previous-count="<%= formatCount(day.previous) %>">
+                  <span class="analyticsCurrent" aria-hidden="true" style="height:<%= percent(day.current,axisLimit) %>%"></span>
+                  <span class="analyticsPrevious" aria-hidden="true" style="height:<%= percent(day.previous,axisLimit) %>%"></span>
+                </button>
+              <% } %>
+            </div>
+          </div>
+          <div class="analyticsDates" aria-hidden="true">
+            <% for(const index of dateIndexes){ %><span><%= shortDay(days[index].date) %></span><% } %>
+          </div>
+          <p class="analyticsDayDetail" data-analytics-day-detail aria-live="polite">
+            <span><b data-current-date-text><%= shortDay(selectedDay.date) %></b> · <span data-current-count-text><%= formatCount(selectedDay.current) %></span> records</span>
+            <span><b data-previous-date-text><%= shortDay(selectedDay.previousDate) %></b> · <span data-previous-count-text><%= formatCount(selectedDay.previous) %></span> records</span>
+          </p>
+        </div>
+        <details class="analyticsExact">
+          <summary>Daily totals</summary>
+          <div class="tableWrap"><table>
+            <thead><tr><th scope="col">Current day</th><th scope="col">Records</th><th scope="col">Previous day</th><th scope="col">Records</th></tr></thead>
+            <tbody><% for(const day of days){ %>
+              <tr><td><time datetime="<%= day.date %>"><%= shortDay(day.date) %></time></td><td><%= formatCount(day.current) %></td><td><time datetime="<%= day.previousDate %>"><%= shortDay(day.previousDate) %></time></td><td><%= formatCount(day.previous) %></td></tr>
+            <% } %></tbody>
+          </table></div>
+        </details>
+      </section>
+    <% } %>
+
+    <% if(insights.filters.source==='all'&&insights.data.length>1){ %>
+      <section class="card analyticsSourceCard" aria-labelledby="analyticsSourceTitle">
+        <header class="analyticsChartHeader"><div><h3 id="analyticsSourceTitle">Activity by source</h3><p><%= insights.note %></p></div>
+          <div class="analyticsLegend"><span><i class="analyticsCurrent" aria-hidden="true"></i>Current</span><span><i class="analyticsPrevious" aria-hidden="true"></i>Previous</span></div>
+        </header>
+        <ul class="analyticsSourceList">
+          <% for(const source of insights.data){ %>
+            <li>
+              <a href="/tenant/analytics?days=<%= insights.filters.days %>&amp;source=<%= encodeURIComponent(source.key) %>" class="analyticsSourceLink"><%= source.label %> <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
+              <div class="analyticsSourceBars">
+                <div><span class="analyticsTrack" aria-hidden="true"><span class="analyticsCurrent" style="width:<%= percent(source.current,sourceMax) %>%"></span></span><strong aria-label="<%= formatCount(source.current) %> current records"><%= formatCount(source.current) %></strong></div>
+                <div><span class="analyticsTrack" aria-hidden="true"><span class="analyticsPrevious" style="width:<%= percent(source.previous,sourceMax) %>%"></span></span><strong aria-label="<%= formatCount(source.previous) %> previous records"><%= formatCount(source.previous) %></strong></div>
+              </div>
+              <span class="analyticsSourceChange"><%= source.change %></span>
+            </li>
+          <% } %>
+        </ul>
+      </section>
+    <% } %>
+
+    <% if(detailPanels.length){ %>
+      <div class="analyticsBreakdownGrid" role="group" aria-label="Current period charts">
+        <% for(const panel of detailPanels){
+          const largest = Math.max(1, ...panel.rows.map(row => row.count));
+          const rows = panel.rows.slice(0, 7);
+        %>
+          <section class="card analyticsBreakdownCard" aria-label="<%= panel.title %>">
+            <header class="analyticsChartHeader"><div><h3><%= panel.title %></h3><p><%= panel.note || 'Current period' %></p></div></header>
+            <ul class="analyticsBreakdownBars">
+              <% for(const row of rows){ %>
+                <li><div><span><%= row.label %></span><strong><%= formatCount(row.count) %></strong></div>
+                  <div class="analyticsTrack" aria-hidden="true"><span class="analyticsCurrent" style="width:<%= percent(row.count,largest) %>%"></span></div>
+                </li>
+              <% } %>
+            </ul>
+            <% if(panel.rows.length>rows.length){ %><p class="analyticsBreakdownNote">Top <%= rows.length %> by record count</p><% } %>
+          </section>
+        <% } %>
+      </div>
+    <% } %>
+
+    <% if(focus?.breakdown.length){ %>
+      <details class="card analyticsExact analyticsRecordTable">
+        <summary>Record breakdown<span><%= focus.label %></span></summary>
+        <% if(focus.breakdownTruncated){ %><p>Showing the 100 largest groups. Use a shorter period to see a narrower breakdown.</p><% } %>
+        <div class="tableWrap"><table>
+          <thead><tr><th scope="col">Activity</th><th scope="col">Status</th><th scope="col">Currency</th><th scope="col">Records</th></tr></thead>
+          <tbody><% for(const row of focus.breakdown){ %>
+            <tr><td><%= row.activity %></td><td><%= row.status.replaceAll('_',' ') %></td><td><%= row.currency==='KES'?'KSH':row.currency %></td><td><%= formatCount(row.count) %></td></tr>
+          <% } %></tbody>
+        </table></div>
+      </details>
+    <% } %>
   <% } %>
-  <% data.insights.data.forEach(s=>{ if(s.breakdown.length){ %>
-    <section class="card" style="margin-top:14px"><div class="cardHead"><b><%= s.label %> — current-period breakdown</b><span><%= s.breakdownTruncated?'Top 100 groups; narrow the source to inspect further':'Aggregates only' %></span></div><div class="cardBody tableWrap"><table><thead><tr><th>Activity</th><th>Status</th><th>Currency</th><th>Records</th></tr></thead><tbody>
-      <% s.breakdown.forEach(r=>{ %><tr data-search-row><td><%= r.activity %></td><td><%= r.status %></td><td><%= r.currency %></td><td><%= r.count %></td></tr><% }) %>
-    </tbody></table></div></section>
-  <% } }); %>
-  <p class="tiny" style="margin-top:12px"><%= data.insights.note %> Analytics never grants operational or Reports access.</p>
 </section>
+<% if(selectedDay){ %><script defer src="/js/analytics.js?v=<%= typeof assetVersion==='undefined'?'1':assetVersion %>"></script><% } %>

@@ -86,9 +86,9 @@ test('consolidated navigation still requires module entitlement, assignment and 
  const tenant=subscribed();
  const operator=actor('Mobile Money Operator',['mobile_money']);
  const menu=tenantMenu(tenant,operator),operatorPaths=paths(menu);
- assert(menu.some(group=>group.label==='Mobile Money'&&group.items.length===4));
+ assert(menu.some(group=>group.label==='Mobile Money'&&group.items.length===3));
  assert(operatorPaths.includes('/tenant/mobile-money/network-activity'));
- assert(operatorPaths.includes('/tenant/mobile-money/onboarding'));
+ assert(!operatorPaths.includes('/tenant/mobile-money/onboarding'));
  assert(!operatorPaths.includes('/tenant/mobile-money/fx'),'Cross-currency requires Forex module assignment');
  const fxOperator=actor('Mobile Money Operator',['mobile_money','forex']);
  assert(!paths(tenantMenu(tenant,fxOperator)).includes('/tenant/mobile-money/fx'),'Exchange is embedded in existing cashier forms, not a sidebar destination');

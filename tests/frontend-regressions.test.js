@@ -138,9 +138,11 @@ test('overview shows authorized figures for every operating currency above secon
   const recentActivity=Array.from({length:8},(_,index)=>({href:'/tenant/mobile-money/record-'+index,label:'Activity '+index}));
   const html = await overview('Tenant Owner', ['*'], ['/tenant/money-transfer', '/tenant/mobile-money', '/tenant/banking', '/tenant/forex', '/tenant/reports', '/tenant/treasury','/tenant/cash/shifts'], {
     hasTransfer:true,hasMobileMoney:true,hasBanking:true,hasForex:true,
-    financeOverview:{available:true,bookAssets:[{currency:'UGX',formatted:'UGX 81,000'}],postedNet:[{currency:'USD',formatted:'USD 12.00'}]},
+    visibleDashboardModules:['money_transfer','mobile_money','banking','forex'],dashboardCashAvailable:true,
+    financeOverview:{available:true,bookAssets:[{currency:'UGX',formatted:'UGX 81,000'}],postedNet:[{currency:'USD',formatted:'USD 12.00'}],
+      byModule:[{moduleKey:'shared',totals:[{currency:'UGX',formatted:'UGX 81,000'}]}]},
     workspaceSnapshot:{
-      cashDay:{status:'open',currency:'UGX',branchName:'Main'},recentActivity,
+      cashDay:{status:'open',currency:'UGX',branchName:'Main'},recentActivity,todayTransactionCount:6,
       todayByCurrency:{money_transfer:[{currency:'UGX',formatted:'UGX 41,000',count:1}],
         mobile_money:[{currency:'SSP',formatted:'SSP 230,000.00',count:2}],
         banking:[{currency:'USD',formatted:'USD 75.00',count:3}],
@@ -150,12 +152,17 @@ test('overview shows authorized figures for every operating currency above secon
   const table=html.match(/<table data-dashboard-currency-stats>[\s\S]*?<\/table>/)?.[0];
   assert(table,'currency stats render without expanding the financial details');
   assert(html.indexOf(table)<html.indexOf('Recent activity'));
-  for(const label of ['Money transfer','Mobile money','Banking','Forex','Operating assets','Posted net income'])assert(table.includes(label),label);
+  const top=html.match(/<section[^>]*data-dashboard-top-stats[^>]*>[\s\S]*?<\/section>/)?.[0];
+  assert(top);
+  assert(html.indexOf(top)<html.indexOf('Today by currency'));
+  for(const label of ['Posted transactions today','Operating assets','Posted net income'])assert(top.includes(label),label);
+  for(const label of ['Money transfer','Mobile money','Banking','Forex'])assert(table.includes(label),label);
   for(const [currency,amount] of [['UGX','UGX 41,000'],['USD','USD 75.00'],['SSP','SSP 230,000.00'],['KSH','KSH 32.00']]){
     const row=table.match(new RegExp(`<th scope="row">${currency}</th>[\\s\\S]*?</tr>`))?.[0];
     assert(row?.includes(amount),`${currency} shows its own amount`);
   }
-  assert.match(table,/UGX 81,000/);assert.match(table,/USD 12\.00/);
+  assert.match(top,/UGX 81,000/);assert.match(top,/USD 12\.00/);
+  assert.doesNotMatch(table,/Operating assets|Posted net income/);
   assert.match(html,/<details [^>]*>\s*<summary[^>]*><b>Financial details<\/b>/);
   assert.match(html,/href="\/tenant\/treasury\?currency=UGX#cash-day">Close day/);
   assert.equal((html.match(/href="\/tenant\/mobile-money\/record-\d+"/g)||[]).length,6);
@@ -168,4 +175,15 @@ test('read-only overview never offers write actions or links to unassigned modul
   });
   assert.match(html, /href="\/tenant\/mobile-money\/network-activity"/);
   assert.doesNotMatch(html, /New mobile money|New money transfer|New banking|New forex|href="\/tenant\/reports"/);
+});
+
+test('overview excludes unconfigured module columns and an unavailable cash drawer', async () => {
+  const html = await overview('Tenant Owner', ['*'], ['/tenant/dashboard','/tenant/treasury','/tenant/cash/shifts'], {
+    hasMobileMoney:true,hasTransfer:true,visibleDashboardModules:['money_transfer'],dashboardCashAvailable:false,
+    workspaceSnapshot:{todayTransactionCount:1,todayByCurrency:{money_transfer:[{currency:'UGX',formatted:'UGX 5,000',count:1}]}}
+  });
+  const table=html.match(/<table data-dashboard-currency-stats>[\s\S]*?<\/table>/)?.[0];
+  assert.match(table,/Money transfer/);
+  assert.doesNotMatch(table,/Mobile money/);
+  assert.doesNotMatch(html,/data-dashboard-fund-stat|class="stat stat--text dashboardCashDay"/);
 });

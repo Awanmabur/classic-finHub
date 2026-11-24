@@ -69,6 +69,10 @@ async function main(){
  const drawer=await opened('cash','SSP_DRAWER','SSP','500.00');
  const shift=await cash.open(conn,tenant,owner,{currency:'SSP',openingCash:'500.00'});
  await cash.decideOpening(conn,tenant,reviewer,shift._id,{decision:'approve',note:'Physical SSP opening counted independently in test'});
+ const rateCheck={operation:'withdraw_provider_receive_cash',walletAccountId:String(wallet._id),cashAccountId:String(drawer._id)};
+ await assert.rejects(preview(conn,tenant,owner,branch,rateCheck,{rateOnly:true}),
+  error=>error.code==='FX_RATE_MISSING'&&/Buy rate for UGX → SSP/.test(error.message),
+  'a missing rate is rejected even before anyone enters an amount');
  // The scratch tenant is subscribed to Mobile Money ONLY: no Forex module
  // and no provider or regulatory document workflow.
  for(const [side,quotedRate] of [['buy','900'],['sell','1000']]){
@@ -77,6 +81,10 @@ async function main(){
   assert.equal(rate.status,'active');
   assert.equal(rate.rateDecimal,side==='buy'?'0.9':'1');
  }
+ const checked=await preview(conn,tenant,owner,branch,rateCheck,{rateOnly:true});
+ assert.equal(checked.rateSide,'buy');
+ assert(checked.rateValidForMs>0);
+ assert.equal(checked.cashAmountMinor,undefined,'rate-only preview has no financial amount');
  await grants(conn).init();await records(conn).init();
  assert.equal(await grants(conn).countDocuments({tenantId:tenant._id}),0);
  const balances=async()=>({
@@ -187,6 +195,19 @@ async function main(){
  assert(activity.positions.some(row=>row.kind==='wallet'&&row.currency==='UGX'&&row.bookFormatted==='UGX 1,060'),
   'actual UGX float book must be visible beside the SSP drawer');
  const savedExport=reportService.csv(activity);
+ const dashboard=require('../src/tenant/services/dashboardVolumes.service');
+ const dashboardInput={timeZone:'Africa/Juba',now:new Date(manual.mobile.createdAt)};
+ const mobileSummary=await dashboard.volumes(conn,tenant,owner,dashboardInput,branch);
+ const amounts=rows=>Object.fromEntries(rows.map(row=>[row.currency,[row.count,row.amountMinor]]));
+ assert.deepEqual(amounts(mobileSummary.todayByCurrency.mobile_money),{UGX:[3,'160'],SSP:[3,'14900']});
+ assert.equal(mobileSummary.todayByCurrency.forex,undefined,'unassigned Forex must not be exposed');
+ const bothModules={...tenant.toObject(),enabledModules:['mobile_money','forex'],
+  subscription:{...tenant.subscription.toObject(),modules:['mobile_money','forex']}};
+ const sharedSummary=await dashboard.volumes(conn,bothModules,owner,dashboardInput,branch);
+ assert.deepEqual(amounts(sharedSummary.todayByCurrency.forex),{UGX:[3,'160'],SSP:[3,'14900']});
+ assert.equal(sharedSummary.todayTransactionCount,3,'the same operation counts once across currencies and modules');
+ const cashCurrencySummary=await dashboard.volumes(conn,bothModules,owner,{...dashboardInput,currency:'SSP'},branch);
+ assert.equal(cashCurrencySummary.todayTransactionCount,3,'posted cash FX legs count when their currency is selected');
  assert(savedExport.includes('Actual physical cash flows by drawer currency'));
  assert(savedExport.includes('"SSP","3","5000","9900","-4900"'));
  assert(savedExport.includes('Net provider float movement'));
@@ -245,6 +266,22 @@ async function main(){
  assert.equal(await core.mobileTransactionModel(conn).countDocuments({fxSettlementId:{$ne:null}}),originalCount,'Failed exchange must not leave an orphan MoMo record');
  assert.equal(await core.forexQuoteModel(conn).countDocuments({originModule:'mobile_money'}),originalCount,'Failed exchange must not leave an orphan Forex record');
  assert.equal(await tm.models(conn).batch.countDocuments({sourceRef:{$regex:/^MFX:/}}),3,'failed exchange cannot create a journal batch');
+ const expiring=await preview(conn,tenant,owner,branch,{...rateCheck,providerAmountMinor:'10'});
+ // This also covers rates whose expiry job has not flipped the status yet.
+ await core.forexRateModel(conn).collection.updateOne({_id:new mongoose.Types.ObjectId(expiring.rateId)},
+  {$set:{expiresAt:new Date(Date.now()-1000)}});
+ await assert.rejects(preview(conn,tenant,owner,branch,rateCheck,{rateOnly:true}),
+  error=>error.code==='FX_RATE_EXPIRED'&&/UGX → SSP has expired/.test(error.message));
+ await assert.rejects(settleManuallyConfirmed(conn,tenant,owner,{
+  ...expiring,idempotencyKey:crypto.randomUUID(),providerReference:'EXPIRED-'+nonce,
+  providerAppConfirmed:'yes',cashHandoverConfirmed:'yes'
+ }),error=>error.code==='FX_RATE_EXPIRED'&&/UGX → SSP has expired/.test(error.message),
+ 'an expired on-screen quote fails safely before posting');
+ assert.deepEqual(await balances(),existingBalance);
+ assert.equal(await records(conn).countDocuments({tenantId:tenant._id}),originalCount);
+ await mobileFxRates.setOwnerRate(conn,tenant,owner,branch,{
+  fromCurrency:'UGX',toCurrency:'SSP',side:'buy',rateBaseUnits:'1000',quotedRate:'900',validHours:'3'
+ });
  // Explicit legacy suspension still fences future posts even though
  // ordinary internal book recording no longer requires document grants.
  const [suspended]=await grants(conn).create([{

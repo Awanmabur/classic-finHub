@@ -91,10 +91,15 @@ test('forex preview includes commission, offers supported currency pairs and adj
   const rate=select([option(''),option('short',{from:'USD',to:'UGX',rate:'100',expiresAt:expires(8)}),option('long',{from:'USD',to:'SSP',rate:'10',expiresAt:expires(30)})],'short');
   const validity=select(Array.from({length:56},(_,index)=>option(String(index+5))),'15');
   const amount=element({value:'100'}),commission=element({value:'50'}),operation=element({value:'buy'}),total=element();
-  const entry=form('forex',{rateId:rate,validMinutes:validity,amount,commission,operation},{'[data-forex-currency="from"]':from,'[data-forex-currency="to"]':to,'[data-forex-total]':total},[from,to]);
+  const notice=element(),submit=element(),status=element({dataset:{rateName:'Buy',expiredPairs:'',canSet:'true'}});
+  const entry=form('forex',{rateId:rate,validMinutes:validity,amount,commission,operation},{
+   '[data-forex-currency="from"]':from,'[data-forex-currency="to"]':to,'[data-forex-total]':total,
+   '[data-forex-rate-notice]':notice,'[data-forex-rate-status]':status,'[data-forex-save]':submit
+  },[from,to]);
   run({operations:[entry]});
   assert.equal(validity.value,'7');assert.equal(validity.options.find(option=>option.value==='15').disabled,true);
   assert.equal(to.options.find(option=>option.value==='USD').disabled,true);
+  assert.equal(notice.hidden,true);assert.equal(submit.disabled,false);
   assert.equal(total.textContent,'UGX 9,950 (indicative)');
   operation.value='sell';entry.emit('input');assert.equal(total.textContent,'UGX 10,050 (indicative)');
   operation.value='quote';entry.emit('input');assert.equal(total.textContent,'UGX 10,000 (indicative)');
@@ -102,8 +107,10 @@ test('forex preview includes commission, offers supported currency pairs and adj
   commission.value='0.5';entry.emit('input');assert.match(commission.validationMessage,/precision/);
   commission.value='50';to.value='SSP';entry.emit('input',{target:to});assert.equal(to.value,'SSP','native select input must not restore the previous rate before its change handler');to.emit('change');assert.equal(rate.value,'long');assert.equal(total.textContent,'SSP 950.00 (indicative)');assert.equal(commission.validationMessage,'');
   rate.options.find(option=>option.value==='long').dataset.expiresAt=expires(-1);rate.emit('change');
-  assert.equal(rate.value,'');assert.match(rate.validationMessage,/enough remaining validity/);
-  rate.value='short';rate.emit('change');assert.equal(rate.validationMessage,'','choosing a valid rate clears the previous expiry error');
+  assert.equal(rate.value,'');assert.match(rate.validationMessage,/USD → SSP has expired/);assert.equal(submit.disabled,true);
+  assert.equal(notice.hidden,false);assert.match(status.textContent,/USD → SSP has expired/);
+  from.value='SSP';from.emit('change');assert.match(status.textContent,/No Buy rate for SSP → UGX is set/);
+  from.value='USD';from.emit('change');assert.equal(rate.validationMessage,'','choosing a valid rate clears the previous expiry error');
   amount.value='200';entry.emit('reset');await Promise.resolve();assert.equal(total.textContent,'UGX 19,950 (indicative)','Clear recomputes the restored settlement values');
 });
 

@@ -8,10 +8,10 @@ const {currencyCodes,currencyLabel}=require('../../config/currencies');
 const mobile=require('./mobileMoney.service');
 const businessTime=require('../../utils/businessTime');
 const sources=Object.freeze({
- money_transfer:{flag:'hasTransfer',model:'transferOrderModel',creator:'Money Transfer Operator',states:['requested','approved_pending_provider','collected_manual','paid_out_manual'],amount:'amountMinor',currency:'currency'},
- mobile_money:{flag:'hasMobileMoney',model:'mobileTransactionModel',creator:'Mobile Money Operator',states:['recorded','pending_verification','verified'],amount:'amountMinor',currency:'currency'},
- banking:{flag:'hasBanking',model:'bankingRequestModel',creator:'Banking Operator',states:['requested','approved_pending_bank','posted_manual'],amount:'amountMinor',currency:'currency'},
- forex:{flag:'hasForex',model:'forexQuoteModel',creator:'Forex Operator',states:['quoted','approved_pending_execution','posted_manual'],amount:'sourceMinor',currency:'fromCurrency'}
+ money_transfer:{flag:'hasTransfer',ownRoles:['Money Transfer Operator']},
+ mobile_money:{flag:'hasMobileMoney',ownRoles:['Mobile Money Operator']},
+ banking:{flag:'hasBanking',ownRoles:['Banking Operator']},
+ forex:{flag:'hasForex',ownRoles:['Forex Operator','Banking Operator','Money Transfer Operator']}
 });
 function fail(message,status=400){return Object.assign(new Error(message),{status});}
 function objectId(value){if(!/^[a-f0-9]{24}$/i.test(String(value||'')))throw fail('A valid account and branch scope are required',403);return new Types.ObjectId(String(value));}
@@ -30,7 +30,7 @@ function scopeFor(user,key,operationBranch){
   if(!['Tenant Owner','Auditor'].includes(user?.role)&&String(operationBranch._id)!==String(user?.branchId))throw fail('Dashboard branch assignment is unavailable',403);
   scope.branchId=objectId(operationBranch._id);
  }else if(!['Tenant Owner','Auditor'].includes(user?.role))scope.branchId=objectId(user?.branchId);
- if(user?.role===spec.creator)scope[key==='mobile_money'?'operatorId':'createdBy']=objectId(user.id);
+ if(spec.ownRoles.includes(user?.role))scope[key==='mobile_money'?'operatorId':'createdBy']=objectId(user.id);
  return scope;
 }
 function bounds(now=new Date(),timeZone='UTC'){
@@ -38,9 +38,9 @@ function bounds(now=new Date(),timeZone='UTC'){
  const { $gte,$lt }=businessTime.dayBounds({},timeZone,90,now);
  return {$gte,$lt};
 }
-function activeMatch(user,key,operationBranch,now,timeZone='UTC'){
- const spec=sources[key];return {...scopeFor(user,key,operationBranch),createdAt:bounds(now,timeZone),status:{$in:spec.states},
-  ...(key==='mobile_money'?{correctionState:{$ne:'voided'}}:{})};
+function mobileMatch(user,operationBranch,now,timeZone){
+ return {...scopeFor(user,'mobile_money',operationBranch),createdAt:bounds(now,timeZone),
+  status:{$in:['recorded','pending_verification','verified']},correctionState:{$ne:'voided'},fundingState:'book_recorded'};
 }
 function money(value,currency){return mobile.formatMoneyMinor(value,currency).replace(/^[A-Z]{3}\s/,currencyLabel(currency)+' ');}
 function totalFor(groups,currency){
@@ -52,60 +52,110 @@ function totalFor(groups,currency){
  }
  return {currency,amountMinor:String(total),formatted:money(total,currency),count,states};
 }
-function executionAmount(key,currency){
- if(key!=='forex')return {$toDecimal:'$sourceSnapshot.amountMinor'};
- const settlement={$cond:[{$eq:['$sourceSnapshot.operation','buy']},{$subtract:[{$toDecimal:'$sourceSnapshot.targetMinor'},{$toDecimal:'$sourceSnapshot.feeMinor'}]},{$add:[{$toDecimal:'$sourceSnapshot.targetMinor'},{$toDecimal:'$sourceSnapshot.feeMinor'}]}]};
- return {$cond:[{$eq:['$sourceSnapshot.fromCurrency',currency]},{$toDecimal:'$sourceSnapshot.sourceMinor'},settlement]};
+const decimal=value=>({$convert:{input:value,to:'decimal',onError:null,onNull:null}});
+function currencyLegs(primary,secondary,cross,linked){
+ return {$cond:[cross,[{...primary,linked},{...secondary,linked}],[primary]]};
 }
-function executionMatch(user,key,operationBranch,currency,now,timeZone='UTC'){
- return {...scopeFor(user,key,operationBranch),sourceType:key,status:'posted_manual',reviewedAt:bounds(now,timeZone),
-  ...(key==='forex'?{$or:[{'sourceSnapshot.fromCurrency':currency},{'sourceSnapshot.toCurrency':currency}]}:{'sourceSnapshot.currency':currency})};
+function hasOtherLeg(first,second){
+ return {$and:[{$in:[second,currencyCodes]},{$ne:[first,second]}]};
 }
-// Reporting breakdown keeps currencies separate. Forex volume uses the
-// original SOURCE currency once, avoiding double-counting its two legs.
-// Transaction turnover is not profit, capital or an external wallet balance.
-async function breakdown(conn,user,key,operationBranch,now,timeZone='UTC'){
- const match=key==='mobile_money'
-  ?{...activeMatch(user,key,operationBranch,now,timeZone),fundingState:'book_recorded'}
-  :{...scopeFor(user,key,operationBranch),sourceType:key,status:'posted_manual',reviewedAt:bounds(now,timeZone)};
- const Model=key==='mobile_money'?models.mobileTransactionModel(conn):require('../funded/models').models(conn).execution;
- const currencyField=key==='mobile_money'?'$currency':key==='forex'?'$sourceSnapshot.fromCurrency':'$sourceSnapshot.currency';
- const amountField=key==='mobile_money'?'$amountMinor':key==='forex'?{$toDecimal:'$sourceSnapshot.sourceMinor'}:{$toDecimal:'$sourceSnapshot.amountMinor'};
- const groups=await Model.aggregate([
-  {$match:match},
-  {$group:{_id:{currency:currencyField,status:'$status'},count:{$sum:1},amountMinor:{$sum:amountField}}}
- ]).option({maxTimeMS:2500});
- return currencyCodes.map(code=>totalFor(groups,code)).filter(row=>row.count>0);
+function linkedForex(user,enabled,cross,actorField){
+ if(!enabled)return false;
+ return sources.forex.ownRoles.includes(user.role)?{$and:[cross,{$eq:[actorField,objectId(user.id)]}]}:cross;
+}
+function forexLegs(){
+ const gross=decimal('$sourceSnapshot.targetMinor'),fee={$ifNull:[decimal('$sourceSnapshot.feeMinor'),0]};
+ const settlement={$cond:[{$eq:['$sourceSnapshot.operation','buy']},{$subtract:[gross,fee]},{$add:[gross,fee]}]};
+ return currencyLegs(
+  {currency:'$sourceSnapshot.fromCurrency',amount:decimal('$sourceSnapshot.sourceMinor')},
+  {currency:'$sourceSnapshot.toCurrency',amount:settlement},
+  hasOtherLeg('$sourceSnapshot.fromCurrency','$sourceSnapshot.toCurrency'),false
+ );
+}
+async function aggregateLegs(Model,match,legs,{receipt='$_id',network=null,status='$status'}={}){
+ // Reduce collection and payout records to one receipt per currency before
+ // aggregating. The count facet ignores currency and cross-module copies.
+ const [result]=await Model.aggregate([
+  {$match:match},{$project:{receipt,network,status,legs}},{$unwind:'$legs'},
+  {$match:{$expr:{$and:[{$in:['$legs.currency',currencyCodes]},{$gt:['$legs.amount',0]}]}}},
+  {$group:{_id:{receipt:'$receipt',currency:'$legs.currency',network:'$network',status:'$status'},
+   amountMinor:{$max:'$legs.amount'},linked:{$max:{$cond:['$legs.linked',1,0]}}}},
+  {$facet:{
+   byCurrency:[{$group:{_id:{currency:'$_id.currency',network:'$_id.network',status:'$_id.status',linked:'$linked'},
+    count:{$sum:1},amountMinor:{$sum:'$amountMinor'}}}],
+   receipts:[{$group:{_id:'$_id.receipt'}},{$count:'count'}]
+  }}
+ ]).option({maxTimeMS:2500,allowDiskUse:true});
+ return {groups:result?.byCurrency||[],count:result?.receipts?.[0]?.count||0};
+}
+function nativeSource(conn,user,key,operationBranch,now,timeZone,forexEnabled){
+ if(key==='mobile_money'){
+  const cross=hasOtherLeg('$currency','$cashCurrency');
+  const legs=currencyLegs(
+   {currency:'$currency',amount:'$amountMinor'},
+   {currency:'$cashCurrency',amount:'$cashAmountMinor'},
+   cross,linkedForex(user,forexEnabled,cross,'$operatorId')
+  );
+  return aggregateLegs(models.mobileTransactionModel(conn),mobileMatch(user,operationBranch,now,timeZone),legs,{network:'$network'});
+ }
+ const Model=require('../funded/models').models(conn).execution;
+ const match={...scopeFor(user,key,operationBranch),sourceType:key,status:'posted_manual',reviewedAt:bounds(now,timeZone)};
+ // Module-linked Forex copies are attributed from the source posting below.
+ // Count native trades here, including older snapshots without an origin.
+ if(key==='forex')return aggregateLegs(Model,{...match,'sourceSnapshot.originRecordId':null},forexLegs(),{receipt:'$sourceId'});
+ const primary={currency:'$sourceSnapshot.currency',amount:decimal('$sourceSnapshot.amountMinor')};
+ if(key==='banking')return aggregateLegs(Model,match,[primary],{receipt:'$sourceId'});
+ const cross={$and:[{$eq:['$action','transfer_payout']},hasOtherLeg('$sourceSnapshot.currency','$payoutFx.targetCurrency')]};
+ return aggregateLegs(Model,match,currencyLegs(primary,
+  {currency:'$payoutFx.targetCurrency',amount:'$payoutFx.payoutMinor'},cross,linkedForex(user,forexEnabled,cross,'$createdBy')
+ ),{receipt:'$sourceId'});
+}
+function internalBanking(conn,tenant,user,operationBranch,now,timeZone,forexEnabled){
+ const Model=require('../schemas/BankingInternalFx.schema').model(conn);
+ const cross=hasOtherLeg('$sourceCurrency','$destinationCurrency');
+ return aggregateLegs(Model,{...scopeFor(user,'banking',operationBranch),tenantId:objectId(tenant._id),
+  state:'posted_internal',postedAt:bounds(now,timeZone)
+ },currencyLegs({currency:'$sourceCurrency',amount:'$sourceAmountMinor'},
+  {currency:'$destinationCurrency',amount:'$destinationAmountMinor'},cross,linkedForex(user,forexEnabled,cross,'$createdBy')
+ ),{status:{$literal:'posted_manual'}});
+}
+async function readSource(key,read){
+ try{return {...await read(),available:true};}
+ catch(error){
+  console.warn(JSON.stringify({event:'dashboard.currency_breakdown_unavailable',module:key,code:String(error.code||error.name||'UNKNOWN').slice(0,80)}));
+  return {groups:[],count:0,available:false};
+ }
 }
 async function volumes(conn,tenant,user,input={},operationBranch=null,overview={}){
  const currency=selectedCurrency(input.currency,operationBranch),now=input.now||new Date(),
   timeZone=input.timeZone||'UTC',result={},todayByCurrency={},todayByCurrencyUnavailable={};
+ const countCurrency=Object.hasOwn(input,'totalsCurrency')?input.totalsCurrency:input.currency;
  if(input.suppressTodayVolumes===true)return {selectedCurrency:currency,currencyOptions:currencyCodes.map(code=>({code,label:currencyLabel(code)})),
-  todayVolumes:{},todayByCurrency:{},todayByCurrencyUnavailable:{},date:businessTime.localDay(now,timeZone),mixedRegion:true};
- await Promise.all(Object.entries(sources).map(async([key,spec])=>{
-  if(overview[spec.flag]===false||!hasModuleForUser(tenant,user,key)||!hasPermission(user,`${key}.view`))return;
+  todayVolumes:{},todayByCurrency:{},todayByCurrencyUnavailable:{},todayTransactionCount:null,date:businessTime.localDay(now,timeZone),mixedRegion:true};
+ const enabled=Object.keys(sources).filter(key=>overview[sources[key].flag]!==false&&
+  hasModuleForUser(tenant,user,key)&&hasPermission(user,`${key}.view`));
+ const forexEnabled=enabled.includes('forex');
+ const jobs=enabled.map(key=>[key,()=>nativeSource(conn,user,key,operationBranch,now,timeZone,forexEnabled)]);
+ if(enabled.includes('banking')&&hasModuleForUser(tenant,user,'accounts')&&hasPermission(user,'accounts.view'))
+  jobs.push(['banking',()=>internalBanking(conn,tenant,user,operationBranch,now,timeZone,forexEnabled)]);
+ const parts=await Promise.all(jobs.map(async([key,read])=>[key,await readSource(key,read)]));
+ const todayTransactionCount=parts.length&&parts.every(([,data])=>data.available)
+  ?parts.reduce((count,[,data])=>count+(countCurrency
+   ?totalFor(data.groups,countCurrency).count:data.count),0):null;
+ for(const key of enabled){
+  const own=parts.filter(([source])=>source===key);
+  const groups=own.flatMap(([,data])=>data.groups);
+  if(key==='forex')for(const [source,data] of parts){
+   if(source!==key)groups.push(...data.groups.filter(group=>group._id.linked===1));
+  }
+  if((key==='forex'?parts:own).some(([,data])=>!data.available))todayByCurrencyUnavailable[key]=true;
+  todayByCurrency[key]=currencyCodes.map(code=>totalFor(groups,code)).filter(row=>row.count>0);
   const market=key==='mobile_money'?input.mobileMarket:null;
   const effectiveCurrency=market?.currency||currency;
-  const match=key==='mobile_money'?{...activeMatch(user,key,operationBranch,now,timeZone),fundingState:'book_recorded',
-   ...(market?.network?{network:market.network}:{})}:executionMatch(user,key,operationBranch,currency,now,timeZone);
-  const Model=key==='mobile_money'?models.mobileTransactionModel(conn):require('../funded/models').models(conn).execution;
-  const [grouped,allCurrencies]=await Promise.all([
-   Model.aggregate([
-    {$match:match},
-    {$group:{_id:{currency:key==='mobile_money'?'$currency':{$literal:currency},status:'$status'},count:{$sum:1},amountMinor:{$sum:key==='mobile_money'?'$amountMinor':executionAmount(key,currency)}}}
-   ]).option({maxTimeMS:2500}),
-   breakdown(conn,user,key,operationBranch,now,timeZone)
-    .then(rows=>({rows,available:true}))
-    .catch(error=>{
-     console.warn(JSON.stringify({event:'dashboard.currency_breakdown_unavailable',module:key,code:String(error.code||error.name||'UNKNOWN').slice(0,80)}));
-     return {rows:[],available:false};
-    })
-  ]);
-  todayByCurrency[key]=allCurrencies.rows;
-  if(!allCurrencies.available)todayByCurrencyUnavailable[key]=true;
-  result[key]={...totalFor(grouped,effectiveCurrency),basis:key==='mobile_money'?'posted funds book movements':'independently reviewed posted manual movements',
+  const selected=market?.network?groups.filter(group=>group._id.network===market.network):groups;
+  result[key]={...totalFor(selected,effectiveCurrency),basis:'posted funds book movements',
    ...(market?{network:market.network,networkLabel:market.label}:{})};
- }));
- return {selectedCurrency:currency,currencyOptions:currencyCodes.map(code=>({code,label:currencyLabel(code)})),todayVolumes:result,todayByCurrency,todayByCurrencyUnavailable,date:businessTime.localDay(now,timeZone)};
+ }
+ return {selectedCurrency:currency,currencyOptions:currencyCodes.map(code=>({code,label:currencyLabel(code)})),todayVolumes:result,todayByCurrency,todayByCurrencyUnavailable,todayTransactionCount,date:businessTime.localDay(now,timeZone)};
 }
-module.exports={volumes,sources,selectedCurrency,scopeFor,activeMatch,executionMatch,executionAmount,bounds,totalFor,breakdown,money,fail};
+module.exports={volumes,sources,selectedCurrency,scopeFor,bounds,totalFor,money,fail};

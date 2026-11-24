@@ -171,7 +171,7 @@ test('Expiry worker cannot enumerate tenants without an authorized cursor',async
  await assert.rejects(fx.expireDue({},'not-a-date'),{status:400});
 });
 
-test('missing approved Forex rates show enabled currencies and useful setup action rather than dead controls',async()=>{
+test('Forex forms keep branch pairs selectable and explain missing or expired rates',async()=>{
  const fs=require('node:fs');
  const template=path.join(__dirname,'../src/views/tenant/forex/_entry-form.ejs');
  const locals={
@@ -179,11 +179,16 @@ test('missing approved Forex rates show enabled currencies and useful setup acti
   data:{formRates:[],rates:[],workspaceOperation:'buy',currencyChoices:[{code:'UGX'},{code:'USD'},{code:'KES'}],idempotencyKey:crypto.randomUUID()}
  };
  const html=await ejs.renderFile(template,locals);
- assert.match(html,/No active Forex rate is approved/);
- assert.match(html,/UGX, USD, KSH/);
- assert.match(html,/href="\/tenant\/forex"/);
- assert.doesNotMatch(html,/name="rateId"/);
- assert.doesNotMatch(html,/data-forex-total/);
+ assert.match(html,/No Buy rate is set for UGX → USD/);
+ assert.match(html,/Ask the owner to update the rate/);
+ assert.match(html,/value="KES"[^>]*>KSH<\/option>/);
+ assert.match(html,/data-forex-save disabled/);
+ assert.doesNotMatch(html,/Set exchange rate<\/a>/);
+ const expired=await ejs.renderFile(template,{...locals,data:{...locals.data,canPropose:true,
+  expiredPairs:[{fromCurrency:'USD',toCurrency:'KES',side:'buy'}]}});
+ assert.match(expired,/Buy rate for USD → KSH has expired/);
+ assert.match(expired,/href="\/tenant\/forex\/rates#forexRateProposalForm"/);
+ assert.match(expired,/data-forex-save disabled/);
  const view=fs.readFileSync(path.join(__dirname,'../src/views/tenant/forex/index.ejs'),'utf8');
  assert.match(view,/actualForexCurrencies/);
  assert.match(view,/i===1\?'selected'/);

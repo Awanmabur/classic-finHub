@@ -1,14 +1,14 @@
 'use strict';
 // Server-authoritative, READ-ONLY preview. No provider execution, cash movement
 // or settlement is inferred from a screen quote.
-const {forexRateModel}=require('../models');
 const {models}=require('../treasury/models');
 const {hasModuleForUser,hasPermission}=require('./moduleAccess.service');
 const {quote}=require('./momoFxQuote.service');
 const branchCurrency=require('./branchCurrency.service');
+const exchangeRates=require('./exchangeRateAvailability.service');
 const OID=/^[a-f0-9]{24}$/i;
 function fail(message,status=409){return Object.assign(new Error(message),{status});}
-async function preview(conn,tenant,actor,branch,input){
+async function preview(conn,tenant,actor,branch,input,{rateOnly=false}={}){
  if(!branch||branch.status!=='active')throw fail('Select an active operating branch');
  if(!hasModuleForUser(tenant,actor,'mobile_money')||
     !hasPermission(actor,'mobile_money.view')||
@@ -28,9 +28,19 @@ async function preview(conn,tenant,actor,branch,input){
  if(!branchCurrency.supports(branch,wallet.currency)||!branchCurrency.supports(branch,cash.currency))throw fail('Currency disabled in this branch');
  for(const row of [wallet,cash])if(row.operatorId&&String(row.operatorId)!==String(actor.id))throw fail('Account belongs to another cashier',403);
  const side=operation==='withdraw_provider_receive_cash'?'buy':'sell';
- const rate=await forexRateModel(conn).findOne({branchId:branch._id,fromCurrency:wallet.currency,
-  toCurrency:cash.currency,side,status:'active',reviewedBy:{$ne:null},expiresAt:{$gt:new Date()}}).lean();
- if(!rate)throw fail('No active Buy/Sell rate for this currency direction. Ask the authorized owner to set the rate');
+ const pairDirection={branchId:branch._id,fromCurrency:wallet.currency,toCurrency:cash.currency,side,
+  canSetRate:actor.role==='Tenant Owner'&&hasPermission(actor,'treasury.manage')};
+ const {status,rate}=await exchangeRates.find(conn,pairDirection);
+ if(status!=='active')throw exchangeRates.problem(status,pairDirection);
+ const rateContext={
+  branchId:String(branch._id),walletAccountId:walletId,cashAccountId:cashId,
+  providerCurrency:wallet.currency,cashCurrency:cash.currency,
+  rateId:String(rate._id),rateVersion:rate.revision,rateSide:rate.side,rateDecimal:rate.rateDecimal,
+  rateExpiresAt:rate.expiresAt,network:wallet.network,walletName:wallet.name,cashName:cash.name,
+  financialPosting:process.env.CLASSICFIN_MOMO_FX_POSTING_ENABLED==='true'?'manual_book_recording':'disabled',
+  providerVerification:'required'
+ };
+ if(rateOnly)return {...rateContext,rateValidForMs:exchangeRates.remaining(rate,pairDirection)};
  const fromCash=operation==='deposit_cash_send_provider'&&
   (input.cashAmountMinor!==undefined||input.cashAmount!==undefined);
  const money=require('../treasury/service');
@@ -39,20 +49,20 @@ async function preview(conn,tenant,actor,branch,input){
    String(money.major(String(input.cashAmount||''),cash.currency))}:
   {providerAmountMinor:input.providerAmountMinor!==undefined?String(input.providerAmountMinor):
    String(money.major(String(input.providerAmount||''),wallet.currency))};
+ const now=Date.now();
+ exchangeRates.remaining(rate,pairDirection,now);
  const value=quote({operation,providerCurrency:wallet.currency,cashCurrency:cash.currency,
   ...amountInput,rateDecimal:rate.rateDecimal,
   rateSide:rate.side,rateId:String(rate._id),rateVersion:rate.revision,approved:true,
-  expiresAt:new Date(rate.expiresAt).toISOString()});
+  expiresAt:new Date(rate.expiresAt).toISOString()},{now});
  // Cashier sees approved-sheet amounts without treating expected commission
  // or the customer's network charge as an extra agent fee or realized income.
  const estimates=await require('../pricing/networkTariffService').transactionEstimates(
   conn,tenant,branch,{network:wallet.network,currency:wallet.currency,
    operation:operation==='withdraw_provider_receive_cash'?'cash_out':'cash_in',
    amountMinor:value.providerAmountMinor,at:new Date()});
- return {...value,expectedCommissionMinor:estimates.agentCommissionEstimate?.amountMinor??null,
-  customerNetworkChargeMinor:estimates.customerNetworkFeeEstimate?.amountMinor??null,
-  branchId:String(branch._id),walletAccountId:walletId,cashAccountId:cashId,
-  network:wallet.network,walletName:wallet.name,cashName:cash.name,rateExpiresAt:rate.expiresAt,
-  financialPosting:process.env.CLASSICFIN_MOMO_FX_POSTING_ENABLED==='true'?'manual_book_recording':'disabled',providerVerification:'required'};
+ return {...value,...rateContext,rateValidForMs:exchangeRates.remaining(rate,pairDirection),
+  expectedCommissionMinor:estimates.agentCommissionEstimate?.amountMinor??null,
+  customerNetworkChargeMinor:estimates.customerNetworkFeeEstimate?.amountMinor??null};
 }
 module.exports={preview};

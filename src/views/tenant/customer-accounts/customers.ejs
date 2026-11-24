@@ -1,6 +1,6 @@
-<section class="view show">
+<section class="view show tenantContentFlow">
  <div class="rowBtns"><a class="btn" href="/tenant/customers">Customers directory</a><% if(data.canExportCustomer){ %><a class="btn" href="/tenant/customers/export.csv?q=<%= encodeURIComponent(data.records.q) %>&amp;status=<%= data.records.status %>">Export CSV</a><% } %><a class="btn" href="/tenant/customers/logbook">Customer logbook</a><a class="btn" href="/tenant/customers?status=<%= data.records.status==='archived'?'active':'archived' %>"><%= data.records.status==='archived'?'Active customers':'Archived customers' %></a></div>
- <div class="grid" style="margin-top:14px"><section class="card"><div class="cardHead"><div><b>Customers directory</b><br><span>Customer profiles for banking, mobile money, and transfer operations</span></div><% if(data.canCreateCustomer){ %><a class="btn btnPrimary" href="/tenant/customers/new" data-directory-open>New customer</a><% } %></div><div class="cardBody">
+ <div class="grid"><section class="card"><div class="cardHead"><div><b>Customers directory</b><br><span>Customer profiles for banking, mobile money, and transfer operations</span></div><% if(data.canCreateCustomer){ %><a class="btn btnPrimary" href="/tenant/customers/new" data-directory-open>New customer</a><% } %></div><div class="cardBody">
   <div class="grid3">
   <%- include('../../partials/stat-card',{title:'Matching customers',value:data.records.total,note:data.records.status==='archived'?'Archived profiles':'Authorized directory records'}) %>
   <%- include('../../partials/stat-card',{title:'Linked accounts',value:data.records.accounts==null?'—':data.records.accounts,note:'Accounts attached to visible customer scope'}) %>

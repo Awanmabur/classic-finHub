@@ -59,20 +59,29 @@ async function main(){
   assert(hasModule(a.tenant,'analytics'));assert(!hasModule(a.tenant,'reports'));
   const scoped=await analytics.generate(a.conn,a.tenant,analyst,{days:'7',source:'workspace'},now);
   assert.equal(scoped.data[0].current,1);assert.equal(scoped.data[0].previous,1);
-  assert.equal(scoped.workspaceTrend.reduce((total,x)=>total+x.count,0),1);
+  assert.equal(scoped.trend.days.reduce((total,x)=>total+x.current,0),1);
+  assert.equal(scoped.trend.days.reduce((total,x)=>total+x.previous,0),1);
   const complete=await analytics.generate(a.conn,a.tenant,owner,{days:'7',source:'workspace'},now);
   assert.equal(complete.data[0].current,2,'Tenant Owner can see both own branches');
   assert.deepEqual(reporting.sourcesFor(a.tenant,analyst),[],'Reports not automatically included');
   await assert.rejects(analytics.generate(b.conn,b.tenant,analyst,{days:'7'}),e=>e.status===403);
   // A Forex quote is a record, not a completed currency exchange.
-  await forexQuoteModel(a.conn).create({reference:'FX-ANALYTICS-TEST',idempotencyKey:crypto.randomUUID(),
+  const quote={reference:'FX-ANALYTICS-TEST',idempotencyKey:crypto.randomUUID(),
    branchId:a.branch._id,createdBy:actorId,customerLabel:'Scratch customer',rateId:new mongoose.Types.ObjectId(),
    fromCurrency:'UGX',toCurrency:'USD',rateDecimal:'0.000275',sourceMinor:'20000',targetMinor:'550',
    expiresAt:new Date(now.getTime()+86400000),validMinutes:15,note:'Scratch indicative quote for analytics',
-   createdAt:yesterday,updatedAt:yesterday});
+   createdAt:yesterday,updatedAt:yesterday};
+  await forexQuoteModel(a.conn).create([
+   quote,{...quote,reference:'FX-ANALYTICS-HIDDEN-BANKING',idempotencyKey:crypto.randomUUID(),originModule:'banking'}
+  ]);
   const fx=await analytics.generate(a.conn,a.tenant,analyst,{days:'7',source:'forex'},now);
   assert.equal(fx.data.length,1);assert.equal(fx.data[0].current,1);
   assert.equal(fx.data[0].breakdown[0].status,'quoted');
+  assert.deepEqual(fx.trend.currencies,[{label:'UGX',count:1},{label:'USD',count:1}]);
+  assert.equal(fx.trend.currencyOverlap,true);
+  assert.equal(fx.trend.days.reduce((total,row)=>total+row.current,0),1);
+  const all=await analytics.generate(a.conn,a.tenant,analyst,{days:'7'},now);
+  assert.deepEqual(all.sources.map(row=>row.key),['workspace','forex']);
   await assert.rejects(analytics.generate(a.conn,a.tenant,{...analyst,allowedModules:['analytics']},
    {days:'7',source:'forex'},now),e=>e.status===403);
   const withoutForex={...a.tenant.toObject(),moduleGrants:grants(['analytics'])};

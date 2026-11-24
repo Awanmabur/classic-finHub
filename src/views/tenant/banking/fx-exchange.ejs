@@ -1,4 +1,7 @@
-<section class="view show">
+<% const previous=data.submitted||{};
+   const label=code=>code==='KES'?'KSH':code;
+   const rateSetup='/tenant/forex/rates#forexRateProposalForm'; %>
+<section class="view show workspaceStack">
  <section class="card">
   <div class="cardHead">
    <div><b>Cross-currency customer account transfer</b><span>Real internal account balances · approved Buy/Sell rate</span></div>
@@ -13,50 +16,57 @@
     <button class="btn" type="submit">Search accounts</button>
    </form>
    <% if(data.truncated){ %><p class="tiny">Showing the first 100 results. Search for the customer before posting an exchange.</p><% } %>
-   <% if(!data.accounts.length){ %><p>Open two active customer accounts in different currencies before transferring.</p><a class="btn" href="/tenant/accounts">Manage customer accounts</a><% }else if(!data.rates.length){ %><p>No active Buy/Sell rate exists for the required currency direction.</p><a class="btn" href="/tenant/forex">Set approved exchange rates</a><% }else{ %>
-   <form method="post" action="/tenant/banking/exchange/preview" autocomplete="off">
+   <% if(data.rateError){ %><p role="alert" class="workspaceNote" data-banking-fx-server-error><%= data.rateError %></p><% } %>
+   <% if(!data.accounts.length){ %><p>Open two active customer accounts in different currencies before transferring.</p><a class="btn" href="/tenant/accounts">Manage customer accounts</a><% }else{ %>
+   <form method="post" action="/tenant/banking/exchange/preview" autocomplete="off" data-feedback-skip data-banking-fx
+     data-expired-pairs="<%= (data.expiredPairs||[]).map(pair=>pair.fromCurrency+':'+pair.toCurrency).join(' ') %>">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <input type="hidden" name="idempotencyKey" value="<%= data.idempotencyKey %>">
+    <input type="hidden" name="q" value="<%= data.search||'' %>">
     <div class="formSection">
      <div class="formSectionTitle">Customer accounts</div>
      <div class="row2">
       <label class="field">Debit source account
        <select class="control" name="sourceAccountId" required><option value="">Select posted customer balance</option>
         <% data.accounts.forEach(a=>{ %>
-         <option value="<%= a._id %>"><%= a.customerName %> · ****<%= a.accountNumber.slice(-4) %> · <%= a.currency %> · Book: <%= a.balanceLabel||'Balance unavailable' %></option>
+         <option value="<%= a._id %>" data-customer="<%= a.customerId %>" data-currency="<%= a.currency %>" <%= String(a._id)===previous.sourceAccountId?'selected':'' %>><%= a.customerName %> · ****<%= a.accountNumber.slice(-4) %> · <%= label(a.currency) %> · Book: <%= a.balanceLabel||'Balance unavailable' %></option>
         <% }) %>
        </select>
       </label>
       <label class="field">Credit destination account
        <select class="control" name="destinationAccountId" required><option value="">Select same customer's other currency account</option>
         <% data.accounts.forEach(a=>{ %>
-         <option value="<%= a._id %>"><%= a.customerName %> · ****<%= a.accountNumber.slice(-4) %> · <%= a.currency %> · Book: <%= a.balanceLabel||'Balance unavailable' %></option>
+         <option value="<%= a._id %>" data-customer="<%= a.customerId %>" data-currency="<%= a.currency %>" <%= String(a._id)===previous.destinationAccountId?'selected':'' %>><%= a.customerName %> · ****<%= a.accountNumber.slice(-4) %> · <%= label(a.currency) %> · Book: <%= a.balanceLabel||'Balance unavailable' %></option>
         <% }) %>
        </select>
       </label>
      </div>
      <div class="row2">
       <label class="field">Amount to exchange (source account currency)
-       <input class="control" name="amount" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" maxlength="32" required placeholder="Enter exact source amount">
+       <input class="control" name="amount" value="<%= previous.amount||'' %>" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" maxlength="32" required placeholder="Enter exact source amount">
       </label>
       <label class="field">Approved exchange rate
-       <select class="control" name="rateChoice" required><option value="">Choose currency pair and direction</option>
+       <select class="control" name="rateChoice" required aria-describedby="bankingFxRateStatus"><option value="">Choose currency pair and direction</option>
         <% data.rates.forEach(r=>{ %>
-         <option value="<%= r._id %>:<%= r.revision %>:<%= r.rateDecimal %>"><% const quote=data.rateDisplay(r.rateDecimal,r.fromCurrency); %><%= r.fromCurrency %> → <%= r.toCurrency %> · <%= r.side==='buy'?'Buy':'Sell' %> · <%= quote.text %> = <%= quote.rate %> <%= r.toCurrency %></option>
+         <option value="<%= r._id %>:<%= r.revision %>:<%= r.rateDecimal %>" data-from="<%= r.fromCurrency %>" data-to="<%= r.toCurrency %>" data-expires-at="<%= r.expiresAt?new Date(r.expiresAt).toISOString():'' %>"><% const quote=data.rateDisplay(r.rateDecimal,r.fromCurrency); %><%= label(r.fromCurrency) %> → <%= label(r.toCurrency) %> · <%= r.side==='buy'?'Buy':'Sell' %> · <%= quote.text %> = <%= quote.rate %> <%= label(r.toCurrency) %></option>
         <% }) %>
        </select>
       </label>
      </div>
+     <div class="rowBtns" data-banking-fx-rate-notice>
+      <span id="bankingFxRateStatus" role="status" data-banking-fx-rate-status><%= data.rates.length?'Select the two accounts to see their exchange rates.':'This branch has no active Buy/Sell rates. Select the two accounts to check their currency pair.' %></span>
+      <% if(data.canSetRate){ %><a class="btn" data-banking-fx-rate-action href="<%= rateSetup %>">Set exchange rate</a><% } %>
+     </div>
      <label class="field">Customer-approved voucher / instruction reference
-      <input class="control" name="evidenceReference" minlength="6" maxlength="120" required placeholder="Signed instruction, receipt or verifiable customer authorization">
+      <input class="control" name="evidenceReference" value="<%= previous.evidenceReference||'' %>" minlength="6" maxlength="120" required placeholder="Signed instruction, receipt or verifiable customer authorization">
      </label>
      <label class="field"><input type="checkbox" name="confirmCustomerAuthority" value="yes" required> The customer approved the actual two-currency transfer and the source and destination account details have been checked.</label>
-     <button class="btn btnPrimary" type="submit">Review exact exchange amounts</button>
+     <button class="btn btnPrimary" type="submit" data-banking-fx-submit <%= data.rates.length?'':'disabled' %>>Review exact exchange amounts</button>
     </div>
    </form><% } %>
   </div>
  </section>
- <section class="card" style="margin-top:14px">
+ <section class="card">
   <div class="cardHead"><b>Completed internal currency exchanges</b><span><%= data.records.length %> recent</span></div>
   <div class="cardBody">
    <% if(!data.records.length){ %><p class="tiny">No internal account currency exchanges have been posted in this branch.</p><% }else{ %>
@@ -75,3 +85,4 @@
   </div>
  </section>
 </section>
+<script defer src="/js/banking-fx.js?v=<%= typeof assetVersion==='undefined'?'1':assetVersion %>"></script>

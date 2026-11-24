@@ -7,8 +7,8 @@
   <% if(data.fxState && user.role==='Tenant Owner' &&
     ((user.permissions||[]).includes('*')||(user.permissions||[]).includes('treasury.manage')) &&
     data.fxState.wallets.length && data.fxState.drawers.length){ %>
-  <details class="card logicNote" style="margin-top:12px">
-   <summary class="cardHead">Exchange rates · owner settings</summary>
+  <details class="card logicNote" id="mobile-money-rate-settings"<% if(data.fxState.selected){ %> open<% } %>>
+   <summary class="cardHead">Exchange rates</summary>
    <form method="post" action="/tenant/mobile-money/fx/rates" class="cardBody" autocomplete="off">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <div class="row2">

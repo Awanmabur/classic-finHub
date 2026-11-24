@@ -5,6 +5,7 @@ const { consumeFlash, flash, money, formatUtcDate } = require('../../utils/view'
 const requirePermission = require('../../middleware/requirePermission');
 const requireModule = require('../../middleware/requireModule');
 const mobile = require('../services/mobileMoney.service');
+const exchangeRates=require('../services/exchangeRateAvailability.service');
 const {modules}=require('../../data/store');
 const {planForTenant,effectiveSubscription}=require('../../platform/services/commercial.service');
 const UsageCounter=require('../../platform/models/UsageCounter');
@@ -174,8 +175,9 @@ for (const [path,op,permission] of [['cash-in','cash_in','mobile_money.cash_in']
          String(req.body.fxRateVersion||'')!==String(serverQuote.rateVersion)||
          String(req.body.fxCashAmountMinor||'')!==serverQuote.cashAmountMinor||
          String(req.body.fxProviderAmountMinor||'')!==serverQuote.providerAmountMinor){
-         const error=new Error('Exchange quote changed. Recalculate and confirm the actual cash amount before finalizing.');
-         error.status=409;throw error;
+         throw exchangeRates.problem('changed',{
+          fromCurrency:wallet.currency,toCurrency:cash.currency,side:serverQuote.rateSide
+         });
        }
        // No second provider payment, standalone Forex subscription, or second
        // ledger operation is created. Both module views reference one source.
@@ -192,7 +194,16 @@ for (const [path,op,permission] of [['cash-in','cash_in','mobile_money.cash_in']
        printDestination=receiptPrint.mobile(result);
       }
       res.redirect(303,printDestination||'/tenant/mobile-money');
-    } catch(e) { next(e); }
+    } catch(e) {
+      if(!exchangeRates.isIssue(e))return next(e);
+      if(req.get('X-ClassicFin-Redirect')==='json'){
+        return res.status(e.status).set({
+          'Cache-Control':'private, no-store','X-ClassicFin-Rate-State':e.code
+        }).json({message:e.message});
+      }
+      flash(req,'bad',e.message);
+      res.redirect(303,'/tenant/mobile-money/'+path);
+    }
   });
 }
 router.post('/mobile-money/:id/request-void',requireModule('mobile_money'),requirePermission('mobile_money.view'),

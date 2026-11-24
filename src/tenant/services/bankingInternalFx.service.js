@@ -11,6 +11,7 @@ const {hasPermission,hasModuleForUser}=require('./moduleAccess.service');
 const treasury=require('../treasury/service');
 const treasuryModels=require('../treasury/models');
 const forex=require('./forex.service');
+const rateAvailability=require('./exchangeRateAvailability.service');
 const currencySupport=require('./branchCurrency.service');
 const OID=/^[a-f0-9]{24}$/i;
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
@@ -35,7 +36,7 @@ async function options(conn,tenant,actor,branch,filter={}){
  const escaped=[...search].map(ch=>regexMeta.includes(ch)?String.fromCharCode(92)+ch:ch).join('');
  const searchMatch=selectedIds?{_id:{$in:selectedIds.map(x=>new mongoose.Types.ObjectId(x))}}:
   search?{$or:[{accountNumber:new RegExp(escaped,'i')},{'customer.name':new RegExp(escaped,'i')}]}:{};
- const [customerAccounts,rates]=await Promise.all([
+ const [customerAccounts,rates,expiredPairs]=await Promise.all([
   accounts.accountModel(conn).aggregate([
    {$match:{branchId:branch._id,status:'active',currency:{$in:currencySupport.supported(branch)}}},
    {$lookup:{from:accounts.customerModel(conn).collection.name,localField:'customerId',foreignField:'_id',as:'customer'}},
@@ -43,9 +44,10 @@ async function options(conn,tenant,actor,branch,filter={}){
    {$match:searchMatch},{$sort:{accountNumber:1}},{$limit:101},
    {$project:{_id:1,customerId:1,ledgerAccountId:1,accountNumber:1,currency:1,customerName:'$customer.name'}}
   ]).option({maxTimeMS:3000}),
-  core.forexRateModel(conn).find({branchId:branch._id,status:'active',side:{$in:['buy','sell']},
+  selectedIds?[]:core.forexRateModel(conn).find({branchId:branch._id,status:'active',side:{$in:['buy','sell']},
    expiresAt:{$gt:new Date()},reviewedBy:{$ne:null}}).select('fromCurrency toCurrency side rateDecimal revision expiresAt')
-   .sort({fromCurrency:1,toCurrency:1,side:1}).limit(100).lean()
+   .sort({fromCurrency:1,toCurrency:1,side:1}).limit(100).lean(),
+  selectedIds?[]:forex.expiredRatePairs(conn,branch._id)
  ]);
  const truncated=customerAccounts.length>100;
  const selectedAccounts=customerAccounts.slice(0,100);
@@ -63,7 +65,25 @@ async function options(conn,tenant,actor,branch,filter={}){
   balanceMinor:String(balances.get(String(account.ledgerAccountId))||0n),
   balanceLabel:require('./mobileMoney.service').formatMoneyMinor(
    String(balances.get(String(account.ledgerAccountId))||0n),account.currency)
- })),rates,search,truncated};
+ })),rates:rates.filter(rate=>forex.enabledRate(branch,rate)),
+  expiredPairs:expiredPairs.filter(pair=>['buy','sell'].includes(pair.side)&&forex.enabledRate(branch,pair)),
+  search,truncated};
+}
+async function approvedRate(conn,branch,source,destination,input,session=null){
+ const pair={branchId:branch._id,fromCurrency:source.currency,toCurrency:destination.currency};
+ const now=new Date();
+ const side={$in:['buy','sell']};
+ const selected=input.rateId?await core.forexRateModel(conn).findOne({
+  ...rateAvailability.pairFilter(pair.branchId,pair.fromCurrency,pair.toCurrency,side),_id:input.rateId
+ }).select('fromCurrency toCurrency side status rateDecimal revision expiresAt').session(session).lean():null;
+ const state=selected?rateAvailability.classify([selected],{now}).status:'missing';
+ if(state==='active'&&String(selected.revision)===String(input.rateVersion)&&
+  String(selected.rateDecimal)===String(input.rateDecimal))return selected;
+ if(state==='active'||state==='expired')throw rateAvailability.problem(state==='active'?'changed':state,{...pair,side:selected.side});
+ const current=await rateAvailability.find(conn,{...pair,side,now,session});
+ if(current.status==='active'&&!input.rateId)
+  throw Object.assign(fail('Choose an approved exchange rate for the selected currency pair.',409),{code:'FX_RATE_MISSING'});
+ throw rateAvailability.problem(current.status==='active'?'changed':current.status,pair);
 }
 async function balance(conn,session,ledgerId,branchId,currency){
  const groups=await core.ledgerPostingModel(conn).aggregate([
@@ -98,18 +118,16 @@ async function checkTargetLiquidity(conn,session,branch,currency,additionalMinor
 async function preview(conn,tenant,actor,branch,input={}){
  if(!branch||!eligible(tenant,actor)||actor.role!=='Tenant Owner'&&String(actor.branchId)!==String(branch._id))
   throw fail('Banking currency exchange access is unavailable',403);
- const sourceId=id(input.sourceAccountId),destinationId=id(input.destinationAccountId),rateId=id(input.rateId);
+ const sourceId=id(input.sourceAccountId),destinationId=id(input.destinationAccountId),rateId=input.rateId?id(input.rateId):null;
  if(sourceId===destinationId)throw fail('Select two different customer accounts',400);
  if(!UUID.test(String(input.idempotencyKey||'')))throw fail('Reload the exchange form before previewing',400);
  if(input.confirmCustomerAuthority!=='yes')throw fail('Confirm customer authorization before previewing the actual transaction');
  const evidenceReference=ref(input.evidenceReference);
- const {accounts:available,rates}=await options(conn,tenant,actor,branch,{selectedIds:[sourceId,destinationId]});
+ const {accounts:available}=await options(conn,tenant,actor,branch,{selectedIds:[sourceId,destinationId]});
  const source=available.find(a=>String(a._id)===sourceId),destination=available.find(a=>String(a._id)===destinationId);
  if(!source||!destination||String(source.customerId)!==String(destination.customerId)||source.currency===destination.currency)
   throw fail('Both selected active accounts must belong to the same customer and use different currencies',409);
- const rate=rates.find(r=>String(r._id)===rateId&&String(r.revision)===String(input.rateVersion)&&
-  String(r.rateDecimal)===String(input.rateDecimal)&&r.fromCurrency===source.currency&&r.toCurrency===destination.currency);
- if(!rate||new Date(rate.expiresAt)<=new Date())throw fail('The current approved exchange rate is unavailable. Reload.',409);
+ const rate=await approvedRate(conn,branch,source,destination,{...input,rateId});
  const sourceMinor=forex.minor(input.amount,source.currency);
  const destinationMinor=forex.converted(sourceMinor,source.currency,destination.currency,forex.rateScaled(rate.rateDecimal));
  if(BigInt(source.balanceMinor)<sourceMinor)throw fail('Insufficient posted customer balance in the selected source account',409);
@@ -122,14 +140,15 @@ async function preview(conn,tenant,actor,branch,input={}){
 async function convert(conn,tenant,actor,branch,input={}){
  if(!branch||!eligible(tenant,actor)||actor.role!=='Tenant Owner'&&String(actor.branchId)!==String(branch._id))
   throw fail('You cannot post Banking currency exchanges for this branch',403);
- const sourceId=id(input.sourceAccountId),destinationId=id(input.destinationAccountId),rateId=id(input.rateId);
+ const sourceId=id(input.sourceAccountId),destinationId=id(input.destinationAccountId),rateId=input.rateId?id(input.rateId):null;
  if(sourceId===destinationId)throw fail('Choose two different customer accounts and currencies');
  if(!UUID.test(String(input.idempotencyKey||'')))throw fail('Reload to get a valid exchange reference');
  if(input.confirmCustomerAuthority!=='yes')throw fail('Confirm customer authorization for the internal account exchange');
  const voucher=ref(input.evidenceReference);
  if(typeof input.amount!=='string'||input.amount.length>32)throw fail('Enter the source account amount');
  const originalRateVersion=Number(input.rateVersion);
- if(!Number.isSafeInteger(originalRateVersion)||originalRateVersion<0)throw fail('The rate has changed. Refresh and try again',409);
+ if(rateId&&(!Number.isSafeInteger(originalRateVersion)||originalRateVersion<0))
+  throw Object.assign(fail('The rate selection changed. Choose the current rate and confirm the amounts again.',409),{code:'FX_RATE_CHANGED'});
  await Promise.all([accounts.ensureIndexes(conn),treasuryModels.ensure(conn),ensureFx(conn)]);
  const Existing=Fx(conn),prior=await Existing.findOne({tenantId:tenant._id,idempotencyKey:input.idempotencyKey}).lean();
  if(prior){
@@ -168,11 +187,7 @@ async function convert(conn,tenant,actor,branch,input={}){
       currency:destination.currency,category:'liability'}).session(session).lean()
    ]);
    if(!srcLedger||!destLedger)throw fail('Bank customer liability mapping is invalid',503);
-   const rate=await core.forexRateModel(conn).findOne({_id:rateId,branchId:branch._id,
-    status:'active',side:{$in:['buy','sell']},
-    fromCurrency:source.currency,toCurrency:destination.currency,reviewedBy:{$ne:null},
-    revision:originalRateVersion,expiresAt:{$gt:new Date()}}).session(session).lean();
-   if(!rate||String(rate.rateDecimal)!==String(input.rateDecimal||''))throw fail('Approved exchange rate expired or changed. Refresh',409);
+   const rate=await approvedRate(conn,branch,source,destination,{...input,rateId,rateVersion:originalRateVersion},session);
    const sourceMinor=forex.minor(input.amount,source.currency);
    const destinationMinor=forex.converted(sourceMinor,source.currency,destination.currency,
     forex.rateScaled(rate.rateDecimal));
@@ -184,6 +199,8 @@ async function convert(conn,tenant,actor,branch,input={}){
    // exposure without fabricating trading profit or bank settlement.
    const authorizationTreasury=await treasury.access(conn,authorization.tenant,authorization.actor,{
     permission:'treasury.observe',sourceType:'forex',session,fence:true});
+   if(new Date(rate.expiresAt)<=new Date())
+    throw rateAvailability.problem('expired',{fromCurrency:source.currency,toCurrency:destination.currency,side:rate.side});
    const posting=await treasury.applyMovements(conn,session,authorizationTreasury,{
     sourceType:'forex',sourceRef:'BANKFX:'+input.idempotencyKey,
     branchId:String(branch._id),operatingActorId:String(actor.id),

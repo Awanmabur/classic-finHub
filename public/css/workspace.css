@@ -256,3 +256,159 @@
 @media(max-width:1130px){.tenantModuleCards{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:790px){.ownerRoleAccessPage .moduleChoiceGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px){.tenantModulePage,.ownerRoleAccessPage{gap:13px}.tenantModuleCards{grid-template-columns:1fr;gap:13px}.tenantModuleCard .cardHead{padding:15px}.tenantModuleCard .cardBody{padding:15px;gap:10px}.ownerRoleAccessPage .roleAccessEditor>.cardBody{padding:15px}.ownerRoleAccessPage .moduleChoiceGrid{grid-template-columns:1fr}}
+
+/* Shared spacing for operational screens. */
+#workspaceContent{
+ --workspace-section-gap:14px;
+ --workspace-card-inset:16px;
+}
+#workspaceContent :is(#view-overview,.tenantContentFlow,.mobileMoneyPage,.customerAccountView){
+ display:grid;
+ gap:var(--workspace-section-gap);
+ min-width:0;
+}
+#workspaceContent :is(#view-overview,.tenantContentFlow,.mobileMoneyPage,.customerAccountView) > :is(.card,.grid,.richActions){
+ min-width:0;
+ margin-block:0;
+}
+#workspaceContent :is(#view-overview,.tenantContentFlow,.mobileMoneyPage,.customerAccountView,[data-owner-money-page]) :is(.cardHead,.cardBody){
+ padding:var(--workspace-card-inset);
+}
+#workspaceContent :is(#view-overview,.tenantContentFlow,.mobileMoneyPage,.customerAccountView,[data-owner-money-page]) .cardHead{
+ align-items:center;
+ gap:8px 12px;
+}
+#workspaceContent :is(#view-overview,.tenantContentFlow,.mobileMoneyPage,.customerAccountView,[data-owner-money-page]) .cardBody > p:first-child{
+ margin-top:0;
+}
+#workspaceContent :is(#view-overview,.tenantContentFlow,.mobileMoneyPage,.customerAccountView,[data-owner-money-page]) .cardBody > p:last-child{
+ margin-bottom:0;
+}
+#workspaceContent .financialReportsPage,
+#workspaceContent [data-owner-money-page] > .workspaceStack{
+ gap:var(--workspace-section-gap);
+}
+#workspaceContent [data-owner-money-page] :is(.treasuryAccountRow, .treasuryPending){
+ min-width:0;
+}
+#workspaceContent .customerAccountView > .card + .card{
+ margin-top:0;
+}
+#workspaceContent .tenantContentFlow > .card + .card,
+#workspaceContent .mobileMoneyPage > .card + .card{
+ margin-top:0;
+}
+@media(max-width:650px){
+ #workspaceContent{
+  --workspace-section-gap:11px;
+  --workspace-card-inset:12px;
+ }
+ #workspaceContent .workspaceStack{
+  gap:var(--workspace-section-gap);
+ }
+ #workspaceContent :is(.tenantContentFlow,.mobileMoneyPage,.customerAccountView,[data-owner-money-page]) .cardHead .rowBtns{
+  gap:7px;
+  max-width:100%;
+ }
+}
+
+/* Dashboard: key figures, currency activity, then supporting detail. */
+#workspaceContent #view-overview .dashboardTopStats{
+ grid-template-columns:repeat(auto-fit,minmax(min(100%,158px),1fr))!important;
+ gap:var(--workspace-section-gap)!important;
+}
+.dashboardStatAmounts{
+ list-style:none;
+ margin:4px 0 0;
+ padding:0;
+ font-weight:750;
+ font-size:clamp(13px,1.45vw,17px);
+ font-variant-numeric:tabular-nums;
+ line-height:1.5;
+}
+.dashboardStatAmounts li + li{border-top:1px solid var(--border)}
+.dashboardCashLocation{font-size:11px;line-height:1.3;color:var(--muted);margin-top:3px}
+.dashboardCashDay > .btn{
+ align-self:flex-start;
+ min-height:36px;
+ white-space:normal;
+ text-align:left;
+ margin-top:7px;
+ padding:6px 10px;
+}
+.dashboardCurrencyTable{min-width:0}
+#workspaceContent .dashboardCurrencyTable table{
+ min-width:0;
+ table-layout:fixed;
+}
+#workspaceContent .dashboardCurrencyTable th,
+#workspaceContent .dashboardCurrencyTable td{
+ padding:10px 12px;
+ vertical-align:top;
+ white-space:normal;
+ overflow-wrap:anywhere;
+}
+#workspaceContent .dashboardCurrencyTable th:first-child{width:15%}
+#workspaceContent .dashboardCurrencyTable th[scope="row"]{color:var(--text)}
+#workspaceContent .dashboardCurrencyTable tr:last-child th{border-bottom:0}
+.dashboardCurrencyTable td strong{font-variant-numeric:tabular-nums}
+.dashboardCurrencyTable td small{
+ display:block;
+ color:var(--muted);
+ margin-top:3px;
+ font-size:11px;
+}
+.dashboardCurrencyMetric{display:none}
+.dashboardFinancialDetails > summary{cursor:pointer}
+@media(max-width:650px){
+ #workspaceContent #view-overview .dashboardTopStats{
+  grid-template-columns:repeat(auto-fit,minmax(min(100%,124px),1fr))!important;
+ }
+ #workspaceContent #view-overview .dashboardCashDay:nth-child(3):last-child{
+  grid-column:1/-1;
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto;
+  grid-template-areas:"label action" "status action" "location action";
+  column-gap:10px!important;
+  align-items:center!important;
+ }
+ .dashboardCashDay:nth-child(3):last-child > .k{grid-area:label}
+ .dashboardCashDay:nth-child(3):last-child > .v{grid-area:status}
+ .dashboardCashDay:nth-child(3):last-child > .dashboardCashLocation{grid-area:location}
+ .dashboardCashDay:nth-child(3):last-child > .btn{grid-area:action;align-self:center;margin:0}
+ #workspaceContent .dashboardCurrencyTable table,
+ #workspaceContent .dashboardCurrencyTable tbody{display:block;width:100%}
+ #workspaceContent .dashboardCurrencyTable table{border:0;background:transparent;border-radius:0}
+ #workspaceContent .dashboardCurrencyTable thead{
+  position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;
+ }
+ #workspaceContent .dashboardCurrencyTable tbody{
+  display:grid;
+  gap:8px;
+ }
+ #workspaceContent .dashboardCurrencyTable tr{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  border:1px solid var(--border);
+  border-radius:12px;
+  overflow:hidden;
+ }
+ #workspaceContent .dashboardCurrencyTable th[scope="row"]{
+  width:auto;
+  grid-column:1/-1;
+  position:static;
+  padding:6px 10px;
+  background:var(--card2);
+  border-bottom:1px solid var(--border);
+ }
+ #workspaceContent .dashboardCurrencyTable td{
+  min-width:0;
+  padding:7px 10px;
+  border:0;
+  line-height:1.3;
+ }
+ #workspaceContent .dashboardCurrencyTable tr:has(td:not(.dashboardCurrencyEmpty)) .dashboardCurrencyEmpty,
+ #workspaceContent .dashboardCurrencyTable tr:not(:has(td:not(.dashboardCurrencyEmpty))) td.dashboardCurrencyEmpty:nth-child(n+3),
+ #workspaceContent .dashboardCurrencyEmpty .dashboardCurrencyMetric{display:none}
+ .dashboardCurrencyMetric{display:block;font-size:11px;color:var(--muted);margin-bottom:2px}
+}

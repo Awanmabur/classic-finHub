@@ -39,18 +39,29 @@ function routes({renderTenant}){
    });
   }catch(e){next(e);}
  });
+ async function renderExchange(req,res,{status=200,rateError='',submitted={}}={}){
+  if(!req.operationBranch)return res.status(409).send('Choose an operating branch');
+  const fxBank=require('../services/bankingInternalFx.service');
+  const search=String(req.method==='GET'?req.query.q||'':submitted.q||'').slice(0,60);
+  const [available,records]=await Promise.all([
+   fxBank.options(req.tenantDb,req.tenant,req.user,req.operationBranch,{search}),
+   fxBank.history(req.tenantDb,req.tenant,req.user,req.operationBranch)
+  ]);
+  const canSetRate=require('../services/forex.service').operator(req.user)&&hasPermission(req.user,'forex.rate_manage');
+  res.status(status);
+  renderTenant(req,res,'banking/fx-exchange','Internal Banking Currency Exchange',
+   'Move a customer balance between two currencies.',
+   {...available,records,rateError,submitted,canSetRate,idempotencyKey:submitted.idempotencyKey||crypto.randomUUID(),
+    formatMoneyMinor,rateDisplay:require('../services/forexRateUnits.service').display});
+ }
+ async function exchangeError(req,res,next,error){
+  if(typeof error.code!=='string'||!error.code.startsWith('FX_RATE_'))return next(error);
+  try{await renderExchange(req,res,{status:409,rateError:error.message,submitted:req.body});}
+  catch(renderError){next(renderError);}
+ }
  router.get('/exchange',requirePermission('banking.view'),async(req,res,next)=>{
-  try{
-   if(!req.operationBranch)return res.status(409).send('Choose an operating branch');
-   const fxBank=require('../services/bankingInternalFx.service');
-   const [available,records]=await Promise.all([
-    fxBank.options(req.tenantDb,req.tenant,req.user,req.operationBranch,{search:req.query.q||''}),
-    fxBank.history(req.tenantDb,req.tenant,req.user,req.operationBranch)
-   ]);
-   renderTenant(req,res,'banking/fx-exchange','Internal Banking Currency Exchange',
-    'Real customer account balances exchange across currencies; no external bank transfer is implied.',
-    {...available,records,idempotencyKey:crypto.randomUUID(),formatMoneyMinor,rateDisplay:require('../services/forexRateUnits.service').display});
-  }catch(e){next(e);}
+  try{await renderExchange(req,res);}
+  catch(e){next(e);}
  });
  router.post('/exchange/preview',requirePermission('banking.requests.create'),financial,async(req,res,next)=>{
   try{
@@ -60,8 +71,8 @@ function routes({renderTenant}){
     req.tenantDb,req.tenant,req.user,req.operationBranch,{...req.body,rateId,rateVersion,rateDecimal});
    renderTenant(req,res,'banking/fx-confirm','Review currency exchange',
     'Confirm the exact source debit and destination credit before posting.',
-    {review,formatMoneyMinor,rateDisplay:require('../services/forexRateUnits.service').display});
-  }catch(e){next(e);}
+    {review,search:String(req.body.q||'').slice(0,60),formatMoneyMinor,rateDisplay:require('../services/forexRateUnits.service').display});
+  }catch(e){await exchangeError(req,res,next,e);}
  });
  router.post('/exchange',requirePermission('banking.requests.create'),financial,async(req,res,next)=>{
   try{
@@ -73,7 +84,7 @@ function routes({renderTenant}){
    flash(req,'good',result.duplicate?'The identical internal exchange was already posted.':
     'Internal cross-currency account transfer posted in both native-currency ledgers.');
    res.redirect(303,'/tenant/banking/exchange');
-  }catch(e){next(e);}
+  }catch(e){await exchangeError(req,res,next,e);}
  });
  router.get('/accounts',requirePermission('banking.view'),async(req,res,next)=>{
   try{const branches=await available(req);

@@ -17,8 +17,8 @@ module.exports=function routes({renderTenant}){
    const branchList=await available(req);
    const selectedId=String(req.operationBranch?._id || '');
    const selected=branchList.find(b=>String(b._id)===selectedId);
-   const [formRates,rates,records,rateQueue,quoteQueue,retiredRates]=await Promise.all([
-    selected?fx.listRates(req.tenantDb,req.tenant,require('../services/branchView.service').withoutReadView(req.user),{status:'active',branchId:selectedId}):[],
+   const [formChoices,rates,records,rateQueue,quoteQueue,retiredRates]=await Promise.all([
+    selected?fx.entryRateChoices(req.tenantDb,req.tenant,require('../services/branchView.service').withoutReadView(req.user),selected):{rates:[],expiredPairs:[]},
     fx.listRates(req.tenantDb,req.tenant,req.user,{status:'active'}),
     fx.listQuotes(req.tenantDb,req.tenant,req.user),
     fx.reviewer(req.user)&&hasPermission(req.user,'forex.rate_review')?fx.rateReviewQueue(req.tenantDb,req.tenant,req.user):[],
@@ -26,7 +26,7 @@ module.exports=function routes({renderTenant}){
     selected&&req.query.rates==='retired'?fx.listRates(req.tenantDb,req.tenant,require('../services/branchView.service').withoutReadView(req.user),{status:'retired',branchId:selectedId}):[]]);
    renderTenant(req,res,'forex/index','Forex Rates & Quotes','Active rates, customer quotations and cashier-confirmed manual exchanges.',{
     financeOverview:await require('../services/financeOverview.service').moduleOverview(req.tenantDb,req.tenant,req.user,req.operationBranch,{moduleKey:'forex'}),
-     branches:branchList,formRates:formRates.filter(rate=>fx.enabledRate(selected,rate)),rates,records,rateQueue,quoteQueue,retiredRates,
+     branches:branchList,formRates:formChoices.rates,expiredPairs:formChoices.expiredPairs,rates,records,rateQueue,quoteQueue,retiredRates,
     showRetiredRates:req.query.rates==='retired',selectedBranchId:selected?selectedId:null,
     currencyChoices:selected?require('../services/branchCurrency.service').options(selected):[],
     canPropose:fx.operator(req.user)&&hasPermission(req.user,'forex.rate_manage'),

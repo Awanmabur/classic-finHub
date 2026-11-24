@@ -49,6 +49,9 @@ test('Tenant header is ordered username, branch, currency, search and actions wi
  args.viewBranches=[{_id:'507f1f77bcf86cd799439011',name:'Juba West'}];
  args.viewBranchId='all';
  args.branchViewReturnTo='/tenant/dashboard';
+ args.data.workspaceSnapshot.recentActivity=[{
+  kind:'money-transfer',label:'Posted transfer',href:'/tenant/money-transfer/507f1f77bcf86cd799439011'
+ }];
  const html=await ejs.renderFile(template,args);
  const header=html.slice(html.indexOf('<div class="topbar">'),html.indexOf('<div class="title">'));
  const positions=['class="headerIdentity"','class="ctrl headerBranchView"','class="headerScope"',
@@ -62,14 +65,15 @@ test('Tenant header is ordered username, branch, currency, search and actions wi
  assert.doesNotMatch(html,/class="sidebarBranchView"/,'Do not duplicate authorized branch selector');
  assert.match(html,/action="\/tenant\/view-branch"/);
  assert.match(html,/name="viewBranchId" aria-label="Viewing branch"/);
+ assert.match(header,/id="lastReceiptBtn"[^>]+aria-label="Last receipt"/);
 });
 test('Default overview shows every currency separately and supports explicit selection',async()=>{
  const all=await ejs.renderFile(template,fixture(''));
  const allRows=all.match(/<table data-dashboard-currency-stats>[\s\S]*?<\/table>/)?.[0];
  assert(allRows);
  assert.deepEqual([...allRows.matchAll(/<th scope="row">([^<]+)<\/th>/g)].map(match=>match[1]),['UGX','USD','SSP','KSH']);
- assert.match(allRows,/UGX 2,000<br><small>2 transactions/);
- assert.match(allRows,/USD 11\.00<br><small>3 transactions/);
+ assert.match(allRows,/UGX 2,000<\/strong><small>2 transactions/);
+ assert.match(allRows,/USD 11\.00<\/strong><small>3 transactions/);
  assert.doesNotMatch(allRows,/UGX 500|5 transactions/);
  const usd=await ejs.renderFile(template,fixture('USD'));
  assert.match(usd,/value="USD" selected/);

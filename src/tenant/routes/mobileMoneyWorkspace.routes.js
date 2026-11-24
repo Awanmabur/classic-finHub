@@ -174,8 +174,16 @@ module.exports=function routes({renderTenant}){
   try{
    if(!req.operationBranch)return res.status(409).json({error:'Select an operating branch'});
    res.set('Cache-Control','private, no-store');
-   res.json(await require('../services/momoFxPreview.service').preview(req.tenantDb,req.tenant,req.user,req.operationBranch,req.query));
-  }catch(e){res.status(e.status>=400&&e.status<500?e.status:500).set('Cache-Control','private, no-store').json({error:e.status>=400&&e.status<500?e.message:'Unable to preview the transaction'});}
+   res.json(await require('../services/momoFxPreview.service').preview(
+    req.tenantDb,req.tenant,req.user,req.operationBranch,req.query,{rateOnly:req.query.rateOnly==='1'}
+   ));
+  }catch(error){
+   const expected=error.status>=400&&error.status<500;
+   res.status(expected?error.status:500).set('Cache-Control','private, no-store').json({
+    error:expected?error.message:'Exchange-rate check failed. Check your connection and try again.',
+    ...(require('../services/exchangeRateAvailability.service').isIssue(error)?{code:error.code}:{})
+   });
+  }
  });
  router.get('/funds/context',async(req,res,next)=>{try{if(!req.operationBranch)return res.status(409).json({error:'An operating branch is required.'});res.set('Cache-Control','private, no-store').json(await require('../services/mobileMoneyFunds.service').context(req.tenantDb,req.tenant,req.user,req.operationBranch));}catch(error){next(error);}});
  router.get('/readiness',async(req,res,next)=>{
@@ -223,30 +231,44 @@ module.exports=function routes({renderTenant}){
    const wallets=verified.filter(a=>a.kind==='wallet'&&owned(a));
    const cash=verified.filter(a=>a.kind==='cash'&&String(a.operatorId)===String(req.user.id));
    const currencies=[...new Set(cash.map(a=>a.currency))];
+   const walletCurrencies=[...new Set(wallets.map(a=>a.currency))];
    const [shifts,rates]=await Promise.all([
     require('../models').cashSessionModel(req.tenantDb).find({
      branchId:req.operationBranch._id,operatorId:req.user.id,currency:{$in:currencies},
      status:'open',openingVerifiedAt:{$ne:null}
     }).select('currency treasuryAccountId').limit(100).lean(),
-    require('../models').forexRateModel(req.tenantDb).find({
+    require('../models').forexRateModel(req.tenantDb).aggregate([{$match:{
      branchId:req.operationBranch._id,
-     fromCurrency:{$in:[...new Set(wallets.map(a=>a.currency))]},
-     toCurrency:{$in:currencies},status:'active',reviewedBy:{$ne:null},expiresAt:{$gt:new Date()}
-    }).select('fromCurrency toCurrency side').limit(200).lean()
+     fromCurrency:{$in:walletCurrencies},toCurrency:{$in:currencies},
+     side:{$in:['buy','sell']},status:{$in:['active','expired']},reviewedBy:{$ne:null}
+    }},{$sort:{expiresAt:-1,_id:-1}},{$group:{
+     _id:{fromCurrency:'$fromCurrency',toCurrency:'$toCurrency',side:'$side',status:'$status'},
+     expiresAt:{$first:'$expiresAt'}
+    }}]).option({maxTimeMS:2000})
    ]);
    const postingEnabled=process.env.CLASSICFIN_MOMO_FX_POSTING_ENABLED==='true';
-   const hasRate=(walletCurrency,cashCurrency,side)=>rates.some(rate=>rate.fromCurrency===walletCurrency&&rate.toCurrency===cashCurrency&&rate.side===side);
+   const exchangeRates=require('../services/exchangeRateAvailability.service');
+   const now=new Date();
+   const canSetRate=req.user.role==='Tenant Owner'&&hasPermission(req.user,'treasury.manage');
+   const statusOfRate=(fromCurrency,toCurrency,side)=>exchangeRates.classify(
+    rates.filter(({_id})=>_id.fromCurrency===fromCurrency&&_id.toCurrency===toCurrency&&_id.side===side)
+     .map(({_id,expiresAt})=>({status:_id.status,expiresAt})),{now}
+   ).status;
    const pairs=wallets.flatMap(wallet=>cash.map(drawer=>{
     const crossCurrency=wallet.currency!==drawer.currency;
     const shiftVerified=shifts.some(shift=>shift.currency===drawer.currency&&
      (!shift.treasuryAccountId||String(shift.treasuryAccountId)===String(drawer._id)));
-    const rateBuy=!crossCurrency||hasRate(wallet.currency,drawer.currency,'buy');
-    const rateSell=!crossCurrency||hasRate(wallet.currency,drawer.currency,'sell');
+    const buyStatus=crossCurrency?statusOfRate(wallet.currency,drawer.currency,'buy'):'active';
+    const sellStatus=crossCurrency?statusOfRate(wallet.currency,drawer.currency,'sell'):'active';
+    const rateBuy=buyStatus==='active',rateSell=sellStatus==='active';
     const missing=[];
     if(!shiftVerified)missing.push('Verified cash shift required');
     if(crossCurrency&&!postingEnabled)missing.push('Platform must enable cross-currency recording');
-    if(crossCurrency&&!rateBuy)missing.push('Approve Buy rate in this branch');
-    if(crossCurrency&&!rateSell)missing.push('Approve Sell rate in this branch');
+    for(const [side,status] of [['buy',buyStatus],['sell',sellStatus]]){
+     if(status!=='active')missing.push(exchangeRates.problem(status,{
+      fromCurrency:wallet.currency,toCurrency:drawer.currency,side,canSetRate
+     }).message);
+    }
     return {network:wallet.network,walletCurrency:wallet.currency,cashCurrency:drawer.currency,
      mode:crossCurrency?'cross_currency':'same_currency',shiftVerified,missing,
      buyRateReady:rateBuy,sellRateReady:rateSell,
@@ -259,7 +281,7 @@ module.exports=function routes({renderTenant}){
     !wallets.length?'No verified provider float belongs to this cashier in the operating branch.':
     !cash.length?'No independently opened cash drawer belongs to this cashier in the operating branch.':
     pairs.some(pair=>pair.mode==='cross_currency')&&!postingEnabled?'Cross-currency recording is disabled in production. Ask the platform operator to complete its setup.':
-    pairs.some(pair=>!pair.buyRateReady||!pair.sellRateReady)?'Approved buy/sell exchange rates are missing in this operating branch. Rates belonging to a different branch are not available here.':
+    pairs.some(pair=>!pair.buyRateReady||!pair.sellRateReady)?'Check the exchange-rate messages for your wallet and cash currencies below.':
     pairs.some(pair=>!pair.shiftVerified)?'Open and verify your physical cash shift before recording.':
     'Review permissions, cash, float and operating exchange rates before recording.';
    const readiness={branchReady:true,scope:broad?'all assigned and shared accounts in operating branch':'own and shared accounts in operating branch',
@@ -324,7 +346,7 @@ module.exports=function routes({renderTenant}){
    });
   }catch(e){next(e);}
  });
- router.get('/onboarding',(req,res,next)=>render(req,res,next,{view:'onboarding',title:'Mobile Money onboarding',subtitle:'Configure real cash, float, fees, commissions, SMS and independent controls.'}));
+ router.get('/onboarding',(req,res)=>res.redirect(303,'/tenant/mobile-money'));
  router.get('/cash-in',(req,res,next)=>render(req,res,next,{view:'entry',title:'Deposit',subtitle:'Receive customer cash and deposit the quoted amount of provider float.',operation:'cash_in'}));
  router.get('/cash-out',(req,res,next)=>render(req,res,next,{view:'entry',title:'Withdrawal',subtitle:'Pay customer cash and receive the same amount of electronic float.',operation:'cash_out'}));
  router.get('/network-activity',(req,res,next)=>render(req,res,next,{view:'network',title:'Network activity',subtitle:'Mobile money records grouped by network with recent activity.'}));

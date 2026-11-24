@@ -1,177 +1,174 @@
-<% const dashboardZone=typeof businessTimeZone==='string'?businessTimeZone:'UTC'; %>
 <%
+  const zone = typeof businessTimeZone === 'string' ? businessTimeZone : 'UTC';
   const snapshot = data.workspaceSnapshot || {};
-  const cashDay = snapshot.cashDay;
-  const byCurrency = snapshot.todayByCurrency || {};
   const finance = data.financeOverview || {};
-  const overviewCurrencies = typeof currencyOptions === 'undefined'
+  const cashDay = snapshot.cashDay;
+  const displayCurrency = code => code === 'KES' ? 'KSH' : code;
+  const displayAmount = row => row?.formatted?.replace(/^KES /, 'KSH ') || '—';
+  const matchesCurrency = row => !data.dashboardCurrency || row.currency === data.dashboardCurrency;
+  const filterMoney = rows => (rows || []).filter(matchesCurrency);
+  const currencies = typeof currencyOptions === 'undefined'
     ? [{code:'UGX',label:'UGX'},{code:'USD',label:'USD'},{code:'SSP',label:'SSP'},{code:'KES',label:'KSH'}]
     : currencyOptions;
-  const currencyRows = data.dashboardCurrency ? overviewCurrencies.filter(option => option.code === data.dashboardCurrency) : overviewCurrencies;
-  const filterMoney = items => data.dashboardCurrency ? (items || []).filter(row => row.currency === data.dashboardCurrency) : (items || []);
+  const currencyRows = currencies.filter(option => !data.dashboardCurrency || option.code === data.dashboardCurrency);
   const modules = [
     ['hasTransfer','money_transfer','Money transfer'],
     ['hasMobileMoney','mobile_money','Mobile money'],
     ['hasBanking','banking','Banking'],
     ['hasForex','forex','Forex']
-  ].filter(([access]) => data[access]);
-  const overviewStats = modules.map(([, key, label]) => ({
-    label, rows:byCurrency[key] || [], unavailable:snapshot.mixedRegion || snapshot.todayByCurrencyUnavailable?.[key]
-  }));
-  if(finance.available){
-    overviewStats.push({label:'Operating assets', rows:finance.bookAssets || []},
-      {label:'Posted net income', rows:finance.postedNet || [], unavailable:finance.mixedRegion});
-  }
-  const displayAmount = row => row?.formatted?.replace(/^KES /, 'KSH ') || '—';
-  const canConfigureFunds = (user.permissions || []).some(permission => permission === '*' || permission === 'treasury.view');
-  const cashFunds = filterMoney((data.mobileFunds?.paymentAccounts || []).filter(account => account.kind === 'cash'));
-  const floatFunds = filterMoney(data.mobileFunds?.wallets);
-  const fundsVisibility = data.mobileFundsState === 'all_branches' ? 'Choose a viewing branch for balance details' :
-    data.mobileFundsState === 'branch_required' ? 'No operating branch is selected' :
-    data.mobileFunds?.visibilityRestricted ? 'Restricted by role' : null;
+  ].filter(([access,key]) => data[access] &&
+    (!Array.isArray(data.visibleDashboardModules) || data.visibleDashboardModules.includes(key)));
+  const moduleLabel = key => modules.find(([,moduleKey]) => moduleKey === key)?.[2] || key.replaceAll('_',' ');
+  const bookedAssets = filterMoney(finance.bookAssets);
+  const postedNet = filterMoney(finance.postedNet);
+  const amountCards = [
+    ['Operating assets', bookedAssets],
+    ['Posted net income', finance.mixedRegion ? [] : postedNet]
+  ].filter(([,rows]) => finance.available && rows.length);
+  const count = modules.length ? snapshot.todayTransactionCount : null;
   const canSeeCash = visiblePaths.has('/tenant/treasury');
   const ownerMoneyPage = user.role === 'Tenant Owner' && canSeeCash;
-  const hasCashDay = visiblePaths.has('/tenant/cash/shifts');
-  const recentActivity = (snapshot.recentActivity || []).slice(0, 6);
-  const dayStatus = {
-    open: 'Open',
-    pending_open: ownerMoneyPage ? 'Opening count saved' : 'Opening count awaiting review',
-    submitted: ownerMoneyPage ? 'Closing count saved' : 'Closing count awaiting review',
-    disputed: 'Closing count needs correction'
-  }[cashDay?.status] || 'Closed';
-  const action = {open: 'Close day', disputed: 'Correct closing count', pending_open: ownerMoneyPage ? 'Finish opening' : 'View opening count',
-    submitted: ownerMoneyPage ? 'Finish closing' : 'View closing count'}[cashDay?.status] || 'Open day';
+  const hasCashDay = visiblePaths.has('/tenant/cash/shifts') && data.dashboardCashAvailable !== false;
+  const dayStatus = {open:'Open',pending_open:'Opening count saved',submitted:'Closing count saved',
+    disputed:'Count needs correction'}[cashDay?.status] || 'Closed';
+  const dayAction = {open:'Close day',disputed:'Correct closing count',
+    pending_open:ownerMoneyPage?'Finish opening':'View opening count',
+    submitted:ownerMoneyPage?'Finish closing':'View closing count'}[cashDay?.status] || 'Open day';
   const cashDayHref = (ownerMoneyPage ? '/tenant/treasury' : '/tenant/cash/shifts') +
     (cashDay?.currency ? '?currency=' + encodeURIComponent(cashDay.currency) : '') + (ownerMoneyPage ? '#cash-day' : '');
-  const hasFinancialDetail = data.hasMobileMoney || finance.available || canSeeCash;
+  const recentActivity = (snapshot.recentActivity || []).slice(0, 6);
+  const actualFunds = accounts => filterMoney(accounts).filter(account => account.expectedMinor != null || account.expected);
+  const drawerAccounts = actualFunds((data.mobileFunds?.paymentAccounts || []).filter(account => account.kind === 'cash'));
+  const walletAccounts = actualFunds(data.mobileFunds?.wallets);
+  const fundGroups = [['cash','Physical cash',drawerAccounts],['float','Electronic float',walletAccounts]]
+    .filter(([, , accounts]) => modules.some(([,key]) => key === 'mobile_money') && accounts.length);
+  const moduleIncome = (finance.moduleEarnings || []).filter(entry => filterMoney(entry.net).length);
+  const assetsByModule = (finance.byModule || []).filter(entry => filterMoney(entry.totals).length);
+  const cashTotals = canSeeCash ? filterMoney(snapshot.cash) : [];
+  const financialDetails = fundGroups.length || moduleIncome.length || assetsByModule.length || cashTotals.length;
 %>
 <section class="view show" id="view-overview">
-  <% if(overviewStats.length){ %>
-    <section class="card" aria-labelledby="todayCurrencyStats">
-      <div class="cardHead"><b id="todayCurrencyStats">Today by currency</b><span><%= snapshot.mixedRegion || finance.mixedRegion ? 'Multiple time zones' : dashboardZone %></span></div>
-      <% if(snapshot.mixedRegion || finance.mixedRegion){ %><div class="cardBody"><p class="tiny">Select a branch to see activity for its local business day.</p></div><% } %>
-      <div class="cardBody tableWrap">
-        <table data-dashboard-currency-stats>
-          <thead><tr><th scope="col">Currency</th><% overviewStats.forEach(metric => { %><th scope="col"><%= metric.label %></th><% }) %></tr></thead>
-          <tbody>
-            <% currencyRows.forEach(currency => { %>
-              <tr><th scope="row"><%= currency.label %></th>
-                <% overviewStats.forEach(metric => { const row = metric.rows.find(value => value.currency === currency.code); %>
-                  <td><%= metric.unavailable ? 'Unavailable' : displayAmount(row) %><% if(!metric.unavailable && Number.isInteger(row?.count)){ %><br><small><%= row.count %> <%= row.count === 1 ? 'transaction' : 'transactions' %></small><% } %></td>
-                <% }) %>
-              </tr>
-            <% }) %>
-          </tbody>
-        </table>
-      </div>
-    </section>
-  <% } %>
-  <% if(hasCashDay){ %>
-    <section class="card" <%- overviewStats.length ? 'style="margin-top:14px"' : '' %>>
-      <div class="cardHead">
-        <div><b>Cash day</b><% if(cashDay){ %><br><span><%= cashDay.branchName %> · <%= typeof currencyLabel==='function' ? currencyLabel(cashDay.currency) : cashDay.currency %></span><% } %></div>
-        <% if(cashDay){ %><span class="tag"><%= dayStatus %></span><% } %>
-      </div>
-      <div class="cardBody">
-        <a class="btn btnPrimary" href="<%= cashDayHref %>"><%= cashDay ? action : 'View cash day' %></a>
-      </div>
-    </section>
-  <% } %>
-  <section class="card" <%- hasCashDay || overviewStats.length ? 'style="margin-top:14px"' : '' %>>
-    <div class="cardHead"><b>Recent activity</b></div>
-    <div class="cardBody">
-      <% if(!recentActivity.length){ %><p class="tiny">No recent transactions to show.</p><% } %>
-      <div class="txList" id="recentList">
-        <% recentActivity.forEach(row=>{ %>
-          <a class="tx" data-search-row href="<%= row.href %>">
-            <div class="txLeft">
-              <span class="txDot <%= /voided|rejected|disputed|failed/.test(row.status || '') ? 'bad' : /pending|requested|quoted|awaiting/.test(row.status || '') ? 'warn' : 'good' %>"></span>
-              <div class="txMeta"><b><%= row.label %></b><span><%= row.subtitle %><% if(row.createdAt){ %> · <%= typeof formatLocalDate==='function'?formatLocalDate(row.createdAt):new Date(row.createdAt).toISOString().slice(0,16).replace('T',' ')+' UTC' %><% } %></span></div>
-            </div>
-            <div class="txAmt"><%= row.amountLabel %><small><%= row.status || '' %></small></div>
-          </a>
-        <% }) %>
-      </div>
-      <% if(!data.hasTransfer && !data.hasMobileMoney && !data.hasBanking && !data.hasForex && visiblePaths.has('/tenant/modules')){ %>
-        <div class="rowBtns"><a class="btn" href="/tenant/modules">Explore modules</a></div>
-      <% } %>
-    </div>
-  </section>
-  <% if(hasFinancialDetail){ %>
-    <details class="card" style="margin-top:14px">
-      <summary class="cardHead"><b>Financial details</b><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary>
-      <div class="cardBody">
-      <% if(data.hasMobileMoney){ %><div class="grid3 overviewStatsGrid">
-        <% [['cash',cashFunds,'Physical cash · book balance','ovCash'],['float',floatFunds,'Electronic float · wallet balance','ovFloat']].forEach(([type,accounts,label,id])=>{
-           // Never combine money across currencies or hide it behind an account count.
-           // One compact card per currency, with each account named below its total.
-           const rows=filterMoney(data.mobileBookTotals?.[type]);
-           const currencies=[...new Set(accounts.map(a=>a.currency))].sort();
-           if(!currencies.length)currencies.push(data.dashboardCurrency||'');
-           currencies.forEach((currency,i)=>{
-             const current=accounts.filter(a=>a.currency===currency);
-             const total=rows.find(row=>row.currency===currency);
-             const unapproved=current.filter(a=>a.expectedMinor===null||a.expectedMinor===undefined);
-             const currencyLabel=currency==='KES'?'KSH':currency;
-             const viewId=i===0?id:id+'-'+currency;
-        %>
-        <div class="stat" data-dashboard-fund-stat="<%= type %>" data-fund-currency="<%= currency %>" title="Recorded funds for this currency only. Not a live provider balance.">
-          <div class="k"><%= label %><%= currency?' · '+currencyLabel:'' %></div>
-          <% if(fundsVisibility){ %><div class="v" id="<%= viewId %>"><%= fundsVisibility %></div>
-          <% }else if(type==='cash'&&data.cashMappingRequired&&!current.length){ %><div class="v" id="<%= viewId %>">Cash assignment needed</div><div class="s"><a href="/tenant/treasury">Link this wallet to the real cash drawer</a></div>
-          <% }else if(!current.length){ %><div class="v" id="<%= viewId %>">Not configured</div>
-          <% }else{ %>
-            <div class="v" id="<%= viewId %>"><%= total?.formatted||(current.length===1?current[0].expected:'Opening confirmation needed')||'Opening confirmation needed' %></div>
-            <% if(unapproved.length){ %><div class="s"><%= unapproved.length %> opening <%= unapproved.length===1?'balance needs':'balances need' %> confirmation</div><% } %>
-            <% current.forEach(account=>{ %><div class="s"><%= account.name %>: <%= account.expected||'Opening not confirmed' %></div><% }) %>
-            <% if(type==='cash'&&data.cashMappingRequired){ %><div class="s">Link additional drawers to the correct provider/operator.</div><% } %>
-          <% } %>
-          <div class="s"><span class="dot <%= type==='float'?'warn':'' %>"></span>
-            <% if(canConfigureFunds){ %><a href="/tenant/treasury"><%= ownerMoneyPage?'Money accounts':current.length?'View / reconcile accounts':'Set up '+(type==='cash'?'cash drawer':'provider wallet') %></a>
-            <% }else if(['Tenant Owner','Mobile Money Operator','Branch Manager','Reconciliation Officer','Auditor'].includes(user.role)){ %><a href="/tenant/mobile-money/readiness">Check readiness</a>
-            <% }else{ %><span>Branch-scoped funds only</span><% } %>
-          </div>
-        </div>
-        <% }); }); %>
-      </div><% } %>
-      <% if(finance.available){ %>
-      <div class="grid3 overviewStatsGrid financialOverviewStats" aria-label="Posted earnings and operating book assets" style="margin-top:12px">
+  <% if(Number.isInteger(count) || amountCards.length || hasCashDay){ %>
+    <section class="dashboardTopStats overviewStatsGrid" data-dashboard-top-stats aria-label="Key figures">
+      <% if(Number.isInteger(count)){ %>
         <div class="stat">
-          <div class="k">Posted income · today</div>
-          <% if(finance.mixedRegion){ %><div class="v">Choose a branch</div>
-          <% } else if(!filterMoney(finance.postedIncome).length){ %><div class="v">No posted income</div>
-          <% } else { %><div class="overviewCurrencyLines">
-            <% filterMoney(finance.postedIncome).forEach(row=>{ %><div class="overviewCurrencyLine"><span><%= row.currency==='KES'?'KSH':row.currency %></span><b><%= row.formatted.replace(/^KES /,'KSH ') %></b></div><% }); %>
-          </div><% } %><div class="s">Only accounting income entries, not network fee estimates</div>
+          <div class="k">Posted transactions today</div>
+          <div class="v"><%= count.toLocaleString('en-GB') %></div>
         </div>
-        <% if(data.hasForex){ %><div class="stat">
-          <div class="k">Forex trading profit</div>
-          <div class="v">Not yet measurable</div>
-          <div class="s">Actual purchase cost basis and matched sales are needed before realized profit can be reported.</div>
-        </div><% } %>
+      <% } %>
+      <% amountCards.forEach(([label,rows])=>{ %>
+        <div class="stat">
+          <div class="k"><%= label %></div>
+          <ul class="dashboardStatAmounts">
+            <% rows.forEach(row=>{ %><li><%= displayAmount(row) %></li><% }); %>
+          </ul>
+        </div>
+      <% }); %>
+      <% if(hasCashDay){ %>
+        <div class="stat stat--text dashboardCashDay">
+          <div class="k">Cash day</div>
+          <% if(cashDay){ %>
+            <div class="v"><%= dayStatus %></div>
+            <div class="dashboardCashLocation"><%= cashDay.branchName %> · <%= displayCurrency(cashDay.currency) %></div>
+          <% } %>
+          <a class="btn" href="<%= cashDayHref %>"><%= cashDay ? dayAction : 'View cash day' %></a>
+        </div>
+      <% } %>
+    </section>
+  <% } %>
+
+  <% if(modules.length){ %>
+    <section class="card dashboardCurrencyCard" aria-labelledby="todayCurrencyStats">
+      <div class="cardHead"><b id="todayCurrencyStats">Today by currency</b><span><%= snapshot.mixedRegion ? 'Multiple time zones' : zone %></span></div>
+      <div class="cardBody">
+        <% if(snapshot.mixedRegion){ %>
+          <p class="tiny">Select a branch to view its business day.</p>
+        <% } else { %>
+          <div class="tableWrap dashboardCurrencyTable">
+            <table data-dashboard-currency-stats>
+              <thead><tr><th scope="col">Currency</th><% modules.forEach(([, ,label])=>{ %><th scope="col"><%= label %></th><% }); %></tr></thead>
+              <tbody>
+                <% currencyRows.forEach(currency=>{ %>
+                  <tr><th scope="row"><%= currency.label %></th>
+                    <% modules.forEach(([,key,label])=>{
+                      const row = (snapshot.todayByCurrency?.[key] || []).find(value => value.currency === currency.code);
+                      const unavailable = snapshot.todayByCurrencyUnavailable?.[key];
+                    %>
+                      <td<% if(!row&&!unavailable){ %> class="dashboardCurrencyEmpty" aria-label="No posted activity"<% } %>><span class="dashboardCurrencyMetric" aria-hidden="true"><%= label %></span><strong><%= unavailable ? 'Unavailable' : displayAmount(row) %></strong><% if(!unavailable && Number.isInteger(row?.count)){ %><small><%= row.count %> <%= row.count === 1 ? 'transaction' : 'transactions' %></small><% } %></td>
+                    <% }); %>
+                  </tr>
+                <% }); %>
+              </tbody>
+            </table>
+          </div>
+        <% } %>
       </div>
-      <% const moduleIncome = (finance.moduleEarnings || []).filter(entry => filterMoney(entry.net).length); %>
-      <% if(moduleIncome.length){ %>
-        <div class="summary" style="margin-top:12px">
-          <b>Posted net income by module</b>
-          <% moduleIncome.forEach(entry => { filterMoney(entry.net).forEach(row => { %>
-            <div class="sumRow"><span><%= modules.find(([,key]) => key === entry.moduleKey)?.[2] || entry.moduleKey.replaceAll('_',' ') %></span><b><%= displayAmount(row) %></b></div>
+    </section>
+  <% } %>
+
+  <% if(recentActivity.length || modules.length || (!amountCards.length && !hasCashDay)){ %>
+    <section class="card" aria-labelledby="dashboardActivity">
+      <div class="cardHead"><b id="dashboardActivity">Recent activity</b></div>
+      <div class="cardBody">
+        <% if(!recentActivity.length){ %><p class="tiny">No recent transactions.</p><% } else { %>
+          <div class="txList" id="recentList">
+            <% recentActivity.forEach(row=>{ %>
+              <a class="tx" data-search-row href="<%= row.href %>">
+                <div class="txLeft">
+                  <span class="txDot <%= /voided|rejected|disputed|failed/.test(row.status || '') ? 'bad' : /pending|requested|quoted|awaiting/.test(row.status || '') ? 'warn' : 'good' %>"></span>
+                  <div class="txMeta"><b><%= row.label %></b><span><%= row.subtitle %><% if(row.createdAt){ %> · <%= typeof formatLocalDate==='function'?formatLocalDate(row.createdAt):new Date(row.createdAt).toISOString().slice(0,16).replace('T',' ')+' UTC' %><% } %></span></div>
+                </div>
+                <div class="txAmt"><%= row.amountLabel %><small><%= row.status || '' %></small></div>
+              </a>
+            <% }); %>
+          </div>
+        <% } %>
+      </div>
+    </section>
+  <% } %>
+
+  <% if(financialDetails){ %>
+    <details class="card dashboardFinancialDetails">
+      <summary class="cardHead"><b>Financial details</b><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary>
+      <div class="cardBody workspaceStack">
+        <% if(fundGroups.length){ %><div class="overviewStatsGrid">
+          <% fundGroups.forEach(([type,label,accounts])=>{
+            const totals = filterMoney(data.mobileBookTotals?.[type]);
+            [...new Set(accounts.map(account => account.currency))].forEach(currency=>{
+              const current = accounts.filter(account => account.currency === currency);
+              const total = totals.find(row => row.currency === currency);
+          %>
+            <div class="stat" data-dashboard-fund-stat="<%= type %>" data-fund-currency="<%= currency %>">
+              <div class="k"><%= label %> · <%= displayCurrency(currency) %></div>
+              <div class="v"><%= total ? displayAmount(total) : current.length === 1 ? current[0].expected : '' %></div>
+              <% current.forEach(account=>{ %><div class="s"><%= account.name %> · <%= account.expected %></div><% }); %>
+            </div>
           <% }); }); %>
-        </div>
-      <% } %>
-      <% if(finance.byModule?.length){ %>
-      <details class="financialModuleBalances" style="margin-top:12px"><summary><strong>Operating assets by module and currency</strong></summary>
-        <div class="summary">
-          <% finance.byModule.forEach(module=>{filterMoney(module.totals).forEach(row=>{ %>
-            <div class="sumRow"><span><%= module.moduleKey==='shared'?'Shared treasury':module.moduleKey.replaceAll('_',' ') %> · <%= row.currency==='KES'?'KSH':row.currency %></span>
-              <b><%= row.formatted.replace(/^KES /,'KSH ') %></b></div>
-          <% });}); %>
-        </div><p class="tiny">Shared physical drawers are shown once, not attributed to every connected module.</p>
-      </details><% } %>
-      <% } %>
-    <% if(canSeeCash){ %><div class="card"><div class="cardHead"><div><b>Cash drawer by currency</b><br><span>Automatically updated by operations</span></div></div><div class="cardBody"><div class="summary" id="cashSummary" title="Provisional physical cash from independently verified opening counts and recorded drawer movements.">
-      <% currencyRows.forEach(option=>{const row=(snapshot.cash||[]).find(value=>value.currency===option.code); %><div class="sumRow" <% if(row){ %>title="<%= row.shiftCount %> open shift<%= row.shiftCount===1?'':'s' %>"<% } %>><span><%= option.label %></span><b><%= row?.expectedFormatted?.replace(/^KES\s/,'KSH ')||'—' %></b></div><% }) %>
-    </div><p class="tiny">Expected cash uses verified opening counts and recorded cash movements. Compare against the physical count before closing.</p></div></div><% } %>
+        </div><% } %>
+        <% if(moduleIncome.length){ %>
+          <div class="summary">
+            <b>Posted net income by module</b>
+            <% moduleIncome.forEach(entry=>filterMoney(entry.net).forEach(row=>{ %>
+              <div class="sumRow"><span><%= moduleLabel(entry.moduleKey) %></span><b><%= displayAmount(row) %></b></div>
+            <% })); %>
+          </div>
+        <% } %>
+        <% if(assetsByModule.length){ %>
+          <div class="summary">
+            <b>Operating assets by module</b>
+            <% assetsByModule.forEach(entry=>filterMoney(entry.totals).forEach(row=>{ %>
+              <div class="sumRow"><span><%= entry.moduleKey === 'shared' ? 'Shared treasury' : moduleLabel(entry.moduleKey) %></span><b><%= displayAmount(row) %></b></div>
+            <% })); %>
+          </div>
+        <% } %>
+        <% if(cashTotals.length){ %>
+          <div class="summary" id="cashSummary">
+            <b>Expected cash in open drawers</b>
+            <% cashTotals.forEach(row=>{ %>
+              <div class="sumRow"><span><%= displayCurrency(row.currency) %></span><b><%= row.expectedFormatted.replace(/^KES /,'KSH ') %></b></div>
+            <% }); %>
+          </div>
+        <% } %>
       </div>
     </details>
   <% } %>

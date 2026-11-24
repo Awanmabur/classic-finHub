@@ -336,7 +336,18 @@
           retryDelay = Math.min(Math.max(retryDelay, (Number.isFinite(retry) && retry > 0 ? retry : 30) * 1000), 300000);
           scheduleRecovery(); status('The server is busy. Pending entries will retry later.'); return 'pause';
         }
-        else { const detail = response.headers.get('content-type')?.includes('text/plain') ? (await response.text()).slice(0, 400) : ''; draft.state = 'needs_attention'; draft.problem = `Server rejected this entry (HTTP ${response.status}). ${detail || 'Review balances, rates, references and required fields.'}`; }
+        else {
+          const type=response.headers.get('content-type')||'';
+          const result=type.includes('application/json')?await response.json().catch(()=>null):null;
+          const detail=typeof result?.message==='string'?result.message.slice(0,400):
+            type.includes('text/plain')?(await response.text()).slice(0,400):'';
+          const rateState=response.headers.get('X-ClassicFin-Rate-State');
+          draft.state='needs_attention';
+          if(detail&&/^FX_RATE_(MISSING|EXPIRED|EXPIRING|CHANGED)$/.test(rateState||'')){
+            draft.rateState=rateState;
+            draft.problem=detail;
+          }else draft.problem=`Server rejected this entry (HTTP ${response.status}). ${detail || 'Review balances, rates, references and required fields.'}`;
+        }
         await save(candidate.id, draft);
       };
       // Serialize the same reference across tabs. A foreground operation does not
@@ -455,6 +466,7 @@
   async function submitOperation(form) {
     if (submitting.has(form)) return;
     submitting.add(form); stopPreparation();
+    form.dataset.operationSaving = 'true';
     const buttons = [...form.querySelectorAll('button[type="submit"],button:not([type])')], disabled = buttons.map(button => button.disabled);
     buttons.forEach(button => { button.disabled = true; });
     try {
@@ -465,10 +477,20 @@
       await sync({id});
       const row = await read(id), draft = row && await decrypt(row);
       if (draft?.state === 'synced') { location.assign(draft.resultUrl); return; }
-      if (draft?.state === 'needs_attention') { if (!draft.retryUncertain) rotateReference(form); status(draft.problem); window.ClassicFinFeedback?.show(draft.problem, 'bad', {form}); }
+      if (draft?.state === 'needs_attention') {
+        if (!draft.retryUncertain) rotateReference(form);
+        status(draft.problem);
+        if(!window.ClassicFinMobileUnified?.handleRateIssue?.(form,draft.rateState,draft.problem))
+          window.ClassicFinFeedback?.show(draft.problem,'bad',{form});
+      }
       else { const message = 'Connection interrupted. Your entry is saved and pending sync. Retrying keeps the same reference.'; status(message); window.ClassicFinFeedback?.show(message, 'info', {form}); }
     } catch (error) { status(error.message); window.ClassicFinFeedback?.show(error.message, 'bad', {form}); }
-    finally { submitting.delete(form); buttons.forEach((button, index) => { button.disabled = disabled[index]; }); }
+    finally {
+      submitting.delete(form);
+      delete form.dataset.operationSaving;
+      buttons.forEach((button, index) => { button.disabled = disabled[index]; });
+      form.dispatchEvent(new Event('classicfin:submit-restored'));
+    }
   }
   function installUI() {
     const bar = node('div', undefined, 'offline-bar'); bar.dataset.offlineRuntime = '';
@@ -494,7 +516,13 @@
     if (url.pathname === '/logout') { lock(); announce(null); return; }
     if (form.dataset.operationLoading === 'true') { event.preventDefault(); event.stopImmediatePropagation(); window.ClassicFinFeedback?.show('The fields are ready for entry. Wait for the current branch settings before saving.', 'info', {form}); return; }
     if (allowed(form) && (!connected() || ready)) {
-      event.preventDefault(); event.stopImmediatePropagation(); if (form.reportValidity()) submitOperation(form); return;
+      event.preventDefault(); event.stopImmediatePropagation();
+      // Browser timers may be delayed while the workspace is in the background.
+      // Recheck the displayed rate before saving an offline or synced quote.
+      if (form.matches('[data-forex-form]')) form.dispatchEvent(new Event('input'));
+      if (window.ClassicFinMobileUnified?.canSubmit?.(form)===false) return;
+      if (form.reportValidity()) submitOperation(form);
+      return;
     }
     if (connected()) return;
     if (form.hasAttribute('data-branch-view-form')) {

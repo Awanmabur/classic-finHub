@@ -31,7 +31,18 @@ test('banking entry requests only scoped choices and does not construct account 
 test('forex entry reads its own approved rate board without quotations or approval queues',async t=>{
  t.mock.method(pricing,'context',async()=>[]);const forex=require('../src/tenant/services/forex.service');
  const rate={_id:'rate',status:'active',branchId:branch._id,fromCurrency:'USD',toCurrency:'UGX'};
- t.mock.method(forex,'listRates',async(_conn,_tenant,actual,options)=>{assert.equal(actual.viewBranchId,undefined);assert.deepEqual(options,{status:'active',branchId:branch._id});return [rate];});
+ const expired={side:'buy',fromCurrency:'SSP',toCurrency:'USD'};
+ const Rate={
+  find(filter){
+   assert.deepEqual(filter,{status:'active',branchId:branch._id});
+   return {sort:()=>({limit:()=>({lean:async()=>[rate]})})};
+  },
+  aggregate(pipeline){
+   assert.equal(String(pipeline[0].$match.branchId),branch._id);
+   return {option:async()=>[expired]};
+  }
+ };
  for(const key of ['listQuotes','rateReviewQueue','quoteReviewQueue'])t.mock.method(forex,key,()=>assert.fail('Entry must not read histories or approval queues'));
- const {data}=await forms.context({},tenant(),{...owner,viewBranchId:destination._id},branch,'forex_buy');assert.equal(data.workspaceOperation,'buy');assert.deepEqual(data.rates,[rate]);
+ const {data}=await forms.context({models:{ForexRateV1:Rate}},tenant(),{...owner,viewBranchId:destination._id},branch,'forex_buy');
+ assert.equal(data.workspaceOperation,'buy');assert.deepEqual(data.rates,[rate]);assert.deepEqual(data.expiredPairs,[expired]);
 });

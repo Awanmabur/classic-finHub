@@ -47,7 +47,7 @@ test('one-time staff invitation bypasses the global background form interceptor'
  assert.match(source('src/tenant/services/staff.service.js'),/tenant\.staff\.invited:/);
 });
 test('tenant top navigation preserves existing real controls with dedicated responsive groups',()=>{
- const markup=source('src/views/layouts/dashboard.ejs'),css=source('public/css/approved-tenant.css');
+ const markup=source('src/views/layouts/dashboard.ejs'),css=source('public/css/dashboard-layout.css');
  for(const token of ['tenantHeaderIdentityGroup','tenantHeaderControlGroup','headerViewingBranch','currencySelect','headerDriveForm','phase2NotifyBtn','newTransactionBtn','lastReceiptBtn'])
   assert(markup.includes(token),token);
  assert.match(css,/body\[data-workspace="tenant"\] \.tenantHeaderControlGroup/);

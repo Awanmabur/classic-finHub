@@ -52,12 +52,13 @@ test('tenant setup preview reports current recorded entitlements without changin
  assert.doesNotMatch(inactive,/Analytics · active/);
 });
 
-test('Mobile Money onboarding uses real account-opening approval and cash shifts routes',()=>{
+test('the Mobile Money workspace links directly to setup and cash day without a separate guide',()=>{
  const mobile=read('src/views/tenant/mobile-money/index.ejs');
  const treasury=read('src/views/tenant/treasury/index.ejs');
  const dashboard=read('src/views/tenant/dashboard/index.ejs');
  for(const link of ['/tenant/treasury#account-setup','/tenant/treasury/review','/tenant/cash/shifts'])assert(mobile.includes(link),link);
  assert.match(mobile,/data-mobile-onboarding/);
+ assert.doesNotMatch(mobile,/\/tenant\/mobile-money\/onboarding/);
  assert.match(treasury,/id="account-setup"/);
  assert.match(treasury,/id="treasury-accounts"/);
  assert.match(dashboard,/data-dashboard-fund-stat/);

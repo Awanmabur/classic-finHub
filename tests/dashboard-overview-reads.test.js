@@ -4,10 +4,15 @@ const {entitledTenant}=require('./helpers/entitlement');
 const {overview}=require('../src/tenant/services/dashboardOverview.service');
 const snapshots=require('../src/tenant/services/workspaceSnapshot.service');
 const branch='507f1f77bcf86cd799439011',account='507f1f77bcf86cd799439012';
-function query(rows,calls){return filter=>{const call={filter};calls.push(call);return{select(fields){call.fields=fields;return this;},sort(order){call.order=order;return this;},limit(count){call.limit=count;return this;},lean:async()=>rows};};}
+function query(rows,calls){return filter=>{const call={filter};calls.push(call);return{select(fields){call.fields=fields;return this;},sort(order){call.order=order;return this;},limit(count){call.limit=count;return this;},maxTimeMS(){return this;},lean:async()=>typeof rows==='function'?rows(filter):rows};};}
+function stubEmptyFunds(t){
+ t.mock.method(require('../src/tenant/treasury/models'),'models',()=>({account:{find:query([],[])}}));
+ t.mock.method(require('../src/tenant/services/financeOverview.service'),'overview',async()=>({available:false}));
+}
 test('overview reads bounded recent rows without building reports, summaries or review queues',async t=>{
  const tenant=entitledTenant({plan:'enterprise'}),actor={id:account,role:'Tenant Owner',permissions:['*'],branchId:branch,viewBranchId:branch};
  const calls=[],conn={models:Object.fromEntries(['SecureMobileTransaction','BankingRequestV1','ForexQuoteV1','TransferOrderV1'].map(name=>[name,{find:query([],calls)}]))};
+ stubEmptyFunds(t);
  t.mock.method(snapshots,'snapshot',async()=>({todayVolumes:{money_transfer:{amountMinor:'123',formatted:'UGX 123'}},cash:[{currency:'UGX',expectedFormatted:'UGX 50'}],cashDay:{status:'open',currency:'UGX',branchName:'Main'}}));
  t.mock.method(require('../src/tenant/services/mobileMoneyFunds.service'),'context',async()=>({wallets:[{name:'MTN Uganda wallet',kind:'wallet',network:'MTN',currency:'UGX',expected:'UGX 200,000'}],paymentAccounts:[{name:'Agent drawer',kind:'cash',currency:'UGX',expected:'UGX 50,000'}],customerAccounts:[]}));
  for(const [name,method]of[['mobileMoney.service','getSummary'],['banking.service','list'],['forex.service','listQuotes'],['moneyTransfer.service','list'],['approvals.service','list'],['operationsReports.service','generate']])t.mock.method(require('../src/tenant/services/'+name),method,()=>assert.fail('Unrendered data must not block overview'));
@@ -50,6 +55,7 @@ test('owner cash and float cards follow selected viewing branch; all-branch view
  const second={_id:'507f1f77bcf86cd799439088',currency:'SSP',currencies:['SSP']};
  const operation={_id:branch,currency:'UGX'};
  const calls=[],conn={models:Object.fromEntries(['SecureMobileTransaction','BankingRequestV1','ForexQuoteV1','TransferOrderV1'].map(name=>[name,{find:query([],calls)}]))};
+ stubEmptyFunds(t);
  t.mock.method(snapshots,'snapshot',async()=>({todayVolumes:{},cash:[]}));
  let resolved=null;
  t.mock.method(require('../src/tenant/services/mobileMoneyFunds.service'),'context',async(_conn,_tenant,_user,chosen)=>{resolved=chosen;return {wallets:[],paymentAccounts:[]};});
@@ -61,4 +67,30 @@ test('owner cash and float cards follow selected viewing branch; all-branch view
  assert.equal(resolved,null,'all-branch view must not silently use the operating branch');
  assert.equal(all.mobileFundsState,'all_branches');
  assert.equal(all.mobileFunds,null);
+});
+
+test('dashboard statistics use the viewed branch setup while transaction choices use the operating branch',async t=>{
+ const tenant=entitledTenant({plan:'enterprise',enabledModules:['mobile_money','forex','banking','money_transfer']});
+ const other='507f1f77bcf86cd799439088';
+ const owner={id:account,role:'Tenant Owner',permissions:['*'],branchId:branch,viewBranchId:other};
+ const budget=[],configReads=[],conn={models:Object.fromEntries(['SecureMobileTransaction','BankingRequestV1','ForexQuoteV1','TransferOrderV1'].map(name=>[name,{find:query([],budget)}]))};
+ const row=(kind,moduleKey,currency,extra={})=>({kind,moduleKey,currency,status:'active',reconciliationState:'matched',...extra});
+ t.mock.method(require('../src/tenant/treasury/models'),'models',()=>({account:{find:query(filter=>String(filter.branchId)===other?
+  [row('bank','shared','UGX'),row('forex_stock','forex','USD')]:
+  [row('wallet','mobile_money','UGX'),row('cash','shared','UGX',{operatorId:account})],configReads)}}));
+ t.mock.method(require('../src/tenant/services/mobileMoneyFunds.service'),'context',async()=>({wallets:[],paymentAccounts:[]}));
+ t.mock.method(require('../src/tenant/services/financeOverview.service'),'overview',async()=>({available:false}));
+ t.mock.method(snapshots,'snapshot',async()=>({todayVolumes:{},cashDay:{currency:'UGX',status:null}}));
+ const data=await overview(conn,tenant,owner,{operationBranch:{_id:branch,currency:'UGX'},viewBranchId:other,viewBranch:{_id:other,currency:'USD'}});
+ assert.deepEqual(data.dashboardTransactionModules,['mobile_money']);
+ assert.deepEqual(data.visibleDashboardModules,['forex']);
+ assert.equal(data.dashboardCashAvailable,true);
+ assert.equal(configReads.length,2);
+});
+
+test('a configured cross-currency Mobile Money pair works without a standalone Forex assignment',()=>{
+ const {configuredModules}=require('../src/tenant/services/dashboardOverview.service');
+ const accounts=[{kind:'wallet',currency:'UGX'},{kind:'cash',currency:'SSP'}];
+ assert.deepEqual(configuredModules(accounts,[],{mobile_money:true},{crossCurrencyMobileMoney:true}),['mobile_money']);
+ assert.deepEqual(configuredModules(accounts,[],{mobile_money:true},{crossCurrencyMobileMoney:false}),[]);
 });

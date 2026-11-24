@@ -4,6 +4,7 @@ const service=require('../services/fundedOperations.service');
 const financial=require('../../platform/services/actionThrottle.service').financial;
 const {flash}=require('../../utils/view');
 const receiptPrint=require('../services/receiptPrint.service');
+const payoutRateError=error=>/^FX_RATE_(MISSING|EXPIRED|EXPIRING|CHANGED)$/.test(error.code);
 module.exports=function fundedOperationsRoutes({renderTenant}){
  const router=Router();
  router.use((req,res,next)=>{res.set({'Cache-Control':'private, no-store','X-Robots-Tag':'noindex, nofollow'});next();});
@@ -11,14 +12,14 @@ module.exports=function fundedOperationsRoutes({renderTenant}){
  router.get('/context',async(req,res,next)=>{try{const data=await service.prepare(req.tenantDb,req.tenant,req.user,req.query.sourceType,req.query.sourceId);res.json(data);}catch(error){next(error);}});
  router.get('/prepare/:sourceType/:sourceId',async(req,res,next)=>{try{const data=await service.prepare(req.tenantDb,req.tenant,req.user,req.params.sourceType,req.params.sourceId);renderTenant(req,res,'funded/prepare','Record manual movement','Use the actual counted cash, wallet or statement balance.',data);}catch(error){next(error);}});
  router.get('/payout',async(req,res,next)=>{try{const data=await service.payoutContext(req.tenantDb,req.tenant,req.user,req.session.manualPayoutVerification);renderTenant(req,res,'funded/payout','Payout by PIN','Verify the receiver and complete actual cash payout.',{...data,rateDisplay:require('../services/forexRateUnits.service').display});}catch(error){next(error);}});
- router.post('/payout',financial,async(req,res,next)=>{try{
+ router.post('/payout',financial,async(req,res,next)=>{let result;try{
   if(req.body.phase==='check'){
-   req.session.manualPayoutVerification=await service.checkPayout(req.tenantDb,req.tenant,req.user,req.body);flash(req,'good','PIN and transfer details matched. Verify the receiver before requesting payout.');return res.redirect(303,'/tenant/funded/payout');
+   req.session.manualPayoutVerification=await service.checkPayout(req.tenantDb,req.tenant,req.user,req.body);flash(req,'good','PIN matched. Confirm the recipient and payout amount.');return res.redirect(303,'/tenant/funded/payout');
   }
   if(req.body.phase!=='request')throw service.fail('Choose Check PIN before requesting payout');
   if(req.body.confirmCashPaid!=='yes'||req.body.confirmRecipientVerified!=='yes')
    throw service.fail('Confirm actual cash handover and recipient identity before submitting the payout');
-  const result=await service.requestPayout(req.tenantDb,req.tenant,req.user,req.body);
+  result=await service.requestPayout(req.tenantDb,req.tenant,req.user,req.body);
   delete req.session.manualPayoutVerification;
   // Every PIN-confirmed payout settles immediately, including transfers between branches.
   // The service atomically posts both interbranch sides and rejects unsafe retries.
@@ -27,7 +28,18 @@ module.exports=function fundedOperationsRoutes({renderTenant}){
    'Cash payout finalized once. Receiver cash and interbranch balances were posted and audited.');
   require('../services/branchView.service').followRecord(req,result.execution);
   res.redirect(303,receiptPrint.funded(posted)||`/tenant/funded/${result.execution._id}`);
- }catch(error){if(error.retryAfter)res.set('Retry-After',String(error.retryAfter));next(error);}});
+ }catch(error){
+  if(error.retryAfter)res.set('Retry-After',String(error.retryAfter));
+  if(payoutRateError(error)&&req.body.phase==='request'){
+   if(result){
+    flash(req,'info',error.message+' The payout is pending. Reconcile any cash already handed over with the owner before trying again.');
+    return res.redirect(303,`/tenant/funded/${result.execution._id}`);
+   }
+   flash(req,'bad',error.message);
+   return res.redirect(303,'/tenant/funded/payout');
+  }
+  next(error);
+ }});
  router.post('/payout/reset',financial,async(req,res,next)=>{try{await service.payoutContext(req.tenantDb,req.tenant,req.user,null);delete req.session.manualPayoutVerification;res.redirect(303,'/tenant/funded/payout');}catch(error){next(error);}});
  router.post('/:id/review',financial,async(req,res,next)=>{try{const result=await service.review(req.tenantDb,req.tenant,req.user,req.params.id,req.body);flash(req,'good',result.execution.status==='posted_manual'?'Manual movement posted to the funds book.':'Manual posting request rejected.');res.redirect(303,receiptPrint.funded(result)||`/tenant/funded/${req.params.id}`);}catch(error){next(error);}});
  router.post('/:id/finalize-payout',financial,async(req,res,next)=>{try{

@@ -45,6 +45,20 @@ test('read-only accounts do not receive write dialogs or a dead New transaction 
   assert.match(html,/href="\/tenant\/mobile-money\/network-activity"/);
 });
 
+test('the dashboard launcher offers configured entries and shows a receipt only after one exists',async()=>{
+ const options=fixture(['*']);
+ options.menu[0].items.push({href:'/tenant/last-receipt',label:'Last receipt'});
+ options.data.dashboardTransactionModules=[];
+ const empty=await ejs.renderFile(template,options);
+ assert.doesNotMatch(empty,/id="newTransactionBtn"|id="lastReceiptBtn"|id="search"/);
+ options.data.dashboardTransactionModules=['mobile_money'];
+ options.data.workspaceSnapshot={latestAcknowledgement:{href:'/tenant/mobile-money/123/acknowledgement'}};
+ const configured=await ejs.renderFile(template,options);
+ assert.match(configured,/data-transaction-kind="cash_in"/);
+ assert.doesNotMatch(configured,/data-transaction-kind="(?:transfer|banking_deposit|forex_buy)"/);
+ assert.match(configured,/id="lastReceiptBtn" href="\/tenant\/mobile-money\/123\/acknowledgement"/);
+});
+
 test('overview displays cash-day status and acknowledgements without dashboard totals',async()=>{
   const options=fixture(['*']);
   options.menu[0].items.push({href:'/tenant/cash/shifts',label:'Cash day'},{href:'/tenant/last-receipt',label:'Last receipt'});

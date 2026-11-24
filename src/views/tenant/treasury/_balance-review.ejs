@@ -1,7 +1,11 @@
 <%
   const fmt=value=>value===null||value===undefined?'—':data.format(value,account.currency);
   const title=isAdjustment?'Balance correction':row.kind==='opening'?'Opening balance':'Balance check';
-  const status={pending_review:'Awaiting approval',approved:'Approved',rejected:'Rejected'}[row.status];
+  const isOwnerPage=typeof ownerMoneyPage!=='undefined'&&ownerMoneyPage;
+  const status=(isOwnerPage?{pending_review:'Pending',approved:'Recorded',rejected:'Discarded'}:
+   {pending_review:'Awaiting approval',approved:'Approved',rejected:'Rejected'})[row.status];
+  const cashCount=!isAdjustment&&row.status==='pending_review'&&row.evidenceType==='cash_count'&&
+    /^(?:OPEN-SHIFT:[a-f0-9]{24}|CASH-SHIFT:[a-f0-9]{24}:\d+)$/.test(row.evidenceReference);
 %>
 <article class="treasuryPending">
   <h3><%= title %><% if (accountLink) { %> · <a class="treasuryAccountLink" href="/tenant/treasury/accounts/<%= account._id %><%= isAdjustment?'#balance-corrections':'#balance-evidence' %>"><%= account.name %></a><% } %></h3>
@@ -11,8 +15,10 @@
     <div class="treasurySource"><%= row.evidenceType.replaceAll('_',' ') %> · <%= row.evidenceReference %> · <%= new Date(row.observedAt).toISOString() %></div>
   <% } %>
   <p><%= isAdjustment?row.reason:row.note %></p>
-  <% if (row.reviewNote) { %><p class="tiny">Review: <%= row.reviewNote %></p><% } %>
-  <% if (allowReview) { %>
+  <% if (row.reviewNote) { %><p class="tiny"><%= isOwnerPage?'Note':'Review' %>: <%= row.reviewNote %></p><% } %>
+  <% if (allowReview&&cashCount) { %>
+    <a class="btn" href="/tenant/cash/shifts?currency=<%= account.currency %>">Open Cash Day</a>
+  <% } else if (allowReview) { %>
     <form class="workspaceStack" method="post" action="/tenant/treasury/<%= isAdjustment?'adjustments':'observations' %>/<%= row._id %>/review">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <label class="field">Review note<textarea class="control" name="note" minlength="<%= isAdjustment?20:12 %>" maxlength="400" required rows="2"></textarea></label>

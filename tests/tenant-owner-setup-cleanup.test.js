@@ -18,14 +18,15 @@ test('Tenant sidebar matches platform account footer with two opposite functiona
  assert.match(tenant,/href="\/"/);
  assert.match(tenant,/> Website<\/a>/);
 });
-test('Owner quick setup archives only unused accounts and can restore without deleting records',async()=>{
- const page=source('src/views/tenant/setup/index.ejs');
- assert.match(page,/a\.status==='uninitialized'/);
- assert.match(page,/a\.openingBalanceMinor===null/);
- assert.match(page,/a\.pendingOpeningId/);
- assert.match(page,/a\.sequence/);
- assert.match(page,/\/tenant\/treasury\/accounts\/<%= a\._id %>\/archive/);
- assert.match(page,/\/tenant\/treasury\/accounts\/<%= a\._id %>\/restore/);
+test('Money accounts archive only unused owner accounts and can restore without deleting records',async()=>{
+ const page=source('src/views/tenant/treasury/_owner-account-settings.ejs');
+ assert.match(page,/account\.status==='uninitialized'/);
+ assert.match(page,/account\.openingBalanceMinor===null/);
+ assert.match(page,/account\.pendingOpeningId/);
+ assert.match(page,/<%= path %>\/archive/);
+ const accounts=source('src/views/tenant/treasury/_owner-money.ejs');
+ assert.match(accounts,/account\.sequence/);
+ assert.match(accounts,/\/tenant\/treasury\/accounts\/<%= account\._id %>\/restore/);
  assert.match(page,/name="confirmCode"/);
  assert.match(page,/name="_csrf"/);
  assert.doesNotThrow(()=>ejs.compile(page));

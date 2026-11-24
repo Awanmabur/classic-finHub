@@ -63,15 +63,21 @@ test('Tenant header is ordered username, branch, currency, search and actions wi
  assert.match(html,/action="\/tenant\/view-branch"/);
  assert.match(html,/name="viewBranchId" aria-label="Viewing branch"/);
 });
-test('Default overview counts all transactions but never adds unlike currencies, then filters on selection',async()=>{
+test('Default overview shows every currency separately and supports explicit selection',async()=>{
  const all=await ejs.renderFile(template,fixture(''));
- assert.match(all,/class="v" id="ovTransfer">5 transactions<\/div>/);
- assert.match(all,/UGX 2,000/);assert.match(all,/USD 11.00/);
+ const allRows=all.match(/<table data-dashboard-currency-stats>[\s\S]*?<\/table>/)?.[0];
+ assert(allRows);
+ assert.deepEqual([...allRows.matchAll(/<th scope="row">([^<]+)<\/th>/g)].map(match=>match[1]),['UGX','USD','SSP','KSH']);
+ assert.match(allRows,/UGX 2,000<br><small>2 transactions/);
+ assert.match(allRows,/USD 11\.00<br><small>3 transactions/);
+ assert.doesNotMatch(allRows,/UGX 500|5 transactions/);
  const usd=await ejs.renderFile(template,fixture('USD'));
  assert.match(usd,/value="USD" selected/);
- assert.match(usd,/class="v" id="ovTransfer">USD 11.00<\/div>/);
- assert.doesNotMatch(usd,/UGX 2,000/,'Selected USD stats must not show UGX volumes');
- assert.match(usd,/USD 11.00/);
+ const selected=usd.match(/<table data-dashboard-currency-stats>[\s\S]*?<\/table>/)?.[0];
+ assert(selected);
+ assert.deepEqual([...selected.matchAll(/<th scope="row">([^<]+)<\/th>/g)].map(match=>match[1]),['USD']);
+ assert.match(selected,/USD 11\.00/);
+ assert.doesNotMatch(selected,/UGX 2,000/);
 });
 
 test('Forex records reuse a single approved dashboard stat grid instead of generating duplicate cards',async()=>{

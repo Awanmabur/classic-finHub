@@ -101,7 +101,10 @@
   <section class="card" style="margin-top:14px"><div class="cardHead"><b>Correction decisions</b><span>Chronological evidence history</span></div>
     <div class="cardBody tableWrap"><table><thead><tr><th>Time (UTC)</th><th>Action</th><th>Decision note</th></tr></thead><tbody>
       <% if(!(data.record.correctionHistory||[]).length){ %><tr><td colspan="3">No corrections requested.</td></tr><% } %>
-      <% (data.record.correctionHistory||[]).forEach(entry=>{ %><tr><td><%= detailLocalDate(entry.at) %></td><td><%= entry.action %></td><td><%= entry.note %></td></tr><% }) %>
+      <% (data.record.correctionHistory||[]).forEach(entry=>{ %>
+        <tr><td><%= detailLocalDate(entry.at) %></td><td><%= entry.action %></td>
+        <td><%= entry.note %><% if(entry.evidenceReference){ %><br><span class="tiny">Evidence <%= entry.evidenceReference %></span><% } %></td></tr>
+      <% }) %>
     </tbody></table></div>
   </section>
 </section>

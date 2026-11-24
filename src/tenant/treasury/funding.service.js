@@ -18,12 +18,13 @@ function id(value){if(!OID.test(String(value||'')))throw fail('Select a valid fu
 function text(value,label,min,max){if(typeof value!=='string'||value.trim().length<min||value.trim().length>max||/[<>\u0000-\u001f\u007f]/.test(value))throw fail(`Enter a valid ${label}`);return value.trim();}
 function hash(value){return crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');}
 async function transaction(conn,fn){const session=await conn.startSession();try{let result;await session.withTransaction(async()=>{result=await fn(session);},{readConcern:{level:'snapshot'}});return result;}finally{await session.endSession();}}
-async function audit(conn,session,actor,action,row){
+async function audit(conn,session,actor,action,row,{ownerResolution=false}={}){
  const source=row.sourceKind===OWNER_CONTRIBUTION?{sourceKind:OWNER_CONTRIBUTION}:{sourceAccountId:String(row.sourceAccountId)};
  await core.auditEventModel(conn).create([{action,actorId:actor.id,targetId:row._id,metadata:{
   branchId:String(row.branchId),currency:row.currency,...source,
   destinationAccountId:String(row.destinationAccountId),amountMinor:String(row.amountMinor),
   selfReviewed:Boolean(row.reviewedBy)&&String(row.requestedBy)===String(actor.id),
+  ...(ownerResolution?{ownerResolved:true}:{}),
   autoPosted:action==='treasury.funding.posted'&&!row.reviewedBy
  }}],{session});
 }
@@ -178,20 +179,33 @@ function canReview(row,actor){
 }
 async function review(conn,tenant,actor,fundingId,input={}){
  if(!['approve','reject'].includes(input.decision))throw fail('Choose approve or reject');
- const note=text(input.note,'funding review',12,400),recordId=id(fundingId);await Promise.all([treasury.ensure(conn),ensureIndexes(conn)]);
+ return resolvePending(conn,tenant,actor,fundingId,input.decision,text(input.note,'funding review',12,400));
+}
+async function resolveForOwner(conn,tenant,actor,fundingId,input={}){
+ if(actor?.role!=='Tenant Owner')throw fail('Only the business owner can resolve pending funding here',403);
+ if(!['record','discard'].includes(input.decision))throw fail('Choose to record or discard this funding entry');
+ const decision=input.decision==='record'?'approve':'reject';
+ const note=input.note?text(input.note,'funding note',12,400):decision==='approve'?
+  'Tenant owner confirmed the payment or transfer evidence.' : 'Tenant owner discarded this unposted funding entry.';
+ return resolvePending(conn,tenant,actor,fundingId,decision,note,{ownerResolution:true});
+}
+async function resolvePending(conn,tenant,actor,fundingId,decision,note,{ownerResolution=false}={}){
+ const recordId=id(fundingId),status=decision==='approve'?'posted':'rejected';
+ await Promise.all([treasury.ensure(conn),ensureIndexes(conn)]);
  return transaction(conn,async session=>{
   const authorization=await treasury.access(conn,tenant,actor,{permission:'treasury.review',session,fence:true});
+  if(ownerResolution&&authorization.actor.role!=='Tenant Owner')throw fail('Only the business owner can resolve pending funding here',403);
   const filter={_id:recordId,tenantId:authorization.tenant._id,...(authorization.actor.role==='Tenant Owner'?{}:{branchId:authorization.actor.branchId})};
   const initial=await model(conn).findOne(filter).session(session).lean();if(!initial)throw fail('Funding request not found',404);
-  if(!canReview(initial,authorization.actor))throw fail('A different authorized person must review this funding request',403);
+  if(!ownerResolution&&!canReview(initial,authorization.actor))throw fail('A different authorized person must review this funding request',403);
   if(initial.status!=='pending_review'){
-   if(initial.status===(input.decision==='approve'?'posted':'rejected')&&String(initial.reviewedBy)===authorization.actor.id&&initial.reviewNote===note)return {funding:initial,duplicate:true};
+   if(initial.status===status&&String(initial.reviewedBy)===authorization.actor.id&&initial.reviewNote===note)return {funding:initial,duplicate:true};
    throw fail('Funding request has already been reviewed',409);
   }
-  await loadFundingAccounts(conn,session,authorization,initial);
+  if(!ownerResolution||decision==='approve')await loadFundingAccounts(conn,session,authorization,initial);
   const locked=await model(conn).findOneAndUpdate({...filter,status:'pending_review'},{$inc:{revision:1}},{session,new:true}).lean();if(!locked)throw fail('Funding was reviewed concurrently',409);
   let posting=null;
-  if(input.decision==='approve'){
+  if(decision==='approve'){
    const maker={id:String(locked.requestedBy),role:locked.requestedRole,authVersion:locked.requestedAuthVersion,branchId:locked.branchId};
    const makerAuthorization=await treasury.access(conn,authorization.tenant,maker,{permission:'treasury.observe',session,fence:true});
    const {source,destination,accounts}=await loadFundingAccounts(conn,session,makerAuthorization,locked);
@@ -211,12 +225,23 @@ async function review(conn,tenant,actor,fundingId,input={}){
    posting=await treasury.applyMovements(conn,session,authorization,{sourceType:'treasury_funding',sourceRef:`FUND:${locked._id}`,branchId,
     operatingActorId:String(locked.operatingActorId),legs,ledgerLines,description,evidenceReference:locked.evidenceReference});
   }
-  const funding=await model(conn).findOneAndUpdate({...filter,status:'pending_review'},{$set:{status:input.decision==='approve'?'posted':'rejected',reviewedBy:authorization.actor.id,reviewedAt:new Date(),reviewNote:note,batchId:posting?.batch?._id||null,journalIds:posting?.journalIds||[]}},{session,new:true,runValidators:true}).lean();
-  if(!funding)throw fail('Funding was reviewed concurrently',409);await audit(conn,session,authorization.actor,`treasury.funding.${funding.status}`,funding);return {funding,duplicate:false};
+  const funding=await model(conn).findOneAndUpdate({...filter,status:'pending_review'},{$set:{status,reviewedBy:authorization.actor.id,reviewedAt:new Date(),reviewNote:note,batchId:posting?.batch?._id||null,journalIds:posting?.journalIds||[]}},{session,new:true,runValidators:true}).lean();
+  if(!funding)throw fail('Funding was reviewed concurrently',409);await audit(conn,session,authorization.actor,`treasury.funding.${funding.status}`,funding,{ownerResolution});return {funding,duplicate:false};
  });
 }
 async function list(conn,tenant,actor,input={}){
- await ensureIndexes(conn);const authorization=await treasury.access(conn,tenant,actor),filter={tenantId:authorization.tenant._id};
+ await ensureIndexes(conn);
+ return listAuthorized(conn,await treasury.access(conn,tenant,actor),input);
+}
+async function pendingForOwner(conn,tenant,actor,{branchId,accountId}={}){
+ if(actor?.role!=='Tenant Owner')throw fail('Only the business owner can resolve pending funding here',403);
+ const authorization=await treasury.access(conn,tenant,actor);
+ if(authorization.actor.role!=='Tenant Owner')throw fail('Only the business owner can resolve pending funding here',403);
+ await ensureIndexes(conn);
+ return listAuthorized(conn,authorization,{branchId,accountId,status:'pending_review'});
+}
+async function listAuthorized(conn,authorization,input){
+ const filter={tenantId:authorization.tenant._id};
  Object.assign(filter,treasury.scope(authorization.actor));
  if(input.branchId){if(filter.branchId&&String(filter.branchId)!==id(input.branchId))throw fail('Cross-branch funding access denied',403);filter.branchId=id(input.branchId);}
  if(input.accountId){const accountId=id(input.accountId);await treasury.loadAccount(conn,authorization,accountId);filter.$or=[{sourceAccountId:accountId},{destinationAccountId:accountId}];}
@@ -231,4 +256,4 @@ async function list(conn,tenant,actor,input={}){
  }
  return visible;
 }
-module.exports={request,postDirect,review,canReview,list,validatePair,fail};
+module.exports={request,postDirect,review,canReview,list,pendingForOwner,resolveForOwner,validatePair,fail};

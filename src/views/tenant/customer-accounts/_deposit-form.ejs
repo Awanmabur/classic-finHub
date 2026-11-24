@@ -1,0 +1,40 @@
+<section class="card" id="customer-deposit">
+  <div class="cardHead"><b>Record a customer deposit</b></div>
+  <div class="cardBody">
+    <% if(!treasuryDeposit){ %>
+      <p>Choose a ready account in your operating branch. Cash deposits also require an open cash day.</p>
+    <% }else if(!treasuryDeposit.choices.length){ %>
+      <p>There are no active customer accounts in this currency and branch.</p>
+      <a class="btn" href="/tenant/accounts">Customer accounts</a>
+    <% }else{ %>
+      <form method="post" action="/tenant/accounts/deposits" data-currency="<%= treasuryDeposit.currency %>">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="idempotencyKey" value="<%= treasuryDeposit.idempotencyKey %>">
+        <input type="hidden" name="cashAccountId" value="<%= treasuryDeposit.cashAccountId %>">
+        <input type="hidden" name="returnTo" value="<%= returnTo %>">
+        <div class="row2">
+          <label class="field">Customer account
+            <select class="control" name="customerAccountId" required>
+              <option value="">Choose the customer account</option>
+              <% treasuryDeposit.choices.forEach(choice=>{ %>
+                <option value="<%= String(choice._id).slice(8) %>"><%= choice.customerName %> · ••••<%= choice.last4 %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label class="field">Deposit amount (<%= treasuryDeposit.currency==='KES'?'KSH':treasuryDeposit.currency %>)
+            <input class="control" name="amount" inputmode="decimal" required pattern="<%= treasuryDeposit.currency==='UGX'?'[0-9]+':'[0-9]+([.][0-9]{1,2})?' %>">
+          </label>
+          <label class="field">Receipt or statement reference
+            <input class="control" name="evidenceReference" minlength="5" maxlength="120" required>
+          </label>
+          <label class="field">Deposit note
+            <input class="control" name="note" minlength="12" maxlength="400" required>
+          </label>
+        </div>
+        <%- include('../partials/operation-pricing',{data:{pricingContext:treasuryDeposit.pricingContext},pricingOperation:'banking.deposit',pricingField:'fee',pricingCurrencyOverride:treasuryDeposit.currency,currentBranchId:treasuryDeposit.branchId,showDepositTotal:true}) %>
+        <label class="field"><input type="checkbox" name="confirmActualMoney" value="yes" required> I received this money and checked the receipt or statement.</label>
+        <button class="btn btnPrimary" type="submit">Record deposit</button>
+      </form>
+    <% } %>
+  </div>
+</section>

@@ -215,12 +215,13 @@ async function main(){
  for(const journal of await core.ledgerJournalModel(conn).find({}).select('_id').lean())assert.equal((await ledger.inspectJournal(conn,journal._id)).valid,true);
  const directDeposit=require('../src/tenant/customerAccounts/deposit');
  const depositAccount=await acct('DIRECT-DEPOSIT-'+nonce.toUpperCase());
- const depositInput=requestData({cashAccountId:String(cashFund._id),amount:'12345',pricingMode:'configured',pricingPolicy:'default',fee:'9999'});
+ const depositInput=requestData({cashAccountId:String(cashFund._id),amount:'12345',pricingMode:'configured',pricingPolicy:'default',fee:'9999',confirmActualMoney:'yes'});
  const customerAccount=await directory.accountDetail(conn,tenant,owner,depositAccount._id);
  assert((await directDeposit.options(conn,tenant,owner,customerAccount)).some(account=>String(account._id)===depositInput.cashAccountId));
  assert.deepEqual(await directDeposit.options(conn,tenant,reviewer,customerAccount),[]);
  const requestsBefore=await core.bankingRequestModel(conn).countDocuments(),customerBefore=await customerBook(depositAccount),drawerBefore=await book(cashFund);
  const bankingUsage=await Usage.findOne({tenantId:tenant._id,metric:'banking_requests'}).lean();
+ await assert.rejects(directDeposit.request(conn,tenant,owner,depositAccount._id,{...depositInput,confirmActualMoney:''}),{status:400});
  await assert.rejects(directDeposit.request(conn,tenant,owner,depositAccount._id,{...depositInput,pricingPolicy:'stale-policy'}),{status:409});
  await assert.rejects(directDeposit.request(conn,tenant,owner,depositAccount._id,{...depositInput,evidenceReference:''}),{status:400});
  assert.equal(await core.bankingRequestModel(conn).countDocuments(),requestsBefore,'invalid evidence rolls back the banking request');
@@ -229,39 +230,60 @@ async function main(){
  assert.equal(directResults.filter(result=>result.duplicate).length,1);
  const directExecution=directResults[0].execution;
  assert.equal(String(directExecution._id),String(directResults[1].execution._id));
- assert.equal(directExecution.status,'pending_review');
+ assert.equal(directExecution.status,'posted_manual');
  assert.equal(directExecution.sourceSnapshot.feeMinor,'0','the submitted display fee cannot override configured charges');
  assert.equal((await funded.detail(conn,tenant,reviewer,directExecution._id)).receivingAccountName,cashFund.name);
  assert.equal((await core.bankingRequestModel(conn).findById(directExecution.sourceId)).directDeposit,true);
- assert(!(await banking.reviewQueue(conn,tenant,reviewer)).some(order=>String(order._id)===String(directExecution.sourceId)));
- await assert.rejects(banking.decide(conn,tenant,reviewer,directExecution.sourceId,reviewData),{status:409});
- await assert.rejects(banking.cancel(conn,tenant,owner,directExecution.sourceId,reviewData),{status:409});
- await assert.rejects(funded.prepare(conn,tenant,owner,'banking',directExecution.sourceId),{status:409});
- await banking.expireDue(conn,new Date(Date.now()+8*86400000));
- assert.equal((await core.bankingRequestModel(conn).findById(directExecution.sourceId)).status,'requested');
  assert.equal(await core.bankingRequestModel(conn).countDocuments(),requestsBefore+1);
- assert.equal(await book(cashFund),drawerBefore);assert.equal(await customerBook(depositAccount),customerBefore);
- const pendingAccount=await directory.accountDetail(conn,tenant,owner,depositAccount._id);
- await assert.rejects(directory.accountUpdate(conn,tenant,owner,depositAccount._id,{status:'closed',revision:pendingAccount.revision}),
-  error=>error.status===409&&/pending deposit/.test(error.message));
- await assert.rejects(directDeposit.request(conn,tenant,owner,depositAccount._id,{...depositInput,amount:'12346'}),{status:409});
- await assert.rejects(cash.submit(conn,tenant,owner,shift._id,{countedCash:String(drawerBefore+12345n)}),error=>error.status===409&&/pending manual financial movements/.test(error.message));
- assert.equal((await funded.detail(conn,tenant,owner,directExecution._id)).canFinalizeCashier,false);
- await assert.rejects(funded.finalizeCashier(conn,tenant,owner,directExecution._id,{confirmFinalMovement:'yes'}),{status:403});
- await assert.rejects(funded.review(conn,tenant,owner,directExecution._id,reviewData),{status:403});
- await funded.review(conn,tenant,reviewer,directExecution._id,reviewData);
- assert.equal(await book(cashFund),drawerBefore+12345n);assert.equal(await customerBook(depositAccount),customerBefore+12345n);
- assert.equal((await core.bankingRequestModel(conn).findById(directExecution.sourceId)).status,'posted_manual');
- const returnedInput={...depositInput,idempotencyKey:crypto.randomUUID(),amount:'100'};
- const returned=await directDeposit.request(conn,tenant,owner,depositAccount._id,returnedInput);
- await funded.review(conn,tenant,reviewer,returned.execution._id,{decision:'reject',note:'Receipt amount needs correction before approval'});
- const returnedSource=await core.bankingRequestModel(conn).findById(returned.execution.sourceId).lean();
- assert.equal(returnedSource.status,'rejected');
- assert.equal(String(returnedSource.reviewedBy),reviewer.id);
- assert.equal((await directDeposit.request(conn,tenant,owner,depositAccount._id,returnedInput)).execution.status,'rejected');
+ assert.equal(await book(cashFund),drawerBefore+12345n);
  assert.equal(await customerBook(depositAccount),customerBefore+12345n);
+ assert(await core.auditEventModel(conn).exists({targetId:directExecution._id,'metadata.evidenceMode':'tenant_owner_reconciliation'}));
+ await assert.rejects(directDeposit.request(conn,tenant,owner,depositAccount._id,{...depositInput,amount:'12346'}),{status:409});
+
+ const historicalAccount=await acct('OLD-DEPOSIT-'+nonce.toUpperCase());
+ async function historicalDeposit(amount){
+  // Pre-upgrade owners could submit these records but could not post or return them.
+  const session=await conn.startSession();
+  const input={...depositInput,idempotencyKey:crypto.randomUUID(),amount};
+  try{return await session.withTransaction(async()=>{
+   const {order}=await banking.createRequest(conn,tenant,owner,{
+    ...input,kind:'deposit_request',sourceId:'account:'+historicalAccount._id,currency:'UGX',paymentChannel:'Cash',fee:undefined
+   },{session,directDeposit:true});
+   return funded.request(conn,tenant,owner,'banking',order._id,input,{session});
+  });}finally{await session.endSession();}
+ }
+ const historical=(await historicalDeposit('100')).execution;
+ const returned=(await historicalDeposit('20')).execution;
+ const pending=await directDeposit.pendingForOwner(conn,tenant,owner,{branchId:String(branch._id),accountId:String(cashFund._id)});
+ assert(pending.some(row=>String(row._id)===String(historical._id)));
+ assert.deepEqual(await directDeposit.pendingForOwner(conn,tenant,reviewer,{accountId:String(cashFund._id)}),[]);
+ assert(!(await banking.reviewQueue(conn,tenant,reviewer)).some(order=>String(order._id)===String(historical.sourceId)));
+ await assert.rejects(banking.decide(conn,tenant,reviewer,historical.sourceId,reviewData),{status:409});
+ await assert.rejects(banking.cancel(conn,tenant,owner,historical.sourceId,reviewData),{status:409});
+ await assert.rejects(funded.prepare(conn,tenant,owner,'banking',historical.sourceId),{status:409});
+ await banking.expireDue(conn,new Date(Date.now()+8*86400000));
+ assert.equal((await core.bankingRequestModel(conn).findById(historical.sourceId)).status,'requested');
+ const pendingAccount=await directory.accountDetail(conn,tenant,owner,historicalAccount._id);
+ await assert.rejects(directory.accountUpdate(conn,tenant,owner,historicalAccount._id,{status:'closed',revision:pendingAccount.revision}),
+  error=>error.status===409&&/pending deposit/.test(error.message));
+ await assert.rejects(cash.submit(conn,tenant,owner,shift._id,{countedCash:String(drawerBefore+12445n)}),error=>error.status===409&&/pending money entries/.test(error.message));
+ assert.equal((await funded.detail(conn,tenant,owner,historical._id)).canFinalizeCashier,false);
+ await assert.rejects(funded.finalizeCashier(conn,tenant,owner,historical._id,{confirmFinalMovement:'yes'}),{status:403});
+ await assert.rejects(funded.resolveByOwner(conn,tenant,reviewer,historical._id,{...reviewData,confirmActualMoney:'yes'}),{status:403});
+ await assert.rejects(funded.resolveByOwner(conn,tenant,owner,historical._id,reviewData),{status:400});
+ const ownerReview={...reviewData,confirmActualMoney:'yes'};
+ await funded.resolveByOwner(conn,tenant,owner,historical._id,ownerReview);
+ assert.equal((await funded.resolveByOwner(conn,tenant,owner,historical._id,ownerReview)).duplicate,true);
+ assert.equal(await customerBook(historicalAccount),100n);
+ await funded.resolveByOwner(conn,tenant,owner,returned._id,{decision:'reject',note:'Receipt amount needs correction before posting'});
+ const returnedSource=await core.bankingRequestModel(conn).findById(returned.sourceId).lean();
+ assert.equal(returnedSource.status,'rejected');
+ assert.equal(String(returnedSource.reviewedBy),owner.id);
+ assert.equal(await customerBook(historicalAccount),100n);
+ assert.equal(await book(cashFund),drawerBefore+12445n);
+
  const closing=await core.cashSessionModel(conn).findById(shift._id).lean();assert.equal(BigInt(String(closing.openingMinor))+BigInt(String(closing.provisionalMovementMinor)),await book(cashFund));
- await cash.submit(conn,tenant,owner,shift._id,{countedCash:String(await book(cashFund)),note:'Physical drawer count agrees with all independently posted manual module movements'});await cash.decide(conn,tenant,reviewer,shift._id,{decision:'approve',note:'Independent multi-module cash closing count matches the treasury book'});
+ await cash.submit(conn,tenant,owner,shift._id,{countedCash:String(await book(cashFund)),note:'Physical drawer count agrees with all posted manual module movements'});await cash.decide(conn,tenant,reviewer,shift._id,{decision:'approve',note:'Independent multi-module cash closing count matches the treasury book'});
  assert.equal((await core.cashSessionModel(conn).findById(shift._id)).status,'approved');
  assert.equal(await customerBook(depositAccount),customerBefore+12345n,'closing the cash day does not spend or remove the customer balance');
  assert((await directDeposit.request(conn,tenant,owner,depositAccount._id,depositInput)).duplicate,'an identical retry retains its completed deposit after cash day closes');

@@ -2,7 +2,6 @@
 // A single owner-facing start screen that calls established business services.
 // No new shadow ledger, fake balance, permissions bypass, or setup-only data.
 const {Router}=require('express');
-const {randomUUID}=require('node:crypto');
 const requirePermission=require('../../middleware/requirePermission');
 const throttle=require('../../platform/services/actionThrottle.service').financial;
 const {flash}=require('../../utils/view');
@@ -11,6 +10,7 @@ const staffService=require('../services/staff.service');
 const staffPolicy=require('../services/staffPolicy');
 const access=require('../services/moduleAccess.service');
 const treasury=require('../treasury/service');
+const branchView=require('../services/branchView.service');
 const {staffInviteModel,tenantUserModel}=require('../models');
 const {models:fundModels}=require('../treasury/models');
 const {currencyCodes}=require('../../config/currencies');
@@ -26,8 +26,6 @@ function owner(req){
  if(req.user?.role!=='Tenant Owner')throw invalid('Only the business owner can run quick setup.',403);
 }
 const tz=['Africa/Juba','Africa/Kampala','Africa/Nairobi','Africa/Dar_es_Salaam','Africa/Kigali','Africa/Cairo','UTC'];
-const kindLabel=Object.freeze({cash:'Cash drawer',wallet:'Mobile money float',bank:'Bank account',
-  forex_stock:'Forex stock',transfer_clearing:'Transfer payable (Money Transfer)'});
 function accountKinds(tenant,actor){
  const result=['cash','bank'];
  if(access.hasModuleForUser(tenant,actor,'mobile_money'))result.push('wallet');
@@ -88,18 +86,12 @@ module.exports=function quickSetupRoutes({renderTenant}){
   try{
    owner(req);
    const branches=(await branchService.list(req.tenant)).filter(x=>x.status==='active');
-   const [users,invites,accounts,staff,archivedAccounts]=await Promise.all([
+   const [users,invites,accounts]=await Promise.all([
     tenantUserModel(req.tenantDb).countDocuments({status:'active',role:{$ne:'Tenant Owner'}}).maxTimeMS(3000),
     staffInviteModel(req.tenantDb).countDocuments({status:'pending',expiresAt:{$gt:new Date()}}).maxTimeMS(3000),
     fundModels(req.tenantDb).account.find({tenantId:req.tenant._id,status:{$ne:'archived'}})
-      .select('_id code name kind currency network branchId ledgerAccountId ledgerCode openingBalanceMinor bookBalanceMinor sequence openingApprovedAt pendingOpeningId reconciliationState status selectionKey')
-      .sort({createdAt:-1,_id:-1}).limit(80).lean().maxTimeMS(3000),
-    tenantUserModel(req.tenantDb).find({status:'active',role:{$ne:'Tenant Owner'}})
-      .select('_id name role branchId').sort({name:1}).limit(80).lean().maxTimeMS(3000),
-    // Archived setup mistakes are retained for owner recovery, not counted.
-    fundModels(req.tenantDb).account.find({tenantId:req.tenant._id,status:'archived'})
-      .select('_id name kind currency code status openingBalanceMinor sequence')
-      .sort({updatedAt:-1,_id:-1}).limit(12).lean().maxTimeMS(3000)
+      .select('_id kind currency branchId ledgerAccountId ledgerCode openingBalanceMinor bookBalanceMinor sequence openingApprovedAt reconciliationState status')
+      .sort({createdAt:-1,_id:-1}).limit(80).lean().maxTimeMS(3000)
    ]);
    // Setup must never report an orphaned opening as a spendable account.
    // A new business can use setup before it has any subscribed finance module.
@@ -117,11 +109,10 @@ module.exports=function quickSetupRoutes({renderTenant}){
      x.openingApprovedAt&&x.reconciliationState==='matched');
    const kinds=accountKinds(req.tenant,req.user);
    renderTenant(req,res,'setup/index','Start using ClassicFin Hub',
-     'Set up your branch, staff and actual money accounts in one place.',{
-       branches,users,invites,accounts,archivedAccounts,staff,openingKeys:Object.fromEntries(accounts.map(a=>[String(a._id),randomUUID()])),readyCount:ready.length,
+     'Set up your branch and staff.',{
+       branches,users,invites,accounts,readyCount:ready.length,
        roles:staffPolicy.managedRoles(req.user),kinds,
-       currencyCodes,networks:treasury.NETWORKS,networkCurrencies:networkTariffs.NETWORKS,
-       timeZones:tz,kindLabel
+       currencyCodes,timeZones:tz
      });
   }catch(e){next(e);}
  });
@@ -156,8 +147,9 @@ module.exports=function quickSetupRoutes({renderTenant}){
    const {actualBalance,idempotencyKey}=req.body;
    const result=await treasury.confirmOwnerOpening(req.tenantDb,req.tenant,req.user,req.params.id,
      {actualBalance,idempotencyKey});
-   flash(req,'good',result.duplicate?'This opening was already recorded.':'Your counted/checked opening balance is now recorded and ready. The transaction and owner attestation are audited.');
-   res.redirect(303,'/tenant/setup#quick-money');
+   flash(req,'good',result.duplicate?'This opening was already recorded.':'Starting balance recorded.');
+   branchView.followRecord(req,result.observation);
+   res.redirect(303,'/tenant/treasury?account='+result.observation.accountId+'#selected-account');
   }catch(e){handleSetupError(req,res,next,e);}
  });
  router.post('/account',requirePermission('treasury.manage'),throttle,async(req,res,next)=>{
@@ -167,12 +159,13 @@ module.exports=function quickSetupRoutes({renderTenant}){
    const values=moneyInput(req.body,req.tenant,req.user,branches);
    const created=await treasury.createAccount(req.tenantDb,req.tenant,req.user,
      values.account,{configurationBranchId:values.branchId});
-   flash(req,'good','Account created instantly. Confirm its real counted or checked starting balance below to start using it.');
-   res.redirect(303,'/tenant/setup#quick-money');
+   flash(req,'good','Account created. Add the actual starting amount below.');
+   branchView.followRecord(req,created);
+   res.redirect(303,'/tenant/treasury?account='+created._id+'&action=add#selected-account');
   }catch(e){handleSetupError(req,res,next,e);}
  });
  return router;
 };
 
 // Pure validation helpers are also exercised by the release test suite.
-module.exports.validation={branchInput,inviteInput,moneyInput,accountKinds};
+module.exports.validation={branchInput,inviteInput,moneyInput,accountKinds,timeZones:tz};

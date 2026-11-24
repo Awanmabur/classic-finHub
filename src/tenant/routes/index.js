@@ -206,8 +206,10 @@ router.post('/mobile-money/:id/request-void',requireModule('mobile_money'),requi
 router.post('/mobile-money/:id/decide-void',requireModule('mobile_money'),requirePermission('mobile_money.review'),
   require('../../platform/services/actionThrottle.service').financial,async(req,res,next)=>{
   try{
-    await mobile.decideVoid(req.tenantDb,req.user,req.params.id,req.body.decision,req.body.note);
-    flash(req,'good','Correction decision recorded with an audit event. Provider or ledger status was not changed.');
+    const record=await mobile.decideVoid(req.tenantDb,req.user,req.params.id,req.body.decision,req.body.note);
+    flash(req,'good',record.correctionState==='voided'?
+      'Internal correction recorded. Check separately with the provider if a refund is needed.':
+      'Correction declined. The transaction remains recorded.');
     res.redirect(303,'/tenant/mobile-money');
   }catch(e){next(e);}
 });
@@ -230,33 +232,35 @@ router.post('/mobile-money/alerts/:id/read',requireModule('mobile_money'),requir
 });
 // Physical cash count shifts are internal operational evidence, not provider float.
 const cash=require('../services/cashDrawer.service');
+const {cashDayUrl,cashDayError}=require('./cashControl.routes');
 const financialThrottle=require('../../platform/services/actionThrottle.service').financial;
 // Keep one operating cash control page across Mobile Money and other modules.
 router.get('/mobile-money/shifts',requireModule('mobile_money'),requirePermission('mobile_money.view'),(req,res)=>{
+  if(req.user.role==='Tenant Owner')return res.redirect(303,cashDayUrl(req.user,req.query.currency));
   const params=new URLSearchParams();
   if(typeof req.query.cursor==='string'&&req.query.cursor.length<=200)params.set('cursor',req.query.cursor);
   if(typeof req.query.currency==='string'&&/^[A-Z]{3}$/i.test(req.query.currency))params.set('currency',req.query.currency);
   res.redirect(303,'/tenant/cash/shifts'+(params.size?'?'+params:''));
 });
 router.post('/mobile-money/shifts/open',requireModule('mobile_money'),requirePermission('mobile_money.view'),financialThrottle,async(req,res,next)=>{
-  try{const shift=await cash.open(req.tenantDb,req.tenant,req.user,req.body);
-    flash(req,'good','Opening cash count submitted. A different authorized supervisor must approve it before you can record operations.');require('../services/branchView.service').followRecord(req,shift);res.redirect(303,'/tenant/mobile-money/shifts');
-  }catch(e){next(e);}
+  try{const shift=await cash.open(req.tenantDb,req.tenant,req.user,req.body,{ownerDirect:true});
+    flash(req,'good',shift.status==='open'?'Day open. Your cash drawer is ready for transactions.':'Opening count sent for review.');require('../services/branchView.service').followRecord(req,shift);res.redirect(303,cashDayUrl(req.user,shift.currency));
+  }catch(e){cashDayError(req,res,next,e);}
 });
 router.post('/mobile-money/shifts/:id/verify-opening',requireModule('mobile_money'),requirePermission('mobile_money.view'),financialThrottle,async(req,res,next)=>{
-  try{const shift=await cash.decideOpening(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
-    flash(req,'good','Opening count decision saved with an audit record.');require('../services/branchView.service').followRecord(req,shift);res.redirect(303,'/tenant/mobile-money/shifts');
-  }catch(e){next(e);}
+  try{const shift=await cash.decideOpening(req.tenantDb,req.tenant,req.user,req.params.id,req.body,{ownerDirect:true});
+    flash(req,'good','Opening count decision saved.');require('../services/branchView.service').followRecord(req,shift);res.redirect(303,cashDayUrl(req.user,shift.currency));
+  }catch(e){cashDayError(req,res,next,e);}
 });
 router.post('/mobile-money/shifts/:id/submit',requireModule('mobile_money'),requirePermission('mobile_money.view'),financialThrottle,async(req,res,next)=>{
-  try{const shift=await cash.submit(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
-    flash(req,'good','Cash count submitted for independent review; it is not a provider settlement.');require('../services/branchView.service').followRecord(req,shift);res.redirect(303,'/tenant/mobile-money/shifts');
-  }catch(e){next(e);}
+  try{const shift=await cash.submit(req.tenantDb,req.tenant,req.user,req.params.id,req.body,{ownerDirect:true});
+    flash(req,'good',shift.status==='approved'?'Day closed. Cash count reconciled.':'Closing count sent for review.');require('../services/branchView.service').followRecord(req,shift);res.redirect(303,cashDayUrl(req.user,shift.currency));
+  }catch(e){cashDayError(req,res,next,e);}
 });
 router.post('/mobile-money/shifts/:id/decide',requireModule('mobile_money'),requirePermission('mobile_money.view'),financialThrottle,async(req,res,next)=>{
-  try{const shift=await cash.decide(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
-    flash(req,'good','Cash reconciliation decision saved and audited.');require('../services/branchView.service').followRecord(req,shift);res.redirect(303,'/tenant/mobile-money/shifts');
-  }catch(e){next(e);}
+  try{const shift=await cash.decide(req.tenantDb,req.tenant,req.user,req.params.id,req.body,{ownerDirect:true});
+    flash(req,'good',shift.status==='approved'?'Day closed. Cash count reconciled.':'Cash count returned.');require('../services/branchView.service').followRecord(req,shift);res.redirect(303,cashDayUrl(req.user,shift.currency));
+  }catch(e){cashDayError(req,res,next,e);}
 });
 router.get('/mobile-money/shifts/:id',requireModule('mobile_money'),requirePermission('mobile_money.view'),(req,res)=>{
  res.redirect(303,'/tenant/cash/shifts/'+encodeURIComponent(req.params.id));

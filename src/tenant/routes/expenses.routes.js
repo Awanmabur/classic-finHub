@@ -8,6 +8,13 @@ const mobile=require('../services/mobileMoney.service');
 const businessTime=require('../../utils/businessTime');
 const reportTimeZone=require('../services/reportTimeZone.service');
 const {flash}=require('../../utils/view');
+const {currencyCodes}=require('../../config/currencies');
+function reconcileUrl(record){
+ const query=new URLSearchParams();
+ if(currencyCodes.includes(record.currency))query.set('currency',record.currency);
+ if(typeof record.recordReference==='string'&&record.recordReference.length<=64)query.set('expenseRef',record.recordReference);
+ return `/tenant/treasury${query.size?'?'+query:''}#expense-reconciliation`;
+}
 module.exports=function expensesRoutes({renderTenant}){
  const router=require('express').Router();
  router.use('/expenses',requireModule('expenses'),requirePermission('expenses.view'));
@@ -50,20 +57,42 @@ module.exports=function expensesRoutes({renderTenant}){
  }catch(error){next(error);}});
  router.get('/expenses/:id',async(req,res,next)=>{try{
   const record=await expenses.detail(req.tenantDb,req.tenant,req.user,req.params.id),perms=permissions(req.user);
+  const owner=req.user.role==='Tenant Owner';
   const independent=String(record.operatorId)!==String(req.user.id)&&String(record.pendingChange?.requestedBy||'')!==String(req.user.id);
-  renderTenant(req,res,'expenses/detail','Expense details','Original evidence, independent decisions, and correction history.',{
+  renderTenant(req,res,'expenses/detail','Expense details','Original expense and correction history.',{
    record,permissions:perms,format:mobile.formatMoneyMinor,fundChoices:(perms.review||String(record.operatorId)===String(req.user.id))?
     await expenses.fundChoices(req.tenantDb,req.tenant,req.user,{expenseId:req.params.id}):[],
    afterBalances:await require('../services/recordBalances.service').forRecord(req.tenantDb,req.tenant,req.user,'expenses',record),
-   canReview:perms.review&&(independent||require('../services/reviewPolicy').canSelfReviewRoutine(req.user,record.branchId))&&record.status==='pending_review'&&!record.pendingChange,
-   canDecide:perms.review&&independent&&!!record.pendingChange,canChange:['pending_review','approved'].includes(record.status)&&!record.pendingChange});
+   reconcileHref:owner&&['pending_review','approved'].includes(record.status)?reconcileUrl(record):null,
+   canReview:!owner&&perms.review&&(independent||require('../services/reviewPolicy').canSelfReviewRoutine(req.user,record.branchId))&&record.status==='pending_review'&&!record.pendingChange,
+   canDecide:!owner&&perms.review&&independent&&!!record.pendingChange,canChange:!owner&&['pending_review','approved'].includes(record.status)&&!record.pendingChange});
  }catch(error){next(error);}});
+ router.post('/expenses/:id/reconcile',requirePermission('expenses.review'),throttle,async(req,res,next)=>{
+  try{
+   const record=await expenses.ownerResolve(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
+   const message=record.status==='voided'?'Expense voided.':record.status==='rejected'?'Unposted expense discarded.':
+    req.body.operation==='post'?'Expense recorded.':req.body.operation==='dismiss'?'Expense kept.':'Expense corrected.';
+   flash(req,'good',message);
+   require('../services/branchView.service').followRecord(req,record);
+   res.redirect(303,reconcileUrl(record));
+  }catch(error){
+   if(req.user.role!=='Tenant Owner'||![400,409].includes(error.status))return next(error);
+   flash(req,'bad',error.message);
+   res.redirect(303,reconcileUrl({currency:req.body.currency,recordReference:req.body.expenseRef}));
+  }
+ });
  for(const [action,permission,execute,message] of [
   ['review','expenses.review',(req)=>expenses.review(req.tenantDb,req.tenant,req.user,req.params.id,req.body),'Expense decision saved and audited.'],
   ['correct','expenses.correct',(req)=>expenses.requestChange(req.tenantDb,req.tenant,req.user,req.params.id,req.body,'correct'),'Correction requested. Current evidence is preserved until independent approval.'],
   ['void','expenses.void',(req)=>expenses.requestChange(req.tenantDb,req.tenant,req.user,req.params.id,req.body,'void'),'Void requested. The expense remains in the audit history.'],
   ['decide-change','expenses.review',(req)=>expenses.decideChange(req.tenantDb,req.tenant,req.user,req.params.id,req.body),'Correction decision saved and audited.']]){
-  router.post(`/expenses/:id/${action}`,requirePermission(permission),throttle,async(req,res,next)=>{try{const result=await execute(req);flash(req,'good',action==='review'?(result.status==='approved'?'Expense approved. The selected cash, wallet or bank account was deducted automatically once.':'Expense rejected; no account balance was deducted.'):message);
+  router.post(`/expenses/:id/${action}`,requirePermission(permission),throttle,async(req,res,next)=>{try{
+   if(req.user.role==='Tenant Owner'){
+    const record=await expenses.detail(req.tenantDb,req.tenant,req.user,req.params.id);
+    require('../services/branchView.service').followRecord(req,record);
+    return res.redirect(303,reconcileUrl(record));
+   }
+   const result=await execute(req);flash(req,'good',action==='review'?(result.status==='approved'?'Expense approved. The selected cash, wallet or bank account was deducted automatically once.':'Expense rejected; no account balance was deducted.'):message);
    res.redirect(303,`/tenant/expenses/${req.params.id}`);}catch(error){next(error);}});
  }
  return router;

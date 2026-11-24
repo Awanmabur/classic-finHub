@@ -103,7 +103,52 @@ async function main(){
  assert.equal(usdExpense.status,'approved');
  assert.equal(await balance(usdFund),'8766');assert.equal(await balance(cashFund),'100000');
  assert.equal(String((await core.cashSessionModel(conn).findById(usdShift._id)).provisionalMovementMinor),'-1234');assert.equal(String((await readShift()).provisionalMovementMinor),'0');
- console.log('PASS: immediate final expenses debit selected cash, bank and wallet accounts exactly once; idempotency, corrections, voids, failed funding rollback, tenant and operator fences.');
+
+ const ownerInput=body({paymentMethod:'Bank',amount:'13.20',treasuryAccountId:String(bankFund._id)});
+ const ownerExpense=(await expenses.create(conn,tenant,owner,ownerInput,{requireFunds:true})).record;
+ const ownerCorrection={...ownerInput,operation:'correct',revision:ownerExpense.revision,amount:'16.20',note};
+ const selected=await expenses.ownerReconciliation(conn,tenant,owner,{reference:ownerExpense.recordReference.toLowerCase(),currency:'KES'});
+ assert.equal(String(selected.selected._id),String(ownerExpense._id));
+ assert.equal((await expenses.ownerReconciliation(conn,tenant,{...owner,viewBranchId:String(new mongoose.Types.ObjectId())},
+  {reference:ownerExpense.recordReference})).selected,null);
+ assert.equal(await expenses.ownerReconciliation(conn,tenant,maker),null);
+ await assert.rejects(expenses.ownerResolve(conn,tenant,{...reviewer,role:'Tenant Owner'},ownerExpense._id,ownerCorrection),{status:403});
+ await assert.rejects(expenses.ownerResolve(conn,tenant,{...owner,authVersion:99},ownerExpense._id,ownerCorrection),{status:403});
+ const ownerFixed=await expenses.ownerResolve(conn,tenant,owner,ownerExpense._id,ownerCorrection);
+ assert.equal(String(ownerFixed.amountMinor),'1620');assert.equal(String(ownerFixed.original.amountMinor),'1320');
+ assert.equal(ownerFixed.pendingChange,null);assert.equal(ownerFixed.history.at(-1).action,'owner_applied_correct');
+ assert.equal(ownerFixed.history.at(-1).selfReviewed,true);assert(ownerFixed.lastReversalBatchId);
+ assert.equal(await balance(bankFund),'45835');
+ await assert.rejects(expenses.ownerResolve(conn,tenant,owner,ownerExpense._id,ownerCorrection),{status:409});
+ const booksAfterCorrection=await models(conn).batch.countDocuments({});
+ await assert.rejects(expenses.ownerResolve(conn,tenant,owner,ownerExpense._id,{...ownerCorrection,revision:ownerFixed.revision,amount:'9000.00'}),{status:409});
+ assert.equal(await models(conn).batch.countDocuments({}),booksAfterCorrection,'A failed repost also rolls back its preceding reversal');
+ assert.equal(await balance(bankFund),'45835');
+
+ await expenses.requestChange(conn,tenant,reviewer,bank._id,{note},'void');
+ const pendingBank=(await expenses.ownerReconciliation(conn,tenant,owner,{currency:'KES'})).pending.find(expense=>String(expense._id)===String(bank._id));
+ assert(pendingBank);
+ const ownerVoided=await expenses.ownerResolve(conn,tenant,owner,bank._id,{operation:'apply',revision:pendingBank.revision,note});
+ assert.equal(ownerVoided.status,'voided');assert.equal(ownerVoided.pendingChange,null);assert.equal(await balance(bankFund),'48380');
+
+ const unpostedInput=body({paymentMethod:'Bank',amount:'1.30',treasuryAccountId:String(bankFund._id)});
+ const unposted=(await expenses.create(conn,tenant,owner,unpostedInput)).record;
+ assert.equal(unposted.status,'pending_review');
+ const finalized=await expenses.ownerResolve(conn,tenant,owner,unposted._id,{...unpostedInput,operation:'correct',revision:unposted.revision,amount:'2.30',note});
+ assert.equal(finalized.status,'approved');assert(finalized.treasuryBatchId);assert.equal(await balance(bankFund),'48150');
+
+ const closedCashInput=body({amount:'2.00',treasuryAccountId:String(cashFund._id)});
+ const closedCashExpense=(await expenses.create(conn,tenant,maker,closedCashInput,{requireFunds:true})).record;
+ await cash.submit(conn,tenant,maker,shift._id,{countedCash:'998.00',note});
+ await cash.decide(conn,tenant,reviewer,shift._id,{decision:'approve',note});
+ const closingBalance=await balance(cashFund),closedJournals=await models(conn).batch.countDocuments({});
+ const closedCashFixed=await expenses.ownerResolve(conn,tenant,owner,closedCashExpense._id,
+  {...closedCashInput,operation:'correct',revision:closedCashExpense.revision,vendor:'Corrected vendor name',note});
+ assert.equal(closedCashFixed.vendor,'Corrected vendor name');assert.equal(closedCashFixed.original.vendor,closedCashExpense.vendor);
+ assert.equal(String(closedCashFixed.treasuryBatchId),String(closedCashExpense.treasuryBatchId));
+ assert.equal(await models(conn).batch.countDocuments({}),closedJournals,'A typo correction must preserve the original ledger and closed cash day');
+ assert.equal(await balance(cashFund),closingBalance);assert.equal((await readShift()).status,'approved');
+ console.log('PASS: exact expense posting, direct owner corrections and pending resolutions, immutable history, closed-day typo correction, and tenant and operator fences.');
 }
 async function cleanup(){if(mongoose.connection.readyState===1&&mongoose.connection.name===scratch&&/^cfh_expense_funds_[a-f0-9]{16}$/.test(scratch)){if(conn)await conn.db.dropDatabase();await mongoose.connection.db.dropDatabase();}await mongoose.disconnect();}
 main().catch(error=>{console.error('Expense treasury integration FAILED:',error.stack||error.message);process.exitCode=1;}).finally(()=>cleanup().catch(error=>{console.error(error.message);process.exitCode=1;}));

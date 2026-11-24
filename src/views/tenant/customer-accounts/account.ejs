@@ -49,7 +49,8 @@
               </label>
             </div>
             <%- include('../partials/operation-pricing',{pricingOperation:'banking.deposit',pricingField:'fee',pricingCurrencyOverride:account.currency,currentBranchId:data.operatingBranchId,showDepositTotal:true}) %>
-            <div class="rowBtns"><button class="btn btnPrimary" type="submit">Send for approval</button></div>
+            <% if(data.ownerPosts){ %><label class="field"><input type="checkbox" name="confirmActualMoney" value="yes" required> I received this money and checked the receipt or statement.</label><% } %>
+            <div class="rowBtns"><button class="btn btnPrimary" type="submit"><%= data.ownerPosts?'Record deposit':'Send to owner' %></button></div>
           </form>
         <% }else{ %>
           <p>There’s no eligible account to receive this deposit. Open your cash day or check the business account’s balance and setup.</p>
@@ -59,14 +60,15 @@
     </section>
   <% } %>
 
+  <%- include('_deposit-review',{pendingDeposits:data.ownerPendingMovements||[],formatMinor:data.formatMinor,returnTo:accountPath+'#pending-deposits'}) %>
   <section class="card" id="activity">
     <div class="cardHead"><b>Account activity</b></div>
     <div class="cardBody">
-      <% if(data.deposits.length){ %>
-        <h3>Deposits awaiting approval or returned</h3>
+      <% const shownDeposits=data.ownerPosts?data.deposits.filter(deposit=>deposit.status==='rejected'):data.deposits; if(shownDeposits.length){ %>
+        <h3><%= data.ownerPosts?'Returned deposits':'Deposits awaiting the owner or returned' %></h3>
         <ul>
-          <% data.deposits.forEach(deposit=>{ %>
-            <li><a href="/tenant/funded/<%= deposit._id %>"><%= deposit.sourceReference %></a> · <%= data.formatMinor(deposit.sourceSnapshot.amountMinor,account.currency) %> · <%= deposit.status==='pending_review'?'Awaiting approval':'Returned' %>
+          <% shownDeposits.forEach(deposit=>{ %>
+            <li><a href="/tenant/funded/<%= deposit._id %>"><%= deposit.sourceReference %></a> · <%= data.formatMinor(deposit.sourceSnapshot.amountMinor,account.currency) %> · <%= deposit.status==='pending_review'?'Awaiting owner':'Returned' %>
             <% if(deposit.status==='rejected'&&deposit.reviewNote){ %><br><%= deposit.reviewNote %><% } %></li>
           <% }) %>
         </ul>

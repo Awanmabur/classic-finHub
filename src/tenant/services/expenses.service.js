@@ -124,9 +124,9 @@ async function postExpense(conn,session,authorization,record,account,sequence){
   description:`Expense ${record.recordReference}: ${record.expenseType}`.slice(0,400),evidenceReference:record.reference||record.recordReference,occurredAt:new Date()});
 }
 function postedBatchId(result){return id(result?.batch?._id||result?._id||result?.batchId);}
-async function reverseExpense(conn,session,authorization,record,sequence,note){
+async function reverseExpense(conn,session,authorization,record,sequence,note,{ownerDirect=false}={}){
  return require('../treasury/service').reverseMovements(conn,session,authorization,{sourceType:'expenses',sourceRef:`${record._id}:expense:${record.postingSequence||1}`,reversalSourceRef:`${record._id}:expense-reversal:${sequence}`,description:`Expense ${record.recordReference} correction: ${note}`.slice(0,400),
-  evidenceReference:record.reference||record.recordReference,occurredAt:new Date()});
+  evidenceReference:record.reference||record.recordReference,occurredAt:new Date()},ownerDirect?{ownerExpenseCorrectionId:record._id}:{});
 }
 async function ready(conn){await ensureTenantIndexes(conn);await ensureExpenseIndexes(conn);}
 async function audit(conn,session,actor,record,action){await auditEventModel(conn).create([{action:`expenses.${action}`,actorId:id(actor.id),targetId:record._id,
@@ -204,6 +204,21 @@ async function create(conn,tenant,actor,input={},options={}){
   if(found&&same(found,actor,branchId,value,paymentMethod,requestedFundId,currency))return {record:found,duplicate:true};throw fail('Expense form reference already used',409);}throw error;}
  finally{await session.endSession();}
 }
+async function finalizeExpenseInSession(conn,session,tenant,actor,old,input,reason,{ownerDirect=false}={}){
+  if(old.status!=='pending_review'||old.pendingChange)throw fail('Expense was reviewed or has an unresolved correction',409);
+  const funded=input.decision==='approve'&&await requiresBook(conn,tenant,old,session);let posting={},batchId=null;
+  if(funded){
+   const authorization=await postingAuthorization(conn,session,tenant,actor),account=await resolveFund(conn,session,authorization,old,input);
+   await shiftFence(conn,session,old,0n,{bookManaged:true});
+   batchId=postedBatchId(await postExpense(conn,session,authorization,old,account,1));
+   posting={postedTreasuryAccountId:account._id,treasuryBatchId:batchId,postingSequence:1};
+  }else if(!ownerDirect||input.decision==='approve')await shiftFence(conn,session,old,input.decision==='approve'?-cash.minor(old.amountMinor):0n);
+  const record=await expenseModel(conn).findOneAndUpdate({_id:old._id,revision:old.revision,status:'pending_review'},{$set:{
+   status:input.decision==='approve'?'approved':'rejected',reviewedBy:id(actor.id),reviewedAt:new Date(),reviewNote:reason,...posting},
+   $inc:{revision:1},$push:{history:{action:input.decision==='approve'?'approved':'rejected',actorId:id(actor.id),at:new Date(),note:reason,treasuryBatchId:batchId,selfReviewed:String(old.operatorId)===String(actor.id)}}},{new:true,session});
+  if(!record)throw fail('Expense changed concurrently',409);await audit(conn,session,actor,record,record.status);
+  return record;
+}
 async function review(conn,tenant,actor,expenseId,input={}){
  ({actor,tenant}=await access(conn,tenant,actor,'expenses.review'));if(!['approve','reject'].includes(input.decision))throw fail('Invalid expense decision');
  const reason=text(input.note,'review explanation',12,400);await ready(conn);const session=await conn.startSession();let record;
@@ -212,18 +227,7 @@ async function review(conn,tenant,actor,expenseId,input={}){
   const old=await expenseModel(conn).findOne({_id:id(expenseId),...scopeFor(actor)}).session(session).lean();
   if(!old)throw fail('Expense not found within your permissions',404);
   if(String(old.operatorId)===String(actor.id)&&!require('./reviewPolicy').canSelfReviewRoutine(actor,old.branchId))throw fail('A different authorized person must review this expense',403);
-  if(old.status!=='pending_review'||old.pendingChange)throw fail('Expense was reviewed or has an unresolved correction',409);
-  const funded=input.decision==='approve'&&await requiresBook(conn,tenant,old,session);let posting={},batchId=null;
-  if(funded){
-   const authorization=await postingAuthorization(conn,session,tenant,actor),account=await resolveFund(conn,session,authorization,old,input);
-   await shiftFence(conn,session,old,0n,{bookManaged:true});
-   batchId=postedBatchId(await postExpense(conn,session,authorization,old,account,1));
-   posting={postedTreasuryAccountId:account._id,treasuryBatchId:batchId,postingSequence:1};
-  }else await shiftFence(conn,session,old,input.decision==='approve'?-cash.minor(old.amountMinor):0n);
-  record=await expenseModel(conn).findOneAndUpdate({_id:old._id,revision:old.revision,status:'pending_review'},{$set:{
-   status:input.decision==='approve'?'approved':'rejected',reviewedBy:id(actor.id),reviewedAt:new Date(),reviewNote:reason,...posting},
-   $inc:{revision:1},$push:{history:{action:input.decision==='approve'?'approved':'rejected',actorId:id(actor.id),at:new Date(),note:reason,treasuryBatchId:batchId,selfReviewed:String(old.operatorId)===String(actor.id)}}},{new:true,session});
-  if(!record)throw fail('Expense changed concurrently',409);await audit(conn,session,actor,record,record.status);
+  record=await finalizeExpenseInSession(conn,session,tenant,actor,old,input,reason);
  });return record;}finally{await session.endSession();}
 }
 async function requestChange(conn,tenant,actor,expenseId,input={},kind='correct'){
@@ -244,6 +248,34 @@ async function requestChange(conn,tenant,actor,expenseId,input={},kind='correct'
   if(!record)throw fail('Expense changed concurrently',409);await audit(conn,session,actor,record,`${kind}_requested`);
  });return record;}finally{await session.endSession();}
 }
+async function applyExpenseChangeInSession(conn,session,tenant,actor,old,change,approved,reason,{ownerDirect=false}={}){
+  const isVoid=change.kind==='void',proposed=approved&&!isVoid?snapshot(change.values):null;
+  const changesAmount=approved&&(isVoid||proposed.amountMinor!==String(old.amountMinor));
+  let batchId=null,reversalId=null;
+  const set={correctionState:approved?'applied':'denied',pendingChange:null};
+  if(approved&&old.status==='approved'&&old.treasuryBatchId&&(!ownerDirect||changesAmount)){
+   const authorization=await postingAuthorization(conn,session,tenant,actor),sequence=(old.postingSequence||0)+1;
+   await shiftFence(conn,session,old,0n,{bookManaged:true});
+   reversalId=postedBatchId(await reverseExpense(conn,session,authorization,old,sequence,reason,{ownerDirect}));
+   if(!isVoid){
+    const account=await resolveFund(conn,session,authorization,old,{});
+    batchId=postedBatchId(await postExpense(conn,session,authorization,{...old,...proposed},account,sequence));
+   }
+   Object.assign(set,{treasuryBatchId:batchId,lastReversalBatchId:reversalId,postingSequence:sequence});
+  }else if(!ownerDirect||(changesAmount&&old.status==='approved')){
+   const offset=approved&&old.status==='approved'?cash.minor(old.amountMinor)-(isVoid?0n:cash.minor(proposed.amountMinor)):0n;
+   await shiftFence(conn,session,old,offset);
+  }
+  if(approved&&isVoid)set.status='voided';
+  if(proposed)Object.assign(set,proposed);
+  const action=ownerDirect?`owner_${approved?'applied':'dismissed'}_${change.kind}`:`${change.kind}_${approved?'approved':'denied'}`;
+  const record=await expenseModel(conn).findOneAndUpdate({_id:old._id,revision:old.revision,correctionState:old.correctionState},{$set:set,$inc:{revision:1},
+   $push:{history:{action,actorId:id(actor.id),at:new Date(),note:reason,before:snapshot(old),
+    after:proposed,treasuryBatchId:batchId,reversalBatchId:reversalId,
+    selfReviewed:ownerDirect&&[String(old.operatorId),String(change.requestedBy)].includes(actor.id)}}},{session,new:true});
+  if(!record)throw fail('Expense changed concurrently',409);await audit(conn,session,actor,record,action);
+  return record;
+}
 async function decideChange(conn,tenant,actor,expenseId,input={}){
  ({actor,tenant}=await access(conn,tenant,actor,'expenses.review'));if(!['approve','deny'].includes(input.decision))throw fail('Invalid correction decision');
  const reason=text(input.note,'correction review explanation',12,400);await ready(conn);const session=await conn.startSession();let record;
@@ -253,27 +285,63 @@ async function decideChange(conn,tenant,actor,expenseId,input={}){
   if(!old)throw fail('Expense not found within your permissions',404);
   if(!pending||old.correctionState!=='requested')throw fail('No pending expense correction',409);
   if([String(old.operatorId),String(pending.requestedBy)].includes(String(actor.id)))throw fail('A different authorized person must decide this correction',403);
-  const approved=input.decision==='approve',isVoid=pending.kind==='void';let offset=0n,batchId=null,reversalId=null;
-  const set={correctionState:approved?'applied':'denied',pendingChange:null};
-  if(approved&&old.status==='approved'&&old.treasuryBatchId){
-   const authorization=await postingAuthorization(conn,session,tenant,actor),sequence=(old.postingSequence||0)+1;
-   await shiftFence(conn,session,old,0n,{bookManaged:true});
-   reversalId=postedBatchId(await reverseExpense(conn,session,authorization,old,sequence,reason));
-   if(!isVoid){
-    const account=await resolveFund(conn,session,authorization,old,{});
-    batchId=postedBatchId(await postExpense(conn,session,authorization,{...old,...snapshot(pending.values)},account,sequence));
-   }
-   Object.assign(set,{treasuryBatchId:batchId,lastReversalBatchId:reversalId,postingSequence:sequence});
-  }else{
-   if(approved&&old.status==='approved')offset=isVoid?cash.minor(old.amountMinor):cash.minor(old.amountMinor)-cash.minor(pending.values.amountMinor);
-   await shiftFence(conn,session,old,offset);
+  record=await applyExpenseChangeInSession(conn,session,tenant,actor,old,pending,input.decision==='approve',reason);
+ });return record;}finally{await session.endSession();}
+}
+async function ownerReconciliation(conn,tenant,actor,{reference,currency}={}){
+ if(actor?.role!=='Tenant Owner'||!hasModuleForUser(tenant,actor,'expenses'))return null;
+ ({actor,tenant}=await access(conn,tenant,actor,'expenses.view'));
+ if(actor.role!=='Tenant Owner')return null;
+ const filter={...scopeFor(actor)};
+ const selectedCurrency=require('../../config/currencies').currencyCodes.includes(currency)?currency:null;
+ if(selectedCurrency)filter.currency=selectedCurrency;
+ const requestedReference=typeof reference==='string'?reference.trim().slice(0,64):'';
+ const recordReference=/^EXP-[A-F0-9]{20}$/i.test(requestedReference)?requestedReference.toUpperCase():requestedReference;
+ const Expense=expenseModel(conn);
+ const [pending,selected]=await Promise.all([
+  Expense.find({...filter,$or:[{status:'pending_review'},{correctionState:'requested'}]})
+   .sort({createdAt:1,_id:1}).limit(21).maxTimeMS(5000).lean(),
+  recordReference?Expense.findOne({...filter,recordReference}).maxTimeMS(5000).lean():null
+ ]);
+ const funds=selected?.status==='pending_review'&&!selected.treasuryAccountId?
+  (await fundChoices(conn,tenant,actor,{expenseId:selected._id})).filter(account=>account.kind===fundKind(selected.paymentMethod)):[];
+ return {pending:pending.slice(0,20),morePending:pending.length>20,selected,reference:recordReference,currency:selectedCurrency,funds,
+  format:(amount,code)=>mobile.formatMoneyMinor(amount,code).replace(/^KES /,'KSH ')};
+}
+async function ownerResolve(conn,tenant,actor,expenseId,input={}){
+ if(actor?.role!=='Tenant Owner'||!Number.isSafeInteger(actor.authVersion??0))throw fail('Tenant owner access is required',403);
+ const operation=input.operation;
+ if(!['post','discard','apply','dismiss','correct','void'].includes(operation))throw fail('Choose an expense action');
+ const revision=String(input.revision??'');
+ if(!/^\d{1,15}$/.test(revision))throw fail('Refresh the expense before changing it',409);
+ const reason=text(input.note,'explanation',12,400);
+ await ready(conn);
+ const session=await conn.startSession();let record;
+ try{await session.withTransaction(async()=>{
+  const verified=await access(conn,tenant,{...actor,authVersion:actor.authVersion??0},'expenses.review',session);
+  const owner=verified.actor;
+  if(owner.role!=='Tenant Owner')throw fail('Tenant owner access is required',403);
+  const old=await expenseModel(conn).findOne({_id:id(expenseId),...scopeFor(owner)}).session(session).lean();
+  if(!old)throw fail('Expense not found within your permissions',404);
+  if(Number(revision)!==old.revision)throw fail('Expense changed. Refresh before making another change.',409);
+  if(!['pending_review','approved'].includes(old.status))throw fail('This expense is already final',409);
+  const pending=old.correctionState==='requested'?old.pendingChange:null;
+  if((operation==='apply'||operation==='dismiss')&&!pending)throw fail('There is no outstanding expense correction',409);
+  if(pending&&!['apply','dismiss','discard'].includes(operation))throw fail('Resolve the outstanding correction first',409);
+  if(['post','discard'].includes(operation)&&old.status!=='pending_review')throw fail('This expense is already recorded',409);
+  if(input.currency&&input.currency!==old.currency||input.paymentMethod&&input.paymentMethod!==old.paymentMethod)throw fail('Currency and payment method are historical and cannot be changed',409);
+  const direct={ownerDirect:true};
+  let change=pending;
+  if(operation==='void')change={kind:operation,values:null};
+  if(operation==='correct'){
+   const updated=values(input,old.currency),original=snapshot(old);
+   if(Object.keys(updated).some(field=>String(updated[field])!==String(original[field])))change={kind:operation,values:updated};
+   else if(old.status==='approved')throw fail('Change an amount or detail before saving a correction');
   }
-  if(approved&&isVoid)set.status='voided';
-  if(approved&&!isVoid)Object.assign(set,snapshot(pending.values));
-  record=await expenseModel(conn).findOneAndUpdate({_id:old._id,revision:old.revision,correctionState:'requested'},{$set:set,$inc:{revision:1},
-   $push:{history:{action:`${pending.kind}_${approved?'approved':'denied'}`,actorId:id(actor.id),at:new Date(),note:reason,before:snapshot(old),
-    after:approved&&!isVoid?snapshot(pending.values):null,treasuryBatchId:batchId,reversalBatchId:reversalId}}},{session,new:true});
-  if(!record)throw fail('Expense changed concurrently',409);await audit(conn,session,actor,record,`${pending.kind}_${approved?'approved':'denied'}`);
+  record=change?await applyExpenseChangeInSession(conn,session,verified.tenant,owner,old,change,
+   !['dismiss','discard'].includes(operation),reason,direct):old;
+  if(record.status==='pending_review')record=await finalizeExpenseInSession(conn,session,verified.tenant,owner,record,
+   {decision:operation==='discard'?'reject':'approve',treasuryAccountId:input.treasuryAccountId},reason,direct);
  });return record;}finally{await session.endSession();}
 }
 async function list(conn,tenant,actor,query={},timeZone='UTC'){
@@ -304,4 +372,4 @@ function csv(records,timeZone='UTC'){return '\uFEFF'+[['Recorded ('+timeZone+')'
  ...records.map(record=>[businessTime.format(record.createdAt,timeZone,true),record.recordReference,record.expenseType,record.currency,String(record.amountMinor),
   mobile.formatMoneyMinor(record.amountMinor,record.currency),record.paymentMethod,record.vendor,record.reference,record.description,record.status,record.correctionState])]
  .map(row=>row.map(mobile.csvCell).join(',')).join('\r\n')+'\r\n';}
-module.exports={access,create,review,requestChange,decideChange,list,detail,reportRows,csv,scopeFor,values,snapshot,shiftFence,fundChoices,fundKind,fundId};
+module.exports={access,create,review,requestChange,decideChange,ownerReconciliation,ownerResolve,list,detail,reportRows,csv,scopeFor,values,snapshot,shiftFence,fundChoices,fundKind,fundId};

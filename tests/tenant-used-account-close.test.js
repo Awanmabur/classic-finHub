@@ -50,13 +50,13 @@ test('closing is a separate authenticated operation, not a hard delete',()=>{
 
 test('held guidance and close controls compile and do not offer a restore on used accounts',()=>{
  const detail=source('src/views/tenant/treasury/detail.ejs');
- const setup=source('src/views/tenant/setup/index.ejs');
+ const setup=source('src/views/tenant/treasury/_owner-money.ejs');
  assert.doesNotThrow(()=>ejs.compile(detail));
  assert.doesNotThrow(()=>ejs.compile(setup));
  assert.match(detail,/Account on hold/);
  assert.match(detail,/Close account · keep history/);
- assert.match(setup,/Closed · history retained/);
- assert.match(setup,/a\.openingBalanceMinor!==null\|\|Number\(a\.sequence\|\|0\)>0/);
+ assert.match(source('src/views/tenant/treasury/_owner-account.ejs'),/Closed · history retained/);
+ assert.match(setup,/account\.openingBalanceMinor!==null\|\|Number\(account\.sequence\|\|0\)>0/);
 });
 
 test('a matched negative balance stays Held with an explanatory reason',()=>{

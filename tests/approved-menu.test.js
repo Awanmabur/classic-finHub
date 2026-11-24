@@ -18,17 +18,16 @@ function actor(role,allowedModules){return {id:branchId,name:'Staff',role,branch
 function paths(menu){return menu.flatMap(group=>group.items.map(item=>item.href));}
 function reportPaths(menu){return menu.find(group=>group.label==='Operation Reports')?.paths||[];}
 
-test('fully entitled owner has one entry per daily workflow',()=>{
+test('fully entitled owner uses a single Money accounts entry for funds and the cash day',()=>{
  const menu=tenantMenu(subscribed(),owner),links=paths(menu);
  const work=menu.find(group=>group.label==='Daily work').items;
  assert.deepEqual(work.map(item=>[item.label,item.href]),[
-  ['Cash day','/tenant/cash/shifts'],['Business funds','/tenant/treasury'],['Expenses','/tenant/expenses'],
-  ['Movement requests','/tenant/funded'],['Approvals & corrections','/tenant/approvals']
+  ['Money accounts','/tenant/treasury'],['Expenses','/tenant/expenses']
  ]);
- for(const link of ['/tenant/dashboard','/tenant/cash/shifts','/tenant/treasury','/tenant/customers','/tenant/accounts','/tenant/reports','/tenant/users','/tenant/workspace','/tenant/audit','/tenant/setup','/tenant/modules','/tenant/workspace/reviews']){
+ for(const link of ['/tenant/dashboard','/tenant/treasury','/tenant/customers','/tenant/accounts','/tenant/reports','/tenant/users','/tenant/workspace','/tenant/audit','/tenant/setup','/tenant/modules','/tenant/workspace/reviews']){
   assert.equal(links.filter(path=>path===link).length,1,link+' is linked once');
  }
- for(const removed of ['/tenant/day/close','/tenant/accounts/balances','/tenant/accounts/movements','/tenant/reports/export.csv','/tenant/reports/opening','/tenant/reports/closing','/tenant/transactions/new','/tenant/last-receipt']){
+ for(const removed of ['/tenant/funded','/tenant/approvals','/tenant/cash/shifts','/tenant/day/close','/tenant/accounts/balances','/tenant/accounts/movements','/tenant/reports/export.csv','/tenant/reports/opening','/tenant/reports/closing','/tenant/transactions/new','/tenant/last-receipt']){
   assert(!links.includes(removed),removed+' is handled within its workflow');
  }
  for(const link of links)assert.match(link,/^\/tenant\/[a-z0-9/.-]+$/);
@@ -42,7 +41,7 @@ test('only active subscribed and assigned source modules appear in navigation an
  const grant=moduleKey=>({moduleKey,status:'granted',generation:1,periodStart:new Date('2026-01-01'),periodEnd:new Date('2030-01-01'),limits:{users:10,branches:3,recordsPerMonth:1000}});
  const bankingOnly={...expired,moduleGrants:[grant('reports'),grant('banking'),{...grant('forex'),status:'revoked'},{...grant('mobile_money'),periodEnd:new Date('2020-01-01')},{...grant('money_transfer'),periodStart:new Date('2030-01-01'),periodEnd:new Date('2031-01-01')}]};
  const bankingPaths=paths(tenantMenu(bankingOnly,owner));
- for(const expected of ['/tenant/banking/deposit','/tenant/reports','/tenant/treasury','/tenant/funded'])assert(bankingPaths.includes(expected),expected);
+ for(const expected of ['/tenant/banking/deposit','/tenant/reports','/tenant/treasury'])assert(bankingPaths.includes(expected),expected);
  const bankingReports=reportPaths(tenantMenu(bankingOnly,owner));
  for(const expected of ['/tenant/reports/banking','/tenant/reports/opening','/tenant/reports/closing'])assert(bankingReports.includes(expected),expected);
  for(const hidden of ['/tenant/reports/mobile','/tenant/reports/transfer','/tenant/reports/expenses'])assert(!bankingReports.includes(hidden),hidden);
@@ -75,7 +74,9 @@ test('rendered topbar hides receipt and transaction actions when no subscribed s
  const bankingHtml=await render({...base,enabledModules:['banking'],moduleGrants:[]});
  assert.doesNotMatch(bankingHtml,/id="lastReceiptBtn"/,'Banking instructions do not supply the Mobile/Transfer receipt page');
  assert.match(bankingHtml,/id="newTransactionBtn"/);
- assert.match(bankingHtml,/href="\/tenant\/cash\/shifts"/,'A subscribed banking source supplies the shared physical drawer');
+ assert.match(bankingHtml,/href="\/tenant\/treasury#cash-day"/,'A subscribed banking source supplies the Money accounts cash day');
+ assert.doesNotMatch(bankingHtml,/href="\/tenant\/(?:cash\/shifts|funded|approvals)"/);
+ assert.doesNotMatch(bankingHtml,/data-transaction-kind="approval"/);
  const mobileHtml=await render({...base,enabledModules:['mobile_money'],moduleGrants:[]});
  assert.match(mobileHtml,/id="lastReceiptBtn"/);
  assert.match(mobileHtml,/data-transaction-kind="cash_in"/);
@@ -93,7 +94,12 @@ test('consolidated navigation still requires module entitlement, assignment and 
  assert(!paths(tenantMenu(tenant,fxOperator)).includes('/tenant/mobile-money/fx'),'Exchange is embedded in existing cashier forms, not a sidebar destination');
  for(const forbidden of ['/tenant/workspace','/tenant/workspace/profile','/tenant/workspace/subscription','/tenant/users','/tenant/branches','/tenant/expenses/new','/tenant/customers/new','/tenant/reports','/tenant/approvals'])
   assert(!operatorPaths.includes(forbidden),`Unassigned or privileged path exposed: ${forbidden}`);
+ assert(operatorPaths.includes('/tenant/cash/shifts'));
+ assert(operatorPaths.includes('/tenant/treasury'));
  assert(!tenantMenu(tenant,{...operator,allowedModules:[]}).some(group=>group.label==='Mobile Money'));
+ const managerPaths=paths(tenantMenu(tenant,actor('Branch Manager',['banking','approval_workflows'])));
+ assert(managerPaths.includes('/tenant/funded'));
+ assert(managerPaths.includes('/tenant/approvals'));
  const viewer=actor('Viewer',['mobile_money']);
  const viewerMobile=tenantMenu(tenant,viewer).find(group=>group.label==='Mobile Money');
  assert(viewerMobile);assert(!viewerMobile.items.some(item=>item.transactionKind),'Read-only links cannot launch a financial form');
@@ -111,7 +117,7 @@ test('consolidated navigation still requires module entitlement, assignment and 
 
 test('duplicate destination links produce exactly one active sidebar entry on each approved page',async()=>{
  const tenant=subscribed(),menu=tenantMenu(tenant,owner);
- const destinations=new Set([...paths(menu),'/tenant/mobile-money/shifts/507f1f77bcf86cd799439012','/tenant/customers/507f1f77bcf86cd799439013']);
+ const destinations=new Set([...paths(menu),'/tenant/customers/507f1f77bcf86cd799439013']);
  const template=path.join(__dirname,'../src/views/partials/dashboard-sidebar.ejs');
  for(const currentPath of destinations){
   const html=await ejs.renderFile(template,{context:'tenant',menu,currentPath:tenantNavigationPath(currentPath),tenant,user:owner,csrfToken:'test'});

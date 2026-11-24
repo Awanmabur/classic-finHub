@@ -73,10 +73,10 @@ test('branch and treasury codes are generated on save',()=>{
  const branch=src('src/views/tenant/branches/index.ejs');
  assert.doesNotMatch(branch,/name="code" required/);
  const treasury=src('src/views/tenant/treasury/index.ejs');
- const quickSetup=src('src/views/tenant/setup/index.ejs');
+ const quickSetup=src('src/views/tenant/treasury/_owner-setup.ejs');
  const treasuryRoutes=src('src/tenant/treasury/routes.js');
  const treasuryService=src('src/tenant/treasury/service.js');
- // Owners use one Quick setup flow; a manager's advanced form likewise has
+ // Owners use the Money accounts flow; a manager's advanced form likewise has
  // no editable code field. Codes are generated and checked by the backend.
  assert(treasury.includes("user.role!=='Tenant Owner'"));
  assert.match(quickSetup,/data-quick-account-name/);

@@ -1,0 +1,60 @@
+<% const money=data.ownerMoney,branch=money.setupBranch;
+   const names={cash:'Cash drawer',bank:'Bank account',wallet:'Mobile money wallet',forex_stock:'Forex stock',transfer_clearing:'Transfer payable'}; %>
+<% if(money.canCreateBranch){ %>
+  <section class="card" id="account-setup">
+    <div class="cardHead"><b>Create your operating branch</b></div>
+    <form class="cardBody workspaceStack" method="post" action="/tenant/treasury/branch">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <div class="row2">
+        <label class="field">Branch name<input class="control" name="name" value="Main branch" minlength="2" maxlength="100" required></label>
+        <label class="field">Primary currency<select class="control" name="currency" data-quick-branch-currency required>
+          <option value="">Choose currency</option>
+          <% for(const code of money.currencyCodes){ %><option value="<%= code %>"><%= code==='KES'?'KSH':code %></option><% } %>
+        </select></label>
+        <label class="field">Local time zone<select class="control" name="timeZone" data-quick-branch-zone required>
+          <option value="">Choose time zone</option>
+          <% for(const zone of money.timeZones){ %><option value="<%= zone %>"><%= zone.replace('Africa/','').replaceAll('_',' ') %></option><% } %>
+        </select></label>
+      </div>
+      <div><button class="btn btnPrimary" type="submit">Create branch</button></div>
+    </form>
+  </section>
+<% }else if(data.canManage&&branch){ %>
+  <details class="card workspaceSecondary" id="account-setup" <%= money.canOpenCreation?'open':'' %>>
+    <summary>Create account</summary>
+    <form class="cardBody workspaceStack" method="post" action="/tenant/treasury/accounts" data-quick-account-form>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <div class="row2">
+        <label class="field">Account type<select class="control" name="kind" data-quick-account-kind required>
+          <option value="" disabled selected>Choose type</option>
+          <% for(const kind of money.kinds){ %><option value="<%= kind %>"><%= names[kind] %></option><% } %>
+        </select></label>
+        <label class="field">Account name<input class="control" name="name" minlength="3" maxlength="120" data-quick-account-name placeholder="Example: Main cash drawer"></label>
+        <% if(money.branches.length===1){ %>
+          <input type="hidden" name="branchId" value="<%= branch._id %>" data-quick-account-branch>
+        <% }else{ %>
+          <label class="field">Branch<select class="control" name="branchId" data-quick-account-branch required>
+            <% for(const item of money.branches){ %><option value="<%= item._id %>" <%= String(item._id)===String(branch._id)?'selected':'' %>><%= item.name %></option><% } %>
+          </select></label>
+        <% } %>
+        <label class="field">Currency<select class="control" name="currency" data-quick-account-currency required>
+          <% for(const code of money.currencyCodes){
+            const supporting=money.branches.filter(item=>(item.currencies||money.currencyCodes).includes(code));
+            const enabled=supporting.some(item=>String(item._id)===String(branch._id));
+          %>
+            <option value="<%= code %>" data-enabled-branches="<%= supporting.map(item=>String(item._id)).join(',') %>" <%= code===branch.currency?'selected':'' %> <%= enabled?'':'disabled' %>><%= code==='KES'?'KSH':code %></option>
+          <% } %>
+        </select><small role="status" aria-live="polite" data-quick-currency-status></small></label>
+        <label class="field" data-quick-kind-field="wallet">Mobile money provider<select class="control" name="network" data-quick-provider>
+          <option value="">Choose provider</option>
+          <% for(const network of money.networks){ %><option value="<%= network %>" data-market-currency="<%= money.networkCurrencies[network]?.currency||'' %>"><%= network %></option><% } %>
+        </select></label>
+        <label class="field" data-quick-kind-field="cash">Cash operator<select class="control" name="operatorId" data-quick-operator>
+          <option value="">Owner</option>
+          <% for(const operator of money.ownerStaff){ %><option value="<%= operator._id %>" data-branch-id="<%= operator.branchId %>"><%= operator.name %> · <%= operator.role %></option><% } %>
+        </select></label>
+      </div>
+      <div><button class="btn btnPrimary" type="submit">Create account</button></div>
+    </form>
+  </details>
+<% } %>

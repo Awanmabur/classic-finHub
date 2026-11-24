@@ -1,0 +1,133 @@
+<%
+ const money=data.ownerMoney,account=money.selected,currency=account.currency==='KES'?'KSH':account.currency;
+ const path='/tenant/treasury/accounts/'+account._id;
+ const open=account.openingBalanceMinor!==null,archived=account.status==='archived';
+ const ready=open&&account.openingApprovedAt&&account.status==='active'&&account.reconciliationState==='matched'&&!account.pendingObservation;
+ const pattern=(account.currency==='UGX'?'[0-9]+':'[0-9]+([.][0-9]{1,2})?');
+ const actualPattern=account.kind==='bank'?'-?'+pattern:pattern;
+ const fmt=amount=>amount==null?'—':data.format(amount,account.currency).replace(/^KES /,'KSH ');
+ const pending=money.detail?.observations.find(row=>String(row._id)===account.pendingObservation?.id);
+ const pendingCashDay=pending?.evidenceType==='cash_count'&&/^(OPEN|CASH)-SHIFT:/.test(pending.evidenceReference);
+ const correction=money.reconcileObservation;
+ const openingAllowed=!open&&account.status==='uninitialized'&&!account.pendingOpeningId;
+ const cashDayOpen=money.cashDay?.currentShift?.status==='open'&&String(money.cashDay.currentShift.treasuryAccountId)===String(account._id);
+ const ownDrawer=String(account.operatorId)===String(user.id);
+ const cashDayTarget='/tenant/treasury?currency='+account.currency+'#cash-day';
+ const view=action=>money.accountTarget(account._id,action);
+ const returnTo=view();
+%>
+<section class="card" id="selected-account" aria-label="<%= account.name %>">
+ <div class="cardHead">
+  <div><b><%= account.name %></b><br><span><%= currency %> · <%= money.branchNames[String(account.branchId)]||account.code %></span></div>
+  <a class="btn" href="#accounts">All accounts</a>
+ </div>
+ <div class="cardBody workspaceStack">
+  <div>
+   <div class="treasurySource">Recorded balance</div>
+   <div class="treasuryAmount"><%= open?fmt(account.bookBalanceMinor):'Starting amount needed' %></div>
+   <% if(ready){ %>
+    <div class="treasurySource"><%= account.kind!=='cash'||cashDayOpen?'Ready for transactions.':ownDrawer?'Balance ready. Open Cash Day to use this drawer.':'Balance ready for the assigned cashier.' %></div>
+   <% }else if(archived){ %>
+    <div class="treasurySource">Closed · history retained</div>
+   <% }else if(account.reconciliationState==='mismatch'){ %>
+    <p class="treasuryNotice" role="status">The checked amount differs from the recorded balance.</p>
+   <% }else if(account.reconciliationState==='stale'){ %>
+    <p class="treasuryNotice" role="status">A later entry changed the recorded balance. Check the current amount.</p>
+   <% }else if(account.holdReason){ %>
+    <p class="treasuryNotice" role="status"><%= account.holdReason %></p>
+   <% } %>
+   <% if(account.lastObservedMinor!=null){ %>
+    <div class="treasurySource">Last actual amount <b><%= fmt(account.lastObservedMinor) %></b><% if(String(account.lastVarianceMinor||0)!=='0'){ %> · Difference <b><%= fmt(account.lastVarianceMinor) %></b><% } %></div>
+   <% } %>
+  </div>
+
+  <% if(!archived){ %>
+   <div class="rowBtns">
+    <% if(data.canObserve&&(openingAllowed||open&&money.canRecordCapital(account))){ %><a class="btn btnPrimary" href="<%= view('add') %>">Add money</a><% } %>
+    <% if(data.canObserve&&open){ %><a class="btn" href="<%= view('check') %>">Check balance</a><% } %>
+    <% if(correction){ %><a class="btn" href="<%= view('reconcile') %>">Reconcile</a><% } %>
+    <% if(account.kind==='cash'&&money.cashDay){ %><a class="btn" href="<%= cashDayTarget %>">Cash Day</a><% } %>
+    <% if(money.canDeposit){ %><a class="btn" href="<%= view('deposit') %>">Customer deposit</a><% } %>
+    <% if(data.canManage){ %><a class="btn" href="<%= view('edit') %>">Edit details</a><% } %>
+    <a class="btn" href="<%= view('activity') %>">Activity</a>
+   </div>
+  <% } %>
+
+  <% if(data.canObserve&&money.action==='add'&&openingAllowed){ %>
+   <form class="workspaceStack" method="post" action="<%= path %>/opening">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="idempotencyKey" value="<%= money.openingKey %>">
+    <label class="field">Actual starting amount (<%= currency %>)<input class="control" name="actualBalance" required inputmode="decimal" pattern="<%= actualPattern %>" placeholder="Counted or checked, including zero"></label>
+    <div><button class="btn btnPrimary" type="submit">Save starting amount</button></div>
+   </form>
+  <% }else if(data.canObserve&&money.action==='add'&&open&&money.canRecordCapital(account)){ %>
+   <form class="workspaceStack" method="post" action="<%= path %>/record">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="recordAction" value="capital">
+    <input type="hidden" name="idempotencyKey" value="<%= money.capitalKey %>">
+    <label class="field">New amount received (<%= currency %>)<input class="control" name="amount" required inputmode="decimal" pattern="<%= pattern %>"></label>
+    <div><button class="btn btnPrimary" type="submit">Add money</button></div>
+   </form>
+  <% }else if(data.canObserve&&money.action==='check'&&open&&!archived){ %>
+   <form class="workspaceStack" method="post" action="<%= path %>/record">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="recordAction" value="check">
+    <input type="hidden" name="idempotencyKey" value="<%= money.checkKey %>">
+    <label class="field">Actual amount now (<%= currency %>)<input class="control" name="amount" required inputmode="decimal" pattern="<%= actualPattern %>" placeholder="Counted or checked balance"></label>
+    <div><button class="btn btnPrimary" type="submit">Check balance</button></div>
+   </form>
+  <% }else if(money.action==='reconcile'){ %>
+   <% if(correction){ %>
+    <form class="workspaceStack" method="post" action="<%= path %>/reconcile">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="observationId" value="<%= correction._id %>">
+      <input type="hidden" name="idempotencyKey" value="<%= money.reconcileKey %>">
+      <div class="summary">
+       <div class="sumRow"><span>Checked amount</span><b><%= fmt(correction.actualMinor) %></b></div>
+       <div class="sumRow"><span>Difference to record</span><b><%= fmt(correction.varianceMinorAtReview??correction.varianceMinorAtRequest) %></b></div>
+      </div>
+      <p>Confirm this amount against the actual cash count or statement. Reconcile records the difference in the ledger and keeps prior entries.</p>
+      <div><button class="btn btnPrimary" type="submit">Confirm reconciliation</button></div>
+    </form>
+   <% }else if(!pendingCashDay){ %><p>Check the current amount first.</p><% } %>
+  <% }else if(money.action==='deposit'){ %>
+   <% if(money.treasuryDeposit){ %><%- include('../customer-accounts/_deposit-form',{
+    treasuryDeposit:money.treasuryDeposit,returnTo
+   }) %><% }else{ %><p>Use an eligible account in your operating branch. Cash deposits require an open Cash Day.</p><% } %>
+  <% } %>
+
+  <% if(pendingCashDay){ %>
+   <p>Finish this count in <a href="<%= cashDayTarget %>">Cash Day</a>.</p>
+  <% }else if(pending&&data.canReview&&money.canReviewBalance(pending)&&!correction){ %>
+   <form class="treasuryPending" method="post" action="/tenant/treasury/observations/<%= pending._id %>/review">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="note" value="Owner confirmed the submitted count or statement.">
+    <p>Check to confirm: <b><%= fmt(pending.actualMinor) %></b> · <%= pending.evidenceReference %></p>
+    <div class="rowBtns">
+      <button class="btn btnPrimary" name="decision" value="approve">Confirm amount</button>
+      <button class="btn" name="decision" value="reject">Reject amount</button>
+    </div>
+   </form>
+  <% } %>
+
+  <% if(money.action==='edit'&&data.canManage&&!archived){ %>
+   <%- include('_owner-account-settings',{account,path}) %>
+  <% } %>
+  <% if(money.action==='activity'&&money.detail){ %>
+   <div class="tableWrap">
+    <table>
+     <thead><tr><th scope="col">When (UTC)</th><th scope="col">Movement</th><th scope="col">Balance</th><th scope="col">Reference</th></tr></thead>
+     <tbody>
+      <% if(!money.detail.movements.length){ %><tr><td colspan="4">No money movements yet.</td></tr><% } %>
+      <% for(const row of money.detail.movements){ %>
+       <tr><td><%= new Date(row.occurredAt).toISOString().slice(0,16).replace('T',' ') %></td>
+        <td><%= fmt(row.deltaMinor) %></td><td><%= fmt(row.balanceAfterMinor) %></td>
+        <td><%= row.sourceRef %></td></tr>
+      <% } %>
+     </tbody>
+    </table>
+   </div>
+   <% for(const observation of money.detail.observations.slice(0,10)){ %><%- include('_balance-review',{row:observation,account,isAdjustment:false,allowReview:false,accountLink:false,ownerMoneyPage:true}) %><% } %>
+  <% } %>
+ </div>
+</section>

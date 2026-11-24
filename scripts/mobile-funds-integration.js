@@ -16,9 +16,9 @@ async function main(){
  const tenant=await Tenant.create({name:'Mobile funds proof',slug,dbName:conn.name,owner:'Owner',email:`${nonce}@example.invalid`,plan:'mobile_funds_probe',status:'active',setupStatus:'complete',enabledModules:modules,seatsReserved:3,branchCount:1,subscription:{...terms,status:'granted',source:'manual_admin_grant',generation:1,periodStart:new Date(Date.now()-60000),periodEnd:new Date(Date.now()+86400000)}});
  const branch=await core.branchModel(conn).create({code:'main',name:'Actual branch',currency:'UGX',createdBy:owner.id,updatedBy:owner.id});
  for(const actor of [owner,operator,reviewer]){actor.branchId=String(branch._id);await core.tenantUserModel(conn).create({_id:actor.id,name:actor.name,email:`${actor.id}@example.invalid`,passwordHash:'isolated-only',role:actor.role,branchId:actor.branchId,allowedModules:actor.allowedModules||modules,authVersion:0,...(actor===operator?{}:{mfaEnabledAt:new Date()})});}
- async function open(kind,code,balance,network='',currency='UGX'){
-  const account=await treasury.createAccount(conn,tenant,owner,{kind,code,name:'Actual '+code,currency,operatorId:operator.id,network});
-  const request=await treasury.requestObservation(conn,tenant,operator,account._id,{kind:'opening',actualBalance:String(balance),observedAt:new Date(Date.now()-1000).toISOString(),evidenceType:kind==='cash'?'cash_count':kind==='wallet'?'provider_statement':'bank_statement',evidenceReference:'ACTUAL-'+code+'-STATEMENT',note:'Actual balance inspected directly before opening the funds book',idempotencyKey:crypto.randomUUID()});
+ async function open(kind,code,balance,network='',currency='UGX',maker=operator){
+  const account=await treasury.createAccount(conn,tenant,owner,{kind,code,name:'Actual '+code,currency,operatorId:maker.id,network});
+  const request=await treasury.requestObservation(conn,tenant,maker,account._id,{kind:'opening',actualBalance:String(balance),observedAt:new Date(Date.now()-1000).toISOString(),evidenceType:kind==='cash'?'cash_count':kind==='wallet'?'provider_statement':'bank_statement',evidenceReference:'ACTUAL-'+code+'-STATEMENT',note:'Actual balance inspected directly before opening the funds book',idempotencyKey:crypto.randomUUID()});
   await treasury.reviewObservation(conn,tenant,reviewer,request.observation._id,{decision:'approve',note:'Independent opening source and exact balance inspected'});return account;
  }
  const wallet=await open('wallet','MTN_FLOAT',1000000,'MTN'),drawer=await open('cash','PHYSICAL_CASH',500000),bank=await open('bank','BANK_FUNDS',300000);
@@ -119,10 +119,54 @@ async function main(){
  assert(report.currencies.find(row=>row.currency==='UGX').voidedCount>=1);
  const scoped=await require('../src/tenant/services/mobileMoneyWorkspace.service').workspace(conn,operator,{network:'MTN SSD',currency:'SSP'});
  assert.equal(scoped.summary.activeCount,1);assert.equal(scoped.summary.byCurrency[0].currency,'SSP');assert.equal(scoped.networks[0].network,'MTN SSD');
- await mobile.requestVoid(conn,operator,ssp.created._id,'The SSP cash-in was entered against the wrong physical instruction');
- await mobile.decideVoid(conn,reviewer,ssp.created._id,'approve','Independent SSP receipt and drawer evidence authorizes the exact SSP-only reversal');
+ const pending=await mobile.requestVoid(conn,operator,ssp.created._id,'The SSP cash-in was entered against the wrong physical instruction');
+ function ownerDecision(record){
+  const pending=mobile.correctionState(record);
+  return {
+   decision:'approve',idempotencyKey:crypto.randomUUID(),evidenceChecked:'on',
+   evidenceReference:'RECEIPT-AND-DRAWER-'+nonce,
+   note:'Receipt and drawer evidence confirm the exact original operation should be reversed',
+   correctionState:pending.state,requestedAt:pending.requestedAt
+  };
+ }
+ const sspDecision=ownerDecision(pending);
+ await assert.rejects(mobile.resolveOwnerCorrection(conn,tenant,reviewer,ssp.created._id,sspDecision),{status:403});
+ await assert.rejects(mobile.resolveOwnerCorrection(
+  conn,tenant,owner,ssp.created._id,sspDecision,new mongoose.Types.ObjectId()
+ ),{status:404});
+ const staffCorrection=await mobile.resolveOwnerCorrection(conn,tenant,owner,ssp.created._id,sspDecision,branch._id);
+ assert.equal(staffCorrection.record.correctionState,'voided');
+ assert.equal((await mobile.resolveOwnerCorrection(conn,tenant,owner,ssp.created._id,sspDecision,branch._id)).duplicate,true);
+ await assert.rejects(mobile.resolveOwnerCorrection(
+  conn,tenant,owner,ssp.created._id,{...sspDecision,evidenceReference:'UNRELATED-REFERENCE'},branch._id
+ ),{status:409});
  assert.equal(await balance(sspWallet),'200050');assert.equal(await balance(sspCash),'70000');assert.equal(await balance(usdCash),'51025');
  for(const currency of ['USD','SSP'])assert.equal((await require('../src/tenant/services/ledger.service').trialBalance(conn,{branchId:branch._id,currency})).balanced,true);
+ const ownerWallet=await open('wallet','OWNER_MTN_FLOAT',10000,'MTN','UGX',owner);
+ const ownerDrawer=await open('cash','OWNER_PHYSICAL_CASH',2000,'','UGX',owner);
+ const ownerShift=await cash.open(conn,tenant,owner,{openingCash:'2000'});
+ await cash.decideOpening(conn,tenant,reviewer,ownerShift._id,{
+  decision:'approve',note:'Independent owner drawer count matches the reviewed opening'
+ });
+ await treasury.configureAccount(conn,tenant,owner,ownerWallet._id,{
+  name:ownerWallet.name,isDefault:'true',feeTreatment:'record_only',cashDrawerAccountId:String(ownerDrawer._id)
+ });
+ const ownInput={...dailyInput,idempotencyKey:crypto.randomUUID()};
+ const ownRecord=(await mobile.recordMobileMoney(conn,owner,ownInput,'cash_in',tenant,null,{requireFunds:true})).created;
+ assert.equal(await balance(ownerWallet),'9900');
+ assert.equal(await balance(ownerDrawer),'2100');
+ const directDecision=ownerDecision(ownRecord);
+ const direct=await mobile.resolveOwnerCorrection(conn,tenant,owner,ownRecord._id,directDecision,branch._id);
+ assert.equal(direct.record.status,'voided_internal');
+ assert.equal(direct.record.networkReference,ownRecord.networkReference);
+ assert.equal(String(direct.record.amountMinor),String(ownRecord.amountMinor));
+ assert.equal(await balance(ownerWallet),'10000');
+ assert.equal(await balance(ownerDrawer),'2000');
+ assert.equal(String((await core.cashSessionModel(conn).findById(ownerShift._id)).provisionalMovementMinor),'0');
+ assert(await core.auditEventModel(conn).exists({
+  action:'mobile_money.void.approved',targetId:ownRecord._id,'metadata.ownerResolution':true,
+  'metadata.evidenceReference':directDecision.evidenceReference
+ }));
  await core.branchModel(conn).updateOne({_id:branch._id},{$set:{currencies:['UGX','USD']}});
  await assert.rejects(record({...sspInput,idempotencyKey:crypto.randomUUID(),networkReference:'DISABLED-CURRENCY-'+nonce}),{status:409});
  await assert.rejects(open('bank','DISABLED_SSP_BANK','1.00','','SSP'),{status:409});

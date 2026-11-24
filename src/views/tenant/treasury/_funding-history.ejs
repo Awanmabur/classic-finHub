@@ -1,7 +1,8 @@
 <% for (const funding of fundings) {
   const contribution=funding.sourceKind==='owner_contribution';
   const status={pending_review:'Awaiting approval',posted:'Posted',rejected:'Rejected'}[funding.status];
-  const destinationUrl='/tenant/treasury/accounts/'+funding.destination._id;
+  const destinationUrl=typeof ownerMoneyPage!=='undefined'&&ownerMoneyPage?
+   data.ownerMoney.accountTarget(funding.destination._id):'/tenant/treasury/accounts/'+funding.destination._id;
 %>
   <article class="treasuryPending">
     <h3><%= contribution?'Owner contribution':funding.source?.name||'Account transfer' %> → <% if (onAccount) { %><%= funding.destination.name %><% } else { %><a class="treasuryAccountLink" href="<%= destinationUrl %>"><%= funding.destination.name %></a><% } %></h3>

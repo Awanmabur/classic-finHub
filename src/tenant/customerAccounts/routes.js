@@ -9,6 +9,17 @@ const service=require('./service');
 const {csvCell}=require('../services/mobileMoney.service');
 const financialThrottle=require('../../platform/services/actionThrottle.service').financial;
 const deposit=require('./deposit');
+function treasuryDepositReturn(value,cashAccountId){
+ if(value==='/tenant/treasury#pending-deposits')return value;
+ if(!/^[a-f0-9]{24}$/i.test(String(cashAccountId)))return null;
+ const selected='/tenant/treasury?account='+String(cashAccountId||'')+'#selected-account';
+ return value===selected?value:null;
+}
+function returnDepositError(req,res,error,destination){
+ if(req.user.role!=='Tenant Owner'||!destination||![400,409,422].includes(error.status))throw error;
+ flash(req,'bad',error.message);
+ res.redirect(303,destination);
+}
 function drain(res){return new Promise(resolve=>{const done=()=>{res.off('drain',done);res.off('close',done);resolve();};res.once('drain',done);res.once('close',done);});}
 module.exports=function customerAccountsRoutes({renderTenant}){
  const router=Router();
@@ -74,24 +85,58 @@ module.exports=function customerAccountsRoutes({renderTenant}){
   const record=await service.accountDetail(req.tenantDb,req.tenant,req.user,req.params.id);
   const canRecordDeposit=canDeposit(req)&&operatingBranchId(req)===String(record.branchId)&&record.status==='active'&&record.customer?.status==='active';
   const depositOpen=req.query.action==='deposit';
-  const [activity,deposits,depositAccounts,canCorrectNumber]=await Promise.all([
+  const [activity,deposits,depositAccounts,canCorrectNumber,ownerPendingMovements]=await Promise.all([
    service.movements(req.tenantDb,req.tenant,req.user,{accountId:String(record._id)}),
    depositActivity(req,record),
    canRecordDeposit&&depositOpen?deposit.options(req.tenantDb,req.tenant,req.user,record):[],
-   hasPermission(req.user,'accounts.manage')&&record.status!=='closed'?service.unusedAccountNumber(req.tenantDb,record):false
+   hasPermission(req.user,'accounts.manage')&&record.status!=='closed'?service.unusedAccountNumber(req.tenantDb,record):false,
+   deposit.pendingForOwner(req.tenantDb,req.tenant,req.user,{branchId:String(record.branchId),customerAccountId:String(record._id)})
   ]);
   const pricingContext=depositAccounts.length?await require('../pricing/presentation').context(req.tenantDb,req.tenant,req.operationBranch,'banking'):[];
   renderTenant(req,res,'customer-accounts/account',record.customer?.name||'Customer account',record.accountNumber,{
-   ...common(req),record,activity,deposits,depositAccounts,canRecordDeposit,pricingContext,
+   ...common(req),record,activity,deposits,depositAccounts,canRecordDeposit,pricingContext,ownerPendingMovements,ownerPosts:req.user.role==='Tenant Owner',
    operatingBranchId:operatingBranchId(req),depositOpen,canCorrectNumber,
    formRecord:record,formKind:'account',customerChoices:[]
   });
  }));
- router.post('/accounts/:id/deposits',...guard('accounts','accounts.view'),...guard('banking','banking.requests.create'),financialThrottle,wrap(async(req,res)=>{
-  const result=await deposit.request(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
-  flash(req,'good',result.duplicate?'This deposit was already submitted.':'Deposit submitted. The balance updates after approval.');
+ async function recordDeposit(req,res,accountId){
+  let result;
+  try{result=await deposit.request(req.tenantDb,req.tenant,req.user,accountId,req.body);}
+  catch(error){
+   const currentAccount=treasuryDepositReturn(req.body.returnTo,req.body.cashAccountId);
+   const destination=currentAccount?.includes('?account=')?currentAccount.replace('#selected-account','&action=deposit#selected-account'):
+    req.params.id&&/^[a-f0-9]{24}$/i.test(req.params.id)?`/tenant/accounts/${req.params.id}?action=deposit#deposit`:null;
+   return returnDepositError(req,res,error,destination);
+  }
+  const message=result.execution.status==='posted_manual'?
+   (result.duplicate?'This deposit was already recorded.':'Deposit recorded. The customer and receiving account balances are up to date.'):
+   result.execution.status==='rejected'?'This deposit was returned. Use a fresh form for the corrected deposit.':
+   (result.duplicate?'This deposit was already submitted.':'Deposit sent to the owner to check and post.');
+  flash(req,'good',message);
   require('../services/branchView.service').followRecord(req,result.execution);
-  res.redirect(303,`/tenant/accounts/${result.execution.sourceSnapshot.customerAccountId}#activity`);
+  const destination=treasuryDepositReturn(req.body.returnTo,result.execution.accounts.cashAccountId)||
+   `/tenant/accounts/${result.execution.sourceSnapshot.customerAccountId}#activity`;
+  res.redirect(303,destination);
+ }
+ const depositGuard=[...guard('accounts','accounts.view'),...guard('banking','banking.requests.create'),financialThrottle];
+ router.post('/accounts/:id/deposits',...depositGuard,wrap((req,res)=>recordDeposit(req,res,req.params.id)));
+ router.post('/accounts/deposits',...depositGuard,wrap((req,res)=>recordDeposit(req,res,req.body.customerAccountId)));
+ router.post('/accounts/deposits/:id/resolve',...guard('accounts','accounts.view'),...guard('banking','banking.review'),financialThrottle,wrap(async(req,res)=>{
+  let result;
+  try{result=await require('../services/fundedOperations.service').resolveByOwner(req.tenantDb,req.tenant,req.user,req.params.id,req.body);}
+  catch(error){
+   const target=req.body.returnTo;
+   const safe=typeof target==='string'&&
+    (/^\/tenant\/treasury(?:\?account=[a-f0-9]{24}#selected-account|#pending-deposits)$/i.test(target)||
+     /^\/tenant\/accounts\/[a-f0-9]{24}#pending-deposits$/i.test(target));
+   return returnDepositError(req,res,error,safe?target:null);
+  }
+  const {execution,duplicate}=result;
+  flash(req,'good',duplicate?'This movement was already resolved.':execution.status==='posted_manual'?
+   'Movement recorded. Account balances are up to date.':'Movement returned for correction. Balances stayed the same.');
+  const destination=treasuryDepositReturn(req.body.returnTo,execution.accounts.cashAccountId)||
+   `/tenant/accounts/${execution.sourceSnapshot.customerAccountId}#activity`;
+  res.redirect(303,destination);
  }));
  router.post('/accounts',...guard('accounts','accounts.manage'),wrap(async(req,res)=>{const result=await service.accountCreate(req.tenantDb,req.tenant,req.user,req.body);flash(req,'good',result.duplicate?'Account already created.':'Account created. Opening ledger balance is zero until a verified operation is posted.');require('../services/branchView.service').followRecord(req,result.record);res.redirect(303,`/tenant/accounts/${result.record._id}`);}));
  router.post('/accounts/:id/update',...guard('accounts','accounts.manage'),wrap(async(req,res)=>{await service.accountUpdate(req.tenantDb,req.tenant,req.user,req.params.id,req.body);flash(req,'good','Account details updated.');res.redirect(303,`/tenant/accounts/${req.params.id}`);}));

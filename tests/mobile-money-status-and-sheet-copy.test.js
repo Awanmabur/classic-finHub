@@ -40,23 +40,22 @@ test('one provider rate sheet exposes only amount-band copy, not cloned commissi
  assert.doesNotThrow(()=>new Function(js));
 });
 test('cash shifts label counted existing cash and do not require separate approvals for completed transaction records',()=>{
- const shifts=src('src/views/tenant/mobile-money/shifts.ejs');
+ const shifts=src('src/views/tenant/mobile-money/_cash-day.ejs');
  const detail=src('src/views/tenant/mobile-money/shift-detail.ejs');
  const close=src('src/views/tenant/workflow/close-day.ejs');
  const closeForm=src('src/views/tenant/workflow/_close-count.ejs');
- assert.match(shifts,/records the cash already in your drawer/i);
  assert.match(shifts,/name="openingFromBook" value="on"/);
- assert.match(shifts,/I counted my physical/);
- assert.doesNotMatch(shifts,/name="openingCash"/);
+ assert.match(shifts,/I counted the cash and it matches/);
+ assert.match(shifts,/Reconcile and open day/);
  assert.match(detail,/include\('\.\.\/workflow\/_close-count'/);
  assert.match(close,/include\('_close-count'/);
  assert.match(closeForm,/name="closingFromBook" value="on"/);
  assert.match(closeForm,/Counted a different amount/);
  assert.match(detail,/expectedNow=BigInt\(String\(data\.shift\.openingMinor\)\)\+BigInt\(String\(data\.shift\.provisionalMovementMinor\)\)/);
  assert.match(detail,/cashLabel\(String\(expectedNow\),data\.shift\.currency\)/);
- assert.match(closeForm,/Calculated from opening cash and posted movements in your drawer/);
  assert.match(closeForm,/name="physicalCountConfirmed" value="on" required/);
  assert.match(closeForm,/name="countedCash" required/);
+ assert.match(closeForm,/Reconcile and close day/);
  assert.match(closeForm,/Send difference for review/);
  assert.match(closeForm,/shift\.currency/);
  assert.doesNotMatch(closeForm,/name="openingCash"/);

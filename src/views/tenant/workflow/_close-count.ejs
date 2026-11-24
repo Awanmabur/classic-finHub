@@ -1,14 +1,17 @@
-<% const action = typeof formAction === 'string' ? formAction : '/tenant/day/close'; %>
+<%
+  const action = typeof formAction === 'string' ? formAction : '/tenant/day/close';
+  const ownerDirect = typeof ownerMoneyPage !== 'undefined' && ownerMoneyPage;
+%>
 <p>Expected cash <strong><%= expected %></strong></p>
-<p class="tiny">Calculated from opening cash and posted movements in your drawer.</p>
 <form method="post" action="<%= action %>">
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
   <input type="hidden" name="shiftId" value="<%= shift._id %>">
   <input type="hidden" name="currency" value="<%= shift.currency %>">
   <input type="hidden" name="closingFromBook" value="on">
+  <% if(typeof expectedMinor !== 'undefined' && expectedMinor!==null){ %><input type="hidden" name="countedBookMinor" value="<%= expectedMinor %>"><% } %>
   <% if(returnToDay){ %><input type="hidden" name="returnToDay" value="1"><% } %>
-  <label class="field"><input type="checkbox" name="physicalCountConfirmed" value="on" required> I counted the cash and it matches the displayed balance.</label>
-  <div class="rowBtns"><button class="btn btnPrimary" type="submit">Send closing count</button></div>
+  <label class="field"><input type="checkbox" name="physicalCountConfirmed" value="on" required> I counted the cash and it matches.</label>
+  <div class="rowBtns"><button class="btn btnPrimary" type="submit"><%= ownerDirect?'Close day':'Send closing count' %></button></div>
 </form>
 <details class="logicNote">
   <summary>Counted a different amount?</summary>
@@ -21,6 +24,6 @@
       <label class="field">Counted cash<input class="control" name="countedCash" required inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" placeholder="Actual physical count"></label>
       <label class="field">Reason for the difference<textarea class="control" name="note" minlength="12" maxlength="400" rows="2" required></textarea></label>
     </div>
-    <div class="rowBtns"><button class="btn" type="submit">Send difference for review</button></div>
+    <div class="rowBtns"><button class="btn" type="submit"><%= ownerDirect?'Reconcile and close day':'Send difference for review' %></button></div>
   </form>
 </details>

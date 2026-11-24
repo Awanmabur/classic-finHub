@@ -17,7 +17,7 @@
       zone.dataset.autoValue = '';
     });
   }
-  const accountForm = container.querySelector('form[action="/tenant/setup/account"]');
+  const accountForm = container.querySelector('[data-quick-account-form], form[action="/tenant/setup/account"]');
   const kind = accountForm?.querySelector('[data-quick-account-kind]');
   const accountName = accountForm?.querySelector('[data-quick-account-name]');
   const provider = accountForm?.querySelector('[data-quick-provider]');

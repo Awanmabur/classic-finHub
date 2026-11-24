@@ -516,15 +516,18 @@ async function reviewObservationInSession(conn,session,authorization,observation
  const observation=await Observation.findOne({_id:oid(observationId,'observation'),tenantId:authorization.tenant._id,status:'pending_review',...scope(authorization.actor)}).session(session).lean();
  if(!observation)throw fail('Observation is unavailable, already reviewed or outside your branch',409);
  const account=await loadAccount(conn,authorization,observation.accountId,{session,fence:true});
+ if(await linkedPendingCashDay(conn,session,account,observation))
+  throw fail('Finish this count on Cash Day',409);
  const selfReviewed=String(observation.requestedBy)===authorization.actor.id||
   String(account.operatorId||'')===authorization.actor.id;
  if(selfReviewed){
   // A directly recorded owner check is evidence only. A discrepancy still
   // HOLDS the account and never posts a cash/equity adjustment by itself.
-  const ownerDirect=internal.ownerDirectCheck===true&&
+  const ownerDirect=(internal.ownerDirectCheck===true||internal.ownerReconciliation===true)&&
     authorization.actor.role==='Tenant Owner'&&
     observation.kind==='checkpoint'&&
-    String(observation.requestedBy)===authorization.actor.id&&decision==='approve';
+    (internal.ownerReconciliation===true||String(observation.requestedBy)===authorization.actor.id)&&
+    decision==='approve';
   const privileged=ownerDirect||require('../services/reviewPolicy').canSelfReviewRoutine(authorization.actor,account.branchId);
   if(!privileged)throw fail('A different authorized person must review the evidence and operator drawer',403);
   // Routine opening or a verified zero-variance cash/float checkpoint can be
@@ -749,8 +752,29 @@ async function reverseMovements(conn,session,authorization,input,internal={}){
   throw fail('Invalid linked Mobile Money Forex correction',403);
  const current=await access(conn,authorization.tenant,authorization.actor,{permission:'treasury.review',session,fence:true,sourceType:internal.momoFx?'mobile_money':sourceType});if(!REVIEW_ROLES.includes(current.actor.role))throw fail('Independent funds correction reviewer required',403);
  const batch=await models(conn).batch.findOne({sourceType,...(input.batchId?{_id:oid(input.batchId,'funds batch')}:{sourceRef}),tenantId:current.tenant._id,...scope(current.actor)}).session(session).lean();if(!batch||batch.reversesBatchId)throw fail('Original funds movement is unavailable or already a reversal',409);
+ const correctionId=internal.ownerMobileCorrectionId;
+ if(correctionId){
+  if(current.actor.role!=='Tenant Owner'||!(sourceType==='mobile_money'||internal.momoFx)||
+     reversalSourceRef!==`MM-VOID:${correctionId}`||
+     !await core.mobileTransactionModel(conn).exists({
+      _id:oid(correctionId,'Mobile Money correction'),branchId:batch.branchId,fundsSourceRef:sourceRef,
+      fundingState:'book_recorded',status:'voided_internal',correctionState:'voided',
+      correctionReviewedBy:current.actor.id,'correctionHistory.ownerRequestKey':{$exists:true}
+     }).session(session))
+    throw fail('The owner reversal must be linked to the same Mobile Money correction',403);
+ }
+ const expenseId=internal.ownerExpenseCorrectionId;
+ if(expenseId){
+  if(current.actor.role!=='Tenant Owner'||sourceType!=='expenses')throw fail('Tenant owner expense reversal required',403);
+  const expense=await require('../models/expenses').expenseModel(conn).findOne({
+   _id:oid(expenseId,'expense correction'),branchId:batch.branchId,treasuryBatchId:batch._id,status:'approved'
+  }).select('postingSequence').session(session).lean();
+  if(!expense||sourceRef!==`${expenseId}:expense:${expense.postingSequence||1}`||
+     reversalSourceRef!==`${expenseId}:expense-reversal:${(expense.postingSequence||0)+1}`)
+   throw fail('The owner reversal must match the original expense posting',403);
+ }
  const prior=await models(conn).batch.findOne({reversesBatchId:batch._id}).session(session).lean();if(prior){if(prior.sourceRef!==reversalSourceRef)throw fail('This source has already been corrected',409);return {batch:prior,movements:await models(conn).movement.find({batchId:prior._id}).session(session).lean(),journalIds:prior.journalIds,duplicate:true};}
- if(String(batch.operatingActorId||batch.actorId)===current.actor.id)throw fail('A different person must approve reversal of the original funds entry',403);
+ if(!correctionId&&!expenseId&&String(batch.operatingActorId||batch.actorId)===current.actor.id)throw fail('A different person must approve reversal of the original funds entry',403);
  const movements=await models(conn).movement.find({batchId:batch._id}).session(session).lean(),funds=await models(conn).account.find({_id:{$in:movements.map(m=>m.accountId)}}).session(session).lean(),fundIds=new Set(funds.map(account=>String(account.ledgerAccountId)));
  const postings=await core.ledgerPostingModel(conn).find({journalId:{$in:batch.journalIds}}).session(session).lean();
  const ledgerLines=postings.filter(posting=>!fundIds.has(String(posting.accountId))).map(posting=>({currency:posting.currency,accountId:String(posting.accountId),side:opposite(posting.side),amountMinor:String(posting.amountMinor)}));
@@ -828,7 +852,9 @@ async function accountDetail(conn,tenant,actor,accountId){
   const movements=await movement.find({accountId:account._id}).sort({sequence:-1}).limit(100).session(session).lean();
   const adjustments=await adjustment.find({accountId:account._id}).sort({createdAt:-1}).limit(30).session(session).lean();
   const batches=await batch.find({_id:{$in:movements.map(row=>row.batchId)}}).select('sourceType sourceRef description evidenceReference createdAt reversesBatchId').session(session).lean();
-  return {account,observations,movements,adjustments,batches,format};
+  const ownerReconciliationObservation=authorization.actor.role==='Tenant Owner'?
+   await ownerReconciliationCandidate(conn,session,account,observations,adjustments):null;
+  return {account,observations,movements,adjustments,batches,ownerReconciliationObservation,format};
  });
 }
 function canReviewAdjustment(row,account,actor){
@@ -862,31 +888,150 @@ async function reviewQueue(conn,tenant,actor){
 async function requestAdjustment(conn,tenant,actor,observationId,input){
  await ensure(conn);return transaction(conn,async session=>{
   const authorization=await access(conn,tenant,actor,{permission:'treasury.observe',session,fence:true}),observation=await models(conn).observation.findOne({_id:oid(observationId),status:'approved',kind:'checkpoint',tenantId:authorization.tenant._id}).session(session).lean();
-  if(!observation||BigInt(String(observation.varianceMinorAtReview||0))===0n)throw fail('Choose an independently reviewed balance discrepancy',409);
+  if(!observation||BigInt(String(observation.varianceMinorAtReview||0))===0n)throw fail('Choose a reviewed balance discrepancy',409);
   const account=await loadAccount(conn,authorization,observation.accountId,{session,fence:true});if(String(account.lastObservationId)!==String(observation._id)||account.lastObservationStale)throw fail('Obtain a current reviewed observation before proposing an adjustment',409);
   const reason=text(input.reason,'adjustment justification',20,400),idempotencyKey=key(input.idempotencyKey),delta=BigInt(String(observation.varianceMinorAtReview));
   const prior=await models(conn).adjustment.findOne({observationId:observation._id}).session(session).lean();if(prior){if(prior.idempotencyKey===idempotencyKey&&String(prior.requestedBy)===authorization.actor.id&&prior.reason===reason)return {adjustment:prior,duplicate:true};throw fail('An adjustment already exists for this discrepancy',409);}
-  const [created]=await models(conn).adjustment.create([{tenantId:authorization.tenant._id,branchId:account.branchId,accountId:account._id,observationId:observation._id,idempotencyKey,deltaMinor:decimal(delta),reason,requestedBy:authorization.actor.id}],{session});
-  await audit(conn,session,authorization.actor,'treasury.adjustment.requested',created._id,{branchId:String(account.branchId),accountId:String(account._id),observationId:String(observation._id),deltaMinor:String(delta)});return {adjustment:created,duplicate:false};
+  const created=await createAdjustment(conn,session,authorization,account,observation,{idempotencyKey,delta,reason});
+  return {adjustment:created,duplicate:false};
  });
+}
+async function createAdjustment(conn,session,authorization,account,observation,{idempotencyKey,delta,reason}){
+ const [adjustment]=await models(conn).adjustment.create([{
+  tenantId:authorization.tenant._id,branchId:account.branchId,accountId:account._id,
+  observationId:observation._id,idempotencyKey,deltaMinor:decimal(delta),reason,
+  requestedBy:authorization.actor.id
+ }],{session});
+ await audit(conn,session,authorization.actor,'treasury.adjustment.requested',adjustment._id,{
+  branchId:String(account.branchId),accountId:String(account._id),
+  observationId:String(observation._id),deltaMinor:String(delta)
+ });
+ return adjustment;
+}
+async function decideAdjustmentInSession(conn,session,authorization,account,adjustment,{decision,note,ownerConfirmed=false}){
+ const {observation:Observation,account:Account,adjustment:Adjustment}=models(conn);
+ let batchId=null;
+ if(decision==='approve'){
+  if(String(account.lastObservationId)!==String(adjustment.observationId)||account.lastObservationStale||account.status!=='held')
+   throw fail('A newer or stale observation requires a new balance check',409);
+  const original=await Observation.findOne({_id:adjustment.observationId,accountId:account._id,
+   tenantId:authorization.tenant._id,status:'approved',kind:'checkpoint'}).session(session).lean();
+  if(!original)throw fail('Confirmed discrepancy evidence is missing',409);
+  const posting=await applyMovements(conn,session,authorization,{
+   sourceType:'treasury_adjustment',sourceRef:'ADJ:'+adjustment._id,branchId:String(account.branchId),
+   operatingActorId:String(account.operatorId||authorization.actor.id),
+   legs:[{accountId:account._id,deltaMinor:String(adjustment.deltaMinor)}],description:adjustment.reason,
+   evidenceRef:original.evidenceReference,occurredAt:original.observedAt
+  },{allowHeld:true,allowNegative:account.kind==='bank',allowSuspense:true});
+  batchId=posting.batch._id;
+  const current=await Account.findById(account._id).session(session).lean();
+  const expected=await expectedAt(conn,current,new Date(original.observedAt),session);
+  if(expected!==BigInt(String(original.actualMinor)))
+   throw fail('Reconciliation adjustment did not match the confirmed balance',503);
+  const hasOverdraft=BigInt(String(current.bookBalanceMinor))<0n;
+  account=await Account.findByIdAndUpdate(account._id,{$set:{
+   status:hasOverdraft?'held':'active',reconciliationState:'matched',lastExpectedAtObservationMinor:decimal(expected),
+   lastVarianceMinor:decimal(0),lastObservationStale:false,
+   holdReason:hasOverdraft?'Negative account balance: settlement and a fresh check are required.':''
+  },$inc:{revision:1}},{session,new:true}).lean();
+ }
+ const approved=decision==='approve',result=await Adjustment.findOneAndUpdate({_id:adjustment._id,status:'pending_review'},{$set:{
+  status:approved?'approved':'rejected',reviewedBy:authorization.actor.id,reviewedAt:new Date(),reviewNote:note,batchId
+ }},{session,new:true});
+ if(!result)throw fail('Adjustment was reviewed concurrently',409);
+ await audit(conn,session,authorization.actor,'treasury.adjustment.'+(approved?'approved':'rejected'),adjustment._id,{
+  branchId:String(account.branchId),accountId:String(account._id),batchId:batchId?String(batchId):null,
+  deltaMinor:String(adjustment.deltaMinor),...(ownerConfirmed?{ownerConfirmed:true,observationId:String(adjustment.observationId)}:{})
+ });
+ return {adjustment:result,account};
 }
 async function reviewAdjustment(conn,tenant,actor,adjustmentId,input){
  await ensure(conn);return transaction(conn,async session=>{
   const authorization=await access(conn,tenant,actor,{permission:'treasury.review',session,fence:true}),note=text(input.note,'independent adjustment explanation',20,400);if(!['approve','reject'].includes(input.decision))throw fail('Choose approve or reject');
   const adjustment=await models(conn).adjustment.findOne({_id:oid(adjustmentId),tenantId:authorization.tenant._id,status:'pending_review',...scope(authorization.actor)}).session(session).lean();if(!adjustment)throw fail('Adjustment unavailable or already reviewed',409);
-  const account=await loadAccount(conn,authorization,adjustment.accountId,{session,fence:true});if(String(adjustment.requestedBy)===authorization.actor.id||String(account.operatorId||'')===authorization.actor.id)throw fail('Adjustment approval requires an independent reviewer',403);
-  let batchId=null;
-  if(input.decision==='approve'){
-   if(String(account.lastObservationId)!==String(adjustment.observationId)||account.lastObservationStale||account.status!=='held')throw fail('A newer or stale observation requires a new reconciliation review',409);
-   const original=await models(conn).observation.findById(adjustment.observationId).session(session).lean();if(!original||original.status!=='approved')throw fail('Reviewed discrepancy evidence is missing',409);
-   const delta=BigInt(String(adjustment.deltaMinor));
-   const result=await applyMovements(conn,session,authorization,{sourceType:'treasury_adjustment',sourceRef:`ADJ:${adjustment._id}`,branchId:String(account.branchId),operatingActorId:String(account.operatorId||authorization.actor.id),legs:[{accountId:account._id,deltaMinor:String(delta)}],description:adjustment.reason,evidenceRef:original.evidenceReference,occurredAt:original.observedAt},{allowHeld:true,allowNegative:account.kind==='bank',allowSuspense:true});batchId=result.batch._id;
-   const current=await models(conn).account.findById(account._id).session(session).lean(),expected=await expectedAt(conn,current,new Date(original.observedAt),session);
-   if(expected!==BigInt(String(original.actualMinor)))throw fail('Reconciliation adjustment did not match the independently observed balance',503);
-   await models(conn).account.updateOne({_id:account._id},{$set:{status:BigInt(String(current.bookBalanceMinor))>=0n?'active':'held',reconciliationState:'matched',lastExpectedAtObservationMinor:decimal(expected),lastVarianceMinor:decimal(0),lastObservationStale:false,holdReason:BigInt(String(current.bookBalanceMinor))<0n?'Negative account balance: settlement and a fresh check are required.':''},$inc:{revision:1}},{session});
-  }
-  const result=await models(conn).adjustment.findOneAndUpdate({_id:adjustment._id,status:'pending_review'},{$set:{status:input.decision==='approve'?'approved':'rejected',reviewedBy:authorization.actor.id,reviewedAt:new Date(),reviewNote:note,batchId}},{session,new:true});if(!result)throw fail('Adjustment was reviewed concurrently',409);
-  await audit(conn,session,authorization.actor,`treasury.adjustment.${input.decision==='approve'?'approved':'rejected'}`,adjustment._id,{branchId:String(account.branchId),accountId:String(account._id),batchId:batchId?String(batchId):null,deltaMinor:String(adjustment.deltaMinor)});return result;
+  const account=await loadAccount(conn,authorization,adjustment.accountId,{session,fence:true});
+  if(!canReviewAdjustment(adjustment,account,authorization.actor))throw fail('Adjustment approval requires an independent reviewer',403);
+  return (await decideAdjustmentInSession(conn,session,authorization,account,adjustment,{decision:input.decision,note})).adjustment;
  });
 }
-module.exports={recordOwnerBalanceCheck,addCapital,postCrossCurrencyTransferPayout,postBranchTransferPayout,models,ensure,access,loadAccount,createAccount,configureAccount,archiveUnusedAccount,restoreArchivedAccount,closeSettledAccount,assertSettledAccountClosable,archiveUnusedWallet,assertUnusedAccountArchivable,assertUnusedWalletArchivable,validateAccount,requestObservation,requestObservationInSession,confirmOwnerOpening,reviewObservation,reviewObservationInSession,applyMovements,reverseMovements,ensureCounterAccount,findAccount,findOperatingAccounts,balanceSnapshot,accountDetail,reviewQueue,canReviewBalance,canReviewAdjustment,requestAdjustment,reviewAdjustment,expectedAt,assertBookIntegrity,format,major,signedMinor,normalizeMovement,parseObservation,scope,moduleForKind,normalSide,fail,KINDS,NETWORKS};
+async function linkedPendingCashDay(conn,session,account,observation){
+ if(account.kind!=='cash')return false;
+ return core.cashSessionModel(conn).exists({
+  branchId:account.branchId,operatorId:account.operatorId,status:{$in:['pending_open','submitted']},
+  $or:[{treasuryOpeningObservationId:observation._id},{treasuryObservationId:observation._id}]
+ }).session(session);
+}
+async function ownerReconciliationCandidate(conn,session,account,observations,adjustments){
+ if(account.status!=='held'||account.reconciliationState!=='mismatch')return null;
+ const current=observations.find(row=>String(row._id)===String(account.lastObservationId));
+ const pending=observations.filter(row=>row.kind==='checkpoint'&&row.status==='pending_review')
+  .sort((a,b)=>new Date(b.observedAt)-new Date(a.observedAt));
+ const newest=pending[0];
+ if(newest&&(!account.lastObservationAt||new Date(newest.observedAt)>=new Date(account.lastObservationAt))){
+  if(pending[1]&&new Date(pending[1].observedAt).getTime()===new Date(newest.observedAt).getTime())return null;
+  if(String(newest.varianceMinorAtRequest||'0')==='0'||await linkedPendingCashDay(conn,session,account,newest))return null;
+  return newest;
+ }
+ if(!current||current.kind!=='checkpoint'||account.lastObservationStale||String(current.varianceMinorAtReview||'0')==='0')return null;
+ return adjustments.some(row=>String(row.observationId)===String(current._id)&&row.status!=='pending_review')?null:current;
+}
+async function reconcileOwnerObservationInSession(conn,session,authorization,observationId,input={},options={}){
+ if(!session?.inTransaction())throw fail('Balance reconciliation requires an active transaction',409);
+ if(authorization?.actor?.role!=='Tenant Owner')throw fail('Only the business owner can reconcile a balance directly',403);
+ const auth=await access(conn,authorization.tenant,authorization.actor,{permission:'treasury.manage',session,fence:true});
+ if(auth.actor.role!=='Tenant Owner')throw fail('Only the business owner can reconcile a balance directly',403);
+ const idempotencyKey=key(input.idempotencyKey);
+ const reason=input.reason===undefined||input.reason===''?'Tenant owner confirmed the actual balance and authorized reconciliation.':
+  text(input.reason,'reconciliation reason',12,400);
+ const {observation:Observation,adjustment:Adjustment,account:Account}=models(conn);
+ let observation=await Observation.findOne({
+  _id:oid(observationId,'balance check'),tenantId:auth.tenant._id,kind:'checkpoint',
+  status:{$in:['pending_review','approved']},
+  ...(options.accountId?{accountId:oid(options.accountId,'funds account')}:{}),...scope(auth.actor)
+ }).session(session).lean();
+ if(!observation)throw fail('Select a current balance check for this account',409);
+ let account=await loadAccount(conn,auth,observation.accountId,{session,fence:true});
+ const reused=await Adjustment.findOne({idempotencyKey}).session(session).lean();
+ if(reused&&(String(reused.observationId)!==String(observation._id)||
+   String(reused.requestedBy)!==auth.actor.id||reused.reason!==reason))
+  throw fail('Reconciliation reference was reused for different details',409);
+ let adjustment=reused||await Adjustment.findOne({observationId:observation._id}).session(session).lean();
+ // An observation can have one adjustment. This also makes an owner decision
+ // on an existing staff proposal safe to retry with its original evidence.
+ if(adjustment?.status==='approved')return {account,adjustment,observation,duplicate:true};
+ if(adjustment?.status==='rejected')throw fail('Record a fresh balance check after a rejected correction',409);
+ if(account.status==='archived'||account.openingBalanceMinor===null||!account.openingApprovedAt)
+  throw fail('Confirm the account starting balance before reconciliation',409);
+ const newerCheck=await Observation.exists({
+  accountId:account._id,tenantId:auth.tenant._id,kind:'checkpoint',status:'pending_review',
+  _id:{$ne:observation._id},observedAt:{$gte:observation.observedAt}
+ }).session(session);
+ if(newerCheck||(account.lastObservationAt&&new Date(observation.observedAt)<new Date(account.lastObservationAt)))
+  throw fail('Use the most recent balance check to reconcile the account',409);
+
+ const pending=observation.status==='pending_review';
+ if(pending){
+  if(await linkedPendingCashDay(conn,session,account,observation))
+   throw fail('Finish the linked count on Cash Day',409);
+  observation=await reviewObservationInSession(conn,session,auth,observation._id,{
+   decision:'approve',note:'Tenant owner confirmed the submitted balance check for reconciliation.'
+  },{ownerReconciliation:true});
+  account=await Account.findById(account._id).session(session).lean();
+ }
+ if(String(account.lastObservationId)!==String(observation._id)||account.lastObservationStale)
+  throw fail('Record a fresh balance check before reconciling',409);
+ const delta=BigInt(String(observation.varianceMinorAtReview));
+ if(delta===0n)return {account,observation,adjustment:null,duplicate:!pending};
+ if(!adjustment)adjustment=await createAdjustment(conn,session,auth,account,observation,{idempotencyKey,delta,reason});
+ const result=await decideAdjustmentInSession(conn,session,auth,account,adjustment,{
+  decision:'approve',note:'Tenant owner confirmed the balance and applied the reconciliation.',ownerConfirmed:true
+ });
+ return {...result,observation,duplicate:false};
+}
+async function reconcileOwnerBalance(conn,tenant,actor,accountId,input={}){
+ if(actor?.role!=='Tenant Owner')throw fail('Only the business owner can reconcile a balance directly',403);
+ const scopedAccountId=oid(accountId,'funds account');
+ await ensure(conn);
+ return transaction(conn,session=>reconcileOwnerObservationInSession(conn,session,{tenant,actor},input.observationId,input,{accountId:scopedAccountId}));
+}
+module.exports={recordOwnerBalanceCheck,reconcileOwnerBalance,reconcileOwnerObservationInSession,addCapital,postCrossCurrencyTransferPayout,postBranchTransferPayout,models,ensure,access,loadAccount,createAccount,configureAccount,archiveUnusedAccount,restoreArchivedAccount,closeSettledAccount,assertSettledAccountClosable,archiveUnusedWallet,assertUnusedAccountArchivable,assertUnusedWalletArchivable,validateAccount,requestObservation,requestObservationInSession,confirmOwnerOpening,reviewObservation,reviewObservationInSession,applyMovements,reverseMovements,ensureCounterAccount,findAccount,findOperatingAccounts,balanceSnapshot,accountDetail,reviewQueue,canReviewBalance,canReviewAdjustment,requestAdjustment,reviewAdjustment,expectedAt,assertBookIntegrity,format,major,signedMinor,normalizeMovement,parseObservation,scope,moduleForKind,normalSide,fail,KINDS,NETWORKS};

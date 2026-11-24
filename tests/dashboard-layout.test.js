@@ -74,19 +74,19 @@ test('changing header currency preserves report filters and resets pagination',a
   assert.equal((form.match(/name="currency"/g)||[]).length,1);
 });
 
-test('main tenant dashboard presents separately sourced cash and electronic float, not today transaction volume',async()=>{
+test('main tenant dashboard keeps cash and electronic float separate from transaction volume',async()=>{
  const html=await render({context:'tenant',currentPath:'/tenant/dashboard',view:'../tenant/dashboard/index',tenant:{slug:'agent-test',name:'Agent test'},menu:[],data:{
   hasMobileMoney:true,mobileFundsState:'resolved',
   workspaceSnapshot:{todayVolumes:{mobile_money:{formatted:'UGX 900,000'}}},
   mobileFunds:{paymentAccounts:[{kind:'cash',name:'Actual drawer',currency:'UGX',expected:'UGX 70,000',reconciliation:'matched'}],
    wallets:[{kind:'wallet',name:'MTN Uganda network',network:'MTN',currency:'UGX',expected:'UGX 160,000',reconciliation:'matched'}]}
  }});
- const top=html.slice(html.indexOf('Financial summary'));
- for(const label of ['UGX 70,000','UGX 160,000','Actual drawer','MTN Uganda network','Deposits + withdrawals','Physical cash','Electronic float'])assert.ok(top.includes(label),label);
+ const top=html.slice(html.indexOf('Financial details'));
+ for(const label of ['UGX 70,000','UGX 160,000','Actual drawer','MTN Uganda network','Physical cash','Electronic float'])assert.ok(top.includes(label),label);
  assert.match(top,/data-dashboard-fund-stat="cash"/);
  assert.match(top,/data-dashboard-fund-stat="float"/);
  assert.doesNotMatch(html,/mobileDashboardBalances/,'no duplicate balances panel');
- assert.doesNotMatch(html,/Cash-in \+ cash-out/);
+ assert.doesNotMatch(top,/UGX 900,000/);
 });
 test('missing dashboard cash and float records are disclosed rather than displayed as fake zero balances',async()=>{
  const html=await render({context:'tenant',currentPath:'/tenant/dashboard',view:'../tenant/dashboard/index',tenant:{slug:'agent-test',name:'Agent test'},menu:[],data:{

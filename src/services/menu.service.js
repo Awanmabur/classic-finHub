@@ -33,16 +33,17 @@ function tenantMenu(tenant,user) {
   const canCreate=[['mobile_money','mobile_money.cash_in'],['mobile_money','mobile_money.cash_out'],['money_transfer','money_transfer.create'],['banking','banking.requests.create'],['forex','forex.quotes.create'],['customers','customers.create'],['accounts','accounts.manage'],['expenses','expenses.create'],['approval_workflows','approvals.submit'],['loans','loans.create'],['airtime','airtime.sell']].some(([key,permission])=>module(key)&&can(permission));
   const staff=can('users.manage')||can('users.manage_branch');
   const workspace=can('workspace.view');
+  const owner=user.role==='Tenant Owner';
   group('Overview',can('dashboard.view')?[item('Today','dashboard','fa-gauge-high')]:[],[
     ...(canCreate?['transactions/new']:[]),...(mobile||transfer?['last-receipt']:[])
   ]);
   group('Daily work',[
-    ...(cashDay?[item('Cash day','cash/shifts','fa-cash-register')]:[]),
-    ...(sharedCash?[item('Business funds','treasury','fa-wallet')]:[]),
+    ...(!owner&&cashDay?[item('Cash day','cash/shifts','fa-cash-register')]:[]),
+    ...(sharedCash?[item(owner?'Money accounts':'Business funds','treasury','fa-wallet')]:[]),
     ...(expenses?[item('Expenses','expenses','fa-receipt')]:[]),
-    ...(manualMovements?[item('Movement requests','funded','fa-list-check')]:[]),
-    ...(module('approval_workflows')&&can('approvals.view')?[item('Approvals & corrections','approvals','fa-user-check')]:[])
-  ]);
+    ...(!owner&&manualMovements?[item('Movement requests','funded','fa-list-check')]:[]),
+    ...(!owner&&module('approval_workflows')&&can('approvals.view')?[item('Approvals & corrections','approvals','fa-user-check')]:[])
+  ],owner&&cashDay?['cash/shifts']:[]);
   group('Money Transfer',transfer?[
     ...(can('money_transfer.create')?[item('Send money','money-transfer/send','fa-money-bill-transfer',{transactionKind:'transfer'})]:[]),
     ...(can('money_transfer.payout')?[item('Payout by PIN','money-transfer/payout','fa-key',{transactionKind:'payout'})]:[]),

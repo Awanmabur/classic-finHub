@@ -26,9 +26,10 @@ async function checkAccountPages(conn,tenant,owner,banker,bankerRow,account){
  const password='Directory-Integration-'+crypto.randomBytes(12).toString('hex')+'#9a';
  const passwordHash=await require('bcryptjs').hash(password,10);
  await models.tenantUserModel(conn).updateOne({_id:bankerRow._id},{$set:{passwordHash}});
+ const ownerRow=await models.tenantUserModel(conn).findByIdAndUpdate(owner.id,{$set:{passwordHash}},{new:true}).lean();
  const Identity=require('../src/platform/models/AccountIdentity');
  await Identity.createIndexes();
- await Identity.create({email:bankerRow.email,accountId:bankerRow._id,kind:'tenant',tenantId:tenant._id});
+ await Identity.create([bankerRow,ownerRow].map(row=>({email:row.email,accountId:row._id,kind:'tenant',tenantId:tenant._id})));
  const server=await new Promise(resolve=>{const app=require('../src/app')();const http=app.listen(0,'127.0.0.1',()=>resolve(http));});
  const base='http://127.0.0.1:'+server.address().port;
  const accountPath='/tenant/accounts/'+account._id;
@@ -70,7 +71,7 @@ async function checkAccountPages(conn,tenant,owner,banker,bankerRow,account){
   assert.equal(submitted.status,303,await submitted.text());
   assert.equal(submitted.headers.get('location'),accountPath+'#activity');
   const pending=await (await request(accountPath)).text();
-  assert.match(pending,/Awaiting approval/);
+  assert.match(pending,/Awaiting owner/);
   assert.match(pending,/USD 123\.45/);
   const executionId=pending.match(/href="\/tenant\/funded\/([a-f0-9]{24})"/)?.[1];
   assert(executionId,'Pending deposit links to its review');
@@ -81,12 +82,40 @@ async function checkAccountPages(conn,tenant,owner,banker,bankerRow,account){
   assert.match(detailsMarkup,/Deposit bank/);
   assert.match(detailsMarkup,/USD 5\.25/);
   assert.match(detailsMarkup,/BANK-DEPOSIT-2/);
-  const funded=require('../src/tenant/services/fundedOperations.service');
-  await funded.review(conn,tenant,owner,executionId,{decision:'approve',note:'Independently matched the deposit to the bank statement.'});
+  const resolution={_csrf:token(detailsMarkup),decision:'approve',confirmActualMoney:'yes',note:'Matched the deposit to the bank statement.'};
+  assert.equal((await request('/tenant/accounts/deposits/'+executionId+'/resolve',resolution)).status,403);
+  cookie='';
+  const ownerLogin=await request('/signin');
+  const ownerLoggedIn=await request('/signin',{_csrf:token(await ownerLogin.text()),email:ownerRow.email,password});
+  assert.equal(ownerLoggedIn.headers.get('location'),'/tenant/dashboard');
+  const ownerPending=await (await request(accountPath)).text();
+  assert.match(ownerPending,/Customer money to check/);
+  assert(ownerPending.includes('/tenant/accounts/deposits/'+executionId+'/resolve'));
+  const unchecked=await request('/tenant/accounts/deposits/'+executionId+'/resolve',{
+   ...resolution,_csrf:token(ownerPending),confirmActualMoney:'',returnTo:accountPath+'#pending-deposits'
+  });
+  assert.equal(unchecked.status,303,await unchecked.text());
+  assert.equal(unchecked.headers.get('location'),accountPath+'#pending-deposits');
+  assert.match(await (await request(accountPath)).text(),/Confirm that the actual money and supporting evidence have been checked/);
+  const resolved=await request('/tenant/accounts/deposits/'+executionId+'/resolve',{...resolution,_csrf:token(ownerPending)});
+  assert.equal(resolved.status,303,await resolved.text());
+  assert.equal(resolved.headers.get('location'),accountPath+'#activity');
   const posted=await (await request(accountPath)).text();
   assert.match(posted,/USD 128\.70/);
-  assert.doesNotMatch(posted,/Awaiting approval/);
+  assert.doesNotMatch(posted,/Awaiting owner|Customer money to check/);
   assert.match(posted,/BANK-DEPOSIT-2|USD 5\.25/);
+  const ownerDepositPage=await (await request(accountPath+'?action=deposit')).text();
+  const ownerDepositForm=ownerDepositPage.match(/<form method="post" action="\/tenant\/accounts\/[a-f0-9]+\/deposits"[^>]*>([\s\S]+?)<\/form>/)?.[1];
+  assert.match(ownerDepositForm,/confirmActualMoney/);
+  const ownerDeposit=await request(accountPath+'/deposits',{
+   _csrf:token(ownerDepositForm),amount:'1.25',cashAccountId:String(bank._id),confirmActualMoney:'yes',
+   evidenceReference:'BANK-DEPOSIT-OWNER',note:'Received and checked this deposit.',
+   idempotencyKey:ownerDepositForm.match(/name="idempotencyKey" value="([^"]+)"/)[1],pricingMode:'configured',pricingPolicy:'default'
+  });
+  assert.equal(ownerDeposit.status,303,await ownerDeposit.text());
+  const immediate=await (await request(accountPath)).text();
+  assert.match(immediate,/USD 129\.95/);
+  assert.doesNotMatch(immediate,/Awaiting owner|Customer money to check/);
  }finally{await new Promise(resolve=>server.close(resolve));}
 }
 async function main(){

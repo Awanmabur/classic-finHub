@@ -231,11 +231,18 @@ async function review(conn,tenant,actor,executionId,input={},options={}){
  const directPayout=options.mode==='pin_verified_cash_payout';
  const directCashier=options.mode==='cashier_confirmed_collection_or_banking';
  const directFinal=directForex||directPayout||directCashier;
+ const ownerResolution=options.mode==='tenant_owner_reconciliation';
+ const session=options.session||null;
  if(!tenant?.slug||conn.name!==tenantDbNameFromSlug(tenant.slug))throw fail('Manual financial workspace is invalid',403);
  if(!['approve','reject'].includes(input.decision))throw fail('Choose approve or reject');const note=text(input.note,'review evidence',12,400);
- await prepareIndexes(conn);const Execution=fundedModels(conn).execution,initial=await Execution.findById(id(executionId)).lean();if(!initial)throw fail('Manual movement not found',404);
- const current=await context(conn,tenant,actor,initial.sourceType,directFinal?permission(initial.sourceType,false,initial.action):permission(initial.sourceType,true,initial.action));
- if(directForex){
+ if(!session)await prepareIndexes(conn);
+ const Execution=fundedModels(conn).execution,initial=await Execution.findById(id(executionId)).session(session).lean();if(!initial)throw fail('Manual movement not found',404);
+ const reviewPermission=permission(initial.sourceType,!directFinal,initial.action);
+ const current=await context(conn,tenant,actor,initial.sourceType,reviewPermission,session);
+ if(ownerResolution){
+  if(current.actor.role!=='Tenant Owner'||initial.sourceType!=='banking'||initial.action!=='banking')throw fail('A tenant owner must resolve this banking movement',403);
+  if(input.decision==='approve'&&input.confirmActualMoney!=='yes')throw fail('Confirm that the actual money and supporting evidence have been checked');
+ }else if(directForex){
   if(initial.sourceType!=='forex'||initial.action!=='forex'||!['Tenant Owner','Branch Manager','Forex Operator','Banking Operator','Money Transfer Operator'].includes(current.actor.role)||
     String(initial.createdBy)!==String(current.actor.id)||
     input.confirmFundsExchanged!=='yes'||input.confirmEvidenceChecked!=='yes')
@@ -258,25 +265,32 @@ async function review(conn,tenant,actor,executionId,input={},options={}){
   if(!['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(current.actor.role))throw fail('Independent financial reviewer required',403);
   if(String(initial.createdBy)===current.actor.id)throw fail('The originator cannot review their own manual movement',403);
  }
- return transaction(conn,async session=>{
-  const authorization=await auth.fenceAction(conn,session,actor,current.tenant,initial.sourceType,
-   directFinal?permission(initial.sourceType,false,initial.action):permission(initial.sourceType,true,initial.action));
+ async function save(session){
+  const authorization=await auth.fenceAction(conn,session,actor,current.tenant,initial.sourceType,reviewPermission);
+  if(ownerResolution&&(!hasModuleForUser(authorization.tenant,authorization.actor,'accounts')||
+    !hasPermission(authorization.actor,'accounts.view')))throw fail('Customer Accounts access is required for internal banking',403);
   if(!await models.tenantUserModel(conn).exists({_id:actor.id,status:'active',...(require('../../config/mfaPolicy').enabled()?{mfaEnabledAt:{$ne:null}}:{})}).session(session))throw fail('Authenticator enrollment is required for manual financial review',403);
   const execution=await Execution.findOneAndUpdate({_id:initial._id,status:'pending_review',
-   ...(directFinal?{createdBy:actor.id}:{createdBy:{$ne:actor.id}}),...scope(authorization.actor)},{$inc:{revision:1}},{new:true,session}).lean();
-  if(!execution)throw fail('Manual movement already reviewed or outside your branch',409);
+   ...(ownerResolution?{}:directFinal?{createdBy:actor.id}:{createdBy:{$ne:actor.id}}),...scope(authorization.actor)},{$inc:{revision:1}},{new:true,session}).lean();
+  if(!execution){
+   if(ownerResolution){
+    const decided=await Execution.findOne({_id:initial._id,status:input.decision==='approve'?'posted_manual':'rejected',reviewedBy:actor.id,reviewNote:note}).session(session).lean();
+    if(decided)return {execution:decided,duplicate:true};
+   }
+   throw fail('Manual movement already reviewed or outside your branch',409);
+  }
   const sourceModel=definition(execution.sourceType).model(conn),source=await sourceModel.findById(execution.sourceId).session(session).lean();
   if(!source||!sourceMatches(execution,source))throw fail('Original instruction is missing or its economics changed',409);
   const directDeposit=execution.sourceType==='banking'&&source.directDeposit;
-  if(directDeposit&&directFinal)throw fail('A different authorized reviewer must decide this customer deposit',403);
+  if(directDeposit&&directFinal)throw fail('Use the owner resolution on the customer account or Business funds to post this deposit',403);
   const decision={reviewedBy:actor.id,reviewedAt:new Date(),reviewNote:note};
   if(input.decision==='reject'){
-   if(directDeposit){
-    const returned=await sourceModel.updateOne({_id:source._id,status:'requested'},{$set:{status:'rejected',...decision},$inc:{revision:1}},{session,runValidators:true});
-    if(!returned.modifiedCount)throw fail('The deposit instruction has already changed',409);
+   if(directDeposit||(ownerResolution&&definition('banking').statuses.includes(source.status))){
+    const returned=await sourceModel.updateOne({_id:source._id,status:directDeposit?'requested':source.status},{$set:{status:'rejected',...decision},$inc:{revision:1}},{session,runValidators:true});
+    if(!returned.modifiedCount)throw fail('The banking instruction has already changed',409);
    }
    const rejected=await Execution.findOneAndUpdate({_id:execution._id,status:'pending_review'},{$set:{status:'rejected',...decision},$unset:{activeKey:''}},{new:true,session}).lean();
-   await audit(conn,session,authorization.actor,rejected,'manual.rejected');return {execution:rejected,duplicate:false};
+   await audit(conn,session,authorization.actor,rejected,'manual.rejected',ownerResolution?{evidenceMode:'tenant_owner_reconciliation'}:{});return {execution:rejected,duplicate:false};
   }
   assertSourceAvailable(source,execution.sourceType,execution.action);
   // This branch write serializes customer balance checks with all existing
@@ -336,7 +350,7 @@ async function review(conn,tenant,actor,executionId,input={},options={}){
   const posted=await Execution.findOneAndUpdate({_id:execution._id,status:'pending_review'},{$set:changes},{new:true,session}).lean();
   const sourceChanges=execution.action==='transfer_collect'?{status:'collected_manual',manualCollectionExecutionId:execution._id,manualPostedAt:new Date()}:
    execution.action==='transfer_payout'?{status:'paid_out_manual',manualPayoutExecutionId:execution._id,manualPostedAt:new Date()}:{status:'posted_manual',manualExecutionId:execution._id,manualPostedAt:new Date()};
-  if(directDeposit)Object.assign(sourceChanges,decision);
+  if(directDeposit||ownerResolution)Object.assign(sourceChanges,decision);
   const changed=await sourceModel.findOneAndUpdate({_id:source._id,status:source.status},{$set:sourceChanges,$inc:{revision:1}},{new:true,session,runValidators:true}).lean();
   if(!changed)throw fail('The instruction changed during manual posting',409);
   if(execution.action==='transfer_payout'){
@@ -344,9 +358,14 @@ async function review(conn,tenant,actor,executionId,input={},options={}){
    await Execution.updateOne({_id:execution.collectionExecutionId,action:'transfer_collect'},{$unset:{pinEncrypted:''},$inc:{revision:1}},{session});
   }
   await audit(conn,session,authorization.actor,posted,'manual.posted',{journalIds:(posting.journalIds||[]).map(String),
-   evidenceMode:directForex?'cashier_attested_forex':directPayout?'cashier_confirmed_pin_payout':directCashier?'cashier_final_posting':'independently_reviewed_manual'});
+   evidenceMode:ownerResolution?'tenant_owner_reconciliation':directForex?'cashier_attested_forex':directPayout?'cashier_confirmed_pin_payout':directCashier?'cashier_final_posting':'independently_reviewed_manual'});
   return {execution:posted,source:changed,duplicate:false};
- });
+ }
+ return session?save(session):transaction(conn,save);
+}
+async function resolveByOwner(conn,tenant,actor,executionId,input,{session=null}={}){
+ if(actor?.role!=='Tenant Owner')throw fail('A tenant owner must resolve this banking movement',403);
+ return review(conn,tenant,actor,executionId,input,{mode:'tenant_owner_reconciliation',session});
 }
 async function list(conn,tenant,actor,input={}){
  await prepareIndexes(conn);let live=null;const allowed=[];
@@ -376,8 +395,12 @@ async function detail(conn,tenant,actor,executionId){
  const smsRetryConfigured=require('../transferSms/config').validateConfig().enabled;
  const smsRetryLimited=(sms?.redrives||0)>=3;
  const smsRetryCooling=!!smsRetryAt&&smsRetryAt>new Date();
- return {execution,source,receivingAccountName,sms,smsRetryAt,smsRetryLimited,smsRetryCooling,canRetrySms:execution.action==='transfer_collect'&&execution.status==='posted_manual'&&source?.status==='collected_manual'&&current.actor.role==='Tenant Owner'&&['dead','not_configured'].includes(sms?.state)&&smsRetryConfigured&&!smsRetryLimited&&!smsRetryCooling,
-  canFinalizeCashier:!source?.directDeposit&&['money_transfer','banking'].includes(execution.sourceType)&&['transfer_collect','banking'].includes(execution.action)&&
+ const ownerBanking=execution.sourceType==='banking'&&execution.status==='pending_review'&&source&&current.actor.role==='Tenant Owner'&&
+  hasModuleForUser(current.tenant,current.actor,'accounts')&&hasPermission(current.actor,'accounts.view');
+ const ownerPendingMovements=ownerBanking?[{...execution,customerName:source.source.customerName,last4:source.source.last4,destination:source.destination,
+  canPost:definition('banking').statuses.includes(source.status)&&(source.directDeposit||source.expiresAt>new Date())}]:[];
+ return {execution,source,receivingAccountName,ownerPendingMovements,sms,smsRetryAt,smsRetryLimited,smsRetryCooling,canRetrySms:execution.action==='transfer_collect'&&execution.status==='posted_manual'&&source?.status==='collected_manual'&&current.actor.role==='Tenant Owner'&&['dead','not_configured'].includes(sms?.state)&&smsRetryConfigured&&!smsRetryLimited&&!smsRetryCooling,
+  canFinalizeCashier:!ownerBanking&&!source?.directDeposit&&['money_transfer','banking'].includes(execution.sourceType)&&['transfer_collect','banking'].includes(execution.action)&&
    execution.status==='pending_review'&&String(execution.createdBy)===current.actor.id&&
    ['Tenant Owner','Branch Manager',execution.sourceType==='banking'?'Banking Operator':'Money Transfer Operator'].includes(current.actor.role)&&
    hasPermission(current.actor,permission(execution.sourceType)),
@@ -389,7 +412,7 @@ async function detail(conn,tenant,actor,executionId){
    ['Tenant Owner','Branch Manager','Money Transfer Operator'].includes(current.actor.role)&&
    hasPermission(current.actor,'money_transfer.payout')&&
    Boolean(execution.verificationInfo?.identityDocument)&&Boolean(execution.verificationInfo?.receiverNameCheck),
-  canReview:execution.status==='pending_review'&&String(execution.createdBy)!==current.actor.id&&hasPermission(current.actor,permission(execution.sourceType,true,execution.action)),canRevealPin:execution.action==='transfer_collect'&&execution.status==='posted_manual'&&source?.status==='collected_manual'&&!execution.pinShownAt&&(current.actor.role==='Tenant Owner'||String(execution.createdBy)===current.actor.id)};
+  canReview:!ownerBanking&&execution.status==='pending_review'&&String(execution.createdBy)!==current.actor.id&&hasPermission(current.actor,permission(execution.sourceType,true,execution.action)),canRevealPin:execution.action==='transfer_collect'&&execution.status==='posted_manual'&&source?.status==='collected_manual'&&!execution.pinShownAt&&(current.actor.role==='Tenant Owner'||String(execution.createdBy)===current.actor.id)};
 }
 async function revealPin(conn,tenant,actor,executionId){
  await prepareIndexes(conn);const current=await context(conn,tenant,actor,'money_transfer','money_transfer.create');
@@ -576,4 +599,4 @@ async function finalizeForex(conn,tenant,actor,executionId,confirmation={}){
   confirmEvidenceChecked:confirmation.confirmEvidenceChecked
  },{mode:'forex_cashier_confirmed'});
 }
-module.exports={finalizePayout,finalizeForex,finalizeCashier,sourceMatches,payoutLookup,transferMessage,retrySms,definitions,definition,sourceSnapshot,economicPlan,context,prepare,request,review,list,detail,revealPin,checkPayout,payoutContext,requestPayout,prepareIndexes,availableAccounts,fail,minor,paymentKind,choose};
+module.exports={finalizePayout,finalizeForex,finalizeCashier,sourceMatches,payoutLookup,transferMessage,retrySms,definitions,definition,sourceSnapshot,economicPlan,context,prepare,request,review,resolveByOwner,list,detail,revealPin,checkPayout,payoutContext,requestPayout,prepareIndexes,availableAccounts,fail,minor,paymentKind,choose};

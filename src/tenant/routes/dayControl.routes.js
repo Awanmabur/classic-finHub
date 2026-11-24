@@ -5,6 +5,7 @@ const {cashSessionModel}=require('../models');
 const cash=require('../services/cashDrawer.service');
 const mobile=require('../services/mobileMoney.service');
 const {flash}=require('../../utils/view');
+const {cashDayUrl,cashDayError}=require('./cashControl.routes');
 function fail(message,status=400){return Object.assign(new Error(message),{status});}
 module.exports=function dayControlRoutes({renderTenant,recordScope}){
  const router=Router();
@@ -33,7 +34,8 @@ module.exports=function dayControlRoutes({renderTenant,recordScope}){
   return cashSessionModel(req.tenantDb).findOne({...cash.activeFilter(branch._id,req.user.id,currency),status:{$in:['open','disputed']}}).lean();
  }
  router.get('/day/close',...guard,async(req,res,next)=>{
-  try{const shift=await ownShift(req);renderTenant(req,res,'workflow/close-day','Close day','Count the cash in your drawer.',{shift,
+  try{if(req.user.role==='Tenant Owner')return res.redirect(303,cashDayUrl(req.user,req.query.currency));
+   const shift=await ownShift(req);renderTenant(req,res,'workflow/close-day','Close day','Count the cash in your drawer.',{shift,
    expected:shift?mobile.formatMoneyMinor(BigInt(String(shift.openingMinor))+BigInt(String(shift.provisionalMovementMinor)),shift.currency):null});
   }catch(error){next(error);}
  });
@@ -41,11 +43,11 @@ module.exports=function dayControlRoutes({renderTenant,recordScope}){
   try{
    const shift=await ownShift(req);
    if(!shift||String(shift._id)!==String(req.body.shiftId))throw fail('Your open cash shift changed. Refresh and try again.',409);
-   await cash.submit(req.tenantDb,req.tenant,req.user,shift._id,req.body);
-   flash(req,'good','Closing count sent for review.');
+   const closed=await cash.submit(req.tenantDb,req.tenant,req.user,shift._id,req.body,{ownerDirect:true});
+   flash(req,'good',closed.status==='approved'?'Day closed. Cash count reconciled.':'Closing count sent for review.');
    require('../services/branchView.service').followRecord(req,shift);
-   res.redirect(303,req.body.returnToDay==='1'?`/tenant/cash/shifts?currency=${encodeURIComponent(shift.currency)}`:`/tenant/cash/shifts/${shift._id}`);
-  }catch(error){next(error);}
+   res.redirect(303,req.user.role==='Tenant Owner'||req.body.returnToDay==='1'?cashDayUrl(req.user,shift.currency):`/tenant/cash/shifts/${shift._id}`);
+  }catch(error){cashDayError(req,res,next,error);}
  });
  return router;
 };

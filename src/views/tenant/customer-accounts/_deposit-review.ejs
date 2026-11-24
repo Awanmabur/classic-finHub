@@ -1,0 +1,35 @@
+<% const kinds={deposit_request:'Deposit',withdrawal_request:'Withdrawal',transfer_request:'Account transfer'}; %>
+<% if(pendingDeposits.length){ %>
+<section id="pending-deposits" class="card">
+  <div class="cardHead"><b>Customer money to check</b></div>
+  <div class="cardBody">
+    <% pendingDeposits.forEach(movement=>{const snapshot=movement.sourceSnapshot; %>
+      <details class="logicNote">
+        <summary><%= kinds[snapshot.kind] %> · <%= movement.customerName %> · <%= formatMinor(snapshot.amountMinor,snapshot.currency) %></summary>
+        <p><%= movement.sourceReference %> · Account ending <%= movement.last4 %></p>
+        <% if(movement.destination){ %><p>To: <%= movement.destination.customerName %> · Account ending <%= movement.destination.last4 %></p><% } %>
+        <p>Payment channel: <%= snapshot.paymentChannel %></p>
+        <p>Receipt or statement: <%= movement.evidenceReference %></p>
+        <p><%= movement.note %></p>
+        <% if(BigInt(snapshot.feeMinor||'0')>0n){ %><p>Fee: <%= formatMinor(snapshot.feeMinor,snapshot.currency) %></p><% } %>
+        <form method="post" action="/tenant/accounts/deposits/<%= movement._id %>/resolve">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="returnTo" value="<%= returnTo %>">
+          <label class="field">What did you verify or what needs correcting?
+            <input class="control" name="note" minlength="12" maxlength="400" required>
+          </label>
+          <% if(movement.canPost){ %>
+            <label class="field"><input type="checkbox" name="confirmActualMoney" value="yes"> I checked the actual money and supporting evidence.</label>
+          <% }else{ %>
+            <p>This instruction is no longer available for posting. Return it and record the correct movement.</p>
+          <% } %>
+          <div class="rowBtns">
+            <% if(movement.canPost){ %><button class="btn btnPrimary" type="submit" name="decision" value="approve">Post verified movement</button><% } %>
+            <button class="btn" type="submit" name="decision" value="reject">Return for correction</button>
+          </div>
+        </form>
+      </details>
+    <% }) %>
+  </div>
+</section>
+<% } %>

@@ -1,5 +1,8 @@
 <link rel="stylesheet" href="/css/workspace.css?v=<%= assetVersion %>">
 <link rel="stylesheet" href="/css/treasury.css?v=<%= assetVersion %>">
+<% if(data.ownerMoney){ %>
+<%- include('_owner-money') %>
+<% }else{ %>
 <section class="view show">
  <div class="workspaceStack">
  <% if(data.mode==='review'){ %>
@@ -82,4 +85,5 @@
  <% if(data.mode!=='history'){ %><div id="funding-history"><a class="btn" href="/tenant/treasury?view=history#funding-history" data-treasury-history-link>Funding history</a></div><% } %>
  </div>
 </section>
+<% } %>
 <script defer src="/js/treasury.js?v=<%= assetVersion %>"></script>

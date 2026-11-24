@@ -116,6 +116,12 @@ async function main(){
  // A reviewed shortage after a CLOSED day must remain resolvable without
  // opening a false new drawer merely to permit the adjustment.
  const closing=await cash.submit(conn,tenant,operator,shift._id,{countedCash:'1000',note:'Actual closing count is ten shillings below the expected book'});assert.equal(String(closing.varianceMinor),'-10');
+ await assert.rejects(treasury.reconcileOwnerBalance(conn,tenant,owner,drawer._id,{
+  observationId:closing.treasuryObservationId,idempotencyKey:crypto.randomUUID()
+ }),error=>error.status===409&&/Cash Day/.test(error.message));
+ await assert.rejects(treasury.reviewObservation(conn,tenant,owner,closing.treasuryObservationId,{
+  decision:'approve',note:'Count confirmed from the general balance action'
+ }),error=>error.status===409&&/Cash Day/.test(error.message));
  const closed=await cash.decide(conn,tenant,reviewer,shift._id,{decision:'approve',note:'Independent physical count confirms the closing shortage'});assert.equal(closed.status,'approved');assert(closed.treasuryObservationId);assert.equal((await book.models(conn).account.findById(drawer._id)).status,'held');
  await assert.rejects(cash.open(conn,tenant,operator,{openingCash:'1000'}),e=>e.status===409,'an unresolved shortage must not become a false new opening');
  const cashAdjustment=await treasury.requestAdjustment(conn,tenant,operator,closed.treasuryObservationId,{reason:'Investigated physical cash shortage and retained supporting closing evidence',idempotencyKey:crypto.randomUUID()});
@@ -192,6 +198,43 @@ async function main(){
  assert.equal((await core.ledgerAccountModel(conn).findById(contribution.ledgerAccountId).lean()).category,'equity');
  assert.equal((await book.models(conn).batch.countDocuments({sourceType:'treasury_capital'})),2);
  assert.equal((await ledger.trialBalance(conn,{branchId:String(branch._id),currency:'UGX'})).balanced,true);
+ // A sole owner can open a counted drawer, top it up during business, and
+ // close with a difference in the same workflow without another user.
+ const directDay={ownerDirect:true};
+ await assert.rejects(cash.open(conn,tenant,owner,{
+  currency:'UGX',openingFromBook:'on',physicalCountConfirmed:'on',countedBookMinor:'225'
+ },directDay),e=>e.status===409&&/balance changed/.test(e.message));
+ const ownerDay=await cash.open(conn,tenant,owner,{
+  currency:'UGX',openingCash:'225',note:'Five short at opening'
+ },directDay);
+ assert.equal(ownerDay.status,'open');
+ assert.equal(String(ownerDay.openingVerifiedBy),owner.id);
+ assert.equal(String((await book.models(conn).account.findById(starterCash._id)).bookBalanceMinor),'225');
+ const duringDay=await treasury.addCapital(conn,tenant,owner,starterCash._id,{
+  amount:'25',idempotencyKey:crypto.randomUUID()
+ });
+ assert.equal(duringDay.duplicate,false);
+ await assert.rejects(cash.submit(conn,tenant,owner,ownerDay._id,{
+  closingFromBook:'on',physicalCountConfirmed:'on',countedBookMinor:'225'
+ },directDay),e=>e.status===409&&/balance changed/.test(e.message));
+ const ownerClosed=await cash.submit(conn,tenant,owner,ownerDay._id,{
+  countedCash:'245',note:'Cash short at close'
+ },directDay);
+ assert.equal(ownerClosed.status,'approved');
+ assert.equal(String(ownerClosed.expectedClosingMinor),'250');
+ assert.equal(String(ownerClosed.varianceMinor),'-5');
+ const countedDrawer=await book.models(conn).account.findById(starterCash._id).lean();
+ assert.equal(String(countedDrawer.bookBalanceMinor),'245');
+ assert.equal(countedDrawer.status,'active');
+ await assert.rejects(cash.submit(conn,tenant,owner,ownerDay._id,{countedCash:'245'},directDay),e=>e.status===409);
+ const nextOwnerDay=await cash.open(conn,tenant,owner,{
+  currency:'UGX',openingFromBook:'on',physicalCountConfirmed:'on',countedBookMinor:'245'
+ },directDay);
+ const nextOwnerClose=await cash.submit(conn,tenant,owner,nextOwnerDay._id,{
+  closingFromBook:'on',physicalCountConfirmed:'on',countedBookMinor:'245'
+ },directDay);
+ assert.equal(nextOwnerClose.status,'approved');
+ assert.equal(String((await book.models(conn).account.findById(starterCash._id)).bookBalanceMinor),'245');
  // A direct owner check is final immediately without a second reviewer.
  const countKey=crypto.randomUUID();
  const checked=await treasury.recordOwnerBalanceCheck(conn,tenant,owner,ownerBank._id,{
@@ -244,6 +287,69 @@ async function main(){
  assert.equal(heldBank.reconciliationState,'mismatch');
  assert.equal(String(heldBank.lastObservedMinor),'46','The original count remains auditable');
  assert.equal((await ledger.trialBalance(conn,{branchId:String(branch._id),currency:'UGX'})).balanced,true);
+ const reconcileInput={observationId:directOwnerMismatch.observation._id,idempotencyKey:crypto.randomUUID()};
+ assert.equal(String((await treasury.accountDetail(conn,tenant,owner,ownerBank._id)).ownerReconciliationObservation._id),
+  String(reconcileInput.observationId));
+ await assert.rejects(treasury.reconcileOwnerBalance(conn,tenant,reviewer,ownerBank._id,reconcileInput),{status:403});
+ await assert.rejects(treasury.reconcileOwnerBalance(conn,tenant,owner,drawer._id,reconcileInput),{status:409});
+ const reconciled=await treasury.reconcileOwnerBalance(conn,tenant,owner,ownerBank._id,reconcileInput);
+ assert.equal(reconciled.account.status,'active');
+ assert.equal(reconciled.account.reconciliationState,'matched');
+ assert.equal(String(reconciled.account.bookBalanceMinor),'51','The adjustment must preserve later owner capital');
+ assert.equal(String(reconciled.account.lastObservedMinor),'46');
+ assert.equal(String(reconciled.account.lastExpectedAtObservationMinor),'46');
+ assert.equal(String(reconciled.adjustment.deltaMinor),'1');
+ assert.equal(reconciled.adjustment.status,'approved');
+ const ownerDecision=await Audit.findOne({targetId:reconciled.adjustment._id,action:'treasury.adjustment.approved'}).lean();
+ assert.equal(ownerDecision.metadata.ownerConfirmed,true);
+ assert.equal((await treasury.reconcileOwnerBalance(conn,tenant,owner,ownerBank._id,reconcileInput)).duplicate,true);
+ assert.equal(await book.models(conn).movement.countDocuments({batchId:reconciled.adjustment.batchId}),1);
+ assert.equal((await treasury.accountDetail(conn,tenant,owner,ownerBank._id)).ownerReconciliationObservation,null);
+
+ const staffCheck=async actualBalance=>(await treasury.requestObservation(conn,tenant,operator,ownerBank._id,{
+  kind:'checkpoint',actualBalance,observedAt:new Date().toISOString(),evidenceType:'bank_statement',
+  evidenceReference:'STAFF-RECONCILIATION-'+crypto.randomUUID(),
+  note:'Actual balance checked on the current bank statement',idempotencyKey:crypto.randomUUID()
+ })).observation;
+ const pendingBank=await staffCheck('53');
+ const pendingInput={observationId:pendingBank._id,idempotencyKey:crypto.randomUUID()};
+ assert.equal(String((await treasury.accountDetail(conn,tenant,owner,ownerBank._id)).ownerReconciliationObservation._id),
+  String(pendingBank._id));
+ await assert.rejects(treasury.reconcileOwnerBalance(conn,tenant,owner,ownerBank._id,{
+  ...pendingInput,idempotencyKey:reconcileInput.idempotencyKey
+ }),{status:409});
+ const originalOwnerAudit=Audit.create;
+ Audit.create=async function(rows,...args){
+  if(rows.some(row=>row.action==='treasury.adjustment.approved'&&row.metadata.ownerConfirmed))
+   throw Error('Deliberate owner reconciliation failure');
+  return originalOwnerAudit.call(this,rows,...args);
+ };
+ try{
+  await assert.rejects(treasury.reconcileOwnerBalance(conn,tenant,owner,ownerBank._id,pendingInput),/Deliberate owner reconciliation failure/);
+ }finally{Audit.create=originalOwnerAudit;}
+ assert.equal((await book.models(conn).observation.findById(pendingBank._id)).status,'pending_review');
+ assert.equal(String((await book.models(conn).account.findById(ownerBank._id)).bookBalanceMinor),'51');
+ assert.equal(await book.models(conn).adjustment.countDocuments({observationId:pendingBank._id}),0);
+ const pendingResolved=await treasury.reconcileOwnerBalance(conn,tenant,owner,ownerBank._id,pendingInput);
+ assert.equal(pendingResolved.observation.status,'approved');
+ assert.equal(String(pendingResolved.account.bookBalanceMinor),'53');
+ assert.equal(pendingResolved.account.status,'active');
+
+ const proposedBank=await staffCheck('52');
+ await treasury.reviewObservation(conn,tenant,reviewer,proposedBank._id,{
+  decision:'approve',note:'Independently verified the current bank statement'
+ });
+ const proposed=(await treasury.requestAdjustment(conn,tenant,operator,proposedBank._id,{
+  reason:'Current bank statement confirms the outstanding difference',idempotencyKey:crypto.randomUUID()
+ })).adjustment;
+ const proposalInput={observationId:proposedBank._id,idempotencyKey:crypto.randomUUID()};
+ const adopted=await treasury.reconcileOwnerBalance(conn,tenant,owner,ownerBank._id,proposalInput);
+ assert.equal(String(adopted.adjustment._id),String(proposed._id));
+ assert.equal(String(adopted.adjustment.requestedBy),operator.id);
+ assert.equal(String(adopted.account.bookBalanceMinor),'52');
+ assert.equal((await treasury.reconcileOwnerBalance(conn,tenant,owner,ownerBank._id,proposalInput)).duplicate,true);
+ assert.equal((await ledger.trialBalance(conn,{branchId:String(branch._id),currency:'UGX'})).balanced,true);
+
  // SSP cash with an observed shortage follows the same flow, in its own
  // precision and without creating spendable funds or falsifying the count.
  const heldCash=await treasury.createAccount(conn,tenant,owner,{
@@ -358,6 +464,19 @@ async function main(){
   sourceAccountId:String(retiringSource._id),destinationAccountId:String(retiringDest._id),
   amount:'1',idempotencyKey:crypto.randomUUID()
  }),e=>[404,409].includes(e.status),'Closed account cannot fund new operations');
+ // A staff count already in the queue can be reconciled and closed by the
+ // owner on Cash Day, with the same transaction updating the actual drawer.
+ const staffClosing=await cash.submit(conn,tenant,operator,newDay._id,{
+  countedCash:'998',note:'Two short at staff closing'
+ });
+ assert.equal(staffClosing.status,'submitted');
+ const ownerReconciledShift=await cash.decide(conn,tenant,owner,newDay._id,{
+  decision:'approve',note:'Confirmed the staff cash count'
+ },directDay);
+ assert.equal(ownerReconciledShift.status,'approved');
+ const staffDrawer=await book.models(conn).account.findById(drawer._id).lean();
+ assert.equal(String(staffDrawer.bookBalanceMinor),'998');
+ assert.equal(staffDrawer.status,'active');
  // A link from a funded wallet is a dependency even without new movements.
  const linkedDraft=await treasury.createAccount(conn,tenant,owner,{
   name:'Unused linked drawer',kind:'cash',currency:'UGX',operatorId:operator.id,isDefault:false
@@ -378,6 +497,8 @@ async function main(){
  httpApp.use(express.urlencoded({extended:false}));
  httpApp.use((req,res,next)=>{
   req.user=owner;req.tenant=tenant;req.tenantDb=conn;req.session={csrfToken:httpCsrf};
+  req.viewBranch=req.operationBranch=branch;req.viewBranchId=String(branch._id);
+  res.locals.viewBranches=[branch];
   next();
  });
  // Match the production security and AJAX middleware ordering: a real form
@@ -385,7 +506,12 @@ async function main(){
  httpApp.use(require('../src/middleware/csrfProtection'));
  httpApp.use(require('../src/middleware/ajaxRedirect').ajaxRedirect);
  httpApp.use('/tenant/treasury',require('../src/tenant/treasury/routes')({
-  renderTenant:(req,res,view)=>res.status(200).json({view})
+  renderTenant:(req,res,view,title,subtitle,data)=>{
+   if(view!=='treasury/index')return res.status(200).json({view});
+   return require('ejs').renderFile(require('node:path').resolve(__dirname,'../src/views/tenant/treasury/index.ejs'),{
+    data,user:owner,assetVersion:'integration',csrfToken:httpCsrf,operationBranch:branch
+   }).then(html=>res.status(200).send(html));
+  }
  }));
  const listener=await new Promise((resolve,reject)=>{
   const server=httpApp.listen(0,'127.0.0.1',()=>resolve(server));
@@ -405,26 +531,26 @@ async function main(){
   const sspRoute='/tenant/treasury/accounts/'+heldCash._id+'/record';
   const sspPosted=await submit(sspRoute,{
    recordAction:'capital',amount:'1.25',idempotencyKey:crypto.randomUUID()});
-  assert.equal(sspPosted.redirect,'/tenant/treasury/accounts/'+heldCash._id+'#record-balance');
+  assert.equal(sspPosted.redirect,'/tenant/treasury?account='+heldCash._id+'#selected-account');
   assert.equal(sspPosted.flash.type,'good');
   // A legacy already-open tab still submits "action" and is accepted,
   // but newly loaded HTML sends "recordAction" to avoid DOM action collisions.
   assert.match(sspPosted.flash.message,/still held/);
   const sspDestination=await fetch(base+sspPosted.redirect);
   assert.equal(sspDestination.status,200,'Account destination must exist after successful posting');
-  assert.equal((await sspDestination.json()).view,'treasury/detail');
+  assert.match(await sspDestination.text(),/Owner held SSP cash/);
   const updatedSSP=await book.models(conn).account.findById(heldCash._id).lean();
   assert.equal(updatedSSP.status,'held');
   assert.equal(String(updatedSSP.bookBalanceMinor),'3675');
   const ugxRoute='/tenant/treasury/accounts/'+starterCash._id+'/record';
   const ugxPosted=await submit(ugxRoute,{
    action:'capital',amount:'2',idempotencyKey:crypto.randomUUID()});
-  assert.equal(ugxPosted.redirect,'/tenant/treasury/accounts/'+starterCash._id+'#record-balance');
+  assert.equal(ugxPosted.redirect,'/tenant/treasury?account='+starterCash._id+'#selected-account');
   assert.equal((await fetch(base+ugxPosted.redirect)).status,200);
   // Old forms still posted by an already-open browser tab remain functional.
   const legacy=await submit('/tenant/treasury/capital',{
    accountId:String(starterCash._id),amount:'3',idempotencyKey:crypto.randomUUID()});
-  assert.equal(legacy.redirect,'/tenant/treasury/accounts/'+starterCash._id+'#record-balance');
+  assert.equal(legacy.redirect,'/tenant/treasury?account='+starterCash._id+'#selected-account');
   assert.equal((await fetch(base+legacy.redirect)).status,200);
   const unopenedKsh=await treasury.createAccount(conn,tenant,owner,{
    name:'KSH fresh owner cash opening from real HTML form',kind:'cash',currency:'KES',
@@ -432,7 +558,7 @@ async function main(){
   const kshOpening=await submit('/tenant/treasury/accounts/'+unopenedKsh._id+'/opening',{
    actualBalance:'42.35',idempotencyKey:crypto.randomUUID()
   });
-  assert.equal(kshOpening.redirect,'/tenant/treasury/accounts/'+unopenedKsh._id);
+  assert.equal(kshOpening.redirect,'/tenant/treasury?account='+unopenedKsh._id+'#selected-account');
   assert.equal(kshOpening.flash?.type,'good');
   const liveKsh=await book.models(conn).account.findById(unopenedKsh._id).lean();
   assert.equal(liveKsh.status,'active');
@@ -446,6 +572,56 @@ async function main(){
   });
   assert.equal(forged.status,403);
   assert.equal(String((await book.models(conn).account.findById(unopenedKsh._id)).bookBalanceMinor),'4235');
+
+  const list=await fetch(base+'/tenant/treasury?create=1');
+  assert.equal(list.status,200);
+  const listHtml=await list.text();
+  assert.match(listHtml,/data-quick-account-form/);
+  assert.match(listHtml,/id="accounts"/);
+  assert.match(listHtml,/id="cash-day"/);
+  assert.doesNotMatch(listHtml,/href="\/tenant\/treasury\/review/);
+  const create=await submit('/tenant/treasury/accounts',{
+   kind:'bank',currency:'USD',branchId:String(branch._id),name:'Owner canonical route bank'
+  });
+  const selected=create.redirect.match(/^\/tenant\/treasury\?account=([a-f0-9]{24})&action=add#selected-account$/)?.[1];
+  assert(selected,'The new account opens on the same Treasury page');
+  const path='/tenant/treasury/accounts/'+selected;
+  const destination='/tenant/treasury?account='+selected+'#selected-account';
+  const add=await fetch(base+create.redirect);
+  assert.equal(add.status,200);
+  assert.match(await add.text(),/Actual starting amount \(USD\)/);
+  const oldLink=await fetch(base+path+'?action=money',{redirect:'manual'});
+  assert.equal(oldLink.headers.get('location'),create.redirect,'Older account links lead to the inline action');
+  const invalidOpening=await submit(path+'/opening',{
+   actualBalance:'abc',idempotencyKey:crypto.randomUUID()
+  });
+  assert.equal(invalidOpening.redirect,create.redirect);
+  assert.equal(invalidOpening.flash.type,'bad','An invalid amount stays on its form');
+  assert.equal((await submit(path+'/opening',{
+   ownerPage:'true',actualBalance:'20.00',idempotencyKey:crypto.randomUUID()
+  })).redirect,destination);
+  const saved=await fetch(base+destination);
+  assert.equal(saved.status,200);
+  assert.match(await saved.text(),/Ready for transactions/);
+  const topup=await submit(path+'/record',{
+   ownerPage:'true',recordAction:'capital',amount:'5.25',idempotencyKey:crypto.randomUUID()
+  });
+  assert.equal(topup.redirect,destination);
+  const captured=await submit(path+'/record',{
+   ownerPage:'true',recordAction:'check',amount:'23.00',idempotencyKey:crypto.randomUUID()
+  });
+  assert.equal(captured.redirect,'/tenant/treasury?account='+selected+'&action=reconcile#selected-account');
+  assert.equal(captured.flash.type,'info','An observed difference opens the reconciliation form');
+  const mismatchResponse=await fetch(base+captured.redirect);
+  assert.equal(mismatchResponse.status,200);
+  const reconciliationHtml=await mismatchResponse.text();
+  const observationId=reconciliationHtml.match(/name="observationId" value="([a-f0-9]{24})"/)?.[1];
+  assert(observationId,'A current mismatch can be reconciled on the same Treasury page');
+  assert.match(reconciliationHtml,/Confirm reconciliation/);
+  assert.equal((await submit(path+'/reconcile',{observationId,idempotencyKey:crypto.randomUUID()})).redirect,destination);
+  const finalized=await book.models(conn).account.findById(selected).lean();
+  assert.equal(String(finalized.bookBalanceMinor),'2300');
+  assert.equal(finalized.reconciliationState,'matched');
 
  }finally{
   await new Promise(resolve=>listener.close(resolve));

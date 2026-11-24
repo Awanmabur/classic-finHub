@@ -1,0 +1,71 @@
+<%
+ const {pending,morePending,selected,reference,currency,funds,format}=expenseReconciliation;
+ const expenseUrl=record=>'/tenant/treasury?'+new URLSearchParams({expenseRef:record.recordReference,currency:record.currency})+'#expense-reconciliation';
+ const unposted=selected?.status==='pending_review';
+ const editable=unposted||selected?.status==='approved';
+ const change=selected?.pendingChange;
+%>
+<details class="card workspaceSecondary" id="expense-reconciliation" <%= reference||pending.length?'open':'' %>>
+ <summary class="cardHead"><b>Expense corrections</b><% if(pending.length){ %> <span><%= pending.length %><%= morePending?'+':'' %> to resolve</span><% } %></summary>
+ <div class="cardBody workspaceStack">
+  <% if(pending.length){ %>
+   <ul>
+    <% for(const expense of pending){ %>
+     <li><a href="<%= expenseUrl(expense) %>"><%= expense.expenseType %> · <%= format(expense.amountMinor,expense.currency) %> · <%= expense.recordReference %></a></li>
+    <% } %>
+   </ul>
+  <% } %>
+  <form method="get" action="/tenant/treasury#expense-reconciliation" class="rowBtns">
+   <% if(currency){ %><input type="hidden" name="currency" value="<%= currency %>"><% } %>
+   <label class="field">Expense reference<input class="control" type="search" name="expenseRef" value="<%= reference %>" maxlength="64" placeholder="EXP-…" required></label>
+   <button class="btn" type="submit">Find expense</button>
+  </form>
+  <% if(reference&&!selected){ %><p role="status">No expense with this reference in the current view.</p><% } %>
+  <% if(selected){ %>
+   <article class="treasuryPending">
+    <h3><%= selected.expenseType %> · <%= format(selected.amountMinor,selected.currency) %></h3>
+    <p class="tiny"><%= selected.recordReference %> · <%= selected.paymentMethod %><%= selected.vendor?' · '+selected.vendor:'' %></p>
+    <% if(!editable){ %><p><%= selected.status==='voided'?'Voided':'Discarded' %></p><% }else{ %>
+     <form method="post" action="/tenant/expenses/<%= selected._id %>/reconcile" class="workspaceStack">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="expenseRef" value="<%= selected.recordReference %>">
+      <input type="hidden" name="currency" value="<%= selected.currency %>">
+      <input type="hidden" name="revision" value="<%= selected.revision %>">
+      <% if(change){ %>
+       <p><strong><%= change.kind==='void'?'Void requested':'Correction requested' %></strong> · <%= change.reason %></p>
+       <% if(change.values){ %>
+        <p>Proposed expense <strong><%= change.values.expenseType %> · <%= format(change.values.amountMinor,selected.currency) %></strong></p>
+        <% if(change.values.vendor||change.values.reference||change.values.description){ %><p><%= [change.values.vendor,change.values.reference,change.values.description].filter(Boolean).join(' · ') %></p><% } %>
+       <% } %>
+      <% }else{ %>
+       <div class="row2">
+        <label class="field">Expense type<input class="control" name="expenseType" value="<%= selected.expenseType %>" minlength="2" maxlength="100" required></label>
+        <label class="field">Amount<input class="control" name="amount" value="<%= amountFromMinor(selected.amountMinor,selected.currency) %>" inputmode="decimal" required></label>
+        <label class="field">Paid to<input class="control" name="vendor" value="<%= selected.vendor %>" maxlength="120"></label>
+        <label class="field">Payment reference<input class="control" name="reference" value="<%= selected.reference %>" maxlength="120"></label>
+       </div>
+       <label class="field">Description<input class="control" name="description" value="<%= selected.description %>" maxlength="400"></label>
+      <% } %>
+      <% if(unposted&&funds.length){ %>
+       <label class="field">Paid from<select class="control" name="treasuryAccountId">
+        <option value="">Use recorded account</option>
+        <% for(const account of funds){ %><option value="<%= account._id %>"><%= account.name %> · <%= account.balance %></option><% } %>
+       </select></label>
+      <% } %>
+      <label class="field">Reason<textarea class="control" name="note" rows="2" minlength="12" maxlength="400" required></textarea></label>
+      <div class="rowBtns">
+       <% if(change){ %>
+        <button type="submit" class="btn btnPrimary" name="operation" value="apply"><%= change.kind==='void'?'Void expense':unposted?'Record corrected expense':'Apply correction' %></button>
+        <button type="submit" class="btn" name="operation" value="dismiss"><%= unposted?'Record original expense':'Keep original' %></button>
+       <% }else{ %>
+        <button type="submit" class="btn btnPrimary" name="operation" value="correct"><%= unposted?'Record expense':'Save correction' %></button>
+        <% if(!unposted){ %><button type="submit" class="btn btnDanger" name="operation" value="void">Void expense</button><% } %>
+       <% } %>
+       <% if(unposted){ %><button type="submit" class="btn" name="operation" value="discard">Discard unposted expense</button><% } %>
+      </div>
+     </form>
+    <% } %>
+   </article>
+  <% } %>
+ </div>
+</details>

@@ -171,7 +171,55 @@ async function main(){
  assert.equal(await balance(centsBank),'13080');
  assert.equal((await funding.postDirect(conn,tenant,operator,reverseDirection)).duplicate,true);
  assert.equal(await balance(centsBank),'13080','the empty-source retry cannot post twice');
- console.log('PASS: Wallet transfers and owner contributions post exact balanced journals once, preserve account and reviewer scope, and roll back failed audit writes. Actual balance checks and the next cash day retain posted funds.');
+
+ const pendingContribution=(await funding.request(conn,tenant,owner,contribution(centsBank,'1.27'))).funding;
+ const pendingTransfer=(await funding.request(conn,tenant,operator,input(centsBank,centsWallet,'1.04'))).funding;
+ const pendingDiscard=(await funding.request(conn,tenant,operator,input(centsBank,centsWallet,'2.00'))).funding;
+ const ownerPending=await funding.pendingForOwner(conn,tenant,{...owner,viewBranchId:String(branch._id)},{accountId:centsBank._id});
+ for(const entry of [pendingContribution,pendingTransfer,pendingDiscard])
+  assert(ownerPending.some(row=>String(row._id)===String(entry._id)));
+ const eastPending=await funding.pendingForOwner(conn,tenant,{...owner,viewBranchId:String(east._id)});
+ assert(!eastPending.some(row=>String(row._id)===String(pendingTransfer._id)));
+ await assert.rejects(funding.pendingForOwner(conn,tenant,reviewer),{status:403});
+ await assert.rejects(funding.resolveForOwner(conn,tenant,reviewer,pendingTransfer._id,{decision:'record'}),{status:403});
+ await assert.rejects(funding.resolveForOwner(conn,tenant,{...reviewer,role:'Tenant Owner'},pendingTransfer._id,{decision:'record'}),{status:403});
+ await assert.rejects(decide(pendingContribution,owner),{status:403});
+
+ const recordedCapital=await funding.resolveForOwner(conn,tenant,owner,pendingContribution._id,{decision:'record'});
+ assert.equal(recordedCapital.funding.status,'posted');
+ assert.equal(await balance(centsBank),'13207');
+ const capitalLines=await core.ledgerPostingModel(conn).find({journalId:recordedCapital.funding.journalIds[0]}).lean();
+ assert.deepEqual(capitalLines.map(line=>[String(line.accountId),line.side,String(line.amountMinor)]).sort(),[
+  [String(centsBank.ledgerAccountId),'debit','127'],
+  [String(ownerEquity.ledgerAccountId),'credit','127']
+ ].sort());
+ assert.equal((await funding.resolveForOwner(conn,tenant,owner,pendingContribution._id,{decision:'record'})).duplicate,true);
+ assert.equal(await balance(centsBank),'13207');
+ const recordedTransfer=await funding.resolveForOwner(conn,tenant,owner,pendingTransfer._id,{decision:'record'});
+ assert.equal(recordedTransfer.funding.status,'posted');
+ assert.equal(await balance(centsBank),'13103');
+ assert.equal(await balance(centsWallet),'104');
+ const transferBatch=await funds.models(conn).batch.findById(recordedTransfer.funding.batchId).lean();
+ assert.equal(transferBatch.sourceRef,`FUND:${pendingTransfer._id}`);
+ assert.equal(String(transferBatch.operatingActorId),operator.id);
+
+ const discarded=await funding.resolveForOwner(conn,tenant,owner,pendingDiscard._id,{decision:'discard'});
+ assert.equal(discarded.funding.status,'rejected');
+ assert.equal(discarded.funding.batchId,null);
+ assert.deepEqual(discarded.funding.journalIds,[]);
+ assert.equal(await funds.models(conn).batch.countDocuments({sourceRef:`FUND:${pendingDiscard._id}`}),0);
+ assert.equal(await balance(centsBank),'13103');
+ assert.equal(await balance(centsWallet),'104');
+ assert.equal((await funding.resolveForOwner(conn,tenant,owner,pendingDiscard._id,{decision:'discard'})).duplicate,true);
+ await assert.rejects(funding.resolveForOwner(conn,tenant,owner,pendingDiscard._id,{decision:'record'}),{status:409});
+ const ownerDecision=await core.auditEventModel(conn).findOne({targetId:pendingContribution._id,action:'treasury.funding.posted'}).lean();
+ assert.equal(ownerDecision.metadata.ownerResolved,true);
+ assert.equal(ownerDecision.metadata.selfReviewed,true);
+ const afterResolution=await funding.pendingForOwner(conn,tenant,owner,{accountId:centsBank._id});
+ for(const entry of [pendingContribution,pendingTransfer,pendingDiscard])
+  assert(!afterResolution.some(row=>String(row._id)===String(entry._id)));
+ assert.equal((await ledger.trialBalance(conn,{branchId:branch._id,currency:'KES'})).balanced,true);
+ console.log('PASS: funding transfers and owner contributions post exact balanced journals once, preserve staff and owner scope, support discarding unposted entries, and roll back failed audit writes. Actual balance checks and the next cash day retain posted funds.');
 }
 async function cleanup(){if(mongoose.connection.readyState===1&&mongoose.connection.name===platformName&&/^cfh_wallet_funding_[a-f0-9]{14}$/.test(platformName)){if(conn)await conn.db.dropDatabase();await mongoose.connection.db.dropDatabase();}await mongoose.disconnect();}
 main().catch(error=>{console.error('WALLET FUNDING INTEGRATION FAILED:',error.stack||error.message);process.exitCode=1;}).finally(()=>cleanup().catch(error=>{console.error('Wallet funding cleanup failed:',error.message);process.exitCode=1;}));

@@ -41,6 +41,7 @@ test('physical cash reports use an ObjectId for branch-restricted aggregation',a
  class FakeObjectId{constructor(value){this.value=value;}}
  let pipeline;
  const service=loadWithMocks('../src/tenant/services/cashDrawer.service.js',{
+  'node:crypto':require('node:crypto'),
   mongoose:{Types:{ObjectId:FakeObjectId,Decimal128:{fromString:x=>x}}},
   '../models':{cashSessionModel:()=>({aggregate:async stages=>{pipeline=stages;return []}})},
   './moduleAccess.service':{hasModuleForUser:()=>true},

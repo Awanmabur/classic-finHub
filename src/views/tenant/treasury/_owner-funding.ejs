@@ -1,0 +1,27 @@
+<% if(fundings.length){ %>
+<section class="card" id="pending-funding" aria-labelledby="pendingFundingHeading">
+  <div class="cardHead"><b id="pendingFundingHeading">Pending funding entries</b></div>
+  <div class="cardBody workspaceStack">
+    <% fundings.forEach(entry => {
+      const contribution = entry.sourceKind === 'owner_contribution';
+      const source = contribution ? 'Owner contribution' : entry.source.name;
+      const branch = data.branchNames?.[String(entry.branchId)];
+    %>
+      <article class="treasuryAccountRow">
+        <h3><%= source %> → <%= entry.destination.name %></h3>
+        <p><strong><%= data.format(entry.amountMinor, entry.currency) %></strong>
+          <% if(branch){ %> · <%= branch %><% } %> · <%= entry.evidenceReference %></p>
+        <p class="tiny"><%= entry.note %></p>
+        <form method="post" action="/tenant/treasury/funding/<%= entry._id %>/resolve">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <% if(selected){ %><input type="hidden" name="returnToAccount" value="<%= selected._id %>"><% } %>
+          <div class="rowBtns">
+            <button class="btn btnPrimary" type="submit" name="decision" value="record">Confirm and record</button>
+            <button class="btn" type="submit" name="decision" value="discard">Discard entry</button>
+          </div>
+        </form>
+      </article>
+    <% }); %>
+  </div>
+</section>
+<% } %>

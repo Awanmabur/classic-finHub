@@ -22,6 +22,8 @@ const correctionEventSchema = new mongoose.Schema({
   action:{type:String,enum:['requested','approved','denied'],required:true},
   actorId:{type:mongoose.Schema.Types.ObjectId,required:true},
   note:{type:String,required:true,maxlength:400},
+  evidenceReference:{type:String,maxlength:120},
+  ownerRequestKey:{type:String,match:/^[0-9a-f-]{36}$/},
   at:{type:Date,default:Date.now}
 },{_id:false,strict:'throw'});
 const moneySchema = new mongoose.Schema({
@@ -63,8 +65,8 @@ const moneySchema = new mongoose.Schema({
   reviewedAt: { type: Date, default: null },
   reviewNote: { type: String, default: null, maxlength: 400 },
   riskSignals:{type:[{type:String,enum:['rapid_repeat','unusual_amount','wallet_balance_mismatch']}],default:[],immutable:true},
-  // Never remove or overwrite an incorrect record. A different person must
-  // authorize its internal void, and both decisions remain in the audit trail.
+  // Keep the original record. Independent and owner-reconciled voids retain
+  // their decision and accounting history.
   correctionState: {type:String,enum:['none','requested','denied','voided'],default:'none'},
   correctionAttempts:{type:Number,default:0,min:0,max:5},
   correctionReason: {type:String,default:null,maxlength:400},

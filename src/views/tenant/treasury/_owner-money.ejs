@@ -1,0 +1,105 @@
+<%
+ const money=data.ownerMoney;
+ const status=account=>{
+  if(account.integrityBlocked)return 'Ledger unavailable';
+  if(account.pendingOpeningId)return 'Opening needs confirmation';
+  if(account.openingBalanceMinor===null)return 'Add starting money';
+  if(account.reconciliationState==='stale')return 'Check balance';
+  if(account.reconciliationState==='mismatch')return 'Reconcile balance';
+  if(account.status==='held')return 'On hold';
+  if(account.pendingObservation)return 'Check needs confirmation';
+  return 'Balance ready';
+ };
+%>
+<section class="view show" id="tenantQuickSetup" data-owner-money-page>
+ <div class="workspaceStack">
+  <section class="card" id="accounts">
+   <div class="cardHead">
+    <b>Business accounts</b>
+    <div class="rowBtns">
+     <% if(data.canManage&&money.branches.length&&!money.canOpenCreation){ %><a class="btn btnPrimary" href="/tenant/treasury?create=1#account-setup">Create account</a><% } %>
+     <% if(money.cashDay){ %><a class="btn" href="#cash-day">Cash Day</a><% } %>
+    </div>
+   </div>
+   <div class="cardBody treasuryAccounts">
+    <% if(!data.snapshot.accounts.length){ %><p>Create an account and add its actual starting money.</p><% } %>
+    <% if(money.caseMissing){ %><p class="treasuryNotice">Choose an account from this branch view.</p><% } %>
+    <% for(const account of data.snapshot.accounts){
+      const known=account.openingBalanceMinor!==null;
+      const isBlocked=account.integrityBlocked;
+      const home=money.accountTarget(account._id);
+      const next=known?account.reconciliationState==='mismatch'&&!account.lastObservationStale?'reconcile':'check':'add';
+    %>
+     <article class="treasuryAccountRow" data-search-row>
+      <div>
+       <% if(isBlocked){ %><b><%= account.name %></b><% }else{ %><a class="treasuryAccountLink" href="<%= home %>"><%= account.name %></a><% } %>
+       <div class="tiny"><%= account.currency==='KES'?'KSH':account.currency %><%= account.network?' · '+account.network:'' %><% if(data.allBranches&&money.branchNames[String(account.branchId)]){ %> · <%= money.branchNames[String(account.branchId)] %><% } %></div>
+      </div>
+      <div class="treasuryAccountBalance">
+       <b><%= isBlocked||!known?'—':account.expectedFormatted.replace(/^KES /,'KSH ') %></b>
+       <span class="tiny"><%= status(account) %></span>
+      </div>
+      <% if(!isBlocked){ %>
+       <div class="rowBtns">
+        <a class="btn" href="<%= home %>">Open</a>
+        <% if(data.canObserve&&!account.pendingOpeningId&&(!known||money.canRecordCapital(account))){ %><a class="btn" href="<%= money.accountTarget(account._id,'add') %>">Add money</a><% } %>
+        <% if(data.canObserve&&known){ %><a class="btn" href="<%= money.accountTarget(account._id,next) %>"><%= next==='reconcile'?'Reconcile':'Check' %></a><% } %>
+       </div>
+      <% } %>
+     </article>
+    <% } %>
+   </div>
+  </section>
+
+  <% if(money.selected&&!money.selected.integrityBlocked){ %><%- include('_owner-account') %><% } %>
+  <%- include('_owner-setup') %>
+  <% if(money.cashDay){ %><%- include('../mobile-money/_cash-day',{data:money.cashDay,ownerMoneyPage:true}) %><% } %>
+  <% if(money.pendingDeposits?.length){ %><%- include('../customer-accounts/_deposit-review',{
+    pendingDeposits:money.pendingDeposits,formatMinor:data.format,
+    returnTo:money.selected?money.accountTarget(money.selected._id):'/tenant/treasury#pending-deposits'
+  }) %><% } %>
+  <% if(money.pendingFunding?.length){ %><%- include('_owner-funding',{
+    fundings:money.pendingFunding,selected:money.selected
+  }) %><% } %>
+
+  <%- include('_funding') %>
+  <% if(data.mode==='history'){ %>
+   <details class="card workspaceSecondary" id="funding-history" open>
+    <summary>Funding history</summary>
+    <div class="cardBody workspaceStack">
+     <% if(!data.fundings.length){ %><p>No funding activity.</p><% } %>
+     <%- include('_funding-history',{fundings:data.fundings,allowReview:()=>false,onAccount:false,ownerMoneyPage:true}) %>
+    </div>
+   </details>
+  <% }else if(data.canObserve){ %>
+   <div id="funding-history"><a class="btn" href="/tenant/treasury?view=history#funding-history" data-treasury-history-link>Funding history</a></div>
+  <% } %>
+  <% if(money.expenseReconciliation){ %><%- include('../expenses/_owner-reconcile',{expenseReconciliation:money.expenseReconciliation}) %><% } %>
+  <% if(money.canCorrectMobile&&money.action==='corrections'){ %>
+   <div id="reconcile"><%- include('_mobile-corrections',{data:{mobileCorrections:money.mobileCorrections}}) %></div>
+  <% }else if(money.canCorrectMobile){ %>
+   <div><a href="/tenant/treasury?action=corrections#reconcile" class="btn">Correct a mobile money entry</a></div>
+  <% } %>
+  <% if(money.archivedAccounts.length){ %>
+   <details class="card workspaceSecondary" id="archived-accounts">
+    <summary>Archived and closed accounts</summary>
+    <div class="cardBody workspaceStack">
+     <% for(const account of money.archivedAccounts){ %>
+      <div class="rowBtns">
+       <b><%= account.name %></b>
+       <% if(account.openingBalanceMinor!==null||Number(account.sequence||0)>0){ %>
+        <a class="btn" href="<%= money.accountTarget(account._id,'activity') %>">View history</a>
+       <% }else if(data.canManage){ %>
+        <form method="post" action="/tenant/treasury/accounts/<%= account._id %>/restore">
+         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+         <button type="submit" class="btn">Restore unused account</button>
+        </form>
+       <% } %>
+      </div>
+     <% } %>
+    </div>
+   </details>
+  <% } %>
+ </div>
+</section>
+<script defer src="/js/tenant-quick-setup.js?v=<%= assetVersion %>"></script>

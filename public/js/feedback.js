@@ -4,6 +4,7 @@
   const headers=Object.freeze({'X-ClassicFin-Redirect':'json','X-ClassicFin-Background':'true'});
   const noticeDialog=document.getElementById('dashboardFeedbackDialog');
   const noticeHost=noticeDialog?.querySelector('[data-feedback-dialog-host]');
+  const ownerMoney=document.querySelector('[data-owner-money-page]');
   const fallbackMain=document.querySelector('main.panel.main')||document.querySelector('main')||document.body;
   function openNotice(){if(noticeDialog&&!noticeDialog.open&&typeof noticeDialog.showModal==='function')noticeDialog.showModal();}
   function removeNotice(node){if(!node)return;const inDialog=Boolean(noticeHost?.contains(node));node.remove();if(inDialog&&noticeDialog?.open)noticeDialog.close();}
@@ -48,7 +49,7 @@
   // capable browser it becomes a native top-layer confirmation, matching the
   // existing sign-out dialog instead of a floating banner over form controls.
   const initialNotice=document.querySelector('main.panel.main > [data-session-flash]');
-  if(initialNotice&&noticeHost){noticeHost.append(initialNotice);openNotice();}
+  if(initialNotice&&noticeHost&&!ownerMoney){noticeHost.append(initialNotice);openNotice();}
   if(initialNotice)scheduleSoftDismiss(initialNotice);
   noticeDialog?.addEventListener('close',()=>{
     noticeHost?.querySelectorAll('[data-feedback-message]').forEach(node=>{
@@ -83,7 +84,17 @@
     try{
       const result=await fetch(action,{method:'POST',credentials:'same-origin',headers:{...headers,'Content-Type':'application/x-www-form-urlencoded',Accept:'application/json, text/plain, text/html'},body:fields,signal:controller.signal});
       const outcome=await response(result);
-      if(result.ok&&outcome.redirect){if(outcome.flash?.type==='bad'){show(outcome.flash.message,'bad',{form});return;}location.assign(outcome.redirect);return;}
+      if(result.ok&&outcome.redirect){
+        if(outcome.flash?.type==='bad'){show(outcome.flash.message,'bad',{form});return;}
+        const destination=new URL(outcome.redirect);
+        if(ownerMoney&&destination.pathname===location.pathname&&destination.search===location.search){
+          // A fragment-only navigation leaves the old account or drawer state
+          // on screen. Reload the saved state at the intended section.
+          history.replaceState(history.state,'',destination.href);
+          location.reload();
+        }else location.assign(destination.href);
+        return;
+      }
       if(result.redirected&&result.ok&&new URL(result.url).origin===location.origin){location.assign(result.url);return;}
       if(result.status===404){
         // Show the actual failed action (not a generic 'Page not found').

@@ -334,8 +334,8 @@ test('Mobile Money overview visibly links the existing cashier form even before 
  assert.match(html,/Record Mobile Money/);
  assert.match(html,/href="\/tenant\/mobile-money\/cash-in"/);
  assert.match(html,/href="\/tenant\/mobile-money\/cash-out"/);
- assert.match(html,/No ready wallet and assigned cash drawer pair/);
- assert.match(html,/Review real wallet and cash account assignments/);
+ assert.match(html,/A wallet and an open cash drawer are needed for transactions/);
+ assert.match(html,/href="\/tenant\/treasury">Open money accounts/);
 });
 
 test('cashier form displays real wallets and SSP-first authorized drawers without permitting other operators',async()=>{

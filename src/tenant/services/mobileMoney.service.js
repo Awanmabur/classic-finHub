@@ -243,12 +243,37 @@ async function getReviewQueue(conn, reviewerId, max = 25, branchId = null) {
     status: 'pending_verification', correctionState: {$nin:['requested','voided']}, operatorId: { $ne: reviewerId }, ...(branchId ? {branchId} : {}) })
     .sort({ createdAt: 1 }).limit(take).lean();
 }
-// Void requests preserve the original network reference, amount, and historical
-// review. Nothing here produces a refund, provider settlement or ledger entry.
+// Void requests preserve the original network reference, amount and review.
+// Voiding a booked record posts its inverse to the internal funds book.
 function validateNote(note,minimum=12){
   if(typeof note!=='string'||note.trim().length<minimum||note.trim().length>400)
     throw bad(`Document the reason in ${minimum}–400 characters`);
   return note.trim();
+}
+async function reverseBookedRecord(conn,session,authorization,record,reason,options={}){
+  const funds=require('../treasury/service'),input={
+    sourceRef:record.fundsSourceRef,reversalSourceRef:`MM-VOID:${record._id}`,
+    description:reason,evidenceReference:options.evidenceReference
+  };
+  const internal=options.owner?{ownerMobileCorrectionId:record._id}:{};
+  if(!record.fxSettlementId){
+    await funds.reverseMovements(conn,session,authorization,{...input,sourceType:'mobile_money'},internal);
+    return;
+  }
+  const proof=await require('../schemas/MomoFxSettlement').records(conn).findOne({
+    _id:record.fxSettlementId,mobileMoneyRecordId:record._id,
+    tenantId:authorization.tenant._id,branchId:record.branchId
+  }).session(session).lean();
+  if(!proof?.forexQuoteId)throw bad('Linked Forex evidence is unavailable. Correct both sides together.',409);
+  await funds.reverseMovements(conn,session,authorization,{...input,sourceType:'forex'},{...internal,momoFx:true});
+  const reversed=await forexQuoteModel(conn).findOneAndUpdate({
+    _id:proof.forexQuoteId,originModule:'mobile_money',originRecordId:record._id,status:'posted_manual'
+  },{$set:{status:'reversed_manual'},$inc:{revision:1}},{session,new:true}).lean();
+  if(!reversed)throw bad('Linked Forex record changed during correction. All changes were rolled back.',409);
+}
+function voidCashOffset(record){
+  return -BigInt(String(record.physicalCashMovementMinor??record.amountMinor))*
+    (record.physicalCashMovementMinor==null&&record.operation==='cash_out'?-1n:1n);
 }
 async function requestVoid(conn,actor,recordId,note){
   if(!actor?.id||!['Tenant Owner','Mobile Money Operator'].includes(actor.role))throw bad('Only the originating operator can request a correction',403);
@@ -296,34 +321,85 @@ async function decideVoid(conn,reviewer,recordId,decision,note){
         const tenant=await require('../../platform/models/Tenant').findOne({dbName:conn.name,status:{$in:['active','trial']}}).session(session).lean();
         if(!tenant)throw bad('The funded workspace is unavailable',403);
         const authorization=await require('./financialAuthorization.service').fenceAction(conn,session,reviewer,tenant,'mobile_money','mobile_money.review');
-        if(record.fxSettlementId){
-          const fxProof=await require('../schemas/MomoFxSettlement').records(conn).findOne({
-            _id:record.fxSettlementId,mobileMoneyRecordId:record._id,
-            tenantId:tenant._id,branchId:record.branchId}).session(session).lean();
-          if(!fxProof?.forexQuoteId)throw bad('Linked Forex evidence is unavailable; do not void one side',409);
-          await require('../treasury/service').reverseMovements(conn,session,authorization,{
-            sourceType:'forex',sourceRef:record.fundsSourceRef,
-            reversalSourceRef:`MM-VOID:${record._id}`,description:reason
-          },{momoFx:true});
-          const reversed=await forexQuoteModel(conn).findOneAndUpdate({
-            _id:fxProof.forexQuoteId,originModule:'mobile_money',
-            originRecordId:record._id,status:'posted_manual'},
-            {$set:{status:'reversed_manual'},$inc:{revision:1}},{session,new:true}).lean();
-          if(!reversed)throw bad('Linked Forex record changed during correction; all changes rolled back',409);
-        }else{
-          await require('../treasury/service').reverseMovements(conn,session,authorization,{
-            sourceType:'mobile_money',sourceRef:record.fundsSourceRef,
-            reversalSourceRef:`MM-VOID:${record._id}`,description:reason
-          });
-        }
+        await reverseBookedRecord(conn,session,authorization,record,reason);
       }else if(record.cashSessionId){
-        const movement=BigInt(String(record.physicalCashMovementMinor??record.amountMinor))*(record.physicalCashMovementMinor==null?(record.operation==='cash_in'?1n:-1n):1n);
-        await require('./cashDrawer.service').fenceRecordChange(conn,session,record,decision==='approve'?-movement:0n);
+        await require('./cashDrawer.service').fenceRecordChange(conn,session,record,decision==='approve'?voidCashOffset(record):0n);
       }
       await Audit.create([{action:`mobile_money.void.${decision==='approve'?'approved':'denied'}`,
         actorId:reviewer.id,targetId:record._id,metadata:{branchId:String(record.branchId),decision}}],{session});
     });
     return record;
+  }finally{await session.endSession();}
+}
+function correctionState(record) {
+  const state=record.correctionState||'none';
+  const requestedAt=state==='requested'&&record.correctionRequestedAt?new Date(record.correctionRequestedAt).toISOString():'';
+  return {state,requestedAt};
+}
+function ownerCorrectionAvailable(record) {
+  return ['recorded','pending_verification'].includes(record.status)&&
+    ['none','requested','denied'].includes(record.correctionState||'none')&&
+    !(record.fundingState==='book_recorded'&&record.customerAccountId);
+}
+async function resolveOwnerCorrection(conn,tenant,actor,recordId,input={},viewBranchId=null){
+  if(actor?.role!=='Tenant Owner')throw bad('Only the tenant owner can reconcile transactions directly',403);
+  if(!/^[a-f0-9]{24}$/i.test(String(recordId||'')))throw bad('Invalid record ID');
+  if(!['approve','deny'].includes(input.decision))throw bad('Choose an available correction decision');
+  if(input.evidenceChecked!=='on')throw bad('Confirm that you checked the transaction evidence');
+  const reason=validateNote(input.note),evidenceReference=validateNote(input.evidenceReference,4);
+  if(evidenceReference.length>120||/[<>\u0000-\u001f\u007f]/.test(evidenceReference))
+    throw bad('Enter a receipt, statement or cash-count reference up to 120 characters');
+  const ownerRequestKey=typeof input.idempotencyKey==='string'?input.idempotencyKey.toLowerCase():'';
+  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(ownerRequestKey))
+    throw bad('Reload the form to get a new submission reference');
+  const approved=input.decision==='approve',action=approved?'approved':'denied';
+  const funds=require('../treasury/service'),cash=require('./cashDrawer.service');
+  await ensureTenantIndexes(conn);
+  const Model=mobileTransactionModel(conn),session=await conn.startSession();
+  try{
+    return await session.withTransaction(async()=>{
+      const authorization=await funds.access(conn,tenant,actor,{
+        permission:'mobile_money.review',sourceType:'mobile_money',session,fence:true
+      });
+      if(authorization.actor.role!=='Tenant Owner')throw bad('Only the active tenant owner can reconcile transactions directly',403);
+      const record=await Model.findOne({_id:recordId,...(viewBranchId?{branchId:viewBranchId}:{})}).session(session).lean();
+      if(!record)throw bad('Transaction not found in the selected branch',404);
+      const prior=(record.correctionHistory||[]).find(entry=>entry.ownerRequestKey===ownerRequestKey);
+      if(prior){
+        if(String(prior.actorId)!==authorization.actor.id||prior.action!==action||prior.note!==reason||
+           prior.evidenceReference!==evidenceReference)throw bad('This correction reference was used for different details',409);
+        return {record,duplicate:true};
+      }
+      if(!ownerCorrectionAvailable(record))throw bad('This transaction requires separate review or has already been corrected',409);
+      const {state,requestedAt}=correctionState(record);
+      if(state!==input.correctionState||requestedAt!==(input.requestedAt||''))
+        throw bad('The correction request changed. Reload the page before deciding',409);
+      if(!approved&&state!=='requested')throw bad('Only a pending correction request can be kept as recorded',409);
+      const branch=record.branchId&&await branchModel(conn).findOneAndUpdate(
+        {_id:record.branchId,status:'active'},{$inc:{revision:1}},{session,new:true}
+      ).lean();
+      if(!branch)
+        throw bad('The original transaction needs an active branch to correct its books',409);
+      const at=new Date(),ownerId=authorization.actor.id;
+      const corrected=await Model.findOneAndUpdate({_id:record._id,status:record.status,correctionState:record.correctionState??null},{
+        $set:{
+          correctionState:approved?'voided':'denied',...(approved?{status:'voided_internal'}:{}),
+          correctionReviewedBy:ownerId,correctionReviewedAt:at,correctionReviewNote:reason
+        },
+        $push:{correctionHistory:{action,actorId:ownerId,note:reason,evidenceReference,ownerRequestKey,at}}
+      },{new:true,session}).lean();
+      if(!corrected)throw bad('The correction changed concurrently. Reload the page',409);
+      if(approved&&record.fundingState==='book_recorded'){
+        await reverseBookedRecord(conn,session,authorization,corrected,reason,{owner:true,evidenceReference});
+      }else if(record.cashSessionId){
+        await cash.fenceRecordChange(conn,session,record,approved?voidCashOffset(record):0n);
+      }
+      await auditEventModel(conn).create([{
+        action:`mobile_money.void.${action}`,actorId:ownerId,targetId:record._id,
+        metadata:{branchId:String(record.branchId),decision:input.decision,ownerResolution:true,evidenceReference}
+      }],{session});
+      return {record:corrected,duplicate:false};
+    });
   }finally{await session.endSession();}
 }
 async function getVoidQueue(conn,reviewerId,max=25,branchId=null){
@@ -388,7 +464,7 @@ function visibleRecordForRole(record,role){
   if(role!=='Viewer')return record;
   const visible={...record};
   for(const key of ['walletAccountId','paymentAccountId','customerAccountId','walletBalanceBeforeMinor','walletBalanceAfterMinor','walletObservationId','fundsSourceRef','fundJournalIds','observedWalletBalance','observationEvidenceReference'])delete visible[key];
-  return {...visible,correctionHistory:(record.correctionHistory||[]).map(entry=>({
+  return {...visible,correctionHistory:(record.correctionHistory||[]).map(({evidenceReference,ownerRequestKey,...entry})=>({
     ...entry,note:'Restricted to operational staff'
   }))};
 }
@@ -441,4 +517,4 @@ function toCsv(items) {
   ]);
   return rows.map(row=>row.map(csvCell).join(',')).join('\r\n')+'\r\n';
 }
-module.exports = { manualReference, currencies, toMinor, fromMinor, formatMoneyMinor, validate, dateBounds, recordMobileMoney, reviewMobileMoney, getReviewQueue, requestVoid, decideVoid, getVoidQueue, getTransactions, getTransactionPage, getRecordDetails, visibleRecordForRole, encodeCursor, decodeCursor, getSummary, recent, toCsv, csvCell };
+module.exports = { manualReference, currencies, toMinor, fromMinor, formatMoneyMinor, validate, dateBounds, recordMobileMoney, reviewMobileMoney, getReviewQueue, requestVoid, decideVoid, resolveOwnerCorrection, correctionState, ownerCorrectionAvailable, getVoidQueue, getTransactions, getTransactionPage, getRecordDetails, visibleRecordForRole, encodeCursor, decodeCursor, getSummary, recent, toCsv, csvCell };

@@ -74,12 +74,12 @@ test('financial readiness diagnostic is read-only and scoped to the operating br
 });
 
 test('cash opening stays book-backed and uses the audited Cash day route',()=>{
- const template=source('src/views/tenant/mobile-money/shifts.ejs');
+ const template=source('src/views/tenant/mobile-money/_cash-day.ejs');
  const routes=source('src/tenant/routes/cashControl.routes.js');
  const main=source('src/views/tenant/dashboard/index.ejs');
  assert.match(template,/name="openingFromBook" value="on"/);
  assert.match(template,/name="physicalCountConfirmed" value="on"/);
- assert.doesNotMatch(template,/name="openingCash"/,'do not duplicate the verified book amount');
+ assert.match(template,/if\(isOwnerPage\)[\s\S]*name="openingCash"/,'only the owner can reconcile a different opening count inline');
  const drawer=require('node:fs').readFileSync(path.join(root,'src/tenant/services/cashDrawer.service.js'),'utf8');
  assert.match(drawer,/openingFromBook==='on'/);
  assert.match(drawer,/physicalCountConfirmed!=='on'/);

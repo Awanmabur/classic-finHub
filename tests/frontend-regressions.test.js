@@ -134,27 +134,32 @@ function overview(role, permissions, paths, data) {
   });
 }
 
-test('overview prioritizes daily work and keeps authorized currency totals in a collapsed summary', async () => {
+test('overview shows authorized figures for every operating currency above secondary details', async () => {
   const recentActivity=Array.from({length:8},(_,index)=>({href:'/tenant/mobile-money/record-'+index,label:'Activity '+index}));
   const html = await overview('Tenant Owner', ['*'], ['/tenant/money-transfer', '/tenant/mobile-money', '/tenant/banking', '/tenant/forex', '/tenant/reports', '/tenant/treasury','/tenant/cash/shifts'], {
-    hasTransfer: true, transferRecords: {items: []}, hasMobileMoney: true, summary: {total: 23, awaitingReview: 2, recent: [], summaries: []},
-    hasBanking: true, bankingRecords: {items: []}, hasForex: true, forexRecords: {items: []},
-    workspaceSnapshot:{cashDay:{status:'open',currency:'UGX',branchName:'Main'},recentActivity,todayVolumes:{money_transfer:{formatted:'UGX 41,000'},mobile_money:{formatted:'UGX 230,000'},banking:{formatted:'UGX 75,000'},forex:{formatted:'UGX 32,000'}},
-      todayByCurrency:{money_transfer:[{currency:'UGX',formatted:'UGX 41,000',count:1}],mobile_money:[{currency:'UGX',formatted:'UGX 230,000',count:1}],
-       banking:[{currency:'UGX',formatted:'UGX 75,000',count:1}],forex:[{currency:'UGX',formatted:'UGX 32,000',count:1}]}}
+    hasTransfer:true,hasMobileMoney:true,hasBanking:true,hasForex:true,
+    financeOverview:{available:true,bookAssets:[{currency:'UGX',formatted:'UGX 81,000'}],postedNet:[{currency:'USD',formatted:'USD 12.00'}]},
+    workspaceSnapshot:{
+      cashDay:{status:'open',currency:'UGX',branchName:'Main'},recentActivity,
+      todayByCurrency:{money_transfer:[{currency:'UGX',formatted:'UGX 41,000',count:1}],
+        mobile_money:[{currency:'SSP',formatted:'SSP 230,000.00',count:2}],
+        banking:[{currency:'USD',formatted:'USD 75.00',count:3}],
+        forex:[{currency:'KES',formatted:'KES 32.00',count:1}]}
+    }
   });
-  const summary=html.match(/<details[^>]*>\s*<summary[^>]*><b>Financial summary<\/b>[\s\S]*/)?.[0];
-  assert(summary,'financial metrics remain available behind a disclosure');
-  assert.doesNotMatch(summary.split('>')[0],/\bopen\b/);
-  assert.match(html,/href="\/tenant\/cash\/shifts\?currency=UGX">Close day/);
+  const table=html.match(/<table data-dashboard-currency-stats>[\s\S]*?<\/table>/)?.[0];
+  assert(table,'currency stats render without expanding the financial details');
+  assert(html.indexOf(table)<html.indexOf('Recent activity'));
+  for(const label of ['Money transfer','Mobile money','Banking','Forex','Operating assets','Posted net income'])assert(table.includes(label),label);
+  for(const [currency,amount] of [['UGX','UGX 41,000'],['USD','USD 75.00'],['SSP','SSP 230,000.00'],['KSH','KSH 32.00']]){
+    const row=table.match(new RegExp(`<th scope="row">${currency}</th>[\\s\\S]*?</tr>`))?.[0];
+    assert(row?.includes(amount),`${currency} shows its own amount`);
+  }
+  assert.match(table,/UGX 81,000/);assert.match(table,/USD 12\.00/);
+  assert.match(html,/<details [^>]*>\s*<summary[^>]*><b>Financial details<\/b>/);
+  assert.match(html,/href="\/tenant\/treasury\?currency=UGX#cash-day">Close day/);
   assert.equal((html.match(/href="\/tenant\/mobile-money\/record-\d+"/g)||[]).length,6);
-  for (const label of ['Money transfer volume', 'Mobile money volume', 'Banking volume', 'Forex volume', 'Cash drawer by currency']) assert(html.includes(label), label);
-  for(const [id,value] of [['ovTransfer','UGX 41,000'],['ovMobile','UGX 230,000'],['ovBanking','UGX 75,000'],['ovForex','UGX 32,000']]){
-    assert(html.includes(`class="v" id="${id}">1 transaction</div>`),'All-currency default counts records instead of adding money');
-    assert(html.includes(value),'Currency amounts remain visible individually');
-   }
-  assert.doesNotMatch(html, /Load demo|id="branchSelect"|class="v">23<\/div>/);
-
+  assert.doesNotMatch(html,/Load demo|id="branchSelect"/);
 });
 
 test('read-only overview never offers write actions or links to unassigned modules', async () => {

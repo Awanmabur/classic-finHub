@@ -2,33 +2,72 @@
 <%
   const snapshot = data.workspaceSnapshot || {};
   const cashDay = snapshot.cashDay;
-   const byCurrency=snapshot.todayByCurrency||{};
-   const finance=data.financeOverview||{};
-   const overviewCurrencies=typeof currencyOptions==='undefined'?[{code:'UGX',label:'UGX'},{code:'USD',label:'USD'},{code:'SSP',label:'SSP'},{code:'KES',label:'KSH'}]:currencyOptions;
-   const currencyRows=data.dashboardCurrency?overviewCurrencies.filter(x=>x.code===data.dashboardCurrency):overviewCurrencies;
-   const filterMoney=items=>data.dashboardCurrency?(items||[]).filter(x=>x.currency===data.dashboardCurrency):(items||[]);
-   const cards=[['hasTransfer','money_transfer','Money transfer volume','ovTransfer','Send + payout'],['hasMobileMoney','mobile_money','Mobile money volume','ovMobile','Deposits + withdrawals'],['hasBanking','banking','Banking volume','ovBanking','Deposit/withdraw/transfer'],['hasForex','forex','Forex volume','ovForex','Buy + sell exchange']];
-   const hasSources=cards.some(([flag])=>data[flag]);
-   const canConfigureFunds=(user.permissions||[]).some(p=>p==='*'||p==='treasury.view');
-   const cashFunds=(data.mobileFunds?.paymentAccounts||[]).filter(a=>a.kind==='cash'&&(!data.dashboardCurrency||a.currency===data.dashboardCurrency));
-   const floatFunds=(data.mobileFunds?.wallets||[]).filter(a=>!data.dashboardCurrency||a.currency===data.dashboardCurrency);
-   const fundsVisibility=data.mobileFundsState==='all_branches'?'Choose a viewing branch for balance details':data.mobileFundsState==='branch_required'?'No operating branch is selected':data.mobileFunds?.visibilityRestricted?'Restricted by role':null;
-   const canSeeCash=visiblePaths.has('/tenant/treasury');
+  const byCurrency = snapshot.todayByCurrency || {};
+  const finance = data.financeOverview || {};
+  const overviewCurrencies = typeof currencyOptions === 'undefined'
+    ? [{code:'UGX',label:'UGX'},{code:'USD',label:'USD'},{code:'SSP',label:'SSP'},{code:'KES',label:'KSH'}]
+    : currencyOptions;
+  const currencyRows = data.dashboardCurrency ? overviewCurrencies.filter(option => option.code === data.dashboardCurrency) : overviewCurrencies;
+  const filterMoney = items => data.dashboardCurrency ? (items || []).filter(row => row.currency === data.dashboardCurrency) : (items || []);
+  const modules = [
+    ['hasTransfer','money_transfer','Money transfer'],
+    ['hasMobileMoney','mobile_money','Mobile money'],
+    ['hasBanking','banking','Banking'],
+    ['hasForex','forex','Forex']
+  ].filter(([access]) => data[access]);
+  const overviewStats = modules.map(([, key, label]) => ({
+    label, rows:byCurrency[key] || [], unavailable:snapshot.mixedRegion || snapshot.todayByCurrencyUnavailable?.[key]
+  }));
+  if(finance.available){
+    overviewStats.push({label:'Operating assets', rows:finance.bookAssets || []},
+      {label:'Posted net income', rows:finance.postedNet || [], unavailable:finance.mixedRegion});
+  }
+  const displayAmount = row => row?.formatted?.replace(/^KES /, 'KSH ') || '—';
+  const canConfigureFunds = (user.permissions || []).some(permission => permission === '*' || permission === 'treasury.view');
+  const cashFunds = filterMoney((data.mobileFunds?.paymentAccounts || []).filter(account => account.kind === 'cash'));
+  const floatFunds = filterMoney(data.mobileFunds?.wallets);
+  const fundsVisibility = data.mobileFundsState === 'all_branches' ? 'Choose a viewing branch for balance details' :
+    data.mobileFundsState === 'branch_required' ? 'No operating branch is selected' :
+    data.mobileFunds?.visibilityRestricted ? 'Restricted by role' : null;
+  const canSeeCash = visiblePaths.has('/tenant/treasury');
+  const ownerMoneyPage = user.role === 'Tenant Owner' && canSeeCash;
   const hasCashDay = visiblePaths.has('/tenant/cash/shifts');
   const recentActivity = (snapshot.recentActivity || []).slice(0, 6);
   const dayStatus = {
     open: 'Open',
-    pending_open: 'Opening count awaiting review',
-    submitted: 'Closing count awaiting review',
+    pending_open: ownerMoneyPage ? 'Opening count saved' : 'Opening count awaiting review',
+    submitted: ownerMoneyPage ? 'Closing count saved' : 'Closing count awaiting review',
     disputed: 'Closing count needs correction'
   }[cashDay?.status] || 'Closed';
-  const action = {open: 'Close day', disputed: 'Correct closing count', pending_open: 'View opening count',
-    submitted: 'View closing count'}[cashDay?.status] || 'Open day';
-  const cashDayHref = '/tenant/cash/shifts' + (cashDay?.currency ? '?currency=' + encodeURIComponent(cashDay.currency) : '');
+  const action = {open: 'Close day', disputed: 'Correct closing count', pending_open: ownerMoneyPage ? 'Finish opening' : 'View opening count',
+    submitted: ownerMoneyPage ? 'Finish closing' : 'View closing count'}[cashDay?.status] || 'Open day';
+  const cashDayHref = (ownerMoneyPage ? '/tenant/treasury' : '/tenant/cash/shifts') +
+    (cashDay?.currency ? '?currency=' + encodeURIComponent(cashDay.currency) : '') + (ownerMoneyPage ? '#cash-day' : '');
+  const hasFinancialDetail = data.hasMobileMoney || finance.available || canSeeCash;
 %>
 <section class="view show" id="view-overview">
+  <% if(overviewStats.length){ %>
+    <section class="card" aria-labelledby="todayCurrencyStats">
+      <div class="cardHead"><b id="todayCurrencyStats">Today by currency</b><span><%= snapshot.mixedRegion || finance.mixedRegion ? 'Multiple time zones' : dashboardZone %></span></div>
+      <% if(snapshot.mixedRegion || finance.mixedRegion){ %><div class="cardBody"><p class="tiny">Select a branch to see activity for its local business day.</p></div><% } %>
+      <div class="cardBody tableWrap">
+        <table data-dashboard-currency-stats>
+          <thead><tr><th scope="col">Currency</th><% overviewStats.forEach(metric => { %><th scope="col"><%= metric.label %></th><% }) %></tr></thead>
+          <tbody>
+            <% currencyRows.forEach(currency => { %>
+              <tr><th scope="row"><%= currency.label %></th>
+                <% overviewStats.forEach(metric => { const row = metric.rows.find(value => value.currency === currency.code); %>
+                  <td><%= metric.unavailable ? 'Unavailable' : displayAmount(row) %><% if(!metric.unavailable && Number.isInteger(row?.count)){ %><br><small><%= row.count %> <%= row.count === 1 ? 'transaction' : 'transactions' %></small><% } %></td>
+                <% }) %>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  <% } %>
   <% if(hasCashDay){ %>
-    <section class="card">
+    <section class="card" <%- overviewStats.length ? 'style="margin-top:14px"' : '' %>>
       <div class="cardHead">
         <div><b>Cash day</b><% if(cashDay){ %><br><span><%= cashDay.branchName %> · <%= typeof currencyLabel==='function' ? currencyLabel(cashDay.currency) : cashDay.currency %></span><% } %></div>
         <% if(cashDay){ %><span class="tag"><%= dayStatus %></span><% } %>
@@ -38,7 +77,7 @@
       </div>
     </section>
   <% } %>
-  <section class="card" <%- hasCashDay ? 'style="margin-top:14px"' : '' %>>
+  <section class="card" <%- hasCashDay || overviewStats.length ? 'style="margin-top:14px"' : '' %>>
     <div class="cardHead"><b>Recent activity</b></div>
     <div class="cardBody">
       <% if(!recentActivity.length){ %><p class="tiny">No recent transactions to show.</p><% } %>
@@ -58,30 +97,11 @@
       <% } %>
     </div>
   </section>
-  <% if(hasSources || canSeeCash){ %>
+  <% if(hasFinancialDetail){ %>
     <details class="card" style="margin-top:14px">
-      <summary class="cardHead"><b>Financial summary</b><span>Activity, earnings and balances · <%= dashboardZone %></span></summary>
+      <summary class="cardHead"><b>Financial details</b><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary>
       <div class="cardBody">
-      <% if(snapshot.mixedRegion){ %><p class="tiny">Branches use different timezones. Select a branch from the dashboard header to view accurate local-day transaction totals; cash and float accounts remain independently scoped.</p><% } %>
-      <% if(hasSources){ %><div class="grid3 overviewStatsGrid">
-        <% cards.forEach(([flag,key,label,id,sub])=>{if(!data[flag])return;
-   const currencyDetail=byCurrency[key]||[];
-   const selected=data.dashboardCurrency||'';
-   const current=currencyDetail.find(row=>row.currency===selected);
-   const unavailable=snapshot.todayByCurrencyUnavailable?.[key];
-   const count=selected?(current?.count||0):currencyDetail.reduce((sum,row)=>sum+row.count,0);
-   const value=unavailable?'Currency breakdown unavailable':selected?(current?.formatted||'No recorded transactions'):
-    count+' transaction'+(count===1?'':'s');
-   const moduleEarning=(finance.moduleEarnings||[]).find(item=>item.moduleKey===key);
-   const note=key==='forex'&&!moduleEarning?.net?.length&&finance.available?
-    'Trading profit requires verified acquisition cost; no estimated profit is shown.':sub;
-   %><%- include('../partials/overview-stat-card',{
-     title:label,value,valueId:id,items:unavailable?[]:currencyDetail,
-     currencyFilter:selected,secondaryRows:moduleEarning?.net||[],
-     secondaryTitle:'Posted net income (not transaction volume)',note,
-     tooltip:"Today's recorded operations. Monetary amounts stay in native currencies."
-   }) %><% }) %>
-        <% if(data.hasMobileMoney){ %>
+      <% if(data.hasMobileMoney){ %><div class="grid3 overviewStatsGrid">
         <% [['cash',cashFunds,'Physical cash · book balance','ovCash'],['float',floatFunds,'Electronic float · wallet balance','ovFloat']].forEach(([type,accounts,label,id])=>{
            // Never combine money across currencies or hide it behind an account count.
            // One compact card per currency, with each account named below its total.
@@ -107,24 +127,15 @@
             <% if(type==='cash'&&data.cashMappingRequired){ %><div class="s">Link additional drawers to the correct provider/operator.</div><% } %>
           <% } %>
           <div class="s"><span class="dot <%= type==='float'?'warn':'' %>"></span>
-            <% if(canConfigureFunds){ %><a href="/tenant/treasury"><%= current.length?'View / reconcile accounts':'Set up '+(type==='cash'?'cash drawer':'provider wallet') %></a>
+            <% if(canConfigureFunds){ %><a href="/tenant/treasury"><%= ownerMoneyPage?'Money accounts':current.length?'View / reconcile accounts':'Set up '+(type==='cash'?'cash drawer':'provider wallet') %></a>
             <% }else if(['Tenant Owner','Mobile Money Operator','Branch Manager','Reconciliation Officer','Auditor'].includes(user.role)){ %><a href="/tenant/mobile-money/readiness">Check readiness</a>
             <% }else{ %><span>Branch-scoped funds only</span><% } %>
           </div>
         </div>
         <% }); }); %>
-        <% } %>
-      </div>
+      </div><% } %>
       <% if(finance.available){ %>
       <div class="grid3 overviewStatsGrid financialOverviewStats" aria-label="Posted earnings and operating book assets" style="margin-top:12px">
-        <div class="stat">
-          <div class="k">Posted net income · today</div>
-          <% if(finance.mixedRegion){ %><div class="v">Choose a branch</div>
-          <% } else if(!filterMoney(finance.postedNet).length){ %><div class="v">No posted income or expense</div>
-          <% } else { %><div class="overviewCurrencyLines">
-            <% filterMoney(finance.postedNet).forEach(row=>{ %><div class="overviewCurrencyLine"><span><%= row.currency==='KES'?'KSH':row.currency %></span><b><%= row.formatted.replace(/^KES /,'KSH ') %></b></div><% }); %>
-          </div><% } %><div class="s">Posted income less posted expenses; excludes unmeasured FX trading gains</div>
-        </div>
         <div class="stat">
           <div class="k">Posted income · today</div>
           <% if(finance.mixedRegion){ %><div class="v">Choose a branch</div>
@@ -133,19 +144,21 @@
             <% filterMoney(finance.postedIncome).forEach(row=>{ %><div class="overviewCurrencyLine"><span><%= row.currency==='KES'?'KSH':row.currency %></span><b><%= row.formatted.replace(/^KES /,'KSH ') %></b></div><% }); %>
           </div><% } %><div class="s">Only accounting income entries, not network fee estimates</div>
         </div>
-        <div class="stat">
-          <div class="k">Operating assets · book balances</div>
-          <% if(!filterMoney(finance.bookAssets).length){ %><div class="v">No approved asset openings</div>
-          <% } else { %><div class="overviewCurrencyLines">
-            <% filterMoney(finance.bookAssets).forEach(row=>{ %><div class="overviewCurrencyLine"><span><%= row.currency==='KES'?'KSH':row.currency %></span><b><%= row.formatted.replace(/^KES /,'KSH ') %></b></div><% }); %>
-          </div><% } %><div class="s">Cash, float, bank and FX stock; not owner equity or live network balances</div>
-        </div>
-        <div class="stat">
+        <% if(data.hasForex){ %><div class="stat">
           <div class="k">Forex trading profit</div>
           <div class="v">Not yet measurable</div>
           <div class="s">Actual purchase cost basis and matched sales are needed before realized profit can be reported.</div>
-        </div>
+        </div><% } %>
       </div>
+      <% const moduleIncome = (finance.moduleEarnings || []).filter(entry => filterMoney(entry.net).length); %>
+      <% if(moduleIncome.length){ %>
+        <div class="summary" style="margin-top:12px">
+          <b>Posted net income by module</b>
+          <% moduleIncome.forEach(entry => { filterMoney(entry.net).forEach(row => { %>
+            <div class="sumRow"><span><%= modules.find(([,key]) => key === entry.moduleKey)?.[2] || entry.moduleKey.replaceAll('_',' ') %></span><b><%= displayAmount(row) %></b></div>
+          <% }); }); %>
+        </div>
+      <% } %>
       <% if(finance.byModule?.length){ %>
       <details class="financialModuleBalances" style="margin-top:12px"><summary><strong>Operating assets by module and currency</strong></summary>
         <div class="summary">
@@ -155,7 +168,6 @@
           <% });}); %>
         </div><p class="tiny">Shared physical drawers are shown once, not attributed to every connected module.</p>
       </details><% } %>
-      <% } %>
       <% } %>
     <% if(canSeeCash){ %><div class="card"><div class="cardHead"><div><b>Cash drawer by currency</b><br><span>Automatically updated by operations</span></div></div><div class="cardBody"><div class="summary" id="cashSummary" title="Provisional physical cash from independently verified opening counts and recorded drawer movements.">
       <% currencyRows.forEach(option=>{const row=(snapshot.cash||[]).find(value=>value.currency===option.code); %><div class="sumRow" <% if(row){ %>title="<%= row.shiftCount %> open shift<%= row.shiftCount===1?'':'s' %>"<% } %>><span><%= option.label %></span><b><%= row?.expectedFormatted?.replace(/^KES\s/,'KSH ')||'—' %></b></div><% }) %>

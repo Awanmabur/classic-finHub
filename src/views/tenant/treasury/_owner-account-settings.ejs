@@ -1,0 +1,47 @@
+<form class="workspaceStack" method="post" action="<%= path %>/settings">
+ <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+ <div class="row2">
+  <label class="field">Account name<input class="control" name="name" required minlength="3" maxlength="120" value="<%= account.name %>"></label>
+  <label class="field">Use as default<select class="control" name="isDefault">
+   <option value="true" <%= account.selectionKey?'selected':'' %>>Yes</option>
+   <option value="false" <%= account.selectionKey?'':'selected' %>>No</option>
+  </select></label>
+  <% if(account.kind==='wallet'){ %>
+   <label class="field">Cash drawer for this wallet<select class="control" name="cashDrawerAccountId">
+    <option value="">Automatic</option>
+    <% for(const drawer of data.ownerMoney.walletDrawers.filter(row=>!account.operatorId||String(row.operatorId)===String(account.operatorId))){ %>
+     <option value="<%= drawer._id %>" <%= String(account.cashDrawerAccountId||'')===String(drawer._id)?'selected':'' %>><%= drawer.name %></option>
+    <% } %>
+   </select></label>
+   <label class="field">Fee treatment<select class="control" name="feeTreatment">
+    <option value="record_only" <%= account.feeTreatment!=='payment_collected'?'selected':'' %>>Record fee only</option>
+    <option value="payment_collected" <%= account.feeTreatment==='payment_collected'?'selected':'' %>>Fee collected from customer</option>
+   </select></label>
+  <% } %>
+ </div>
+ <div><button class="btn btnPrimary" type="submit">Save details</button></div>
+</form>
+<% if(['cash','bank','wallet','forex_stock'].includes(account.kind)){ %>
+ <% if(account.status==='uninitialized'&&account.openingBalanceMinor===null&&!account.pendingOpeningId&&
+       !account.openingApprovedAt&&Number(account.sequence||0)===0&&String(account.bookBalanceMinor||0)==='0'){ %>
+  <details class="logicNote">
+   <summary>Remove unused account</summary>
+   <form class="workspaceStack" method="post" action="<%= path %>/archive">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="confirmCode" value="<%= account.code %>">
+    <div><button class="btn btnDanger" type="submit">Archive unused account</button></div>
+   </form>
+  </details>
+ <% }else if(account.status==='active'){ %>
+  <details class="logicNote">
+   <summary>Close this account</summary>
+   <form class="workspaceStack" method="post" action="<%= path %>/close">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <p>Settle the account to zero and check its actual balance before closing. History stays available.</p>
+    <label class="field">Confirm account code (<%= account.code %>)<input class="control" name="confirmCode" maxlength="40" autocomplete="off" required></label>
+    <label class="field">Reason for closing<textarea class="control" name="reason" rows="2" minlength="12" maxlength="400" required></textarea></label>
+    <div><button class="btn btnDanger" type="submit">Close account</button></div>
+   </form>
+  </details>
+ <% } %>
+<% } %>

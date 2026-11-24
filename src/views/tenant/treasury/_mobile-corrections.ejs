@@ -1,0 +1,44 @@
+<% if(data.mobileCorrections){const corrections=data.mobileCorrections; %>
+ <section class="card" id="mobile-corrections">
+  <div class="cardHead"><b>Mobile Money corrections</b></div>
+  <div class="cardBody workspaceStack">
+   <form method="get" action="/tenant/treasury#reconcile" class="rowBtns">
+    <input type="hidden" name="action" value="corrections">
+    <label class="field">Find a transaction
+     <input class="control" type="search" name="txRef" maxlength="100" value="<%= corrections.reference %>" placeholder="Transaction or network reference">
+    </label>
+    <button class="btn" type="submit">Find</button>
+    <% if(corrections.reference){ %><a class="btn" href="/tenant/treasury?action=corrections#reconcile">Show issues</a><% } %>
+   </form>
+   <% if(!corrections.rows.length){ %><p><%= corrections.reference?'No transaction matches that reference in this branch view.':'No pending or disputed Mobile Money corrections in this branch view.' %></p><% } %>
+   <% for(const row of corrections.rows){ %>
+    <details class="workspaceSecondary"<% if(corrections.reference&&corrections.rows.length===1){ %> open<% } %>>
+     <summary><%= row.network %> · <%= row.operation==='cash_in'?'Deposit':'Withdrawal' %> · <%= row.amount %> · <%= row.networkReference %></summary>
+     <% if(row.correctionReason&&row.request.state==='requested'){ %><p><%= row.correctionReason %></p><% } %>
+     <% if(row.canResolve){ %>
+      <form method="post" action="/tenant/treasury/mobile-corrections/<%= row._id %>" class="workspaceStack">
+       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+       <input type="hidden" name="idempotencyKey" value="<%= row.idempotencyKey %>">
+       <input type="hidden" name="correctionState" value="<%= row.request.state %>">
+       <input type="hidden" name="requestedAt" value="<%= row.request.requestedAt %>">
+       <div class="row2">
+        <label class="field">Evidence reference
+         <input class="control" name="evidenceReference" required minlength="4" maxlength="120" placeholder="Receipt, statement, or cash count">
+        </label>
+        <label class="field">Reason for the decision
+         <input class="control" name="note" required minlength="12" maxlength="400">
+        </label>
+       </div>
+       <label><input type="checkbox" name="evidenceChecked" required> I checked the actual payment or cash evidence.</label>
+       <p class="tiny">Reversing a transaction updates the internal book. Contact the provider for any external refund or reversal.</p>
+       <div class="rowBtns">
+        <button class="btn btnPrimary" type="submit" name="decision" value="approve">Reverse record</button>
+        <% if(row.request.state==='requested'){ %><button class="btn" type="submit" name="decision" value="deny">Keep original</button><% } %>
+       </div>
+      </form>
+     <% }else{ %><p><%= row.correctionState==='voided'?'Reversed in the internal book.':'The original transaction is retained. Check its linked account activity.' %></p><% } %>
+    </details>
+   <% } %>
+  </div>
+ </section>
+<% } %>

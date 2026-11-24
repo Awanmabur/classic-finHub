@@ -1,10 +1,16 @@
+<% const ownerDirect = typeof ownerMoneyPage !== 'undefined' && ownerMoneyPage; %>
 <form method="post" action="/tenant/cash/shifts/<%= shift._id %>/<%= isOpening ? 'verify-opening' : 'decide' %>">
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <input type="hidden" name="currency" value="<%= shift.currency %>">
   <% if(returnToDay){ %><input type="hidden" name="returnToDay" value="1"><% } %>
-  <label class="field">Review note (12–400 characters)<textarea class="control" name="note" required minlength="12" maxlength="400" rows="2"></textarea></label>
+  <% if(ownerDirect){ %>
+    <% if(!isOpening && String(shift.varianceMinor)!=='0'){ %><label class="field">Reason for the difference<textarea class="control" name="note" required minlength="12" maxlength="400" rows="2"></textarea></label><% } %>
+  <% } else { %>
+    <label class="field">Review note (12–400 characters)<textarea class="control" name="note" required minlength="12" maxlength="400" rows="2"></textarea></label>
+  <% } %>
   <% if(!canApprove){ %><p class="tiny">A discrepancy needs a different authorized supervisor.</p><% } %>
   <div class="rowBtns">
-    <% if(canApprove){ %><button class="btn btnPrimary" type="submit" name="decision" value="approve"><%= isOpening ? 'Verify and open' : 'Approve and close' %></button><% } %>
-    <button class="btn" type="submit" name="decision" value="<%= isOpening ? 'reject' : 'dispute' %>"><%= isOpening ? 'Reject opening count' : 'Return to operator' %></button>
+    <% if(canApprove){ %><button class="btn btnPrimary" type="submit" name="decision" value="approve"><%= ownerDirect ? (isOpening ? 'Open day' : 'Reconcile and close day') : (isOpening ? 'Verify and open' : 'Approve and close') %></button><% } %>
+    <% if(!ownerDirect){ %><button class="btn" type="submit" name="decision" value="<%= isOpening ? 'reject' : 'dispute' %>"><%= isOpening ? 'Reject opening count' : 'Return to operator' %></button><% } %>
   </div>
 </form>

@@ -110,11 +110,14 @@ test('summary joins its currency and module rows and exports each exact amount s
 
 test('only a subscribed owner can reach the summary and CSV, including through direct URLs', async t => {
   const href = '/tenant/reports/summary';
-  const visible = (tenant, user) => tenantMenu(tenant, user).flatMap(group => group.items).some(item => item.href === href);
+  const visible = (tenant, user, path) => tenantMenu(tenant, user).flatMap(group => group.items).some(item => item.href === path);
   const expired = { ...subscribed, enabledModules: [] };
-  assert.equal(visible(subscribed, owner), true);
-  assert.equal(visible(expired, owner), false);
-  assert.equal(visible(subscribed, analyst), false);
+  assert.equal(visible(subscribed, owner, '/tenant/reports'), true);
+  assert.equal(visible(expired, owner, '/tenant/reports'), false);
+  assert.equal(visible(subscribed, analyst, '/tenant/reports'), true);
+  assert.equal(visible(subscribed, owner, href), false);
+  assert.ok(tenantMenu(subscribed, owner).some(group => group.paths.includes(href)));
+  assert.ok(!tenantMenu(subscribed, analyst).some(group => group.paths.includes(href)));
 
   const app = express();
   app.use((req, res, next) => {
@@ -142,4 +145,92 @@ test('only a subscribed owner can reach the summary and CSV, including through d
   assert.equal(page.status, 400);
   assert.deepEqual(await page.json(), { view: 'reports/summary', formError: 'Enter a valid start and end date.', canExport: false });
   assert.equal((await request(href + '/export.csv?period=custom', 'owner')).status, 400);
+});
+
+test('General reports opens with exact owner totals and loads legacy activity only on request', async t => {
+  const summary = require('../src/tenant/services/ownerReportSummary.service');
+  const operations = require('../src/tenant/services/operationsReports.service');
+  const finance = require('../src/tenant/services/financeOverview.service');
+  const cashDrawer = require('../src/tenant/services/cashDrawer.service');
+  const entry = { currency: 'KES', count: 1, amountMinor: '1234', incomeMinor: '0', expenseMinor: '5', netMinor: '-5' };
+  const now = new Date('2026-11-25T19:00:00Z');
+  const ownerReads = [];
+  const activityReads = [];
+  const assets = [
+    { currency: 'UGX', formatted: 'UGX 7,000' },
+    { currency: 'KES', formatted: 'KES 42.50' }
+  ];
+  t.mock.method(summary, 'generate', async (req, branchRows, query) => {
+    ownerReads.push(req.user.role);
+    const context = scopeForRequest(req, branchRows);
+    const { filter, formError } = reportingPeriod(query, context.timeZone, now);
+    return {
+      report: { ...context, ...filter, ...(!formError ? { totalCount: 1, byCurrency: [entry], byModule: [] } : {}) },
+      formError
+    };
+  });
+  t.mock.method(finance, 'overview', async (_conn, _tenant, user, options) => {
+    assert.equal(options.includeEarnings, user.role !== 'Tenant Owner');
+    assert.equal(options.scopeToAssignedModules, true);
+    assert.equal(options.includeAccounts, true);
+    return user.role === 'Tenant Owner' ? { available: true, bookAssets: assets, bookCash: [assets[1]] } : { available: false };
+  });
+  t.mock.method(cashDrawer, 'expectedCash', async () => []);
+  t.mock.method(operations, 'generate', async (_conn, tenant, user, query, timeZone) => {
+    const sources = operations.sourcesFor(tenant, user);
+    const filters = operations.parseFilters(query, sources, timeZone);
+    activityReads.push({ from: filters.from, to: filters.to, source: filters.source });
+    return { rows: [{ module: 'Workspace', activity: 'Cash count saved' }], filters, sources };
+  });
+  const app = express();
+  app.use((req, res, next) => {
+    req.tenant = subscribed;
+    req.tenantDb = { name: dbName };
+    req.viewBranch = branches[1];
+    req.viewBranchId = branches[1]._id;
+    req.operationBranch = branches[0];
+    req.user = req.get('x-fixture-actor') === 'analyst' ? analyst : { ...owner, viewBranchId: branches[1]._id };
+    res.locals.viewBranches = branches;
+    next();
+  });
+  app.use('/tenant', approvedReportsRoutes({
+    renderTenant: (_req, res, view, _title, _subtitle, data) => res.json({ view, ...data })
+  }));
+  app.use((error, req, res, next) => res.status(error.status || 500).send(error.message));
+  const server = app.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const get = (query, actor = 'owner') => fetch(`http://127.0.0.1:${server.address().port}/tenant/reports${query}`, {
+    headers: { 'x-fixture-actor': actor }
+  });
+  const landing = await (await get('?period=week')).json();
+  assert.equal(landing.businessSummary.report.branchName, 'Second');
+  assert.deepEqual(landing.businessSummary.report.byCurrency, [entry]);
+  assert.equal(landing.activityLoaded, false);
+  assert.deepEqual(activityReads, []);
+  assert.deepEqual(landing.fundsStats, [
+    { currency: 'UGX', cash: null, float: null, assets: 'UGX 7,000' },
+    { currency: 'KES', cash: 'KSH 42.50', float: null, assets: 'KSH 42.50' }
+  ]);
+  const detail = await (await get('?period=week&activity=1&source=workspace')).json();
+  assert.equal(detail.activityLoaded, true);
+  assert.deepEqual(activityReads.at(-1), { from: '2026-11-23', to: '2026-11-25', source: 'workspace' });
+  const legacy = await (await get('?from=2026-11-19&to=2026-11-22')).json();
+  assert.equal(legacy.businessSummary.report.period, 'custom');
+  assert.equal(legacy.activityLoaded, true);
+  assert.deepEqual(activityReads.at(-1), { from: '2026-11-19', to: '2026-11-22', source: 'all' });
+  const long = await (await get('?period=custom&from=2026-01-01&to=2026-11-24&activity=1')).json();
+  assert.equal(long.businessSummary.report.totalCount, 1);
+  assert.equal(long.activityLoaded, false);
+  assert.match(long.activityNotice, /within 90 days/);
+  const invalid = await get('?period=custom');
+  assert.equal(invalid.status, 400);
+  assert.match((await invalid.json()).businessSummary.formError, /valid start and end date/);
+  assert.equal((await get('?period=week&activity=1&source=mobile_money')).status, 403);
+  const beforeStaff = ownerReads.length;
+  const staff = await (await get('?from=2026-11-19&to=2026-11-22', 'analyst')).json();
+  assert.equal(staff.activityLoaded, true);
+  assert.equal(staff.businessSummary, undefined);
+  assert.equal(staff.fundsStats, undefined);
+  assert.equal(ownerReads.length, beforeStaff);
 });

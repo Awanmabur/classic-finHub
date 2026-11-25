@@ -32,7 +32,8 @@ function scopeForRequest(req, branches = []) {
   const branchZones = allBranches ? new Set(branches.map(businessTime.forBranch)) : new Set();
   const timeZone = branchZones.size === 1 ? [...branchZones][0] :
     businessTime.forBranch(allBranches ? req.operationBranch : branch);
-  return { branch, scope, allBranches, timeZone, branchName: allBranches ? 'All branches' : branch.name };
+  return { branch, scope, allBranches, mixedRegion: branchZones.size > 1,
+    timeZone, branchName: allBranches ? 'All branches' : branch.name };
 }
 
 function reportingPeriod(query, timeZone, now = new Date()) {
@@ -96,7 +97,7 @@ function summarize(transactions, postings) {
   };
 }
 
-async function generate(req, branches) {
+async function generate(req, branches, query = req.query) {
   if (req.user?.role !== 'Tenant Owner' || !canUse(req.tenant, req.user, 'reports', 'reports.view'))
     throw Object.assign(new Error('Business summary is available to the tenant owner.'), { status: 403 });
   const dbName = req.tenantDb?.name;
@@ -104,7 +105,7 @@ async function generate(req, branches) {
     throw Object.assign(new Error('Tenant database context mismatch'), { status: 403 });
 
   const { branch, scope, ...context } = scopeForRequest(req, branches);
-  const { filter, formError, dateRange } = reportingPeriod(req.query, context.timeZone);
+  const { filter, formError, dateRange } = reportingPeriod(query, context.timeZone);
   const report = { ...filter, ...context };
   if (formError) return { report, formError };
 

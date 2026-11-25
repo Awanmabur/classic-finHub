@@ -159,22 +159,25 @@ async function readSource(key,read){
 async function volumes(conn,tenant,user,input={},operationBranch=null,overview={}){
  const currency=selectedCurrency(input.currency,operationBranch),now=input.now||new Date(),
   timeZone=input.timeZone||'UTC',todayByCurrency={},todayByCurrencyUnavailable={};
- const countCurrency=input.currency;
  if(input.suppressTodayVolumes===true)return {selectedCurrency:currency,currencyOptions:currencyCodes.map(code=>({code,label:currencyLabel(code)})),
-  todayByCurrency:{},todayByCurrencyUnavailable:{},todayTransactionCount:null,date:businessTime.localDay(now,timeZone),mixedRegion:true};
+  todayCurrencyTotals:[],todayByCurrency:{},todayByCurrencyUnavailable:{},todayTransactionCount:null,date:businessTime.localDay(now,timeZone),mixedRegion:true};
  const enabled=Object.keys(sources).filter(key=>overview[sources[key].flag]!==false&&
   hasModuleForUser(tenant,user,key)&&hasPermission(user,`${key}.view`));
  const jobs=postedActivityJobs(conn,tenant,user,{enabled,branch:operationBranch,dateRange:bounds(now,timeZone)});
  const parts=await Promise.all(jobs.map(async([key,read])=>[key,await readSource(key,read)]));
- const todayTransactionCount=parts.length&&parts.every(([,data])=>data.available)
-  ?parts.reduce((count,[,data])=>count+(countCurrency
-   ?totalFor(data.groups,countCurrency).count:data.count),0):null;
+ const totalsAvailable=parts.length>0&&parts.every(([,data])=>data.available);
+ // Sum native records here before adding cross-module Forex display rows.
+ const originalGroups=parts.flatMap(([,data])=>data.groups);
+ const todayCurrencyTotals=totalsAvailable?currencyCodes.map(code=>totalFor(originalGroups,code)):[];
+ const todayTransactionCount=totalsAvailable
+  ?input.currency?todayCurrencyTotals.find(row=>row.currency===currency).count
+   :parts.reduce((count,[,data])=>count+data.count,0):null;
  for(const key of enabled){
   const own=parts.filter(([source])=>source===key);
   const groups=moduleGroups(parts,key);
   if((key==='forex'?parts:own).some(([,data])=>!data.available))todayByCurrencyUnavailable[key]=true;
   todayByCurrency[key]=currencyCodes.map(code=>totalFor(groups,code)).filter(row=>row.count>0);
  }
- return {selectedCurrency:currency,currencyOptions:currencyCodes.map(code=>({code,label:currencyLabel(code)})),todayByCurrency,todayByCurrencyUnavailable,todayTransactionCount,date:businessTime.localDay(now,timeZone)};
+ return {selectedCurrency:currency,currencyOptions:currencyCodes.map(code=>({code,label:currencyLabel(code)})),todayCurrencyTotals,todayByCurrency,todayByCurrencyUnavailable,todayTransactionCount,date:businessTime.localDay(now,timeZone)};
 }
 module.exports={volumes,sources,selectedCurrency,scopeFor,bounds,totalFor,money,fail,postedActivityJobs,moduleGroups,aggregateLegs};

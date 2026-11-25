@@ -1,0 +1,74 @@
+<%
+ const {report,formError,canExport,formatMoney,currencyLabel}=summary;
+ const periods=[['day','Today'],['week','This week'],['month','This month']];
+ const formatDate=new Intl.DateTimeFormat('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'});
+ const dates=[...new Set([report.from,report.to])].filter(Boolean).map(value=>formatDate.format(new Date(value+'T00:00:00Z'))).join(' – ');
+ const exportQuery=new URLSearchParams({period:'custom',from:report.from||'',to:report.to||''});
+ const numbers=new Intl.NumberFormat('en-GB');
+ const showTotals=Number.isInteger(report.totalCount);
+ const transactionReport=!report.mixedRegion&&typeof visiblePaths!=='undefined'&&visiblePaths.has('/tenant/reports/transactions')&&
+   Date.parse(report.to)-Date.parse(report.from)<=90*86400000;
+%>
+<section class="card generalRecap" aria-labelledby="generalRecapHeading">
+  <div class="cardHead generalRecapHead">
+    <div>
+      <b id="generalRecapHeading">Business at a glance</b>
+      <p class="generalPeriodContext"><%= [report.branchName,dates,report.timeZone].filter(Boolean).join(' · ') %></p>
+    </div>
+    <% if(canExport&&showTotals){ %><a class="btn noPrint" href="/tenant/reports/summary/export.csv?<%= exportQuery.toString() %>">Export summary CSV</a><% } %>
+  </div>
+  <div class="cardBody generalRecapBody">
+    <div class="generalPeriodControls noPrint">
+      <nav class="generalPeriodLinks" aria-label="Summary period">
+        <% for(const [key,label] of periods){ const selected=report.period===key&&!formError; %>
+          <a href="/tenant/reports?period=<%= key %>" class="btn<%= selected?' btnPrimary':'' %>"<% if(selected){ %> aria-current="page"<% } %>><%= label %></a>
+        <% } %>
+      </nav>
+      <details class="generalCustomDates"<% if(report.period==='custom'||formError){ %> open<% } %>>
+        <summary class="btn<%= report.period==='custom'&&!formError?' btnPrimary':'' %>">Custom dates <i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary>
+        <form method="get" action="/tenant/reports" class="summaryReportDates" aria-label="Custom reporting period">
+          <input type="hidden" name="period" value="custom">
+          <label class="field">From<input class="control" type="date" name="from" value="<%= report.from||report.today||'' %>" <% if(report.today){ %>max="<%= report.today %>"<% } %> required></label>
+          <label class="field">To<input class="control" type="date" name="to" value="<%= report.to||report.today||'' %>" <% if(report.today){ %>max="<%= report.today %>"<% } %> required></label>
+          <button class="btn btnPrimary" type="submit">Apply dates</button>
+        </form>
+      </details>
+    </div>
+    <% if(formError){ %><p class="summaryReportError" role="alert"><%= formError %></p><% } %>
+    <% if(showTotals){ %>
+      <div class="generalRecapCount"><strong><%= numbers.format(report.totalCount) %></strong><span>recorded <%= report.totalCount===1?'transaction':'transactions' %> across all modules</span></div>
+      <% if(report.byCurrency.length){ %>
+        <div class="generalCurrencyCards">
+          <% for(const row of report.byCurrency){
+            const net=row.netMinor==null?null:BigInt(row.netMinor);
+            const label=net===null?'Posted profit / loss':net<0n?'Posted loss':net>0n?'Posted profit':'Break-even';
+          %>
+          <section class="generalCurrencyCard" aria-labelledby="recap-<%= row.currency %>">
+            <h3 id="recap-<%= row.currency %>"><%= currencyLabel(row.currency) %></h3>
+            <div class="generalNetResult<%= net!==null&&net<0n?' isLoss':net!==null&&net>0n?' isProfit':'' %>">
+              <span><%= label %></span>
+              <strong><%= net===null?'—':formatMoney(row.netMinor,row.currency) %></strong>
+            </div>
+            <dl class="generalCurrencyFacts">
+              <div><dt>Transactions</dt><dd><%= row.count==null?'—':numbers.format(row.count) %></dd></div>
+              <div><dt>Transaction amount</dt><dd><%= row.amountMinor==null?'—':formatMoney(row.amountMinor,row.currency) %></dd></div>
+            </dl>
+          </section>
+          <% } %>
+        </div>
+      <% }else{ %><p>No recorded transactions or posted earnings for these dates.</p><% } %>
+    <% } %>
+  </div>
+</section>
+<% if(showTotals&&report.byModule.length){ %>
+ <section class="card generalBusinessModules" aria-labelledby="generalBusinessModulesHeading">
+   <div class="cardHead">
+     <b id="generalBusinessModulesHeading">By module and currency</b>
+     <% if(transactionReport){ %><a class="btn noPrint" href="/tenant/reports/transactions?from=<%= report.from %>&amp;to=<%= report.to %>">Transaction report</a><% } %>
+   </div>
+   <div class="cardBody">
+     <%- include('_summary-table',{data:summary,rows:report.byModule,moduleRows:true,compact:true,label:'Profit, loss and activity by module and currency'}) %>
+     <p class="tiny generalReportNote">Profit or loss comes from posted income and expenses. The overall count includes each exchange once.</p>
+   </div>
+ </section>
+<% } %>

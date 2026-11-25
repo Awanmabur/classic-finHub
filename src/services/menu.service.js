@@ -81,9 +81,9 @@ function tenantMenu(tenant,user) {
   ],banking?['banking']:[]);
   group('Operation Reports',[
     ...(reports?[item('General reports','reports','fa-file-lines')]:[]),
-    ...(owner&&reports?[item('Summary','reports/summary','fa-chart-column')]:[]),
     ...(module('analytics')&&can('analytics.view')?[item('Analytics','analytics','fa-chart-pie')]:[])
   ],reports?[
+    ...(owner?['reports/summary']:[]),
     'reports/daily',
     ...(['mobile_money','money_transfer','banking','forex'].some(module)?['reports/transactions']:[]),
     ...(cashReportSource?['reports/opening','reports/closing']:[]),

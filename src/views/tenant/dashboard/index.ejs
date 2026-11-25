@@ -3,7 +3,6 @@
   const snapshot = data.workspaceSnapshot || {};
   const finance = data.financeOverview || {};
   const displayAmount = row => row?.formatted?.replace(/^KES /, 'KSH ') || '—';
-  const filterMoney = rows => (rows || []).filter(row => !data.dashboardCurrency || row.currency === data.dashboardCurrency);
   const currencies = typeof currencyOptions === 'undefined'
     ? [{code:'UGX',label:'UGX'},{code:'USD',label:'USD'},{code:'SSP',label:'SSP'},{code:'KES',label:'KSH'}]
     : currencyOptions;
@@ -25,27 +24,28 @@
       {label:'Posted net income', rows:finance.postedNet || [], unavailable:finance.mixedRegion}
     );
   }
-  const count = modules.length ? snapshot.todayTransactionCount : null;
-  const totals = [
-    ['Physical cash', data.mobileBookTotals?.cash, 'cash'],
-    ['Electronic float', data.mobileBookTotals?.float, 'float']
-  ].map(([label, rows, kind]) => ({label, rows: filterMoney(rows), kind})).filter(metric => metric.rows.length);
+  const currentTotals = new Map((snapshot.todayCurrencyTotals || []).map(row => [row.currency, row]));
+  const configuredCurrencies = new Set(data.dashboardStatCurrencies || []);
+  const currencyCards = currencyRows.map(({code, label}) => ({code, label, total:currentTotals.get(code)}))
+    .filter(({code, total}) => total && (total.count > 0 || configuredCurrencies.has(code)));
+  const reportsHref = typeof visiblePaths !== 'undefined' && visiblePaths.has('/tenant/reports') ? '/tenant/reports' : null;
   const recentActivity = (snapshot.recentActivity || []).slice(0, 6);
 %>
 <section class="view show" id="view-overview">
-  <% if(Number.isInteger(count) || totals.length){ %>
+  <% if(currencyCards.length){ %>
     <section class="card" aria-labelledby="dashboardStats">
-      <div class="cardHead"><b id="dashboardStats">Stats</b></div>
+      <div class="cardHead">
+        <b id="dashboardStats">Posted today</b>
+        <% if(reportsHref){ %><a class="btn" href="<%= reportsHref %>">General reports</a><% } %>
+      </div>
       <div class="cardBody">
         <div class="dashboardStatsGrid">
-          <% if(Number.isInteger(count)){ %>
-            <div class="stat"><div class="k">Posted transactions today</div><div class="v"><%= count.toLocaleString('en-GB') %></div></div>
-          <% } %>
-          <% totals.forEach(({label, rows, kind}) => { %>
-            <div class="stat"<% if(kind){ %> data-dashboard-fund-stat="<%= kind %>"<% } %>>
-              <div class="k"><%= label %></div>
-              <% rows.forEach(row => { %><div class="v"><%= displayAmount(row) %></div><% }); %>
-            </div>
+          <% currencyCards.forEach(({code, label, total}) => { %>
+            <article class="stat dashboardCurrencyStat" data-dashboard-stat-currency="<%= code %>">
+              <h3 class="k"><%= label %></h3>
+              <div class="v"><%= displayAmount(total) %></div>
+              <div class="s"><%= total.count.toLocaleString('en-GB') %> <%= total.count === 1 ? 'transaction' : 'transactions' %></div>
+            </article>
           <% }); %>
         </div>
       </div>

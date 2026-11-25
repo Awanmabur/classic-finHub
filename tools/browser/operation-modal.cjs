@@ -11,23 +11,32 @@ const out=path.resolve(process.env.BROWSER_REVIEW_DIR||'/tmp/classicfin-operatio
 const result={browserErrors:[],resourceErrors:[],layouts:[],headerLayouts:[]};let browser,server,conn,page;
 async function checkWorkspaceHeader(base,pathname){
  await page.goto(base+pathname);
- for(const width of [320,390,1121,1440]){
+ for(const width of [320,390,701,1024,1119,1121,1440]){
   await page.setViewportSize({width,height:1000});
   await page.evaluate(()=>document.fonts.ready);
   const facts=await page.locator('.topbar').evaluate(header=>{
+   const rect=selector=>header.querySelector(selector)?.getBoundingClientRect();
    const bounds=header.getBoundingClientRect();
-   const branch=header.querySelector('#headerViewingBranch').getBoundingClientRect();
-   const currency=header.querySelector('#currencySelect').getBoundingClientRect();
-   const primary=header.querySelector('#newTransactionBtn').getBoundingClientRect();
+   const identity=rect('.headerIdentity'),menu=rect('#menuBtn');
+   const branch=rect('#headerViewingBranch'),currency=rect('#currencySelect'),search=rect('.headerSearch');
+   const primary=rect('#newTransactionBtn');
    const controls=[...header.querySelectorAll('button,a,select,input:not([type=hidden])')]
     .filter(control=>control.getClientRects().length).map(control=>control.getBoundingClientRect());
+   const mobile=innerWidth<=700;
+   const center=box=>(box.top+box.bottom)/2;
    return {
     controlsInside:controls.every(control=>control.left>=bounds.left-1&&control.right<=bounds.right+1),
-    primaryAligned:Math.abs(primary.right-bounds.right)<3,
-    scopeAligned:Math.abs(branch.top-currency.top)<1&&branch.right<currency.left
+    primaryAligned:Math.abs(primary.right-bounds.right)<3||(!mobile&&menu.width>0&&Math.abs(menu.right-bounds.right)<3&&primary.right<menu.left),
+    scopeAligned:Math.abs(branch.top-currency.top)<1&&branch.right<currency.left,
+    identityAligned:mobile
+     ?Math.abs(identity.left-bounds.left)<3&&Math.abs(menu.right-bounds.right)<3&&Math.abs(center(identity)-center(menu))<2
+     :identity.right<branch.left&&Math.abs(center(identity)-center(branch))<2,
+    searchAligned:!search||mobile
+     ?!search||search.top>=branch.bottom
+     :currency.right<search.left&&Math.abs(center(currency)-center(search))<2
    };
   });
-  assert.deepEqual(facts,{controlsInside:true,primaryAligned:true,scopeAligned:true},pathname+' at '+width+' pixels');
+  assert.deepEqual(facts,{controlsInside:true,primaryAligned:true,scopeAligned:true,identityAligned:true,searchAligned:true},pathname+' at '+width+' pixels');
   result.headerLayouts.push({pathname,width,...facts});
  }
 }
@@ -94,6 +103,13 @@ async function main(){
  await dialog.locator('[data-close-transaction]').first().click();
  await checkWorkspaceHeader(base,'/tenant/dashboard?currency=USD');
  await checkWorkspaceHeader(base,'/tenant/money-transfer/send?currency=UGX');
+ await page.setViewportSize({width:320,height:1000});
+ const menu=page.locator('#menuBtn');
+ await page.waitForFunction(()=>document.getElementById('sidePanel').inert);
+ await menu.focus();await page.keyboard.press('Enter');assert.equal(await menu.getAttribute('aria-expanded'),'true');
+ await page.keyboard.press('Escape');assert.equal(await menu.getAttribute('aria-expanded'),'false');
+ assert.equal(await page.evaluate(()=>document.activeElement.id),'menuBtn');
+ result.menuKeyboard=true;
  const denied=await context.request.get(base+'/tenant/operation-form/not-an-operation');assert.equal(denied.status(),404);
  await Tenant.updateOne({_id:tenant._id},{$pull:{enabledModules:'money_transfer'}});const revoked=await context.request.get(base+'/tenant/operation-form/transfer?currency=UGX');assert.equal(revoked.status(),403);
  result.samePageReuse=true;result.warmReuse=true;result.typedFieldsPreserved=true;result.submitWaitsForCurrentContext=true;result.moduleRevocationEnforced=true;result.toolbarCurrencySeed=true;result.expiredEditsRetained=true;result.explicitClearRefreshes=true;result.expiredPristineFormRefreshes=true;

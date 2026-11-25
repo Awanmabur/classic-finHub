@@ -42,7 +42,7 @@ test('Tenant dashboard uses its own brand and puts account, Logout and Website i
  assert.doesNotMatch(footer,/Connected|Pending sync/);
  assert.match(html,/name="currency" aria-label="Display currency"><option value="" selected>All currencies/);
 });
-test('Tenant header shows session actions and then scope and search controls without duplicates',async()=>{
+test('Tenant header orders identity, branch, currency, search and actions without duplicates',async()=>{
  const args=fixture('');
  args.menu[0].items.push({label:'Notifications',href:'/tenant/notifications'},
   {label:'Last receipt',href:'/tenant/last-receipt'},
@@ -56,9 +56,8 @@ test('Tenant header shows session actions and then scope and search controls wit
  }];
  const html=await ejs.renderFile(template,args);
  const header=html.slice(html.indexOf('<div class="topbar">'),html.indexOf('<div class="title">'));
- const positions=['class="headerIdentity"','id="phase2NotifyBtn"','class="headerDriveForm"',
-  'id="lastReceiptBtn"','id="newTransactionBtn"','class="ctrl headerBranchView"','class="headerScope"',
-  'class="ctrl headerSearch"'].map(token=>header.indexOf(token));
+ const positions=['class="headerIdentity"','id="menuBtn"','class="ctrl headerBranchView"','class="headerScope"',
+  'class="ctrl headerSearch"','id="phase2NotifyBtn"','class="headerDriveForm"','id="lastReceiptBtn"','id="newTransactionBtn"'].map(token=>header.indexOf(token));
  assert(positions.every(index=>index>=0),JSON.stringify(positions));
  assert(positions.every((index,i)=>i===0||index>positions[i-1]),'Header action order must match cashier workflow');
  assert.doesNotMatch(header,/Visit website|action="\/logout"/);

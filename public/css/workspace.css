@@ -319,6 +319,8 @@
  gap:var(--workspace-section-gap);
 }
 .dashboardStatsGrid .stat{min-width:0;padding:10px 12px}
+.dashboardCurrencyStat h3.k{margin:0;font-weight:750;letter-spacing:.025em}
+.dashboardCurrencyStat .s{margin-top:3px}
 .dashboardStatsGrid .stat .v{
  font-size:clamp(14px,2.2vw,21px);
  font-variant-numeric:tabular-nums;
@@ -341,7 +343,7 @@
 .dashboardCurrencyTable td{font-variant-numeric:tabular-nums}
 .dashboardCurrencyTable td small{display:block;color:var(--muted);margin-top:2px;font-size:11px}
 @media(max-width:520px){
- .dashboardStatsGrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .dashboardStatsGrid:not(:has(.dashboardCurrencyStat:only-child)){grid-template-columns:repeat(2,minmax(0,1fr))}
  #workspaceContent .dashboardCurrencyTable :is(th,td){padding:7px 8px}
 }
 
@@ -528,4 +530,167 @@
   .summaryReportColumnLabel{
     display:block;
   }
+}
+
+/* Owner business recap */
+.generalRecapHead #generalRecapHeading{
+ font-size:clamp(1.05rem,1rem + .4vw,1.35rem);
+ letter-spacing:-.02em;
+}
+.generalPeriodContext{
+ margin:4px 0 0;
+ color:var(--muted);
+ font-size:12px;
+ overflow-wrap:anywhere;
+}
+.generalRecapBody,.generalCurrencyCards,.generalCurrencyFacts{
+ display:grid;
+ gap:12px;
+ min-width:0;
+}
+.generalPeriodControls,.generalPeriodLinks{
+ display:flex;
+ align-items:flex-start;
+ flex-wrap:wrap;
+ gap:7px;
+}
+.generalPeriodControls .btn{
+ min-height:38px;
+ padding:7px 12px;
+}
+.generalCustomDates[open]{
+ flex-basis:100%;
+}
+.generalCustomDates form{
+ margin-top:10px;
+}
+.generalCustomDates summary,.generalReportDetails summary{
+ cursor:pointer;
+ list-style:none;
+}
+.generalCustomDates summary::-webkit-details-marker,.generalReportDetails summary::-webkit-details-marker{
+ display:none;
+}
+:is(.generalCustomDates,.generalReportDetails)[open] > summary .fa-chevron-down{
+ transform:rotate(180deg);
+}
+.generalReportDetails:not([open])>.cardHead{
+ border-bottom:0;
+}
+.generalRecapBody > p,.generalBusinessModules .generalReportNote{
+ margin:0;
+}
+.generalRecapCount{
+ display:flex;
+ align-items:baseline;
+ gap:7px;
+ color:var(--muted);
+ font-size:13px;
+}
+.generalRecapCount strong{
+ color:var(--text);
+ font-size:22px;
+ font-variant-numeric:tabular-nums;
+}
+.generalCurrencyCards{
+ grid-template-columns:repeat(auto-fit,minmax(min(100%,205px),1fr));
+}
+.generalCurrencyCard{
+ min-width:0;
+ border:1px solid var(--border);
+ border-radius:var(--r2,16px);
+ background:var(--card2);
+ padding:13px;
+}
+.generalCurrencyCard > h3{
+ margin:0 0 9px;
+ font-size:14px;
+}
+.generalNetResult{
+ display:grid;
+ gap:4px;
+}
+.generalNetResult span,.generalCurrencyFacts dt{
+ color:var(--muted);
+ font-size:12px;
+}
+.generalNetResult strong{
+ font-size:clamp(19px,1.08rem + .48vw,25px);
+ line-height:1.15;
+ letter-spacing:-.025em;
+ overflow-wrap:anywhere;
+}
+.generalNetResult.isProfit strong{
+ color:color-mix(in srgb,var(--good) 63%,var(--text));
+}
+.generalNetResult.isLoss strong,.generalModuleTable .summaryReportLoss{
+ color:color-mix(in srgb,var(--bad) 67%,var(--text));
+}
+.generalCurrencyFacts{
+ gap:6px;
+ margin:11px 0 0;
+ padding-top:9px;
+ border-top:1px solid var(--border);
+ font-variant-numeric:tabular-nums;
+}
+.generalCurrencyFacts > div{
+ display:flex;
+ align-items:baseline;
+ justify-content:space-between;
+ flex-wrap:wrap;
+ gap:2px 8px;
+}
+.generalCurrencyFacts dd{
+ margin:0;
+ font-size:12px;
+ font-weight:700;
+ overflow-wrap:anywhere;
+}
+.generalModuleTable,.generalFundsTable{
+ min-width:0;
+ overscroll-behavior-inline:contain;
+}
+#workspaceContent .generalModuleTable table{
+ min-width:560px;
+}
+#workspaceContent .generalFundsTable table{
+ min-width:440px;
+}
+#workspaceContent :is(.generalModuleTable,.generalFundsTable) :is(th,td){
+ font-variant-numeric:tabular-nums;
+ padding:8px 10px;
+}
+#workspaceContent :is(.generalModuleTable,.generalFundsTable) :is(th,td):not(:first-child){
+ text-align:right;
+}
+#workspaceContent :is(.generalModuleTable,.generalFundsTable) th:first-child{
+ position:sticky;
+ inset-inline-start:0;
+ z-index:1;
+ background:color-mix(in srgb,var(--bg1) 94%,var(--text));
+}
+.generalModuleTable th small{
+ display:block;
+ margin-top:2px;
+ color:var(--muted);
+ font-weight:500;
+}
+.generalBusinessModules .generalReportNote{
+ margin-top:9px;
+}
+#workspaceContent .generalReportFilters.generalActivitySourceOnly{
+ grid-template-columns:minmax(140px,280px) auto;
+ justify-content:start;
+}
+@media(max-width:600px){
+ .generalCurrencyCards{
+  grid-template-columns:repeat(auto-fit,minmax(min(100%,145px),1fr));
+  gap:8px;
+ }
+ .generalCurrencyCard{
+  padding:10px;
+ }
+ #workspaceContent .generalReportFilters.generalActivitySourceOnly{
+  grid-template-columns:minmax(0,1fr);
+ }
 }

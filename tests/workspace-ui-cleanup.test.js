@@ -61,6 +61,6 @@ test('the Mobile Money workspace links directly to setup and cash day without a 
  assert.doesNotMatch(mobile,/\/tenant\/mobile-money\/onboarding/);
  assert.match(treasury,/id="account-setup"/);
  assert.match(treasury,/id="treasury-accounts"/);
- assert.match(dashboard,/data-dashboard-fund-stat/);
+ assert.match(dashboard,/data-dashboard-stat-currency/);
  assert.doesNotMatch(dashboard,/mobileDashboardBalances/);
 });

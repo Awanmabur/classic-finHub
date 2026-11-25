@@ -1,11 +1,15 @@
 <%
- const columns=[
+ const compactTable=typeof compact!=='undefined'&&compact;
+ const columns=compactTable?[
+  ['netMinor','Profit / loss'],['count','Transactions'],['amountMinor','Transaction amount'],
+  ['incomeMinor','Posted income'],['expenseMinor','Posted expenses']
+ ]:[
   ['count','Transactions'],['amountMinor','Transaction amount'],['incomeMinor','Posted income'],
   ['expenseMinor','Posted expenses'],['netMinor','Posted profit']
  ];
  const numbers=new Intl.NumberFormat('en-GB');
 %>
-<div class="tableWrap summaryReportTable" role="region" aria-label="<%= label %>" tabindex="0">
+<div class="tableWrap <%= compactTable?'generalModuleTable':'summaryReportTable' %>" role="region" aria-label="<%= label %>" tabindex="0">
  <table role="table">
   <thead role="rowgroup">
    <tr role="row"><th scope="col" role="columnheader"><%= moduleRows?'Module and currency':'Currency' %></th>
@@ -14,14 +18,15 @@
   </thead>
   <tbody role="rowgroup">
    <% for(const row of rows){ %>
-    <tr role="row">
+    <tr role="row"<% if(compactTable){ %> data-search-row<% } %>>
      <th scope="row" role="rowheader">
-      <% if(moduleRows){ %><strong><%= row.moduleLabel %></strong><small><%= data.currencyLabel(row.currency) %></small>
+      <% if(moduleRows){ %><strong><%= row.moduleLabel %></strong>
+       <small><%= data.currencyLabel(row.currency) %></small>
       <% }else{ %><strong><%= data.currencyLabel(row.currency) %></strong><% } %>
      </th>
      <% for(const [key,name] of columns){ const value=row[key]; %>
       <td role="cell">
-       <span class="summaryReportColumnLabel" aria-hidden="true"><%= name %></span>
+       <% if(!compactTable){ %><span class="summaryReportColumnLabel" aria-hidden="true"><%= name %></span><% } %>
        <span <% if(key==='netMinor'&&value!=null){ %>class="summaryReportProfit <%= String(value).startsWith('-')?'summaryReportLoss':'' %>"<% } %>><%= value==null?'—':key==='count'?numbers.format(value):data.formatMoney(value,row.currency) %></span>
       </td>
      <% } %>

@@ -142,7 +142,9 @@ test('overview contains compact stats, the currency table and recent activity', 
     financeOverview:{available:true,bookAssets:[{currency:'UGX',formatted:'UGX 81,000'}],postedNet:[{currency:'USD',formatted:'USD 12.00'}],
       byModule:[{moduleKey:'shared',totals:[{currency:'UGX',formatted:'UGX 81,000'}]}]},
     workspaceSnapshot:{
-      cashDay:{status:'open',currency:'UGX',branchName:'Main'},recentActivity,todayTransactionCount:6,
+      recentActivity,todayCurrencyTotals:[
+       {currency:'UGX',formatted:'UGX 41,000',count:1},{currency:'USD',formatted:'USD 75.00',count:3},
+       {currency:'SSP',formatted:'SSP 230,000.00',count:2},{currency:'KES',formatted:'KES 32.00',count:1}],
       todayByCurrency:{money_transfer:[{currency:'UGX',formatted:'UGX 41,000',count:1}],
         mobile_money:[{currency:'SSP',formatted:'SSP 230,000.00',count:2}],
         banking:[{currency:'USD',formatted:'USD 75.00',count:3}],
@@ -156,7 +158,10 @@ test('overview contains compact stats, the currency table and recent activity', 
   assert(top);
   assert.match(html,/id="view-overview">\s*<section[^>]*aria-labelledby="dashboardStats"/);
   assert.match(html.slice(html.indexOf(top)+top.length),/^\s*<section[^>]*aria-labelledby="todayCurrencyStats"/);
-  assert.match(top,/Posted transactions today/);
+  assert.match(top,/Posted today/);
+  assert.equal((top.match(/data-dashboard-stat-currency=/g)||[]).length,4);
+  assert.match(top,/data-dashboard-stat-currency="KES"[\s\S]*KSH 32\.00/);
+  assert.match(top,/href="\/tenant\/reports">General reports/);
   for(const label of ['Money transfer','Mobile money','Banking','Forex','Operating assets','Posted net income'])assert(table.includes(label),label);
   for(const [currency,amount] of [['UGX','UGX 41,000'],['USD','USD 75.00'],['SSP','SSP 230,000.00'],['KSH','KSH 32.00']]){
     const row=table.match(new RegExp(`<th scope="row">${currency}</th>[\\s\\S]*?</tr>`))?.[0];
@@ -185,5 +190,5 @@ test('overview excludes unconfigured module columns and an unavailable cash draw
   const table=html.match(/<table data-dashboard-currency-stats>[\s\S]*?<\/table>/)?.[0];
   assert.match(table,/Money transfer/);
   assert.doesNotMatch(table,/Mobile money/);
-  assert.doesNotMatch(html,/data-dashboard-fund-stat|id="dashboardCashDay"/);
+  assert.doesNotMatch(html,/Physical cash|Electronic float|id="dashboardCashDay"/);
 });

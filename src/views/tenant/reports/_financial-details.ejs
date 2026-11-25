@@ -3,8 +3,9 @@
  const expectedCash=data.expectedCash||[];
  const assets=finance.bookAssets||[];
  const assetModules=finance.byModule||[];
- const earnings=finance.postedNet||[];
+ const earnings=data.businessSummary?[]:finance.postedNet||[];
  const earningsModules=finance.moduleEarnings||[];
+ const fundsStats=data.fundsStats||[];
  const accounts=finance.accounts||[];
  const filters=data.report.filters;
  const modules={
@@ -15,20 +16,35 @@
  const moduleLabel=key=>modules[key]||key.replaceAll('_',' ');
  const displayCurrency=code=>data.currencyLabel?.(code)||code;
  const displayMoney=value=>value?.replace(/^KES /,'KSH ')||'—';
- const showFinancialDetails=assets.length||earnings.length||expectedCash.length||accounts.length||data.financeNotice;
+ const showFinancialDetails=fundsStats.length||assets.length||earnings.length||expectedCash.length||accounts.length||data.financeNotice;
 %>
 <% if(showFinancialDetails){ %>
-  <section class="card" aria-labelledby="generalFinanceTitle">
-    <div class="cardHead"><b id="generalFinanceTitle">Financial details</b></div>
+  <details class="card generalReportDetails"<% if(!data.businessSummary){ %> open<% } %>>
+    <summary class="cardHead"><b>Current balances</b><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary>
     <div class="cardBody workspaceStack">
       <% if(data.financeNotice){ %><p class="tiny" role="status"><%= data.financeNotice %></p><% } %>
+      <% if(fundsStats.length){ %>
+        <div class="tableWrap generalFundsTable" role="region" aria-label="Current balance totals by currency" tabindex="0">
+          <table>
+            <thead><tr><th scope="col">Currency</th><th scope="col">Physical cash</th><th scope="col">Electronic float</th><th scope="col">Operating assets</th></tr></thead>
+            <tbody>
+              <% for(const row of fundsStats){ %>
+              <tr>
+                <th scope="row"><%= displayCurrency(row.currency) %></th>
+                <td><%= row.cash??'—' %></td><td><%= row.float??'—' %></td><td><%= row.assets??'—' %></td>
+              </tr>
+              <% } %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
       <% if(assets.length||earnings.length||expectedCash.length){ %>
         <div class="generalFinanceGrid">
           <% if(assets.length){ %>
             <section class="summary generalFinanceGroup" aria-label="Operating assets">
               <h3>Operating assets</h3>
               <p class="tiny">Current book balances</p>
-              <% assets.forEach(row=>{ %><div class="sumRow"><span>Total <%= displayCurrency(row.currency) %></span><b><%= displayMoney(row.formatted) %></b></div><% }); %>
+              <% if(!fundsStats.length){ %><% assets.forEach(row=>{ %><div class="sumRow"><span>Total <%= displayCurrency(row.currency) %></span><b><%= displayMoney(row.formatted) %></b></div><% }); %><% } %>
               <% assetModules.forEach(module=>module.totals.forEach(row=>{ %>
                 <div class="sumRow"><span><%= moduleLabel(module.moduleKey) %> · <%= displayCurrency(row.currency) %></span><b><%= displayMoney(row.formatted) %></b></div>
               <% })); %>
@@ -79,5 +95,5 @@
         </section>
       <% } %>
     </div>
-  </section>
+  </details>
 <% } %>

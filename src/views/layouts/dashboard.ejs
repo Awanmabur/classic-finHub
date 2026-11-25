@@ -73,7 +73,7 @@
      const hasPageSearch = pageContent.includes('data-search-row');
      const showCurrency = !analyticsPage && !['/tenant/reports','/tenant/reports/summary','/tenant/cash/shifts'].includes(currentPath) && (currentPath!=='/tenant/dashboard' ||
        !Array.isArray(data.visibleDashboardModules) || data.visibleDashboardModules.length>0 ||
-       data.dashboardCurrency || data.mobileBookTotals?.cash?.length || data.mobileBookTotals?.float?.length ||
+       data.dashboardCurrency || data.dashboardStatCurrencies?.length ||
        data.financeOverview?.bookAssets?.length || data.financeOverview?.postedNet?.length); %>
   <a class="skip-link" href="#workspaceContent">Skip to workspace</a>
   <div class="grain" aria-hidden="true"></div>
@@ -96,29 +96,14 @@
           <% if(context==='tenant'){
             const showBranchSwitch=typeof canViewBranches!=='undefined'&&canViewBranches;
           %>
-            <div class="tenantHeaderSession">
-              <div class="tenantHeaderIdentityGroup">
-                <button class="btn btnIcon mobileOnly headerMenu" id="menuBtn" type="button" aria-label="Open menu" aria-controls="sidePanel" aria-expanded="false"><i class="fa-solid fa-bars" aria-hidden="true"></i></button>
-                <div class="headerIdentity" aria-label="Signed-in user and operating branch">
-                  <% if(assignedOperationBranch){ %><span data-operating-branch data-branch-name="<%= assignedOperationBranch.name %>" data-branch-currency="<%= assignedOperationBranch.currency %>" hidden></span><% } %>
-                  <strong><%= user?.name||'Account' %></strong>
-                  <span title="Operating branch, separate from the viewing branch"><%= assignedOperationBranch?.name||'No operating branch' %> · <%= user?.role||'Operator' %></span>
-                </div>
-              </div>
-              <div class="headerButtons">
-                <% if(visiblePaths.has('/tenant/notifications')){ %><a class="btn btnIcon headerNotice" id="phase2NotifyBtn" href="/tenant/notifications" aria-label="Notifications" title="Notifications"><i class="fa-regular fa-bell" aria-hidden="true"></i><% if(data.workspaceSnapshot?.notificationUnread>0){ %><span class="phase2Badge" id="phase2NotifyCount"><%= data.workspaceSnapshot.notificationUnread %></span><% } %></a><% } %>
-                <% if(['Tenant Owner','Branch Manager'].includes(user.role)){ %>
-                <form method="post" action="/tenant/backups/action" class="headerDriveForm">
-                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                  <button class="btn btnIcon" type="submit" aria-label="Google Drive backup" title="Google Drive backup"><i class="fa-brands fa-google-drive" aria-hidden="true"></i></button>
-                </form>
-                <% } %>
-                <div class="headerPrimaryActions">
-                  <% if(visiblePaths.has('/tenant/last-receipt')&&(!dashboardModules||data.workspaceSnapshot?.latestAcknowledgement)){ %><a class="btn headerLastReceipt" id="lastReceiptBtn" href="<%= data.workspaceSnapshot?.latestAcknowledgement?.href||'/tenant/last-receipt' %>" aria-label="Last receipt" title="Last receipt"><i class="fa-solid fa-receipt" aria-hidden="true"></i><span>Last receipt</span></a><% } %>
-                  <% if(transactionOptions.length){ %><a class="btn btnPrimary" id="newTransactionBtn" href="/tenant/transactions/new" data-open-transaction>New transaction</a><% } %>
-                </div>
+            <div class="tenantHeaderIdentityGroup">
+              <div class="headerIdentity" aria-label="Signed-in user and operating branch">
+                <% if(assignedOperationBranch){ %><span data-operating-branch data-branch-name="<%= assignedOperationBranch.name %>" data-branch-currency="<%= assignedOperationBranch.currency %>" hidden></span><% } %>
+                <strong title="<%= user?.name||'Account' %>"><%= user?.name||'Account' %></strong>
+                <span title="Operating branch, separate from the viewing branch"><%= assignedOperationBranch?.name||'No operating branch' %> · <%= user?.role||'Operator' %></span>
               </div>
             </div>
+            <button class="btn btnIcon mobileOnly headerMenu" id="menuBtn" type="button" aria-label="Open menu" aria-controls="sidePanel" aria-expanded="false"><i class="fa-solid fa-bars" aria-hidden="true"></i></button>
             <% if(showBranchSwitch||showCurrency||hasPageSearch){ %>
             <div class="tenantHeaderControlGroup">
               <% if(showBranchSwitch){ %>
@@ -141,9 +126,22 @@
               <% }else{ %>
               <form method="get" action="<%= currentPath %>" class="ctrl" data-dashboard-currency-form><% for(const [key,value] of currencyFilterParams){if(!['currency','page','cursor','_csrf'].includes(key)){ %><input type="hidden" name="<%= key %>" value="<%= value %>"><% }} %><select id="currencySelect" name="currency" aria-label="Display currency"><% currencyChoices.forEach(option=>{ %><option value="<%= option.code %>" <%= selectedDisplayCurrency===option.code?'selected':'' %>><%= option.label %></option><% }) %></select><button type="submit" hidden>Apply currency</button><noscript><button type="submit" class="btn">Apply currency</button></noscript></form><% } %>
               </div><% } %>
-              <% if(hasPageSearch){ %><div class="ctrl headerSearch"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input id="search" type="search" aria-label="Search loaded records" placeholder="Search records…"></div><% } %>
+              <% if(hasPageSearch){ %><div class="ctrl headerSearch"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input id="search" type="search" aria-label="Search loaded records" placeholder="Search…"></div><% } %>
             </div>
             <% } %>
+            <div class="headerButtons">
+              <% if(visiblePaths.has('/tenant/notifications')){ %><a class="btn btnIcon headerNotice" id="phase2NotifyBtn" href="/tenant/notifications" aria-label="Notifications" title="Notifications"><i class="fa-regular fa-bell" aria-hidden="true"></i><% if(data.workspaceSnapshot?.notificationUnread>0){ %><span class="phase2Badge" id="phase2NotifyCount"><%= data.workspaceSnapshot.notificationUnread %></span><% } %></a><% } %>
+              <% if(['Tenant Owner','Branch Manager'].includes(user.role)){ %>
+              <form method="post" action="/tenant/backups/action" class="headerDriveForm">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button class="btn btnIcon" type="submit" aria-label="Google Drive backup" title="Google Drive backup"><i class="fa-brands fa-google-drive" aria-hidden="true"></i></button>
+              </form>
+              <% } %>
+              <div class="headerPrimaryActions">
+                <% if(visiblePaths.has('/tenant/last-receipt')&&(!dashboardModules||data.workspaceSnapshot?.latestAcknowledgement)){ %><a class="btn headerLastReceipt" id="lastReceiptBtn" href="<%= data.workspaceSnapshot?.latestAcknowledgement?.href||'/tenant/last-receipt' %>" aria-label="Last receipt" title="Last receipt"><i class="fa-solid fa-receipt" aria-hidden="true"></i><span>Last receipt</span></a><% } %>
+                <% if(transactionOptions.length){ %><a class="btn btnPrimary" id="newTransactionBtn" href="/tenant/transactions/new" data-open-transaction>New transaction</a><% } %>
+              </div>
+            </div>
           <% } else { %>
             <button class="btn btnIcon mobileOnly headerMenu" id="menuBtn" type="button" aria-label="Open menu" aria-controls="sidePanel" aria-expanded="false">☰</button>
             <% if(hasPageSearch){ %><div class="ctrl pageSearch headerSearch"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input id="search" type="search" aria-label="Search records on this page" placeholder="Search this page…"></div><% } %>

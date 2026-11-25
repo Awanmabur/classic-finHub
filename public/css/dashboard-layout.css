@@ -455,54 +455,54 @@ body[data-workspace="tenant"] .tenantSideFoot .accountActions .btn{
  }
 }
 
-/* Keep session actions and page controls on independent full-width rows. */
+/* Keep the signed-in identity and page controls on one desktop row. The
+   actions alone can move to a second row when the workspace is narrow. */
 body[data-workspace="tenant"] .topbar{
+ container:tenant-header / inline-size;
  grid-template-columns:minmax(0,1fr);grid-template-areas:none;
  align-items:stretch;gap:12px;padding:4px 0 14px;
 }
 body[data-workspace="tenant"] .topbar>.topActions{
- display:grid;grid-template-columns:minmax(0,1fr);gap:10px;
+ display:grid;align-items:center;gap:10px;
+ grid-template-columns:clamp(145px,23%,210px) minmax(0,1fr) auto;
+ grid-template-areas:"identity controls menu" "actions actions actions";
+ reading-flow:grid-rows;
+}
+body[data-workspace="tenant"] .topbar>.topActions:where(:not(:has(>.tenantHeaderControlGroup))){
+ grid-template-columns:minmax(0,1fr) auto auto;
+ grid-template-areas:"identity actions menu";
 }
 body[data-workspace="tenant"] .topbar>.title{grid-area:auto}
 body[data-workspace="tenant"] .topbar>.title h2{font-size:20px;line-height:1.25}
 body[data-workspace="tenant"] .topbar>.title p{font-size:12px;line-height:1.45;margin:4px 0 0}
 body[data-workspace="tenant"] .topbar>.title p:empty{display:none}
-.tenantHeaderSession{
- display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;
- min-width:0;min-height:44px;gap:12px;
-}
 .tenantHeaderIdentityGroup{
- display:flex;align-items:center;gap:8px;min-width:0;
+ grid-area:identity;display:flex;align-items:center;gap:8px;min-width:0;min-height:44px;
 }
-.tenantHeaderIdentityGroup .headerMenu{flex:0 0 44px}
+body[data-workspace="tenant"] .topActions>.headerMenu{grid-area:menu;justify-self:end}
 .tenantHeaderIdentityGroup .headerIdentity{display:grid;gap:2px;min-width:0;line-height:1.25}
 .tenantHeaderIdentityGroup .headerIdentity strong{font-size:13px;font-weight:800}
 .tenantHeaderIdentityGroup .headerIdentity span:not([hidden]){font-size:11px;color:var(--muted)}
 .tenantHeaderIdentityGroup .headerIdentity :is(strong,span:not([hidden])){
  display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
-.tenantHeaderSession .headerButtons{
- grid-area:auto;flex:0 0 auto;min-width:0;width:auto;gap:8px;margin:0;
+body[data-workspace="tenant"] .topActions>.headerButtons{
+ grid-area:actions;justify-self:end;min-width:0;width:auto;gap:8px;margin:0;
 }
-.tenantHeaderSession .headerPrimaryActions{
- display:flex;align-items:center;gap:8px;min-width:0;
-}
-.tenantHeaderSession :is(.headerButtons,.headerPrimaryActions):not(:has(a,button)){display:none}
-.tenantHeaderSession .btn{font-size:12px}
-.tenantHeaderSession .btnIcon{width:44px;min-width:44px;padding:0}
-.tenantHeaderSession .headerNotice{position:relative}
-.tenantHeaderSession .phase2Badge{
+body[data-workspace="tenant"] .topbar>.topActions>.headerButtons .btn{font-size:12px}
+body[data-workspace="tenant"] .topbar .btnIcon{width:44px;min-width:44px;padding:0}
+.topActions .headerPrimaryActions{display:flex;align-items:center;gap:8px;min-width:0}
+body[data-workspace="tenant"] .topActions :is(.headerButtons,.headerPrimaryActions):not(:has(a,button)){display:none}
+.topActions .headerNotice{position:relative}
+.topActions .phase2Badge{
  position:absolute;right:-3px;top:-5px;min-width:17px;min-height:17px;
  padding:2px 3px;font-size:9px;line-height:1;text-align:center;
 }
 body[data-workspace="tenant"] .tenantHeaderControlGroup{
- display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-width:0;
+ grid-area:controls;display:flex;align-items:center;gap:8px;min-width:0;
 }
-.tenantHeaderControlGroup :is(.headerBranchView,.headerScope){
- min-width:0;
-}
-.tenantHeaderControlGroup>.headerBranchView{flex:0 1 250px}
-.tenantHeaderControlGroup>.headerScope{flex:0 0 137px}
+.tenantHeaderControlGroup>.headerBranchView{flex:1 1 176px;max-width:236px}
+.tenantHeaderControlGroup>.headerScope{flex:0 0 clamp(112px,29%,137px);min-width:0}
 .tenantHeaderControlGroup form.ctrl{margin:0;padding:0;min-width:0}
 .tenantHeaderControlGroup .headerBranchView .visuallyHidden{
  position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;
@@ -513,42 +513,43 @@ body[data-workspace="tenant"] .tenantHeaderControlGroup{
  text-overflow:ellipsis;
 }
 body[data-workspace="tenant"] .topbar .headerSearch{
- grid-area:auto;flex:1 1 160px;min-width:0;max-width:360px;width:auto;
- margin:0 0 0 auto;padding-block:7px;
+ grid-area:auto;flex:1 1 145px;min-width:105px;max-width:270px;width:auto;
+ margin:0;padding-block:7px;
 }
 .tenantHeaderControlGroup .headerSearch i{color:var(--muted);font-size:12px}
-@media(min-width:1280px){
- body[data-workspace="tenant"] .topbar:has(.tenantHeaderControlGroup){
-  grid-template-columns:minmax(220px,1fr) auto;
+@container tenant-header (min-width:940px){
+ body[data-workspace="tenant"] .topbar>.topActions:where(:has(>.tenantHeaderControlGroup)){
+  grid-template-columns:clamp(145px,18%,195px) minmax(0,1fr) auto auto;
+  grid-template-areas:"identity controls actions menu";
  }
- body[data-workspace="tenant"] .topbar>.topActions{display:contents}
- .tenantHeaderSession{grid-column:1/-1}
- body[data-workspace="tenant"] .topbar>.title{grid-column:1;grid-row:2;align-self:center}
- body[data-workspace="tenant"] .tenantHeaderControlGroup{
-  grid-column:2;grid-row:2;justify-content:flex-end;
- }
- .tenantHeaderControlGroup>.headerBranchView{width:250px}
- .tenantHeaderControlGroup>.headerScope{width:137px}
- body[data-workspace="tenant"] .topbar .headerSearch{flex:0 0 240px;width:240px}
+}
+@media(min-width:1121px){
+ body[data-workspace="tenant"] .topActions>.headerButtons{grid-column-end:menu-end}
 }
 @media(max-width:700px){
  body[data-workspace="tenant"] .wrap{padding:8px}
  body[data-workspace="tenant"] .main{padding:12px}
  body[data-workspace="tenant"] .topbar{gap:10px;padding:0 0 12px}
- body[data-workspace="tenant"] .topbar>.topActions{gap:8px}
- .tenantHeaderSession{grid-template-columns:minmax(0,1fr);gap:8px}
+ body[data-workspace="tenant"] .topbar>.topActions{
+  grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"identity menu" "actions actions" "controls controls";gap:8px;
+ }
+ body[data-workspace="tenant"] .topbar>.topActions:where(:not(:has(>.tenantHeaderControlGroup))){
+  grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"identity menu" "actions actions";
+ }
  .tenantHeaderIdentityGroup .headerIdentity :is(strong,span:not([hidden])){
   display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
   white-space:normal;overflow-wrap:anywhere;
  }
- .tenantHeaderSession .headerButtons{justify-content:flex-start;flex-wrap:nowrap;gap:5px}
- .tenantHeaderSession .headerPrimaryActions{flex:1 1 0;gap:5px}
- .tenantHeaderSession :is(.btnIcon,.headerLastReceipt){
+ body[data-workspace="tenant"] .topActions>.headerButtons{
+  width:100%;justify-content:flex-start;flex-wrap:nowrap;gap:5px;
+ }
+ .topActions .headerPrimaryActions{flex:1 1 0;gap:5px}
+ body[data-workspace="tenant"] .topActions .headerButtons :is(.btnIcon,.headerLastReceipt){
   width:44px;min-width:44px;flex:0 0 44px;padding:0;
  }
- .tenantHeaderSession .headerLastReceipt span{display:none}
- .tenantHeaderSession .headerDriveForm{flex:0 0 44px}
- .tenantHeaderSession #newTransactionBtn{
+ .topActions .headerLastReceipt span{display:none}
+ .topActions .headerDriveForm{flex:0 0 44px}
+ .topActions #newTransactionBtn{
   min-width:0;margin-inline-start:auto;padding-inline:8px;
   white-space:normal;text-align:center;line-height:1.2;
  }
@@ -558,6 +559,7 @@ body[data-workspace="tenant"] .topbar .headerSearch{
  .tenantHeaderControlGroup:has(>.headerBranchView):has(>.headerScope){
   grid-template-columns:minmax(0,1fr) minmax(116px,.72fr);
  }
+ .tenantHeaderControlGroup>.headerBranchView{max-width:none}
  body[data-workspace="tenant"] .topbar .headerSearch{
   grid-column:1/-1;max-width:none;margin:0;padding-inline:10px;
  }

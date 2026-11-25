@@ -206,6 +206,8 @@ async function main(){
  const sharedSummary=await dashboard.volumes(conn,bothModules,owner,dashboardInput,branch);
  assert.deepEqual(amounts(sharedSummary.todayByCurrency.forex),{UGX:[3,'160'],SSP:[3,'14900']});
  assert.equal(sharedSummary.todayTransactionCount,3,'the same operation counts once across currencies and modules');
+ assert.deepEqual(amounts(sharedSummary.todayCurrencyTotals.filter(row=>row.count)),{UGX:[3,'160'],SSP:[3,'14900']},
+  'currency cards include both native legs and count each receipt once per currency');
  const cashCurrencySummary=await dashboard.volumes(conn,bothModules,owner,{...dashboardInput,currency:'SSP'},branch);
  assert.equal(cashCurrencySummary.todayTransactionCount,3,'posted cash FX legs count when their currency is selected');
  assert(savedExport.includes('Actual physical cash flows by drawer currency'));

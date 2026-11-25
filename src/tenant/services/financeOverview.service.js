@@ -47,14 +47,15 @@ async function overview(conn,tenant,user,options={}){
  if(assignedOnly&&!assignedAssets.length)return {available:false};
  const Account=fundsModels(conn).account;
  const includeModuleDetails=options.includeModuleDetails!==false;
+ const includeEarnings=options.includeEarnings!==false;
  const fields='currency kind moduleKey bookBalanceMinor'+(options.includeAccounts?' name branchId network status':'');
  const [assets,recognized,moduleEarnings]=await Promise.all([
   Account.find({tenantId:tenant._id,...scope,kind:{$in:ASSET_KINDS},
    ...(assignedOnly?{moduleKey:{$in:['shared',...assignedAssets]}}:{}),
    status:{$in:['active','held']},openingBalanceMinor:{$ne:null}})
    .select(fields).limit(1001).lean(),
-  assignedOnly?null:postedEarnings(conn,scope,options),
-  includeModuleDetails||assignedOnly?
+  includeEarnings&&!assignedOnly?postedEarnings(conn,scope,options):null,
+  includeEarnings&&(includeModuleDetails||assignedOnly)?
    postedEarningsByModule(conn,tenant,scope,assignedOnly?{...options,sourceModules:MODULES.filter(hasSource)}:options):[]
  ]);
  if(assets.length>1000)return {available:false,reason:'Too many capital accounts for one overview. Select a branch.'};
@@ -74,10 +75,14 @@ async function overview(conn,tenant,user,options={}){
   bookAssets:rowsOf(assetMap),
   byModule:[...byModule].sort(([a],[b])=>a.localeCompare(b))
     .map(([moduleKey,totals])=>({moduleKey,totals:rowsOf(totals)})),
-  ...(options.includeAccounts?{accounts:visibleAssets.map(account=>({
-   name:account.name,branchId:String(account.branchId),kind:account.kind,network:account.network,status:account.status,
-   moduleKey:account.moduleKey||'shared',currency:account.currency,formatted:format(account.bookBalanceMinor,account.currency)
-  })).sort((a,b)=>a.name.localeCompare(b.name)||a.currency.localeCompare(b.currency))}:{}),
+  ...(options.includeAccounts?{
+   bookCash:rowsOf(groupMoney(visibleAssets.filter(account=>account.kind==='cash'),'bookBalanceMinor')),
+   bookFloat:rowsOf(groupMoney(visibleAssets.filter(account=>account.kind==='wallet'),'bookBalanceMinor')),
+   accounts:visibleAssets.map(account=>({
+    name:account.name,branchId:String(account.branchId),kind:account.kind,network:account.network,status:account.status,
+    moduleKey:account.moduleKey||'shared',currency:account.currency,formatted:format(account.bookBalanceMinor,account.currency)
+   })).sort((a,b)=>a.name.localeCompare(b.name)||a.currency.localeCompare(b.currency))
+  }:{}),
   postedIncome:earnings.income,postedExpenses:earnings.expenses,postedNet:earnings.net,
   moduleEarnings:moduleEarnings.filter(entry=>['Tenant Owner','Auditor'].includes(user.role)||hasModuleForUser(tenant,user,entry.moduleKey)),
   // Never present spread or operating assets as realized profit/capital funding.

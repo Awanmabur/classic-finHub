@@ -1,79 +1,9 @@
-<%
- const report=data.report;
- const info=data.context||{};
- const timeZone=info.timeZone||report.filters.timeZone||'UTC';
- const query=new URLSearchParams({from:report.filters.from,to:report.filters.to,source:report.filters.source});
- const sources={cash_shifts:'Cash shifts',money_transfer:'Money transfers',banking:'Banking requests',
-  forex:'Forex',loans:'Loans',airtime:'Airtime',approval_workflows:'Approval activity'};
- const balanceChecks={
-  'treasury.observation.requested':'Account balance check saved',
-  'treasury.observation.approved':'Account balance check confirmed',
-  'treasury.observation.rejected':'Account balance check declined'
- };
- const activityLabel=row=>{
-  if(row.module!=='Workspace')return row.activity.replaceAll('_',' ');
-  if(Object.hasOwn(balanceChecks,row.activity))return balanceChecks[row.activity];
-  return row.activity.replace(/[._]+/g,' ').replace(/^./,letter=>letter.toUpperCase());
- };
-%>
 <section class="view show financialReportsPage generalReportsPage" aria-label="General reports">
-  <section class="card" aria-labelledby="generalReportFilters">
-    <div class="cardHead">
-      <div>
-        <b id="generalReportFilters">Report filters</b><br>
-        <span><%= info.branchName ? info.branchName+' · ' : '' %><%= timeZone %></span>
-      </div>
-      <% if(typeof visiblePaths!=='undefined'&&visiblePaths.has('/tenant/reports/summary')){ %>
-        <a class="btn" href="/tenant/reports/summary">Business summary</a>
-      <% } %>
-    </div>
-    <div class="cardBody">
-      <form method="get" action="/tenant/reports" class="generalReportFilters">
-        <label class="field">From<input class="control" type="date" name="from" value="<%= report.filters.from %>"></label>
-        <label class="field">To<input class="control" type="date" name="to" value="<%= report.filters.to %>"></label>
-        <label class="field">Activity source<select class="control" name="source">
-          <option value="all" <% if(report.filters.source==='all'){ %>selected<% } %>>All permitted sources</option>
-          <% report.sources.forEach(source=>{ %>
-            <option value="<%= source.key %>" <% if(report.filters.source===source.key){ %>selected<% } %>><%= sources[source.key]||source.label %></option>
-          <% }); %>
-        </select></label>
-        <div class="rowBtns">
-          <button class="btn btnPrimary" type="submit">Apply filters</button>
-          <a class="btn" href="/tenant/reports">Today</a>
-        </div>
-      </form>
-    </div>
-  </section>
-
-  <%- include('_financial-details',{data}) %>
-
-  <section class="card" aria-labelledby="generalReportActivity">
-    <div class="cardHead">
-      <div><b id="generalReportActivity">Recorded activity by module</b><br><span>Amounts and fees stay in their original currencies.</span></div>
-      <% if(data.canExport){ %><a class="btn" href="/tenant/reports/export.csv?<%= query.toString() %>">Export activity CSV</a><% } %>
-    </div>
-    <div class="cardBody">
-      <% if(!report.rows.length){ %>
-        <p class="tiny">No activity in these sources for the selected dates.</p>
-      <% }else{ %>
-        <div class="tableWrap generalReportsTable" role="region" aria-label="Recorded activity totals" tabindex="0">
-          <table>
-            <thead><tr><th scope="col">Source</th><th scope="col">Activity</th><th scope="col">Status</th><th scope="col">Currency</th><th scope="col">Records</th><th scope="col">Volume</th><th scope="col">Recorded fees</th></tr></thead>
-            <tbody>
-              <% report.rows.forEach(row=>{ %>
-                <tr data-search-row>
-                  <th scope="row"><%= row.module %></th><td><%= activityLabel(row) %></td>
-                  <td><%= row.status.replaceAll('_',' ') %></td><td><%= data.currencyLabel?.(row.currency)||row.currency %></td>
-                  <td><%= row.count %></td><td><%= row.volume %></td><td><%= row.fees %></td>
-                </tr>
-              <% }); %>
-            </tbody>
-          </table>
-        </div>
-        <p class="tiny generalReportNote">An event can appear under more than one source.</p>
-      <% } %>
-    </div>
-  </section>
-
+  <% if(data.businessSummary){ %>
+    <%- include('_business-recap',{summary:data.businessSummary}) %>
+    <%- include('_financial-details',{data}) %>
+  <% } %>
+  <%- include('_general-activity',{data}) %>
+  <% if(!data.businessSummary){ %><%- include('_financial-details',{data}) %><% } %>
   <% if(typeof visiblePaths!=='undefined'){ %><%- include('_types',{visiblePaths,currentPath}) %><% } %>
 </section>

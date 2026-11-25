@@ -2,15 +2,17 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),ejs=require('ejs');
 const source=name=>fs.readFileSync(path.join(__dirname,'..',name),'utf8');
-test('Owner sees separate native amounts for cash and float in compact stats',()=>{
+test('Owner dashboard currency choice applies to both cards and the table',()=>{
  const file=path.join(__dirname,'../src/views/tenant/dashboard/index.ejs');
- const html=ejs.render(source('src/views/tenant/dashboard/index.ejs'),{data:{mobileBookTotals:{
-  cash:[{currency:'SSP',formatted:'SSP 75.00'}],
-  float:[{currency:'USD',formatted:'USD 25.00'},{currency:'UGX',formatted:'UGX 35,000'}]
- }}},{filename:file});
- assert.match(html,/data-dashboard-fund-stat="cash"[\s\S]*SSP 75\.00/);
- assert.match(html,/data-dashboard-fund-stat="float"[\s\S]*USD 25\.00[\s\S]*UGX 35,000/);
- assert.doesNotMatch(html,/accounts across currencies/);
+ const html=ejs.render(source('src/views/tenant/dashboard/index.ejs'),{data:{
+  dashboardCurrency:'SSP',hasMobileMoney:true,workspaceSnapshot:{
+   todayCurrencyTotals:[{currency:'SSP',formatted:'SSP 75.00',count:1},{currency:'UGX',formatted:'UGX 35,000',count:2}],
+   todayByCurrency:{mobile_money:[{currency:'UGX',formatted:'UGX 35,000',count:2},{currency:'SSP',formatted:'SSP 75.00',count:1}]}
+  }
+ }},{filename:file});
+ assert.match(html,/data-dashboard-stat-currency="SSP"[\s\S]*SSP 75\.00/);
+ assert.match(html,/<th scope="row">SSP<\/th>/);
+ assert.doesNotMatch(html,/data-dashboard-stat-currency="UGX"|UGX 35,000/);
 });
 test('Tenant sidebar matches platform account footer with two opposite functional links',()=>{
  const page=source('src/views/partials/dashboard-sidebar.ejs');

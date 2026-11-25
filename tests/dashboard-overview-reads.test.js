@@ -24,8 +24,7 @@ test('overview reads bounded recent rows without building reports, summaries or 
  assert.equal(calls.length,4);assert(calls.every(call=>call.limit===14&&call.fields&&call.order.createdAt===-1));
  assert.equal(data.workspaceSnapshot.todayTransactionCount,1);
  assert.equal(data.workspaceSnapshot.recentActivity.length,0);
- assert.equal(data.mobileBookTotals.float[0].formatted,'UGX 200,000');
- assert.equal(data.mobileBookTotals.cash[0].formatted,'UGX 50,000');
+ assert.deepEqual(data.dashboardStatCurrencies,['UGX']);
 });
 test('transfer recent activity preserves incoming paid transfer scope and minimizes party fields',async()=>{
  const calls=[],conn={models:{TransferOrderV1:{find:query([],calls)}}},tenant=entitledTenant({plan:'enterprise'}),actor={id:account,role:'Money Transfer Operator',permissions:['money_transfer.view'],allowedModules:['money_transfer'],branchId:branch};
@@ -36,24 +35,7 @@ test('transfer recent activity preserves incoming paid transfer scope and minimi
  await assert.rejects(require('../src/tenant/services/moneyTransfer.service').recent(conn,{...tenant,enabledModules:[],subscription:null},actor),error=>error.status===403);
 });
 
-test('main dashboard fund totals add only approved real book values within each currency',()=>{
- const {groupedBookTotals}=require('../src/tenant/services/dashboardOverview.service');
- const {formatMoneyMinor}=require('../src/tenant/services/mobileMoney.service');
- const amounts=groupedBookTotals([
-  {kind:'cash',currency:'UGX',expectedMinor:'120000'},
-  {kind:'cash',currency:'UGX',expectedMinor:'25000'},
-  {kind:'cash',currency:'SSP',expectedMinor:'7500'},
-  {kind:'cash',currency:'UGX',expectedMinor:null},
-  {kind:'cash',currency:'UGX',expectedMinor:'not_approved'},
-  {kind:'cash',currency:'EUR',expectedMinor:'800'}
- ]);
- assert.equal(amounts.length,2,'separate currency groups, never a misleading combined amount');
- assert.deepEqual(amounts.find(a=>a.currency==='UGX'),{currency:'UGX',formatted:formatMoneyMinor(145000n,'UGX')});
- assert.deepEqual(amounts.find(a=>a.currency==='SSP'),{currency:'SSP',formatted:formatMoneyMinor(7500n,'SSP')});
- assert.deepEqual(groupedBookTotals([{currency:'UGX',expectedMinor:null}]),[]);
-});
-
-test('owner cash and float cards follow selected viewing branch; all-branch view never mislabels operating branch totals',async t=>{
+test('owner currency cards use selected branch data without substituting the operating branch',async t=>{
  const tenant=entitledTenant({plan:'enterprise'});
  const owner={id:account,role:'Tenant Owner',permissions:['*'],branchId:branch};
  const second={_id:'507f1f77bcf86cd799439088',currency:'SSP',currencies:['SSP']};
@@ -62,14 +44,14 @@ test('owner cash and float cards follow selected viewing branch; all-branch view
  stubEmptyFunds(t);
  t.mock.method(snapshots,'snapshot',async()=>({todayByCurrency:{}}));
  let resolved=null;
- t.mock.method(require('../src/tenant/services/mobileMoneyFunds.service'),'context',async(_conn,_tenant,_user,chosen)=>{resolved=chosen;return {wallets:[],paymentAccounts:[]};});
+ t.mock.method(require('../src/tenant/services/mobileMoneyFunds.service'),'context',async(_conn,_tenant,_user,chosen)=>{resolved=chosen;return {wallets:[{currency:'SSP',expectedMinor:'7500'}],paymentAccounts:[]};});
  const selected=await overview(conn,tenant,owner,{operationBranch:operation,viewBranchId:String(second._id),viewBranch:second});
  assert.equal(resolved,second);
- assert.deepEqual(selected.mobileBookTotals,{cash:[],float:[]});
+ assert.deepEqual(selected.dashboardStatCurrencies,['SSP']);
  resolved=null;
  const all=await overview(conn,tenant,owner,{operationBranch:operation,viewBranchId:'all',viewBranch:null});
  assert.equal(resolved,null,'all-branch view must not silently use the operating branch');
- assert.deepEqual(all.mobileBookTotals,{cash:[],float:[]});
+ assert.deepEqual(all.dashboardStatCurrencies,[]);
 });
 
 test('dashboard statistics use the viewed branch setup while transaction choices use the operating branch',async t=>{

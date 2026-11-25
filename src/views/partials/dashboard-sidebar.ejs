@@ -14,6 +14,7 @@
   </nav>
   <% if(context==='tenant'){ %>
   <div class="sideFoot tenantSideFoot" aria-label="Workspace account controls">
+    <div class="mini"><div><b><%= user?.name||'Account' %></b><span><%= user?.role||'Tenant user' %></span></div></div>
     <div class="accountActions">
       <form method="post" action="/logout" class="sidebarLogoutForm">
         <input type="hidden" name="_csrf" value="<%= typeof csrfToken!=='undefined'?csrfToken:'' %>">

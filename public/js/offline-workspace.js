@@ -12,12 +12,14 @@
   let context, key, scope, db, initializing, locked = false, preparing = false, ready = false, lastMessage = '';
   const submitting = new WeakSet();
   let preparation = null, backgroundSync = false;
+  let queueRender = 0;
   let mode = navigator.onLine ? 'online' : 'offline', recoveryTimer = null, recoveryWork = null, retryDelay = 2000, dirty = false, syncBlocked = false;
   const connected = () => navigator.onLine && mode === 'online';
   function setMode(value) {
     const changed = mode !== value; mode = value; document.body.dataset.connectionMode = value;
+    const prepare = document.getElementById('offlinePrepare');
+    if (prepare) prepare.disabled = !connected() || document.body.hasAttribute('data-offline-snapshot');
     if (changed) document.dispatchEvent(new CustomEvent('classicfin:connection', {detail: {mode: value}}));
-    updateBar().catch(() => {});
     if (value === 'offline' && !recoveryWork) scheduleRecovery();
   }
   function scheduleRecovery(delay = retryDelay) {
@@ -56,15 +58,20 @@
     const headers = new Headers(options.headers); headers.set('X-ClassicFin-Background', 'true');
     try {
       const response = await nativeFetch(value, {...options, headers, signal: controller.signal});
-      // HTTP 5xx means the server responded, not that the device disconnected.
-      // Keep the network indicator stable while the caller reports the error.
       return response;
     } catch (error) { if (!options.signal?.aborted) setMode('offline'); throw error; }
     finally { clearTimeout(timer); options.signal?.removeEventListener('abort', cancel); }
   }
   const node = (tag, text, className) => { const el = document.createElement(tag); if (text !== undefined) el.textContent = text; if (className) el.className = className; return el; };
   function status(message) { lastMessage = message; const target = document.getElementById('offlineStatus'); if (target) target.textContent = message; }
-  function lock() { locked = true; clearTimeout(recoveryTimer); recoveryTimer = null; sessionStorage.removeItem(scopeKey); sessionStorage.removeItem(viewKey); context = null; scope = null; key = null; }
+  function lock() {
+    locked = true; clearTimeout(recoveryTimer); recoveryTimer = null;
+    sessionStorage.removeItem(scopeKey); sessionStorage.removeItem(viewKey);
+    context = null; scope = null; key = null;
+    document.querySelector('[data-offline-recovery]')?.remove();
+    document.getElementById('offlineQueueDialog')?.close();
+    document.getElementById('offlineQueue')?.replaceChildren();
+  }
   function announce(value) { try { localStorage.setItem(authKey, JSON.stringify({scope: value, nonce: crypto.randomUUID()})); } catch { /* Private-browser storage can be unavailable. */ } }
   function open() {
     return new Promise((resolve, reject) => {
@@ -250,8 +257,10 @@
     if (reset) resetForm(form);
     let notice = form.querySelector('[data-offline-saved]');
     if (!notice) { notice = node('p', undefined, 'tiny'); notice.dataset.offlineSaved = ''; notice.setAttribute('role', 'status'); form.prepend(notice); }
-    notice.textContent = connected() ? 'Submitting your saved entry…' : 'Saved offline — pending sync. Open Pending sync to review.';
-    status('Saved on this device. Pending sync; no final receipt has been issued.'); await renderQueue(); await updateBar(); return id;
+    notice.textContent = connected() ? 'Submitting your saved entry…' : 'Saved offline. This entry will sync when the connection returns.';
+    status('Entry saved on this device. The server has yet to confirm it.');
+    if (reset || !connected()) await renderQueue();
+    return id;
   }
   // A server error may follow a committed financial write. Check the original
   // reference, signed-in operator and branch without submitting a new POST.
@@ -283,7 +292,7 @@
   async function syncWork(onlyId) {
     if (!await initialize()) return;
     const drafts = (await all('draft')).filter(row => row.state === 'pending' && (!onlyId || row.id === onlyId)).sort((a, b) => a.capturedAt - b.capturedAt);
-    if (!drafts.length) { await updateBar(); return; }
+    if (!drafts.length) { await renderQueue(); return; }
     status('Checking your account and syncing pending entries…');
     let fresh;
     try {
@@ -356,7 +365,7 @@
       if (outcome === 'pause') { paused = true; break; }
     }
     if (!paused) status('Sync checked. Only entries marked Synced were accepted by the server.');
-    await renderQueue(); await updateBar();
+    await renderQueue();
   }
   async function sync({id, background = false} = {}) {
     if (!connected()) { status('Saved on this device. Sync resumes automatically when the connection returns.'); scheduleRecovery(); return; }
@@ -366,12 +375,15 @@
   }
   async function renderQueue() {
     const list = document.getElementById('offlineQueue'); if (!list || !context) return;
-    list.replaceChildren();
+    const render = ++queueRender;
     const drafts = (await all('draft')).sort((a, b) => b.capturedAt - a.capturedAt);
-    if (!drafts.length) list.append(node('p', 'No pending entries on this device.', 'tiny'));
+    if (locked || render !== queueRender) return;
+    updateRecoveryNotice(drafts);
+    list.replaceChildren();
+    if (!drafts.length) list.append(node('p', 'No saved entries on this device.', 'tiny'));
     for (const draft of drafts) {
       const card = node('article', undefined, 'reportBlock');
-      card.append(node('strong', draft.label + ' — ' + ({pending: 'Pending sync', synced: 'Synced', needs_attention: 'Needs attention'}[draft.state])), node('p', new Date(draft.capturedAt).toLocaleString(), 'tiny'));
+      card.append(node('strong', draft.label + ' — ' + ({pending: 'Awaiting sync', synced: 'Synced', needs_attention: 'Needs attention'}[draft.state])), node('p', new Date(draft.capturedAt).toLocaleString(), 'tiny'));
       if (draft.values) { const details = node('details'), facts = node('dl'); for (const field of draft.display || []) facts.append(node('dt', field.label), node('dd', field.value)); details.append(node('summary', 'Review captured details'), facts); card.append(details); }
       if (draft.problem) card.append(node('p', draft.problem));
       const buttons = node('div', undefined, 'rowBtns');
@@ -384,7 +396,7 @@
             try{
               if(await confirmSavedMobileRecord(draft.id)){
                 status('Committed entry found. No duplicate transaction was submitted.');
-                await renderQueue();await updateBar();
+                await renderQueue();
               }else status('Could not confirm a server record. Original reference is preserved. Review before retrying.');
             }finally{verify.disabled=false;}
           });
@@ -402,15 +414,31 @@
         }); buttons.append(retry);
       }
       const discard = node('button', draft.state === 'synced' ? 'Clear local status' : 'Discard local entry', 'btn'); discard.type = 'button';
-      discard.addEventListener('click', async () => { if (draft.state !== 'synced' && !confirm('Discard this device entry? Check server records first if a submission may already have reached the server.')) return; await remove(draft.id); await renderQueue(); await updateBar(); }); buttons.append(discard); card.append(buttons); list.append(card);
+      discard.addEventListener('click', async () => { if (draft.state !== 'synced' && !confirm('Discard this device entry? Check server records first if a submission may already have reached the server.')) return; await remove(draft.id); await renderQueue(); }); buttons.append(discard); card.append(buttons); list.append(card);
     }
   }
-  async function updateBar() {
-    const target = document.querySelector('[data-offline-message]'); if (!target || !context) return;
-    const pending = (await all('draft')).filter(row => row.state !== 'synced').length;
-    target.textContent = ({online: 'Connected', offline: 'Offline', checking: 'Reconnecting…'}[mode]) + (pending ? ' · ' + pending + ' pending' : '') + (preparing ? ' · Preparing pages…' : '');
-    const indicator = document.querySelector('[data-connection-indicator]');
-    if (indicator) { indicator.textContent = target.textContent; indicator.hidden = mode === 'online' && !pending; }
+  function updateRecoveryNotice(drafts) {
+    let notice = document.querySelector('[data-offline-recovery]');
+    const attention = drafts.filter(row => row.state === 'needs_attention').length;
+    const pending = drafts.filter(row => row.state === 'pending').length;
+    if (!attention && !pending) { notice?.remove(); return; }
+    if (!notice) {
+      notice = node('div', undefined, 'reportBlock offlineRecovery');
+      notice.dataset.offlineRuntime = '';
+      notice.dataset.offlineRecovery = '';
+      const message = node('p');
+      message.setAttribute('role', 'status');
+      const button = node('button', 'Review saved entries', 'btn');
+      button.type = 'button';
+      button.setAttribute('aria-haspopup', 'dialog');
+      button.addEventListener('click', () => showQueue());
+      notice.append(message, button);
+      document.querySelector('.topbar')?.after(notice);
+    }
+    notice.firstElementChild.textContent = [
+      attention === 1 ? '1 entry needs attention.' : attention && attention + ' entries need attention.',
+      pending === 1 ? '1 entry is waiting to sync.' : pending && pending + ' entries are waiting to sync.'
+    ].filter(Boolean).join(' ');
   }
   async function rememberTheme() {
     const theme = [...document.styleSheets].find(sheet => sheet.href && new URL(sheet.href, location.origin).pathname === '/tenant/workspace/theme.css');
@@ -431,7 +459,6 @@
     const run = async () => {
       preparing = true; preparation = new AbortController();
       const stop = document.getElementById('offlinePrepareStop'); if (stop) stop.hidden = false;
-      await updateBar();
       try {
         await rememberTheme();
         const currency = document.getElementById('currencySelect')?.value, links = [...document.querySelectorAll('#nav a[href],a[data-open-operation],a[data-workspace-open],a[data-workspace-edit]')].map(el => el.href);
@@ -457,12 +484,19 @@
         await prunePages();
         status(preparation.signal.aborted ? 'Offline preparation stopped. Visited and already saved pages remain available.' : 'Workspace pages are saved for offline access.');
       } catch { status('Preparation stopped. Visited and already saved pages remain available.'); }
-      finally { preparing = false; preparation = null; if (stop) stop.hidden = true; await updateBar(); }
+      finally { preparing = false; preparation = null; if (stop) stop.hidden = true; }
     };
     if (navigator.locks) return navigator.locks.request('classicfin-prepare:' + scope, {ifAvailable: true}, lock => lock ? run() : status('Offline preparation is already running in another tab.'));
     return run();
   }
-  function showQueue() { const dialog = document.getElementById('offlineQueueDialog'); if (dialog && !dialog.open) { renderQueue().catch(() => status('Saved entries could not open.')); dialog.showModal(); } }
+  function showQueue(showAvailability = false) {
+    const dialog = document.getElementById('offlineQueueDialog');
+    if (!dialog || dialog.open) return;
+    const availability = document.getElementById('offlineAvailability');
+    if (availability) availability.open = showAvailability;
+    renderQueue().catch(() => status('Saved entries could not open.'));
+    dialog.showModal();
+  }
   async function submitOperation(form) {
     if (submitting.has(form)) return;
     submitting.add(form); stopPreparation();
@@ -477,13 +511,14 @@
       await sync({id});
       const row = await read(id), draft = row && await decrypt(row);
       if (draft?.state === 'synced') { location.assign(draft.resultUrl); return; }
+      await renderQueue();
       if (draft?.state === 'needs_attention') {
         if (!draft.retryUncertain) rotateReference(form);
         status(draft.problem);
         if(!window.ClassicFinMobileUnified?.handleRateIssue?.(form,draft.rateState,draft.problem))
           window.ClassicFinFeedback?.show(draft.problem,'bad',{form});
       }
-      else { const message = 'Connection interrupted. Your entry is saved and pending sync. Retrying keeps the same reference.'; status(message); window.ClassicFinFeedback?.show(message, 'info', {form}); }
+      else { const message = 'Connection interrupted. This entry is saved on this device and will sync when the connection returns. Retrying keeps the same reference.'; status(message); window.ClassicFinFeedback?.show(message, 'info', {form}); }
     } catch (error) { status(error.message); window.ClassicFinFeedback?.show(error.message, 'bad', {form}); }
     finally {
       submitting.delete(form);
@@ -493,15 +528,16 @@
     }
   }
   function installUI() {
-    const bar = node('div', undefined, 'offline-bar'); bar.dataset.offlineRuntime = '';
-    const message = node('span'); message.dataset.offlineMessage = '';
-    const button = node('button', 'Pending sync', 'btn'); button.type = 'button'; button.addEventListener('click', showQueue); bar.append(message, button); document.querySelector('#sidePanel .sideFoot')?.append(bar);
+    const offlineAccess = document.querySelector('[data-offline-access]');
+    if (offlineAccess) {
+      offlineAccess.querySelector('button').addEventListener('click', () => showQueue(true));
+      offlineAccess.hidden = false;
+    }
     document.querySelectorAll('[data-offline-close]').forEach(el => el.addEventListener('click', () => document.getElementById('offlineQueueDialog').close()));
     document.getElementById('offlinePrepare')?.addEventListener('click', () => preparePages());
     document.getElementById('offlinePrepareStop')?.addEventListener('click', stopPreparation);
     document.getElementById('offlineQueueDialog')?.addEventListener('close', stopPreparation);
     document.getElementById('offlineSync')?.addEventListener('click', () => (connected() ? sync() : recover()).catch(() => status('Sync interrupted. Your entries remain stored.')));
-    const indicator = node('span', undefined, 'tiny'); indicator.dataset.connectionIndicator = ''; indicator.setAttribute('role', 'status'); document.querySelector('.topbar .title')?.append(indicator);
     const savedAt = document.body.dataset.offlineSnapshot;
     if (savedAt) {
       const notice = node('div', undefined, 'reportBlock offlineSnapshot'); notice.dataset.offlineRuntime = ''; notice.setAttribute('role', 'status');
@@ -510,7 +546,7 @@
     }
   }
   if (bootstrap) { restore().catch(() => status('The saved workspace could not open. Reconnect and sign in.')); return; }
-  window.ClassicFinOffline = Object.freeze({pageResponse, openQueue: showQueue, get mode() { return mode; }, refreshConnection: recover});
+  window.ClassicFinOffline = Object.freeze({pageResponse, get mode() { return mode; }, refreshConnection: recover});
   document.addEventListener('submit', event => {
     const form = event.target, url = new URL(form.getAttribute('action')||location.href, location.origin);
     if (url.pathname === '/logout') { lock(); announce(null); return; }
@@ -540,5 +576,5 @@
   document.addEventListener('input', event => { if (preparing) stopPreparation(); if (event.target.closest('form') && event.target.type !== 'hidden') dirty = true; }, {passive: true});
   window.addEventListener('storage', event => { if (event.key !== authKey) return; const activeScope = scope || document.body.dataset.offlineScope || sessionStorage.getItem(scopeKey); if (!activeScope) return; try { if (JSON.parse(event.newValue).scope !== activeScope) { lock(); if (navigator.onLine) location.replace('/signin'); else location.reload(); } } catch { /* Ignore malformed storage events. */ } });
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/offline-runtime.js', {scope: '/'}).catch(() => status('Offline navigation is unavailable in this browser.'));
-  (async () => { if (!await initialize()) return; ready = true; installUI(); setMode(navigator.onLine ? mode : 'offline'); await renderQueue(); await updateBar(); if (connected() && !document.body.hasAttribute('data-offline-snapshot')) { await rememberPage(location.href, initialHTML); await rememberTheme(); status('This page is saved for offline access.'); if ((await all('draft')).some(row => row.state === 'pending')) sync({background: true}).catch(() => status('Sync interrupted. Entries remain pending.')); const idle = window.requestIdleCallback || (callback => setTimeout(callback, 1000)); idle(() => prunePages().catch(() => {})); } else scheduleRecovery(); if (lastMessage) status(lastMessage); })().catch(() => status('Offline storage could not open. Reconnect before submitting.'));
+  (async () => { if (!await initialize()) return; ready = true; installUI(); setMode(navigator.onLine ? mode : 'offline'); await renderQueue(); if (connected() && !document.body.hasAttribute('data-offline-snapshot')) { await rememberPage(location.href, initialHTML); await rememberTheme(); status('This page is saved for offline access.'); if ((await all('draft')).some(row => row.state === 'pending')) sync({background: true}).catch(() => status('Sync interrupted. Entries remain pending.')); const idle = window.requestIdleCallback || (callback => setTimeout(callback, 1000)); idle(() => prunePages().catch(() => {})); } else scheduleRecovery(); if (lastMessage) status(lastMessage); })().catch(() => status('Offline storage could not open. Reconnect before submitting.'));
 })();

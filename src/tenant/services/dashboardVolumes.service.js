@@ -38,10 +38,6 @@ function bounds(now=new Date(),timeZone='UTC'){
  const { $gte,$lt }=businessTime.dayBounds({},timeZone,90,now);
  return {$gte,$lt};
 }
-function mobileMatch(user,operationBranch,now,timeZone){
- return {...scopeFor(user,'mobile_money',operationBranch),createdAt:bounds(now,timeZone),
-  status:{$in:['recorded','pending_verification','verified']},correctionState:{$ne:'voided'},fundingState:'book_recorded'};
-}
 function money(value,currency){return mobile.formatMoneyMinor(value,currency).replace(/^[A-Z]{3}\s/,currencyLabel(currency)+' ');}
 function totalFor(groups,currency){
  let total=0n,count=0;const states={};
@@ -72,23 +68,25 @@ function forexLegs(){
   hasOtherLeg('$sourceSnapshot.fromCurrency','$sourceSnapshot.toCurrency'),false
  );
 }
-async function aggregateLegs(Model,match,legs,{receipt='$_id',network=null,status='$status'}={}){
+async function aggregateLegs(Model,match,legs,{
+ receipt='$_id',network=null,status='$status',origin=null,maxTimeMS=2500,stages=[]
+}={}){
  // Reduce collection and payout records to one receipt per currency before
  // aggregating. The count facet ignores currency and cross-module copies.
  const [result]=await Model.aggregate([
-  {$match:match},{$project:{receipt,network,status,legs}},{$unwind:'$legs'},
+  {$match:match},...stages,{$project:{receipt,network,status,origin,legs}},{$unwind:'$legs'},
   {$match:{$expr:{$and:[{$in:['$legs.currency',currencyCodes]},{$gt:['$legs.amount',0]}]}}},
-  {$group:{_id:{receipt:'$receipt',currency:'$legs.currency',network:'$network',status:'$status'},
+  {$group:{_id:{receipt:'$receipt',currency:'$legs.currency',network:'$network',status:'$status',origin:'$origin'},
    amountMinor:{$max:'$legs.amount'},linked:{$max:{$cond:['$legs.linked',1,0]}}}},
   {$facet:{
-   byCurrency:[{$group:{_id:{currency:'$_id.currency',network:'$_id.network',status:'$_id.status',linked:'$linked'},
+   byCurrency:[{$group:{_id:{currency:'$_id.currency',network:'$_id.network',status:'$_id.status',origin:'$_id.origin',linked:'$linked'},
     count:{$sum:1},amountMinor:{$sum:'$amountMinor'}}}],
    receipts:[{$group:{_id:'$_id.receipt'}},{$count:'count'}]
   }}
- ]).option({maxTimeMS:2500,allowDiskUse:true});
+ ]).option({maxTimeMS,allowDiskUse:true});
  return {groups:result?.byCurrency||[],count:result?.receipts?.[0]?.count||0};
 }
-function nativeSource(conn,user,key,operationBranch,now,timeZone,forexEnabled){
+function nativeSource(conn,user,key,scope,dateRange,forexEnabled,{maxTimeMS,includeLegacyRecords}){
  if(key==='mobile_money'){
   const cross=hasOtherLeg('$currency','$cashCurrency');
   const legs=currencyLegs(
@@ -96,28 +94,60 @@ function nativeSource(conn,user,key,operationBranch,now,timeZone,forexEnabled){
    {currency:'$cashCurrency',amount:'$cashAmountMinor'},
    cross,linkedForex(user,forexEnabled,cross,'$operatorId')
   );
-  return aggregateLegs(models.mobileTransactionModel(conn),mobileMatch(user,operationBranch,now,timeZone),legs,{network:'$network'});
+  const booked={fundingState:'book_recorded'};
+  const evidence=includeLegacyRecords?{$or:[booked,{status:{$in:['recorded','verified']}},{reviewState:'accepted'}]}:booked;
+  const match={...scope,createdAt:dateRange,status:{$in:['recorded','pending_verification','verified']},
+   correctionState:{$ne:'voided'},...evidence};
+  return aggregateLegs(models.mobileTransactionModel(conn),match,legs,{network:'$network',maxTimeMS});
  }
  const Model=require('../funded/models').models(conn).execution;
- const match={...scopeFor(user,key,operationBranch),sourceType:key,status:'posted_manual',reviewedAt:bounds(now,timeZone)};
- // Module-linked Forex copies are attributed from the source posting below.
- // Count native trades here, including older snapshots without an origin.
- if(key==='forex')return aggregateLegs(Model,{...match,'sourceSnapshot.originRecordId':null},forexLegs(),{receipt:'$sourceId'});
+ const match={...scope,sourceType:key,status:'posted_manual',reviewedAt:dateRange};
+ if(key==='forex'){
+  const standalone={'sourceSnapshot.originRecordId':null};
+  // Older linked Banking and Transfer exchanges could post a separate
+  // execution with its own journals. Current linked copies have no execution.
+  const evidence=includeLegacyRecords?{$or:[standalone,{
+   'sourceSnapshot.originRecordId':{$ne:null},
+   'sourceSnapshot.originModule':{$in:['banking','money_transfer']},'journalIds.0':{$exists:true}
+  }]}:standalone;
+  const origin=includeLegacyRecords?'$sourceSnapshot.originModule':null;
+  return aggregateLegs(Model,{...match,...evidence},forexLegs(),{receipt:'$sourceId',origin,maxTimeMS});
+ }
  const primary={currency:'$sourceSnapshot.currency',amount:decimal('$sourceSnapshot.amountMinor')};
- if(key==='banking')return aggregateLegs(Model,match,[primary],{receipt:'$sourceId'});
+ if(key==='banking')return aggregateLegs(Model,match,[primary],{receipt:'$sourceId',maxTimeMS});
  const cross={$and:[{$eq:['$action','transfer_payout']},hasOtherLeg('$sourceSnapshot.currency','$payoutFx.targetCurrency')]};
  return aggregateLegs(Model,match,currencyLegs(primary,
   {currency:'$payoutFx.targetCurrency',amount:'$payoutFx.payoutMinor'},cross,linkedForex(user,forexEnabled,cross,'$createdBy')
- ),{receipt:'$sourceId'});
+ ),{receipt:'$sourceId',maxTimeMS});
 }
-function internalBanking(conn,tenant,user,operationBranch,now,timeZone,forexEnabled){
+function internalBanking(conn,tenant,user,scope,dateRange,forexEnabled,maxTimeMS){
  const Model=require('../schemas/BankingInternalFx.schema').model(conn);
  const cross=hasOtherLeg('$sourceCurrency','$destinationCurrency');
- return aggregateLegs(Model,{...scopeFor(user,'banking',operationBranch),tenantId:objectId(tenant._id),
-  state:'posted_internal',postedAt:bounds(now,timeZone)
+ return aggregateLegs(Model,{...scope,tenantId:objectId(tenant._id),
+  state:'posted_internal',postedAt:dateRange
  },currencyLegs({currency:'$sourceCurrency',amount:'$sourceAmountMinor'},
   {currency:'$destinationCurrency',amount:'$destinationAmountMinor'},cross,linkedForex(user,forexEnabled,cross,'$createdBy')
- ),{status:{$literal:'posted_manual'}});
+ ),{status:{$literal:'posted_manual'},maxTimeMS});
+}
+function postedActivityJobs(conn,tenant,user,{
+ enabled,branch,scope,dateRange,maxTimeMS,includeInternalBanking,includeLegacyRecords
+}){
+ const scopeOf=key=>scope??scopeFor(user,key,branch);
+ const forexEnabled=enabled.includes('forex');
+ const jobs=enabled.map(key=>[key,()=>nativeSource(
+  conn,user,key,scopeOf(key),dateRange,forexEnabled,{maxTimeMS,includeLegacyRecords}
+ )]);
+ if(enabled.includes('banking')&&(includeInternalBanking||
+   hasModuleForUser(tenant,user,'accounts')&&hasPermission(user,'accounts.view')))
+  jobs.push(['banking',()=>internalBanking(conn,tenant,user,scopeOf('banking'),dateRange,forexEnabled,maxTimeMS)]);
+ return jobs;
+}
+function moduleGroups(parts,key){
+ const own=parts.filter(([source])=>source===key).flatMap(([,data])=>data.groups);
+ const linked=parts.filter(([source])=>source!==key).flatMap(([,data])=>data.groups.filter(
+  group=>key==='forex'?group._id.linked===1:group._id.origin===key
+ ));
+ return own.concat(linked);
 }
 async function readSource(key,read){
  try{return {...await read(),available:true};}
@@ -134,20 +164,14 @@ async function volumes(conn,tenant,user,input={},operationBranch=null,overview={
   todayVolumes:{},todayByCurrency:{},todayByCurrencyUnavailable:{},todayTransactionCount:null,date:businessTime.localDay(now,timeZone),mixedRegion:true};
  const enabled=Object.keys(sources).filter(key=>overview[sources[key].flag]!==false&&
   hasModuleForUser(tenant,user,key)&&hasPermission(user,`${key}.view`));
- const forexEnabled=enabled.includes('forex');
- const jobs=enabled.map(key=>[key,()=>nativeSource(conn,user,key,operationBranch,now,timeZone,forexEnabled)]);
- if(enabled.includes('banking')&&hasModuleForUser(tenant,user,'accounts')&&hasPermission(user,'accounts.view'))
-  jobs.push(['banking',()=>internalBanking(conn,tenant,user,operationBranch,now,timeZone,forexEnabled)]);
+ const jobs=postedActivityJobs(conn,tenant,user,{enabled,branch:operationBranch,dateRange:bounds(now,timeZone)});
  const parts=await Promise.all(jobs.map(async([key,read])=>[key,await readSource(key,read)]));
  const todayTransactionCount=parts.length&&parts.every(([,data])=>data.available)
   ?parts.reduce((count,[,data])=>count+(countCurrency
    ?totalFor(data.groups,countCurrency).count:data.count),0):null;
  for(const key of enabled){
   const own=parts.filter(([source])=>source===key);
-  const groups=own.flatMap(([,data])=>data.groups);
-  if(key==='forex')for(const [source,data] of parts){
-   if(source!==key)groups.push(...data.groups.filter(group=>group._id.linked===1));
-  }
+  const groups=moduleGroups(parts,key);
   if((key==='forex'?parts:own).some(([,data])=>!data.available))todayByCurrencyUnavailable[key]=true;
   todayByCurrency[key]=currencyCodes.map(code=>totalFor(groups,code)).filter(row=>row.count>0);
   const market=key==='mobile_money'?input.mobileMarket:null;
@@ -158,4 +182,4 @@ async function volumes(conn,tenant,user,input={},operationBranch=null,overview={
  }
  return {selectedCurrency:currency,currencyOptions:currencyCodes.map(code=>({code,label:currencyLabel(code)})),todayVolumes:result,todayByCurrency,todayByCurrencyUnavailable,todayTransactionCount,date:businessTime.localDay(now,timeZone)};
 }
-module.exports={volumes,sources,selectedCurrency,scopeFor,bounds,totalFor,money,fail};
+module.exports={volumes,sources,selectedCurrency,scopeFor,bounds,totalFor,money,fail,postedActivityJobs,moduleGroups,aggregateLegs};

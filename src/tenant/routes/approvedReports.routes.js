@@ -3,11 +3,32 @@ const crypto=require('node:crypto');
 const requireModule=require('../../middleware/requireModule');
 const requirePermission=require('../../middleware/requirePermission');
 const {hasPermission,hasModuleForUser}=require('../services/moduleAccess.service');
+const {currencyLabel}=require('../../config/currencies');
 const reports=require('../services/approvedReports.service');
+const summary=require('../services/ownerReportSummary.service');
+const {amountLabel}=require('../services/forex.service');
 const reportTimeZone=require('../services/reportTimeZone.service');
 module.exports=function approvedReportsRoutes({renderTenant}){
  const router=require('express').Router();
  const guard=[requireModule('reports'),requirePermission('reports.view')];
+ router.get('/reports/summary',...guard,async(req,res,next)=>{
+  try {
+   const data=await summary.generate(req,res.locals.viewBranches);
+   if(data.formError)res.status(400);
+   renderTenant(req,res,'reports/summary','Business summary','', {
+    ...data,canExport:!data.formError&&hasPermission(req.user,'reports.export'),currencyLabel,
+    formatMoney:(value,currency)=>amountLabel(value,currency).replace(/^KES /,'KSH ')
+   });
+  } catch(error){next(error);}
+ });
+ router.get('/reports/summary/export.csv',...guard,requirePermission('reports.export'),async(req,res,next)=>{
+  try {
+   const {report,formError}=await summary.generate(req,res.locals.viewBranches);
+   if(formError)return res.status(400).type('text/plain').send(formError);
+   res.set('Cache-Control','private, no-store');
+   res.attachment('classicfin-business-summary.csv').type('text/csv; charset=utf-8').send(summary.csv(report));
+  } catch(error){next(error);}
+ });
  for(const key of Object.keys(reports.pages)){
   router.get(`/reports/${key}/export.csv`,...guard,requirePermission('reports.export'),async(req,res,next)=>{try{
    const timeZone=await reportTimeZone.forRequest(req);

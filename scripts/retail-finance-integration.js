@@ -30,7 +30,7 @@ async function run(){
  await Tenant.createIndexes();await core.ensureTenantIndexes(conn);
  await book.ensure(conn);await loanModel.ensure(conn);await airModel.ensure(conn);
  await require('../src/tenant/customerAccounts/models').ensureIndexes(conn);
- const modules=['mobile_money','loans','airtime']; // No Customers subscription: borrower registration is independent.
+ const modules=['mobile_money','loans','airtime','reports']; // Borrower registration is independent of Customers.
  const template={code:'retail_scratch',name:'Retail finance scratch',
   description:'Disposable integration test only',currency:'USD',priceMonthly:1,priceYearly:10,
   trialMonths:0,modules,limits:{users:10,branches:2,transactionsPerMonth:500,
@@ -140,6 +140,23 @@ async function run(){
  const portfolio=await loan.list(conn,tenant,auditor);
  assert.equal(portfolio.summary[0].principalOutstanding,'0');
  assert.equal((await ledger.trialBalance(conn,{branchId:fmt(branch._id),currency:'UGX'})).balanced,true);
+ const {activity}=require('../src/tenant/services/ownerReportActivity.service');
+ const {earnings}=require('../src/tenant/services/ownerReportEarnings.service');
+ const dateRange={$gte:new Date(Date.now()-3600000),$lt:new Date(Date.now()+3600000)};
+ const ownerActivity=()=>activity(conn,tenant,owner,{branch,dateRange});
+ const ownerEarnings=()=>earnings(conn,tenant,{branchId:branch._id},dateRange);
+ assert.deepEqual(await ownerActivity(),{
+  totalCount:5,
+  byCurrency:[{currency:'UGX',count:5,amountMinor:'48000'}],
+  byModule:[
+   {moduleKey:'loans',currency:'UGX',count:3,amountMinor:'41000'},
+   {moduleKey:'airtime',currency:'UGX',count:2,amountMinor:'7000'}
+  ]
+ });
+ assert.deepEqual((await ownerEarnings()).byModule,[
+  {moduleKey:'airtime',currency:'UGX',incomeMinor:'400',expenseMinor:'0',netMinor:'400'},
+  {moduleKey:'loans',currency:'UGX',incomeMinor:'1000',expenseMinor:'0',netMinor:'1000'}
+ ]);
  // Financial corrections retain original immutable payments and sale evidence.
  // Reverse in reverse chronological order so inventory and loan allocations
  // cannot silently change prior evidence. Every reversal touches Treasury once.
@@ -184,7 +201,13 @@ async function run(){
  const restoredLoan=await loanModel.models(conn).loan.findById(issued.loan._id).lean();
  assert.equal(String(restoredLoan.principalOutstandingMinor),'20000');
  assert.equal(String(restoredLoan.interestOutstandingMinor),'1000');
- const dateRange={$gte:new Date(Date.now()-3600000),$lt:new Date(Date.now()+3600000)};
+ assert.deepEqual(await ownerActivity(),{
+  totalCount:1,
+  byCurrency:[{currency:'UGX',count:1,amountMinor:'20000'}],
+  byModule:[{moduleKey:'loans',currency:'UGX',count:1,amountMinor:'20000'}]
+ });
+ assert.equal((await ownerEarnings()).byCurrency[0].netMinor,'0',
+  'posted refunds offset both kinds of retail earnings in the reporting period');
  const adapters=require('../src/tenant/reporting/registry');
  const sourceRows=await Promise.all(['loans','airtime'].map(key=>
   adapters.find(a=>a.key===key).rows({conn,scope:{branchId:fmt(branch._id)},dateRange})));

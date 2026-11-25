@@ -71,7 +71,7 @@
        assignedOperationBranch?.currency||'UGX');
      const pageContent = include(view, { data, money, tenant, user, context, visiblePaths, transactionOptions });
      const hasPageSearch = pageContent.includes('data-search-row');
-     const showCurrency = !analyticsPage && (currentPath!=='/tenant/dashboard' ||
+     const showCurrency = !analyticsPage && currentPath!=='/tenant/reports/summary' && (currentPath!=='/tenant/dashboard' ||
        !Array.isArray(data.visibleDashboardModules) || data.visibleDashboardModules.length>0 ||
        data.dashboardCurrency || data.dashboardCashAvailable ||
        data.financeOverview?.bookAssets?.length || data.financeOverview?.postedNet?.length); %>

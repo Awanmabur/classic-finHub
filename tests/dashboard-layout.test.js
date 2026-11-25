@@ -81,7 +81,9 @@ test('main tenant dashboard keeps cash and electronic float separate from transa
   mobileFunds:{paymentAccounts:[{kind:'cash',name:'Actual drawer',currency:'UGX',expected:'UGX 70,000',reconciliation:'matched'}],
    wallets:[{kind:'wallet',name:'MTN Uganda network',network:'MTN',currency:'UGX',expected:'UGX 160,000',reconciliation:'matched'}]}
  }});
- const top=html.slice(html.indexOf('Financial details'));
+ const top=html.match(/<section[^>]*aria-labelledby="dashboardFinancialDetails"[^>]*>[\s\S]*?<\/section>/)?.[0];
+ assert(top);
+ assert(html.indexOf(top)<html.indexOf('Today by currency'));
  for(const label of ['UGX 70,000','UGX 160,000','Actual drawer','MTN Uganda network','Physical cash','Electronic float'])assert.ok(top.includes(label),label);
  assert.match(top,/data-dashboard-fund-stat="cash"/);
  assert.match(top,/data-dashboard-fund-stat="float"/);

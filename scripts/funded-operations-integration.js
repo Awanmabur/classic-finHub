@@ -412,6 +412,59 @@ async function main(){
  assert.equal(row('money_transfer','SSP').amountMinor,'1200000');
  assert.equal(row('money_transfer','UGX').count,2,'a collection and payout share one receipt');
  assert.equal(dashboardSummary.todayTransactionCount,row('banking','UGX').count+4,'native receipts count once across modules and currencies');
+ const {activity}=require('../src/tenant/services/ownerReportActivity.service');
+ const range=dashboard.bounds(dashboardInput.now,fxZone);
+ const beforeDowngrade=await activity(conn,tenant,owner,{branch,dateRange:range});
+ assert.equal(beforeDowngrade.totalCount,dashboardSummary.todayTransactionCount);
+ assert.deepEqual(beforeDowngrade.byCurrency.find(item=>item.currency==='SSP'),
+  {currency:'SSP',count:1,amountMinor:'1200000'},'cross-module attribution adds no duplicate native totals');
+ assert.equal(beforeDowngrade.byModule.find(item=>item.moduleKey==='forex'&&item.currency==='USD').amountMinor,'1554');
+ assert.equal(beforeDowngrade.byModule.find(item=>item.moduleKey==='banking'&&item.currency==='USD').amountMinor,'54');
+ const reportOnly={...tenant.toObject(),enabledModules:['reports'],
+  subscription:{...tenant.subscription.toObject(),modules:['reports']}};
+ assert.deepEqual(await activity(conn,reportOnly,owner,{branch,dateRange:range}),beforeDowngrade,
+  'a module downgrade does not hide historical transactions from the tenant owner');
+ await assert.rejects(activity(conn,tenant,auditor,{branch,dateRange:range}),{status:403});
+ await assert.rejects(activity(other,tenant,owner,{branch,dateRange:range}),{status:403});
+ const historyDate=new Date(Date.UTC(dashboardInput.now.getUTCFullYear()-1,0,1,12));
+ const historyRange=dashboard.bounds(historyDate,fxZone);
+ const legacyMobile={branchId:branch._id,operatorId:owner.id,operation:'cash_in',
+  customer:'Recorded provider receipt',network:'MTN',currency:'UGX',amountMinor:'70',feeMinor:'4',
+  createdAt:historyDate,fundingState:'legacy_untracked'};
+ await core.mobileTransactionModel(conn).create([
+  {...legacyMobile,idempotencyKey:crypto.randomUUID(),networkReference:'LEGACY-COMPLETE-'+nonce,status:'recorded'},
+  {...legacyMobile,idempotencyKey:crypto.randomUUID(),networkReference:'LEGACY-PENDING-'+nonce,status:'pending_verification',
+   reviewState:'awaiting_review'},
+  {...legacyMobile,idempotencyKey:crypto.randomUUID(),networkReference:'LEGACY-VOIDED-'+nonce,status:'voided_internal'}
+ ]);
+ const expense={expenseType:'Transport',amountMinor:'80',description:'Legacy approved cash expense'};
+ await require('../src/tenant/models/expenses').expenseModel(conn).create({
+  ...expense,original:expense,branchId:branch._id,operatorId:owner.id,currency:'UGX',paymentMethod:'Cash',
+  status:'approved',reviewedAt:historyDate,idempotencyKey:crypto.randomUUID(),recordReference:'LEGACY-EXPENSE-'+nonce
+ });
+ await fundedModel.models(conn).execution.create({
+  sourceType:'forex',sourceId:new mongoose.Types.ObjectId(),sourceReference:'LEGACY-LINKED-'+nonce,
+  action:'forex',branchId:branch._id,createdBy:owner.id,idempotencyKey:crypto.randomUUID(),
+  fingerprint:'a'.repeat(64),sourceFingerprint:'b'.repeat(64),accounts:{},
+  sourceSnapshot:{operation:'buy',originModule:'banking',originRecordId:String(depositSource._id),
+   fromCurrency:'USD',toCurrency:'UGX',sourceMinor:'100',targetMinor:'3700'},
+  evidenceReference:'LEGACY-VOUCHER',note:'Historic linked exchange with separate journals recorded',
+  reviewedAt:historyDate,status:'posted_manual',journalIds:bankFxPosted.record.journalIds
+ });
+ assert.deepEqual(await activity(conn,reportOnly,owner,{branch,dateRange:historyRange}),{
+  totalCount:3,
+  byCurrency:[{currency:'UGX',count:3,amountMinor:'3850'},{currency:'USD',count:1,amountMinor:'100'}],
+  byModule:[
+   {moduleKey:'mobile_money',currency:'UGX',count:1,amountMinor:'70'},
+   {moduleKey:'banking',currency:'UGX',count:1,amountMinor:'3700'},
+   {moduleKey:'banking',currency:'USD',count:1,amountMinor:'100'},
+   {moduleKey:'forex',currency:'UGX',count:1,amountMinor:'3700'},
+   {moduleKey:'forex',currency:'USD',count:1,amountMinor:'100'},
+   {moduleKey:'expenses',currency:'UGX',count:1,amountMinor:'80'}
+  ]
+ },'owner history includes completed legacy receipts and skips pending and voided records');
+ assert.equal((await dashboard.volumes(conn,tenant,owner,{now:historyDate,timeZone:fxZone},branch)).todayTransactionCount,0,
+  'dashboard volumes continue to require booked fund movements');
  const sspDashboard=await dashboard.volumes(conn,tenant,owner,{...dashboardInput,currency:'SSP'},branch);
  assert.equal(sspDashboard.todayTransactionCount,1,'a cross-currency payout counts once for its destination currency');
  const restricted={...operatorDrawers.find(item=>item.actor.role==='Forex Operator').actor};

@@ -1,0 +1,64 @@
+<%
+ const report=data.report||{};
+ const period=report.period||'day';
+ const reportsPath='/tenant/reports/summary';
+ const periods=[['day','Today'],['week','This week'],['month','This month']];
+ const dateDisplay=new Intl.DateTimeFormat('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'});
+ const day=value=>{
+  const date=new Date(value+'T00:00:00.000Z');
+  return Number.isFinite(date.getTime())?dateDisplay.format(date):'';
+ };
+ const rangeLabel=report.from===report.to?day(report.from):day(report.from)+' – '+day(report.to);
+ const exportQuery=new URLSearchParams({period:'custom',from:report.from||'',to:report.to||''});
+ const numbers=new Intl.NumberFormat('en-GB');
+%>
+<section class="view show financialReportsPage ownerSummaryReport" aria-label="Business summary">
+ <section class="card noPrint summaryReportFilters" aria-labelledby="summaryPeriodTitle">
+  <div class="cardHead">
+   <div><b id="summaryPeriodTitle">Reporting period</b><% if(report.branchName&&report.timeZone){ %><br><span><%= report.branchName %> · <%= report.timeZone %></span><% } %></div>
+   <% if(data.canExport){ %><a class="btn" href="<%= reportsPath %>/export.csv?<%= exportQuery.toString() %>">Export CSV</a><% } %>
+  </div>
+  <div class="cardBody workspaceStack">
+   <nav class="summaryReportPeriods" aria-label="Reporting period">
+    <% for(const [key,label] of periods){ %>
+     <a href="<%= reportsPath %>?period=<%= key %>" class="btn<%= period===key&&!data.formError?' btnPrimary':'' %>"<% if(period===key&&!data.formError){ %> aria-current="page"<% } %>><%= label %></a>
+    <% } %>
+   </nav>
+   <form method="get" action="<%= reportsPath %>" class="summaryReportDates" aria-label="Custom reporting period">
+    <input type="hidden" name="period" value="custom">
+    <label class="field">From<input class="control" type="date" name="from" value="<%= report.from||report.today||'' %>" <% if(report.today){ %>max="<%= report.today %>"<% } %> required></label>
+    <label class="field">To<input class="control" type="date" name="to" value="<%= report.to||report.today||'' %>" <% if(report.today){ %>max="<%= report.today %>"<% } %> required></label>
+    <button class="btn<%= period==='custom'&&!data.formError?' btnPrimary':'' %>" type="submit">Apply dates</button>
+   </form>
+   <% if(data.formError){ %><p class="summaryReportError" role="alert"><%= data.formError %></p><% } %>
+   <% if(report.allBranches&&report.timeZone){ %><p class="tiny">All branches use this reporting time zone for the selected period.</p><% } %>
+  </div>
+ </section>
+
+ <% if(Number.isInteger(report.totalCount)){ %>
+  <section class="card" aria-labelledby="summaryAllTitle">
+   <div class="cardHead">
+    <div><b id="summaryAllTitle">All modules</b><br><span><%= rangeLabel %></span></div>
+    <div class="summaryReportCount"><strong><%= numbers.format(report.totalCount) %></strong> recorded <%= report.totalCount===1?'transaction':'transactions' %></div>
+   </div>
+   <div class="cardBody workspaceStack">
+    <% if(report.byCurrency.length){ %>
+     <%- include('_summary-table',{data,rows:report.byCurrency,moduleRows:false,label:'Totals across modules by currency'}) %>
+     <p class="tiny">Each exchange appears in both currencies. The transaction total above counts it once.</p>
+    <% }else{ %><p>No transactions or posted earnings in this period.</p><% } %>
+   </div>
+  </section>
+
+  <% if(report.byModule.length){ %>
+   <section class="card" aria-labelledby="summaryModuleTitle">
+    <div class="cardHead"><b id="summaryModuleTitle">By module and currency</b></div>
+    <div class="cardBody workspaceStack">
+     <%- include('_summary-table',{data,rows:report.byModule,moduleRows:true,label:'Module activity and earnings by currency'}) %>
+     <p class="tiny">A linked exchange can appear under Forex and the module that recorded it. Posted profit is income less expenses in the ledger.</p>
+    </div>
+   </section>
+  <% } %>
+ <% } %>
+
+ <% if(typeof visiblePaths!=='undefined'){ %><%- include('_types',{visiblePaths,currentPath}) %><% } %>
+</section>

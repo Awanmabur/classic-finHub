@@ -312,29 +312,21 @@
  }
 }
 
-/* Dashboard: key figures, currency activity, then supporting detail. */
-#workspaceContent #view-overview .dashboardTopStats{
- grid-template-columns:repeat(auto-fit,minmax(min(100%,158px),1fr))!important;
- gap:var(--workspace-section-gap)!important;
+/* Dashboard financial details and currency activity. */
+.dashboardFinancialGroups{
+ display:grid;
+ grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));
+ gap:var(--workspace-section-gap);
+ align-items:start;
 }
-.dashboardStatAmounts{
- list-style:none;
- margin:4px 0 0;
- padding:0;
- font-weight:750;
- font-size:clamp(13px,1.45vw,17px);
- font-variant-numeric:tabular-nums;
- line-height:1.5;
+.dashboardFinancialGroups .sumRow{
+ align-items:baseline;
+ overflow-wrap:anywhere;
 }
-.dashboardStatAmounts li + li{border-top:1px solid var(--border)}
-.dashboardCashLocation{font-size:11px;line-height:1.3;color:var(--muted);margin-top:3px}
-.dashboardCashDay > .btn{
- align-self:flex-start;
- min-height:36px;
- white-space:normal;
- text-align:left;
- margin-top:7px;
- padding:6px 10px;
+.dashboardFinancialGroups .sumRow b{font-variant-numeric:tabular-nums}
+.dashboardFinancialTotal + .sumRow:not(.dashboardFinancialTotal){
+ border-top:1px solid var(--border);
+ padding-top:8px;
 }
 .dashboardCurrencyTable{min-width:0}
 #workspaceContent .dashboardCurrencyTable table{
@@ -359,23 +351,7 @@
  font-size:11px;
 }
 .dashboardCurrencyMetric{display:none}
-.dashboardFinancialDetails > summary{cursor:pointer}
 @media(max-width:650px){
- #workspaceContent #view-overview .dashboardTopStats{
-  grid-template-columns:repeat(auto-fit,minmax(min(100%,124px),1fr))!important;
- }
- #workspaceContent #view-overview .dashboardCashDay:nth-child(3):last-child{
-  grid-column:1/-1;
-  display:grid!important;
-  grid-template-columns:minmax(0,1fr) auto;
-  grid-template-areas:"label action" "status action" "location action";
-  column-gap:10px!important;
-  align-items:center!important;
- }
- .dashboardCashDay:nth-child(3):last-child > .k{grid-area:label}
- .dashboardCashDay:nth-child(3):last-child > .v{grid-area:status}
- .dashboardCashDay:nth-child(3):last-child > .dashboardCashLocation{grid-area:location}
- .dashboardCashDay:nth-child(3):last-child > .btn{grid-area:action;align-self:center;margin:0}
  #workspaceContent .dashboardCurrencyTable table,
  #workspaceContent .dashboardCurrencyTable tbody{display:block;width:100%}
  #workspaceContent .dashboardCurrencyTable table{border:0;background:transparent;border-radius:0}
@@ -411,4 +387,121 @@
  #workspaceContent .dashboardCurrencyTable tr:not(:has(td:not(.dashboardCurrencyEmpty))) td.dashboardCurrencyEmpty:nth-child(n+3),
  #workspaceContent .dashboardCurrencyEmpty .dashboardCurrencyMetric{display:none}
  .dashboardCurrencyMetric{display:block;font-size:11px;color:var(--muted);margin-bottom:2px}
+}
+
+#workspaceContent .ownerSummaryReport .cardHead{
+  align-items:center;
+}
+#workspaceContent .ownerSummaryReport .cardBody.workspaceStack{
+  gap:12px;
+}
+.summaryReportPeriods{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+#workspaceContent .summaryReportDates{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,220px)) auto;
+  align-items:end;
+  justify-content:start;
+  gap:10px;
+}
+.summaryReportDates .field,.summaryReportDates .control{
+  min-width:0;
+}
+.summaryReportDates .control{
+  width:100%;
+}
+.summaryReportCount{
+  color:var(--muted);
+  font-size:12px;
+}
+.summaryReportCount strong{
+  color:var(--text);
+  font-size:19px;
+  font-variant-numeric:tabular-nums;
+  margin-inline-end:2px;
+}
+.summaryReportError,.summaryReportLoss{
+  color:var(--bad);
+}
+.summaryReportTable{
+  width:100%;
+  min-width:0;
+  overscroll-behavior-inline:contain;
+}
+#workspaceContent .summaryReportTable table{
+  min-width:0;
+}
+#workspaceContent .summaryReportTable :is(th,td){
+  text-align:right;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  font-variant-numeric:tabular-nums;
+}
+#workspaceContent .summaryReportTable th:first-child{
+  text-align:left;
+  min-width:112px;
+}
+.summaryReportTable th[scope="row"] small,.summaryReportColumnLabel{
+  font-size:11px;
+  color:var(--muted);
+}
+.summaryReportTable th[scope="row"] small{
+  display:block;
+}
+.summaryReportColumnLabel{
+  display:none;
+}
+.summaryReportProfit{
+  font-weight:750;
+}
+@media(max-width:720px){
+  #workspaceContent .summaryReportDates{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  .summaryReportDates > .btn{
+    justify-self:start;
+  }
+  #workspaceContent .summaryReportTable table{
+    display:block;
+    width:100%;
+    border:0;
+    border-radius:0;
+    background:transparent;
+  }
+  #workspaceContent .summaryReportTable thead{
+    position:absolute;
+    width:1px;
+    height:1px;
+    overflow:hidden;
+    clip-path:inset(50%);
+  }
+  #workspaceContent .summaryReportTable tbody{
+    display:grid;
+    width:100%;
+    gap:8px;
+  }
+  #workspaceContent .summaryReportTable tr{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    border:1px solid var(--border);
+    border-radius:12px;
+    overflow:hidden;
+  }
+  #workspaceContent .ownerSummaryReport .summaryReportTable :is(th,td){
+    padding:7px 10px;
+    text-align:left;
+    border:0;
+  }
+  #workspaceContent .summaryReportTable th[scope="row"]{
+    grid-column:1/-1;
+    position:static;
+    background:var(--card2);
+    border-bottom:1px solid var(--border);
+  }
+  .summaryReportColumnLabel{
+    display:block;
+  }
 }

@@ -81,6 +81,7 @@ function tenantMenu(tenant,user) {
   ],banking?['banking']:[]);
   group('Operation Reports',[
     ...(reports?[item('Reports','reports','fa-file-lines')]:[]),
+    ...(owner&&reports?[item('Summary','reports/summary','fa-chart-column')]:[]),
     ...(module('analytics')&&can('analytics.view')?[item('Analytics','analytics','fa-chart-pie')]:[])
   ],reports?[
     'reports/daily',

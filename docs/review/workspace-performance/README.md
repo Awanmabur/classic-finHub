@@ -2,7 +2,7 @@
 
 Focused verification on 9 November 2026 (Africa/Kampala) uses disposable loopback MongoDB replica-set databases. It does not measure the user's Windows/Atlas network or certify production capacity.
 
-The workspace now saves visited pages without automatically fetching its entire sidebar and transaction forms after every navigation. Broader preparation is explicit under **Pending sync → Offline availability → Save workspace pages**. Foreground interaction stops that preparation. Unsynced entries retain their original references and encrypted device storage; updating does not require clearing site data.
+The workspace now saves visited pages without automatically fetching its entire sidebar and transaction forms after every navigation. Broader preparation is explicit under **Today → Offline access → Save workspace pages**. Foreground interaction stops that preparation. Unsynced entries retain their original references and encrypted device storage; updating does not require clearing site data.
 
 Tenant setup sends one native index command per ordinary collection while preserving the declared options. The local comparison reduced **104 index commands to 25 for 25 core collections**, verified exact resulting index specifications and confirmed that duplicate email remains rejected. Failed setup is still retryable and cannot publish an incomplete tenant. Fresh branch checks remain request-scoped; there is no cross-request authorization or funds cache.
 

@@ -1,0 +1,32 @@
+<%
+ const columns=[
+  ['count','Transactions'],['amountMinor','Transaction amount'],['incomeMinor','Posted income'],
+  ['expenseMinor','Posted expenses'],['netMinor','Posted profit']
+ ];
+ const numbers=new Intl.NumberFormat('en-GB');
+%>
+<div class="tableWrap summaryReportTable" role="region" aria-label="<%= label %>" tabindex="0">
+ <table role="table">
+  <thead role="rowgroup">
+   <tr role="row"><th scope="col" role="columnheader"><%= moduleRows?'Module and currency':'Currency' %></th>
+    <% for(const [,name] of columns){ %><th scope="col" role="columnheader"><%= name %></th><% } %>
+   </tr>
+  </thead>
+  <tbody role="rowgroup">
+   <% for(const row of rows){ %>
+    <tr role="row">
+     <th scope="row" role="rowheader">
+      <% if(moduleRows){ %><strong><%= row.moduleLabel %></strong><small><%= data.currencyLabel(row.currency) %></small>
+      <% }else{ %><strong><%= data.currencyLabel(row.currency) %></strong><% } %>
+     </th>
+     <% for(const [key,name] of columns){ const value=row[key]; %>
+      <td role="cell">
+       <span class="summaryReportColumnLabel" aria-hidden="true"><%= name %></span>
+       <span <% if(key==='netMinor'&&value!=null){ %>class="summaryReportProfit <%= String(value).startsWith('-')?'summaryReportLoss':'' %>"<% } %>><%= value==null?'—':key==='count'?numbers.format(value):data.formatMoney(value,row.currency) %></span>
+      </td>
+     <% } %>
+    </tr>
+   <% } %>
+  </tbody>
+ </table>
+</div>

@@ -346,7 +346,6 @@ module.exports=function routes({renderTenant}){
    });
   }catch(e){next(e);}
  });
- router.get('/onboarding',(req,res)=>res.redirect(303,'/tenant/mobile-money'));
  router.get('/cash-in',(req,res,next)=>render(req,res,next,{view:'entry',title:'Deposit',subtitle:'Receive customer cash and deposit the quoted amount of provider float.',operation:'cash_in'}));
  router.get('/cash-out',(req,res,next)=>render(req,res,next,{view:'entry',title:'Withdrawal',subtitle:'Pay customer cash and receive the same amount of electronic float.',operation:'cash_out'}));
  router.get('/network-activity',(req,res,next)=>render(req,res,next,{view:'network',title:'Network activity',subtitle:'Mobile money records grouped by network with recent activity.'}));

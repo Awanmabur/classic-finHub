@@ -302,6 +302,7 @@ router.get('/mobile-money/history', requireModule('mobile_money'),requirePermiss
   }catch(e){next(e);}
 });
 router.get('/mobile-money/:id',requireModule('mobile_money'),requirePermission('mobile_money.view'),async(req,res,next)=>{
+  if(!/^[a-f0-9]{24}$/i.test(req.params.id))return next();
   try{
     const record=await mobile.getRecordDetails(req.tenantDb,req.params.id,recordScope(req));
     // Read-only Viewers see lifecycle states without the investigator notes.

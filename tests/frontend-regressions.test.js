@@ -134,7 +134,7 @@ function overview(role, permissions, paths, data) {
   });
 }
 
-test('overview shows authorized figures for every operating currency above secondary details', async () => {
+test('overview starts with expanded financial details followed by activity for every operating currency', async () => {
   const recentActivity=Array.from({length:8},(_,index)=>({href:'/tenant/mobile-money/record-'+index,label:'Activity '+index}));
   const html = await overview('Tenant Owner', ['*'], ['/tenant/money-transfer', '/tenant/mobile-money', '/tenant/banking', '/tenant/forex', '/tenant/reports', '/tenant/treasury','/tenant/cash/shifts'], {
     hasTransfer:true,hasMobileMoney:true,hasBanking:true,hasForex:true,
@@ -150,12 +150,13 @@ test('overview shows authorized figures for every operating currency above secon
     }
   });
   const table=html.match(/<table data-dashboard-currency-stats>[\s\S]*?<\/table>/)?.[0];
-  assert(table,'currency stats render without expanding the financial details');
+  assert(table);
   assert(html.indexOf(table)<html.indexOf('Recent activity'));
-  const top=html.match(/<section[^>]*data-dashboard-top-stats[^>]*>[\s\S]*?<\/section>/)?.[0];
+  const top=html.match(/<section[^>]*aria-labelledby="dashboardFinancialDetails"[^>]*>[\s\S]*?<\/section>/)?.[0];
   assert(top);
-  assert(html.indexOf(top)<html.indexOf('Today by currency'));
-  for(const label of ['Posted transactions today','Operating assets','Posted net income'])assert(top.includes(label),label);
+  assert.match(html,/id="view-overview">\s*<section[^>]*aria-labelledby="dashboardFinancialDetails"/);
+  assert.match(html.slice(html.indexOf(top)+top.length),/^\s*<section[^>]*aria-labelledby="todayCurrencyStats"/);
+  for(const label of ['Posted transactions today','Operating assets','Posted net income','Shared treasury'])assert(top.includes(label),label);
   for(const label of ['Money transfer','Mobile money','Banking','Forex'])assert(table.includes(label),label);
   for(const [currency,amount] of [['UGX','UGX 41,000'],['USD','USD 75.00'],['SSP','SSP 230,000.00'],['KSH','KSH 32.00']]){
     const row=table.match(new RegExp(`<th scope="row">${currency}</th>[\\s\\S]*?</tr>`))?.[0];
@@ -163,7 +164,7 @@ test('overview shows authorized figures for every operating currency above secon
   }
   assert.match(top,/UGX 81,000/);assert.match(top,/USD 12\.00/);
   assert.doesNotMatch(table,/Operating assets|Posted net income/);
-  assert.match(html,/<details [^>]*>\s*<summary[^>]*><b>Financial details<\/b>/);
+  assert.equal((html.match(/>Financial details</g)||[]).length,1);
   assert.match(html,/href="\/tenant\/treasury\?currency=UGX#cash-day">Close day/);
   assert.equal((html.match(/href="\/tenant\/mobile-money\/record-\d+"/g)||[]).length,6);
   assert.doesNotMatch(html,/Load demo|id="branchSelect"/);
@@ -185,5 +186,5 @@ test('overview excludes unconfigured module columns and an unavailable cash draw
   const table=html.match(/<table data-dashboard-currency-stats>[\s\S]*?<\/table>/)?.[0];
   assert.match(table,/Money transfer/);
   assert.doesNotMatch(table,/Mobile money/);
-  assert.doesNotMatch(html,/data-dashboard-fund-stat|class="stat stat--text dashboardCashDay"/);
+  assert.doesNotMatch(html,/data-dashboard-fund-stat|id="dashboardCashDay"/);
 });

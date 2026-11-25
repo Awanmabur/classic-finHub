@@ -84,7 +84,7 @@ process. Check the error/reference, the terminal and `npm run db:doctor`; confir
 whether the original transaction saved before retrying an interrupted write.
 
 Visited workspace pages save quietly for offline use. Wider preparation runs
-only when selected under **Pending sync → Offline availability → Save workspace
+only when selected under **Today → Offline access → Save workspace
 pages**, and stops on foreground interaction. Updating does not require deleting
 saved drafts or clearing site data.
 

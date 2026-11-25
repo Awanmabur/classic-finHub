@@ -19,12 +19,6 @@
   ].filter(([access,key]) => data[access] &&
     (!Array.isArray(data.visibleDashboardModules) || data.visibleDashboardModules.includes(key)));
   const moduleLabel = key => modules.find(([,moduleKey]) => moduleKey === key)?.[2] || key.replaceAll('_',' ');
-  const bookedAssets = filterMoney(finance.bookAssets);
-  const postedNet = filterMoney(finance.postedNet);
-  const amountCards = [
-    ['Operating assets', bookedAssets],
-    ['Posted net income', finance.mixedRegion ? [] : postedNet]
-  ].filter(([,rows]) => finance.available && rows.length);
   const count = modules.length ? snapshot.todayTransactionCount : null;
   const canSeeCash = visiblePaths.has('/tenant/treasury');
   const ownerMoneyPage = user.role === 'Tenant Owner' && canSeeCash;
@@ -42,36 +36,73 @@
   const walletAccounts = actualFunds(data.mobileFunds?.wallets);
   const fundGroups = [['cash','Physical cash',drawerAccounts],['float','Electronic float',walletAccounts]]
     .filter(([, , accounts]) => modules.some(([,key]) => key === 'mobile_money') && accounts.length);
-  const moduleIncome = (finance.moduleEarnings || []).filter(entry => filterMoney(entry.net).length);
-  const assetsByModule = (finance.byModule || []).filter(entry => filterMoney(entry.totals).length);
+  const summaries = [
+    {
+      title:'Operating assets',
+      totals:filterMoney(finance.bookAssets),
+      modules:(finance.byModule || []).flatMap(entry => filterMoney(entry.totals).map(row => ({
+        label:entry.moduleKey === 'shared' ? 'Shared treasury' : moduleLabel(entry.moduleKey), amount:displayAmount(row)
+      })))
+    },
+    {
+      title:'Posted net income',
+      totals:finance.mixedRegion ? [] : filterMoney(finance.postedNet),
+      modules:(finance.moduleEarnings || []).flatMap(entry => filterMoney(entry.net).map(row => ({
+        label:moduleLabel(entry.moduleKey), amount:displayAmount(row)
+      })))
+    }
+  ].filter(group => finance.available && (group.totals.length || group.modules.length));
   const cashTotals = canSeeCash ? filterMoney(snapshot.cash) : [];
-  const financialDetails = fundGroups.length || moduleIncome.length || assetsByModule.length || cashTotals.length;
+  const hasFinanceBreakdown = fundGroups.length || summaries.length || cashTotals.length;
 %>
 <section class="view show" id="view-overview">
-  <% if(Number.isInteger(count) || amountCards.length || hasCashDay){ %>
-    <section class="dashboardTopStats overviewStatsGrid" data-dashboard-top-stats aria-label="Key figures">
-      <% if(Number.isInteger(count)){ %>
-        <div class="stat">
-          <div class="k">Posted transactions today</div>
-          <div class="v"><%= count.toLocaleString('en-GB') %></div>
-        </div>
-      <% } %>
-      <% amountCards.forEach(([label,rows])=>{ %>
-        <div class="stat">
-          <div class="k"><%= label %></div>
-          <ul class="dashboardStatAmounts">
-            <% rows.forEach(row=>{ %><li><%= displayAmount(row) %></li><% }); %>
-          </ul>
-        </div>
-      <% }); %>
-      <% if(hasCashDay){ %>
-        <div class="stat stat--text dashboardCashDay">
-          <div class="k">Cash day</div>
-          <% if(cashDay){ %>
-            <div class="v"><%= dayStatus %></div>
-            <div class="dashboardCashLocation"><%= cashDay.branchName %> · <%= displayCurrency(cashDay.currency) %></div>
+  <% if(hasFinanceBreakdown || Number.isInteger(count)){ %>
+    <section class="card" aria-labelledby="dashboardFinancialDetails">
+      <div class="cardHead">
+        <b id="dashboardFinancialDetails">Financial details</b>
+        <% if(Number.isInteger(count)){ %>
+          <span>Posted transactions today · <strong><%= count.toLocaleString('en-GB') %></strong></span>
+        <% } %>
+      </div>
+      <% if(hasFinanceBreakdown){ %>
+        <div class="cardBody workspaceStack">
+          <% if(fundGroups.length){ %><div class="overviewStatsGrid">
+            <% fundGroups.forEach(([type,label,accounts])=>{
+              const totals = filterMoney(data.mobileBookTotals?.[type]);
+              [...new Set(accounts.map(account => account.currency))].forEach(currency=>{
+                const current = accounts.filter(account => account.currency === currency);
+                const total = totals.find(row => row.currency === currency);
+            %>
+              <div class="stat" data-dashboard-fund-stat="<%= type %>" data-fund-currency="<%= currency %>">
+                <div class="k"><%= label %> · <%= displayCurrency(currency) %></div>
+                <div class="v"><%= total ? displayAmount(total) : current.length === 1 ? current[0].expected : '' %></div>
+                <% current.forEach(account=>{ %><div class="s"><%= account.name %> · <%= account.expected %></div><% }); %>
+              </div>
+            <% }); }); %>
+          </div><% } %>
+          <% if(summaries.length || cashTotals.length){ %>
+            <div class="dashboardFinancialGroups">
+              <% summaries.forEach(group=>{ %>
+                <div class="summary">
+                  <b><%= group.title %></b>
+                  <% group.totals.forEach(row=>{ %>
+                    <div class="sumRow dashboardFinancialTotal"><span>Total <%= displayCurrency(row.currency) %></span><b><%= displayAmount(row) %></b></div>
+                  <% }); %>
+                  <% group.modules.forEach(row=>{ %>
+                    <div class="sumRow"><span><%= row.label %></span><b><%= row.amount %></b></div>
+                  <% }); %>
+                </div>
+              <% }); %>
+              <% if(cashTotals.length){ %>
+                <div class="summary" id="cashSummary">
+                  <b>Expected cash in open drawers</b>
+                  <% cashTotals.forEach(row=>{ %>
+                    <div class="sumRow"><span><%= displayCurrency(row.currency) %></span><b><%= displayAmount({formatted:row.expectedFormatted}) %></b></div>
+                  <% }); %>
+                </div>
+              <% } %>
+            </div>
           <% } %>
-          <a class="btn" href="<%= cashDayHref %>"><%= cashDay ? dayAction : 'View cash day' %></a>
         </div>
       <% } %>
     </section>
@@ -106,7 +137,19 @@
     </section>
   <% } %>
 
-  <% if(recentActivity.length || modules.length || (!amountCards.length && !hasCashDay)){ %>
+  <% if(hasCashDay){ %>
+    <section class="card" aria-labelledby="dashboardCashDay">
+      <div class="cardHead">
+        <div>
+          <b id="dashboardCashDay">Cash day</b>
+          <% if(cashDay){ %><br><span><%= cashDay.branchName %> · <%= displayCurrency(cashDay.currency) %> · <%= dayStatus %></span><% } %>
+        </div>
+        <a class="btn" href="<%= cashDayHref %>"><%= cashDay ? dayAction : 'View cash day' %></a>
+      </div>
+    </section>
+  <% } %>
+
+  <% if(recentActivity.length || modules.length || (!hasFinanceBreakdown && !hasCashDay)){ %>
     <section class="card" aria-labelledby="dashboardActivity">
       <div class="cardHead"><b id="dashboardActivity">Recent activity</b></div>
       <div class="cardBody">
@@ -126,50 +169,5 @@
       </div>
     </section>
   <% } %>
-
-  <% if(financialDetails){ %>
-    <details class="card dashboardFinancialDetails">
-      <summary class="cardHead"><b>Financial details</b><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary>
-      <div class="cardBody workspaceStack">
-        <% if(fundGroups.length){ %><div class="overviewStatsGrid">
-          <% fundGroups.forEach(([type,label,accounts])=>{
-            const totals = filterMoney(data.mobileBookTotals?.[type]);
-            [...new Set(accounts.map(account => account.currency))].forEach(currency=>{
-              const current = accounts.filter(account => account.currency === currency);
-              const total = totals.find(row => row.currency === currency);
-          %>
-            <div class="stat" data-dashboard-fund-stat="<%= type %>" data-fund-currency="<%= currency %>">
-              <div class="k"><%= label %> · <%= displayCurrency(currency) %></div>
-              <div class="v"><%= total ? displayAmount(total) : current.length === 1 ? current[0].expected : '' %></div>
-              <% current.forEach(account=>{ %><div class="s"><%= account.name %> · <%= account.expected %></div><% }); %>
-            </div>
-          <% }); }); %>
-        </div><% } %>
-        <% if(moduleIncome.length){ %>
-          <div class="summary">
-            <b>Posted net income by module</b>
-            <% moduleIncome.forEach(entry=>filterMoney(entry.net).forEach(row=>{ %>
-              <div class="sumRow"><span><%= moduleLabel(entry.moduleKey) %></span><b><%= displayAmount(row) %></b></div>
-            <% })); %>
-          </div>
-        <% } %>
-        <% if(assetsByModule.length){ %>
-          <div class="summary">
-            <b>Operating assets by module</b>
-            <% assetsByModule.forEach(entry=>filterMoney(entry.totals).forEach(row=>{ %>
-              <div class="sumRow"><span><%= entry.moduleKey === 'shared' ? 'Shared treasury' : moduleLabel(entry.moduleKey) %></span><b><%= displayAmount(row) %></b></div>
-            <% })); %>
-          </div>
-        <% } %>
-        <% if(cashTotals.length){ %>
-          <div class="summary" id="cashSummary">
-            <b>Expected cash in open drawers</b>
-            <% cashTotals.forEach(row=>{ %>
-              <div class="sumRow"><span><%= displayCurrency(row.currency) %></span><b><%= row.expectedFormatted.replace(/^KES /,'KSH ') %></b></div>
-            <% }); %>
-          </div>
-        <% } %>
-      </div>
-    </details>
-  <% } %>
+  <div class="rowBtns" data-offline-access hidden><button class="btn" type="button" aria-haspopup="dialog">Offline access</button></div>
 </section>

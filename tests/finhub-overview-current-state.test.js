@@ -50,7 +50,7 @@ test('dashboard shows posted earnings above activity and omits unmeasured Forex 
  assert.match(html,/SSP 7,000/);
  assert.match(html,/Operating assets/);
  assert.doesNotMatch(html,/Forex trading profit|Not yet measurable/);
- assert.match(html,/overviewStatsGrid/);
+ assert.match(html,/aria-labelledby="dashboardFinancialDetails"[\s\S]*class="dashboardFinancialGroups"/);
 });
 test('platform tenant form reflects persisted active state and effective module entitlements',()=>{
  const file=path.join(__dirname,'../src/views/platform/tenants/show.ejs');

@@ -17,7 +17,7 @@ const fixture=dashboardCurrency=>({
    todayByCurrency:{money_transfer:[{currency:'UGX',count:2,formatted:'UGX 2,000'},{currency:'USD',count:3,formatted:'USD 11.00'}]}},
   financeOverview:{available:false}}
 });
-test('Every tenant dashboard uses its own brand, and Logout is the final sidebar action',async()=>{
+test('Tenant dashboard uses its own brand and puts account, Logout and Website in the sidebar footer',async()=>{
  const html=await ejs.renderFile(template,fixture(''));
  assert.match(html,/<title>Overview — Nile Exchange &amp; Services<\/title>/);
  assert.match(html,/<h1>Nile Exchange &amp; Services<\/h1>/);
@@ -37,7 +37,9 @@ test('Every tenant dashboard uses its own brand, and Logout is the final sidebar
  assert.match(sidebar,/name="_csrf" value="test-csrf"/);
  assert.equal((html.match(/action="\/logout"/g)||[]).length,1);
  assert.doesNotMatch(header,/action="\/logout"/);
- assert(sidebar.indexOf('class="sidebarLogoutForm"')>=0,'Logout stays as the final sidebar control');
+ const footer=sidebar.slice(sidebar.indexOf('class="sideFoot tenantSideFoot"'));
+ assert.match(footer,/<b>Grace Operator<\/b><span>Tenant Owner<\/span>[\s\S]*class="sidebarLogoutForm"[\s\S]*Logout[\s\S]*href="\/"[^>]*>[\s\S]*Website/);
+ assert.doesNotMatch(footer,/Connected|Pending sync/);
  assert.match(html,/name="currency" aria-label="Display currency"><option value="" selected>All currencies/);
 });
 test('Tenant header is ordered username, branch, currency, search and actions without duplicates',async()=>{

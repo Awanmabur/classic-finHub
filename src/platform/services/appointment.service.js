@@ -5,8 +5,13 @@ const Admin=require('../models/PlatformAdmin');
 const Audit=require('../models/PlatformAuditLog');
 const STATUSES=['pending','confirmed','completed','cancelled'];
 const businessTime=require('../../utils/businessTime');
+const {formatUtcDate}=require('../../utils/view');
 function fail(message,status=400){return Object.assign(new Error(message),{status});}
 function id(value){if(typeof value!=='string'||!/^[a-f0-9]{24}$/i.test(value))throw fail('Appointment not found',404);return value;}
+function canComplete(appointment,now=new Date()){
+ const start=formatUtcDate(appointment.scheduledAt,'');
+ return appointment.status==='confirmed'&&Boolean(start)&&new Date(start)<=now;
+}
 function normalize(input,now=new Date(),{timeZone='UTC'}={}){
  if(!['confirm','complete','cancel'].includes(input.action))throw fail('Choose a valid appointment action');
  if(!/^(?:0|[1-9]\d{0,8})$/.test(String(input.revision??'')))throw fail('Reload the appointment before saving');
@@ -58,7 +63,7 @@ async function decide(appointmentId,actor,input,{now=new Date()}={}){
   const value=normalize(input,now,{timeZone});
   const prior=await Appointment.findById(appointment).session(session).lean();if(!prior)throw fail('Appointment not found',404);
   const status=prior.status||'pending';if(['completed','cancelled'].includes(status))throw fail('This appointment is already closed',409);
-  if(value.action==='complete'&&(status!=='confirmed'||!prior.scheduledAt||new Date(prior.scheduledAt)>now))throw fail('Only a confirmed appointment that has started can be completed',409);
+  if(value.action==='complete'&&!canComplete(prior,now))throw fail('Only a confirmed appointment that has started can be completed',409);
   const next=value.action==='confirm'?'confirmed':value.action==='complete'?'completed':'cancelled';
   const changes={status:next,reviewNote:value.note,...(value.action==='confirm'?{scheduledAt:value.scheduledAt,meetingLink:value.meetingLink}:{})};
   result=await Appointment.findOneAndUpdate({_id:appointment,revision:value.revision===0?{$in:[0,null]}:value.revision},{$set:changes,$inc:{revision:1},$push:{decisions:{action:value.action,from:status,to:next,note:value.note,scheduledAt:value.scheduledAt||prior.scheduledAt,meetingLink:value.meetingLink??prior.meetingLink??'',actorId:admin._id,at:now}}},{new:true,session,runValidators:true}).lean();
@@ -66,4 +71,4 @@ async function decide(appointmentId,actor,input,{now=new Date()}={}){
   await Audit.create([{actorId:String(admin._id),actorName:admin.name,action:'appointment.'+value.action,moduleKey:'appointments',recordId:appointment,before:{status,scheduledAt:prior.scheduledAt||null},after:{...changes,note:value.note}}],{session});
  });return result;}finally{await session.endSession();}
 }
-module.exports={list,get,decide,normalize,STATUSES};
+module.exports={list,get,decide,normalize,canComplete,STATUSES};

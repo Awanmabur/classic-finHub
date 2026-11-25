@@ -10,7 +10,7 @@ SHA="$(git -c safe.directory="$ROOT" -C "$ROOT" rev-parse HEAD)"
 test -n "${CLASSICFIN_EXPECTED_SHA:-}"
 test "$SHA" = "$CLASSICFIN_EXPECTED_SHA"
 test -z "$(GIT_OPTIONAL_LOCKS=0 git -c safe.directory="$ROOT" -C "$ROOT" status --porcelain)"
-exec 9>/run/lock/classicfin-web-fees-release.lock
+exec 9>/run/lock/classicfin-standalone-release.lock
 flock -n 9
 APP=classicfin-web-only
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"

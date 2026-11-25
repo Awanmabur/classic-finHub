@@ -127,12 +127,16 @@ async function decideOpening(conn,tenant,actor,shiftId,input={},options={}){
 // existing expected cash equals the verified treasury book before the movement.
 async function bindFundAccount(conn,session,account,balanceBeforeMinor,options={}){
  if(account?.kind!=='cash'||!account.operatorId)throw fail('Cash funds must belong to an assigned operator',409);
+ const status=options.allowDisputed?{$in:['open','disputed']}:'open';
  const shift=await cashSessionModel(conn).findOneAndUpdate({branchId:account.branchId,operatorId:account.operatorId,currency:account.currency,
-  status:{$in:['open','disputed']},openingVerifiedAt:{$ne:null},$or:[{treasuryAccountId:null},{treasuryAccountId:account._id}]},
+  status,openingVerifiedAt:{$ne:null},$or:[{treasuryAccountId:null},{treasuryAccountId:account._id}]},
   {$inc:{revision:1}},{new:true,session}).lean();
  if(!shift){
-  const unfinished=options.allowNoActiveShift?await cashSessionModel(conn).exists({branchId:account.branchId,operatorId:account.operatorId,currency:account.currency,status:{$in:['pending_open','open','submitted','disputed']}}).session(session):true;
+  const unfinished=await cashSessionModel(conn).findOne({branchId:account.branchId,operatorId:account.operatorId,currency:account.currency,
+   status:{$in:['pending_open','open','submitted','disputed']}}).select('status').session(session).lean();
   if(options.allowNoActiveShift&&!unfinished)return null;
+  if(unfinished?.status==='disputed'&&!options.allowDisputed)
+   throw fail('The assigned cash drawer is being recounted. Reconcile and close this Cash Day before posting new cash movements.',409);
   throw fail('Open and independently verify the assigned operator cash drawer before posting cash movements',409);
  }
  if(minor(shift.openingMinor)+minor(shift.provisionalMovementMinor)!==BigInt(String(balanceBeforeMinor))){
@@ -143,14 +147,15 @@ async function bindFundAccount(conn,session,account,balanceBeforeMinor,options={
  return shift;
 }
 async function refreshFundBalance(conn,session,account,balanceAfterMinor,options={}){
- const shift=await cashSessionModel(conn).findOne({treasuryAccountId:account._id,operatorId:account.operatorId,currency:account.currency,status:{$in:['open','disputed']}}).session(session).lean();
+ const status=options.allowDisputed?{$in:['open','disputed']}:'open';
+ const shift=await cashSessionModel(conn).findOne({treasuryAccountId:account._id,operatorId:account.operatorId,currency:account.currency,status}).session(session).lean();
  if(!shift){
   const unfinished=options.allowNoActiveShift?await cashSessionModel(conn).exists({branchId:account.branchId,operatorId:account.operatorId,currency:account.currency,status:{$in:['pending_open','open','submitted','disputed']}}).session(session):true;
   if(options.allowNoActiveShift&&!unfinished)return null;
   throw fail('The linked physical drawer is no longer open',409);
  }
  const movement=BigInt(String(balanceAfterMinor))-minor(shift.openingMinor);
- const updated=await cashSessionModel(conn).findOneAndUpdate({_id:shift._id,status:{$in:['open','disputed']}},{$set:{provisionalMovementMinor:decimal(movement)},$inc:{revision:1}},{new:true,session});
+ const updated=await cashSessionModel(conn).findOneAndUpdate({_id:shift._id,status},{$set:{provisionalMovementMinor:decimal(movement)},$inc:{revision:1}},{new:true,session});
  if(!updated)throw fail('Cash closing changed concurrently. Retry after reconciliation.',409);
  return updated;
 }
@@ -204,7 +209,7 @@ async function submit(conn,tenant,actor,shiftId,input={},options={}){
    const Money=mobileTransactionModel(conn);
    const outstanding=await Money.countDocuments({cashSessionId:result._id,$nor:[
      {status:'voided_internal',correctionState:'voided'},
-     {status:{$in:['recorded','pending_verification']},correctionState:{$nin:['requested','voided']}}
+     {status:{$in:['recorded','pending_verification','verified']},correctionState:{$nin:['requested','voided']}}
    ]}).session(tx);
    if(outstanding)throw fail(`Resolve ${outstanding} outstanding record corrections before closing`,409);
    const counted=await Money.countDocuments({cashSessionId:result._id}).session(tx);

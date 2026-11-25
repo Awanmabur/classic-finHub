@@ -18,15 +18,24 @@ test('creation page has no useless search, duplicate create action or duplicate 
   assert.match(html,/action="\/platform\/plans\/publish-initial"/,'the real first-run setup remains available');
 });
 
-test('page search appears for loaded records and not for an empty directory',async()=>{
-  const options={currentPath:'/platform/tenants',view:'../platform/tenants/index',data:{tenants:[],plans:[]}};
+test('workspace search queries the tenant directory regardless of loaded records',async()=>{
+  const options={currentPath:'/platform/tenants',view:'../platform/tenants/index',data:{tenants:[],q:''}};
   const empty=await render(options);
   assert.doesNotMatch(empty,/id="search"/);
-  const populated=await render({...options,data:{plans:[{code:'agent',name:'Agent Plan'}],tenants:[{id:'123',name:'Acme',slug:'acme',owner:'Owner',email:'owner@example.invalid',plan:'agent',status:'active',setupStatus:'complete',currentPlanName:'Agent Plan',currentPlanVersion:2,planAccessActive:true,currentModuleCount:1,enabledModules:['mobile_money']}]}});
-  assert.match(populated,/id="search"/);
-  assert.match(populated,/data-search-row/);
+  assert.match(empty,/<form method="get" action="\/platform\/tenants"/);
+  const populated=await render({...options,data:{q:'Acme',tenants:[{id:'123',name:'Acme',slug:'acme',owner:'Owner',email:'owner@example.invalid',plan:'agent',status:'active',setupStatus:'complete',currentPlanName:'Agent Plan',currentPlanVersion:2,planAccessActive:true,currentModuleCount:1,enabledModules:['mobile_money']}]}});
+  assert.match(populated,/<input[^>]+name="q"[^>]+value="Acme"/);
+  assert.doesNotMatch(populated,/id="search"|data-search-row/);
   assert.match(populated,/Agent Plan/);
   assert.match(populated,/href="\/platform\/tenants\/123"/);
+});
+
+test('page search filters loaded audit records when the page has records',async()=>{
+  const options={currentPath:'/platform/audit',view:'../platform/audit/index',data:{auditLogs:[]}};
+  assert.doesNotMatch(await render(options),/id="search"/);
+  const populated=await render({...options,data:{auditLogs:[{action:'tenant.created'}]}});
+  assert.match(populated,/id="search"/);
+  assert.match(populated,/data-search-row/);
 });
 
 test('nested pages select only their closest navigation entry',async()=>{

@@ -73,6 +73,10 @@ async function main(){
  await page.waitForFunction(()=>document.body.dataset.connectionMode==='online');
  const accountFooter=page.locator('#sidePanel .tenantSideFoot');
  assert.match(await accountFooter.innerText(),/Owner\s+Tenant Owner\s+Logout\s+Website/);
+ assert.equal(await accountFooter.evaluate(footer=>Math.round(
+  footer.querySelector('.accountActions .btn').getBoundingClientRect().top -
+  footer.querySelector('.mini').getBoundingClientRect().bottom
+ )),6,'Sidebar profile actions should sit directly below the signed-in identity');
  assert.equal(await accountFooter.getByRole('button',{name:'Pending sync',exact:true}).count(),0);
  assert.equal(await page.locator('[data-offline-recovery]').count(),0);
  let release,started;const held=new Promise(resolve=>{release=resolve;}),requested=new Promise(resolve=>{started=resolve;});let fragmentGets=0,fullPageGets=0;

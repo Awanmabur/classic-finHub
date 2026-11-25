@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
 const express=require('express'),session=require('express-session');
-const {ajaxRedirect}=require('../src/middleware/ajaxRedirect');
+const {ajaxRedirect,target}=require('../src/middleware/ajaxRedirect');
 const {flash,consumeFlash}=require('../src/utils/view');
 const csrf=require('../src/middleware/csrfProtection');
 async function listen(t,app){const server=await new Promise(resolve=>{const server=app.listen(0,()=>resolve(server));});t.after(()=>new Promise(resolve=>server.close(resolve)));return 'http://127.0.0.1:'+server.address().port;}
@@ -43,6 +43,11 @@ test('external, ambiguous and control-character redirects are rejected without d
  for(const target of ['https://private.example.invalid/callback?token=private-value','//private.example.invalid/path','/\\private.example.invalid','/next\nInjected: private-value','/next\u0000private-value','/next path']){
   const response=await post(base,'/target',identity,{target},{'X-ClassicFin-Redirect':'json'});assert.equal(response.status,400);const text=await response.text();assert.match(text,/Open this action from its page/);assert.doesNotMatch(text,/private-value|private\.example|Injected/);assert.equal(response.headers.get('location'),null);
  }
+});
+test('redirect targets remain local after URL path normalization',()=>{
+ assert.equal(target('/view/../destination?filter=active#history'),'/destination?filter=active#history');
+ const doubleSlashPath='/'+['view','..','','unused.invalid','record'].join('/');
+ assert.equal(target(doubleSlashPath),null);
 });
 test('the real application checks CSRF before applying the JSON redirect contract',async t=>{
  const base=await listen(t,require('../src/app')());

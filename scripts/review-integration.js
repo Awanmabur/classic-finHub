@@ -85,6 +85,8 @@ async function main() {
     await mobile.requestVoid(a,operator,correctionId,'The originally entered cash-out value requires correction');
     assert.equal((await mobile.getReviewQueue(a,reviewer.id,25,String(branch._id))).some(x=>String(x._id)===correctionId),false,
       'an open correction request must not enter normal review');
+    await assert.rejects(cash.submit(a,tenants[0],operator,String(shift._id),{countedCash:'0'}),
+      e=>e.status===409&&/outstanding record corrections/.test(e.message));
     await assert.rejects(mobile.decideVoid(a,{...reviewer,id:operator.id,role:'Tenant Owner'},correctionId,'approve',
       'A second person must decide this case'),e=>e.status===409);
     await mobile.decideVoid(a,reviewer,correctionId,'deny','The first receipt does not establish an input error');
@@ -104,6 +106,8 @@ async function main() {
       e=>e.status===403,'reviewers cannot submit another operator shift');
     await assert.rejects(cash.decide(a,tenants[0],{...operator,role:'Tenant Owner'},String(shift._id),
       {decision:'approve',note:'A different person must approve'}),e=>e.status===409,'open shift cannot be approved');
+    // Provider-verified records from older releases still belong in the cash count.
+    await mobileTransactionModel(a).collection.updateOne({_id:created._id},{$set:{status:'verified'}});
     const submitted=await cash.submit(a,tenants[0],operator,String(shift._id),{
       countedCash:'119000',note:'Counted notes and identified a one-thousand shilling difference'});
     assert.equal(submitted.status,'submitted');

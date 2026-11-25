@@ -8,7 +8,7 @@ function equal(a, b) {
 }
 module.exports = function csrfProtection(req, res, next) {
   const readOnly = safe.has(req.method);
-  const pathname = req.path.toLowerCase();
+  const pathname = req.path.toLowerCase().replace(/\/+$/, '') || '/';
   // Do not create needless session records for crawlers of informational pages.
   const formPage = publicFormPages.has(pathname) || pathname.startsWith('/platform/') ||
     pathname === '/platform' || pathname.startsWith('/tenant/') || pathname === '/tenant' ||

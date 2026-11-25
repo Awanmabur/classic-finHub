@@ -1,10 +1,20 @@
-<% const directory=data.directory, f=directory.filters; %>
+<%
+const directory=data.directory,f=directory.filters;
+const filtered=Boolean(f.q||f.country||f.service||f.category);
+const linkFor=page=>{
+  const query=new URLSearchParams();
+  for(const key of ['q','country','service','category'])if(f[key])query.set(key,f[key]);
+  if(f.sort==='name')query.set('sort',f.sort);
+  if(page>1)query.set('page',String(page));
+  return '/businesses'+(query.size?'?'+query.toString():'');
+};
+%>
 <div class="businessDirectory">
   <nav class="businessDirCrumbs" aria-label="Breadcrumb"><a href="/">Home</a><i class="fa-solid fa-chevron-right" aria-hidden="true"></i><span aria-current="page">Businesses</span></nav>
   <header class="businessDirHero">
     <span class="kicker">ClassicFin Hub · Public business directory</span>
     <h1>Discover businesses on ClassicFin Hub</h1>
-    <p>Find publicly listed businesses, explore their approved services and read customer reviews. Contact details appear only when the business owner publishes them.</p>
+    <p>Find publicly listed businesses, explore their services and read customer reviews. Contact details appear only when the business owner publishes them.</p>
     <a class="btn btn-light" href="/signup">Register your business</a>
   </header>
   <form class="businessDirFilters" method="get" action="/businesses" role="search">
@@ -31,7 +41,7 @@
     </label>
     <label>Sort by
       <select name="sort">
-        <option value="recent" <%= f.sort==='recent'?'selected':'' %>>Recently published</option>
+        <option value="recent" <%= f.sort==='recent'?'selected':'' %>>Recently added</option>
         <option value="name" <%= f.sort==='name'?'selected':'' %>>Business name</option>
       </select>
     </label>
@@ -50,12 +60,19 @@
     </div>
   <% }else{ %>
     <div class="businessDirEmpty"><i class="fa-solid fa-building-circle-exclamation" aria-hidden="true"></i>
-      <h3><%= f.q||f.service||f.country||f.category?'No businesses match those filters':'No public business profiles yet' %></h3>
-      <p><%= f.q||f.service||f.country?'Try another business name, country or service.':'Businesses will appear here when their owners publish their public profiles. No sample or invented listings are shown.' %></p>
-      <a href="<%= f.q||f.service||f.country?'/businesses':'/signup' %>" class="btn btn-dark"><%= f.q||f.service||f.country?'Clear filters':'Register your business' %></a>
+      <% if(f.page>directory.pages){ %>
+        <h3>Results page unavailable</h3>
+        <a href="<%= linkFor(1) %>" class="btn btn-dark">Back to the first page</a>
+      <% }else if(filtered){ %>
+        <h3>No businesses match those filters</h3>
+        <a href="/businesses" class="btn btn-dark">Clear filters</a>
+      <% }else{ %>
+        <h3>No public business profiles yet</h3>
+        <a href="/signup" class="btn btn-dark">Register your business</a>
+      <% } %>
     </div>
   <% } %>
-  <% if(directory.pages>1){ const linkFor=page=>'/businesses?'+new URLSearchParams({q:f.q,country:f.country,service:f.service,category:f.category||'',sort:f.sort,page:String(page)}).toString(); %>
+  <% if(directory.pages>1&&f.page<=directory.pages){ %>
     <nav class="businessDirPages" aria-label="Business results pagination">
       <% if(f.page>1){ %><a href="<%= linkFor(f.page-1) %>">Previous</a><% } %>
       <span>Page <%= f.page %> of <%= directory.pages %></span>

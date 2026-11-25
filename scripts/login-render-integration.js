@@ -11,6 +11,94 @@ process.env.APP_URL='http://localhost:3000';const originalKey=crypto.randomBytes
 const mongoose=req('mongoose'),bcrypt=req('bcryptjs'),mfa=req('./src/platform/services/mfa.service'),core=req('./src/tenant/models'),Tenant=req('./src/platform/models/Tenant'),Identity=req('./src/platform/models/AccountIdentity'),Admin=req('./src/platform/models/PlatformAdmin'),commerce=req('./src/platform/services/commercial.service');
 const rows=[],secrets=new Map();let conn,server;
 const csrf=html=>{const match=html.match(/name="_csrf" value="([a-f0-9]{64})"/);assert(match,'CSRF available');return match[1];};
+
+async function verifyPlatformDirectories({base,headers,tenant,platformAccount,Audit}){
+ const get=async(path,status=200)=>{
+  const response=await fetch(base+path,{headers,redirect:'manual'});
+  assert.equal(response.status,status,path);
+  return response.text();
+ };
+ const olderEntries=html=>{
+  const link=html.match(/href="([^"]+)">Older entries<\/a>/);
+  assert(link,'Older entries link is available');
+  return new URL(link[1].replaceAll('&amp;','&'),base);
+ };
+ const prefix='Directory fixture (QA)+';
+ const subscription=tenant.toObject().subscription;
+ const subscriptionFixtures=[{...subscription,periodStart:null},{...subscription,periodEnd:'legacy-invalid-date'},subscription];
+ await Tenant.collection.insertMany(Array.from({length:102},(_,index)=>({
+  name:`${prefix} #${index}`,slug:`directory-fixture-${index}`,owner:'Directory Owner',
+  email:`fixture-${index}@example.invalid`,plan:tenant.plan,status:'active',setupStatus:'complete',
+  enabledModules:tenant.enabledModules,
+  ...(index<subscriptionFixtures.length?{subscription:subscriptionFixtures[index]}:{})
+ })));
+
+ const query=new URLSearchParams({q:prefix});
+ const first=await get('/platform/tenants?'+query);
+ assert.match(first,/directory-fixture-101/);
+ assert.doesNotMatch(first,/directory-fixture-0(?:[\s"<]|$)/);
+ const older=olderEntries(first);
+ assert.equal(older.searchParams.get('q'),prefix);
+ const second=await get(older.pathname+older.search);
+ assert.match(second,/directory-fixture-0(?:[\s"<]|$)/);
+ assert.doesNotMatch(second,/directory-fixture-101/);
+ await get('/platform/tenants?before=invalid',400);
+
+ const subscriptions=await get('/platform/subscriptions?q=directory-fixture-0');
+ assert.match(subscriptions,/class="tag">restricted</);
+ const invalidDate=await get('/platform/subscriptions?q=fixture-1%40example.invalid');
+ assert.match(invalidDate,/Unknown date/);
+ assert.match(invalidDate,/class="tag">restricted</);
+ const active=await get('/platform/subscriptions?q=fixture-2%40example.invalid');
+ assert.match(active,/class="tag">granted</);
+
+ await Audit.collection.insertMany(Array.from({length:101},(_,index)=>({
+  actorId:String(platformAccount.id),action:`integration.directory_${index}`,createdAt:new Date()
+ })));
+ const firstAudit=await get('/platform/audit');
+ assert.match(firstAudit,/integration\.directory_100</);
+ assert.doesNotMatch(firstAudit,/integration\.directory_0</);
+ const olderAudit=olderEntries(firstAudit);
+ const secondAudit=await get(olderAudit.pathname+olderAudit.search);
+ assert.match(secondAudit,/integration\.directory_0</);
+ assert.match(secondAudit,/Unknown date/);
+ await get('/platform/audit?before=invalid',400);
+
+ const settings=await get('/platform/settings');
+ const response=await fetch(base+'/platform/settings/timezone',{
+  method:'POST',redirect:'manual',headers:{...headers,'content-type':'application/x-www-form-urlencoded'},
+  body:new URLSearchParams({_csrf:csrf(settings),timeZone:'Europe/Berlin'})
+ });
+ assert.equal(response.status,303,await response.text());
+ assert.equal(response.headers.get('location'),'/platform/settings');
+ assert.match(await get('/platform/settings'),/name="timeZone"[^>]+value="Europe\/Berlin"/);
+ const audit=await Audit.findOne({action:'platform.timezone.changed',actorId:String(platformAccount.id)}).lean();
+ assert.equal(audit?.after.timeZone,'Europe/Berlin');
+
+ const Appointment=req('./src/platform/models/Appointment');
+ const {insertedId}=await Appointment.collection.insertOne({
+  businessName:'Legacy appointment fixture',contactName:'Directory Contact',status:'confirmed',revision:0,
+  preferredDate:'legacy-invalid-date',scheduledAt:'legacy-invalid-date',
+  decisions:[{action:'confirm',from:'pending',to:'confirmed',note:'Legacy note',at:'legacy-invalid-date'}]
+ });
+ assert.match(await get('/platform/appointments'),/Unknown date/);
+ const appointmentPath='/platform/appointments/'+insertedId;
+ const appointment=await get(appointmentPath);
+ assert.match(appointment,/value="complete" disabled/);
+ assert.match(appointment,/Legacy note/);
+ const complete=token=>fetch(base+appointmentPath+'/decision',{
+  method:'POST',redirect:'manual',headers:{...headers,'content-type':'application/x-www-form-urlencoded'},
+  body:new URLSearchParams({_csrf:token,action:'complete',revision:'0',note:'Verify the scheduled appointment completion'})
+ });
+ assert.equal((await complete(csrf(appointment))).status,409);
+ assert.equal((await Appointment.collection.findOne({_id:insertedId})).status,'confirmed');
+ await Appointment.collection.updateOne({_id:insertedId},{$set:{scheduledAt:new Date(Date.now()-60000)}});
+ const started=await get(appointmentPath);
+ assert.doesNotMatch(started,/value="complete" disabled/);
+ assert.equal((await complete(csrf(started))).status,303);
+ assert.equal((await Appointment.collection.findOne({_id:insertedId})).status,'completed');
+}
+
 async function main(){
  await req('./src/config/mongo').connectPlatformMongo();await Promise.all([Tenant.createIndexes(),Identity.createIndexes(),Admin.createIndexes()]);
  const modules=['mobile_money','money_transfer','banking','forex','customers','accounts','expenses','reports'];const version={...commerce.asPlanVersion({...req('./src/data/store').plans.find(p=>p.code==='enterprise'),code:'mfa_review',modules}),status:'published'},terms=commerce.planSnapshot(version);
@@ -29,13 +117,13 @@ async function main(){
    const target=await fetch(base+location,{headers:{cookie},redirect:'manual'}),html=await target.text();const result={condition,kind:row.kind,enrolled:row.enrolled,loginStatus:login.status,loginRedirect:location,mfaPageStatus:target.status};
    assert.equal(login.status,303);assert.equal(location,row.enrolled?'/mfa/challenge':'/mfa/setup');
    if(row.enrolled){const answer=await fetch(base+'/mfa/challenge',{method:'POST',redirect:'manual',headers:{cookie,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({_csrf:csrf(html),code:mfa.counterCode(secrets.get(row.email),Math.floor(Date.now()/30000))}).toString()});result.mfaPostStatus=answer.status;result.mfaPostRedirect=answer.headers.get('location');if(condition==='original key'){assert.equal(answer.status,303);assert.equal(answer.headers.get('location'),row.kind==='platform'?'/platform/dashboard':'/tenant/dashboard');const fullCookie=answer.headers.get('set-cookie')?.split(';')[0]||cookie,headers={cookie:fullCookie};const dashboard=await fetch(base+answer.headers.get('location'),{headers,redirect:'manual'});assert.equal(dashboard.status,200,'real post-MFA dashboard');const dashboardHtml=await dashboard.text();
- if(row.kind==='platform'){assert.match(dashboardHtml,/Unknown date/);const audit=await fetch(base+'/platform/audit',{headers});assert.equal(audit.status,200);assert.match(await audit.text(),/Unknown date/);}
+ if(row.kind==='platform'){assert.match(dashboardHtml,/Unknown date/);await verifyPlatformDirectories({base,headers,tenant,platformAccount,Audit});}
  else{const original=tenant.toObject().subscription;await Tenant.collection.updateOne({_id:tenant._id},{$set:{'subscription.periodEnd':'legacy-invalid-date'}});try{const redirect=await fetch(base+'/tenant/dashboard',{headers,redirect:'manual'});assert.equal(redirect.status,303);assert.equal(redirect.headers.get('location'),'/tenant/billing');const billing=await fetch(base+'/tenant/billing',{headers});assert.equal(billing.status,200);const billingHtml=await billing.text();assert.match(billingHtml,/Unknown date/);const denied=await fetch(base+'/tenant/money-transfer/requests',{method:'POST',redirect:'manual',headers:{...headers,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({_csrf:csrf(billingHtml)}).toString()});assert.equal(denied.status,403);}finally{await Tenant.collection.updateOne({_id:tenant._id},{$set:{subscription:original}});}}
 }else assert.equal(answer.status,503);}
    else assert.equal(target.status,503);
    results.push(result);
   }
  }
- console.log('PASS: real password/MFA redirects and dashboard responses for platform + tenant; missing/wrong keys remain denied with controlled 503; restored key unlocks unchanged enrollment; legacy audit dates stay readable; invalid subscription redirects to readable billing and blocks financial POST. Disposable local storage only.');
+ console.log('PASS: real password/MFA redirects and dashboards, directory and audit pagination, legacy subscription and audit data, audited timezone and appointment changes, and financial access denial for invalid subscriptions. Disposable local storage only.');
 }
 main().catch(error=>{console.error(error.stack);process.exitCode=1;}).finally(async()=>{if(server)await new Promise(resolve=>server.close(resolve));if(conn&&mongoose.connection.name===scratch&&/^cfh_login_render_[a-f0-9]{16}$/.test(scratch)){await conn.db.dropDatabase();await mongoose.connection.db.dropDatabase();}await mongoose.disconnect();});

@@ -83,7 +83,7 @@ test('Directory and its live route have canonical search metadata and no private
   assert.match(meta.description,/real businesses/i);
   const routes=file('src/routes.public.js');
   assert.match(routes,/router\.get\('\/businesses'/);
-  assert.match(routes,/res\.redirect\(308,'\/businesses'\)/);
+  assert.match(routes,/redirectAlias\(req,res,'\/businesses'\)/);
   assert.match(routes,/businessDirectory\.service/);
 });
 
@@ -103,12 +103,11 @@ test('Active fully activated businesses are immediately listed with only safe bu
   const source=file('src/platform/services/businessDirectory.service.js');
   assert.match(source,/const eligible = Object.freeze/);
   assert.match(source,/status:\{\$in:\['active','trial'\]\}/);
-  assert.match(source,/setupStatus:'complete'/);
   assert.match(source,/Tenant\.find\(eligible\)/);
   assert.doesNotMatch(source,/Tenant\.find\(published\)/);
   const allowed=directory.listingFilter();
   assert.equal(allowed['directoryListing.visibility'].$ne,'hidden');
-  assert.equal(allowed.setupStatus,'complete');
+  assert.deepEqual(allowed.setupStatus,{$in:['complete',null]},'Legacy activated businesses stay discoverable');
   assert.equal(allowed.$or,undefined,'Human approval must not gate active business discovery');
   assert.match(source,/query\.\$and=\[\{\$or:/);
   const routes=file('src/routes.public.js');

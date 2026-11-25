@@ -9,10 +9,12 @@ const appointmentService=require('../services/appointment.service');
 const { platformMenu } = require('../../services/menu.service');
 const { consumeFlash, flash, money, formatUtcDate } = require('../../utils/view');
 const { provisionTenant,regenerateOwnerInvite } = require('../services/tenantProvisioning.service');
-const { changeStatus, updateProfile }=require('../services/tenantAdmin.service');
-const {list: platformAudit}=require('../services/platformAudit.service');
+const { changeStatus, updateProfile, listTenants }=require('../services/tenantAdmin.service');
+const {list: platformAudit,page: auditPage}=require('../services/platformAudit.service');
 const businessTime=require('../../utils/businessTime');
 const PlatformAdmin=require('../models/PlatformAdmin');
+const PlatformAuditLog=require('../models/PlatformAuditLog');
+const {authVersionFilter}=require('../services/mfa.service');
 function renderPlatform(req,res,view,pageTitle,pageSub,data={}){
   if(!res.hasHeader('Cache-Control'))res.setHeader('Cache-Control','private, no-store');
   res.render('layouts/dashboard', {
@@ -24,17 +26,24 @@ function renderPlatform(req,res,view,pageTitle,pageSub,data={}){
 }
 router.use((req,res,next)=>req.platformUser.permissions.includes('*')?next():res.status(403).send('Insufficient permissions'));
 router.get('/',(req,res)=>res.redirect(303,'/platform/dashboard'));
-router.get('/settings',(req,res)=>renderPlatform(req,res,'settings/index','System settings',
- 'Platform timezone, operational configuration and security controls.'));
+router.get('/settings',(req,res)=>renderPlatform(req,res,'settings/index','Administrator settings',
+ 'Set how dates and times appear in platform administration.'));
 router.post('/settings/timezone',async(req,res,next)=>{
  try{
   if(!req.body||Object.keys(req.body).some(key=>!['_csrf','timeZone'].includes(key))||
      !businessTime.validTimeZone(req.body.timeZone))
    return res.status(400).send('Choose a valid regional timezone, such as Africa/Kampala or Africa/Juba.');
-  const updated=await PlatformAdmin.findOneAndUpdate({_id:req.platformUser.id,status:'active'},
-    {$set:{timeZone:req.body.timeZone}},{new:true,runValidators:true});
-  if(!updated)return res.status(403).send('Active platform account required.');
-  await require('../services/platformAudit.service').log(req.platformUser,'platform.timezone.changed','settings',String(updated._id));
+  const session=await PlatformAdmin.startSession();
+  try{await session.withTransaction(async()=>{
+   const previous=await PlatformAdmin.findOneAndUpdate({
+    _id:req.platformUser.id,status:'active',role:'Super Admin',authVersion:authVersionFilter(req.platformUser.authVersion),
+    ...(require('../../config/mfaPolicy').enabled()?{mfaEnabledAt:{$ne:null}}:{})
+   },{$set:{timeZone:req.body.timeZone}},{new:false,runValidators:true,session}).select('name timeZone').lean();
+   if(!previous)throw Object.assign(new Error('Active platform account required.'),{status:403});
+   await PlatformAuditLog.create([{actorId:String(previous._id),actorName:previous.name,
+    action:'platform.timezone.changed',moduleKey:'settings',recordId:String(previous._id),
+    before:{timeZone:previous.timeZone},after:{timeZone:req.body.timeZone}}],{session});
+  });}finally{await session.endSession();}
   flash(req,'good','Your timezone preference has been saved for platform administration screens.');
   res.redirect(303,'/platform/settings');
  }catch(error){next(error);}
@@ -48,18 +57,9 @@ router.get('/dashboard',async(req,res,next)=>{
   }catch(e){next(e);}
 });
 router.get('/tenants',async(req,res,next)=>{
-  try {const tenants=(await Tenant.find({}).sort({createdAt:-1}).limit(100).lean()).map(t=>({...t,id:String(t._id)}));
-    const grants=require('../services/moduleSubscriptions.service');
-    const summaries=tenants.map(t=>{
-      const effective=commercial.effectiveSubscription(t);
-      const independentlyGranted=grants.activeGrants(t);
-      const live=new Set(modules.filter(m=>m.runtimeStatus!=='disabled').map(m=>m.key));
-      const assigned=Array.isArray(t.enabledModules)?t.enabledModules:[];
-      const liveGrants=independentlyGranted.filter(g=>live.has(g.moduleKey));
-      const moduleKeys=new Set([...(Array.isArray(effective?.modules)?effective.modules:[]).filter(key=>live.has(key)&&assigned.includes(key)),...liveGrants.map(g=>g.moduleKey)]);
-      return {...t,currentPlanName:t.subscription?.planName||null,currentPlanVersion:t.subscription?.planVersion||null,planAccessActive:Boolean(effective),currentModuleCount:moduleKeys.size,independentModuleCount:liveGrants.length};
-    });
-    renderPlatform(req,res,'tenants/index','Tenants','Tenant directories, plan assignment, isolation boundaries and status.',{tenants:summaries,plans,modules});
+  try {
+    const directory=await listTenants(req.query);
+    renderPlatform(req,res,'tenants/index','Tenants','Workspace owners, plans and access.',directory);
   }catch(e){next(e);}
 });
 async function renderTenantCreate(req,res,values={},error=null){
@@ -123,7 +123,7 @@ router.post('/business-reviews/:id/moderate',async(req,res,next)=>{
  }catch(err){next(err);}
 });
 router.get('/audit',async(req,res,next)=>{
-  try{const auditLogs=await platformAudit(100);renderPlatform(req,res,'audit/index','Platform Audit','Immutable review of platform administration actions.',{auditLogs});}catch(e){next(e);}
+  try{const page=await auditPage(req.query.before);renderPlatform(req,res,'audit/index','Platform Audit','Recorded platform administration actions.',page);}catch(e){next(e);}
 });
 router.post('/tenants/:id/profile',async(req,res,next)=>{
   try{await updateProfile(req.params.id,req.platformUser,req.body);flash(req,'good','Tenant profile updated and audited.');res.redirect(303,'/platform/tenants/'+req.params.id);}catch(e){next(e);}
@@ -186,8 +186,8 @@ router.post('/plans/publish-initial',async(req,res,next)=>{
   }
 });
 router.get('/subscriptions',async(req,res,next)=>{
-  try{const tenants=await Tenant.find({}).sort({createdAt:-1}).limit(100).lean();
-    renderPlatform(req,res,'subscriptions/index','Subscriptions','Manual grants and expiring trials, from persisted tenant records.',{tenants});
+  try{const directory=await listTenants(req.query);
+    renderPlatform(req,res,'subscriptions/index','Subscriptions','Manual grants and trials from saved workspace records.',directory);
   }catch(e){next(e);}
 });
 router.post('/tenants/:id/subscription/grant',async(req,res,next)=>{
@@ -250,10 +250,11 @@ router.get('/appointments/:id',async(req,res,next)=>{
  try{
   const appointment=await appointmentService.get(req.params.id);
   const zone=businessTime.validTimeZone(req.platformUser?.timeZone)?req.platformUser.timeZone:businessTime.DEFAULT_TIME_ZONE;
+  const scheduledAt=formatUtcDate(appointment.scheduledAt,'');
   renderPlatform(req,res,'appointments/show','Appointment preview','Review the complete request and record a decision.',{
-   appointment,timeZone:zone,
-   scheduledLocalValue:appointment.scheduledAt?businessTime.dateTimeLocal(appointment.scheduledAt,zone):'',
-   scheduledDisplay:appointment.scheduledAt?businessTime.format(appointment.scheduledAt,zone):'Not scheduled',
+   appointment,timeZone:zone,canComplete:appointmentService.canComplete(appointment),
+   scheduledLocalValue:scheduledAt?businessTime.dateTimeLocal(scheduledAt,zone):'',
+   scheduledDisplay:appointment.scheduledAt?businessTime.format(scheduledAt,zone):'Not scheduled',
    moduleLabels:Object.fromEntries(modules.map(m=>[m.key,m.name]))
   });
  }catch(error){next(error);}

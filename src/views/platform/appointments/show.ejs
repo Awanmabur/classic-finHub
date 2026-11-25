@@ -8,7 +8,7 @@
         <div class="appointmentPreviewField"><span>Contact</span><b><%= data.appointment.contactName %></b></div>
         <div class="appointmentPreviewField"><span>Email</span><b><%= data.appointment.email||'Not provided' %></b></div>
         <div class="appointmentPreviewField"><span>Phone</span><b><%= data.appointment.phone||'Not provided' %></b></div>
-        <div class="appointmentPreviewField"><span>Preferred date</span><b><%= data.appointment.preferredDate?new Date(data.appointment.preferredDate).toISOString().slice(0,10):'Flexible' %></b></div>
+        <div class="appointmentPreviewField"><span>Preferred date</span><b><%= data.appointment.preferredDate?formatUtcDate(data.appointment.preferredDate).split('T')[0]:'Flexible' %></b></div>
         <div class="appointmentPreviewField"><span>Scheduled (<%= data.timeZone %>)</span><b><%= data.scheduledDisplay %></b></div>
         <div class="appointmentPreviewField"><span>Requested modules</span><b><%= data.appointment.modules.map(key=>data.moduleLabels[key]||key).join(', ')||'Needs discovery' %></b></div>
         <div class="appointmentPreviewField"><span>Meeting link</span><b><% if(data.appointment.meetingLink&&/^https:\/\//i.test(data.appointment.meetingLink)){ %><a href="<%= data.appointment.meetingLink %>" target="_blank" rel="noopener noreferrer">Open meeting link</a><% }else{ %>Not provided<% } %></b></div>
@@ -26,17 +26,17 @@
       <p class="tiny">Enter the meeting time in your platform timezone (<%= data.timeZone %>). It will be saved as UTC and displayed in this timezone.</p>
       <label class="field">Decision note<textarea class="control" name="note" minlength="12" maxlength="400" required rows="3"></textarea></label>
       <div class="rowBtns"><button class="btn btnPrimary" name="action" value="confirm">Confirm / reschedule</button>
-      <% if(data.appointment.status==='confirmed'){ %><button class="btn" name="action" value="complete" <%= !data.appointment.scheduledAt||new Date(data.appointment.scheduledAt)>new Date()?'disabled':'' %>>Mark completed</button><% } %>
+      <% if(data.appointment.status==='confirmed'){ %><button class="btn" name="action" value="complete" <%= data.canComplete?'':'disabled' %>>Mark completed</button><% } %>
       <button class="btn" name="action" value="cancel">Cancel request</button></div>
-      <% if(data.appointment.status==='confirmed'&&(!data.appointment.scheduledAt||new Date(data.appointment.scheduledAt)>new Date())){ %><p class="tiny">Completion is available after the scheduled start.</p><% } %>
+      <% if(data.appointment.status==='confirmed'&&!data.canComplete){ %><p class="tiny">Completion is available after the scheduled start.</p><% } %>
     </form>
   </section>
   <% }else if(data.appointment.status==='completed'){ %>
   <div class="rowBtns appointmentPreviewBack"><a class="btn btnPrimary" href="/platform/tenants/create">Create tenant</a></div>
   <% } %>
-  <% if(data.appointment.decisions&&data.appointment.decisions.length){ %>
+  <% const decisions=Array.isArray(data.appointment.decisions)?data.appointment.decisions.filter(Boolean):[]; if(decisions.length){ %>
   <section class="card appointmentDecisionHistory"><div class="cardHead"><b>Decision history</b><span>Recorded administrative actions</span></div><div class="cardBody tableWrap"><table><thead><tr><th>When (UTC)</th><th>Action</th><th>From</th><th>To</th><th>Note</th></tr></thead><tbody>
-  <% data.appointment.decisions.forEach(d=>{ %><tr><td><%= d.at?new Date(d.at).toISOString().slice(0,16).replace('T',' '):'—' %></td><td><%= d.action %></td><td><%= d.from %></td><td><%= d.to %></td><td><%= d.note %></td></tr><% }) %>
+  <% decisions.forEach(d=>{ %><tr><td><%= formatUtcDate(d.at).replace(/T(\d{2}:\d{2}).*$/,' $1') %></td><td><%= d.action %></td><td><%= d.from %></td><td><%= d.to %></td><td><%= d.note %></td></tr><% }) %>
   </tbody></table></div></section>
   <% } %>
 </section>

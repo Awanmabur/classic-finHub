@@ -20,13 +20,20 @@ test('private URL cache protections cover the same mixed-case paths as Express r
  const csp=publicResponse.headers.get('content-security-policy');assert.match(csp,/font-src 'self';/);assert.doesNotMatch(csp,/fonts\.googleapis|fonts\.gstatic|cdnjs\.cloudflare/);
 });
 
-test('mixed-case authentication forms get a usable CSRF token without relaxing token checks',async t=>{
+test('authentication form URL aliases receive CSRF tokens without relaxing token checks',async t=>{
  const app=express();app.use(session({secret:'test-only-session-secret-long-enough',resave:false,saveUninitialized:false}));app.use(express.urlencoded({extended:false}));app.use(csrf);
- app.get('/signin',(_req,res)=>res.json({csrf:res.locals.csrfToken}));app.post('/signin',(_req,res)=>res.status(204).end());app.use((error,_req,res,_next)=>res.status(error.status||500).send('rejected'));
- const origin=await serverFor(app,t),form=await fetch(origin+'/SiGnIn'),cookie=form.headers.get('set-cookie').split(';')[0],data=await form.json();
- assert.match(data.csrf,/^[a-f0-9]{64}$/);
- const post=token=>fetch(origin+'/SiGnIn',{method:'POST',headers:{cookie,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({_csrf:token})});
- assert.equal((await post('wrong-token')).status,403);assert.equal((await post(data.csrf)).status,204);
+ const paths=['/signin','/accept-invite','/accept-staff-invite','/mfa/setup','/mfa/challenge','/t/example/review','/t/example/my-review'];
+ app.get(paths,(_req,res)=>res.json({csrf:res.locals.csrfToken}));app.post(paths,(_req,res)=>res.status(204).end());app.use((error,_req,res,_next)=>res.status(error.status||500).send('rejected'));
+ const origin=await serverFor(app,t);
+ for(const pathname of paths){
+  const alias=origin+pathname.toUpperCase()+'/';
+  const form=await fetch(alias),cookie=form.headers.get('set-cookie')?.split(';')[0],data=await form.json();
+  assert(cookie,pathname);
+  assert.match(data.csrf,/^[a-f0-9]{64}$/,pathname);
+  const post=token=>fetch(alias,{method:'POST',headers:{cookie,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({_csrf:token})});
+  assert.equal((await post('wrong-token')).status,403,pathname);
+  assert.equal((await post(data.csrf)).status,204,pathname);
+ }
 });
 
 test('valid CSRF is verified and removed before strict financial business validation',async t=>{

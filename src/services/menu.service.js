@@ -46,7 +46,7 @@ function tenantMenu(tenant,user) {
   ]);
   group('Money Transfer',transfer?[
     ...(can('money_transfer.create')?[item('Send money','money-transfer/send','fa-money-bill-transfer',{transactionKind:'transfer'})]:[]),
-    ...(can('money_transfer.payout')?[item('Payout by PIN','money-transfer/payout','fa-key',{transactionKind:'payout'})]:[]),
+    ...(can('money_transfer.payout')?[item('Payout by PIN','funded/payout','fa-key',{transactionKind:'payout'})]:[]),
     item('Pending payouts','money-transfer/pending-payouts','fa-clock'),
     item('Transfer history','money-transfer/records','fa-list'),
     ...(['Tenant Owner','Branch Manager','Reconciliation Officer','Auditor'].includes(user.role)?[item('Branch transfer balances','money-transfer/branch-balances','fa-scale-balanced')]:[])
@@ -59,8 +59,8 @@ function tenantMenu(tenant,user) {
   const loanAccess=module('loans')&&can('loans.view');
   const airtimeAccess=module('airtime')&&can('airtime.view');
   group('Loan Management',loanAccess?[item('Loan portfolio','loans','fa-hand-holding-dollar'),
-    ...(can('loans.create')?[item('Loan applications','loans','fa-file-signature',{transactionKind:'loan'})]:[]),item('Loan Management report','loans/report','fa-chart-column')]:[],loanAccess?['loans']:[]);
-  group('Airtime',airtimeAccess?[item('Airtime sales & stock','airtime','fa-sim-card',{transactionKind:can('airtime.sell')?'airtime':null}),item('Airtime report','airtime/report','fa-chart-column')]:[],airtimeAccess?['airtime']:[]);
+    ...(can('loans.create')?[item('Loan applications','loans#loan-applications','fa-file-signature')]:[]),item('Loan Management report','loans/report','fa-chart-column')]:[],loanAccess?['loans']:[]);
+  group('Airtime',airtimeAccess?[item('Airtime sales & stock','airtime','fa-sim-card'),item('Airtime report','airtime/report','fa-chart-column')]:[],airtimeAccess?['airtime']:[]);
   group('Forex Operations',forex?[
     ...(can('forex.quotes.create')?[
       item('Buy forex','forex/buy','fa-arrow-down',{transactionKind:'forex_buy'}),

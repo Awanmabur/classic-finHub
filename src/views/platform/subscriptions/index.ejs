@@ -1,5 +1,20 @@
-<section class="view show"><section class="card"><div class="cardHead"><b>Subscriptions and trials</b><span>Read-only listing · manual grants via the tenant profile</span></div><div class="cardBody tableWrap">
-<table><thead><tr><th>Tenant</th><th>Published plan</th><th>Term</th><th>Access state</th><th>Actions</th></tr></thead><tbody>
-<% data.tenants.forEach(t=>{ const s=t.subscription, valid=s && ['trial','granted'].includes(s.status) && ['trial','active'].includes(t.status) && new Date(s.periodEnd)>new Date(); %>
-<tr data-search-row><td><%= t.name %></td><td><%= s ? `${s.planCode} v${s.planVersion}` : 'Migration required' %></td><td><%= s && s.periodEnd ? new Date(s.periodEnd).toISOString().slice(0,10):'Not assigned' %></td><td><span class="tag"><%= valid ? s.status : 'restricted' %></span></td><td><a href="/platform/tenants/<%= t._id %>">Manage tenant</a></td></tr>
-<% }) %><% if(!data.tenants.length){ %><tr><td colspan="5">No tenants provisioned.</td></tr><% } %></tbody></table></div></section></section>
+<section class="view show"><section class="card">
+  <div class="cardHead"><b>Subscriptions and trials</b><span>Manual grants via the tenant profile</span></div>
+  <% if(typeof data.q==='string'){ %><div class="cardBody"><%- include('../tenants/_directory-search',{directoryPath:'/platform/subscriptions',q:data.q}) %></div><% } %>
+  <div class="cardBody tableWrap">
+    <table><thead><tr><th>Tenant</th><th>Published plan</th><th>Term ends (UTC)</th><th>Plan access</th><th>Independent grants</th><th>Actions</th></tr></thead><tbody>
+      <% data.tenants.forEach(tenant=>{ const subscription=tenant.subscription; %>
+      <tr>
+        <td><%= tenant.name %></td>
+        <td><%= subscription ? `${subscription.planCode} v${subscription.planVersion}` : 'Migration required' %></td>
+        <td><%= subscription ? formatUtcDate(subscription.periodEnd).split('T')[0] : 'Not assigned' %></td>
+        <td><span class="tag"><%= tenant.planAccessActive ? subscription.status : 'restricted' %></span></td>
+        <td><%= tenant.independentModuleCount??0 %> active</td>
+        <td><a class="btn" href="/platform/tenants/<%= tenant.id||tenant._id %>">Manage tenant</a></td>
+      </tr>
+      <% }) %>
+      <% if(!data.tenants.length){ %><tr><td colspan="6"><%= data.q?'No workspaces match this search.':data.before?'No older workspaces.':'No tenants provisioned.' %></td></tr><% } %>
+    </tbody></table>
+  </div>
+  <% if(data.before||data.nextBefore){ %><div class="cardBody"><%- include('../tenants/_pagination',{directoryPath:'/platform/subscriptions',q:data.q,before:data.before,nextBefore:data.nextBefore}) %></div><% } %>
+</section></section>

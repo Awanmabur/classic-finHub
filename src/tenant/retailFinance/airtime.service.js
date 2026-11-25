@@ -231,15 +231,19 @@ async function actualSummary(conn,tenantId,filter){
  return [...totals.values()].sort((a,b)=>a.currency.localeCompare(b.currency))
   .map(row=>Object.fromEntries(Object.entries(row).map(([k,v])=>[k,typeof v==='bigint'?String(v):v])));
 }
-async function list(conn,tenant,actor){
- const current=await F.access(conn,tenant,actor,'airtime','airtime.view'),scope={tenantId:current.tenant._id,...F.scope(current.actor)};
- const [products,inventory,records,summary,corrections]=await Promise.all([
-  models(conn).product.find(scope).sort({createdAt:-1}).limit(150).lean(),
-  models(conn).inventory.find(scope).sort({network:1}).limit(150).lean(),
-  models(conn).record.find(scope).sort({createdAt:-1}).limit(200).lean(),
-  actualSummary(conn,current.tenant._id,F.scope(current.actor)),
-  models(conn).correction.find(scope).sort({createdAt:-1}).limit(200).lean()
+async function list(conn,tenant,actor,{operatingBranchId}={}){
+ const current=await F.access(conn,tenant,actor,'airtime','airtime.view');
+ const tenantId=current.tenant._id,branch=F.scope(current.actor),scope={tenantId,...branch};
+ const model=models(conn);
+ const [products,inventory,records,summary]=await Promise.all([
+  model.product.find({tenantId,...F.productScope(current.actor,operatingBranchId)}).sort({createdAt:-1}).limit(150).lean(),
+  model.inventory.find(scope).sort({network:1}).limit(150).lean(),
+  model.record.find(scope).sort({createdAt:-1,_id:-1}).limit(200).lean(),
+  actualSummary(conn,tenantId,branch)
  ]);
+ const corrections=records.length?await model.correction.find({
+  ...scope,recordId:{$in:records.map(record=>record._id)}
+ }).lean():[];
  return {products,inventory,records,summary,corrections};
 }
 module.exports={createProduct,purchase,sell,reverseRecorded,list,summarize,amountPair};

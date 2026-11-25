@@ -1,0 +1,5 @@
+<% const params=new URLSearchParams(q?{q}:{}); const latest=params.toString(); %>
+<div class="rowBtns">
+  <% if(before){ %><a class="btn" href="<%= directoryPath %><%= latest?'?'+latest:'' %>">Newest entries</a><% } %>
+  <% if(nextBefore){ params.set('before',nextBefore); %><a class="btn" href="<%= directoryPath %>?<%= params.toString() %>">Older entries</a><% } %>
+</div>

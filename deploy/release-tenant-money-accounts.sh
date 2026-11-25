@@ -11,7 +11,7 @@ EXPECTED="${CLASSICFIN_EXPECTED_SHA:?Set CLASSICFIN_EXPECTED_SHA to the full rev
 [[ "$EXPECTED" =~ ^[a-f0-9]{40}$ ]] || { echo "Expected SHA must have 40 hex characters." >&2; exit 2; }
 ACTUAL="$(git -c safe.directory="$ROOT" -C "$ROOT" rev-parse HEAD)"
 test "$ACTUAL" = "$EXPECTED" || { echo "Source revision changed. Deployment stopped." >&2; exit 2; }
-test -z "$(git -c safe.directory="$ROOT" -C "$ROOT" status --porcelain)" ||
+test -z "$(GIT_OPTIONAL_LOCKS=0 git -c safe.directory="$ROOT" -C "$ROOT" status --porcelain)" ||
  { echo "Release worktree has uncommitted changes." >&2; exit 2; }
 
 NAMES=(classicfin-web-only classicfin-worker classicfin-notifications)
@@ -178,5 +178,5 @@ echo "=== REMOVE DISPOSABLE TEST DATABASE ==="
 docker rm -f "$TEST_DB_CONTAINER" >/dev/null
 DB_STARTED=0
 echo "=== RELEASE, UNIT TESTS, BACKUP CHECK AND CANARY ==="
-bash "$ROOT/deploy/standalone-ui-release.sh"
+CLASSICFIN_EXPECTED_LIVE_SHA="$LIVE" bash "$ROOT/deploy/standalone-ui-release.sh"
 echo "RELEASE VERIFIED: $ACTUAL"

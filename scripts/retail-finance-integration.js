@@ -39,22 +39,26 @@ async function run(){
  const tenant=await Tenant.create({name:'Retail finance scratch',slug,dbName:conn.name,
   owner:'Scratch Owner',email:'retail-'+nonce+'@example.invalid',
   plan:template.code,status:'active',setupStatus:'complete',enabledModules:modules,
-  seatsReserved:5,branchCount:1,subscription:{...snapshot,generation:1,status:'granted',
+  seatsReserved:6,branchCount:2,subscription:{...snapshot,generation:1,status:'granted',
    source:'manual_admin_grant',periodStart:new Date(Date.now()-60_000),
    periodEnd:new Date(Date.now()+86_400_000)}});
  const branch=await core.branchModel(conn).create({name:'Retail scratch branch',code:'retail-main',
   currency:'UGX',createdBy:new mongoose.Types.ObjectId(),updatedBy:new mongoose.Types.ObjectId()});
- async function actor(role){
+ const alternateBranch=await core.branchModel(conn).create({name:'Retail scratch second branch',code:'retail-second',
+  currency:'UGX',createdBy:new mongoose.Types.ObjectId(),updatedBy:new mongoose.Types.ObjectId()});
+ async function actor(role,assignedBranch=branch){
   const user=await core.tenantUserModel(conn).create({name:role,
-   email:role.toLowerCase().replaceAll(' ','-')+'-'+nonce+'@example.invalid',
-   passwordHash:'not-a-live-password',role,branchId:fmt(branch._id),
+   email:role.toLowerCase().replaceAll(' ','-')+'-'+assignedBranch.code+'-'+nonce+'@example.invalid',
+   passwordHash:'not-a-live-password',role,branchId:fmt(assignedBranch._id),
    allowedModules:modules,status:'active',mfaEnabledAt:new Date()});
-  return {id:fmt(user._id),role,name:role,branchId:fmt(branch._id),
+  return {id:fmt(user._id),role,name:role,branchId:fmt(assignedBranch._id),
    permissions:permissionsFor(role),allowedModules:modules,authVersion:0};
  }
  const owner=await actor('Tenant Owner'),banker=await actor('Banking Operator'),
   manager=await actor('Branch Manager'),momo=await actor('Mobile Money Operator'),
-  auditor=await actor('Auditor');
+  auditor=await actor('Auditor'),alternateManager=await actor('Branch Manager',alternateBranch);
+ const alternateView={...owner,viewBranchId:fmt(alternateBranch._id)};
+ const alternateAuditor={...auditor,viewBranchId:fmt(alternateBranch._id)};
  const fund=await treasury.createAccount(conn,tenant,owner,{code:'RETAILBANK',name:'Verified bank holdings',
   kind:'bank',currency:'UGX',accountReference:'Scratch bank account'});
  const initial=await treasury.requestObservation(conn,tenant,owner,fund._id,{
@@ -74,6 +78,8 @@ async function run(){
  assert.equal((await customerModel(conn).findById(borrower._id)).name,'Example Borrower');
  const lp=await loan.createProduct(conn,tenant,manager,{name:'30-day scratch loan',currency:'UGX',
   interestBps:'500',termDays:'30',minimum:'500',maximum:'50000'});
+ const alternateLoanProduct=await loan.createProduct(conn,tenant,alternateManager,{name:'Second branch scratch loan',currency:'UGX',
+  interestBps:'600',termDays:'30',minimum:'500',maximum:'50000'});
  const application={idempotencyKey:random(),customerId:fmt(borrower._id),productId:fmt(lp._id),
   principal:'20000',reason:'Business equipment for verified scratch application'};
  await assert.rejects(loan.apply(conn,tenant,momo,application),e=>e.status===403);
@@ -103,8 +109,11 @@ async function run(){
   idempotencyKey:random(),amount:'10000',reference:'BANK-LOAN-FINAL-'+nonce});
  assert.equal(await balance(),101000n);
  assert.equal((await loanModel.models(conn).loan.findById(issued.loan._id).lean()).status,'paid');
- const product=await air.createProduct(conn,tenant,owner,{network:'MTN',name:'MTN 1000',
+ const product=await air.createProduct(conn,tenant,alternateView,{network:'MTN',name:'MTN 1000',
   denomination:'1000',cost:'600',price:'1000',currency:'UGX'});
+ assert.equal(fmt(product.branchId),fmt(branch._id),'Viewing another branch must not change the write branch');
+ const alternateAirtimeProduct=await air.createProduct(conn,tenant,alternateManager,{network:'MTN',name:'MTN 2000',
+  denomination:'2000',cost:'1200',price:'2000',currency:'UGX'});
  const stockInput={idempotencyKey:random(),network:'MTN',currency:'UGX',
   cost:'6000',accountId:fmt(fund._id),reference:'MTN-STOCK-INVOICE-'+nonce};
  const purchase=await air.purchase(conn,tenant,owner,stockInput);
@@ -139,6 +148,32 @@ async function run(){
  assert.equal(report.summary[0].profit,'400');
  const portfolio=await loan.list(conn,tenant,auditor);
  assert.equal(portfolio.summary[0].principalOutstanding,'0');
+ const [otherLoans,otherAirtime,loanEntry,airtimeEntry,assignedStaffAirtime,allLoans,allAirtime]=await Promise.all([
+  loan.list(conn,tenant,alternateAuditor),
+  air.list(conn,tenant,alternateView),
+  loan.list(conn,tenant,alternateView,{operatingBranchId:branch._id}),
+  air.list(conn,tenant,alternateView,{operatingBranchId:branch._id}),
+  air.list(conn,tenant,{...momo,viewBranchId:fmt(alternateBranch._id)}),
+  loan.list(conn,tenant,{...owner,viewBranchId:'all'}),
+  air.list(conn,tenant,{...auditor,viewBranchId:'all'})
+ ]);
+ assert.deepEqual(otherLoans.loans,[]);
+ assert.deepEqual(otherLoans.summary,[]);
+ assert.deepEqual(otherLoans.products.map(item=>fmt(item._id)),[fmt(alternateLoanProduct._id)]);
+ assert.deepEqual(otherAirtime.inventory,[]);
+ assert.deepEqual(otherAirtime.records,[]);
+ assert.deepEqual(otherAirtime.summary,[]);
+ assert.deepEqual(otherAirtime.products.map(item=>fmt(item._id)),[fmt(alternateAirtimeProduct._id)]);
+ assert.deepEqual(loanEntry.products.map(item=>fmt(item._id)),[fmt(lp._id)]);
+ assert.deepEqual(loanEntry.loans,[]);
+ assert.deepEqual(airtimeEntry.products.map(item=>fmt(item._id)),[fmt(product._id)]);
+ assert.deepEqual(airtimeEntry.records,[]);
+ assert(assignedStaffAirtime.records.some(item=>fmt(item._id)===fmt(sale.record._id)));
+ assert(allLoans.loans.some(item=>fmt(item._id)===fmt(issued.loan._id)));
+ assert(allAirtime.records.some(item=>fmt(item._id)===fmt(sale.record._id)));
+ await assert.rejects(loan.detail(conn,tenant,alternateView,issued.loan._id),e=>e.status===404);
+ await assert.rejects(receipts.loanPayment(conn,tenant,alternateAuditor,issued.loan._id,repayment.payment._id),e=>e.status===404);
+ await assert.rejects(receipts.airtimeSale(conn,tenant,alternateView,sale.record._id),e=>e.status===404);
  assert.equal((await ledger.trialBalance(conn,{branchId:fmt(branch._id),currency:'UGX'})).balanced,true);
  const {activity}=require('../src/tenant/services/ownerReportActivity.service');
  const {earnings}=require('../src/tenant/services/ownerReportEarnings.service');
@@ -165,6 +200,9 @@ async function run(){
   reference:'REFUNDED-MTN-SALE-'+nonce,providerReversed:'yes',fundsReturned:'yes'});
  assert.equal(reversedSale.type,'sale');
  assert.equal((await receipts.airtimeSale(conn,tenant,momo,sale.record._id)).reversed,true);
+ const mainAirtime=await air.list(conn,tenant,{...owner,viewBranchId:fmt(branch._id)});
+ assert(mainAirtime.corrections.some(item=>fmt(item.recordId)===fmt(sale.record._id)));
+ assert.deepEqual((await air.list(conn,tenant,alternateView)).corrections,[]);
  assert.equal(await balance(),95000n);
  assert.equal(String((await airModel.models(conn).inventory.findById(sale.record.inventoryId)).costBalanceMinor),'6000');
  assert.equal((await air.list(conn,tenant,owner)).summary[0].profit,'0');
@@ -224,7 +262,7 @@ async function run(){
  await assert.rejects(receipts.airtimeSale(conn,tenant,momo,sale.record._id),e=>e.status===403,'Revoked airtime receipt access fails closed');
  await assert.rejects(loan.repay(conn,tenant,banker,issued.loan._id,repayInput),
   e=>e.status===403,'Revoked repayment access must also block idempotent retries');
- console.log('PASS: loan independent review and real account debits; principal + interest collection; airtime stock and profit, idempotency, receipt evidence, scoped printouts, corrected labels, balanced journals, tenant permissions and revocation');
+ console.log('PASS: funded loans and split principal/interest, airtime stock and profit, branch-scoped lists and receipts, operating-branch forms, idempotency, corrections, balanced journals, tenant permissions and revocation');
 }
 async function cleanup(){
  if(mongoose.connection.readyState===1&&mongoose.connection.name===platform&&/^cfh_retail_probe_[0-9a-f]{16}$/.test(platform)){

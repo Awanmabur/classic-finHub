@@ -2,6 +2,7 @@
 const mongoose = require('mongoose');
 const schema = new mongoose.Schema({
   identityId: { type: mongoose.Schema.Types.ObjectId, required: true, immutable: true, index: true },
+  authVersion: { type: Number, required: true, default: 0, min: 0, immutable: true, validate: Number.isSafeInteger },
   tokenHash: { type: String, required: true, unique: true, immutable: true },
   expiresAt: { type: Date, required: true, immutable: true },
   createdAt: { type: Date, default: Date.now, immutable: true }

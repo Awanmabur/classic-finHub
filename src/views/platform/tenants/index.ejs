@@ -1,8 +1,9 @@
 <section class="view show platformTenantsPage"><section class="card">
   <div class="cardHead"><b>Tenants</b><span>Workspace owners, plans and access</span></div>
+  <% if(typeof data.q==='string'){ %><div class="cardBody"><%- include('_directory-search',{directoryPath:'/platform/tenants',q:data.q}) %></div><% } %>
   <div class="cardBody tableWrap"><table class="denseDirectory"><thead><tr><th>Workspace</th><th>Owner</th><th>Saved plan</th><th>Workspace / setup</th><th>Active modules</th><th></th></tr></thead><tbody>
-    <% if(!data.tenants.length){ %><tr><td colspan="6">No tenants yet. Use Create tenant to add your first workspace.</td></tr><% } %>
-    <% data.tenants.forEach(t => { %><tr data-search-row>
+    <% if(!data.tenants.length){ %><tr><td colspan="6"><%= data.q?'No workspaces match this search.':data.before?'No older workspaces.':'No tenants yet. Use Create tenant to add your first workspace.' %></td></tr><% } %>
+    <% data.tenants.forEach(t => { %><tr>
       <td><div class="dataCellLine" title="<%= t.name %> · <%= t.slug %>"><b><%= t.name %></b><span class="tiny"><%= t.slug %></span></div></td>
       <td><div class="dataCellLine" title="<%= t.owner %> · <%= t.email %>"><span><%= t.owner %></span><span class="tiny"><%= t.email %></span></div></td>
       <td><div class="dataCellLine"><b><%= t.currentPlanName||'No saved subscription' %></b><span class="tiny"><%= t.currentPlanVersion?'v'+t.currentPlanVersion+' · ':'' %><%= t.planAccessActive?'In term':'Inactive / expired / revoked' %></span></div></td>
@@ -11,4 +12,5 @@
       <td><a class="btn" href="/platform/tenants/<%= t.id %>">Manage</a></td>
     </tr><% }) %>
   </tbody></table></div>
+  <% if(data.before||data.nextBefore){ %><div class="cardBody"><%- include('_pagination',{directoryPath:'/platform/tenants',q:data.q,before:data.before,nextBefore:data.nextBefore}) %></div><% } %>
 </section></section>

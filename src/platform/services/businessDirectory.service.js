@@ -2,19 +2,21 @@
 const mongoose = require('mongoose');
 const Tenant = require('../models/Tenant');
 const BusinessReview = require('../models/BusinessReview');
+const PAGE_SIZE=12,MAX_PAGE=50;
 
 const eligible = Object.freeze({
   status:{$in:['active','trial']},
   // A completed, active business becomes discoverable immediately.
   // Only the business name and slug are public until the owner publishes details.
-  setupStatus:'complete',
+  // Older activated tenants may not have a setup status stored.
+  setupStatus:{$in:['complete',null]},
   'directoryListing.visibility':{$ne:'hidden'}
 });
 const text = (value,limit=120) => typeof value==='string' ? value.trim().slice(0,limit) : '';
 const escaped = value => value.replace(/[|\\{}()[\]^$+*?.]/g,'\\$&');
 function normalize(input={}) {
   const q=text(input.q,80),country=text(input.country,80),service=text(input.service,80),category=text(input.category,100);
-  const rawPage=Number(input.page),page=Number.isSafeInteger(rawPage)&&rawPage>0?Math.min(50,rawPage):1;
+  const rawPage=Number(input.page),page=Number.isSafeInteger(rawPage)&&rawPage>0?Math.min(MAX_PAGE,rawPage):1;
   const sort=input.sort==='name'?'name':'recent';
   return {q,country,service,category,page,sort};
 }
@@ -82,17 +84,17 @@ async function search(input){
   if(filters.category)query['directory.category']=filters.category;
   const sort=filters.sort==='name'?{name:1,_id:1}:{createdAt:-1,_id:-1};
   const [tenants,total,countries,services,categories]=await Promise.all([
-    Tenant.find(query).sort(sort).skip((filters.page-1)*12).limit(12)
+    Tenant.find(query).sort(sort).skip((filters.page-1)*PAGE_SIZE).limit(PAGE_SIZE)
       .select('slug name directory').maxTimeMS(3000).lean(),
     Tenant.countDocuments(query).maxTimeMS(3000),
-    Tenant.distinct('directory.country',{...eligible,'directory.publishedAt':{$ne:null}}),
-    Tenant.distinct('directory.services',{...eligible,'directory.publishedAt':{$ne:null}}),
-    Tenant.distinct('directory.category',{...eligible,'directory.publishedAt':{$ne:null}})
+    Tenant.distinct('directory.country',{...eligible,'directory.publishedAt':{$ne:null}}).maxTimeMS(3000),
+    Tenant.distinct('directory.services',{...eligible,'directory.publishedAt':{$ne:null}}).maxTimeMS(3000),
+    Tenant.distinct('directory.category',{...eligible,'directory.publishedAt':{$ne:null}}).maxTimeMS(3000)
   ]);
   return {unavailable:false,businesses:await withRatings(tenants),total,filters,
     countries:countries.filter(Boolean).sort().slice(0,100),
     services:services.filter(Boolean).sort().slice(0,100),
     categories:categories.filter(Boolean).sort().slice(0,100),
-    pages:Math.max(1,Math.ceil(total/12))};
+    pages:Math.max(1,Math.min(MAX_PAGE,Math.ceil(total/PAGE_SIZE)))};
 }
 module.exports={normalize,publicSnapshot,sync,featured,search,card,listingFilter:()=>({...eligible})};

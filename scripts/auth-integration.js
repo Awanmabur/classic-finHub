@@ -281,16 +281,48 @@ async function main() {
     assert.match(await auditorReports.text(),/href="\/tenant\/reports\/daily"/,'Daily business report remains available from Reports');
     const wrong=await signIn('platform','invalid-password');
     assert.equal(wrong.response.status,303);assert.equal(wrong.response.headers.get('location'),'/signin');
-    const resetToken=crypto.randomBytes(32).toString('hex');
-    const operatorId = (await Identity.findOne({email:email('operator')}))._id;
-    await Reset.create({identityId:operatorId,tokenHash:hashToken(resetToken),expiresAt:new Date(Date.now()+15*60*1000)});
+    const operatorIdentity = await Identity.findOne({email:email('operator')}).lean();
+    const operatorId=operatorIdentity._id;
+    const originalFetch=global.fetch,mailKeys=['MAIL_PROVIDER','MAIL_FROM','RESEND_API_KEY'];
+    const mailEnv=Object.fromEntries(mailKeys.map(key=>[key,process.env[key]]));
+    Object.assign(process.env,{MAIL_PROVIDER:'resend',MAIL_FROM:'probes@example.invalid',RESEND_API_KEY:'scratch-only-mail-key'});
+    let deliveredToken=null, rejectDelivery=true;
+    global.fetch=async (url,options)=>{
+      if(url!=='https://api.resend.com/emails')return originalFetch(url,options);
+      if(rejectDelivery)return new Response(null,{status:503});
+      deliveredToken=JSON.parse(options.body).text.match(/#token=([a-f0-9]{64})/)?.[1];
+      return Response.json({id:'scratch-mail-receipt'});
+    };
+    async function requestReset(address){
+      const page=await fetch(base+'/forgot-password');
+      return post('/forgot-password',page.headers.get('set-cookie').split(';')[0],csrf(await page.text()),{email:address});
+    }
     const resetPage=await fetch(`${base}/reset-password`);
     const resetCookie=resetPage.headers.get('set-cookie').split(';')[0];
-    const resetResponse=await fetch(`${base}/reset-password`,{method:'POST',redirect:'manual',headers:{cookie:resetCookie,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({
-      _csrf:csrf(await resetPage.text()),token:resetToken,password:updatedPassword,confirmPassword:updatedPassword
-    }).toString()});
+    const resetCsrf=csrf(await resetPage.text());
+    const submitReset=token=>post('/reset-password',resetCookie,resetCsrf,{token,password:updatedPassword,confirmPassword:updatedPassword});
+    let resetResponse,revokedSession;
+    try{
+      const failedDelivery=await requestReset(email('operator')),unknown=await requestReset(`unknown-${nonce}@example.invalid`);
+      assert.equal(failedDelivery.status,303);assert.equal(unknown.status,303);
+      assert.equal(failedDelivery.headers.get('location'),unknown.headers.get('location'));
+      assert.equal(await Reset.countDocuments({identityId:operatorId}),0,'failed email leaves no usable reset token');
+      rejectDelivery=false;
+      assert.equal((await requestReset(email('operator'))).status,303);assert(deliveredToken);
+      const accountBefore=await User.findById(operatorIdentity.accountId).lean();
+      assert.equal((await Reset.findOne({tokenHash:hashToken(deliveredToken)}).lean()).authVersion,accountBefore.authVersion);
+      await User.updateOne({_id:operatorIdentity.accountId},{$inc:{authVersion:1}});
+      assert.equal((await submitReset(deliveredToken)).status,400,'link from before revocation cannot change the password');
+      revokedSession=await signIn('operator');
+      assert.equal(revokedSession.response.headers.get('location'),'/tenant/dashboard','stale link did not overwrite the existing password');
+      assert.equal((await requestReset(email('operator'))).status,303);assert(deliveredToken);
+      resetResponse=await submitReset(deliveredToken);
+    }finally{
+      global.fetch=originalFetch;
+      for(const key of mailKeys){if(mailEnv[key]===undefined)delete process.env[key];else process.env[key]=mailEnv[key];}
+    }
     assert.equal(resetResponse.status,303);assert.equal(resetResponse.headers.get('location'),'/signin');
-    assert.equal((await fetch(`${base}/tenant/dashboard`,{headers:{cookie:operator.cookie}})).status,401,'password rotation revokes existing sessions');
+    assert.equal((await fetch(`${base}/tenant/dashboard`,{headers:{cookie:revokedSession.cookie}})).status,401,'password rotation revokes existing sessions');
     assert.equal((await signIn('operator',password)).response.headers.get('location'),'/signin','old password rejected');
     assert.equal((await signIn('operator',updatedPassword)).response.headers.get('location'),'/tenant/dashboard','new password works');
     assert.equal(await Reset.countDocuments({identityId:operatorId}),0,'one-time reset tokens consumed');

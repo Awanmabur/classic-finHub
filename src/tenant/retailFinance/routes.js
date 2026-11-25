@@ -11,6 +11,7 @@ const loans=require('./loans.service');
 const airtime=require('./airtime.service');
 const {currencyCodes}=require('../../config/currencies');
 const {resolve:branchCurrency}=require('../services/branchCurrency.service');
+const {followRecord}=require('../services/branchView.service');
 const throttle=require('../../platform/services/actionThrottle.service').financial;
 const reportTimeZone=require('../services/reportTimeZone.service');
 const reports=require('../services/operationsReports.service');
@@ -34,14 +35,15 @@ module.exports=function retailRoutes({renderTenant}){
  router.use('/airtime',requireModule('airtime'),requirePermission('airtime.view'));
  async function loanPage(req,res,next){
   try{
+   const canCreate=hasPermission(req.user,'loans.create');
    const [result,funds,customers]=await Promise.all([
-    loans.list(req.tenantDb,req.tenant,req.user),fundsFor(req,'loans'),
-    req.operationBranch?customerModel(req.tenantDb).find({branchId:req.operationBranch._id,status:'active'})
+    loans.list(req.tenantDb,req.tenant,req.user,{operatingBranchId:canCreate?req.operationBranch?._id:null}),fundsFor(req,'loans'),
+    canCreate&&req.operationBranch?customerModel(req.tenantDb).find({branchId:req.operationBranch._id,status:'active'})
       .select('_id reference name').sort({name:1}).limit(250).lean():Promise.resolve([])
    ]);
    renderTenant(req,res,'loans/index','Loan Management','Borrower applications, independent review, funded disbursement and repayments.',{
     ...result,funds,customers,canManage:hasPermission(req.user,'loans.manage'),
-    canCreate:hasPermission(req.user,'loans.create'),format:shortFormat,uuid:crypto.randomUUID(),borrowerUuid:crypto.randomUUID(),
+    canCreate,format:shortFormat,uuid:crypto.randomUUID(),borrowerUuid:crypto.randomUUID(),
     branch:req.operationBranch,activeCurrency:req.operationBranch?branchCurrency(req.operationBranch):null,
     currencyChoices:req.operationBranch?require('../services/branchCurrency.service').supported(req.operationBranch):[],
     formatDate:value=>localDate(req,value)
@@ -86,6 +88,7 @@ module.exports=function retailRoutes({renderTenant}){
  router.post('/loans/applications',requirePermission('loans.create'),throttle,async(req,res,next)=>{try{
   const {loan,duplicate}=await loans.apply(req.tenantDb,req.tenant,req.user,req.body);
   flash(req,'good',duplicate?'Loan application already recorded. No duplicate created.':'Loan application submitted for independent review. No funds have been disbursed.');
+  followRecord(req,loan);
   res.redirect(303,'/tenant/loans/'+loan._id);
  }catch(e){next(e);}});
  router.get('/loans/:id',async(req,res,next)=>{try{
@@ -103,11 +106,13 @@ module.exports=function retailRoutes({renderTenant}){
  router.post('/loans/:id/review',requirePermission('loans.review'),throttle,async(req,res,next)=>{try{
   const record=await loans.review(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
   flash(req,'good',record.status==='approved'?'Loan approved. No money is deducted until its documented disbursement.':'Loan application declined and retained for audit.');
+  followRecord(req,record);
   res.redirect(303,'/tenant/loans/'+req.params.id);
  }catch(e){next(e);}});
  router.post('/loans/:id/disburse',requirePermission('loans.disburse'),throttle,async(req,res,next)=>{try{
-  await loans.disburse(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
+  const record=await loans.disburse(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
   flash(req,'good','Documented loan disbursement recorded. The selected funds account was deducted and the receivable journal was posted once; no external payment was initiated.');
+  followRecord(req,record);
   res.redirect(303,'/tenant/loans/'+req.params.id);
  }catch(e){next(e);}});
  const retailReceipt=require('./receipts.service');
@@ -122,19 +127,25 @@ module.exports=function retailRoutes({renderTenant}){
  router.get('/airtime/:id/receipt',requirePermission('airtime.view'),(req,res,next)=>
   showReceipt(req,res,next,(conn,tenant,user)=>retailReceipt.airtimeSale(conn,tenant,user,req.params.id)));
  router.post('/loans/:id/repayments/:paymentId/reverse',requirePermission('loans.review'),throttle,async(req,res,next)=>{try{
-  await loans.reverseRepayment(req.tenantDb,req.tenant,req.user,req.params.id,req.params.paymentId,req.body);
+  const correction=await loans.reverseRepayment(req.tenantDb,req.tenant,req.user,req.params.id,req.params.paymentId,req.body);
   flash(req,'good','Repayment correction saved. The original receipt remains in history; the Treasury reversal and loan balance are updated together.');
+  followRecord(req,correction);
   res.redirect(303,'/tenant/loans/'+req.params.id);
  }catch(e){next(e);}});
  router.post('/loans/:id/repay',requirePermission('loans.repay'),throttle,async(req,res,next)=>{try{
   const result=await loans.repay(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
   flash(req,'good',result.duplicate?'Repayment already recorded; no duplicate balance change.':'Loan repayment recorded. Cash and receivables updated, with interest recognized only on collection.');
+  followRecord(req,result.payment);
   res.redirect(303,require('../services/receiptPrint.service').loan(result)||'/tenant/loans/'+req.params.id);
  }catch(e){next(e);}});
  async function airtimePage(req,res,next){try{
-  const [result,funds]=await Promise.all([airtime.list(req.tenantDb,req.tenant,req.user),fundsFor(req,'airtime')]);
+  const canSell=hasPermission(req.user,'airtime.sell');
+  const [result,funds]=await Promise.all([
+   airtime.list(req.tenantDb,req.tenant,req.user,{operatingBranchId:canSell?req.operationBranch?._id:null}),
+   fundsFor(req,'airtime')
+  ]);
   renderTenant(req,res,'airtime/index','Airtime','Manual prepaid airtime stock, verified customer sales and exact profit.',{
-   ...result,funds,canManage:hasPermission(req.user,'airtime.manage'),canSell:hasPermission(req.user,'airtime.sell'),
+   ...result,funds,canManage:hasPermission(req.user,'airtime.manage'),canSell,
    canCorrect:hasPermission(req.user,'airtime.review')&&['Tenant Owner','Branch Manager','Reconciliation Officer'].includes(req.user.role),
    format:shortFormat,uuid:crypto.randomUUID(),branch:req.operationBranch,
    activeCurrency:req.operationBranch?branchCurrency(req.operationBranch):null,
@@ -151,16 +162,19 @@ module.exports=function retailRoutes({renderTenant}){
  router.post('/airtime/stock',requirePermission('airtime.manage'),throttle,async(req,res,next)=>{try{
   const result=await airtime.purchase(req.tenantDb,req.tenant,req.user,req.body);
   flash(req,'good',result.duplicate?'Stock purchase already recorded. No duplicate funds movement.':'Operator-recorded stock purchase saved against the selected funding account and supplier evidence.');
+  followRecord(req,result.record);
   res.redirect(303,'/tenant/airtime');
  }catch(e){next(e);}});
  router.post('/airtime/:id/reverse',requirePermission('airtime.review'),throttle,async(req,res,next)=>{try{
-  await airtime.reverseRecorded(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
+  const correction=await airtime.reverseRecorded(req.tenantDb,req.tenant,req.user,req.params.id,req.body);
   flash(req,'good','Airtime reversal recorded from reviewer-confirmed refund evidence; inventory and funds books were adjusted and the original record retained.');
+  followRecord(req,correction);
   res.redirect(303,'/tenant/airtime');
  }catch(e){next(e);}});
  router.post('/airtime/sales',requirePermission('airtime.sell'),throttle,async(req,res,next)=>{try{
   const result=await airtime.sell(req.tenantDb,req.tenant,req.user,req.body);
   flash(req,'good',result.duplicate?'Sale already recorded. No duplicate cash or stock movement.':'Operator-confirmed airtime sale recorded against supplied delivery evidence. The selected funds account, stock cost and gross profit were posted once.');
+  followRecord(req,result.record);
   res.redirect(303,require('../services/receiptPrint.service').airtime(result)||'/tenant/airtime');
  }catch(e){next(e);}});
  return router;

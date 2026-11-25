@@ -46,7 +46,7 @@ services:
     environment:
       NODE_ENV: production
     healthcheck:
-      test: ["CMD", "node", "scripts/notification-worker-heartbeat.js"]
+      test: ["CMD", "node", "scripts/notification-worker-heartbeat.js", "--instance"]
       interval: 30s
       timeout: 8s
       retries: 3
@@ -77,7 +77,7 @@ services:
     environment:
       NODE_ENV: production
     healthcheck:
-      test: ["CMD", "node", "scripts/worker-heartbeat.js"]
+      test: ["CMD", "node", "scripts/worker-heartbeat.js", "--instance"]
       interval: 30s
       timeout: 8s
       retries: 3

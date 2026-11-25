@@ -2,4 +2,12 @@
    const adminLocalDate=typeof formatLocalDate==='function'?formatLocalDate:
     (value=>typeof formatUtcDate==='function'?formatUtcDate(value):
      (value&&Number.isFinite(new Date(value).getTime())?new Date(value).toISOString():'Unknown date')); %>
-<section class="view show"><section class="card"><div class="cardHead"><b>Platform audit trail</b><span>Latest 100 administrative events</span></div><div class="cardBody tableWrap"><table><thead><tr><th>Date (<%= adminZone %>)</th><th>Actor</th><th>Action</th><th>Module</th><th>Record ID</th></tr></thead><tbody><% if(!data.auditLogs.length){ %><tr><td colspan="5">No recorded platform administration events.</td></tr><% } %><% data.auditLogs.forEach(a=>{ %><tr data-search-row><td><%= adminLocalDate(a.createdAt) %></td><td><%= a.actorName||a.actorId||'System' %></td><td><%= a.action %></td><td><%= a.moduleKey||'—' %></td><td><%= a.recordId||'—' %></td></tr><% }) %></tbody></table></div><div class="cardBody"><p class="tiny">Audit records use the platform database. Protect retention, database administration, backups and external log forwarding separately.</p></div></section></section>
+<section class="view show"><section class="card">
+  <div class="cardHead"><b>Platform audit trail</b><span>Administrative events</span></div>
+  <div class="cardBody tableWrap"><table><thead><tr><th>Date (<%= adminZone %>)</th><th>Actor</th><th>Action</th><th>Module</th><th>Record ID</th></tr></thead>
+    <tbody><% if(!data.auditLogs.length){ %><tr><td colspan="5"><%= data.before?'No older entries.':'No recorded platform administration events.' %></td></tr><% } %>
+    <% data.auditLogs.forEach(a=>{ %><tr data-search-row><td><%= adminLocalDate(a.createdAt) %></td><td><%= a.actorName||a.actorId||'System' %></td><td><%= a.action %></td><td><%= a.moduleKey||'—' %></td><td><%= a.recordId||'—' %></td></tr><% }) %></tbody>
+  </table></div>
+  <% if(data.before||data.nextBefore){ %><div class="cardBody"><%- include('../tenants/_pagination',{directoryPath:'/platform/audit',q:'',before:data.before,nextBefore:data.nextBefore}) %></div><% } %>
+  <div class="cardBody"><p class="tiny">Audit records use the platform database. Protect retention, database administration, backups and external log forwarding separately.</p></div>
+</section></section>

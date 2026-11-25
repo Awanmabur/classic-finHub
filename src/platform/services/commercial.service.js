@@ -160,9 +160,9 @@ function planSnapshot(doc){
 function effectiveSubscription(tenant,now=new Date()){
   const s=tenant?.subscription;
   if(!tenant||!s||!['trial','granted'].includes(s.status)||!['trial','active'].includes(tenant.status)||
-    !s.periodEnd||!(new Date(s.periodEnd)>now)||!(new Date(s.periodStart)<=now)||
+    !s.periodStart||!s.periodEnd||!(new Date(s.periodEnd)>now)||!(new Date(s.periodStart)<=now)||
     !Number.isSafeInteger(s.generation)||s.generation<1||s.planCode!==tenant.plan||
-    !Number.isSafeInteger(s.planVersion)||!Array.isArray(s.modules)||!s.limits||
+    !Number.isSafeInteger(s.planVersion)||s.planVersion<1||!Array.isArray(s.modules)||!s.limits||
     !Number.isSafeInteger(s.limits.users)||s.limits.users<1||
     !Number.isSafeInteger(s.limits.branches)||s.limits.branches<1||
     !Number.isSafeInteger(s.limits.transactionsPerMonth)||s.limits.transactionsPerMonth<0||

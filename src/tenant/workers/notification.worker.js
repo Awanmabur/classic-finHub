@@ -10,6 +10,7 @@ const {tenantDbNameFromSlug}=require('../../config/tenantDatabaseName');
 function getTenantConnection(slug){return mongoose.connection.useDb(tenantDbNameFromSlug(slug),{useCache:true});}
 const {verifyReplicaPrimary}=require('../../config/mongoTopology');
 const {parseMongoUri}=require('../../config/mongoUris');
+const {publishWorkerId}=require('../../config/workerReadiness');
 const service=require('../services/notification.service');
 const mobileRisk=require('../services/mobileMoneyRisk.service');
 const transferSms=require('../transferSms/service');
@@ -59,6 +60,7 @@ async function sweep(){
 }
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 async function run(){
+ await publishWorkerId('notification',workerId);
  await connect();
  console.log(JSON.stringify({event:'notifications.worker_started',workerId}));
  while(!closing){

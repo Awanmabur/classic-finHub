@@ -9,12 +9,20 @@ const { record: recordSecurityEvent } = require('./platform/services/securityEve
 const { login } = require('./middleware/rateLimiter');
 const { appUrl } = require('./config/env');
 const seo = require('./config/seo');
+const directoryService = require('./platform/services/businessDirectory.service');
+const { NAME } = require('./config/tenantDatabaseName');
 const router = express.Router();
+function redirectAlias(req, res, canonicalPath) {
+  if (req.path === canonicalPath) return false;
+  const query = req.originalUrl.indexOf('?');
+  res.redirect(308, canonicalPath + (query === -1 ? '' : req.originalUrl.slice(query)));
+  return true;
+}
 const original = ['home','services','pricing','price-compare','about','faq','support','terms','privacy','cookies','refund-policy','signin','signup','forgot-password','reset-password'];
 for (const name of original) router.get(name === 'home' ? '/' : '/' + name, async (req, res, next) => {
   try {
   const canonicalPath = name === 'home' ? '/' : '/' + name;
-  if (req.path !== canonicalPath) return res.redirect(308, canonicalPath + (req.originalUrl.includes('?') ? '?' + req.originalUrl.split('?').slice(1).join('?') : ''));
+  if (redirectAlias(req,res,canonicalPath)) return;
   res.setHeader('Cache-Control','private, no-store');
   if (name === 'forgot-password' || name === 'reset-password') res.setHeader('Referrer-Policy', 'no-referrer');
   const catalogue=['home','pricing','price-compare'].includes(name)
@@ -22,29 +30,39 @@ for (const name of original) router.get(name === 'home' ? '/' : '/' + name, asyn
   if(catalogue.unavailable&&name!=='home')res.status(503).set({'Retry-After':'60','X-Robots-Tag':'noindex, nofollow, noarchive'});
   let featuredBusinesses=[],directoryUnavailable=false;
   if(name==='home'){
-    try { const featured=await require('./platform/services/businessDirectory.service').featured(10);featuredBusinesses=featured.businesses;directoryUnavailable=featured.unavailable; }
+    try { const featured=await directoryService.featured(10);featuredBusinesses=featured.businesses;directoryUnavailable=featured.unavailable; }
     catch(error){directoryUnavailable=true;console.error(JSON.stringify({event:'public_business_featured_unavailable',code:error.code||'DIRECTORY_ERROR'}));}
   }
   res.render('original/' + name, { featuredBusinesses,directoryUnavailable,flash: consumeFlash(req), plans:catalogue.plans, addonModules:store.modules.filter(m=>m.category==='Addon'&&m.runtimeStatus==='enabled'&&m.status==='active'), cataloguePersisted:catalogue.persisted,catalogueUnavailable:Boolean(catalogue.unavailable),selectableModules:require('./utils/selectionOptions').publicModuleOptions() });
   }catch(error){next(error);}
 });
 function renderPublic(req, res, view, title, data = {}, pageMetaOverride = null) {
-  const path=req.path.replace(/\/+$/,'').toLowerCase()||'/';
-  if(seo.INDEXABLE_PATHS.includes(path)&&req.path!==path)return res.redirect(308,path+(req.originalUrl.includes('?')?'?'+req.originalUrl.split('?').slice(1).join('?'):''));
   res.setHeader('Cache-Control','private, no-store');
-  res.render('layouts/public', { title, pageMeta:pageMetaOverride||seo.publicMetadata(req.path,title), jsonLd:seo.jsonLd, view: `../public/${view}`, data, flash: consumeFlash(req), currentPath: req.path,
+  const pageMeta=pageMetaOverride||seo.publicMetadata(req.path,title);
+  if(!pageMeta.indexable||!pageMeta.crawlAllowed)res.setHeader('X-Robots-Tag','noindex, nofollow, noarchive');
+  res.render('layouts/public', { title, pageMeta, jsonLd:seo.jsonLd, view: `../public/${view}`, data, flash: consumeFlash(req), currentPath: req.path,
     modules: store.modules, plans: store.plans, tenants: [], appointments: [] });
 }
-router.get('/marketplace', (req, res) => renderPublic(req, res, 'marketplace', 'Module Marketplace | ClassicFin Hub'));
-router.get('/product-guide', (req,res) => {if(req.path.endsWith('/'))return res.redirect(308,'/product-guide');renderPublic(req,res,'product-guide','Product and operating guide | ClassicFin Hub');});
+router.get('/marketplace', (req, res) => {
+  if(!redirectAlias(req,res,'/marketplace'))renderPublic(req,res,'marketplace','Module Marketplace | ClassicFin Hub');
+});
+router.get('/product-guide', (req,res) => {
+  if(!redirectAlias(req,res,'/product-guide'))renderPublic(req,res,'product-guide','Product and operating guide | ClassicFin Hub');
+});
 router.get('/businesses', async (req,res,next)=>{
   try{
-    const directory=await require('./platform/services/businessDirectory.service').search(req.query);
+    if(redirectAlias(req,res,'/businesses'))return;
+    const directory=await directoryService.search(req.query);
     if(directory.unavailable)return res.status(503).set({'Retry-After':'60','X-Robots-Tag':'noindex, nofollow'}).send('The business directory is temporarily unavailable.');
-    renderPublic(req,res,'businesses','Businesses on ClassicFin Hub | Public Directory',{directory});
+    const {q,country,service,category,page,sort}=directory.filters;
+    const filtered=Boolean(q||country||service||category||sort!=='recent');
+    const indexable=!filtered&&page<=directory.pages;
+    const title='Businesses on ClassicFin Hub | Public Directory';
+    const metadata=seo.publicMetadata('/businesses',title,{indexable,search:indexable&&page>1?'?page='+page:''});
+    renderPublic(req,res,'businesses',title,{directory},metadata);
   }catch(error){next(error);}
 });
-router.get(['/business-profile','/why-classicfin-hub'], (req,res)=>res.redirect(308,'/businesses'));
+router.get(['/business-profile','/why-classicfin-hub'], (req,res)=>redirectAlias(req,res,'/businesses'));
 router.get('/book-appointment', (req, res) => res.redirect('/#book'));
 router.post(['/book-appointment','/signup'], require('./platform/services/actionThrottle.service').appointment, async (req, res, next) => {
   try {
@@ -155,13 +173,14 @@ router.post('/reset-password', login, async (req, res, next) => {
 });
 router.get('/t/:slug', async (req,res,next)=>{
  try{
-   const mongoose=require('mongoose'),{NAME,getTenantConnection}=require('./config/mongo');
-   if(!NAME.test(req.params.slug))return res.status(404).send('Business profile not found');
-   if(mongoose.connection.readyState!==1)return res.status(503).send('Business profiles are temporarily unavailable');
+   const mongoose=require('mongoose'),{getTenantConnection}=require('./config/mongo');
+   const slug=req.params.slug.toLowerCase();
+   if(!NAME.test(slug))return res.status(404).send('Business profile not found');
+   if(redirectAlias(req,res,'/t/'+slug))return;
+   if(mongoose.connection.readyState!==1)return res.status(503).set('Retry-After','60').send('Business profiles are temporarily unavailable');
    const Tenant=require('./platform/models/Tenant');
-   const tenant=await Tenant.findOne({slug:req.params.slug,
-     status:{$in:['active','trial']},setupStatus:{$ne:'invited'}}).lean();
-   if(!tenant||tenant.directoryListing?.visibility==='hidden')return res.status(404).send('Business profile not found');
+   const tenant=await Tenant.findOne({slug,...directoryService.listingFilter()}).maxTimeMS(2500).lean();
+   if(!tenant)return res.status(404).send('Business profile not found');
    const landingPublished=await require('./tenant/workspace/service').publicLanding(getTenantConnection(tenant.slug),tenant);
    // No human listing approval: the business is live after owner activation.
    // Do not disclose draft profile, private owner contacts or financial records.
@@ -178,8 +197,11 @@ router.get('/t/:slug', async (req,res,next)=>{
 });
 router.get('/t/:slug/review',async(req,res,next)=>{
  try{
+   const slug=req.params.slug.toLowerCase();
+   if(!NAME.test(slug))return res.status(404).send('Business profile not found');
+   if(redirectAlias(req,res,'/t/'+slug+'/review'))return;
    const reviews=require('./platform/services/businessReviews.service');
-   const tenant=await reviews.eligibleTenant(req.params.slug);
+   const tenant=await reviews.eligibleTenant(slug);
    res.set({'X-Robots-Tag':'noindex, nofollow','Cache-Control':'private, no-store'});
    renderPublic(req,res,'business-review-compose','Write a customer review | ClassicFin Hub',
      {slug:tenant.slug,businessName:tenant.name});
@@ -198,12 +220,15 @@ router.post('/t/:slug/reviews',async(req,res,next)=>{
 });
 router.get('/t/:slug/my-review',async(req,res,next)=>{
  try{
+   const slug=req.params.slug.toLowerCase();
+   if(!NAME.test(slug))return res.status(404).send('Business profile not found');
+   if(redirectAlias(req,res,'/t/'+slug+'/my-review'))return;
    const service=require('./platform/services/businessReviews.service');
-   await service.eligibleTenant(req.params.slug);
-   const review=await service.myReview(req.params.slug,req);
+   await service.eligibleTenant(slug);
+   const review=await service.myReview(slug,req);
    if(!review)return res.status(404).send('No editable review found on this browser.');
    res.set({'X-Robots-Tag':'noindex, nofollow','Referrer-Policy':'no-referrer'});
-   renderPublic(req,res,'business-review-edit','Edit your customer review',{slug:req.params.slug,review});
+   renderPublic(req,res,'business-review-edit','Edit your customer review',{slug,review});
  }catch(err){next(err);}
 });
 router.post('/t/:slug/my-review',async(req,res,next)=>{
@@ -227,8 +252,7 @@ router.get('/sitemap.xml',async(req,res,next)=>{
    if(mongoose.connection.readyState===1&&require('./config/env').indexingEnabled){
      const Tenant=require('./platform/models/Tenant');
      const rows=await Tenant.find({
-       status:{$in:['active','trial']},setupStatus:{$ne:'invited'},
-       'directoryListing.visibility':{$ne:'hidden'},
+       ...directoryService.listingFilter(),
        'directory.publishedAt':{$exists:true,$ne:null}
      }).select('slug').sort({_id:-1}).limit(2000).lean().maxTimeMS(3500);
      extra=rows.map(t=>'/t/'+t.slug);

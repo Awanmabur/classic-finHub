@@ -3,6 +3,7 @@ const crypto=require('node:crypto');
 const mongoose=require('mongoose');
 const {connectWorkerMongo}=require('../../config/workerMongo');
 const {verifyReplicaPrimary}=require('../../config/mongoTopology');
+const {publishWorkerId}=require('../../config/workerReadiness');
 const OutboxEvent=require('../models/OutboxEvent');
 const WorkerHeartbeat=require('../models/WorkerHeartbeat');
 const {processOne,expireExhausted}=require('../services/outbox.service');
@@ -18,6 +19,7 @@ async function heartbeat(now){
 }
 function sleep(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
 async function run(){
+  await publishWorkerId('outbox',workerId);
   await connectWorkerMongo();
   verifyReplicaPrimary(await mongoose.connection.db.admin().command({hello:1}));
   await Promise.all([OutboxEvent.createIndexes(),WorkerHeartbeat.createIndexes()]);

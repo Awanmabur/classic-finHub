@@ -10,7 +10,7 @@ SHA="$(git -c safe.directory="$ROOT" -C "$ROOT" rev-parse HEAD)"
 # Keep Git index ownership with the deployment user: a root-run status can rewrite index as root.
 [[ -z "$(GIT_OPTIONAL_LOCKS=0 git -c safe.directory="$ROOT" -C "$ROOT" status --porcelain)" ]] || fail "Dirty worktree"
 [[ -d "$ROOT/node_modules" ]] || fail "Missing test dependencies"
-exec 9>/run/lock/classicfin-forex-ops-release.lock
+exec 9>/run/lock/classicfin-standalone-release.lock
 flock -n 9 || fail "Another release is in progress"
 IMAGE="classicfin:forex-ops-$(printf %s "$SHA" | cut -c1-12)"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -151,13 +151,13 @@ docker run -d --name classicfin-worker --restart unless-stopped --network bridge
  --env-file /etc/classicfin/worker.env -e CLASSICFIN_MOMO_FX_POSTING_ENABLED=true \
  --read-only --tmpfs /tmp:rw,noexec,nosuid,size=32m --cap-drop ALL \
  --security-opt no-new-privileges:true --memory 256m --cpus 0.5 --pids-limit 96 \
- --health-cmd='node scripts/worker-heartbeat.js' --health-interval 10s --health-timeout 8s --health-retries 3 \
+ --health-cmd='node scripts/worker-heartbeat.js --instance' --health-interval 10s --health-timeout 8s --health-retries 3 \
  "$IMAGE" node src/platform/workers/outbox.worker.js >/dev/null
 docker run -d --name classicfin-notifications --restart unless-stopped --network bridge \
  --env-file /etc/classicfin/notifications.env -e CLASSICFIN_MOMO_FX_POSTING_ENABLED=true \
  --read-only --tmpfs /tmp:rw,noexec,nosuid,size=32m --cap-drop ALL \
  --security-opt no-new-privileges:true --memory 256m --cpus 0.5 --pids-limit 96 \
- --health-cmd='node scripts/notification-worker-heartbeat.js' --health-interval 10s --health-timeout 8s --health-retries 3 \
+ --health-cmd='node scripts/notification-worker-heartbeat.js --instance' --health-interval 10s --health-timeout 8s --health-retries 3 \
  "$IMAGE" node src/tenant/workers/notification.worker.js >/dev/null
 ready=0
 for i in $(seq 1 40); do

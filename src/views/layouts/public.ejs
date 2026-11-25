@@ -15,11 +15,12 @@
   <meta property="og:description" content="<%= pageMeta.description %>" />
   <meta property="og:url" content="<%= pageMeta.canonical %>" />
   <meta property="og:image" content="<%= pageMeta.image %>" />
-  <meta property="og:image:alt" content="ClassicFin Hub logo" />
+  <meta property="og:image:alt" content="<%= pageMeta.imageAlt || 'ClassicFin Hub logo' %>" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="<%= pageMeta.title %>" />
   <meta name="twitter:description" content="<%= pageMeta.description %>" />
   <meta name="twitter:image" content="<%= pageMeta.image %>" />
+  <meta name="twitter:image:alt" content="<%= pageMeta.imageAlt || 'ClassicFin Hub logo' %>" />
   <% if(pageMeta.indexable){ %><script type="application/ld+json" nonce="<%= cspNonce %>"><%- jsonLd(pageMeta.graph) %></script><% } %>
   <link rel="stylesheet" href="/vendor/inter/inter.css?v=<%= assetVersion %>" />
   <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css?v=<%= assetVersion %>" />

@@ -55,3 +55,47 @@ test('failed image pull leaves the running deployment and saved rollback target 
  assert.notEqual(result.status,0);assert.doesNotMatch(result.stderr,/restoring previous immutable image/);
  assert.equal(await fs.readFile(x.active,'utf8'),previous);assert.equal((await fs.readFile(path.join(x.stateDir,'current-image'),'utf8')).trim(),previous);
 });
+test('standalone release aborts before stopping containers if the live revision changes after the canary', {skip:process.platform==='win32'},async t=>{
+ const {dir,env}=await setup(t);
+ const pinned='a'.repeat(40),baseline='b'.repeat(40),newLive='c'.repeat(40);
+ const fixture=path.join(dir,'standalone.sh');
+ const scripted=(await fs.readFile(path.join(__dirname,'../deploy/standalone-ui-release.sh'),'utf8'))
+  .replace('/run/lock/classicfin-standalone-release.lock',path.join(dir,'standalone.lock'))
+  .replaceAll('/etc/classicfin',dir)
+  .replace('/srv/classic/release-safety/classicfin',dir);
+ await fs.writeFile(fixture,scripted);
+ await fs.writeFile(path.join(dir,'web.env'),'APP_URL=https://classicfin.example.org\n');
+ await fs.writeFile(path.join(dir,'notifications.env'),'# mock\n');
+ async function command(name,body){await fs.writeFile(path.join(dir,'bin',name),'#!/usr/bin/env bash\nset -eu\n'+body+'\n',{mode:0o700});}
+ await command('id','echo 0');
+ await command('hostname','echo ct-apps-prod-01');
+ await command('systemctl','echo success');
+ await command('python3','echo classicfin.example.org');
+ await command('git',`case " $* " in
+ *' rev-parse HEAD '*) echo ${pinned} ;;
+ *' archive '*) tar -cf - --files-from=/dev/null ;;
+esac`);
+ await command('curl','if [[ " $* " == *" -w "* ]]; then echo 200; fi');
+ await command('docker',`if [[ "$1" == rename || "$1" == stop ]]; then touch "$FAKE_ACTIVE"; exit 1; fi
+if [[ "$1" == inspect ]]; then
+ if [[ "$*" == *State.Health.Status* ]]; then echo healthy
+ elif [[ -f "$FAKE_DRIFT" ]]; then echo new-live
+ else echo original-live
+ fi
+elif [[ "$1 $2" == 'image inspect' ]]; then
+ if [[ "$*" == *org.opencontainers.image.revision* ]]; then
+  case "$*" in (*classicfin:ui-*) echo ${pinned};; (*new-live*) echo ${newLive};; (*) echo ${baseline};; esac
+ elif [[ "$*" == *'{{.Id}}'* ]]; then echo candidate-image; fi
+elif [[ "$1 $2" == 'run --rm' ]]; then
+ echo '# tests 1'; echo '# pass 1'; echo '# fail 0'
+elif [[ "$1 $2" == 'run -d' ]]; then
+ touch "$FAKE_DRIFT"
+fi`);
+ const drift=path.join(dir,'drift');
+ const result=spawnSync('bash',[fixture],{env:{...env,CLASSICFIN_EXPECTED_LIVE_SHA:baseline,FAKE_DRIFT:drift},encoding:'utf8',timeout:10000});
+ assert.equal(result.status,1,result.stderr);
+ assert.match(result.stdout,/CANARY/);
+ assert.match(result.stderr,/The live release changed during preflight/);
+ await fs.access(drift);
+ await assert.rejects(()=>fs.access(env.FAKE_ACTIVE),{code:'ENOENT'});
+});

@@ -464,6 +464,25 @@ async function main(){
   sourceAccountId:String(retiringSource._id),destinationAccountId:String(retiringDest._id),
   amount:'1',idempotencyKey:crypto.randomUUID()
  }),e=>[404,409].includes(e.status),'Closed account cannot fund new operations');
+ const exactStaffCount=await cash.submit(conn,tenant,operator,newDay._id,{countedCash:'1000'});
+ assert.equal(exactStaffCount.status,'submitted');
+ const disputedStaffCount=await cash.decide(conn,tenant,reviewer,newDay._id,{
+  decision:'dispute',note:'Please recount the physical drawer before closing'
+ });
+ assert.equal(disputedStaffCount.status,'disputed');
+ const sourceBeforeRecount=await book.models(conn).account.findById(directSource._id).lean();
+ const drawerBeforeRecount=await book.models(conn).account.findById(drawer._id).lean();
+ assert.equal(drawerBeforeRecount.status,'active');
+ assert.equal(drawerBeforeRecount.reconciliationState,'matched');
+ await assert.rejects(funding.postDirect(conn,tenant,operator,{
+  sourceAccountId:String(directSource._id),destinationAccountId:String(drawer._id),
+  amount:'1',idempotencyKey:crypto.randomUUID()
+ }),e=>e.status===409&&/drawer/.test(e.message),'A drawer being recounted is not available for new transactions');
+ await assert.rejects(treasury.addCapital(conn,tenant,owner,drawer._id,{
+  amount:'1',idempotencyKey:crypto.randomUUID()
+ }),e=>e.status===409&&/drawer is being recounted/.test(e.message));
+ assert.equal(String((await book.models(conn).account.findById(directSource._id)).bookBalanceMinor),String(sourceBeforeRecount.bookBalanceMinor));
+ assert.equal(String((await book.models(conn).account.findById(drawer._id)).bookBalanceMinor),'1000');
  // A staff count already in the queue can be reconciled and closed by the
  // owner on Cash Day, with the same transaction updating the actual drawer.
  const staffClosing=await cash.submit(conn,tenant,operator,newDay._id,{

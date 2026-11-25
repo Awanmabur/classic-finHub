@@ -639,6 +639,7 @@ async function applyMovements(conn,session,authorization,input,internal={}){
  const {batch:Batch,movement:Movement,account:Account}=models(conn),prior=await Batch.findOne({sourceType:value.sourceType,sourceRef:value.sourceRef}).session(session).lean();
  if(prior){if(prior.fingerprint!==fingerprint||String(prior.tenantId)!==String(current.tenant._id))throw fail('Funds source reference reused with different movement details',409);return {batch:prior,movements:await Movement.find({batchId:prior._id}).session(session).lean(),journalIds:prior.journalIds,duplicate:true};}
  const occurredAt=value.occurredAt?new Date(value.occurredAt):new Date(),batchId=new mongoose.Types.ObjectId(),accounts=new Map(),updates=[],linesByCurrency=new Map();
+ const drawerOptions={allowDisputed:current.historicalCorrection,allowNoActiveShift:Boolean(internal.allowSuspense||internal.ownerCapital)};
  const addLine=(currency,accountCode,side,amountMinor)=>{if(!linesByCurrency.has(currency))linesByCurrency.set(currency,[]);linesByCurrency.get(currency).push({accountCode,side,amountMinor:String(amountMinor)});};
  for(const leg of value.legs){
   const account=await Account.findOneAndUpdate({_id:leg.accountId,tenantId:current.tenant._id,branchId:value.branchId},{$inc:{revision:1}},{session,new:true}).lean();
@@ -655,11 +656,11 @@ async function applyMovements(conn,session,authorization,input,internal={}){
   const before=BigInt(String(account.bookBalanceMinor)),delta=BigInt(leg.deltaMinor),after=before+delta;
   if(after<0n&&!internal.allowNegative)throw fail(`Insufficient ${account.currency} funds in ${account.name}`,409);
   if(after>MAX||after< -MAX)throw fail('Funds book exceeds supported exact limits',409);
-  if(account.kind==='cash')await require('../services/cashDrawer.service').bindFundAccount(conn,session,account,String(before),{allowNoActiveShift:Boolean(internal.allowSuspense||internal.ownerCapital)});
+  if(account.kind==='cash')await require('../services/cashDrawer.service').bindFundAccount(conn,session,account,String(before),drawerOptions);
   const changes={bookBalanceMinor:decimal(after)};
   if(account.lastObservationAt&&occurredAt<=new Date(account.lastObservationAt)){changes.status='held';changes.reconciliationState='stale';changes.lastObservationStale=true;changes.holdReason='A late entry changed a previously reviewed observation. Obtain a new actual balance check.';}
   const changed=await Account.findOneAndUpdate({_id:account._id,revision:account.revision},{$set:changes,$inc:{sequence:1,revision:1}},{session,new:true}).lean();if(!changed)throw fail('Funds account changed concurrently',409);
-  if(account.kind==='cash')await require('../services/cashDrawer.service').refreshFundBalance(conn,session,changed,String(after),{allowNoActiveShift:Boolean(internal.allowSuspense||internal.ownerCapital)});
+  if(account.kind==='cash')await require('../services/cashDrawer.service').refreshFundBalance(conn,session,changed,String(after),drawerOptions);
   const chart=await core.ledgerAccountModel(conn).findOne({_id:account.ledgerAccountId,branchId:value.branchId,currency:account.currency,code:account.ledgerCode}).session(session).lean();if(!chart||chart.category!==(account.kind==='transfer_clearing'?'liability':'asset'))throw fail('Funds account ledger mapping is invalid',503);
   accounts.set(String(account._id),account);updates.push({account:changed,delta,balanceAfter:after});addLine(account.currency,account.ledgerCode,delta>0n?normalSide(account.kind):opposite(normalSide(account.kind)),delta<0n?-delta:delta);
  }

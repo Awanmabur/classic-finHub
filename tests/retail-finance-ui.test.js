@@ -14,6 +14,7 @@ test('loan portfolio, borrower and product forms render with CSRF and no second 
  }});
  assert.match(html,/action="\/tenant\/loans\/borrowers"/);
  assert.match(html,/name="idempotencyKey" value="uuid-borrower"/);
+ assert.match(html,/id="loan-applications"[\s\S]*action="\/tenant\/loans\/applications"/);
  assert.match(html,/action="\/tenant\/loans\/applications"/);
  assert.match(html,/action="\/tenant\/loans\/products"/);
  assert.match(html,/name="_csrf" value="test-csrf"/);

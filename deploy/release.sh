@@ -39,12 +39,12 @@ if [[ -n "$BACKUP_COMPOSE" ]]; then
   [[ -d "${CLASSICFIN_TENANT_BACKUP_DIR:-}" ]] || fail 'Persistent tenant backup directory missing'
 fi
 compose() { local files=(-f "$COMPOSE_FILE"); if [[ -n "$BACKUP_COMPOSE" ]]; then files+=(-f "$BACKUP_COMPOSE"); fi; docker compose --project-name classicfin "${files[@]}" "$@"; }
-backup_health() { [[ -z "$BACKUP_COMPOSE" ]] || compose exec -T classicfin-tenant-backups node scripts/tenant-backup-heartbeat.js >/dev/null 2>&1; }
+backup_health() { [[ -z "$BACKUP_COMPOSE" ]] || compose exec -T classicfin-tenant-backups node scripts/tenant-backup-heartbeat.js --instance >/dev/null 2>&1; }
 health() {
   for _ in {1..20}; do
     if curl --silent --show-error --fail --max-time 4 "http://127.0.0.1:${HOST_PORT}/health/ready" >/dev/null 2>&1 &&
-       compose exec -T classicfin-worker node scripts/worker-heartbeat.js >/dev/null 2>&1 &&
-       compose exec -T classicfin-notifications node scripts/notification-worker-heartbeat.js >/dev/null 2>&1 && backup_health; then
+       compose exec -T classicfin-worker node scripts/worker-heartbeat.js --instance >/dev/null 2>&1 &&
+       compose exec -T classicfin-notifications node scripts/notification-worker-heartbeat.js --instance >/dev/null 2>&1 && backup_health; then
       return 0
     fi
     sleep 3

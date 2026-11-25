@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Read-only production SEO acceptance checks. No database, Caddy or GSC writes."""
 from html.parser import HTMLParser
+from re import fullmatch
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 import sys
@@ -9,8 +10,8 @@ import xml.etree.ElementTree as ET
 
 ORIGIN = 'https://classicfinhub.com'
 PUBLIC = ('/', '/about', '/services', '/pricing', '/price-compare', '/faq',
-          '/support', '/marketplace', '/product-guide', '/terms', '/privacy',
-          '/cookies', '/refund-policy')
+          '/support', '/marketplace', '/product-guide', '/businesses', '/terms',
+          '/privacy', '/cookies', '/refund-policy')
 failures = []
 
 class HtmlAudit(HTMLParser):
@@ -109,8 +110,11 @@ try:
     check(status == 200 and 'Disallow: /' not in lines and
           'Sitemap: ' + ORIGIN + '/sitemap.xml' in lines,
           'robots.txt public sitemap and no global blockade')
-    for prefix in ('/tenant', '/platform', '/signin', '/integrations', '/t/'):
+    for prefix in ('/tenant', '/platform', '/signin', '/integrations',
+                   '/t/*/review', '/t/*/reviews', '/t/*/my-review'):
         check('Disallow: ' + prefix in lines, 'robots.txt excludes private ' + prefix)
+    check('Disallow: /t/' not in lines and 'Disallow: /t' not in lines,
+          'robots.txt permits published business profiles')
 except Exception as error:
     check(False, 'robots.txt: ' + type(error).__name__)
 try:
@@ -118,14 +122,22 @@ try:
     root = ET.fromstring(text)
     namespace = '{http://www.sitemaps.org/schemas/sitemap/0.9}'
     urls = [x.text for x in root.iter(namespace + 'loc')]
-    expected = [ORIGIN + item for item in PUBLIC]
-    check(status == 200 and len(urls) == len(set(urls)) and sorted(urls) == sorted(expected),
-          'sitemap.xml exactly matches 13 canonical public pages')
+    expected = {ORIGIN + item for item in PUBLIC}
+    discovered = set(urls)
+    check(status == 200 and root.tag == namespace + 'urlset' and
+          len(urls) == len(discovered) and expected <= discovered,
+          'sitemap.xml includes each canonical marketing page once')
+    profiles = discovered - expected
+    check(all(url and url.startswith(ORIGIN + '/t/') and
+              fullmatch(r'[a-z0-9][a-z0-9-]{1,40}[a-z0-9]', url[len(ORIGIN + '/t/'):])
+              for url in profiles),
+          'additional sitemap entries are canonical business profile URLs')
 except Exception as error:
     check(False, 'sitemap.xml: ' + type(error).__name__)
 try:
     status, final, headers, text = fetch(ORIGIN + '/llms.txt')
-    check(status == 200 and ORIGIN + '/product-guide' in text and
+    check(status == 200 and all(ORIGIN + path in text for path in
+                                ('/product-guide', '/businesses', '/sitemap.xml', '/robots.txt')) and
           'automated indexing disabled' not in text,
           'llms.txt public product and policy references')
 except Exception as error:

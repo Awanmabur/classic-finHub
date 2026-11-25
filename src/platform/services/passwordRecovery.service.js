@@ -14,9 +14,9 @@ const { tenantUserModel } = require('../../tenant/models');
 const { sendMail } = require('../../config/mail');
 const { appUrl } = require('../../config/env');
 const { consumeRecoveryAttempt } = require('./loginThrottle.service');
+const { authVersionFilter } = require('./mfa.service');
 
 function invalid() { const err = new Error('Reset link is invalid or expired. Request a new one.'); err.status = 400; return err; }
-function unavailable() { const err = new Error('Password recovery email could not be delivered. Please contact support.'); err.status = 503; return err; }
 const hashToken = token => crypto.createHash('sha256').update(token).digest('hex');
 
 async function requestReset(email, ip) {
@@ -27,16 +27,18 @@ async function requestReset(email, ip) {
   if (!identity) return; // Never reveal account existence through response text.
 
   // Verify the identity still points to an active account before sending a link.
-  let active;
+  let account;
   if (identity.kind === 'platform') {
-    active = await PlatformAdmin.exists({ _id: identity.accountId, email: normalized, status: 'active' });
+    account = await PlatformAdmin.findOne({ _id: identity.accountId, email: normalized, status: 'active' }).select('authVersion').lean();
   } else if (identity.kind === 'tenant' && identity.tenantId) {
     const tenant = await Tenant.findOne({ _id: identity.tenantId, status: { $in:['active','trial','past_due'] } }).lean();
-    if (tenant) active = await tenantUserModel(getTenantConnection(tenant.slug)).exists({ _id: identity.accountId, email: normalized, status: 'active' });
+    if (tenant) account = await tenantUserModel(getTenantConnection(tenant.slug))
+      .findOne({ _id: identity.accountId, email: normalized, status: 'active' }).select('authVersion').lean();
   }
-  if (!active) return;
+  if (!account) return;
   const token = crypto.randomBytes(32).toString('hex');
-  const reset = await PasswordReset.create({ identityId: identity._id, tokenHash: hashToken(token), expiresAt: new Date(Date.now() + 15 * 60 * 1000) });
+  const reset = await PasswordReset.create({ identityId: identity._id, authVersion: account.authVersion || 0,
+    tokenHash: hashToken(token), expiresAt: new Date(Date.now() + 15 * 60 * 1000) });
   const link = `${appUrl}/reset-password#token=${token}`;
   try {
     await SecurityEvent.create({ action:'auth.password_reset.requested', subjectHash:digest(normalized), ipHash:digest(ip), identityId:identity._id });
@@ -44,7 +46,9 @@ async function requestReset(email, ip) {
       text: `A password reset was requested for your ClassicFin Hub account.\n\nOpen this secure link within 15 minutes:\n${link}\n\nIf you did not request this, ignore this email. No password change has been made.` });
   } catch {
     await PasswordReset.deleteOne({ _id: reset._id }).catch(() => {});
-    throw unavailable();
+    // Keep the public status and message the same for provider failures and
+    // unregistered addresses.
+    console.error(JSON.stringify({ event: 'password_reset_delivery_failed' }));
   }
 }
 
@@ -60,14 +64,17 @@ async function completeReset(token, password, confirmation, ip) {
       if (!reset) throw invalid();
       const identity = await AccountIdentity.findById(reset.identityId).session(session);
       if (!identity) throw invalid();
+      // A link issued before a credential or access revocation must not regain
+      // validity when an account is later re-enabled. Pre-version links use zero.
+      const accountFilter = { _id:identity.accountId, email:identity.email, status:'active',
+        authVersion:authVersionFilter(reset.authVersion ?? 0) };
       let result;
       if (identity.kind === 'platform') {
-        result = await PlatformAdmin.updateOne({ _id:identity.accountId, email:identity.email, status:'active' },
-          { $set:{passwordHash}, $inc:{authVersion:1} }, { session });
+        result = await PlatformAdmin.updateOne(accountFilter, { $set:{passwordHash}, $inc:{authVersion:1} }, { session });
       } else if (identity.kind === 'tenant' && identity.tenantId) {
         const tenant = await Tenant.findOne({ _id:identity.tenantId, status:{ $in:['active','trial','past_due'] } }).session(session);
         if (!tenant) throw invalid();
-        result = await tenantUserModel(getTenantConnection(tenant.slug)).updateOne({ _id:identity.accountId, email:identity.email, status:'active' },
+        result = await tenantUserModel(getTenantConnection(tenant.slug)).updateOne(accountFilter,
           { $set:{passwordHash}, $inc:{authVersion:1} }, { session });
       }
       if (result?.modifiedCount !== 1) throw invalid();

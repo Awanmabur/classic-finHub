@@ -1,0 +1,6 @@
+<form method="get" action="<%= directoryPath %>" class="platformDirectorySearch">
+  <label class="field">Search all workspaces
+    <input class="control" name="q" type="search" maxlength="80" value="<%= q %>" placeholder="Name, slug, owner or email">
+  </label>
+  <div class="rowBtns"><button class="btn" type="submit">Search</button><% if(q){ %><a class="btn" href="<%= directoryPath %>">Clear</a><% } %></div>
+</form>

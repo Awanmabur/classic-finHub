@@ -1,5 +1,6 @@
 'use strict';
 const { appUrl, indexingEnabled } = require('./env');
+const { NAME } = require('./tenantDatabaseName');
 const INDEXABLE_PATHS = Object.freeze([
   '/', '/about', '/services', '/pricing', '/price-compare', '/faq', '/support',
   '/marketplace', '/product-guide', '/businesses', '/terms', '/privacy', '/cookies', '/refund-policy'
@@ -11,7 +12,7 @@ const PRIVATE_PREFIXES = Object.freeze([
 ]);
 const PUBLIC_PAGE_META = Object.freeze({
   '/marketplace':{title:'Finance Operations Software Modules | ClassicFin Hub',description:'Explore mobile money agent management, money transfer, banking and forex recordkeeping, cash controls, reporting and optional Android SMS capture modules.'},
-  '/product-guide':{title:'Mobile Money & Finance Operations Software Guide | ClassicFin Hub',description:'See how ClassicFin Hub manages mobile money agent records, branch float, financial books, independent approvals, cash reconciliation and supported SMS capture.'},
+  '/product-guide':{title:'Mobile Money & Finance Operations Software Guide | ClassicFin Hub',description:'See how ClassicFin Hub records mobile money and branch float, tracks cash counts and reconciliation, and produces reports from posted financial records.'},
   '/businesses':{title:'Find Finance Businesses | ClassicFin Hub Directory',description:'Find real businesses on ClassicFin Hub. Search published finance business profiles by name, services and country, and view public contact details and business pages.'}
 });
 const xml=value=>String(value).replace(/[&<>\"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&apos;'}[char]));
@@ -27,15 +28,16 @@ function robotsTxt() {
 }
 function sitemapXml(extraPaths=[]) {
   // No guessed lastmod dates: update timestamps must describe actual content
-  // revisions. Authenticated and tenant-branded paths are deliberately absent.
-  const paths=indexingEnabled?[...INDEXABLE_PATHS,...extraPaths.filter(p=>typeof p==='string'&&/^\/t\/[a-z0-9][a-z0-9-]{1,128}$/.test(p))]:[];
+  // revisions. The caller supplies owner-published profiles only.
+  const profiles=extraPaths.filter(p=>typeof p==='string'&&p.startsWith('/t/')&&NAME.test(p.slice(3)));
+  const paths=indexingEnabled?[...INDEXABLE_PATHS,...profiles]:[];
   const urls=[...new Set(paths)].map(p => `<url><loc>${xml(appUrl+p)}</loc></url>`).join('');
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>\n`;
 }
-function publicMetadata(path,title) {
-  const page=PUBLIC_PAGE_META[path]||{},canonical=appUrl+path;
+function publicMetadata(path,title,{indexable=INDEXABLE_PATHS.includes(path),search=''}={}) {
+  const page=PUBLIC_PAGE_META[path]||{},canonical=appUrl+path+search;
   const description=page.description||'ClassicFin Hub is a modular financial operations workspace by Classic Technologies.';
-  return {title:page.title||title||'ClassicFin Hub',description,canonical,image:appUrl+'/images/classicfinhub-social.jpg',indexable:INDEXABLE_PATHS.includes(path),crawlAllowed:indexingEnabled,graph:{
+  return {title:page.title||title||'ClassicFin Hub',description,canonical,image:appUrl+'/images/classicfinhub-social.jpg',indexable,crawlAllowed:indexingEnabled,graph:{
     '@context':'https://schema.org','@graph':[
       {'@type':'Organization','@id':appUrl+'/#organization',name:'Classic Technologies',url:'https://classictechgroup.com'},
       {'@type':'WebSite','@id':appUrl+'/#website',name:'ClassicFin Hub',url:appUrl,publisher:{'@id':appUrl+'/#organization'}},
@@ -52,6 +54,7 @@ function tenantMetadata(tenant,landing){
   const description=String(landing.subtitle||landing.headline||name+' business profile').slice(0,220);
   const title=name+' | Business Profile | ClassicFin Hub';
   const indexable=Boolean(landing.publishedAt&&tenant.directoryListing?.visibility!=='hidden');
+  const sameAs=[details.website,details.facebook,details.instagram,details.linkedin].filter(Boolean);
   const address=details.city&&landing.country?{ '@type':'PostalAddress',
     addressLocality:String(details.city),addressRegion:String(details.region||''),
     streetAddress:String(details.address||''),addressCountry:String(landing.country)}:undefined;
@@ -61,8 +64,9 @@ function tenantMetadata(tenant,landing){
     ...(details.publicEmail?{email:String(details.publicEmail)}:{}),
     ...(details.logoUrl?{logo:details.logoUrl}:{}),
     ...(Array.isArray(landing.services)&&landing.services.length?{knowsAbout:landing.services}:{}),
-    ...(details.website?{sameAs:[details.website,...[details.facebook,details.instagram,details.linkedin].filter(Boolean)]}:{})};
+    ...(sameAs.length?{sameAs}:{})};
   return {title,description,canonical,image:details.logoUrl||appUrl+'/images/classicfinhub-social.jpg',
+    ...(details.logoUrl?{imageAlt:name+' logo'}:{}),
     indexable,crawlAllowed:indexingEnabled,graph:{'@context':'https://schema.org','@graph':[
       org,
       {'@type':'WebPage','@id':canonical+'#webpage',url:canonical,name:title,description,inLanguage:'en',
@@ -79,6 +83,36 @@ function jsonLd(value){return JSON.stringify(value).replace(/[<>&\u2028\u2029]/g
 function llmsTxt() {
   // A public reading guide, not an indexing guarantee or access-control protocol.
   if(!indexingEnabled)return '# ClassicFin Hub\n\nThis instance has automated indexing disabled. Follow its robots.txt policy.\n';
-  return `# ClassicFin Hub\n\n> ClassicFin Hub is a modular financial operations application by Classic Technologies. It supports tenant workspaces, independently reviewed manual funds books, staff permissions, branch controls and reports.\n\n## Product and operation\n\n- [Product guide](${appUrl}/product-guide): current workflows and their operating boundaries.\n- [Business directory](${appUrl}/businesses): owner-published business profiles, services and public contact details.\n- [Home](${appUrl}/): overview and onboarding requests.\n- [Modules](${appUrl}/services): subscribed operational capabilities.\n- [Module marketplace](${appUrl}/marketplace): available module descriptions.\n- [Pricing](${appUrl}/pricing): current published subscription terms.\n- [Plan comparison](${appUrl}/price-compare): published limits and included modules.\n- [About](${appUrl}/about): product and company information.\n- [FAQs](${appUrl}/faq): setup, permissions, manual entry and SMS capture.\n- [Support](${appUrl}/support): contact and onboarding help.\n\n## Policies\n\n- [Terms](${appUrl}/terms)\n- [Privacy](${appUrl}/privacy)\n- [Cookies](${appUrl}/cookies)\n- [Refund and cancellation policy](${appUrl}/refund-policy)\n\n## Reading boundaries\n\nUse public descriptions and current published prices. Financial books and dated observations do not establish live provider balances or automated settlement. Android SMS capture requires a configured gateway and supported message wording; manual entry remains available. Subscription approvals are not proof of payment.\n\nAuthenticated dashboards, customer records, financial reports, gateway endpoints and invitation/reset links are outside these public resources. Respect robots.txt and authentication; never attempt to retrieve private information.\n`;
+  return `# ClassicFin Hub\n+
+> ClassicFin Hub is a modular financial operations application by Classic Technologies. Tenant owners manage accounts and reconcile balances. Staff permissions and subscribed modules govern transaction entry, branch access and reports.
+
+## Product and operation
+
+- [Product guide](${appUrl}/product-guide) covers account setup, cash days, manual transactions and reporting.
+- [Business directory](${appUrl}/businesses) lists public businesses. Owners publish the services and contact details shown on their profiles.
+- [Home](${appUrl}/) provides a product overview and setup requests.
+- [Modules](${appUrl}/services) describes subscribed operating capabilities.
+- [Module marketplace](${appUrl}/marketplace) describes available modules.
+- [Pricing](${appUrl}/pricing) lists current published subscription terms.
+- [Plan comparison](${appUrl}/price-compare) lists published limits and included modules.
+- [About](${appUrl}/about) introduces the product and company.
+- [FAQs](${appUrl}/faq) covers setup, permissions, manual entry and SMS capture.
+- [Support](${appUrl}/support) provides contact and setup help.
+
+## Policies and discovery
+
+- [Sitemap](${appUrl}/sitemap.xml) lists canonical public pages and published business profiles.
+- [Crawler rules](${appUrl}/robots.txt) describe public crawl paths.
+- [Terms](${appUrl}/terms)
+- [Privacy](${appUrl}/privacy)
+- [Cookies](${appUrl}/cookies)
+- [Refund and cancellation policy](${appUrl}/refund-policy)
+
+## Reading boundaries
+
+Use public descriptions and current published prices. Financial books and dated observations do not establish live provider balances or automated settlement. Android SMS capture requires a configured gateway and supported message wording. Manual entry remains available. Subscription approvals are not proof of payment.
+
+Authenticated dashboards, customer records, financial reports, gateway endpoints and invitation or reset links are outside these public resources. Follow the crawler rules and authentication requirements.
+`;
 }
 module.exports = { INDEXABLE_PATHS, PRIVATE_PREFIXES, PUBLIC_PAGE_META, robotsTxt, sitemapXml, llmsTxt, publicMetadata, tenantMetadata, jsonLd };

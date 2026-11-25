@@ -30,7 +30,10 @@ test('fully entitled owner can reach Money accounts and Cash day directly',()=>{
  for(const removed of ['/tenant/funded','/tenant/approvals','/tenant/day/close','/tenant/accounts/balances','/tenant/accounts/movements','/tenant/reports/export.csv','/tenant/reports/opening','/tenant/reports/closing','/tenant/transactions/new','/tenant/last-receipt']){
   assert(!links.includes(removed),removed+' is handled within its workflow');
  }
- for(const link of links)assert.match(link,/^\/tenant\/[a-z0-9/.-]+$/);
+ for(const link of links)assert.match(link,/^\/tenant\/[a-z0-9/.-]+(?:#[a-z0-9-]+)?$/);
+ assert(links.includes('/tenant/funded/payout'));
+ assert(links.includes('/tenant/loans#loan-applications'));
+ assert.equal(links.filter(link=>link==='/tenant/loans').length,1);
  assert(links.length<45);
 });
 

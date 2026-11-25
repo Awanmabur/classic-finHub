@@ -17,13 +17,14 @@ STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 SUFFIX="-pre-ui-${STAMP}"
 CANARY="classicfin-ui-canary-${STAMP}"
 SAFE="/srv/classic/release-safety/classicfin/ui-${STAMP}"
-LOG="$(mktemp /tmp/classicfin-ui-tests.XXXXXXXX)"
-STAGE="$(mktemp -d /tmp/classicfin-ui-stage.XXXXXXXX)"
 RENAMED=()
 ACTIVATING=0
 COMPLETED=0
 exec 9>/run/lock/classicfin-standalone-release.lock
 flock -n 9 || { echo 'Another release is running'; exit 1; }
+LOG="$(mktemp /tmp/classicfin-ui-tests.XXXXXXXX)"
+STAGE="$(mktemp -d /tmp/classicfin-ui-stage.XXXXXXXX)"
+trap 'rm -rf -- "$STAGE" "$LOG"' EXIT
 
 rollback() {
   trap - ERR INT TERM
@@ -43,18 +44,32 @@ fail() {
   code="$1"
   if [ "$ACTIVATING" -eq 1 ] && [ "$COMPLETED" -eq 0 ]; then rollback; fi
   docker rm -f "$CANARY" >/dev/null 2>&1 || true
-  rm -rf "$STAGE" "$LOG"
   exit "$code"
 }
 trap 'fail $?' ERR
 trap 'fail 130' INT
 trap 'fail 143' TERM
 
+verify_live_baseline() {
+  local name image revision
+  for name in "${NAMES[@]}"; do
+    if [ "$(docker inspect -f '{{.State.Health.Status}}' "$name")" != healthy ]; then
+      printf 'RELEASE BLOCKED: %s is missing or unhealthy.\n' "$name" >&2
+      return 1
+    fi
+    [ -n "${CLASSICFIN_EXPECTED_LIVE_SHA:-}" ] || continue
+    image="$(docker inspect -f '{{.Image}}' "$name")" || return 1
+    revision="$(docker image inspect -f '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image")" || return 1
+    if [ "$revision" != "$CLASSICFIN_EXPECTED_LIVE_SHA" ]; then
+      echo 'The live release changed during preflight. Start the pinned release again.' >&2
+      return 1
+    fi
+  done
+}
+
 echo '=== 1. CHECK EXISTING PRODUCTION ==='
-test -z "$(git -c safe.directory="$ROOT" -C "$ROOT" status --porcelain)"
-for n in "${NAMES[@]}"; do
-  test "$(docker inspect -f '{{.State.Health.Status}}' "$n")" = healthy
-done
+test -z "$(GIT_OPTIONAL_LOCKS=0 git -c safe.directory="$ROOT" -C "$ROOT" status --porcelain)"
+verify_live_baseline
 test "$(systemctl show classicfin-contabo-backup.service -p Result --value)" = success
 for f in web.env worker.env notifications.env; do test -s "/etc/classicfin/$f"; done
 HOST="$(python3 - <<'PY'
@@ -136,6 +151,7 @@ for path in / /signin /robots.txt /sitemap.xml; do check_page 3601 "$path"; done
 docker rm -f "$CANARY" >/dev/null
 
 echo '=== 6. REPLACE STANDALONE SERVICES ==='
+verify_live_baseline
 ACTIVATING=1
 for n in "${NAMES[@]}"; do
   docker rename "$n" "${n}${SUFFIX}"
@@ -155,7 +171,7 @@ docker run -d --name "$OLD_WORKER" --restart unless-stopped \
   --network bridge --env-file /etc/classicfin/worker.env --read-only \
   --tmpfs /tmp:rw,noexec,nosuid,size=32m --cap-drop ALL \
   --security-opt no-new-privileges:true --memory 256m --cpus 0.5 --pids-limit 96 \
-  --health-cmd='node scripts/worker-heartbeat.js' \
+  --health-cmd='node scripts/worker-heartbeat.js --instance' \
   --health-interval 10s --health-timeout 8s --health-retries 3 \
   "$IMAGE" node src/platform/workers/outbox.worker.js >/dev/null
 
@@ -163,7 +179,7 @@ docker run -d --name "$OLD_NOTIFY" --restart unless-stopped \
   --network bridge --env-file /etc/classicfin/notifications.env --read-only \
   --tmpfs /tmp:rw,noexec,nosuid,size=32m --cap-drop ALL \
   --security-opt no-new-privileges:true --memory 256m --cpus 0.5 --pids-limit 96 \
-  --health-cmd='node scripts/notification-worker-heartbeat.js' \
+  --health-cmd='node scripts/notification-worker-heartbeat.js --instance' \
   --health-interval 10s --health-timeout 8s --health-retries 3 \
   "$IMAGE" node src/tenant/workers/notification.worker.js >/dev/null
 
@@ -186,7 +202,6 @@ curl -fsS --max-time 20 "https://$HOST/health/ready" >/dev/null
 COMPLETED=1
 ACTIVATING=0
 trap - ERR INT TERM
-rm -rf "$STAGE" "$LOG"
 echo "CLASSIC FINHUB UI RELEASE LIVE: $SHA"
 echo "Website: https://$HOST"
 echo "All three services healthy. Previous containers retained: $SUFFIX"

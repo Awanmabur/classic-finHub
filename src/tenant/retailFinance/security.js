@@ -8,6 +8,7 @@ const {tenantDbNameFromSlug}=require('../../config/tenantDatabaseName');
 const {permissionsFor,requiresTenantMfa}=require('../../config/roles');
 const {hasModuleForUser,hasPermission}=require('../services/moduleAccess.service');
 const {resolveTransactionBranch}=require('../services/transactionBranch.service');
+const branchView=require('../services/branchView.service');
 const treasury=require('../treasury/service');
 const crypto=require('node:crypto');
 const OID=/^[a-f0-9]{24}$/i;
@@ -41,9 +42,13 @@ async function access(conn,tenant,actor,moduleKey,permission,session=null){
    const active=await core.branchModel(conn).exists({_id:oid(person.branchId),status:'active'}).session(session);
    if(!active)throw fail('Assigned branch is inactive',403);
  }
- return {actor:trusted,tenant:current};
+ const reading=!session&&permission===moduleKey+'.view';
+ return {actor:reading?branchView.withReadView(trusted,actor):trusted,tenant:current};
 }
-function scope(actor){return ['Tenant Owner','Auditor'].includes(actor.role)?require('../services/branchView.service').readScope(actor):{branchId:oid(actor.branchId,'branch')};}
+function scope(actor){return branchView.canViewBranches(actor)?branchView.readScope(actor):{branchId:oid(actor.branchId,'branch')};}
+function productScope(actor,operatingBranchId){
+ return actor.role==='Tenant Owner'&&operatingBranchId?{branchId:oid(operatingBranchId,'branch')}:scope(actor);
+}
 async function operatingBranch(conn,actor,input={},session=null){
  const branch=await resolveTransactionBranch(conn,actor,input);
  if(session){
@@ -69,4 +74,4 @@ async function transact(conn,fn){
  try{let value;await session.withTransaction(async()=>{value=await fn(session);},{readConcern:{level:'snapshot'}});return value;}
  finally{await session.endSession();}
 }
-module.exports={fail,oid,clean,uuid,amount,d,hash,access,scope,operatingBranch,funds,audit,transact};
+module.exports={fail,oid,clean,uuid,amount,d,hash,access,scope,productScope,operatingBranch,funds,audit,transact};

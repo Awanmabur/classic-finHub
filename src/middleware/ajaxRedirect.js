@@ -5,7 +5,10 @@
 function target(value){
  if(typeof value!=='string'||!value.startsWith('/')||value.startsWith('//')||/[\\\u0000-\u0020\u007f]/.test(value))return null;
  const url=new URL(value,'https://classicfin.invalid');
- return url.origin==='https://classicfin.invalid'?url.pathname+url.search+url.hash:null;
+ // Dot-segment normalization can leave a pathname that starts with two slashes.
+ // The returned relative URL must still resolve within the same origin.
+ if(url.origin!=='https://classicfin.invalid'||url.pathname.startsWith('//'))return null;
+ return url.pathname+url.search+url.hash;
 }
 function ajaxRedirect(req,res,next){
  if(req.method!=='POST'||req.get('X-ClassicFin-Redirect')!=='json')return next();

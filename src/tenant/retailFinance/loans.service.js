@@ -288,12 +288,14 @@ async function portfolioSummary(conn,tenantId,filter){
   principalOutstanding:String(row.principalOutstanding||'0'),
   interestOutstanding:String(row.interestOutstanding||'0'),late:Number(row.late||0)}));
 }
-async function list(conn,tenant,actor){
+async function list(conn,tenant,actor,{operatingBranchId}={}){
  const current=await F.access(conn,tenant,actor,'loans','loans.view');
+ const scope=F.scope(current.actor);
+ const tenantId=current.tenant._id;
  const [products,loans,summary]=await Promise.all([
-  models(conn).product.find({tenantId:current.tenant._id,...F.scope(current.actor)}).sort({createdAt:-1}).limit(100).lean(),
-  models(conn).loan.find({tenantId:current.tenant._id,...F.scope(current.actor)}).sort({createdAt:-1}).limit(200).lean(),
-  portfolioSummary(conn,current.tenant._id,F.scope(current.actor))
+  models(conn).product.find({tenantId,...F.productScope(current.actor,operatingBranchId)}).sort({createdAt:-1}).limit(100).lean(),
+  models(conn).loan.find({tenantId,...scope}).sort({createdAt:-1}).limit(200).lean(),
+  portfolioSummary(conn,tenantId,scope)
  ]);
  return {products,loans,summary};
 }

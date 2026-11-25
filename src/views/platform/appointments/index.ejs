@@ -20,7 +20,7 @@
           <tr data-search-row>
             <td><strong><%= a.businessName %></strong></td>
             <td><%= a.contactName %></td>
-            <td><%= a.preferredDate?new Date(a.preferredDate).toISOString().slice(0,10):'Flexible' %></td>
+            <td><%= a.preferredDate?formatUtcDate(a.preferredDate).split('T')[0]:'Flexible' %></td>
             <td><span class="tag"><%= a.status %></span></td>
             <td><a class="btn" href="/platform/appointments/<%= a._id %>">Preview</a></td>
           </tr>

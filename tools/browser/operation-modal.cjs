@@ -19,7 +19,7 @@ async function checkWorkspaceHeader(base,pathname){
    const bounds=header.getBoundingClientRect();
    const identity=rect('.headerIdentity'),menu=rect('#menuBtn');
    const branch=rect('#headerViewingBranch'),currency=rect('#currencySelect'),search=rect('.headerSearch');
-   const primary=rect('#newTransactionBtn');
+   const drive=rect('.headerDriveForm button'),notification=rect('#phase2NotifyBtn'),primary=rect('#newTransactionBtn');
    const controls=[...header.querySelectorAll('button,a,select,input:not([type=hidden])')]
     .filter(control=>control.getClientRects().length).map(control=>control.getBoundingClientRect());
    const mobile=innerWidth<=700;
@@ -32,18 +32,19 @@ async function checkWorkspaceHeader(base,pathname){
      ?Math.abs(identity.left-bounds.left)<3&&Math.abs(menu.right-bounds.right)<3&&Math.abs(center(identity)-center(menu))<2
      :identity.right<branch.left&&Math.abs(center(identity)-center(branch))<2,
     searchAligned:!search||mobile
-     ?!search||search.top>=branch.bottom
-     :currency.right<search.left&&Math.abs(center(currency)-center(search))<2
+     ?!search||(menu.bottom<=search.top&&search.bottom<=branch.top)
+     :currency.right<search.left&&Math.abs(center(currency)-center(search))<2,
+    phoneActionsLast:!mobile||(Math.max(branch.bottom,currency.bottom)<=drive.top&&drive.right<notification.left&&notification.right<primary.left)
    };
   });
-  assert.deepEqual(facts,{controlsInside:true,primaryAligned:true,scopeAligned:true,identityAligned:true,searchAligned:true},pathname+' at '+width+' pixels');
+  assert.deepEqual(facts,{controlsInside:true,primaryAligned:true,scopeAligned:true,identityAligned:true,searchAligned:true,phoneActionsLast:true},pathname+' at '+width+' pixels');
   result.headerLayouts.push({pathname,width,...facts});
  }
 }
 async function main(){
  await mongoose.connect(process.env.MONGO_PLATFORM_URI,{...req('./src/config/mongoOptions').options(process.env),autoIndex:false,autoCreate:false,monitorCommands:true});
  await Promise.all([Tenant.createIndexes(),Identity.createIndexes()]);
- const modules=['money_transfer','mobile_money','banking','forex'],terms=commerce.planSnapshot({...commerce.asPlanVersion({...req('./src/data/store').plans.find(plan=>plan.code==='enterprise'),code:'modal_browser',modules}),status:'published'}),ownerId=new mongoose.Types.ObjectId();
+ const modules=['money_transfer','mobile_money','banking','forex','notifications'],terms=commerce.planSnapshot({...commerce.asPlanVersion({...req('./src/data/store').plans.find(plan=>plan.code==='enterprise'),code:'modal_browser',modules}),status:'published'}),ownerId=new mongoose.Types.ObjectId();
  const tenant=await Tenant.create({name:'Operation Modal Review',slug,dbName:mongo.tenantDbNameFromSlug(slug),owner:'Owner',email:'owner-'+nonce+'@example.invalid',plan:'modal_browser',status:'active',setupStatus:'complete',enabledModules:modules,seatsReserved:1,branchCount:2,subscription:{...terms,status:'granted',source:'manual_admin_grant',generation:1,periodStart:new Date(Date.now()-10000),periodEnd:new Date(Date.now()+86400000)}});
  conn=mongo.getTenantConnection(slug);await core.ensureTenantIndexes(conn);
  const branches=await core.branchModel(conn).create([{name:'Main Branch',code:'main',currency:'UGX',currencies:['UGX','USD','SSP','KES'],createdBy:ownerId,updatedBy:ownerId},{name:'Receiving Branch',code:'receive',currency:'UGX',currencies:['UGX','USD','SSP','KES'],createdBy:ownerId,updatedBy:ownerId}]);
@@ -101,15 +102,34 @@ async function main(){
  await context.unroute(unavailable);await page.waitForFunction(()=>window.ClassicFinOffline?.mode==='online',null,{timeout:25000});await dialog.locator('[data-close-transaction]').first().click();await page.locator('#newTransactionBtn').click();await page.waitForFunction(()=>!document.querySelector('#transactionOperationForm')?.hasAttribute('data-operation-loading'));assert.equal(await dialog.locator('[name=senderName]').inputValue(),'Retained after loading failure');assert.equal(await dialog.getByRole('button',{name:'Save transfer & continue'}).isEnabled(),true);result.loadingFailureRetryKeepsFields=true;
  await dialog.locator('[data-close-transaction]').first().click();await page.goto(base+'/tenant/money-transfer/send?currency=UGX');const prior=fragmentGets;await page.locator('#newTransactionBtn').click();await page.locator('#transactionDialog [name=senderName]').waitFor();assert.equal(fragmentGets,prior,'The current page already contains the exact entry form');
  await dialog.locator('[data-close-transaction]').first().click();
+ await core.mobileTransactionModel(conn).create({
+  idempotencyKey:crypto.randomUUID(),operation:'cash_in',
+  customer:'A customer with a long name for testing the full Recent activity entry',
+  network:'MTN',networkReference:'HEADER-'+nonce+'-LONGTRANSFERREFERENCEFORPHONEANDTABLET',
+  amountMinor:'1234567890123',feeMinor:'0',currency:'UGX',
+  operatorId:ownerId,branchId:branches[0]._id
+ });
  await checkWorkspaceHeader(base,'/tenant/dashboard?currency=USD');
  await checkWorkspaceHeader(base,'/tenant/money-transfer/send?currency=UGX');
+ await page.goto(base+'/tenant/dashboard?currency=USD');
  await page.setViewportSize({width:320,height:1000});
+ const recent=page.locator('#recentList .tx').first();
+ assert.match(await recent.getAttribute('href'),/\/acknowledgement$/);
+ assert(await recent.evaluate(row=>[...row.querySelectorAll('.txMeta b,.txMeta span,.txAmt')].every(el=>
+  getComputedStyle(el).whiteSpace==='normal'&&el.scrollWidth<=el.clientWidth+1
+ )), 'Recent activity must show complete text within a phone-width row');
+ result.recentActivityFits=true;
  const menu=page.locator('#menuBtn');
  await page.waitForFunction(()=>document.getElementById('sidePanel').inert);
  await menu.focus();await page.keyboard.press('Enter');assert.equal(await menu.getAttribute('aria-expanded'),'true');
  await page.keyboard.press('Escape');assert.equal(await menu.getAttribute('aria-expanded'),'false');
  assert.equal(await page.evaluate(()=>document.activeElement.id),'menuBtn');
  result.menuKeyboard=true;
+ for(const control of ['#search','#headerViewingBranch','#currencySelect','.headerDriveForm button','#phase2NotifyBtn','#lastReceiptBtn','#newTransactionBtn']){
+  await page.keyboard.press('Tab');
+  assert.equal(await page.locator(control).evaluate(element=>element===document.activeElement),true,control+' is next in phone header tab order');
+ }
+ result.phoneHeaderKeyboard=true;
  const denied=await context.request.get(base+'/tenant/operation-form/not-an-operation');assert.equal(denied.status(),404);
  await Tenant.updateOne({_id:tenant._id},{$pull:{enabledModules:'money_transfer'}});const revoked=await context.request.get(base+'/tenant/operation-form/transfer?currency=UGX');assert.equal(revoked.status(),403);
  result.samePageReuse=true;result.warmReuse=true;result.typedFieldsPreserved=true;result.submitWaitsForCurrentContext=true;result.moduleRevocationEnforced=true;result.toolbarCurrencySeed=true;result.expiredEditsRetained=true;result.explicitClearRefreshes=true;result.expiredPristineFormRefreshes=true;

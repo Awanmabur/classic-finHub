@@ -88,10 +88,15 @@
           <% recentActivity.forEach(row=>{ %>
             <a class="tx" data-search-row href="<%= row.href %>">
               <div class="txLeft">
-                <span class="txDot <%= /voided|rejected|disputed|failed/.test(row.status || '') ? 'bad' : /pending|requested|quoted|awaiting/.test(row.status || '') ? 'warn' : 'good' %>"></span>
+                <span class="txDot <%= /voided|rejected|disputed|failed/.test(row.status || '') ? 'bad' : /pending|requested|quoted|awaiting/.test(row.status || '') ? 'warn' : 'good' %>" aria-hidden="true"></span>
                 <div class="txMeta"><b><%= row.label %></b><span><%= row.subtitle %><% if(row.createdAt){ %> · <%= typeof formatLocalDate==='function'?formatLocalDate(row.createdAt):new Date(row.createdAt).toISOString().slice(0,16).replace('T',' ')+' UTC' %><% } %></span></div>
               </div>
-              <div class="txAmt"><%= row.amountLabel %><small><%= row.status || '' %></small></div>
+              <% if(row.amountLabel || row.status){ %>
+                <div class="txAmt">
+                  <% if(row.amountLabel){ %><span><%= row.amountLabel %></span><% } %>
+                  <% if(row.status){ %><small><%= row.status %></small><% } %>
+                </div>
+              <% } %>
             </a>
           <% }); %>
         </div>

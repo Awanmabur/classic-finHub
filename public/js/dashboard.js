@@ -63,6 +63,49 @@
   window.addEventListener?.('pageshow',keepActiveNavigationVisible);
   if(navigation&&typeof ResizeObserver!=='undefined')new ResizeObserver(()=>scheduleNavigation(keepActiveNavigationVisible)).observe(navigation);
 
+  // Keep native scrolling, and make wider tables discoverable and keyboard reachable.
+  if(document.body?.dataset?.workspace==='tenant'){
+    const scrollers=[...document.querySelectorAll('#workspaceContent :is(.tableWrap,.cardBody,.networkTariffScroll)>table')]
+      .map(table=>{
+        const container=table.parentElement;
+        return {
+          table,container,
+          addedTabStop:!container.hasAttribute('tabindex'),
+          addedRole:!container.hasAttribute('role'),
+          addedLabel:!(container.hasAttribute('aria-label')||container.hasAttribute('aria-labelledby')),
+          label:table.caption?.textContent.trim()||
+            container.closest('.card')?.querySelector('.cardHead :is(b,h2,h3)')?.textContent.trim()||'Scrollable table'
+        };
+      });
+    const refreshTables=()=>{
+      for(const {container,addedTabStop,addedRole,addedLabel,label} of scrollers){
+        const wide=container.clientWidth>0&&container.scrollWidth>container.clientWidth+1&&
+          ['auto','scroll'].includes(getComputedStyle(container).overflowX);
+        container.toggleAttribute('data-table-overflow',wide);
+        for(const [attribute,value,added] of [
+          ['tabindex','0',addedTabStop],['role','region',addedRole],['aria-label',label,addedLabel]
+        ]){
+          if(!added)continue;
+          if(wide)container.setAttribute(attribute,value);
+          else container.removeAttribute(attribute);
+        }
+      }
+    };
+    if(scrollers.length){
+      refreshTables();
+      if(typeof ResizeObserver==='function'){
+        const observer=new ResizeObserver(refreshTables);
+        for(const {table,container} of scrollers){
+          observer.observe(table);
+          observer.observe(container);
+        }
+      }else window.addEventListener('resize',refreshTables);
+      document.addEventListener('toggle',event=>{
+        if(event.target.tagName==='DETAILS')refreshTables();
+      },true);
+      document.fonts?.ready.then(refreshTables);
+    }
+  }
 
   // Role templates are presentation defaults, never client authorization.
   // The server validates every assignment against the actual subscription.

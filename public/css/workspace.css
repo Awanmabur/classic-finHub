@@ -342,6 +342,32 @@
 }
 .dashboardCurrencyTable td{font-variant-numeric:tabular-nums}
 .dashboardCurrencyTable td small{display:block;color:var(--muted);margin-top:2px;font-size:11px}
+#recentList{grid-template-columns:minmax(0,1fr)}
+#recentList .tx{min-width:0}
+#recentList .txLeft{align-items:baseline}
+#recentList .txMeta :is(b,span),#recentList .txAmt{
+ white-space:normal;
+ overflow-wrap:anywhere;
+}
+#recentList .txAmt{flex:0 1 auto;min-width:0;max-width:42%}
+@media(max-width:600px){
+ #recentList .tx{
+  display:grid;
+  grid-template-columns:minmax(0,1fr);
+  gap:5px;
+ }
+ #recentList .txAmt{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:3px 12px;
+  max-width:none;
+  margin-inline-start:20px;
+  text-align:start;
+ }
+ #recentList .txAmt small{margin:0}
+}
 @media(max-width:520px){
  .dashboardStatsGrid:not(:has(.dashboardCurrencyStat:only-child)){grid-template-columns:repeat(2,minmax(0,1fr))}
  #workspaceContent .dashboardCurrencyTable :is(th,td){padding:7px 8px}

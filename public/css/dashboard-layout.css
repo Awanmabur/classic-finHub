@@ -321,29 +321,43 @@ form[method="get"] .field>.control{min-width:0;width:100%}
   overflow-wrap:anywhere;
  }
 }
-/* Make every existing dashboard data table independently swipeable on phones.
-   This also covers legacy card bodies with an unwrapped direct-child table. */
+/* Keep horizontal scrolling on the table's own wrapper, including older views. */
 @media (max-width:760px) {
  #workspaceContent .tableWrap,
  #workspaceContent .cardBody:has(>table) {
   display:block;
   min-width:0;
   max-width:100%;
-  overflow-x:auto!important;
-  overflow-y:hidden;
+  overflow-x:auto;
   overscroll-behavior-x:contain;
-  -webkit-overflow-scrolling:touch;
-  touch-action:pan-x pan-y;
+  touch-action:auto;
  }
- #workspaceContent .tableWrap>table,
- #workspaceContent .cardBody>table {
+ body[data-workspace="tenant"] :where(#workspaceContent) :is(.tableWrap,.cardBody)>table {
+  min-width:100%;
+ }
+ body:not([data-workspace="tenant"]) #workspaceContent :is(.tableWrap,.cardBody)>table {
   width:max-content;
   min-width:100%;
   max-width:none;
  }
- #workspaceContent .tableWrap :is(th,td),
- #workspaceContent .cardBody>table :is(th,td) {
+ body:not([data-workspace="tenant"]) #workspaceContent :is(.tableWrap,.cardBody)>table :is(th,td) {
   white-space:nowrap;
+ }
+}
+#workspaceContent [data-table-overflow]:focus-visible{
+ outline:2px solid var(--primary);
+ outline-offset:-2px;
+}
+@media(max-width:760px) and (pointer:coarse){
+ #workspaceContent [data-table-overflow]::before{
+  content:"Swipe for more columns →";
+  display:block;
+  position:sticky;
+  inset-inline-start:0;
+  width:fit-content;
+  margin-bottom:6px;
+  color:var(--muted);
+  font-size:11px;
  }
 }
 
@@ -531,7 +545,7 @@ body[data-workspace="tenant"] .topbar .headerSearch{
  body[data-workspace="tenant"] .main{padding:12px}
  body[data-workspace="tenant"] .topbar{gap:10px;padding:0 0 12px}
  body[data-workspace="tenant"] .topbar>.topActions{
-  grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"identity menu" "actions actions" "controls controls";gap:8px;
+  grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"identity menu" "controls controls" "actions actions";gap:8px;
  }
  body[data-workspace="tenant"] .topbar>.topActions:where(:not(:has(>.tenantHeaderControlGroup))){
   grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"identity menu" "actions actions";
@@ -541,27 +555,27 @@ body[data-workspace="tenant"] .topbar .headerSearch{
   white-space:normal;overflow-wrap:anywhere;
  }
  body[data-workspace="tenant"] .topActions>.headerButtons{
-  width:100%;justify-content:flex-start;flex-wrap:nowrap;gap:5px;
+  width:100%;justify-content:flex-start;flex-wrap:nowrap;gap:5px;reading-flow:flex-visual;
  }
  .topActions .headerPrimaryActions{flex:1 1 0;gap:5px}
  body[data-workspace="tenant"] .topActions .headerButtons :is(.btnIcon,.headerLastReceipt){
   width:44px;min-width:44px;flex:0 0 44px;padding:0;
  }
  .topActions .headerLastReceipt span{display:none}
- .topActions .headerDriveForm{flex:0 0 44px}
+ body[data-workspace="tenant"] .topActions .headerDriveForm{flex:0 0 44px;order:-1}
  .topActions #newTransactionBtn{
   min-width:0;margin-inline-start:auto;padding-inline:8px;
   white-space:normal;text-align:center;line-height:1.2;
  }
  body[data-workspace="tenant"] .tenantHeaderControlGroup{
-  display:grid;grid-template-columns:minmax(0,1fr);
+  display:grid;grid-template-columns:minmax(0,1fr);reading-flow:grid-rows;
  }
  .tenantHeaderControlGroup:has(>.headerBranchView):has(>.headerScope){
   grid-template-columns:minmax(0,1fr) minmax(116px,.72fr);
  }
  .tenantHeaderControlGroup>.headerBranchView{max-width:none}
  body[data-workspace="tenant"] .topbar .headerSearch{
-  grid-column:1/-1;max-width:none;margin:0;padding-inline:10px;
+  grid-row:1;grid-column:1/-1;max-width:none;margin:0;padding-inline:10px;
  }
  .tenantHeaderControlGroup .headerSearch input{font-size:16px}
  .tenantHeaderControlGroup .ctrl select{padding-inline:7px}

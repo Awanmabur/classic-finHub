@@ -40,7 +40,7 @@ test('new notification templates automatically generate safe codes, existing tem
  assert.match(first.code,/^n_system_status_[a-f0-9]{10}$/);
  assert.equal(service.templateInput({...data,code:'daily_status'}).code,'daily_status');
 });
-test('tenant header keeps scope and search beside identity on desktop and places the mobile menu after the name',()=>{
+test('tenant header keeps scope and search beside identity on desktop and puts mobile actions below the filters',()=>{
  const markup=src('src/views/layouts/dashboard.ejs');
  const identity=markup.indexOf('class="headerIdentity"');
  const menu=markup.indexOf('id="menuBtn"',identity);
@@ -51,7 +51,9 @@ test('tenant header keeps scope and search beside identity on desktop and places
  assert(identity>=0&&menu>identity&&branch>menu&&currency>branch&&search>currency&&actions>search);
  const css=src('public/css/dashboard-layout.css');
  assert.match(css,/grid-template-areas:"identity controls actions menu"/);
- assert.match(css,/grid-template-areas:"identity menu" "actions actions" "controls controls"/);
+ assert.match(css,/grid-template-areas:"identity menu" "controls controls" "actions actions"/);
+ assert.match(css,/\.topbar \.headerSearch\{\s*grid-row:1;grid-column:1\/-1/);
+ assert.match(css,/\.headerDriveForm\{flex:0 0 44px;order:-1/);
  assert.match(css,/\.topActions>\.headerMenu\{grid-area:menu;justify-self:end/);
 });
 test('directory numbers are generated on creation and only unused account numbers can be edited',async()=>{

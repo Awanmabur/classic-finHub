@@ -247,30 +247,26 @@ const {cashDayUrl,cashDayError}=require('./cashControl.routes');
 const financialThrottle=require('../../platform/services/actionThrottle.service').financial;
 // Keep one operating cash control page across Mobile Money and other modules.
 router.get('/mobile-money/shifts',requireModule('mobile_money'),requirePermission('mobile_money.view'),(req,res)=>{
-  if(req.user.role==='Tenant Owner')return res.redirect(303,cashDayUrl(req.user,req.query.currency));
-  const params=new URLSearchParams();
-  if(typeof req.query.cursor==='string'&&req.query.cursor.length<=200)params.set('cursor',req.query.cursor);
-  if(typeof req.query.currency==='string'&&/^[A-Z]{3}$/i.test(req.query.currency))params.set('currency',req.query.currency);
-  res.redirect(303,'/tenant/cash/shifts'+(params.size?'?'+params:''));
+  res.redirect(303,cashDayUrl(req.query.currency,req.query.cursor));
 });
 router.post('/mobile-money/shifts/open',requireModule('mobile_money'),requirePermission('mobile_money.view'),financialThrottle,async(req,res,next)=>{
   try{const shift=await cash.open(req.tenantDb,req.tenant,req.user,req.body,{ownerDirect:true});
-    flash(req,'good',shift.status==='open'?'Day open. Your cash drawer is ready for transactions.':'Opening count sent for review.');require('../services/branchView.service').followRecord(req,shift);res.redirect(303,cashDayUrl(req.user,shift.currency));
+    flash(req,'good',shift.status==='open'?'Day open. Your cash drawer is ready for transactions.':'Opening count sent for review.');require('../services/branchView.service').followRecord(req,shift);res.redirect(303,cashDayUrl(shift.currency));
   }catch(e){cashDayError(req,res,next,e);}
 });
 router.post('/mobile-money/shifts/:id/verify-opening',requireModule('mobile_money'),requirePermission('mobile_money.view'),financialThrottle,async(req,res,next)=>{
   try{const shift=await cash.decideOpening(req.tenantDb,req.tenant,req.user,req.params.id,req.body,{ownerDirect:true});
-    flash(req,'good','Opening count decision saved.');require('../services/branchView.service').followRecord(req,shift);res.redirect(303,cashDayUrl(req.user,shift.currency));
+    flash(req,'good','Opening count decision saved.');require('../services/branchView.service').followRecord(req,shift);res.redirect(303,cashDayUrl(shift.currency));
   }catch(e){cashDayError(req,res,next,e);}
 });
 router.post('/mobile-money/shifts/:id/submit',requireModule('mobile_money'),requirePermission('mobile_money.view'),financialThrottle,async(req,res,next)=>{
   try{const shift=await cash.submit(req.tenantDb,req.tenant,req.user,req.params.id,req.body,{ownerDirect:true});
-    flash(req,'good',shift.status==='approved'?'Day closed. Cash count reconciled.':'Closing count sent for review.');require('../services/branchView.service').followRecord(req,shift);res.redirect(303,cashDayUrl(req.user,shift.currency));
+    flash(req,'good',shift.status==='approved'?'Day closed. Cash count reconciled.':'Closing count sent for review.');require('../services/branchView.service').followRecord(req,shift);res.redirect(303,cashDayUrl(shift.currency));
   }catch(e){cashDayError(req,res,next,e);}
 });
 router.post('/mobile-money/shifts/:id/decide',requireModule('mobile_money'),requirePermission('mobile_money.view'),financialThrottle,async(req,res,next)=>{
   try{const shift=await cash.decide(req.tenantDb,req.tenant,req.user,req.params.id,req.body,{ownerDirect:true});
-    flash(req,'good',shift.status==='approved'?'Day closed. Cash count reconciled.':'Cash count returned.');require('../services/branchView.service').followRecord(req,shift);res.redirect(303,cashDayUrl(req.user,shift.currency));
+    flash(req,'good',shift.status==='approved'?'Day closed. Cash count reconciled.':'Cash count returned.');require('../services/branchView.service').followRecord(req,shift);res.redirect(303,cashDayUrl(shift.currency));
   }catch(e){cashDayError(req,res,next,e);}
 });
 router.get('/mobile-money/shifts/:id',requireModule('mobile_money'),requirePermission('mobile_money.view'),(req,res)=>{
@@ -338,26 +334,6 @@ router.get('/audit',requirePermission('audit.view'),async(req,res,next)=>{
 router.use('/analytics',requireModule('analytics'),require('./analytics.routes')({renderTenant}));
 router.use('/approvals',requireModule('approval_workflows'),require('./approvals.routes')({renderTenant}));
 router.use('/notifications',requireModule('notifications'),require('./notification.routes')({renderTenant}));
-router.get('/reports', requireModule('reports'), requirePermission('reports.view'), async(req,res,next)=>{
-  try{
-    const timeZone=await reportTimeZone.forRequest(req);
-    const report=await require('../services/operationsReports.service').generate(req.tenantDb,req.tenant,req.user,req.query,timeZone);
-    renderTenant(req,res,'reports/index','Operations Reports','Standalone, access-controlled reporting across subscribed modules.',{
-      report,canExport:hasPermission(req.user,'reports.export')
-    });
-  }catch(e){next(e);}
-});
-router.get('/reports/export.csv', requireModule('reports'), requirePermission('reports.export'), async(req,res,next)=>{
-  try{
-    const reporting=require('../services/operationsReports.service');
-    const timeZone=await reportTimeZone.forRequest(req);
-    const report=await reporting.generate(req.tenantDb,req.tenant,req.user,req.query,timeZone);
-    res.setHeader('Content-Type','text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition','attachment; filename="classicfin-operations-report.csv"');
-    res.setHeader('Cache-Control','private, no-store');
-    res.send(reporting.csv(report));
-  }catch(e){next(e);}
-});
 router.get('/users', requirePermission('users.manage_branch'), async (req,res,next)=>{
   try {
     const { tenantUserModel,staffInviteModel }=require('../models');

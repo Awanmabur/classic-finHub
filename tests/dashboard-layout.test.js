@@ -77,14 +77,13 @@ test('changing header currency preserves report filters and resets pagination',a
 test('main tenant dashboard keeps cash and electronic float separate from transaction volume',async()=>{
  const html=await render({context:'tenant',currentPath:'/tenant/dashboard',view:'../tenant/dashboard/index',tenant:{slug:'agent-test',name:'Agent test'},menu:[],data:{
   hasMobileMoney:true,mobileFundsState:'resolved',
-  workspaceSnapshot:{todayVolumes:{mobile_money:{formatted:'UGX 900,000'}}},
-  mobileFunds:{paymentAccounts:[{kind:'cash',name:'Actual drawer',currency:'UGX',expected:'UGX 70,000',reconciliation:'matched'}],
-   wallets:[{kind:'wallet',name:'MTN Uganda network',network:'MTN',currency:'UGX',expected:'UGX 160,000',reconciliation:'matched'}]}
+  workspaceSnapshot:{todayByCurrency:{mobile_money:[{currency:'UGX',formatted:'UGX 900,000',count:2}]}},
+  mobileBookTotals:{cash:[{currency:'UGX',formatted:'UGX 70,000'}],float:[{currency:'UGX',formatted:'UGX 160,000'}]}
  }});
- const top=html.match(/<section[^>]*aria-labelledby="dashboardFinancialDetails"[^>]*>[\s\S]*?<\/section>/)?.[0];
+ const top=html.match(/<section[^>]*aria-labelledby="dashboardStats"[^>]*>[\s\S]*?<\/section>/)?.[0];
  assert(top);
  assert(html.indexOf(top)<html.indexOf('Today by currency'));
- for(const label of ['UGX 70,000','UGX 160,000','Actual drawer','MTN Uganda network','Physical cash','Electronic float'])assert.ok(top.includes(label),label);
+ for(const label of ['UGX 70,000','UGX 160,000','Physical cash','Electronic float'])assert.ok(top.includes(label),label);
  assert.match(top,/data-dashboard-fund-stat="cash"/);
  assert.match(top,/data-dashboard-fund-stat="float"/);
  assert.doesNotMatch(html,/mobileDashboardBalances/,'no duplicate balances panel');
@@ -92,7 +91,7 @@ test('main tenant dashboard keeps cash and electronic float separate from transa
 });
 test('unconfigured dashboard cash and float sections are omitted',async()=>{
  const html=await render({context:'tenant',currentPath:'/tenant/dashboard',view:'../tenant/dashboard/index',tenant:{slug:'agent-test',name:'Agent test'},menu:[],data:{
-  hasMobileMoney:true,visibleDashboardModules:[],dashboardCashAvailable:false,mobileFundsState:'branch_required',workspaceSnapshot:{},
+  hasMobileMoney:true,visibleDashboardModules:[],mobileFundsState:'branch_required',workspaceSnapshot:{},
   mobileFunds:null
  }});
  assert.doesNotMatch(html,/No operating branch is selected|data-dashboard-fund-stat|Financial details|Today by currency/);

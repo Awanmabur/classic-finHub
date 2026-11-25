@@ -16,10 +16,7 @@
   <section class="card" id="accounts">
    <div class="cardHead">
     <b>Business accounts</b>
-    <div class="rowBtns">
-     <% if(data.canManage&&money.branches.length&&!money.canOpenCreation){ %><a class="btn btnPrimary" href="/tenant/treasury?create=1#account-setup">Create account</a><% } %>
-     <% if(money.cashDay){ %><a class="btn" href="#cash-day">Cash Day</a><% } %>
-    </div>
+    <% if(data.canManage&&money.branches.length&&!money.canOpenCreation){ %><a class="btn btnPrimary" href="/tenant/treasury?create=1#account-setup">Create account</a><% } %>
    </div>
    <div class="cardBody treasuryAccounts">
     <% if(!data.snapshot.accounts.length){ %><p>Create an account and add its actual starting money.</p><% } %>
@@ -53,7 +50,6 @@
 
   <% if(money.selected&&!money.selected.integrityBlocked){ %><%- include('_owner-account') %><% } %>
   <%- include('_owner-setup') %>
-  <% if(money.cashDay){ %><%- include('../mobile-money/_cash-day',{data:money.cashDay,ownerMoneyPage:true}) %><% } %>
   <% if(money.pendingDeposits?.length){ %><%- include('../customer-accounts/_deposit-review',{
     pendingDeposits:money.pendingDeposits,formatMinor:data.format,
     returnTo:money.selected?money.accountTarget(money.selected._id):'/tenant/treasury#pending-deposits'

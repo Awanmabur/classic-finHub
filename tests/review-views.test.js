@@ -45,12 +45,16 @@ test('auditor sees read-only activity without fake submission buttons',async()=>
   assert.doesNotMatch(html,/Independent internal review/);
 });
 test('report separates provider status and review and audit pages render tenant data safely',async()=>{
-  const report={rows:[{module:'Mobile Money',activity:'MTN · cash_in',status:'pending_verification / awaiting_review',currency:'UGX',count:1,volume:'UGX 1,500',fees:'UGX 25'}],
+  const report={rows:[{module:'Mobile Money',activity:'MTN · cash_in',status:'pending_verification / awaiting_review',currency:'UGX',count:1,volume:'UGX 1,500',fees:'UGX 25'},
+    {module:'Workspace',activity:'treasury.observation.approved',status:'recorded',currency:'—',count:1,volume:'—',fees:'—'}],
     filters:{from:'',to:'',source:'all'},sources:[{key:'workspace',label:'Workspace activity'},{key:'mobile_money',label:'Mobile Money'}],total:1,
     note:'No amounts are confirmed settled.'};
   const html=await page('Auditor','reports',{report,canExport:true});
-  assert.match(html,/Operations reports/);
+  assert.match(html,/General reports/);
   assert.match(html,/Mobile Money/);
+  assert.match(html,/MTN · cash in/);
+  assert.match(html,/Account balance check confirmed/);
+  assert.doesNotMatch(html,/treasury\.observation\.approved/);
   assert.match(html,/pending verification/);
   const audit=await page('Auditor','audit',{logs:[{createdAt:new Date(),actorId:record.operatorId,action:'mobile_money.review.accepted',targetId:record._id}]});
   assert.match(audit,/mobile_money\.review\.accepted/);

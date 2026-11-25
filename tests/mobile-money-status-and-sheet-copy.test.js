@@ -40,7 +40,7 @@ test('one provider rate sheet exposes only amount-band copy, not cloned commissi
  assert.doesNotThrow(()=>new Function(js));
 });
 test('cash shifts label counted existing cash and do not require separate approvals for completed transaction records',()=>{
- const shifts=src('src/views/tenant/mobile-money/_cash-day.ejs');
+ const shifts=src('src/views/tenant/workflow/cash-day.ejs');
  const detail=src('src/views/tenant/mobile-money/shift-detail.ejs');
  const close=src('src/views/tenant/workflow/close-day.ejs');
  const closeForm=src('src/views/tenant/workflow/_close-count.ejs');

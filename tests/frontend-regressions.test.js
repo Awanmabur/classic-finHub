@@ -134,11 +134,11 @@ function overview(role, permissions, paths, data) {
   });
 }
 
-test('overview starts with expanded financial details followed by activity for every operating currency', async () => {
+test('overview contains compact stats, the currency table and recent activity', async () => {
   const recentActivity=Array.from({length:8},(_,index)=>({href:'/tenant/mobile-money/record-'+index,label:'Activity '+index}));
   const html = await overview('Tenant Owner', ['*'], ['/tenant/money-transfer', '/tenant/mobile-money', '/tenant/banking', '/tenant/forex', '/tenant/reports', '/tenant/treasury','/tenant/cash/shifts'], {
     hasTransfer:true,hasMobileMoney:true,hasBanking:true,hasForex:true,
-    visibleDashboardModules:['money_transfer','mobile_money','banking','forex'],dashboardCashAvailable:true,
+    visibleDashboardModules:['money_transfer','mobile_money','banking','forex'],
     financeOverview:{available:true,bookAssets:[{currency:'UGX',formatted:'UGX 81,000'}],postedNet:[{currency:'USD',formatted:'USD 12.00'}],
       byModule:[{moduleKey:'shared',totals:[{currency:'UGX',formatted:'UGX 81,000'}]}]},
     workspaceSnapshot:{
@@ -152,20 +152,19 @@ test('overview starts with expanded financial details followed by activity for e
   const table=html.match(/<table data-dashboard-currency-stats>[\s\S]*?<\/table>/)?.[0];
   assert(table);
   assert(html.indexOf(table)<html.indexOf('Recent activity'));
-  const top=html.match(/<section[^>]*aria-labelledby="dashboardFinancialDetails"[^>]*>[\s\S]*?<\/section>/)?.[0];
+  const top=html.match(/<section[^>]*aria-labelledby="dashboardStats"[^>]*>[\s\S]*?<\/section>/)?.[0];
   assert(top);
-  assert.match(html,/id="view-overview">\s*<section[^>]*aria-labelledby="dashboardFinancialDetails"/);
+  assert.match(html,/id="view-overview">\s*<section[^>]*aria-labelledby="dashboardStats"/);
   assert.match(html.slice(html.indexOf(top)+top.length),/^\s*<section[^>]*aria-labelledby="todayCurrencyStats"/);
-  for(const label of ['Posted transactions today','Operating assets','Posted net income','Shared treasury'])assert(top.includes(label),label);
-  for(const label of ['Money transfer','Mobile money','Banking','Forex'])assert(table.includes(label),label);
+  assert.match(top,/Posted transactions today/);
+  for(const label of ['Money transfer','Mobile money','Banking','Forex','Operating assets','Posted net income'])assert(table.includes(label),label);
   for(const [currency,amount] of [['UGX','UGX 41,000'],['USD','USD 75.00'],['SSP','SSP 230,000.00'],['KSH','KSH 32.00']]){
     const row=table.match(new RegExp(`<th scope="row">${currency}</th>[\\s\\S]*?</tr>`))?.[0];
     assert(row?.includes(amount),`${currency} shows its own amount`);
   }
-  assert.match(top,/UGX 81,000/);assert.match(top,/USD 12\.00/);
-  assert.doesNotMatch(table,/Operating assets|Posted net income/);
-  assert.equal((html.match(/>Financial details</g)||[]).length,1);
-  assert.match(html,/href="\/tenant\/treasury\?currency=UGX#cash-day">Close day/);
+  assert.match(table,/UGX 81,000/);assert.match(table,/USD 12\.00/);
+  assert.doesNotMatch(top,/Operating assets|Posted net income/);
+  assert.doesNotMatch(html,/Financial details|Shared treasury|#cash-day|>Close day</);
   assert.equal((html.match(/href="\/tenant\/mobile-money\/record-\d+"/g)||[]).length,6);
   assert.doesNotMatch(html,/Load demo|id="branchSelect"/);
 });
@@ -180,7 +179,7 @@ test('read-only overview never offers write actions or links to unassigned modul
 
 test('overview excludes unconfigured module columns and an unavailable cash drawer', async () => {
   const html = await overview('Tenant Owner', ['*'], ['/tenant/dashboard','/tenant/treasury','/tenant/cash/shifts'], {
-    hasMobileMoney:true,hasTransfer:true,visibleDashboardModules:['money_transfer'],dashboardCashAvailable:false,
+    hasMobileMoney:true,hasTransfer:true,visibleDashboardModules:['money_transfer'],
     workspaceSnapshot:{todayTransactionCount:1,todayByCurrency:{money_transfer:[{currency:'UGX',formatted:'UGX 5,000',count:1}]}}
   });
   const table=html.match(/<table data-dashboard-currency-stats>[\s\S]*?<\/table>/)?.[0];

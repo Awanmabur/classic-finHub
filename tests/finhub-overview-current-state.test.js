@@ -31,7 +31,7 @@ test('non-owner cannot pick another branch to read capital or earnings',()=>{
  assert.deepEqual(finance.branchScope({role:'Tenant Owner'},{viewBranchId:'all'}),{});
 });
 
-test('dashboard shows posted earnings above activity and omits unmeasured Forex profit',()=>{
+test('dashboard shows posted earnings in the currency table and omits unmeasured Forex profit',()=>{
  const file=path.join(__dirname,'../src/views/tenant/dashboard/index.ejs');
  const view=fs.readFileSync(file,'utf8');
  const html=ejs.render(view,{
@@ -50,7 +50,7 @@ test('dashboard shows posted earnings above activity and omits unmeasured Forex 
  assert.match(html,/SSP 7,000/);
  assert.match(html,/Operating assets/);
  assert.doesNotMatch(html,/Forex trading profit|Not yet measurable/);
- assert.match(html,/aria-labelledby="dashboardFinancialDetails"[\s\S]*class="dashboardFinancialGroups"/);
+ assert.match(html,/data-dashboard-currency-stats[\s\S]*Posted net income[\s\S]*SSP 7,000/);
 });
 test('platform tenant form reflects persisted active state and effective module entitlements',()=>{
  const file=path.join(__dirname,'../src/views/platform/tenants/show.ejs');

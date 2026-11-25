@@ -7,7 +7,8 @@ const {flash}=require('../../utils/view');
 const treasury=require('./service');
 const funding=require('./funding.service');
 const branchView=require('../services/branchView.service');
-const {tenantUserModel}=require('../models');
+const {tenantUserModel,cashSessionModel}=require('../models');
+const {activeFilter}=require('../services/cashDrawer.service');
 const branchService=require('../services/branch.service');
 const setup=require('../setup/routes').validation;
 const currencyCodes=require('../../config/currencies').currencyCodes;
@@ -72,13 +73,17 @@ module.exports=function treasuryRoutes({renderTenant}){
   const archived=archivedAccounts.find(account=>String(account._id)===accountId);
   const selected=visible||archived||null;
   const viewDetails=selected&&!selected.integrityBlocked&&(!archived||action==='activity');
+  const operatingDrawer=viewDetails&&selected.kind==='cash'&&String(selected.operatorId)===String(req.user.id)&&
+   String(selected.branchId)===String(req.operationBranch?._id);
   const accountFilter=selected?{accountId:selected._id}:{};
   const deposits=require('../customerAccounts/deposit');
-  const [ownerStaff,cashDay,pendingDeposits,treasuryDeposit,expenseReconciliation,detail,walletDrawers,mobileRecords,pendingFunding]=await Promise.all([
+  const [ownerStaff,openDrawerShift,pendingDeposits,treasuryDeposit,expenseReconciliation,detail,walletDrawers,mobileRecords,pendingFunding]=await Promise.all([
    can(req,'treasury.manage')&&branches.length>0?tenantUserModel(req.tenantDb).find({
     status:'active',role:{$ne:'Tenant Owner'},branchId:{$in:branches.map(branch=>String(branch._id))}
    }).select('name role branchId').sort({name:1}).limit(300).lean():[],
-   require('../routes/cashControl.routes').cashDayData(req,{currency:selected?.kind==='cash'?selected.currency:undefined}),
+   operatingDrawer?cashSessionModel(req.tenantDb).exists({
+    ...activeFilter(selected.branchId,req.user.id,selected.currency),treasuryAccountId:selected._id,status:'open'
+   }):null,
    deposits.pendingForOwner(req.tenantDb,req.tenant,req.user,{branchId:viewBranchId,...accountFilter}),
    viewDetails&&action==='deposit'?deposits.treasuryForm(req.tenantDb,req.tenant,req.user,selected):null,
    require('../services/expenses.service').ownerReconciliation(req.tenantDb,req.tenant,req.user,{
@@ -98,7 +103,8 @@ module.exports=function treasuryRoutes({renderTenant}){
   return {
    action,selected,caseMissing:Boolean(accountId&&!selected),archivedAccounts,branches,
    branchNames,setupBranch:setupBranch||branches[0],ownerStaff,detail,walletDrawers,
-   cashDay,pendingDeposits,treasuryDeposit,expenseReconciliation,canDeposit,mobileCorrections:mobileRecords,pendingFunding,
+   cashDayOpen:Boolean(openDrawerShift),pendingDeposits,treasuryDeposit,expenseReconciliation,canDeposit,
+   mobileCorrections:mobileRecords,pendingFunding,
    canCorrectMobile:hasSource(req,'mobile_money')&&can(req,'mobile_money.review'),
    reconcileObservation:detail?.ownerReconciliationObservation,
    canReviewBalance:row=>treasury.canReviewBalance(row,selected,req.user),
@@ -137,7 +143,7 @@ module.exports=function treasuryRoutes({renderTenant}){
    snapshot,viewBranchId:branchId,setupBranch,branchNames:Object.fromEntries((res.locals.viewBranches||[]).map(branch=>[String(branch._id),branch.name])),mode
   }):null;
   renderTenant(req,res,'treasury/index',ownerMoney?'Money accounts':'Business funds',
-   ownerMoney?'Balances, Cash Day and reconciliation.':'Wallets, drawers and bank balances.',{
+   ownerMoney?'Balances and reconciliation.':'Wallets, drawers and bank balances.',{
    snapshot,queue,operators,setupBranch,mode,allBranches:req.viewBranchId==='all',ownerMoney,
    branchNames:Object.fromEntries((res.locals.viewBranches||[]).map(branch=>[String(branch._id),branch.name])),
    canCreateAccount:can(req,'treasury.manage')&&Boolean(setupBranch),

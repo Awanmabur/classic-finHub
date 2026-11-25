@@ -1,7 +1,14 @@
 /* Analytics follows the tenant theme and keeps chart scales local to each panel. */
 #workspaceContent .analyticsPage {
-  --chart-current: var(--primary);
-  --chart-previous: color-mix(in srgb, var(--muted) 67%, var(--card));
+  --chart-current: color-mix(in srgb, var(--primary) 83%, var(--text));
+  --chart-previous: #6e829a;
+  --chart-slice-0: var(--chart-current);
+  --chart-slice-1: #168477;
+  --chart-slice-2: #ae6a29;
+  --chart-slice-3: #795abd;
+  --chart-slice-4: #3579b8;
+  --chart-slice-5: #c45266;
+  --chart-slice-6: var(--chart-previous);
   --chart-space: clamp(12px, 2vw, 22px);
   display: grid;
   gap: clamp(12px, 1.55vw, 18px);
@@ -10,26 +17,20 @@
 
 .analyticsPage > .card, .analyticsBreakdownGrid > .card { min-width: 0; }
 .analyticsFilters {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
   padding: var(--chart-space);
 }
-.analyticsFilterForm {
+#workspaceContent .analyticsFilterForm {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.45fr) auto;
+  grid-template-columns: minmax(0, 180px) minmax(0, 250px) auto 1fr;
   align-items: end;
   gap: 10px;
-  flex: 1 1 420px;
   min-width: 0;
 }
-.analyticsFilterForm:has(.field:only-of-type) { grid-template-columns: minmax(0, 240px) auto; }
+#workspaceContent .analyticsFilterForm:has(.field:only-of-type) { grid-template-columns: minmax(0, 240px) auto 1fr; }
 .analyticsFilterForm .field { min-width: 0; margin: 0; font-weight: 650; }
 .analyticsFilterForm .control { width: 100%; min-width: 0; }
 .analyticsFilterForm .btn { max-width: 100%; }
-.analyticsFilters > .btn { flex: 0 0 auto; }
+.analyticsFilterForm .analyticsExport { justify-self: end; }
 
 .analyticsTrendCard, .analyticsSourceCard, .analyticsBreakdownCard, .analyticsEmpty {
   padding: var(--chart-space);
@@ -52,7 +53,15 @@
 }
 .analyticsLegend { display: flex; gap: 6px 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
 .analyticsLegend span { display: inline-flex; gap: 6px; align-items: center; }
-.analyticsLegend i { width: 9px; height: 9px; border-radius: 2px; }
+.analyticsLegend i { width: 9px; height: 9px; border-radius: 50%; }
+.analyticsLegend .analyticsCurrentLine, .analyticsLegend .analyticsPreviousLine {
+  width: 18px;
+  height: 0;
+  border-radius: 0;
+  border-top: 2px solid var(--chart-current);
+}
+.analyticsLegend .analyticsPreviousLine { border-top: 2px dashed var(--chart-previous); }
+.analyticsLegend .analyticsPrevious { border-radius: 2px; border: 1px solid var(--chart-previous); background: transparent; }
 .analyticsCurrent { background: var(--chart-current); }
 .analyticsPrevious { background: var(--chart-previous); }
 
@@ -82,56 +91,69 @@
   justify-content: space-between;
   min-width: 0;
 }
-.analyticsAxis { color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; text-align: right; }
+.analyticsAxis { padding-block: 7px; color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; text-align: right; }
 .analyticsAxis span { display: block; line-height: 1; }
 .analyticsAxis span:first-child { transform: translateY(-4px); }
 .analyticsAxis span:last-child { transform: translateY(4px); }
-.analyticsPlotBody { position: relative; height: clamp(125px, 21vw, 218px); }
-.analyticsGridLines { position: absolute; inset: 0; pointer-events: none; }
+.analyticsPlotBody { position: relative; height: clamp(148px, 25vw, 264px); }
+.analyticsGridLines { position: absolute; inset: 7px 0; pointer-events: none; }
 .analyticsGridLines span { border-top: 1px solid var(--border); }
-.analyticsDayBars { display: flex; position: absolute; inset: 0; }
-.analyticsDayBars button {
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
+.analyticsTrendLine { display: block; position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.analyticsDayPoints { display: flex; position: absolute; inset: 0; }
+#workspaceContent .analyticsDayPoints button {
   flex: 1 1 0;
-  gap: clamp(1px, .4vw, 4px);
   min-width: 0;
-  padding: 0 1px;
+  padding: 0;
   border: 0;
   color: inherit;
   background: transparent;
-  border-radius: 4px 4px 0 0;
+  border-radius: 4px;
   cursor: pointer;
 }
-.analyticsDayBars button:hover, .analyticsDayBars button[aria-pressed="true"] {
-  background: color-mix(in srgb, var(--chart-current) 10%, transparent);
+#workspaceContent .analyticsDayPoints button:hover, #workspaceContent .analyticsDayPoints button[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--chart-current) 6%, transparent);
 }
-.analyticsDayBars button:focus-visible { outline: 2px solid var(--chart-current); outline-offset: -2px; }
-.analyticsDayBars button span { display: block; width: min(36%, 25px); border-radius: 3px 3px 0 0; }
+.analyticsDayPoints button:focus-visible { outline: 2px solid var(--chart-current); outline-offset: -2px; }
 .analyticsDates {
   grid-column: 2;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  position: relative;
+  min-height: 15px;
   color: var(--muted);
   font-size: 11px;
 }
-.analyticsDates span:nth-child(2) { text-align: center; }
-.analyticsDates span:last-child { text-align: right; }
-.analyticsDayDetail {
+.analyticsDates span {
+  position: absolute;
+  left: clamp(20px, var(--date), calc(100% - 20px));
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.analyticsDaySelection {
   grid-column: 1/-1;
   display: flex;
   align-items: center;
-  gap: 5px 16px;
+  justify-content: space-between;
+  gap: 10px 16px;
   flex-wrap: wrap;
-  margin: 3px 0 0;
-  padding: 9px 10px;
-  border-radius: 9px;
+  margin-top: 7px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
   background: var(--card2);
+}
+.analyticsDayNav:not([hidden]) { order: 1; display: flex; gap: 6px; }
+.analyticsDayNav .btn { min-width: 44px; min-height: 44px; }
+.analyticsDayNav .btn[aria-disabled="true"] { opacity: .55; cursor: default; }
+.analyticsDayDetail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin: 0;
   color: var(--muted);
   font-size: 12px;
 }
+.analyticsDayDetail div { min-width: 0; }
 .analyticsDayDetail b { color: var(--text); }
+.analyticsDayDetail dd { margin: 2px 0 0; font-weight: 650; color: var(--text); font-variant-numeric: tabular-nums; }
 
 .analyticsSourceList, .analyticsBreakdownBars { display: grid; list-style: none; padding: 0; margin: 0; }
 .analyticsSourceList li {
@@ -150,9 +172,31 @@
 }
 .analyticsSourceLink i { margin-left: 3px; font-size: 10px; color: var(--chart-current); }
 .analyticsSourceLink:hover, .analyticsSourceLink:focus-visible { color: var(--chart-current); text-decoration: underline; }
-.analyticsSourceBars { display: grid; gap: 5px; }
-.analyticsSourceBars > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; }
-.analyticsSourceBars strong, .analyticsBreakdownBars strong { font-size: 12px; font-variant-numeric: tabular-nums; }
+.analyticsSourceComparison { display: grid; min-width: 0; gap: 5px; }
+.analyticsSourceRange {
+  position: relative;
+  height: 18px;
+  margin-inline: 6px;
+  background: linear-gradient(var(--border), var(--border)) center / 100% 2px no-repeat;
+}
+.analyticsSourceRange span { position: absolute; top: 50%; }
+.analyticsSourceDifference {
+  left: min(var(--current), var(--previous));
+  width: calc(max(var(--current), var(--previous)) - min(var(--current), var(--previous)));
+  height: 2px;
+  background: var(--chart-previous);
+  transform: translateY(-50%);
+}
+.analyticsSourceRange :is(.analyticsCurrentDot, .analyticsPreviousDot) {
+  width: 9px;
+  height: 9px;
+  transform: translate(-50%, -50%);
+}
+.analyticsSourceRange .analyticsCurrentDot { z-index: 1; left: var(--current); width: 7px; height: 7px; border-radius: 50%; background: var(--chart-current); }
+.analyticsSourceRange .analyticsPreviousDot { left: var(--previous); width: 11px; height: 11px; border: 1px solid var(--chart-previous); border-radius: 2px; background: var(--card); }
+.analyticsSourceCounts { display: flex; gap: 4px 12px; flex-wrap: wrap; }
+.analyticsSourceCounts span { color: var(--muted); font-weight: 500; }
+.analyticsSourceCounts strong, .analyticsBreakdownBars strong { font-size: 12px; font-variant-numeric: tabular-nums; }
 .analyticsTrack { display: block; height: 6px; border-radius: 4px; background: var(--border); overflow: hidden; }
 .analyticsTrack > span { display: block; height: 100%; border-radius: 4px; }
 .analyticsSourceChange { color: var(--muted); font-size: 12px; font-weight: 650; text-align: right; }
@@ -162,6 +206,40 @@
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 224px), 1fr));
   gap: clamp(12px, 1.55vw, 18px);
 }
+.analyticsMix { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.analyticsRing {
+  position: relative;
+  display: grid;
+  place-content: center;
+  flex: 0 0 112px;
+  min-width: 0;
+  aspect-ratio: 1;
+  padding: 16px;
+  text-align: center;
+}
+.analyticsRing::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(var(--segments));
+  mask: radial-gradient(farthest-side, transparent calc(70% - 1px), #000 70%);
+}
+.analyticsRing strong { font-size: 18px; line-height: 1.2; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.analyticsRing small { color: var(--muted); font-size: 10px; line-height: 1.2; }
+.analyticsMixKey { flex: 1 1 122px; min-width: 0; max-width: 230px; padding: 0; margin: 0; display: grid; gap: 5px; list-style: none; }
+.analyticsMixKey li {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 1px 7px;
+  padding: 5px 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.analyticsMixKey i { width: 8px; height: 8px; border-radius: 2px; background: var(--swatch); }
+.analyticsMixKey :is(strong,small) { text-align: right; font-variant-numeric: tabular-nums; }
+.analyticsMixKey small { grid-column: 3; color: var(--muted); font-size: 10px; }
 .analyticsBreakdownBars { gap: 11px; }
 .analyticsBreakdownBars li > div:first-child {
   display: flex;
@@ -185,11 +263,17 @@
 .analyticsRecordTable table { min-width: 440px; }
 .analyticsRecordTable p { font-size: 12px; color: var(--muted); }
 
-@media (max-width: 600px) {
-  .analyticsFilterForm { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+@media (max-width: 780px) {
+  #workspaceContent .analyticsFilterForm, #workspaceContent .analyticsFilterForm:has(.field:only-of-type) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .analyticsFilterForm .field:only-of-type { grid-column: 1/-1; }
   .analyticsFilterForm .btn { justify-self: start; }
+  .analyticsFilterForm .analyticsExport { justify-self: end; }
+}
+@media (max-width: 600px) {
   .analyticsMetrics > div { padding: 8px; }
   .analyticsSourceList li { grid-template-columns: minmax(0, 1fr) auto; gap: 7px 10px; }
-  .analyticsSourceBars { grid-column: 1/-1; grid-row: 2; }
+  .analyticsSourceComparison { grid-column: 1/-1; grid-row: 2; }
   .analyticsSourceChange { grid-column: 2; grid-row: 1; }
 }

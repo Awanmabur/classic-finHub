@@ -1,0 +1,83 @@
+<%
+ const finance=data.finance||{};
+ const expectedCash=data.expectedCash||[];
+ const assets=finance.bookAssets||[];
+ const assetModules=finance.byModule||[];
+ const earnings=finance.postedNet||[];
+ const earningsModules=finance.moduleEarnings||[];
+ const accounts=finance.accounts||[];
+ const filters=data.report.filters;
+ const modules={
+  shared:'Shared treasury',mobile_money:'Mobile Money',money_transfer:'Money Transfer',forex:'Forex',
+  banking:'Banking',expenses:'Expenses',loans:'Loans',airtime:'Airtime'
+ };
+ const kinds={cash:'Physical cash',wallet:'Electronic float',bank:'Bank balance',forex_stock:'Forex stock'};
+ const moduleLabel=key=>modules[key]||key.replaceAll('_',' ');
+ const displayCurrency=code=>data.currencyLabel?.(code)||code;
+ const displayMoney=value=>value?.replace(/^KES /,'KSH ')||'—';
+ const showFinancialDetails=assets.length||earnings.length||expectedCash.length||accounts.length||data.financeNotice;
+%>
+<% if(showFinancialDetails){ %>
+  <section class="card" aria-labelledby="generalFinanceTitle">
+    <div class="cardHead"><b id="generalFinanceTitle">Financial details</b></div>
+    <div class="cardBody workspaceStack">
+      <% if(data.financeNotice){ %><p class="tiny" role="status"><%= data.financeNotice %></p><% } %>
+      <% if(assets.length||earnings.length||expectedCash.length){ %>
+        <div class="generalFinanceGrid">
+          <% if(assets.length){ %>
+            <section class="summary generalFinanceGroup" aria-label="Operating assets">
+              <h3>Operating assets</h3>
+              <p class="tiny">Current book balances</p>
+              <% assets.forEach(row=>{ %><div class="sumRow"><span>Total <%= displayCurrency(row.currency) %></span><b><%= displayMoney(row.formatted) %></b></div><% }); %>
+              <% assetModules.forEach(module=>module.totals.forEach(row=>{ %>
+                <div class="sumRow"><span><%= moduleLabel(module.moduleKey) %> · <%= displayCurrency(row.currency) %></span><b><%= displayMoney(row.formatted) %></b></div>
+              <% })); %>
+            </section>
+          <% } %>
+          <% if(earnings.length){ %>
+            <section class="summary generalFinanceGroup" aria-label="Posted net income">
+              <h3>Posted net income</h3>
+              <p class="tiny"><%= filters.from===filters.to?filters.from:filters.from+' – '+filters.to %></p>
+              <% earnings.forEach(row=>{ %><div class="sumRow"><span>Total <%= displayCurrency(row.currency) %></span><b><%= displayMoney(row.formatted) %></b></div><% }); %>
+              <% earningsModules.forEach(module=>module.net.forEach(row=>{ %>
+                <div class="sumRow"><span><%= moduleLabel(module.moduleKey) %> · <%= displayCurrency(row.currency) %></span><b><%= displayMoney(row.formatted) %></b></div>
+              <% })); %>
+            </section>
+          <% } %>
+          <% if(expectedCash.length){ %>
+            <section class="summary generalFinanceGroup" aria-label="Expected cash in open drawers">
+              <h3>Expected cash in open drawers</h3>
+              <p class="tiny">Current expected cash</p>
+              <% expectedCash.forEach(row=>{ %>
+                <div class="sumRow"><span><%= displayCurrency(row.currency) %> · <%= row.shiftCount %> <%= row.shiftCount===1?'drawer':'drawers' %></span><b><%= displayMoney(row.expectedFormatted) %></b></div>
+              <% }); %>
+            </section>
+          <% } %>
+        </div>
+      <% } %>
+      <% if(accounts.length){ %>
+        <section aria-labelledby="generalFinanceAccounts">
+          <h3 id="generalFinanceAccounts">Account balances</h3>
+          <div class="tableWrap generalFinanceAccounts" role="region" aria-label="Current account book balances" tabindex="0">
+            <table>
+              <thead><tr><th scope="col">Account</th><th scope="col">Module</th><th scope="col">Book balance</th></tr></thead>
+              <tbody>
+                <% accounts.forEach(account=>{ %>
+                  <tr data-search-row>
+                    <th scope="row">
+                      <%= account.name %><br>
+                      <small class="tiny"><%= [kinds[account.kind],account.network,account.status==='held'?'Held':null,
+                        data.context?.allBranches&&(data.branchNames?.get(account.branchId)||'Inactive branch')].filter(Boolean).join(' · ') %></small>
+                    </th>
+                    <td><%= moduleLabel(account.moduleKey) %></td>
+                    <td><strong><%= displayMoney(account.formatted) %></strong></td>
+                  </tr>
+                <% }); %>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      <% } %>
+    </div>
+  </section>
+<% } %>

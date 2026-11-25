@@ -1,6 +1,6 @@
 <%
   const action = typeof formAction === 'string' ? formAction : '/tenant/day/close';
-  const ownerDirect = typeof ownerMoneyPage !== 'undefined' && ownerMoneyPage;
+  const ownerDirect = typeof directCount !== 'undefined' && directCount;
 %>
 <p>Expected cash <strong><%= expected %></strong></p>
 <form method="post" action="<%= action %>">

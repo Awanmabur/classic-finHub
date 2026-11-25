@@ -68,18 +68,25 @@ test('cash shift views have real server-backed actions and escape notes',async()
   reviewNote:'<script>alert(1)</script>',closeHistory:[{at:new Date(),declaredMinor:'9000',expectedMinor:'10000',varianceMinor:'-1000',note:'Cash short during shift'}]};
  const base=path.join(__dirname,'../src/views/tenant/mobile-money');
  const branch={_id:branchId,currency:'UGX',name:'Main',status:'active'};
- const rendered=await ejs.renderFile(path.join(base,'shifts.ejs'),{
-  formatMoneyMinor:mobile.formatMoneyMinor,operationBranch:branch,
-  user:{role:'Tenant Owner',branchId},csrfToken:'csrf',
+ const cashDay=path.join(base,'../workflow/cash-day.ejs');
+ const locals={
+  operationBranch:branch,csrfToken:'csrf',
   data:{shifts:{items:[item],nextCursor:'a-valid-token'},canOpen:true,canReview:true,reviewQueue:[],showHistory:true,
-   openingBook:{currency:'UGX',name:'Main Cash Drawer',bookBalanceMinor:'10000'},
+   openingBook:{currency:'UGX',name:'Main Cash Drawer',bookBalanceMinor:'10000',status:'active',reconciliationState:'matched'},
    branchNames:{[branchId]:branch.name},operatorNames:{[operatorId]:'Operator'},selectedCurrency:'UGX',
-   currencyOptions:require('../src/tenant/services/branchCurrency.service').options(branch)}
- });
+   currencyOptions:require('../src/tenant/services/branchCurrency.service').options(branch),
+   format:mobile.formatMoneyMinor,cashDayUrl:require('../src/tenant/routes/cashControl.routes').cashDayUrl}
+ };
+ const rendered=await ejs.renderFile(cashDay,{...locals,user:operator()});
  assert.match(rendered,/name="openingFromBook" value="on"/);
  assert.match(rendered,/name="physicalCountConfirmed" value="on"/);
  assert.doesNotMatch(rendered,/name="openingCash"/);
- assert.match(rendered,/action="\/tenant\/day\/open"/);assert.match(rendered,/href="\/tenant\/cash\/shifts\?cursor=/);assert.match(rendered,/Older shifts/);assert.match(rendered,/name="_csrf" value="csrf"/);
+ assert.match(rendered,/action="\/tenant\/day\/open"/);
+ assert.match(rendered,/href="\/tenant\/cash\/shifts\?currency=UGX&amp;cursor=a-valid-token"/);
+ assert.match(rendered,/Older shifts/);assert.match(rendered,/name="_csrf" value="csrf"/);
+ const ownerPage=await ejs.renderFile(cashDay,{...locals,user:{role:'Tenant Owner',branchId}});
+ assert.match(ownerPage,/>Open day<\/button>/);
+ assert.match(ownerPage,/name="openingCash"[\s\S]*Reconcile and open day/);
  const detail=await ejs.renderFile(path.join(base,'shift-detail.ejs'),{formatMoneyMinor:mobile.formatMoneyMinor,data:{shift:item,canSubmit:false,canReview:true},csrfToken:'csrf'});
  assert.match(detail,/name="decision" value="approve"/);assert.doesNotMatch(detail,/<script>/);assert.match(detail,/&lt;script&gt;/);
  const noActions=await ejs.renderFile(path.join(base,'shift-detail.ejs'),{formatMoneyMinor:mobile.formatMoneyMinor,data:{shift:item,canSubmit:false,canReview:false},csrfToken:'csrf'});

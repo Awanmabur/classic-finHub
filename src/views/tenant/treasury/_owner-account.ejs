@@ -10,9 +10,8 @@
  const pendingCashDay=pending?.evidenceType==='cash_count'&&/^(OPEN|CASH)-SHIFT:/.test(pending.evidenceReference);
  const correction=money.reconcileObservation;
  const openingAllowed=!open&&account.status==='uninitialized'&&!account.pendingOpeningId;
- const cashDayOpen=money.cashDay?.currentShift?.status==='open'&&String(money.cashDay.currentShift.treasuryAccountId)===String(account._id);
  const ownDrawer=String(account.operatorId)===String(user.id);
- const cashDayTarget='/tenant/treasury?currency='+account.currency+'#cash-day';
+ const cashDayTarget='/tenant/cash/shifts?currency='+account.currency;
  const view=action=>money.accountTarget(account._id,action);
  const returnTo=view();
 %>
@@ -26,7 +25,7 @@
    <div class="treasurySource">Recorded balance</div>
    <div class="treasuryAmount"><%= open?fmt(account.bookBalanceMinor):'Starting amount needed' %></div>
    <% if(ready){ %>
-    <div class="treasurySource"><%= account.kind!=='cash'||cashDayOpen?'Ready for transactions.':ownDrawer?'Balance ready. Open Cash Day to use this drawer.':'Balance ready for the assigned cashier.' %></div>
+    <div class="treasurySource"><%= account.kind!=='cash'||money.cashDayOpen?'Ready for transactions.':ownDrawer?'Balance ready. Open Cash Day to use this drawer.':'Balance ready for the assigned cashier.' %></div>
    <% }else if(archived){ %>
     <div class="treasurySource">Closed · history retained</div>
    <% }else if(account.reconciliationState==='mismatch'){ %>
@@ -46,7 +45,7 @@
     <% if(data.canObserve&&(openingAllowed||open&&money.canRecordCapital(account))){ %><a class="btn btnPrimary" href="<%= view('add') %>">Add money</a><% } %>
     <% if(data.canObserve&&open){ %><a class="btn" href="<%= view('check') %>">Check balance</a><% } %>
     <% if(correction){ %><a class="btn" href="<%= view('reconcile') %>">Reconcile</a><% } %>
-    <% if(account.kind==='cash'&&money.cashDay){ %><a class="btn" href="<%= cashDayTarget %>">Cash Day</a><% } %>
+    <% if(account.kind==='cash'&&visiblePaths.has('/tenant/cash/shifts')){ %><a class="btn" href="<%= cashDayTarget %>">Cash Day</a><% } %>
     <% if(money.canDeposit){ %><a class="btn" href="<%= view('deposit') %>">Customer deposit</a><% } %>
     <% if(data.canManage){ %><a class="btn" href="<%= view('edit') %>">Edit details</a><% } %>
     <a class="btn" href="<%= view('activity') %>">Activity</a>

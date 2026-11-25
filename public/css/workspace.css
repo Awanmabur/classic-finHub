@@ -312,85 +312,109 @@
  }
 }
 
-/* Dashboard financial details and currency activity. */
-.dashboardFinancialGroups{
+/* Dashboard statistics and currency table */
+.dashboardStatsGrid{
  display:grid;
- grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));
+ grid-template-columns:repeat(auto-fit,minmax(min(100%,152px),1fr));
  gap:var(--workspace-section-gap);
- align-items:start;
 }
-.dashboardFinancialGroups .sumRow{
- align-items:baseline;
+.dashboardStatsGrid .stat{min-width:0;padding:10px 12px}
+.dashboardStatsGrid .stat .v{
+ font-size:clamp(14px,2.2vw,21px);
+ font-variant-numeric:tabular-nums;
  overflow-wrap:anywhere;
-}
-.dashboardFinancialGroups .sumRow b{font-variant-numeric:tabular-nums}
-.dashboardFinancialTotal + .sumRow:not(.dashboardFinancialTotal){
- border-top:1px solid var(--border);
- padding-top:8px;
-}
-.dashboardCurrencyTable{min-width:0}
-#workspaceContent .dashboardCurrencyTable table{
- min-width:0;
- table-layout:fixed;
-}
-#workspaceContent .dashboardCurrencyTable th,
-#workspaceContent .dashboardCurrencyTable td{
- padding:10px 12px;
- vertical-align:top;
  white-space:normal;
- overflow-wrap:anywhere;
 }
-#workspaceContent .dashboardCurrencyTable th:first-child{width:15%}
-#workspaceContent .dashboardCurrencyTable th[scope="row"]{color:var(--text)}
-#workspaceContent .dashboardCurrencyTable tr:last-child th{border-bottom:0}
-.dashboardCurrencyTable td strong{font-variant-numeric:tabular-nums}
-.dashboardCurrencyTable td small{
- display:block;
- color:var(--muted);
- margin-top:3px;
- font-size:11px;
+#workspaceContent .dashboardCurrencyTable{min-width:0;overscroll-behavior-inline:contain}
+#workspaceContent .dashboardCurrencyTable table{min-width:0;width:100%}
+#workspaceContent .dashboardCurrencyTable :is(th,td){
+ padding:8px 10px;
+ vertical-align:top;
+ white-space:nowrap;
 }
-.dashboardCurrencyMetric{display:none}
-@media(max-width:650px){
- #workspaceContent .dashboardCurrencyTable table,
- #workspaceContent .dashboardCurrencyTable tbody{display:block;width:100%}
- #workspaceContent .dashboardCurrencyTable table{border:0;background:transparent;border-radius:0}
- #workspaceContent .dashboardCurrencyTable thead{
-  position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;
- }
- #workspaceContent .dashboardCurrencyTable tbody{
-  display:grid;
-  gap:8px;
- }
- #workspaceContent .dashboardCurrencyTable tr{
-  display:grid;
-  grid-template-columns:repeat(2,minmax(0,1fr));
-  border:1px solid var(--border);
-  border-radius:12px;
-  overflow:hidden;
- }
- #workspaceContent .dashboardCurrencyTable th[scope="row"]{
-  width:auto;
-  grid-column:1/-1;
-  position:static;
-  padding:6px 10px;
-  background:var(--card2);
-  border-bottom:1px solid var(--border);
- }
- #workspaceContent .dashboardCurrencyTable td{
-  min-width:0;
-  padding:7px 10px;
-  border:0;
-  line-height:1.3;
- }
- #workspaceContent .dashboardCurrencyTable tr:has(td:not(.dashboardCurrencyEmpty)) .dashboardCurrencyEmpty,
- #workspaceContent .dashboardCurrencyTable tr:not(:has(td:not(.dashboardCurrencyEmpty))) td.dashboardCurrencyEmpty:nth-child(n+3),
- #workspaceContent .dashboardCurrencyEmpty .dashboardCurrencyMetric{display:none}
- .dashboardCurrencyMetric{display:block;font-size:11px;color:var(--muted);margin-bottom:2px}
+#workspaceContent .dashboardCurrencyTable th:first-child{
+ position:sticky;
+ inset-inline-start:0;
+ z-index:1;
+ background:var(--card2);
+}
+.dashboardCurrencyTable td{font-variant-numeric:tabular-nums}
+.dashboardCurrencyTable td small{display:block;color:var(--muted);margin-top:2px;font-size:11px}
+@media(max-width:520px){
+ .dashboardStatsGrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #workspaceContent .dashboardCurrencyTable :is(th,td){padding:7px 8px}
 }
 
 #workspaceContent .ownerSummaryReport .cardHead{
   align-items:center;
+}
+
+#workspaceContent .generalReportFilters{
+ display:grid;
+ grid-template-columns:repeat(2,minmax(0,170px)) minmax(160px,1fr) auto;
+ align-items:end;
+ gap:10px;
+}
+.generalReportFilters .rowBtns{
+ flex-wrap:wrap;
+}
+.generalFinanceGrid{
+ display:grid;
+ grid-template-columns:repeat(auto-fit,minmax(min(100%,225px),1fr));
+ gap:10px;
+ align-items:start;
+}
+.generalFinanceGroup h3,.generalReportsPage h3{
+ margin:0 0 6px;
+ font-size:14px;
+}
+.generalFinanceGroup p{
+ margin:0 0 8px;
+}
+.generalFinanceGroup .sumRow{
+ gap:12px;
+}
+.generalFinanceGroup .sumRow span{
+ overflow-wrap:anywhere;
+}
+.generalFinanceGroup .sumRow b{
+ text-align:right;
+ white-space:nowrap;
+}
+.generalFinanceAccounts,.generalReportsTable{
+ overflow-x:auto;
+ overscroll-behavior-inline:contain;
+}
+#workspaceContent .generalFinanceAccounts table{
+ width:100%;
+ min-width:0;
+}
+#workspaceContent .generalFinanceAccounts th{
+ white-space:normal;
+ overflow-wrap:anywhere;
+}
+#workspaceContent .generalFinanceAccounts td:last-child{
+ text-align:right;
+}
+#workspaceContent .generalReportsTable table{
+ min-width:640px;
+}
+.generalReportNote{
+ margin-bottom:0;
+}
+@media(max-width:850px){
+ #workspaceContent .generalReportFilters{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+ }
+}
+@media(max-width:500px){
+ #workspaceContent .generalReportFilters>.rowBtns{
+  grid-column:1/-1;
+  justify-content:flex-start;
+ }
+ #workspaceContent .generalFinanceAccounts :is(th,td){
+  padding:8px;
+ }
 }
 #workspaceContent .ownerSummaryReport .cardBody.workspaceStack{
   gap:12px;

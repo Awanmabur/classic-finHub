@@ -13,15 +13,19 @@ test('overview reads bounded recent rows without building reports, summaries or 
  const tenant=entitledTenant({plan:'enterprise'}),actor={id:account,role:'Tenant Owner',permissions:['*'],branchId:branch,viewBranchId:branch};
  const calls=[],conn={models:Object.fromEntries(['SecureMobileTransaction','BankingRequestV1','ForexQuoteV1','TransferOrderV1'].map(name=>[name,{find:query([],calls)}]))};
  stubEmptyFunds(t);
- t.mock.method(snapshots,'snapshot',async()=>({todayVolumes:{money_transfer:{amountMinor:'123',formatted:'UGX 123'}},cash:[{currency:'UGX',expectedFormatted:'UGX 50'}],cashDay:{status:'open',currency:'UGX',branchName:'Main'}}));
- t.mock.method(require('../src/tenant/services/mobileMoneyFunds.service'),'context',async()=>({wallets:[{name:'MTN Uganda wallet',kind:'wallet',network:'MTN',currency:'UGX',expected:'UGX 200,000'}],paymentAccounts:[{name:'Agent drawer',kind:'cash',currency:'UGX',expected:'UGX 50,000'}],customerAccounts:[]}));
+ t.mock.method(snapshots,'snapshot',async()=>({todayTransactionCount:1,notificationUnread:0}));
+ t.mock.method(require('../src/tenant/services/mobileMoneyFunds.service'),'context',async(_conn,_tenant,_actor,_branch,options)=>{
+  assert.deepEqual(options,{booksOnly:true});
+  return {wallets:[{network:'MTN',currency:'UGX',expectedMinor:'200000'}],
+   paymentAccounts:[{currency:'UGX',expectedMinor:'50000'}]};
+ });
  for(const [name,method]of[['mobileMoney.service','getSummary'],['banking.service','list'],['forex.service','listQuotes'],['moneyTransfer.service','list'],['approvals.service','list'],['operationsReports.service','generate']])t.mock.method(require('../src/tenant/services/'+name),method,()=>assert.fail('Unrendered data must not block overview'));
  const data=await overview(conn,tenant,actor,{operationBranch:{_id:branch,currency:'UGX'}});
  assert.equal(calls.length,4);assert(calls.every(call=>call.limit===14&&call.fields&&call.order.createdAt===-1));
- assert.deepEqual(data.workspaceSnapshot.cashDay,{status:'open',currency:'UGX',branchName:'Main'});
+ assert.equal(data.workspaceSnapshot.todayTransactionCount,1);
  assert.equal(data.workspaceSnapshot.recentActivity.length,0);
- assert.equal(data.mobileFunds.wallets[0].expected,'UGX 200,000');
- assert.equal(data.mobileFunds.paymentAccounts[0].expected,'UGX 50,000');
+ assert.equal(data.mobileBookTotals.float[0].formatted,'UGX 200,000');
+ assert.equal(data.mobileBookTotals.cash[0].formatted,'UGX 50,000');
 });
 test('transfer recent activity preserves incoming paid transfer scope and minimizes party fields',async()=>{
  const calls=[],conn={models:{TransferOrderV1:{find:query([],calls)}}},tenant=entitledTenant({plan:'enterprise'}),actor={id:account,role:'Money Transfer Operator',permissions:['money_transfer.view'],allowedModules:['money_transfer'],branchId:branch};
@@ -56,17 +60,16 @@ test('owner cash and float cards follow selected viewing branch; all-branch view
  const operation={_id:branch,currency:'UGX'};
  const calls=[],conn={models:Object.fromEntries(['SecureMobileTransaction','BankingRequestV1','ForexQuoteV1','TransferOrderV1'].map(name=>[name,{find:query([],calls)}]))};
  stubEmptyFunds(t);
- t.mock.method(snapshots,'snapshot',async()=>({todayVolumes:{},cash:[]}));
+ t.mock.method(snapshots,'snapshot',async()=>({todayByCurrency:{}}));
  let resolved=null;
  t.mock.method(require('../src/tenant/services/mobileMoneyFunds.service'),'context',async(_conn,_tenant,_user,chosen)=>{resolved=chosen;return {wallets:[],paymentAccounts:[]};});
  const selected=await overview(conn,tenant,owner,{operationBranch:operation,viewBranchId:String(second._id),viewBranch:second});
  assert.equal(resolved,second);
- assert.equal(selected.mobileFundsState,'resolved');
+ assert.deepEqual(selected.mobileBookTotals,{cash:[],float:[]});
  resolved=null;
  const all=await overview(conn,tenant,owner,{operationBranch:operation,viewBranchId:'all',viewBranch:null});
  assert.equal(resolved,null,'all-branch view must not silently use the operating branch');
- assert.equal(all.mobileFundsState,'all_branches');
- assert.equal(all.mobileFunds,null);
+ assert.deepEqual(all.mobileBookTotals,{cash:[],float:[]});
 });
 
 test('dashboard statistics use the viewed branch setup while transaction choices use the operating branch',async t=>{
@@ -80,11 +83,10 @@ test('dashboard statistics use the viewed branch setup while transaction choices
   [row('wallet','mobile_money','UGX'),row('cash','shared','UGX',{operatorId:account})],configReads)}}));
  t.mock.method(require('../src/tenant/services/mobileMoneyFunds.service'),'context',async()=>({wallets:[],paymentAccounts:[]}));
  t.mock.method(require('../src/tenant/services/financeOverview.service'),'overview',async()=>({available:false}));
- t.mock.method(snapshots,'snapshot',async()=>({todayVolumes:{},cashDay:{currency:'UGX',status:null}}));
+ t.mock.method(snapshots,'snapshot',async()=>({todayByCurrency:{}}));
  const data=await overview(conn,tenant,owner,{operationBranch:{_id:branch,currency:'UGX'},viewBranchId:other,viewBranch:{_id:other,currency:'USD'}});
  assert.deepEqual(data.dashboardTransactionModules,['mobile_money']);
  assert.deepEqual(data.visibleDashboardModules,['forex']);
- assert.equal(data.dashboardCashAvailable,true);
  assert.equal(configReads.length,2);
 });
 

@@ -2,10 +2,11 @@
  const regionalTime=typeof formatLocalDate==='function'?formatLocalDate:(v=>new Date(v).toISOString()); %>
 <% const cashLabel=(value,currency)=>typeof formatMoneyMinor==='function'?formatMoneyMinor(value,currency):money(currency,amountFromMinor(value,currency)); %>
 <% const expectedNow=BigInt(String(data.shift.openingMinor))+BigInt(String(data.shift.provisionalMovementMinor));
- const shiftStatus=({pending_open:'Waiting for opening count verification',open:'Open · recording',submitted:'Closing count under review',approved:'Closed · reconciled',disputed:'Cash discrepancy under review',opening_rejected:'Opening count rejected'})[data.shift.status]||data.shift.status; %>
+ const shiftStatus=({pending_open:'Waiting for opening count verification',open:'Open · recording',submitted:'Closing count under review',approved:'Closed · reconciled',disputed:'Cash discrepancy under review',opening_rejected:'Opening count rejected'})[data.shift.status]||data.shift.status;
+ const directCount=data.ownerDirect; %>
 <section class="view show">
   <section class="card">
-    <div class="cardHead"><b>Cash shift · <%= data.shift.currency==='KES'?'KSH':data.shift.currency %> · <%= String(data.shift._id).slice(-8).toUpperCase() %></b><span class="tag"><%= shiftStatus %></span><a class="btn" href="/tenant/cash/shifts">Cash day</a></div>
+    <div class="cardHead"><b>Cash shift · <%= data.shift.currency==='KES'?'KSH':data.shift.currency %> · <%= String(data.shift._id).slice(-8).toUpperCase() %></b><span class="tag"><%= shiftStatus %></span><a class="btn" href="<%= data.cashDayHref %>">Cash day</a></div>
     <div class="cardBody">
       <p class="tiny">Recorded transactions already affect the internal cash book. This shift tracks physical cash only; network settlement and electronic float are separate.</p>
       <div class="grid3">
@@ -22,13 +23,13 @@
       </div><% } %>
       <% if(data.shift.openingReviewNote){ %><p class="tiny">Opening verification evidence: <%= data.shift.openingReviewNote %></p><% } %>
       <% if(data.canReviewOpening){ %>
-        <%- include('../workflow/_review-count', {shift:data.shift, isOpening:true, canApprove:true, returnToDay:false}) %>
+        <%- include('../workflow/_review-count', {shift:data.shift, isOpening:true, canApprove:true, returnToDay:false, directCount}) %>
       <% } %>
       <% if(data.canSubmit){ %>
-        <%- include('../workflow/_close-count', {shift:data.shift, expected:cashLabel(String(expectedNow),data.shift.currency), returnToDay:false, formAction:'/tenant/cash/shifts/'+data.shift._id+'/submit'}) %>
+        <%- include('../workflow/_close-count', {shift:data.shift, expected:cashLabel(String(expectedNow),data.shift.currency), returnToDay:false, directCount, formAction:'/tenant/cash/shifts/'+data.shift._id+'/submit'}) %>
       <% } %>
       <% if(data.canReview){ %>
-        <%- include('../workflow/_review-count', {shift:data.shift, isOpening:false, canApprove:data.canApprove !== false, returnToDay:false}) %>
+        <%- include('../workflow/_review-count', {shift:data.shift, isOpening:false, canApprove:data.canApprove !== false, returnToDay:false, directCount}) %>
       <% } %>
       <% if(data.shift.reviewNote){ %><p class="tiny">Last supervisor decision: <%= data.shift.reviewNote %></p><% } %>
     </div>

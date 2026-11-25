@@ -59,7 +59,7 @@ test('the dashboard launcher offers configured entries and shows a receipt only 
  assert.match(configured,/id="lastReceiptBtn" href="\/tenant\/mobile-money\/123\/acknowledgement"/);
 });
 
-test('overview displays cash-day status and acknowledgements without dashboard totals',async()=>{
+test('overview shows recent receipts and links to the separate Cash Day',async()=>{
   const options=fixture(['*']);
   options.menu[0].items.push({href:'/tenant/cash/shifts',label:'Cash day'},{href:'/tenant/last-receipt',label:'Last receipt'});
   options.data.workspaceSnapshot={
@@ -69,7 +69,7 @@ test('overview displays cash-day status and acknowledgements without dashboard t
   };
   const html=await ejs.renderFile(template,options);
   assert.match(html,/Cash day/);
-  assert.match(html,/Kampala Main · UGX/);
+  assert.doesNotMatch(html,/Kampala Main · UGX|>Open day<|>Close day</);
   assert.doesNotMatch(html,/UGX 510,000|1 open shift/);
   assert.match(html,/MTN · VERIFIED-REFERENCE/);
   assert.match(html,/href="\/tenant\/mobile-money\/123\/acknowledgement"/);
@@ -77,19 +77,10 @@ test('overview displays cash-day status and acknowledgements without dashboard t
   assert.doesNotMatch(html,/6,500,000|Load demo|id="branchSelect"/);
 });
 
-test('cash day offers the next drawer action without adding it to the transaction launcher',async()=>{
+test('Cash Day stays available in navigation and outside the transaction launcher',async()=>{
   const options=fixture(['*']);
-  const items=options.menu[0].items;
-  items.push({href:'/tenant/cash/shifts',label:'Cash day',icon:'fa-cash-register'});
-  for(const [status,action] of [[null,'Open day'],['open','Close day'],['pending_open','View opening count'],['submitted','View closing count'],['disputed','Correct closing count']]){
-    options.data.workspaceSnapshot={cashDay:{status,currency:'UGX',branchName:'Kampala Main'}};
-    const html=await ejs.renderFile(template,options);
-    assert(html.includes('href="/tenant/cash/shifts?currency=UGX">'+action+'</a>'),action);
-    assert.doesNotMatch(html,/data-transaction-kind="cash_shift_(open|close)"/);
-  }
-  options.data.workspaceSnapshot={};
-  options.user.role='Branch Manager';
-  const supervisor=await ejs.renderFile(template,options);
-  assert.match(supervisor,/href="\/tenant\/cash\/shifts">View cash day/);
-  assert.doesNotMatch(supervisor,/>Open day<|>Close day</);
+  options.menu[0].items.push({href:'/tenant/cash/shifts',label:'Cash day',icon:'fa-cash-register'});
+  const html=await ejs.renderFile(template,options);
+  assert.match(html,/href="\/tenant\/cash\/shifts"[^>]*>Cash day/);
+  assert.doesNotMatch(html,/>Open day<|>Close day<|data-transaction-kind="cash_shift_(open|close)"/);
 });

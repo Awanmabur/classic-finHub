@@ -3,7 +3,7 @@
 const {Types}=require('mongoose');
 const {randomUUID}=require('node:crypto');
 const {cashSessionModel,mobileTransactionModel,auditEventModel,branchModel,ensureTenantIndexes}=require('../models');
-const {hasModuleForUser}=require('./moduleAccess.service');
+const {hasModuleForUser,hasPermission}=require('./moduleAccess.service');
 const mobile=require('./mobileMoney.service');
 function fail(message,status=400){const e=new Error(message);e.status=status;return e;}
 function id(v){if(!/^[a-f0-9]{24}$/i.test(String(v||'')))throw fail('Invalid identifier');return new Types.ObjectId(v);}
@@ -311,6 +311,21 @@ async function detail(conn,tenant,actor,shiftId){
  const found=await cashSessionModel(conn).findOne({_id:id(shiftId),...visibleScope(actor)}).lean();
  if(!found)throw fail('Cash shift not found within your permissions',404);return found;
 }
+async function expectedCash(conn,tenant,actor,operationBranch){
+ if(!hasPermission(actor,'treasury.view'))return [];
+ try{allowed(tenant,actor);}catch(error){if(error.status===403)return [];throw error;}
+ const wide=require('./branchView.service').canViewBranches(actor);
+ const viewing=wide&&actor.viewBranchId!==undefined;
+ if(!viewing&&(!operationBranch||(!wide&&String(operationBranch._id)!==String(actor.branchId))))return [];
+ const filter={...visibleScope(actor),...(viewing?{}:{branchId:id(operationBranch._id)}),
+  status:{$in:['open','disputed']},openingVerifiedAt:{$ne:null}};
+ const totals=await cashSessionModel(conn).aggregate([
+  {$match:filter},
+  {$group:{_id:'$currency',amount:{$sum:{$add:['$openingMinor','$provisionalMovementMinor']}},shiftCount:{$sum:1}}},
+  {$sort:{_id:1}}
+ ]).option({maxTimeMS:2000});
+ return totals.map(total=>({currency:total._id,expectedFormatted:mobile.formatMoneyMinor(total.amount,total._id),shiftCount:total.shiftCount}));
+}
 async function reportRows({conn,filters,scope:filter,dateRange}){
  const match={createdAt:dateRange||mobile.dateBounds({from:filters.from,to:filters.to},filters.timeZone||'UTC'),
   // Aggregation pipelines do not apply Mongoose schema casting. CashSession
@@ -322,4 +337,4 @@ async function reportRows({conn,filters,scope:filter,dateRange}){
  return rows.map(r=>({module:'Mobile Money',activity:'Physical cash shifts',status:r._id.status,currency:r._id.currency,
  count:r.count,volume:mobile.formatMoneyMinor(r.expected||0,r._id.currency),fees:'N/A'}));
 }
-module.exports={allowed,bindFundAccount,refreshFundBalance,open,decideOpening,assertSmsWithinShift,assertSmsShiftTime,attachRecord,fenceRecordChange,submit,decide,list,detail,reportRows,key,activeFilter,minor,decimal,visibleScope,opener,reviewer};
+module.exports={allowed,bindFundAccount,refreshFundBalance,open,decideOpening,assertSmsWithinShift,assertSmsShiftTime,attachRecord,fenceRecordChange,submit,decide,list,detail,expectedCash,reportRows,key,activeFilter,minor,decimal,visibleScope,opener,reviewer};

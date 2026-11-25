@@ -34,7 +34,7 @@ module.exports=function dayControlRoutes({renderTenant,recordScope}){
   return cashSessionModel(req.tenantDb).findOne({...cash.activeFilter(branch._id,req.user.id,currency),status:{$in:['open','disputed']}}).lean();
  }
  router.get('/day/close',...guard,async(req,res,next)=>{
-  try{if(req.user.role==='Tenant Owner')return res.redirect(303,cashDayUrl(req.user,req.query.currency));
+  try{if(req.user.role==='Tenant Owner')return res.redirect(303,cashDayUrl(req.query.currency));
    const shift=await ownShift(req);renderTenant(req,res,'workflow/close-day','Close day','Count the cash in your drawer.',{shift,
    expected:shift?mobile.formatMoneyMinor(BigInt(String(shift.openingMinor))+BigInt(String(shift.provisionalMovementMinor)),shift.currency):null});
   }catch(error){next(error);}
@@ -46,7 +46,7 @@ module.exports=function dayControlRoutes({renderTenant,recordScope}){
    const closed=await cash.submit(req.tenantDb,req.tenant,req.user,shift._id,req.body,{ownerDirect:true});
    flash(req,'good',closed.status==='approved'?'Day closed. Cash count reconciled.':'Closing count sent for review.');
    require('../services/branchView.service').followRecord(req,shift);
-   res.redirect(303,req.user.role==='Tenant Owner'||req.body.returnToDay==='1'?cashDayUrl(req.user,shift.currency):`/tenant/cash/shifts/${shift._id}`);
+   res.redirect(303,req.user.role==='Tenant Owner'||req.body.returnToDay==='1'?cashDayUrl(shift.currency):`/tenant/cash/shifts/${shift._id}`);
   }catch(error){cashDayError(req,res,next,error);}
  });
  return router;

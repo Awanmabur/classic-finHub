@@ -505,11 +505,13 @@ async function main(){
  // includes _csrf, which MUST be verified then stripped before the service.
  httpApp.use(require('../src/middleware/csrfProtection'));
  httpApp.use(require('../src/middleware/ajaxRedirect').ajaxRedirect);
+ const menu=require('../src/services/menu.service').tenantMenu(tenant,owner);
+ const visiblePaths=new Set(menu.flatMap(group=>[...group.items.map(item=>item.href),...(group.paths||[])]));
  httpApp.use('/tenant/treasury',require('../src/tenant/treasury/routes')({
   renderTenant:(req,res,view,title,subtitle,data)=>{
    if(view!=='treasury/index')return res.status(200).json({view});
    return require('ejs').renderFile(require('node:path').resolve(__dirname,'../src/views/tenant/treasury/index.ejs'),{
-    data,user:owner,assetVersion:'integration',csrfToken:httpCsrf,operationBranch:branch
+    data,user:owner,assetVersion:'integration',csrfToken:httpCsrf,operationBranch:branch,visiblePaths
    }).then(html=>res.status(200).send(html));
   }
  }));
@@ -578,7 +580,7 @@ async function main(){
   const listHtml=await list.text();
   assert.match(listHtml,/data-quick-account-form/);
   assert.match(listHtml,/id="accounts"/);
-  assert.match(listHtml,/id="cash-day"/);
+  assert.doesNotMatch(listHtml,/id="cash-day"|data-cash-open-form/,'Cash Day is served from its own page');
   assert.doesNotMatch(listHtml,/href="\/tenant\/treasury\/review/);
   const create=await submit('/tenant/treasury/accounts',{
    kind:'bank',currency:'USD',branchId:String(branch._id),name:'Owner canonical route bank'

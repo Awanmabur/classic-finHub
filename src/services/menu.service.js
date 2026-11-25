@@ -38,12 +38,12 @@ function tenantMenu(tenant,user) {
     ...(canCreate?['transactions/new']:[]),...(mobile||transfer?['last-receipt']:[])
   ]);
   group('Daily work',[
-    ...(!owner&&cashDay?[item('Cash day','cash/shifts','fa-cash-register')]:[]),
+    ...(cashDay?[item('Cash day','cash/shifts','fa-cash-register')]:[]),
     ...(sharedCash?[item(owner?'Money accounts':'Business funds','treasury','fa-wallet')]:[]),
     ...(expenses?[item('Expenses','expenses','fa-receipt')]:[]),
     ...(!owner&&manualMovements?[item('Movement requests','funded','fa-list-check')]:[]),
     ...(!owner&&module('approval_workflows')&&can('approvals.view')?[item('Approvals & corrections','approvals','fa-user-check')]:[])
-  ],owner&&cashDay?['cash/shifts']:[]);
+  ]);
   group('Money Transfer',transfer?[
     ...(can('money_transfer.create')?[item('Send money','money-transfer/send','fa-money-bill-transfer',{transactionKind:'transfer'})]:[]),
     ...(can('money_transfer.payout')?[item('Payout by PIN','money-transfer/payout','fa-key',{transactionKind:'payout'})]:[]),
@@ -80,7 +80,7 @@ function tenantMenu(tenant,user) {
     ...(banking?[item('Banking history','banking/records','fa-list')]:[])
   ],banking?['banking']:[]);
   group('Operation Reports',[
-    ...(reports?[item('Reports','reports','fa-file-lines')]:[]),
+    ...(reports?[item('General reports','reports','fa-file-lines')]:[]),
     ...(owner&&reports?[item('Summary','reports/summary','fa-chart-column')]:[]),
     ...(module('analytics')&&can('analytics.view')?[item('Analytics','analytics','fa-chart-pie')]:[])
   ],reports?[

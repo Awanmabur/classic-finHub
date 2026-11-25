@@ -1,0 +1,29 @@
+<%
+  const rows = panel.rows.length > 7 ? [
+    ...panel.rows.slice(0, 6),
+    {label:'Other statuses',count:panel.rows.slice(6).reduce((sum,row)=>sum+row.count,0)}
+  ] : panel.rows;
+  const total = rows.reduce((sum,row)=>sum+row.count,0);
+  const share = new Intl.NumberFormat('en-GB',{style:'percent',maximumFractionDigits:1});
+  let offset = 0;
+  const segments = rows.map((row,index)=>{
+    const start = offset;
+    offset += row.count;
+    return 'var(--chart-slice-'+index+') '+percent(start,total)+'% '+percent(offset,total)+'%';
+  }).join(',');
+%>
+<div class="analyticsMix">
+  <div class="analyticsRing" style="--segments:<%= segments %>">
+    <strong><%= formatCount(total) %></strong><small><%= panel.totalLabel %></small>
+  </div>
+  <ul class="analyticsMixKey">
+    <% for(const [index,row] of rows.entries()){ %>
+      <li>
+        <i aria-hidden="true" style="--swatch:var(--chart-slice-<%= index %>)"></i>
+        <span><%= row.label %></span>
+        <strong><%= formatCount(row.count) %></strong>
+        <small><%= share.format(row.count/total) %></small>
+      </li>
+    <% } %>
+  </ul>
+</div>

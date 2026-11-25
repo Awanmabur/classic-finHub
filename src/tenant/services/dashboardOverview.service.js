@@ -1,6 +1,5 @@
 'use strict';
-// The approved overview renders recent activity, today's posted volumes and
-// cash. Full reports and review queues are built on their own pages only.
+// The dashboard reads recent activity and compact native-currency totals.
 const {hasModuleForUser,hasPermission}=require('./moduleAccess.service');
 const snapshot=require('./workspaceSnapshot.service');
 const businessTime=require('../../utils/businessTime');
@@ -41,7 +40,7 @@ function configuredModules(accounts,customerCurrencies,enabled,{crossCurrencyMob
  }).filter(([key,configured])=>configured&&enabled[key]).map(([key])=>key);
 }
 async function operatingConfiguration(conn,tenant,user,branch){
- if(!branch)return {modules:[],drawers:[]};
+ if(!branch)return [];
  const enabled=Object.fromEntries([...Object.keys(moduleFlags),'expenses','customers','accounts'].map(key=>
   [key,hasModuleForUser(tenant,user,key)&&hasPermission(user,key+'.view')]));
  try{
@@ -65,10 +64,10 @@ async function operatingConfiguration(conn,tenant,user,branch){
   const modules=configuredModules(usable,currencies,enabled);
   if(enabled.customers)modules.push('customers');
   if(enabled.accounts&&customer)modules.push('accounts');
-  return {modules,drawers:accounts.filter(account=>account.kind==='cash')};
+  return modules;
  }catch(error){
   console.warn(JSON.stringify({event:'dashboard.configuration_unavailable',code:String(error.code||error.name||'UNKNOWN').slice(0,80)}));
-  return {modules:[],drawers:[]};
+  return [];
  }
 }
 async function overview(conn,tenant,user,options={}){
@@ -87,16 +86,12 @@ async function overview(conn,tenant,user,options={}){
   hasBanking?require('./banking.service').recent(conn,tenant,user):[],
   hasForex?require('./forex.service').recent(conn,tenant,user):[],
   hasTransfer?require('./moneyTransfer.service').recent(conn,tenant,user):[],
-  hasMobileMoney&&fundsBranch?require('./mobileMoneyFunds.service').context(conn,tenant,user,fundsBranch):null,
+  hasMobileMoney&&fundsBranch?require('./mobileMoneyFunds.service').context(conn,tenant,user,fundsBranch,{booksOnly:true}):null,
   operatingConfiguration(conn,tenant,user,options.operationBranch),
   differentView?operatingConfiguration(conn,tenant,user,fundsBranch):null
  ]);
- const marketService=require('./mobileMoneyMarket.service');
- const mobileMarkets=marketService.markets(mobileFunds?.wallets||[]);
- const mobileMarket=mobileMarkets[0]||null;
- // Use the provider's actual currency in Mobile Money, independently of the
- // currency selected for unrelated Money Transfer, Banking and Forex cards.
- const overviewOptions={...options,mobileMarket,totalsCurrency:options.currency,cashDayCurrency:options.currency||options.operationBranch?.currency,
+ const mobileMarkets=require('./mobileMoneyMarket.service').markets(mobileFunds?.wallets||[]);
+ const overviewOptions={...options,
   timeZone:businessTime.forBranch(options.viewBranch||options.operationBranch)};
  if(options.viewBranchId==='all'){
   // The trusted branch-view middleware already resolved active branches.
@@ -107,39 +102,25 @@ async function overview(conn,tenant,user,options={}){
   if(zones.length>1)overviewOptions.suppressTodayVolumes=true;
   else if(zones.length===1)overviewOptions.timeZone=zones[0];
  }
- // The first configured Mobile Money market is the default viewing currency
- // even when this tenant also subscribes to Money Transfer or other modules.
- // An explicit user-selected dashboard currency still wins for those modules;
- // MoMo volume remains independently scoped to its network currency.
- if(mobileMarket&&!options.currency)
-  overviewOptions.currency=mobileMarket.currency;
  const [workspaceSnapshot,financeOverview]=await Promise.all([
   snapshot.snapshot(conn,tenant,user,flags,options.operationBranch,overviewOptions),
   require('./financeOverview.service').overview(conn,tenant,user,{
-   ...overviewOptions,operationBranch:options.operationBranch,viewBranch:options.viewBranch,scopeToAssignedModules:true
+   ...overviewOptions,scopeToAssignedModules:true,includeModuleDetails:false
   }).catch(error=>{
    console.warn(JSON.stringify({event:'finance.overview_unavailable',errorCode:String(error.code||error.name||'UNKNOWN').slice(0,80)}));
    return {available:false,reason:'Financial totals temporarily unavailable. Check Treasury and reports.'};
   })
  ]);
- // Use all authorized accounts, not merely the first Mobile Money market.
- // Deduplicate physical cash drawers shared by several provider wallets.
- const uniqueById=accounts=>[...new Map((accounts||[]).filter(Boolean).map(a=>[String(a.id),a])).values()];
- const displayWallets=uniqueById(mobileFunds?.wallets);
- const displayCash=uniqueById((mobileFunds?.paymentAccounts||[]).filter(a=>a.kind==='cash'));
- const {requiresMapping:cashMappingRequired}=marketService.cashForMarket(mobileFunds||{},mobileMarket);
- const mobileBookTotals={cash:groupedBookTotals(displayCash),float:groupedBookTotals(displayWallets)};
+ const mobileBookTotals={cash:groupedBookTotals(mobileFunds?.paymentAccounts),float:groupedBookTotals(mobileFunds?.wallets)};
  const moduleActivity={mobile_money:mobileRows,money_transfer:transferRows,banking:bankingRows,forex:forexRows};
- const configuredInView=(viewedConfiguration||configuration).modules;
+ const configuredInView=viewedConfiguration||configuration;
  const visibleDashboardModules=Object.keys(moduleFlags).filter(key=>flags[moduleFlags[key]]&&
   (configuredInView.includes(key)||moduleActivity[key].length||(workspaceSnapshot.todayByCurrency?.[key]||[]).length));
- const cashDay=workspaceSnapshot.cashDay;
- const dashboardCashAvailable=Boolean(cashDay&&(cashDay.status||
-  configuration.drawers.some(drawer=>drawer.currency===cashDay.currency)));
- const data={...flags,financeOverview,mobileFunds,mobileMarkets,mobileMarket,cashMappingRequired,
-  visibleDashboardModules,dashboardTransactionModules:configuration.modules,dashboardCashAvailable,
+ const activity=snapshot.activity({...flags,summary:{recent:mobileRows},bankingRecords:{items:bankingRows},
+  forexRecords:{items:forexRows},transferRecords:{items:transferRows}});
+ return {...flags,financeOverview,mobileMarkets,mobileMarket:mobileMarkets[0]||null,mobileBookTotals,
+  visibleDashboardModules,dashboardTransactionModules:configuration,
   dashboardCurrency:typeof options.currency==='string'?options.currency:'',
-  mobileDisplayCashIds:displayCash.map(a=>a.id),mobileBookTotals,mobileFundsState:!hasMobileMoney?'unavailable':wideRead&&options.viewBranchId==='all'?'all_branches':fundsBranch?'resolved':'branch_required',summary:{recent:mobileRows},bankingRecords:{items:bankingRows},forexRecords:{items:forexRows},transferRecords:{items:transferRows}};
- return {...data,workspaceSnapshot:{...workspaceSnapshot,...snapshot.activity(data)}};
+  workspaceSnapshot:{...workspaceSnapshot,...activity}};
 }
 module.exports={overview,mobileScope,groupedBookTotals,configuredModules};

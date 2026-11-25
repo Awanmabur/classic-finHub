@@ -8,7 +8,29 @@ delete process.env.PLATFORM_DB_URI;delete process.env.MONGO_URI_BASE;
 const mongoose=req('mongoose'),bcrypt=req('bcryptjs'),{chromium}=req('playwright'),core=req('./src/tenant/models'),mongo=req('./src/config/mongo');
 const Tenant=req('./src/platform/models/Tenant'),Identity=req('./src/platform/models/AccountIdentity'),commerce=req('./src/platform/services/commercial.service');
 const out=path.resolve(process.env.BROWSER_REVIEW_DIR||'/tmp/classicfin-operation-modal-browser');fs.mkdirSync(out,{recursive:true});
-const result={browserErrors:[],resourceErrors:[],layouts:[]};let browser,server,conn,page;
+const result={browserErrors:[],resourceErrors:[],layouts:[],headerLayouts:[]};let browser,server,conn,page;
+async function checkWorkspaceHeader(base,pathname){
+ await page.goto(base+pathname);
+ for(const width of [320,390,1121,1440]){
+  await page.setViewportSize({width,height:1000});
+  await page.evaluate(()=>document.fonts.ready);
+  const facts=await page.locator('.topbar').evaluate(header=>{
+   const bounds=header.getBoundingClientRect();
+   const branch=header.querySelector('#headerViewingBranch').getBoundingClientRect();
+   const currency=header.querySelector('#currencySelect').getBoundingClientRect();
+   const primary=header.querySelector('#newTransactionBtn').getBoundingClientRect();
+   const controls=[...header.querySelectorAll('button,a,select,input:not([type=hidden])')]
+    .filter(control=>control.getClientRects().length).map(control=>control.getBoundingClientRect());
+   return {
+    controlsInside:controls.every(control=>control.left>=bounds.left-1&&control.right<=bounds.right+1),
+    primaryAligned:Math.abs(primary.right-bounds.right)<3,
+    scopeAligned:Math.abs(branch.top-currency.top)<1&&branch.right<currency.left
+   };
+  });
+  assert.deepEqual(facts,{controlsInside:true,primaryAligned:true,scopeAligned:true},pathname+' at '+width+' pixels');
+  result.headerLayouts.push({pathname,width,...facts});
+ }
+}
 async function main(){
  await mongoose.connect(process.env.MONGO_PLATFORM_URI,{...req('./src/config/mongoOptions').options(process.env),autoIndex:false,autoCreate:false,monitorCommands:true});
  await Promise.all([Tenant.createIndexes(),Identity.createIndexes()]);
@@ -69,6 +91,9 @@ async function main(){
  const unavailable='**/tenant/operation-form/transfer?currency=SSP';await context.route(unavailable,route=>route.fulfill({status:503,contentType:'text/plain',body:'Synthetic temporarily unavailable'}));await page.locator('#newTransactionBtn').click();await dialog.locator('[name=senderName]').fill('Retained after loading failure');await dialog.locator('[data-transaction-status][role=alert]').waitFor();assert.equal(await dialog.locator('form').getAttribute('data-operation-loading'),'true');assert.equal(await dialog.getByRole('button',{name:'Save transfer & continue'}).isDisabled(),true);
  await context.unroute(unavailable);await page.waitForFunction(()=>window.ClassicFinOffline?.mode==='online',null,{timeout:25000});await dialog.locator('[data-close-transaction]').first().click();await page.locator('#newTransactionBtn').click();await page.waitForFunction(()=>!document.querySelector('#transactionOperationForm')?.hasAttribute('data-operation-loading'));assert.equal(await dialog.locator('[name=senderName]').inputValue(),'Retained after loading failure');assert.equal(await dialog.getByRole('button',{name:'Save transfer & continue'}).isEnabled(),true);result.loadingFailureRetryKeepsFields=true;
  await dialog.locator('[data-close-transaction]').first().click();await page.goto(base+'/tenant/money-transfer/send?currency=UGX');const prior=fragmentGets;await page.locator('#newTransactionBtn').click();await page.locator('#transactionDialog [name=senderName]').waitFor();assert.equal(fragmentGets,prior,'The current page already contains the exact entry form');
+ await dialog.locator('[data-close-transaction]').first().click();
+ await checkWorkspaceHeader(base,'/tenant/dashboard?currency=USD');
+ await checkWorkspaceHeader(base,'/tenant/money-transfer/send?currency=UGX');
  const denied=await context.request.get(base+'/tenant/operation-form/not-an-operation');assert.equal(denied.status(),404);
  await Tenant.updateOne({_id:tenant._id},{$pull:{enabledModules:'money_transfer'}});const revoked=await context.request.get(base+'/tenant/operation-form/transfer?currency=UGX');assert.equal(revoked.status(),403);
  result.samePageReuse=true;result.warmReuse=true;result.typedFieldsPreserved=true;result.submitWaitsForCurrentContext=true;result.moduleRevocationEnforced=true;result.toolbarCurrencySeed=true;result.expiredEditsRetained=true;result.explicitClearRefreshes=true;result.expiredPristineFormRefreshes=true;

@@ -32,7 +32,7 @@ function cashPostingStatus(account,shift){
  }
  return {postingReady:true,postingReason:''};
 }
-async function context(conn,tenant,actor,branch){
+async function context(conn,tenant,actor,branch,{booksOnly=false}={}){
  const trusted=await treasury.access(conn,tenant,actor,{permission:'mobile_money.view',sourceType:'mobile_money'});
  if(!['Tenant Owner','Mobile Money Operator','Branch Manager','Reconciliation Officer','Auditor'].includes(trusted.actor.role)&&
      !hasPermission(trusted.actor,'treasury.view'))
@@ -44,7 +44,14 @@ async function context(conn,tenant,actor,branch){
  const allBranchAccounts=['Tenant Owner','Branch Manager','Reconciliation Officer','Auditor'].includes(trusted.actor.role);
  const query={tenantId:trusted.tenant._id,branchId:branch._id,currency:{$in:currencies},status:{$ne:'archived'},
   ...(allBranchAccounts?{}:{$or:[{operatorId:trusted.actor.id},{operatorId:null}]})};
- const accounts=await fundsModels.models(conn).account.find(query).sort({name:1}).limit(200).lean();
+ const funds=fundsModels.models(conn).account.find(booksOnly?{...query,kind:{$in:['cash','wallet']}}:query);
+ if(booksOnly)funds.select('kind currency network status reconciliationState openingBalanceMinor bookBalanceMinor');
+ const accounts=await funds.sort({name:1}).limit(200).lean();
+ if(booksOnly){
+  const book=row=>({network:row.network,currency:row.currency,state:row.status,reconciliation:row.reconciliationState,
+   expectedMinor:row.openingBalanceMinor==null?null:String(row.bookBalanceMinor)});
+  return {wallets:accounts.filter(row=>row.kind==='wallet').map(book),paymentAccounts:accounts.filter(row=>row.kind==='cash').map(book)};
+ }
  const personalCash=accounts.filter(row=>row.kind==='cash'&&String(row.operatorId||'')===String(trusted.actor.id));
  const shiftCurrencies=[...new Set(personalCash.map(row=>row.currency))];
  const shifts=shiftCurrencies.length?await core.cashSessionModel(conn).find({

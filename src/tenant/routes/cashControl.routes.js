@@ -8,19 +8,23 @@ const {formatMoneyMinor}=require('../services/mobileMoney.service');
 const {flash}=require('../../utils/view');
 const throttle=require('../../platform/services/actionThrottle.service').financial;
 const branchView=require('../services/branchView.service');
+const {currencyCodes}=require('../../config/currencies');
 const activeStatuses=['pending_open','open','submitted','disputed'];
-function cashDayUrl(user,currency){
- const query=typeof currency==='string'&&/^[A-Z]{3}$/.test(currency)?`?currency=${currency}`:'';
- return user.role==='Tenant Owner'?'/tenant/treasury'+query+'#cash-day':'/tenant/cash/shifts'+query;
+function cashDayUrl(currency,cursor){
+ const query=new URLSearchParams();
+ if(currencyCodes.includes(currency))query.set('currency',currency);
+ if(typeof cursor==='string'&&cursor.length<=200)query.set('cursor',cursor);
+ return '/tenant/cash/shifts'+(query.size?'?'+query:'');
 }
 function cashDayError(req,res,next,error){
  if(req.user.role!=='Tenant Owner'||![400,409,422].includes(error.status))return next(error);
  flash(req,'bad',error.message);
- res.redirect(303,cashDayUrl(req.user,req.body?.currency));
+ res.redirect(303,cashDayUrl(req.body?.currency));
 }
 const isOwnShift=(user,shift)=>String(shift.operatorId)===String(user.id);
 function canApproveClosing(user,shift){
- return user.role==='Tenant Owner'||shift.varianceMinor==null||String(shift.varianceMinor)==='0';
+ return user.role==='Tenant Owner'||(user.role==='Reconciliation Officer'&&!isOwnShift(user,shift))||
+  shift.varianceMinor==null||String(shift.varianceMinor)==='0';
 }
 async function openingDrawer(req,branch,currency,owner){
  try{
@@ -34,14 +38,12 @@ async function openingDrawer(req,branch,currency,owner){
   return {problem:'Set a default drawer for this currency in the account settings.'};
  }
 }
-async function cashDayData(req,{currency}={}){
- try{cash.allowed(req.tenant,req.user);}catch(error){if(error.status===403)return null;throw error;}
+async function cashDayData(req){
  const owner=req.user.role==='Tenant Owner';
- const cursor=owner?req.query.cashCursor:req.query.cursor;
+ const {currency,cursor}=req.query;
  const branch=req.operationBranch;
  const currencyOptions=branch?currencyPolicy.options(branch):[];
- const requestedCurrency=req.query.currency||currency;
- const selectedCurrency=currencyOptions.some(option=>option.code===requestedCurrency)?requestedCurrency:branch?.currency;
+ const selectedCurrency=currencyOptions.some(option=>option.code===currency)?currency:branch?.currency;
  const canOpen=cash.opener(req.user),canReview=cash.reviewer(req.user);
  const showDrawer=canOpen&&branch&&currencyPolicy.supports(branch,selectedCurrency);
  const Shift=cashSessionModel(req.tenantDb);
@@ -69,7 +71,7 @@ async function cashDayData(req,{currency}={}){
  return {
   shifts,currentShift,expected:expectedMinor===null?null:formatMoneyMinor(expectedMinor,currentShift.currency),expectedMinor,
   reviewQueue,openingBook:drawer.book,openingProblem:drawer.problem,currencyOptions,selectedCurrency,
-  canOpen,canReview,showHistory:Boolean(cursor),format:formatMoneyMinor,
+  canOpen,canReview,showHistory:Boolean(cursor)||(!canOpen&&!canReview),format:formatMoneyMinor,cashDayUrl,
   branchNames:Object.fromEntries(branches.map(row=>[String(row._id),row.name])),
   operatorNames:Object.fromEntries(operators.map(row=>[String(row._id),row.name]))
  };
@@ -79,13 +81,7 @@ module.exports=({renderTenant})=>{
  const guard=(req,res,next)=>{try{cash.allowed(req.tenant,req.user);next();}catch(error){next(error);}};
  router.get('/cash/shifts',guard,async(req,res,next)=>{
   try{
-   if(req.user.role==='Tenant Owner'){
-    const cursor=typeof req.query.cursor==='string'&&req.query.cursor.length<=200?req.query.cursor:null;
-    const url=new URL(cashDayUrl(req.user,req.query.currency),'http://localhost');
-    if(cursor)url.searchParams.set('cashCursor',cursor);
-    return res.redirect(303,url.pathname+url.search+url.hash);
-   }
-   renderTenant(req,res,'mobile-money/shifts','Cash day','Open or close your drawer and review cash counts.',await cashDayData(req));
+   renderTenant(req,res,'workflow/cash-day','Cash day','Open, count and close your cash drawer.',await cashDayData(req));
   }catch(error){next(error);}
  });
  router.post('/day/open',guard,throttle,async(req,res,next)=>{
@@ -93,7 +89,7 @@ module.exports=({renderTenant})=>{
    const shift=await cash.open(req.tenantDb,req.tenant,req.user,req.body,{ownerDirect:true});
    flash(req,'good',shift.status==='open'?'Day open. Your cash drawer is ready for transactions.':'Opening count sent for review.');
    branchView.followRecord(req,shift);
-   res.redirect(303,cashDayUrl(req.user,shift.currency));
+   res.redirect(303,cashDayUrl(shift.currency));
   }catch(error){cashDayError(req,res,next,error);}
  });
  router.get('/cash/shifts/:id',guard,async(req,res,next)=>{try{
@@ -101,6 +97,7 @@ module.exports=({renderTenant})=>{
   const own=isOwnShift(req.user,shift);
   const canReview=cash.reviewer(req.user)&&(!own||reviewPolicy.canSelfReviewRoutine(req.user,shift.branchId));
   renderTenant(req,res,'mobile-money/shift-detail','Cash count details','Counted cash and the funds book.',{shift,
+   cashDayHref:cashDayUrl(shift.currency),ownerDirect:req.user.role==='Tenant Owner',
    canSubmit:cash.opener(req.user)&&own&&['open','disputed'].includes(shift.status),
    canReview:canReview&&shift.status==='submitted',
    canReviewOpening:canReview&&shift.status==='pending_open',
@@ -112,11 +109,10 @@ module.exports=({renderTenant})=>{
    const owner=req.user.role==='Tenant Owner';
    flash(req,'good',owner&&shift.status==='approved'?'Day closed. Cash count reconciled.':owner&&shift.status==='open'?'Day open. Your cash drawer is ready.':verb);
    branchView.followRecord(req,shift);
-   res.redirect(303,owner||req.body.returnToDay==='1'?cashDayUrl(req.user,shift.currency):`/tenant/cash/shifts/${req.params.id}`);
+   res.redirect(303,owner||req.body.returnToDay==='1'?cashDayUrl(shift.currency):`/tenant/cash/shifts/${req.params.id}`);
   }catch(error){cashDayError(req,res,next,error);}
  });
  return router;
 };
-module.exports.cashDayData=cashDayData;
 module.exports.cashDayUrl=cashDayUrl;
 module.exports.cashDayError=cashDayError;

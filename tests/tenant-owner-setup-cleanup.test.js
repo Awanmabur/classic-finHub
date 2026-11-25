@@ -2,13 +2,15 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),ejs=require('ejs');
 const source=name=>fs.readFileSync(path.join(__dirname,'..',name),'utf8');
-test('Owner sees clean independent currency cards instead of mixed-currency account count',()=>{
- const page=source('src/views/tenant/dashboard/index.ejs');
- assert.doesNotMatch(page,/accounts across currencies/);
- assert.match(page,/data-fund-currency/);
- assert.match(page,/accounts\.filter\(account => account\.currency === currency\)/);
- assert.match(page,/total \? displayAmount\(total\)/);
- assert.doesNotThrow(()=>ejs.compile(page));
+test('Owner sees separate native amounts for cash and float in compact stats',()=>{
+ const file=path.join(__dirname,'../src/views/tenant/dashboard/index.ejs');
+ const html=ejs.render(source('src/views/tenant/dashboard/index.ejs'),{data:{mobileBookTotals:{
+  cash:[{currency:'SSP',formatted:'SSP 75.00'}],
+  float:[{currency:'USD',formatted:'USD 25.00'},{currency:'UGX',formatted:'UGX 35,000'}]
+ }}},{filename:file});
+ assert.match(html,/data-dashboard-fund-stat="cash"[\s\S]*SSP 75\.00/);
+ assert.match(html,/data-dashboard-fund-stat="float"[\s\S]*USD 25\.00[\s\S]*UGX 35,000/);
+ assert.doesNotMatch(html,/accounts across currencies/);
 });
 test('Tenant sidebar matches platform account footer with two opposite functional links',()=>{
  const page=source('src/views/partials/dashboard-sidebar.ejs');

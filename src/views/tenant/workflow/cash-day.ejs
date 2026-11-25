@@ -1,7 +1,6 @@
 <%
-  const isOwnerPage = typeof ownerMoneyPage !== 'undefined' && ownerMoneyPage;
-  const cashLabel = (value, currency) => typeof data.format === 'function' ? data.format(value,currency)
-    : typeof formatMoneyMinor === 'function' ? formatMoneyMinor(value, currency) : money(currency, amountFromMinor(value, currency));
+  const isOwnerPage = user.role === 'Tenant Owner';
+  const cashLabel = (value, currency) => data.format(value,currency).replace(/^KES /,'KSH ');
   const labels = {
     pending_open: isOwnerPage ? 'Opening count ready to confirm' : 'Opening count awaiting review',
     open: 'Open', submitted: isOwnerPage ? 'Closing count ready to reconcile' : 'Closing count awaiting review',
@@ -14,20 +13,18 @@
   const regionalTime = typeof formatLocalDate === 'function' ? formatLocalDate : value => new Date(value).toISOString();
   const selected = data.selectedCurrency;
   const currencyText = data.currencyOptions.find(option => option.code === selected)?.label || selected;
-  const nextHistory = new URLSearchParams({[isOwnerPage?'cashCursor':'cursor']:data.shifts.nextCursor || ''});
-  if(selected) nextHistory.set('currency', selected);
 %>
-<section<% if(isOwnerPage){ %> id="cash-day" aria-labelledby="cash-day-title"<% } else { %> class="view show"<% } %>>
+<section class="view show tenantContentFlow" id="cash-day" aria-label="Cash day">
   <% if(data.canOpen){ %>
     <section class="card">
       <div class="cardHead">
-        <div><b<% if(isOwnerPage){ %> id="cash-day-title"<% } %>><%= isOwnerPage?'Cash day':'Your cash drawer' %></b><% if(currentBranch){ %><br><span><%= currentBranch.name %> · <%= currencyText %></span><% } %></div>
+        <div><b>Your cash drawer</b><% if(currentBranch){ %><br><span><%= currentBranch.name %> · <%= currencyText %></span><% } %></div>
         <% if(currentBranch){ %><span class="tag"><%= labels[active?.status] || 'Closed' %></span><% } %>
       </div>
-      <div class="cardBody">
-        <% if(isOwnerPage && data.currencyOptions.length>1){ %>
+      <div class="cardBody workspaceStack">
+        <% if(data.currencyOptions.length>1){ %>
           <nav class="rowBtns" aria-label="Cash drawer currency">
-            <% data.currencyOptions.forEach(option=>{ %><a class="btn <%= option.code===selected?'btnPrimary':'' %>" href="/tenant/treasury?currency=<%= option.code %>#cash-day"<% if(option.code===selected){ %> aria-current="true"<% } %>><%= option.label %></a><% }); %>
+            <% data.currencyOptions.forEach(option=>{ %><a class="btn <%= option.code===selected?'btnPrimary':'' %>" href="<%= data.cashDayUrl(option.code) %>"<% if(option.code===selected){ %> aria-current="page"<% } %>><%= option.label %></a><% }); %>
           </nav>
         <% } %>
         <% if(!currentBranch){ %>
@@ -60,30 +57,30 @@
           <% } %>
         <% } else if(active?.status === 'open' || active?.status === 'disputed'){ %>
           <% if(active.status === 'disputed' && active.reviewNote){ %><p><%= active.reviewNote %></p><% } %>
-          <%- include('../workflow/_close-count', {shift:active, expected:data.expected, expectedMinor:data.expectedMinor, returnToDay:true, ownerMoneyPage:isOwnerPage}) %>
+          <%- include('_close-count', {shift:active, expected:data.expected, expectedMinor:data.expectedMinor, returnToDay:true, directCount:isOwnerPage}) %>
         <% } else if(active){ %>
           <p><%= active.status === 'pending_open' ? 'Opening cash counted' : 'Closing cash counted' %> <strong><%= cashLabel(active.status === 'pending_open' ? active.openingMinor : active.declaredClosingMinor, active.currency) %></strong></p>
         <% } else { %>
           <p><%= data.openingProblem||(isOwnerPage?'Add a cash account and its starting balance to open this day.':'A reconciled cash drawer is required for '+currencyText+'.') %></p>
-          <a class="btn" href="<%= isOwnerPage?'#accounts':'/tenant/treasury' %>"><%= isOwnerPage?'Go to accounts':'Prepare cash drawer' %></a>
+          <div><a class="btn" href="/tenant/treasury"><%= isOwnerPage?'Money accounts':'Prepare cash drawer' %></a></div>
         <% } %>
       </div>
     </section>
   <% } %>
 
   <% if(data.canReview && (!isOwnerPage||data.reviewQueue.length)){ %>
-    <section class="card" <%- data.canOpen ? 'style="margin-top:14px"' : '' %>>
+    <section class="card">
       <div class="cardHead"><b><%= isOwnerPage?'Pending cash counts':'Counts to review' %></b></div>
-      <div class="cardBody">
+      <div class="cardBody workspaceStack">
         <% if(!data.reviewQueue.length){ %><p>No cash counts are waiting for your review.</p><% } %>
         <% data.reviewQueue.forEach(shift => {
           const isOpening = shift.status === 'pending_open';
         %>
-          <details style="margin-block:8px">
+          <details class="logicNote">
             <summary><%= isOpening ? 'Opening' : 'Closing' %> · <%= data.operatorNames[String(shift.operatorId)] || 'Operator' %> · <%= data.branchNames[String(shift.branchId)] || 'Branch' %> · <%= typeof currencyLabel === 'function' ? currencyLabel(shift.currency) : shift.currency %></summary>
             <p>Counted cash <strong><%= cashLabel(isOpening ? shift.openingMinor : shift.declaredClosingMinor, shift.currency) %></strong></p>
             <% if(!isOpening){ %><p>Expected cash <strong><%= cashLabel(shift.expectedClosingMinor, shift.currency) %></strong> · Difference <strong><%= cashLabel(shift.varianceMinor, shift.currency) %></strong></p><% } %>
-            <%- include('../workflow/_review-count', {shift, isOpening, canApprove:shift.canApprove, returnToDay:true, ownerMoneyPage:isOwnerPage}) %>
+            <%- include('_review-count', {shift, isOpening, canApprove:shift.canApprove, returnToDay:true, directCount:isOwnerPage}) %>
             <% if(!isOwnerPage){ %><p><a href="/tenant/cash/shifts/<%= shift._id %>">Count details</a></p><% } %>
           </details>
         <% }) %>
@@ -91,7 +88,7 @@
     </section>
   <% } %>
 
-  <details class="card" style="margin-top:14px" <%- data.showHistory ? 'open' : '' %>>
+  <details class="card" <%- data.showHistory ? 'open' : '' %>>
     <summary class="cardHead"><b>Cash shift history</b><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary>
     <div class="cardBody tableWrap">
       <table>
@@ -110,7 +107,7 @@
           <% }) %>
         </tbody>
       </table>
-      <% if(data.shifts.nextCursor){ %><p><a class="btn" href="<%= isOwnerPage?'/tenant/treasury':'/tenant/cash/shifts' %>?<%= nextHistory.toString() %><%= isOwnerPage?'#cash-day':'' %>">Older shifts</a></p><% } %>
+      <% if(data.shifts.nextCursor){ %><p><a class="btn" href="<%= data.cashDayUrl(selected,data.shifts.nextCursor) %>">Older shifts</a></p><% } %>
     </div>
   </details>
 </section>

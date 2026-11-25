@@ -1,4 +1,4 @@
-<% const ownerDirect = typeof ownerMoneyPage !== 'undefined' && ownerMoneyPage; %>
+<% const ownerDirect = typeof directCount !== 'undefined' && directCount; %>
 <form method="post" action="/tenant/cash/shifts/<%= shift._id %>/<%= isOpening ? 'verify-opening' : 'decide' %>">
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
   <input type="hidden" name="currency" value="<%= shift.currency %>">

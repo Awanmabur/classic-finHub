@@ -74,7 +74,7 @@ test('financial readiness diagnostic is read-only and scoped to the operating br
 });
 
 test('cash opening stays book-backed and uses the audited Cash day route',()=>{
- const template=source('src/views/tenant/mobile-money/_cash-day.ejs');
+ const template=source('src/views/tenant/workflow/cash-day.ejs');
  const routes=source('src/tenant/routes/cashControl.routes.js');
  const main=source('src/views/tenant/dashboard/index.ejs');
  assert.match(template,/name="openingFromBook" value="on"/);
@@ -86,8 +86,8 @@ test('cash opening stays book-backed and uses the audited Cash day route',()=>{
  assert.match(drawer,/assertBookIntegrity/);
  assert.match(template,/action="\/tenant\/day\/open"/);
  assert.match(routes,/router\.post\('\/day\/open'/);
- assert.match(main,/visiblePaths\.has\('\/tenant\/cash\/shifts'\)/);
- assert.match(main,/href="<%= cashDayHref %>"/);
+ assert.match(routes,/router\.get\('\/cash\/shifts'/);
+ assert.doesNotMatch(main,/cashDayHref|data-cash-open-form/);
  assert.match(drawer,/mobile_money\.shift\.opened/);
 });
 

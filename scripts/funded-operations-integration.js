@@ -311,35 +311,32 @@ async function main(){
  assert((await directDeposit.request(conn,tenant,owner,depositAccount._id,depositInput)).duplicate,'an identical retry retains its completed deposit after cash day closes');
  assert(!(await directDeposit.options(conn,tenant,owner,customerAccount)).some(account=>String(account._id)===depositInput.cashAccountId));
  // Every cash-handling module owns its own actual independently verified
- // drawer. An operator dashboard must never expose the branch-wide cash total.
- const workspace=require('../src/tenant/services/workspaceSnapshot.service');
- const emptyOverview={hasMobileMoney:false,hasTransfer:false,hasBanking:false,hasForex:false};
+ // drawer. The expected cash report must only show an operator's own drawer.
  const operatorDrawers=[];
  for(const [role,moduleKey,opening] of [['Banking Operator','banking','10000'],['Forex Operator','forex','20000'],['Money Transfer Operator','money_transfer','30000'],['Mobile Money Operator','mobile_money','40000']]){
   const actor={id:String(new mongoose.Types.ObjectId()),name:role,role,permissions:permissionsFor(role),allowedModules:[moduleKey],branchId:String(branch._id),authVersion:0};
   await core.tenantUserModel(conn).create({_id:actor.id,name:actor.name,email:`${actor.id}@example.invalid`,passwordHash:'scratch-not-a-real-password',role,branchId:actor.branchId,allowedModules:[moduleKey],status:'active',authVersion:0});
   const ownShift=await cash.open(conn,tenant,actor,{openingCash:opening});await cash.decideOpening(conn,tenant,reviewer,ownShift._id,{decision:'approve',note:'Independent physical count for the separately assigned module operator drawer'});
-  operatorDrawers.push({actor,ownShift,opening});
+  operatorDrawers.push({actor,opening});
  }
- for(const {actor,ownShift,opening} of operatorDrawers){
-  const actual=await workspace.snapshot(conn,tenant,actor,emptyOverview,branch);
-  assert.equal(actual.cash.length,1,actor.role);assert.equal(actual.cash[0].shiftCount,1,actor.role+' must see only its own drawer');
-  assert.equal(actual.cash[0].expectedFormatted,require('../src/tenant/services/mobileMoney.service').formatMoneyMinor(opening,'UGX'));
-  assert.equal(actual.currentCashShift.id,String(ownShift._id));assert.equal(actual.currentCashShift.href,`/tenant/cash/shifts/${ownShift._id}`);assert.equal(actual.currentCashShift.submitAction,`/tenant/cash/shifts/${ownShift._id}/submit`);assert.equal(actual.dayStatus,'OPEN');
+ for(const {actor,opening} of operatorDrawers){
+  const actual=await cash.expectedCash(conn,tenant,actor,branch);
+  assert.equal(actual.length,1,actor.role);assert.equal(actual[0].shiftCount,1,actor.role+' must see only its own drawer');
+  assert.equal(actual[0].expectedFormatted,require('../src/tenant/services/mobileMoney.service').formatMoneyMinor(opening,'UGX'));
   for(const denied of [{...actor,permissions:actor.permissions.filter(permission=>permission!=='treasury.view')},{...actor,allowedModules:[]},{...actor,role:'Viewer',permissions:['*']}]){
-   const hidden=await workspace.snapshot(conn,tenant,denied,emptyOverview,branch);assert.deepEqual(hidden.cash,[]);assert.equal(hidden.currentCashShift,null);assert.equal(hidden.dayStatus,null);
+   assert.deepEqual(await cash.expectedCash(conn,tenant,denied,branch),[]);
   }
-  const foreign=await workspace.snapshot(conn,tenant,actor,emptyOverview,{...branch.toObject(),_id:new mongoose.Types.ObjectId()});assert.deepEqual(foreign.cash,[]);assert.equal(foreign.currentCashShift,null);
+  assert.deepEqual(await cash.expectedCash(conn,tenant,actor,{...branch.toObject(),_id:new mongoose.Types.ObjectId()}),[]);
  }
- const branchCash=await workspace.snapshot(conn,tenant,reviewer,emptyOverview,branch);const ugxCash=branchCash.cash.find(row=>row.currency==='UGX');
+ const branchCash=await cash.expectedCash(conn,tenant,reviewer,branch);const ugxCash=branchCash.find(row=>row.currency==='UGX');
  assert(ugxCash,'reviewer must see actual UGX currency cash independently');
  assert.equal(ugxCash.shiftCount,4);
  assert.equal(ugxCash.expectedFormatted,'UGX 100,000');
- assert(branchCash.cash.some(row=>row.currency==='SSP'),'reviewer must see SSP cash separately rather than merging currencies');
+ assert(branchCash.some(row=>row.currency==='SSP'),'reviewer must see SSP cash separately rather than merging currencies');
  const pendingActor={...operatorDrawers[0].actor,id:String(new mongoose.Types.ObjectId())};
  await core.tenantUserModel(conn).create({_id:pendingActor.id,name:'Pending operator',email:`${pendingActor.id}@example.invalid`,passwordHash:'scratch-not-a-real-password',role:pendingActor.role,branchId:pendingActor.branchId,allowedModules:pendingActor.allowedModules,status:'active',authVersion:0});
  await cash.open(conn,tenant,pendingActor,{openingCash:'5000'});
- const pendingSnapshot=await workspace.snapshot(conn,tenant,pendingActor,emptyOverview,branch);assert.deepEqual(pendingSnapshot.cash,[]);assert.equal(pendingSnapshot.currentCashShift,null);assert.equal(pendingSnapshot.dayStatus,'PENDING');
+ assert.deepEqual(await cash.expectedCash(conn,tenant,pendingActor,branch),[]);
  const bankFx=require('../src/tenant/services/bankingInternalFx.service');
  const usdAccount=(await directory.accountCreate(conn,tenant,owner,{
   customerId:String(customer._id),accountNumber:'FUNDED-USD-'+nonce.toUpperCase(),

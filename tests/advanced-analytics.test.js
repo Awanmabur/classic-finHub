@@ -109,7 +109,8 @@ test('Analytics CSV neutralizes spreadsheet formulas and outputs no personal dat
 test('Analytics dashboard escapes user data, and viewer has no fake export control',async()=>{
  const base={sources:[{key:'workspace',label:'Workspace activity'}],filters:{source:'all',days:7},
   data:[{label:'<img src=x onerror=alert(1)>',key:'workspace',current:5,previous:3,change:'+66.7%',
-   breakdown:[{activity:'<script>alert(1)</script>',status:'recorded',currency:'—',count:5}]}],
+   breakdown:[{activity:'<script>alert(1)</script>',status:'recorded',currency:'—',count:5}]},
+   {label:'Forex',key:'forex',current:4,previous:2,change:'+100%',breakdown:[]}],
   trend:{key:'workspace',days:[{date:'2026-11-03',current:5,previousDate:'2026-10-27',previous:3}],
    currencies:[{label:'UGX',count:3},{label:'KSH',count:2}],activities:[],statuses:[]},from:'2026-10-28',to:'2026-11-03',
   previousFrom:'2026-10-21',previousTo:'2026-10-27',note:'No settlement implied.'};
@@ -123,6 +124,12 @@ test('Analytics dashboard escapes user data, and viewer has no fake export contr
  assert.match(editable,/By currency/);
  assert.match(editable,/Daily totals/);
  assert.match(editable,/data-analytics-day aria-pressed="true"/);
+ assert.match(editable,/<canvas[^>]+data-analytics-trend-line/);
+ assert.match(editable,/aria-label="Previous date"/);
+ assert.match(editable,/data-current="5" data-previous="3"/);
+ assert.match(editable,/analyticsSourceDifference/);
+ assert.match(editable,/--segments:var\(--chart-slice-0\) 0% 60%,var\(--chart-slice-1\) 60% 100%/);
+ assert.match(editable,/>KSH<\/span>[\s\S]*?>2<\/strong>[\s\S]*?>40%<\/small>/);
  const viewer=await ejs.renderFile(file,{data:{insights:base,canExport:false}});
  assert(!viewer.includes('/tenant/analytics/export.csv'));
 });

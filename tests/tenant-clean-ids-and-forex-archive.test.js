@@ -40,15 +40,18 @@ test('new notification templates automatically generate safe codes, existing tem
  assert.match(first.code,/^n_system_status_[a-f0-9]{10}$/);
  assert.equal(service.templateInput({...data,code:'daily_status'}).code,'daily_status');
 });
-test('tenant header starts with signed-in user then branch then currency, without shared grid area squashing',()=>{
+test('tenant header separates session actions from branch, currency and search controls',()=>{
  const markup=src('src/views/layouts/dashboard.ejs');
  const start=markup.indexOf('class="tenantHeaderIdentityGroup"');
+ const actions=markup.indexOf('class="headerButtons"',start);
+ const controls=markup.indexOf('class="tenantHeaderControlGroup"',actions);
  const branch=markup.indexOf('class="ctrl headerBranchView"',start);
  const currency=markup.indexOf('class="headerScope"',start);
  const search=markup.indexOf('class="ctrl headerSearch"',start);
- assert(start>=0&&branch>start&&currency>branch&&search>currency);
+ assert(start>=0&&actions>start&&controls>actions&&branch>controls&&currency>branch&&search>currency);
  const css=src('public/css/dashboard-layout.css');
- assert.match(css,/body\[data-workspace="tenant"\] \.topbar>\.topActions\{display:flex/);
+ assert.match(css,/body\[data-workspace="tenant"\] \.topbar>\.topActions\{\s*display:grid/);
+ assert.match(css,/\.tenantHeaderSession\{\s*display:grid;grid-template-columns:minmax\(0,1fr\) auto/);
  assert.match(css,/body\[data-workspace="tenant"\] \.tenantHeaderControlGroup\{\s*display:flex/);
 });
 test('directory numbers are generated on creation and only unused account numbers can be edited',async()=>{

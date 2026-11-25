@@ -42,7 +42,7 @@ test('Tenant dashboard uses its own brand and puts account, Logout and Website i
  assert.doesNotMatch(footer,/Connected|Pending sync/);
  assert.match(html,/name="currency" aria-label="Display currency"><option value="" selected>All currencies/);
 });
-test('Tenant header is ordered username, branch, currency, search and actions without duplicates',async()=>{
+test('Tenant header shows session actions and then scope and search controls without duplicates',async()=>{
  const args=fixture('');
  args.menu[0].items.push({label:'Notifications',href:'/tenant/notifications'},
   {label:'Last receipt',href:'/tenant/last-receipt'},
@@ -56,9 +56,9 @@ test('Tenant header is ordered username, branch, currency, search and actions wi
  }];
  const html=await ejs.renderFile(template,args);
  const header=html.slice(html.indexOf('<div class="topbar">'),html.indexOf('<div class="title">'));
- const positions=['class="headerIdentity"','class="ctrl headerBranchView"','class="headerScope"',
-  'class="ctrl headerSearch"','id="phase2NotifyBtn"','class="headerDriveForm"',
-  'id="lastReceiptBtn"','id="newTransactionBtn"'].map(token=>header.indexOf(token));
+ const positions=['class="headerIdentity"','id="phase2NotifyBtn"','class="headerDriveForm"',
+  'id="lastReceiptBtn"','id="newTransactionBtn"','class="ctrl headerBranchView"','class="headerScope"',
+  'class="ctrl headerSearch"'].map(token=>header.indexOf(token));
  assert(positions.every(index=>index>=0),JSON.stringify(positions));
  assert(positions.every((index,i)=>i===0||index>positions[i-1]),'Header action order must match cashier workflow');
  assert.doesNotMatch(header,/Visit website|action="\/logout"/);
@@ -74,8 +74,8 @@ test('Default overview shows every currency separately and supports explicit sel
  const allRows=all.match(/<table data-dashboard-currency-stats>[\s\S]*?<\/table>/)?.[0];
  assert(allRows);
  assert.deepEqual([...allRows.matchAll(/<th scope="row">([^<]+)<\/th>/g)].map(match=>match[1]),['UGX','USD','SSP','KSH']);
- assert.match(allRows,/UGX 2,000<\/strong><small>2 transactions/);
- assert.match(allRows,/USD 11\.00<\/strong><small>3 transactions/);
+ assert.match(allRows,/UGX 2,000<small>2 transactions/);
+ assert.match(allRows,/USD 11\.00<small>3 transactions/);
  assert.doesNotMatch(allRows,/UGX 500|5 transactions/);
  const usd=await ejs.renderFile(template,fixture('USD'));
  assert.match(usd,/value="USD" selected/);

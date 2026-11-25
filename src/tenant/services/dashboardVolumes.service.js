@@ -158,10 +158,10 @@ async function readSource(key,read){
 }
 async function volumes(conn,tenant,user,input={},operationBranch=null,overview={}){
  const currency=selectedCurrency(input.currency,operationBranch),now=input.now||new Date(),
-  timeZone=input.timeZone||'UTC',result={},todayByCurrency={},todayByCurrencyUnavailable={};
- const countCurrency=Object.hasOwn(input,'totalsCurrency')?input.totalsCurrency:input.currency;
+  timeZone=input.timeZone||'UTC',todayByCurrency={},todayByCurrencyUnavailable={};
+ const countCurrency=input.currency;
  if(input.suppressTodayVolumes===true)return {selectedCurrency:currency,currencyOptions:currencyCodes.map(code=>({code,label:currencyLabel(code)})),
-  todayVolumes:{},todayByCurrency:{},todayByCurrencyUnavailable:{},todayTransactionCount:null,date:businessTime.localDay(now,timeZone),mixedRegion:true};
+  todayByCurrency:{},todayByCurrencyUnavailable:{},todayTransactionCount:null,date:businessTime.localDay(now,timeZone),mixedRegion:true};
  const enabled=Object.keys(sources).filter(key=>overview[sources[key].flag]!==false&&
   hasModuleForUser(tenant,user,key)&&hasPermission(user,`${key}.view`));
  const jobs=postedActivityJobs(conn,tenant,user,{enabled,branch:operationBranch,dateRange:bounds(now,timeZone)});
@@ -174,12 +174,7 @@ async function volumes(conn,tenant,user,input={},operationBranch=null,overview={
   const groups=moduleGroups(parts,key);
   if((key==='forex'?parts:own).some(([,data])=>!data.available))todayByCurrencyUnavailable[key]=true;
   todayByCurrency[key]=currencyCodes.map(code=>totalFor(groups,code)).filter(row=>row.count>0);
-  const market=key==='mobile_money'?input.mobileMarket:null;
-  const effectiveCurrency=market?.currency||currency;
-  const selected=market?.network?groups.filter(group=>group._id.network===market.network):groups;
-  result[key]={...totalFor(selected,effectiveCurrency),basis:'posted funds book movements',
-   ...(market?{network:market.network,networkLabel:market.label}:{})};
  }
- return {selectedCurrency:currency,currencyOptions:currencyCodes.map(code=>({code,label:currencyLabel(code)})),todayVolumes:result,todayByCurrency,todayByCurrencyUnavailable,todayTransactionCount,date:businessTime.localDay(now,timeZone)};
+ return {selectedCurrency:currency,currencyOptions:currencyCodes.map(code=>({code,label:currencyLabel(code)})),todayByCurrency,todayByCurrencyUnavailable,todayTransactionCount,date:businessTime.localDay(now,timeZone)};
 }
 module.exports={volumes,sources,selectedCurrency,scopeFor,bounds,totalFor,money,fail,postedActivityJobs,moduleGroups,aggregateLegs};

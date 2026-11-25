@@ -5,13 +5,15 @@ const ejs=require('ejs');
 const path=require('node:path');
 const branch={_id:'507f1f77bcf86cd799439011',name:'Nairobi Main',currency:'KES',currencies:['KES'],status:'active'};
 const currencyChoices=require('../src/tenant/services/branchCurrency.service').options(branch);
-const data={currencyChoices,currencyOptions:currencyChoices,selectedCurrency:'KES',openingBook:{currency:'KES',name:'Nairobi drawer',bookBalanceMinor:'0'},branches:[branch],selectedBranchId:String(branch._id),canRecord:true,canOpen:true,canCreate:true,
+const data={currencyChoices,currencyOptions:currencyChoices,selectedCurrency:'KES',openingBook:{currency:'KES',name:'Nairobi drawer',bookBalanceMinor:'0',status:'active',reconciliationState:'matched'},branches:[branch],selectedBranchId:String(branch._id),canRecord:true,canOpen:true,canCreate:true,
  canManage:true,canPropose:true,canQuote:true,canSubmit:true,canReview:false,canRateReview:false,
  canQuoteReview:false,canDecide:()=>false,summary:{total:0,recent:[],summaries:[]},records:{items:[]},
  shifts:{items:[]},contacts:[],references:[],institutions:[],policies:[],reviewQueue:[],voidQueue:[],
- rateQueue:[],quoteQueue:[],rates:[],queue:[],countryOptions:[],roles:[],categories:[],idempotencyKey:'test'};
+ rateQueue:[],quoteQueue:[],rates:[],queue:[],countryOptions:[],roles:[],categories:[],idempotencyKey:'test',
+ format:require('../src/tenant/services/mobileMoney.service').formatMoneyMinor,
+ cashDayUrl:require('../src/tenant/routes/cashControl.routes').cashDayUrl};
 const user={id:'507f1f77bcf86cd799439012',name:'Owner',role:'Tenant Owner',permissions:['*'],branchId:String(branch._id)};
-const files=['mobile-money/index','mobile-money/shifts','money-transfer/index','money-transfer/contacts',
+const files=['mobile-money/index','workflow/cash-day','money-transfer/index','money-transfer/contacts',
  'banking/index','banking/accounts','forex/index','approvals/index'];
 const render=(file,options={})=>ejs.renderFile(path.resolve(__dirname,'../src/views/tenant',file+'.ejs'),{
  data,user,csrfToken:'test',operationBranch:branch,operationBranchError:'',money:()=>'',amountFromMinor:()=>'',...options});
@@ -21,7 +23,7 @@ test('operational forms show the account branch and never submit a branch select
   const html=await render(file);
   assert.doesNotMatch(html,/<(?:select|input)\b[^>]*name="branchId"/,file);
   assert.doesNotMatch(html,/Operating at <strong>Nairobi Main<\/strong>/,file+' should not duplicate top navigation branch information');
-  if(file==='mobile-money/shifts'){
+  if(file==='workflow/cash-day'){
    assert.match(html,/<span>Nairobi Main · KSH<\/span>/);
    assert.match(html,/<input type="hidden" name="currency" value="KES"/);
   }

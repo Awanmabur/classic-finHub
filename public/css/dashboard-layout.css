@@ -1,17 +1,10 @@
 /* Shared platform/tenant layout. The approved reference cascade stays intact. */
 .topbar{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
 .topbar>.topActions{display:flex;align-items:center;gap:10px;width:100%;min-width:0;flex-wrap:nowrap}
-.topbar>.title{min-width:0}
-.headerScope{display:flex;align-items:center;gap:8px;min-width:0;max-width:300px;flex:0 1 auto}
-.headerScope>.ctrl{margin:0;min-width:0}
-.headerScope [data-branch-view-form]{max-width:210px;flex:0 1 auto}
-.headerScope [data-dashboard-currency-form]{flex:0 0 82px}
-.headerScope select{min-width:0;text-overflow:ellipsis}
+.topbar>.title{min-width:0;overflow-wrap:anywhere}
 .headerSearch{flex:1 1 180px;min-width:100px;max-width:360px}
 .headerButtons{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex:0 0 auto;flex-wrap:wrap;margin-left:auto;min-width:0}
-.headerButtons:empty,.headerPrimaryActions:empty{display:none}
-.headerPrimaryActions{display:flex;align-items:center;gap:10px;flex-wrap:nowrap;min-width:0}
-.headerNotice{gap:6px}
+.headerButtons:empty{display:none}
 
 /* Each dot and the rail share the same horizontal center, including the
    narrower navigation-group padding on phones. */
@@ -38,23 +31,14 @@ form[method="get"] .field>.control{min-width:0;width:100%}
 .mobileMoneyFilters>.rowBtns{grid-column:1/-1;justify-content:flex-end}
 
 @media(max-width:1120px){
- .topbar{grid-template-columns:44px minmax(0,1fr);grid-template-areas:"menu scope" "title title" "search search" "buttons buttons";align-items:center;gap:12px 10px}
+ .topbar{grid-template-columns:44px minmax(0,1fr);grid-template-areas:"menu ." "title title" "search search" "buttons buttons";align-items:center;gap:12px 10px}
  .topbar>.topActions{display:contents}
  .headerMenu{grid-area:menu;justify-self:start;margin:0}
- .headerScope{grid-area:scope;justify-self:end;justify-content:flex-end;width:100%}
- .headerScope [data-branch-view-form]{max-width:calc(100% - 90px);flex:0 1 210px}
  .topbar>.title{grid-area:title}
  .topbar .headerSearch{grid-area:search;width:100%;max-width:none;min-width:0;margin:0}
  .headerButtons{grid-area:buttons;width:100%;margin:0;justify-content:flex-end}
- .headerPrimaryActions{justify-content:flex-end}
 }
 @media(max-width:700px){
- .headerNotice{display:none}
- .headerScope>.ctrl{padding:10px}
- .headerScope [data-dashboard-currency-form]{flex-basis:76px}
- .headerScope [data-branch-view-form]{max-width:calc(100% - 84px)}
- .headerPrimaryActions{width:100%}
- .headerPrimaryActions>.btn{flex:1 1 0;min-width:0;padding-inline:10px;font-size:12px;text-align:center}
  .headerButtons>.btn{min-width:0;white-space:normal}
  form[method="get"] .field>.control{padding-inline:9px;font-size:12px}
 }
@@ -413,8 +397,7 @@ form[method="get"] .field>.control{min-width:0;width:100%}
 }
 
 
-/* Tenant shell: operator first, then currency, search, notifications,
-   receipt and transaction. Keep platform navigation unchanged. */
+/* Tenant branding and account controls. */
 body[data-workspace="tenant"] .brand .logo{
  background:#fff url('/images/classicfinhub-mark.png') center/contain no-repeat!important;
  color:var(--text)!important;
@@ -472,102 +455,114 @@ body[data-workspace="tenant"] .tenantSideFoot .accountActions .btn{
  }
 }
 
-/* Keep tenant controls in the same order as their keyboard focus. Desktop
-   controls can wrap together; narrow screens use dedicated rows. */
+/* Keep session actions and page controls on independent full-width rows. */
 body[data-workspace="tenant"] .topbar{
  grid-template-columns:minmax(0,1fr);grid-template-areas:none;
- align-items:stretch;gap:10px;padding:4px 0 14px;
+ align-items:stretch;gap:12px;padding:4px 0 14px;
 }
-body[data-workspace="tenant"] .topbar>.topActions{display:flex;flex-wrap:wrap;gap:10px}
+body[data-workspace="tenant"] .topbar>.topActions{
+ display:grid;grid-template-columns:minmax(0,1fr);gap:10px;
+}
 body[data-workspace="tenant"] .topbar>.title{grid-area:auto}
 body[data-workspace="tenant"] .topbar>.title h2{font-size:20px;line-height:1.25}
 body[data-workspace="tenant"] .topbar>.title p{font-size:12px;line-height:1.45;margin:4px 0 0}
-body[data-workspace="tenant"] .tenantHeaderIdentityGroup{
- display:flex;align-items:center;flex:0 1 180px;min-width:0;max-width:100%;gap:8px;
+body[data-workspace="tenant"] .topbar>.title p:empty{display:none}
+.tenantHeaderSession{
+ display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;
+ min-width:0;min-height:44px;gap:12px;
 }
-body[data-workspace="tenant"] .headerMenu{flex:0 0 44px}
-body[data-workspace="tenant"] .headerIdentity{display:grid;gap:2px;min-width:0;line-height:1.25}
-body[data-workspace="tenant"] .headerIdentity strong{font-size:13px;font-weight:800}
-body[data-workspace="tenant"] .headerIdentity span:not([hidden]){font-size:11px;color:var(--muted)}
-body[data-workspace="tenant"] .headerIdentity :is(strong,span:not([hidden])){
+.tenantHeaderIdentityGroup{
+ display:flex;align-items:center;gap:8px;min-width:0;
+}
+.tenantHeaderIdentityGroup .headerMenu{flex:0 0 44px}
+.tenantHeaderIdentityGroup .headerIdentity{display:grid;gap:2px;min-width:0;line-height:1.25}
+.tenantHeaderIdentityGroup .headerIdentity strong{font-size:13px;font-weight:800}
+.tenantHeaderIdentityGroup .headerIdentity span:not([hidden]){font-size:11px;color:var(--muted)}
+.tenantHeaderIdentityGroup .headerIdentity :is(strong,span:not([hidden])){
  display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
-body[data-workspace="tenant"] .tenantHeaderControlGroup{
- display:flex;align-items:center;flex:1 1 510px;flex-wrap:wrap;gap:8px;min-width:0;
-}
-body[data-workspace="tenant"] .tenantHeaderControlGroup:not(:has(.ctrl,a,button)),
-body[data-workspace="tenant"] .headerButtons:not(:has(a,button)){display:none}
-body[data-workspace="tenant"] .tenantHeaderControlGroup :is(.ctrl,.btn){
- min-height:38px;margin:0;padding:7px 10px;
-}
-body[data-workspace="tenant"] .tenantHeaderControlGroup>.headerBranchView{
- flex:0 1 156px;min-width:122px;
-}
-body[data-workspace="tenant"] .headerBranchView .visuallyHidden{
- position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;
- clip:rect(0 0 0 0);white-space:nowrap;
-}
-body[data-workspace="tenant"] .tenantHeaderControlGroup>.headerScope{
- grid-area:auto;flex:0 0 auto;min-width:0;width:auto;max-width:none;
-}
-body[data-workspace="tenant"] .headerScope>[data-dashboard-currency-form]{flex:1 1 auto}
-body[data-workspace="tenant"] .tenantHeaderControlGroup form.ctrl{padding:0}
-body[data-workspace="tenant"] .tenantHeaderControlGroup .ctrl select{
- min-width:0;width:100%;min-height:36px;padding:0 8px;font-size:12px;
- text-overflow:ellipsis;
-}
-body[data-workspace="tenant"] .topbar .headerSearch{
- grid-area:auto;flex:1 1 140px;min-width:120px;max-width:280px;width:auto;margin:0;
-}
-body[data-workspace="tenant"] .headerSearch i{color:var(--muted);font-size:12px}
-body[data-workspace="tenant"] .tenantHeaderControlGroup>.headerButtons{
+.tenantHeaderSession .headerButtons{
  grid-area:auto;flex:0 0 auto;min-width:0;width:auto;gap:8px;margin:0;
 }
-body[data-workspace="tenant"] .headerPrimaryActions{width:auto;gap:8px}
-body[data-workspace="tenant"] .tenantHeaderControlGroup .btn{font-size:12px}
-body[data-workspace="tenant"] .tenantHeaderControlGroup .btnIcon{width:38px;min-width:38px;padding:0}
-body[data-workspace="tenant"] .headerNotice{display:inline-flex;position:relative}
-body[data-workspace="tenant"] .headerNotice .phase2Badge{
+.tenantHeaderSession .headerPrimaryActions{
+ display:flex;align-items:center;gap:8px;min-width:0;
+}
+.tenantHeaderSession :is(.headerButtons,.headerPrimaryActions):not(:has(a,button)){display:none}
+.tenantHeaderSession .btn{font-size:12px}
+.tenantHeaderSession .btnIcon{width:44px;min-width:44px;padding:0}
+.tenantHeaderSession .headerNotice{position:relative}
+.tenantHeaderSession .phase2Badge{
  position:absolute;right:-3px;top:-5px;min-width:17px;min-height:17px;
  padding:2px 3px;font-size:9px;line-height:1;text-align:center;
 }
-@media(max-width:1120px){
- body[data-workspace="tenant"] .tenantHeaderIdentityGroup{flex:1 1 180px}
+body[data-workspace="tenant"] .tenantHeaderControlGroup{
+ display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-width:0;
+}
+.tenantHeaderControlGroup :is(.headerBranchView,.headerScope){
+ min-width:0;
+}
+.tenantHeaderControlGroup>.headerBranchView{flex:0 1 250px}
+.tenantHeaderControlGroup>.headerScope{flex:0 0 137px}
+.tenantHeaderControlGroup form.ctrl{margin:0;padding:0;min-width:0}
+.tenantHeaderControlGroup .headerBranchView .visuallyHidden{
+ position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;
+ clip:rect(0 0 0 0);white-space:nowrap;
+}
+.tenantHeaderControlGroup .ctrl select{
+ min-width:0;width:100%;min-height:42px;padding:0 10px;font-size:13px;
+ text-overflow:ellipsis;
+}
+body[data-workspace="tenant"] .topbar .headerSearch{
+ grid-area:auto;flex:1 1 160px;min-width:0;max-width:360px;width:auto;
+ margin:0 0 0 auto;padding-block:7px;
+}
+.tenantHeaderControlGroup .headerSearch i{color:var(--muted);font-size:12px}
+@media(min-width:1280px){
+ body[data-workspace="tenant"] .topbar:has(.tenantHeaderControlGroup){
+  grid-template-columns:minmax(220px,1fr) auto;
+ }
+ body[data-workspace="tenant"] .topbar>.topActions{display:contents}
+ .tenantHeaderSession{grid-column:1/-1}
+ body[data-workspace="tenant"] .topbar>.title{grid-column:1;grid-row:2;align-self:center}
+ body[data-workspace="tenant"] .tenantHeaderControlGroup{
+  grid-column:2;grid-row:2;justify-content:flex-end;
+ }
+ .tenantHeaderControlGroup>.headerBranchView{width:250px}
+ .tenantHeaderControlGroup>.headerScope{width:137px}
+ body[data-workspace="tenant"] .topbar .headerSearch{flex:0 0 240px;width:240px}
 }
 @media(max-width:700px){
  body[data-workspace="tenant"] .wrap{padding:8px}
  body[data-workspace="tenant"] .main{padding:12px}
  body[data-workspace="tenant"] .topbar{gap:10px;padding:0 0 12px}
- body[data-workspace="tenant"] .topbar>.topActions{display:grid;gap:8px}
- body[data-workspace="tenant"] .tenantHeaderControlGroup{
-  display:grid;grid-template-columns:minmax(0,1fr) minmax(105px,.75fr);gap:8px;
+ body[data-workspace="tenant"] .topbar>.topActions{gap:8px}
+ .tenantHeaderSession{grid-template-columns:minmax(0,1fr);gap:8px}
+ .tenantHeaderIdentityGroup .headerIdentity :is(strong,span:not([hidden])){
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
+  white-space:normal;overflow-wrap:anywhere;
  }
- body[data-workspace="tenant"] .tenantHeaderControlGroup>.headerBranchView{min-width:0}
- body[data-workspace="tenant"] .tenantHeaderControlGroup>.headerScope{
-  justify-self:stretch;
- }
- body[data-workspace="tenant"] .tenantHeaderControlGroup>:is(.headerBranchView,.headerScope):not(:has(~.headerScope),.headerBranchView+.headerScope){
-  grid-column:1/-1;
- }
- body[data-workspace="tenant"] .topbar .headerSearch{
-  grid-column:1/-1;min-width:0;max-width:none;
- }
- body[data-workspace="tenant"] .headerSearch input{font-size:16px}
- body[data-workspace="tenant"] .tenantHeaderControlGroup>.headerButtons{
-  grid-column:1/-1;gap:6px;justify-content:flex-start;
- }
- body[data-workspace="tenant"] .tenantHeaderControlGroup :is(.ctrl,.btn){min-height:44px}
- body[data-workspace="tenant"] .tenantHeaderControlGroup .ctrl select{min-height:44px}
- body[data-workspace="tenant"] .tenantHeaderControlGroup :is(.btnIcon,.headerLastReceipt){
+ .tenantHeaderSession .headerButtons{justify-content:flex-start;flex-wrap:nowrap;gap:5px}
+ .tenantHeaderSession .headerPrimaryActions{flex:1 1 0;gap:5px}
+ .tenantHeaderSession :is(.btnIcon,.headerLastReceipt){
   width:44px;min-width:44px;flex:0 0 44px;padding:0;
  }
- body[data-workspace="tenant"] .headerLastReceipt span{display:none}
- body[data-workspace="tenant"] .headerDriveForm{flex:0 0 44px}
- body[data-workspace="tenant"] .headerPrimaryActions{
-  flex:1 1 auto;justify-content:flex-start;gap:6px;
+ .tenantHeaderSession .headerLastReceipt span{display:none}
+ .tenantHeaderSession .headerDriveForm{flex:0 0 44px}
+ .tenantHeaderSession #newTransactionBtn{
+  min-width:0;margin-inline-start:auto;padding-inline:8px;
+  white-space:normal;text-align:center;line-height:1.2;
  }
- body[data-workspace="tenant"] .headerPrimaryActions>.btn{flex:0 1 auto;padding-inline:10px}
- body[data-workspace="tenant"] .headerPrimaryActions>#newTransactionBtn{margin-left:auto}
+ body[data-workspace="tenant"] .tenantHeaderControlGroup{
+  display:grid;grid-template-columns:minmax(0,1fr);
+ }
+ .tenantHeaderControlGroup:has(>.headerBranchView):has(>.headerScope){
+  grid-template-columns:minmax(0,1fr) minmax(116px,.72fr);
+ }
+ body[data-workspace="tenant"] .topbar .headerSearch{
+  grid-column:1/-1;max-width:none;margin:0;padding-inline:10px;
+ }
+ .tenantHeaderControlGroup .headerSearch input{font-size:16px}
+ .tenantHeaderControlGroup .ctrl select{padding-inline:7px}
  body[data-workspace="tenant"] .topbar>.title h2{font-size:19px}
 }
 

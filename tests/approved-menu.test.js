@@ -18,16 +18,16 @@ function actor(role,allowedModules){return {id:branchId,name:'Staff',role,branch
 function paths(menu){return menu.flatMap(group=>group.items.map(item=>item.href));}
 function reportPaths(menu){return menu.find(group=>group.label==='Operation Reports')?.paths||[];}
 
-test('fully entitled owner uses a single Money accounts entry for funds and the cash day',()=>{
+test('fully entitled owner can reach Money accounts and Cash day directly',()=>{
  const menu=tenantMenu(subscribed(),owner),links=paths(menu);
  const work=menu.find(group=>group.label==='Daily work').items;
  assert.deepEqual(work.map(item=>[item.label,item.href]),[
-  ['Money accounts','/tenant/treasury'],['Expenses','/tenant/expenses']
+  ['Cash day','/tenant/cash/shifts'],['Money accounts','/tenant/treasury'],['Expenses','/tenant/expenses']
  ]);
- for(const link of ['/tenant/dashboard','/tenant/treasury','/tenant/customers','/tenant/accounts','/tenant/reports','/tenant/users','/tenant/workspace','/tenant/audit','/tenant/setup','/tenant/modules','/tenant/workspace/reviews']){
+ for(const link of ['/tenant/dashboard','/tenant/treasury','/tenant/cash/shifts','/tenant/customers','/tenant/accounts','/tenant/reports','/tenant/users','/tenant/workspace','/tenant/audit','/tenant/setup','/tenant/modules','/tenant/workspace/reviews']){
   assert.equal(links.filter(path=>path===link).length,1,link+' is linked once');
  }
- for(const removed of ['/tenant/funded','/tenant/approvals','/tenant/cash/shifts','/tenant/day/close','/tenant/accounts/balances','/tenant/accounts/movements','/tenant/reports/export.csv','/tenant/reports/opening','/tenant/reports/closing','/tenant/transactions/new','/tenant/last-receipt']){
+ for(const removed of ['/tenant/funded','/tenant/approvals','/tenant/day/close','/tenant/accounts/balances','/tenant/accounts/movements','/tenant/reports/export.csv','/tenant/reports/opening','/tenant/reports/closing','/tenant/transactions/new','/tenant/last-receipt']){
   assert(!links.includes(removed),removed+' is handled within its workflow');
  }
  for(const link of links)assert.match(link,/^\/tenant\/[a-z0-9/.-]+$/);
@@ -74,8 +74,8 @@ test('rendered topbar hides receipt and transaction actions when no subscribed s
  const bankingHtml=await render({...base,enabledModules:['banking'],moduleGrants:[]});
  assert.doesNotMatch(bankingHtml,/id="lastReceiptBtn"/,'Banking instructions do not supply the Mobile/Transfer receipt page');
  assert.match(bankingHtml,/id="newTransactionBtn"/);
- assert.match(bankingHtml,/href="\/tenant\/treasury#cash-day"/,'A subscribed banking source supplies the Money accounts cash day');
- assert.doesNotMatch(bankingHtml,/href="\/tenant\/(?:cash\/shifts|funded|approvals)"/);
+ assert.match(bankingHtml,/href="\/tenant\/cash\/shifts"/,'A subscribed banking source supplies the Cash Day page');
+ assert.doesNotMatch(bankingHtml,/href="\/tenant\/(?:funded|approvals)"/);
  assert.doesNotMatch(bankingHtml,/data-transaction-kind="approval"/);
  const mobileHtml=await render({...base,enabledModules:['mobile_money'],moduleGrants:[]});
  assert.match(mobileHtml,/id="lastReceiptBtn"/);

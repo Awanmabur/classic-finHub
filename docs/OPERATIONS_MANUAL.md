@@ -242,12 +242,12 @@ See [manual funds and UI controls](MANUAL_FUNDS_AND_UI.md) for the detailed acco
 
 ## 7. Open the operating day
 
-**Responsible:** each cash-handling operator; another eligible reviewer verifies the opening. **Page:** **Operation Reports → Open day**, `/tenant/cash/shifts`.
+Open **Daily work → Cash day** at `/tenant/cash/shifts`. The Tenant Owner opens their own drawer directly. Staff submit their count to an authorized reviewer.
 
 1. Confirm you are signed in as yourself at the correct operating branch, with the needed subscriptions and module assignments.
 2. Check **Wallets & balances**. Your drawer and required accounts must have reviewed openings, adequate funds and no unresolved hold. Compare real wallet/bank balances and count the drawer before accepting work.
-3. Select the drawer's **Currency**, enter its physical **Opening** count and choose **Open day with these balances**. This submits `pending_open`; it does not yet authorize cash posting. Repeat separately for each handled currency.
-4. An independent reviewer opens the shift, records **Opening verification evidence**, recounts/checks the evidence and chooses **Verify and open shift**. If wrong, use **Reject opening count** and correct the opening process.
+3. Select the drawer currency and count the physical cash. Confirm a match and choose **Open day** as the owner or **Send opening count** as staff. If the owner counts a different amount, enter it with the reason and choose **Reconcile and open day**.
+4. An authorized reviewer checks a staff count under **Counts to review** and chooses **Verify and open** or **Reject opening count**.
 5. Confirm the shift is `open` before starting cash transactions. The actual drawer book must agree with the opening; the shift does not reinitialize the account.
 6. Open **New transaction** to choose an available service. Keep the correct originating form/reference for each real event.
 
@@ -457,18 +457,18 @@ Reports and Analytics are separately entitled. A Reports subscription never gran
 
 ## 15. Close the day and resolve differences
 
-**Responsible:** originating operator submits; independent reviewer reconciles; Owner or Reconciliation Officer approves a cash variance. **Pages:** Close day `/tenant/day/close`, Cash control review `/tenant/cash/shifts`, Wallets & balances `/tenant/treasury`.
+Return to **Daily work → Cash day** at `/tenant/cash/shifts`. Owners can close and reconcile their own drawer. Staff closing counts go to an authorized reviewer.
 
 1. Stop starting new drawer work while counting. Check pending Mobile Money verification/corrections, expenses and manual financial movement requests for your drawer. Have reviewers decide them or resolve/reject the source requests through their actual workflow.
 2. Recheck real wallet/provider and bank evidence for the intended close time. Record new actual observations where needed and make their time clear.
-3. Open **Close day** or your open shift. Inspect expected cash, count the physical cash independently from the displayed expected amount and enter **Physically counted closing cash**. Explain any difference.
-4. Choose **Submit shift for independent review**. The shift becomes `submitted`; unresolved bound financial requests can block submission. The system checks the drawer's expected balance against its posted funds book.
-5. Another eligible reviewer inspects the count, sources, expected amount and evidence. Choose **Approve count** if supported or **Dispute and return to operator** if investigation/recount is needed. A Branch Manager cannot approve a nonzero variance; a Tenant Owner or Reconciliation Officer must decide it.
+3. Choose the drawer currency, count the cash and compare it with expected cash. Confirm a match or enter the counted amount and the reason for the difference.
+4. The owner chooses **Close day** or **Reconcile and close day**. Staff choose **Send closing count** or **Send difference for review**. Resolve any bound financial requests that block closing.
+5. On staff counts, an authorized reviewer inspects the evidence and chooses **Approve and close** or **Return to operator**. The Tenant Owner or Reconciliation Officer can approve a cash variance from another operator.
 6. If disputed, the originating operator follows the investigation/recount procedure and resubmits. Do not create another shift or change the opening to make the difference disappear.
 7. If a Treasury checkpoint shows a difference, follow the explicit missing-entry/reversal/adjustment procedure from section 6. Approving a physical count is not permission to silently replace a wallet or drawer's book with that number.
 8. Confirm the final approved shift, reviewed balances, no unresolved operational items and the saved daily report/export. Retain count sheets and vouchers according to policy, then sign out and secure the physical assets.
 
-**Expected result:** an immutable recorded opening, posted event history, physical closing count, variance and independent decision. The next day starts from the existing funds book; no second opening journal is created merely because the date changed.
+Cash Day records the opening, posted event history, physical closing count, variance and confirmation. The next day starts from the existing funds book.
 
 **Difference example:** expected cash is UGX 361,500 but a genuine count is UGX 360,500. Record the UGX 1,000 shortage and evidence. Search the event sequence, real vouchers and reversals; recount. If the shortage remains and the authorized policy allows recognition, request a visible independently reviewed reconciliation adjustment. Never change the cash-in amount solely to force a match.
 
